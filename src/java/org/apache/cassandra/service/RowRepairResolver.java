@@ -178,7 +178,7 @@ public class RowRepairResolver extends AbstractRowResolver
     }
 
     public boolean isDataPresent()
-	{
+    {
         throw new UnsupportedOperationException();
     }
 

@@ -324,8 +324,8 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void registerVerbHandlers(StorageService.Verb verb, IVerbHandler verbHandler)
     {
-    	assert !verbHandlers.containsKey(verb);
-    	verbHandlers.put(verb, verbHandler);
+        assert !verbHandlers.containsKey(verb);
+        verbHandlers.put(verb, verbHandler);
     }
 
     /**

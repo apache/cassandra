@@ -89,9 +89,9 @@ public class IndexHelper
      * @return ArrayList<IndexInfo> - list of de-serialized indexes
      * @throws IOException if an I/O error occurs.
      */
-	public static ArrayList<IndexInfo> deserializeIndex(FileDataInput in) throws IOException
-	{
-		int columnIndexSize = in.readInt();
+    public static ArrayList<IndexInfo> deserializeIndex(FileDataInput in) throws IOException
+    {
+        int columnIndexSize = in.readInt();
         if (columnIndexSize == 0)
             return null;
         ArrayList<IndexInfo> indexList = new ArrayList<IndexInfo>();
@@ -103,7 +103,7 @@ public class IndexHelper
         assert in.bytesPastMark(mark) == columnIndexSize;
 
         return indexList;
-	}
+    }
 
     public static Filter defreezeBloomFilter(FileDataInput file, boolean usesOldBloomFilter) throws IOException
     {

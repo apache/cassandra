@@ -86,7 +86,7 @@ public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
         return new BigIntegerToken(midpair.left);
     }
 
-	public BigIntegerToken getMinimumToken()
+    public BigIntegerToken getMinimumToken()
     {
         return MINIMUM;
     }

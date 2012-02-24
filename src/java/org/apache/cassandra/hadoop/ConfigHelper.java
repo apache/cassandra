@@ -294,22 +294,22 @@ public class ConfigHelper
     
     public static String getInputKeyspaceUserName(Configuration conf)
     {
-    	return conf.get(INPUT_KEYSPACE_USERNAME_CONFIG);
+        return conf.get(INPUT_KEYSPACE_USERNAME_CONFIG);
     }
     
     public static String getInputKeyspacePassword(Configuration conf)
     {
-    	return conf.get(INPUT_KEYSPACE_PASSWD_CONFIG);
+        return conf.get(INPUT_KEYSPACE_PASSWD_CONFIG);
     }
 
     public static String getOutputKeyspaceUserName(Configuration conf)
     {
-    	return conf.get(OUTPUT_KEYSPACE_USERNAME_CONFIG);
+        return conf.get(OUTPUT_KEYSPACE_USERNAME_CONFIG);
     }
     
     public static String getOutputKeyspacePassword(Configuration conf)
     {
-    	return conf.get(OUTPUT_KEYSPACE_PASSWD_CONFIG);
+        return conf.get(OUTPUT_KEYSPACE_PASSWD_CONFIG);
     }
 
     public static String getInputColumnFamily(Configuration conf)

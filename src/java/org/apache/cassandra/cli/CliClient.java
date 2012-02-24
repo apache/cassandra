@@ -1824,7 +1824,7 @@ public class CliClient
      */
     private boolean hasKeySpace() 
     {
-    	if (keySpace == null)
+        if (keySpace == null)
         {
             sessionState.out.println("Not authenticated to a working keyspace.");
             return false;
@@ -1881,23 +1881,23 @@ public class CliClient
         
         try 
         {
-        	AuthenticationRequest authRequest;
-        	Map<String, String> credentials = new HashMap<String, String>();
+            AuthenticationRequest authRequest;
+            Map<String, String> credentials = new HashMap<String, String>();
 
             keySpaceName = CliCompiler.getKeySpace(keySpaceName, thriftClient.describe_keyspaces());
 
             thriftClient.set_keyspace(keySpaceName);
 
-        	if (username != null && password != null) 
-        	{
-        	    /* remove quotes */
-        	    password = password.replace("\'", "");
-        	    credentials.put(IAuthenticator.USERNAME_KEY, username);
+            if (username != null && password != null) 
+            {
+                /* remove quotes */
+                password = password.replace("\'", "");
+                credentials.put(IAuthenticator.USERNAME_KEY, username);
                 credentials.put(IAuthenticator.PASSWORD_KEY, password);
                 authRequest = new AuthenticationRequest(credentials);
                 thriftClient.login(authRequest);
-        	}
-        	
+            }
+
             keySpace = keySpaceName;
             this.username = username != null ? username : "default";
             
@@ -1907,7 +1907,7 @@ public class CliClient
         catch (AuthenticationException e) 
         {
             sessionState.err.println("Exception during authentication to the cassandra node: " +
-            		                 "verify keyspace exists, and you are using correct credentials.");
+                                     "verify keyspace exists, and you are using correct credentials.");
         } 
         catch (AuthorizationException e) 
         {

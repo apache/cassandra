@@ -49,30 +49,31 @@ public class WriteResponse
         return original.getReply(FBUtilities.getBroadcastAddress(), bytes, original.getVersion());
     }
 
-	private final String table;
-	private final ByteBuffer key;
-	private final boolean status;
+    private final String table;
+    private final ByteBuffer key;
+    private final boolean status;
 
-	public WriteResponse(String table, ByteBuffer key, boolean bVal) {
-		this.table = table;
-		this.key = key;
-		this.status = bVal;
-	}
+    public WriteResponse(String table, ByteBuffer key, boolean bVal)
+    {
+        this.table = table;
+        this.key = key;
+        this.status = bVal;
+    }
 
-	public String table()
-	{
-		return table;
-	}
+    public String table()
+    {
+        return table;
+    }
 
-	public ByteBuffer key()
-	{
-		return key;
-	}
+    public ByteBuffer key()
+    {
+        return key;
+    }
 
-	public boolean isSuccess()
-	{
-		return status;
-	}
+    public boolean isSuccess()
+    {
+        return status;
+    }
 
     public static class WriteResponseSerializer implements IVersionedSerializer<WriteResponse>
     {

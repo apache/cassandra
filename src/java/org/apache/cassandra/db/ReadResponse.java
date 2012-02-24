@@ -44,44 +44,44 @@ private static IVersionedSerializer<ReadResponse> serializer;
     {
         return serializer;
     }
-    
-	private final Row row;
-	private final ByteBuffer digest;
 
-	public ReadResponse(ByteBuffer digest)
+    private final Row row;
+    private final ByteBuffer digest;
+
+    public ReadResponse(ByteBuffer digest)
     {
         assert digest != null;
-		this.digest= digest;
+        this.digest= digest;
         this.row = null;
-	}
+    }
 
-	public ReadResponse(Row row)
+    public ReadResponse(Row row)
     {
         assert row != null;
-		this.row = row;
+        this.row = row;
         this.digest = null;
-	}
-
-	public Row row() 
-    {
-		return row;
     }
-        
-	public ByteBuffer digest() 
-    {
-		return digest;
-	}
 
-	public boolean isDigestQuery()
+    public Row row() 
     {
-    	return digest != null;
+        return row;
+    }
+
+    public ByteBuffer digest() 
+    {
+        return digest;
+    }
+
+    public boolean isDigestQuery()
+    {
+        return digest != null;
     }
 }
 
 class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
 {
-	public void serialize(ReadResponse response, DataOutput dos, int version) throws IOException
-	{
+    public void serialize(ReadResponse response, DataOutput dos, int version) throws IOException
+    {
         dos.writeInt(response.isDigestQuery() ? response.digest().remaining() : 0);
         ByteBuffer buffer = response.isDigestQuery() ? response.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER;
         ByteBufferUtil.write(buffer, dos);
@@ -89,7 +89,7 @@ class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
         if (!response.isDigestQuery())
             Row.serializer().serialize(response.row(), dos, version);
     }
-	
+
     public ReadResponse deserialize(DataInput dis, int version) throws IOException
     {
         byte[] digest = null;

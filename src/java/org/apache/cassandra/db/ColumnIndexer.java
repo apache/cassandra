@@ -31,19 +31,18 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.BloomFilter;
 
-
 /**
  * Help to create an index for a column family based on size of columns
  */
 public class ColumnIndexer
 {
-	/**
-	 * Given a column family this, function creates an in-memory structure that represents the
-	 * column index for the column family, and subsequently writes it to disk.
+    /**
+     * Given a column family this, function creates an in-memory structure that represents the
+     * column index for the column family, and subsequently writes it to disk.
      *
-	 * @param columns Column family to create index for
-	 * @param dos data output stream
-	 */
+     * @param columns Column family to create index for
+     * @param dos data output stream
+     */
     public static void serialize(IIterableColumns columns, DataOutput dos)
     {
         try

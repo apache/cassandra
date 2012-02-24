@@ -81,10 +81,10 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
         
     @Override
     public int determineBlockFor(ConsistencyLevel consistency_level, String table)
-	{
+    {
         NetworkTopologyStrategy stategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
-		return (stategy.getReplicationFactor(localdc) / 2) + 1;
-	}
+        return (stategy.getReplicationFactor(localdc) / 2) + 1;
+    }
 
     @Override
     public void assureSufficientLiveNodes() throws UnavailableException

@@ -224,7 +224,7 @@ public class NodeProbe
 
     public void drain() throws IOException, InterruptedException, ExecutionException
     {
-        ssProxy.drain();	
+        ssProxy.drain();
     }
     
     public Map<String, String> getTokenToEndpointMap()

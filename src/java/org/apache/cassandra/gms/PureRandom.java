@@ -40,8 +40,8 @@ class PureRandom extends Random
 
     public int nextInt(int ub)
     {
-    	if (ub <= 0)
-    		throw new IllegalArgumentException("ub must be positive");
+        if (ub <= 0)
+            throw new IllegalArgumentException("ub must be positive");
 
         if (lastUb !=  ub)
         {
@@ -50,7 +50,7 @@ class PureRandom extends Random
         }
         else if(bs.cardinality() == ub)
         {
-        	bs.clear();
+            bs.clear();
         }
 
         int value = super.nextInt(ub);
@@ -64,8 +64,8 @@ class PureRandom extends Random
 
     public static void main(String[] args) throws Throwable
     {
-    	Random pr = new PureRandom();
-        int ubs[] = new int[] { 2, 3, 1, 10, 5, 0};
+        Random pr = new PureRandom();
+        int ubs[] = new int[]{ 2, 3, 1, 10, 5, 0 };
 
         for (int ub : ubs)
         {

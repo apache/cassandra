@@ -53,7 +53,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
     }
 
-	private final NetworkTopologyStrategy strategy;
+    private final NetworkTopologyStrategy strategy;
     private HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
 
     protected DatacenterSyncWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
@@ -113,7 +113,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         // Throw exception if any of the DC doesn't have livenodes to accept write.
         for (String dc: strategy.getDatacenters())
         {
-        	if (dcEndpoints.get(dc).get() < responses.get(dc).get())
+            if (dcEndpoints.get(dc).get() < responses.get(dc).get())
                 throw new UnavailableException();
         }
     }

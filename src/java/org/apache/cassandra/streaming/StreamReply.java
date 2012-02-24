@@ -54,7 +54,7 @@ class StreamReply implements MessageProducer
 
     public Message getMessage(Integer version) throws IOException
     {
-    	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         serializer.serialize(this, dos, version);
         return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.STREAM_REPLY, bos.toByteArray(), version);

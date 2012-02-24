@@ -77,10 +77,10 @@ public class GuidGenerator {
         long rand = 0;
         rand = myRand.nextLong();
         sbValueBeforeMD5.append(s_id)
-        				.append(":")
-        				.append(Long.toString(time))
-        				.append(":")
-        				.append(Long.toString(rand));
+                        .append(":")
+                        .append(Long.toString(time))
+                        .append(":")
+                        .append(Long.toString(rand));
 
         String valueBeforeMD5 = sbValueBeforeMD5.toString();
         return ByteBuffer.wrap(FBUtilities.threadLocalMD5Digest().digest(valueBeforeMD5.getBytes()));

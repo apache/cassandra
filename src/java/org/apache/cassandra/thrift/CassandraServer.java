@@ -126,7 +126,7 @@ public class CassandraServer implements Cassandra.Iface
         catch (TimeoutException e) 
         {
             logger.debug("... timed out");
-        	throw new TimedOutException();
+            throw new TimedOutException();
         }
         catch (IOException e)
         {
@@ -708,7 +708,7 @@ public class CassandraServer implements Cassandra.Iface
         catch (TimeoutException e)
         {
             logger.debug("... timed out");
-        	throw new TimedOutException();
+            throw new TimedOutException();
         }
         catch (IOException e)
         {
@@ -764,7 +764,7 @@ public class CassandraServer implements Cassandra.Iface
         catch (TimeoutException e)
         {
             logger.debug("... timed out");
-        	throw new TimedOutException();
+            throw new TimedOutException();
         }
         catch (IOException e)
         {

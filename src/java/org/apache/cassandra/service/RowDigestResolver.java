@@ -92,7 +92,7 @@ public class RowDigestResolver extends AbstractRowResolver
             }
         }
 
-		// Compare digest (only one, since we threw earlier if there were different replies)
+        // Compare digest (only one, since we threw earlier if there were different replies)
         // with the data response. If there is a mismatch then throw an exception so that read repair can happen.
         //
         // It's important to note that we do not consider the possibility of multiple data responses --
@@ -108,11 +108,11 @@ public class RowDigestResolver extends AbstractRowResolver
 
         if (logger.isDebugEnabled())
             logger.debug("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
-		return new Row(key, data);
-	}
+        return new Row(key, data);
+    }
 
     public boolean isDataPresent()
-	{
+    {
         for (ReadResponse result : replies.values())
         {
             if (!result.isDigestQuery())

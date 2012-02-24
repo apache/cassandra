@@ -141,8 +141,8 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public VersionedValue removedNonlocal(Token token, long expireTime)
         {
-			return new VersionedValue(VersionedValue.REMOVED_TOKEN + VersionedValue.DELIMITER
-					+ partitioner.getTokenFactory().toString(token) + VersionedValue.DELIMITER + expireTime);
+            return new VersionedValue(VersionedValue.REMOVED_TOKEN + VersionedValue.DELIMITER
+                    + partitioner.getTokenFactory().toString(token) + VersionedValue.DELIMITER + expireTime);
         }
 
         public VersionedValue removalCoordinator(Token token)

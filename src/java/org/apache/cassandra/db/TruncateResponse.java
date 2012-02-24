@@ -47,17 +47,18 @@ public class TruncateResponse
     public static Message makeTruncateResponseMessage(Message original, TruncateResponse truncateResponseMessage)
             throws IOException
     {
-    	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         TruncateResponse.serializer().serialize(truncateResponseMessage, dos, original.getVersion());
         return original.getReply(FBUtilities.getBroadcastAddress(), bos.toByteArray(), original.getVersion());
     }
 
-    public TruncateResponse(String keyspace, String columnFamily, boolean success) {
-		this.keyspace = keyspace;
-		this.columnFamily = columnFamily;
-		this.success = success;
-	}
+    public TruncateResponse(String keyspace, String columnFamily, boolean success)
+    {
+        this.keyspace = keyspace;
+        this.columnFamily = columnFamily;
+        this.success = success;
+    }
 
     public static class TruncateResponseSerializer implements IVersionedSerializer<TruncateResponse>
     {

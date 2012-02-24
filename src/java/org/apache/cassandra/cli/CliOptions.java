@@ -120,7 +120,7 @@ public class CliOptions
             // Look for authentication credentials (username and password)
             if (cmd.hasOption(USERNAME_OPTION))
             {
-            	css.username = cmd.getOptionValue(USERNAME_OPTION);
+                css.username = cmd.getOptionValue(USERNAME_OPTION);
             }
             else
             {
@@ -129,7 +129,7 @@ public class CliOptions
 
             if (cmd.hasOption(PASSWORD_OPTION))
             {
-            	css.password = cmd.getOptionValue(PASSWORD_OPTION);
+                css.password = cmd.getOptionValue(PASSWORD_OPTION);
             }
             else
             {
@@ -139,7 +139,7 @@ public class CliOptions
             // Look for keyspace
             if (cmd.hasOption(KEYSPACE_OPTION))
             {
-            	css.keyspace = cmd.getOptionValue(KEYSPACE_OPTION);
+                css.keyspace = cmd.getOptionValue(KEYSPACE_OPTION);
             }
 
             if (cmd.hasOption(BATCH_OPTION))

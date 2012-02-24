@@ -100,9 +100,9 @@ public class MurmurHash
             int i_8 = i << 3;
 
             long k64 =  ((long)  key.get(offset+i_8+0) & 0xff)      + (((long) key.get(offset+i_8+1) & 0xff)<<8)  +
-			            (((long) key.get(offset+i_8+2) & 0xff)<<16) + (((long) key.get(offset+i_8+3) & 0xff)<<24) +
-			            (((long) key.get(offset+i_8+4) & 0xff)<<32) + (((long) key.get(offset+i_8+5) & 0xff)<<40) +
-			            (((long) key.get(offset+i_8+6) & 0xff)<<48) + (((long) key.get(offset+i_8+7) & 0xff)<<56);
+                        (((long) key.get(offset+i_8+2) & 0xff)<<16) + (((long) key.get(offset+i_8+3) & 0xff)<<24) +
+                        (((long) key.get(offset+i_8+4) & 0xff)<<32) + (((long) key.get(offset+i_8+5) & 0xff)<<40) +
+                        (((long) key.get(offset+i_8+6) & 0xff)<<48) + (((long) key.get(offset+i_8+7) & 0xff)<<56);
            
             k64 *= m64;
             k64 ^= k64 >>> r64;

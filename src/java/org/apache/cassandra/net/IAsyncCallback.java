@@ -26,8 +26,8 @@ package org.apache.cassandra.net;
  */
 public interface IAsyncCallback extends IMessageCallback
 {
-	/**
-	 * @param msg response received.
-	 */
-	public void response(Message msg);
+    /**
+     * @param msg response received.
+     */
+    public void response(Message msg);
 }

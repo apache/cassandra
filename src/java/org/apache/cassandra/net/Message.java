@@ -104,11 +104,11 @@ public class Message
         StringBuilder sbuf = new StringBuilder("");
         String separator = System.getProperty("line.separator");
         sbuf.append("FROM:" + getFrom())
-        	.append(separator)
-        	.append("TYPE:" + getMessageType())
-        	.append(separator)
-        	.append("VERB:" + getVerb())
-        	.append(separator);
+            .append(separator)
+            .append("TYPE:" + getMessageType())
+            .append(separator)
+            .append("VERB:" + getVerb())
+            .append(separator);
         return sbuf.toString();
     }
 }

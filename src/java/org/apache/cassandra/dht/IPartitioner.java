@@ -51,10 +51,10 @@ public interface IPartitioner<T extends Token>
      */
     public Token midpoint(Token left, Token right);
 
-	/**
-	 * @return The minimum possible Token in the range that is being partitioned.
-	 */
-	public T getMinimumToken();
+    /**
+     * @return The minimum possible Token in the range that is being partitioned.
+     */
+    public T getMinimumToken();
 
     /**
      * @return a Token that can be used to route a given key

@@ -635,7 +635,7 @@ public class DatabaseDescriptor
     
     public static int getColumnIndexSize()
     {
-    	return conf.column_index_size_in_kb * 1024;
+        return conf.column_index_size_in_kb * 1024;
     }
 
     public static String getInitialToken()

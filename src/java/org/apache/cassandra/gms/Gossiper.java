@@ -498,7 +498,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public int getCurrentGenerationNumber(InetAddress endpoint)
     {
-    	return endpointStateMap.get(endpoint).getHeartBeatState().getGeneration();
+        return endpointStateMap.get(endpoint).getHeartBeatState().getGeneration();
     }
 
     Message makeGossipDigestSynMessage(List<GossipDigest> gDigests, int version) throws IOException
@@ -512,7 +512,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     Message makeGossipDigestAckMessage(GossipDigestAckMessage gDigestAckMessage, int version) throws IOException
     {
-    	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         GossipDigestAckMessage.serializer().serialize(gDigestAckMessage, dos, version);
         return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.GOSSIP_DIGEST_ACK, bos.toByteArray(), version);
@@ -520,7 +520,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     Message makeGossipDigestAck2Message(GossipDigestAck2Message gDigestAck2Message, int version) throws IOException
     {
-    	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         GossipDigestAck2Message.serializer().serialize(gDigestAck2Message, dos, version);
         return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.GOSSIP_DIGEST_ACK2, bos.toByteArray(), version);
@@ -890,33 +890,33 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             */
             if ( localEpStatePtr != null )
             {
-            	int localGeneration = localEpStatePtr.getHeartBeatState().getGeneration();
-            	int remoteGeneration = remoteState.getHeartBeatState().getGeneration();
+                int localGeneration = localEpStatePtr.getHeartBeatState().getGeneration();
+                int remoteGeneration = remoteState.getHeartBeatState().getGeneration();
                 if (logger.isTraceEnabled())
                     logger.trace(ep + "local generation " + localGeneration + ", remote generation " + remoteGeneration);
 
-            	if (remoteGeneration > localGeneration)
-            	{
+                if (remoteGeneration > localGeneration)
+                {
                     if (logger.isTraceEnabled())
                         logger.trace("Updating heartbeat state generation to " + remoteGeneration + " from " + localGeneration + " for " + ep);
                     // major state change will handle the update by inserting the remote state directly
                     handleMajorStateChange(ep, remoteState);
-            	}
-            	else if ( remoteGeneration == localGeneration ) // generation has not changed, apply new states
-            	{
-	                /* find maximum state */
-	                int localMaxVersion = getMaxEndpointStateVersion(localEpStatePtr);
-	                int remoteMaxVersion = getMaxEndpointStateVersion(remoteState);
-	                if ( remoteMaxVersion > localMaxVersion )
-	                {
+                }
+                else if ( remoteGeneration == localGeneration ) // generation has not changed, apply new states
+                {
+                    /* find maximum state */
+                    int localMaxVersion = getMaxEndpointStateVersion(localEpStatePtr);
+                    int remoteMaxVersion = getMaxEndpointStateVersion(remoteState);
+                    if ( remoteMaxVersion > localMaxVersion )
+                    {
                         // apply states, but do not notify since there is no major change
-	                    applyNewStates(ep, localEpStatePtr, remoteState);
-	                }
+                        applyNewStates(ep, localEpStatePtr, remoteState);
+                    }
                     else if (logger.isTraceEnabled())
                             logger.trace("Ignoring remote version " + remoteMaxVersion + " <= " + localMaxVersion + " for " + ep);
                     if (!localEpStatePtr.isAlive() && !isDeadState(localEpStatePtr)) // unless of course, it was dead
                         markAlive(ep, localEpStatePtr);
-            	}
+                }
                 else
                 {
                     if (logger.isTraceEnabled())
@@ -927,7 +927,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             {
                 // this is a new node, report it to the FD in case it is the first time we are seeing it AND it's not alive
                 FailureDetector.instance.report(ep);
-            	handleMajorStateChange(ep, remoteState);
+                handleMajorStateChange(ep, remoteState);
             }
         }
     }

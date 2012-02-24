@@ -97,7 +97,7 @@ class StreamRequestMessage implements MessageProducer
     
     public Message getMessage(Integer version)
     {
-    	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         try
         {

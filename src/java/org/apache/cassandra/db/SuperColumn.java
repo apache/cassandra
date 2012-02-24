@@ -119,16 +119,16 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
     */
     public int serializedSize()
     {
-    	/*
-    	 * We need to keep the way we are calculating the column size in sync with the
-    	 * way we are calculating the size for the column family serializer.
-    	 */
-      return DBConstants.shortSize + name.remaining() + DBConstants.intSize + DBConstants.longSize + DBConstants.intSize + size();
+        /*
+         * We need to keep the way we are calculating the column size in sync with the
+         * way we are calculating the size for the column family serializer.
+         */
+        return DBConstants.shortSize + name.remaining() + DBConstants.intSize + DBConstants.longSize + DBConstants.intSize + size();
     }
 
     public long timestamp()
     {
-    	throw new UnsupportedOperationException("This operation is not supported for Super Columns.");
+        throw new UnsupportedOperationException("This operation is not supported for Super Columns.");
     }
 
     public long maxTimestamp()
@@ -167,7 +167,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
 
     public ByteBuffer value()
     {
-    	throw new UnsupportedOperationException("This operation is not supported for Super Columns.");
+        throw new UnsupportedOperationException("This operation is not supported for Super Columns.");
     }
 
     @Override
@@ -185,14 +185,14 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
     {
         for (IColumn subColumn : column.getSubColumns())
         {
-        	addColumn(subColumn, allocator);
+            addColumn(subColumn, allocator);
         }
         delete(column);
     }
 
     public IColumn diff(IColumn columnNew)
     {
-    	IColumn columnDiff = new SuperColumn(columnNew.name(), ((SuperColumn)columnNew).getComparator());
+        IColumn columnDiff = new SuperColumn(columnNew.name(), ((SuperColumn)columnNew).getComparator());
         if (columnNew.getMarkedForDeleteAt() > getMarkedForDeleteAt())
         {
             ((SuperColumn)columnDiff).delete(columnNew.getLocalDeletionTime(), columnNew.getMarkedForDeleteAt());
@@ -203,25 +203,25 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
         // takes care of those for us.)
         for (IColumn subColumn : columnNew.getSubColumns())
         {
-        	IColumn columnInternal = columns.getColumn(subColumn.name());
-        	if(columnInternal == null )
-        	{
-        		columnDiff.addColumn(subColumn);
-        	}
-        	else
-        	{
-            	IColumn subColumnDiff = columnInternal.diff(subColumn);
-        		if(subColumnDiff != null)
-        		{
-            		columnDiff.addColumn(subColumnDiff);
-        		}
-        	}
+            IColumn columnInternal = columns.getColumn(subColumn.name());
+            if(columnInternal == null )
+            {
+                columnDiff.addColumn(subColumn);
+            }
+            else
+            {
+                IColumn subColumnDiff = columnInternal.diff(subColumn);
+                if(subColumnDiff != null)
+                {
+                    columnDiff.addColumn(subColumnDiff);
+                }
+            }
         }
 
         if (!columnDiff.getSubColumns().isEmpty() || columnNew.isMarkedForDelete())
-        	return columnDiff;
+            return columnDiff;
         else
-        	return null;
+            return null;
     }
 
     public void updateDigest(MessageDigest digest)
@@ -246,9 +246,9 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
 
     public String getString(AbstractType<?> comparator)
     {
-    	StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
         sb.append("SuperColumn(");
-    	sb.append(comparator.getString(name));
+        sb.append(comparator.getString(name));
 
         if (isMarkedForDelete()) {
             sb.append(" -delete at ").append(getMarkedForDeleteAt()).append("-");

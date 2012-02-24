@@ -216,9 +216,9 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
             for (String endpoint: range.rpc_endpoints)
             {
                 String endpoint_address = endpoint;
-		        if (endpoint_address == null || endpoint_address.equals("0.0.0.0"))
-			        endpoint_address = range.endpoints.get(endpointIndex);
-		        endpoints[endpointIndex++] = InetAddress.getByName(endpoint_address).getHostName();
+                if (endpoint_address == null || endpoint_address.equals("0.0.0.0"))
+                    endpoint_address = range.endpoints.get(endpointIndex);
+                endpoints[endpointIndex++] = InetAddress.getByName(endpoint_address).getHostName();
             }
 
             for (int i = 1; i < tokens.size(); i++)

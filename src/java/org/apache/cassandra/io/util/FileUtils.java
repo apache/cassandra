@@ -158,8 +158,8 @@ public class FileUtils
             bVal = delete(file);
             if (bVal)
             {
-            	if (logger.isDebugEnabled())
-            	  logger.debug("Deleted file {}", file);
+                if (logger.isDebugEnabled())
+                    logger.debug("Deleted file {}", file);
                 files.remove(i);
             }
         }
