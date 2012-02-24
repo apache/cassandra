@@ -18,13 +18,16 @@
 
 package org.apache.cassandra.utils;
 
-import java.util.*;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Function;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ExpiringMap<K, V>
@@ -57,9 +60,10 @@ public class ExpiringMap<K, V>
         }
     }
 
+    // if we use more ExpiringMaps we may want to add multiple threads to this executor
+    private static final ScheduledExecutorService service = new DebuggableScheduledThreadPoolExecutor("EXPIRING-MAP-REAPER");
+
     private final NonBlockingHashMap<K, CacheableObject<V>> cache = new NonBlockingHashMap<K, CacheableObject<V>>();
-    private final Timer timer;
-    private static int counter = 0;
     private final long defaultExpiration;
 
     public ExpiringMap(long defaultExpiration)
@@ -80,8 +84,7 @@ public class ExpiringMap<K, V>
             throw new IllegalArgumentException("Argument specified must be a positive number");
         }
 
-        timer = new Timer("EXPIRING-MAP-TIMER-" + (++counter), true);
-        TimerTask task = new TimerTask()
+        Runnable runnable = new Runnable()
         {
             public void run()
             {
@@ -100,25 +103,20 @@ public class ExpiringMap<K, V>
                 logger.trace("Expired {} entries", n);
             }
         };
-        timer.schedule(task, defaultExpiration / 2, defaultExpiration / 2);
+        service.scheduleWithFixedDelay(runnable, defaultExpiration / 2, defaultExpiration / 2, TimeUnit.MILLISECONDS);
     }
 
-    public void shutdown()
+    public void shutdownBlocking()
     {
-        shutdown = true;
-        while (!cache.isEmpty())
+        service.shutdown();
+        try
         {
-            logger.trace("Waiting for {} entries before shutting down ExpiringMap", cache.size());
-            try
-            {
-                Thread.sleep(100);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
+            service.awaitTermination(defaultExpiration * 2, TimeUnit.MILLISECONDS);
         }
-        timer.cancel();
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
     }
 
     public void reset()

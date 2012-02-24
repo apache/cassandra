@@ -543,7 +543,7 @@ public final class MessagingService implements MessagingServiceMBean
         assert !StageManager.getStage(Stage.MUTATION).isShutdown();
 
         // the important part
-        callbacks.shutdown();
+        callbacks.shutdownBlocking();
 
         // attempt to humor tests that try to stop and restart MS
         try
