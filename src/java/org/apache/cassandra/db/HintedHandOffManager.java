@@ -86,7 +86,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     public static final HintedHandOffManager instance = new HintedHandOffManager();
     public static final String HINTS_CF = "HintsColumnFamily";
 
-    private static final Logger logger_ = LoggerFactory.getLogger(HintedHandOffManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(HintedHandOffManager.class);
     private static final int PAGE_SIZE = 128;
     private static final int LARGE_NUMBER = 65536; // 64k nodes ought to be enough for anybody.
 
@@ -97,7 +97,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     private final NonBlockingHashSet<InetAddress> queuedDeliveries = new NonBlockingHashSet<InetAddress>();
 
-    private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HintedHandoff", Thread.MIN_PRIORITY);
+    private final ExecutorService executor = new JMXEnabledThreadPoolExecutor("HintedHandoff", Thread.MIN_PRIORITY);
 
     public void start()
     {
@@ -110,7 +110,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         {
             throw new RuntimeException(e);
         }
-        logger_.debug("Created HHOM instance, registered MBean.");
+        logger.debug("Created HHOM instance, registered MBean.");
 
         Runnable runnable = new Runnable()
         {
@@ -154,7 +154,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         }
         catch (UnknownHostException e)
         {
-            logger_.warn("Unable to find "+ipOrHostname+", not a hostname or ipaddr of a node?:");
+            logger.warn("Unable to find "+ipOrHostname+", not a hostname or ipaddr of a node?:");
             e.printStackTrace();
             throw new RuntimeException(e);
         }
@@ -176,13 +176,13 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             {
                 try
                 {
-                    logger_.info("Deleting any stored hints for " + endpoint);
+                    logger.info("Deleting any stored hints for " + endpoint);
                     rm.apply();
                     compact();
                 }
                 catch (Exception e)
                 {
-                    logger_.warn("Could not delete hints for " + endpoint + ": " + e);
+                    logger.warn("Could not delete hints for " + endpoint + ": " + e);
                 }
             }
         };
@@ -245,7 +245,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             if (waited > 2 * StorageService.RING_DELAY)
                 throw new TimeoutException("Could not reach schema agreement with " + endpoint + " in " + 2 * StorageService.RING_DELAY + "ms");
         }
-        logger_.debug("schema for {} matches local schema", endpoint);
+        logger.debug("schema for {} matches local schema", endpoint);
         return waited;
     }
 
@@ -267,7 +267,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         if (hintStore.isEmpty())
             return; // nothing to do, don't confuse users by logging a no-op handoff
 
-        logger_.debug("Checking remote({}) schema before delivering hints", endpoint);
+        logger.debug("Checking remote({}) schema before delivering hints", endpoint);
         int waited;
         try
         {
@@ -283,13 +283,13 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         {
             // use a 'rounded' sleep interval because of a strange bug with windows: CASSANDRA-3375
             int sleep = FBUtilities.threadLocalRandom().nextInt(2000) * 30;
-            logger_.debug("Sleeping {}ms to stagger hint delivery", sleep);
+            logger.debug("Sleeping {}ms to stagger hint delivery", sleep);
             Thread.sleep(sleep);
         }
 
         if (!FailureDetector.instance.isAlive(endpoint))
         {
-            logger_.info("Endpoint {} died before hint delivery, aborting", endpoint);
+            logger.info("Endpoint {} died before hint delivery, aborting", endpoint);
             return;
         }
 
@@ -301,7 +301,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         // find the hints for the node using its token.
         Token<?> token = StorageService.instance.getTokenMetadata().getToken(endpoint);
-        logger_.info("Started hinted handoff for token: {} with IP: {}", token, endpoint);
+        logger.info("Started hinted handoff for token: {} with IP: {}", token, endpoint);
         ByteBuffer tokenBytes = StorageService.getPartitioner().getTokenFactory().toByteArray(token);
         DecoratedKey<?> epkey =  StorageService.getPartitioner().decorateKey(tokenBytes);
         int rowsReplayed = 0;
@@ -314,7 +314,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             int averageColumnSize = (int) (hintStore.getMeanRowSize() / hintStore.getMeanColumns());
             pageSize = Math.min(PAGE_SIZE, DatabaseDescriptor.getInMemoryCompactionLimit() / averageColumnSize);
             pageSize = Math.max(2, pageSize); // page size of 1 does not allow actual paging b/c of >= behavior on startColumn
-            logger_.debug("average hinted-row column size is {}; using pageSize of {}", averageColumnSize, pageSize);
+            logger.debug("average hinted-row column size is {}; using pageSize of {}", averageColumnSize, pageSize);
         }
 
         delivery:
@@ -334,7 +334,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                     // both 0.8 and 1.0 column names are UTF8 strings, so this check is safe
                     if (ByteBufferUtil.string(subColumn.name()).contains(SEPARATOR_08))
                     {
-                        logger_.debug("0.8-style hint found.  This should have been taken care of by purgeIncompatibleHints");
+                        logger.debug("0.8-style hint found.  This should have been taken care of by purgeIncompatibleHints");
                         deleteHint(tokenBytes, hint.name(), hint.maxTimestamp());
                         continue page;
                     }
@@ -359,7 +359,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 }
                 catch (TimeoutException e)
                 {
-                    logger_.info(String.format("Timed out replaying hints to %s; aborting further deliveries", endpoint));
+                    logger.info(String.format("Timed out replaying hints to %s; aborting further deliveries", endpoint));
                     break delivery;
                 }
             }
@@ -377,7 +377,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             }
         }
 
-        logger_.info(String.format("Finished hinted handoff of %s rows to endpoint %s", rowsReplayed, endpoint));
+        logger.info(String.format("Finished hinted handoff of %s rows to endpoint %s", rowsReplayed, endpoint));
     }
 
     /**
@@ -386,8 +386,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
      */
     private void scheduleAllDeliveries()
     {
-        if (logger_.isDebugEnabled())
-          logger_.debug("Started scheduleAllDeliveries");
+        if (logger.isDebugEnabled())
+          logger.debug("Started scheduleAllDeliveries");
 
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         IPartitioner p = StorageService.getPartitioner();
@@ -404,8 +404,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 scheduleHintDelivery(target);
         }
 
-        if (logger_.isDebugEnabled())
-          logger_.debug("Finished scheduleAllDeliveries");
+        if (logger.isDebugEnabled())
+          logger.debug("Finished scheduleAllDeliveries");
     }
 
     /*
@@ -415,7 +415,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     */
     public void scheduleHintDelivery(final InetAddress to)
     {
-        logger_.debug("deliverHints to {}", to);
+        logger.debug("deliverHints to {}", to);
         if (!queuedDeliveries.add(to))
             return;
 
@@ -426,7 +426,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 deliverHintsToEndpoint(to);
             }
         };
-    	executor_.execute(r);
+    	executor.execute(r);
     }
 
     public void scheduleHintDelivery(String to) throws UnknownHostException
@@ -486,7 +486,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         }
         catch (Exception e)
         {
-            logger_.info("HintsCF getEPPendingHints timed out.");
+            logger.info("HintsCF getEPPendingHints timed out.");
             throw new RuntimeException(e);
         }
         return rows;

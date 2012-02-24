@@ -49,10 +49,10 @@ public class GossipDigestTest
         
         //test the serialization and equals
         DataOutputBuffer output = new DataOutputBuffer();
-        GossipDigest.serializer().serialize(expected, output, MessagingService.version_);
+        GossipDigest.serializer().serialize(expected, output, MessagingService.current_version);
         
         ByteArrayInputStream input = new ByteArrayInputStream(output.getData(), 0, output.getLength());
-        GossipDigest actual = GossipDigest.serializer().deserialize(new DataInputStream(input), MessagingService.version_);
+        GossipDigest actual = GossipDigest.serializer().deserialize(new DataInputStream(input), MessagingService.current_version);
         assertEquals(0, expected.compareTo(actual));
     }
 }

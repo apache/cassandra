@@ -29,19 +29,19 @@ public class LegacyBloomFilter extends Filter
 {
     private static final int EXCESS = 20;
     private static final Logger logger = LoggerFactory.getLogger(LegacyBloomFilter.class);
-    static LegacyBloomFilterSerializer serializer_ = new LegacyBloomFilterSerializer();
+    static LegacyBloomFilterSerializer serializer = new LegacyBloomFilterSerializer();
 
     public static LegacyBloomFilterSerializer serializer()
     {
-        return serializer_;
+        return serializer;
     }
 
-    private BitSet filter_;
+    private BitSet filter;
 
     LegacyBloomFilter(int hashes, BitSet filter)
     {
         hashCount = hashes;
-        filter_ = filter;
+        this.filter = filter;
     }
 
     private static BitSet bucketsFor(long numElements, int bucketsPer)
@@ -83,19 +83,19 @@ public class LegacyBloomFilter extends Filter
 
     public void clear()
     {
-        filter_.clear();
+        filter.clear();
     }
 
     int buckets()
     {
-        return filter_.size();
+        return filter.size();
     }
 
     public boolean isPresent(ByteBuffer key)
     {
         for (int bucketIndex : getHashBuckets(key))
         {
-            if (!filter_.get(bucketIndex))
+            if (!filter.get(bucketIndex))
             {
                 return false;
             }
@@ -105,20 +105,20 @@ public class LegacyBloomFilter extends Filter
 
     /*
      @param key -- value whose hash is used to fill
-     the filter_.
+     the filter.
      This is a general purpose API.
      */
     public void add(ByteBuffer key)
     {
         for (int bucketIndex : getHashBuckets(key))
         {
-            filter_.set(bucketIndex);
+            filter.set(bucketIndex);
         }
     }
 
     public String toString()
     {
-        return filter_.toString();
+        return filter.toString();
     }
 
     int emptyBuckets()
@@ -126,7 +126,7 @@ public class LegacyBloomFilter extends Filter
         int n = 0;
         for (int i = 0; i < buckets(); i++)
         {
-            if (!filter_.get(i))
+            if (!filter.get(i))
             {
                 n++;
             }
@@ -165,6 +165,6 @@ public class LegacyBloomFilter extends Filter
     }
 
     public BitSet getBitSet(){
-      return filter_;
+      return filter;
     }
 }

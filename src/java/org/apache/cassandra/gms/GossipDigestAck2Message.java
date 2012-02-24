@@ -33,27 +33,27 @@ import org.apache.cassandra.io.IVersionedSerializer;
 
 class GossipDigestAck2Message
 {
-    private static  IVersionedSerializer<GossipDigestAck2Message> serializer_;
+    private static  IVersionedSerializer<GossipDigestAck2Message> serializer;
     static
     {
-        serializer_ = new GossipDigestAck2MessageSerializer();
+        serializer = new GossipDigestAck2MessageSerializer();
     }
     
-    Map<InetAddress, EndpointState> epStateMap_ = new HashMap<InetAddress, EndpointState>();
+    Map<InetAddress, EndpointState> epStateMap;
 
     public static IVersionedSerializer<GossipDigestAck2Message> serializer()
     {
-        return serializer_;
+        return serializer;
     }
     
     GossipDigestAck2Message(Map<InetAddress, EndpointState> epStateMap)
     {
-        epStateMap_ = epStateMap;
+        this.epStateMap = epStateMap;
     }
         
     Map<InetAddress, EndpointState> getEndpointStateMap()
     {
-         return epStateMap_;
+         return epStateMap;
     }
 }
 
@@ -62,7 +62,7 @@ class GossipDigestAck2MessageSerializer implements IVersionedSerializer<GossipDi
     public void serialize(GossipDigestAck2Message gDigestAck2Message, DataOutput dos, int version) throws IOException
     {
         /* Use the EndpointState */
-        EndpointStatesSerializationHelper.serialize(gDigestAck2Message.epStateMap_, dos, version);
+        EndpointStatesSerializationHelper.serialize(gDigestAck2Message.epStateMap, dos, version);
     }
 
     public GossipDigestAck2Message deserialize(DataInput dis, int version) throws IOException

@@ -51,7 +51,7 @@ public class CustomTHsHaServer extends TNonblockingServer
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(CustomTHsHaServer.class.getName());
     private Set<SelectorThread> ioThreads = new HashSet<SelectorThread>();
-    private volatile boolean stopped_ = true;
+    private volatile boolean stopped = true;
     private ExecutorService invoker;
 
     /**
@@ -110,7 +110,7 @@ public class CustomTHsHaServer extends TNonblockingServer
 
     protected boolean startThreads()
     {
-        stopped_ = false;
+        stopped = false;
         // start all the threads.
         for (SelectorThread thread : ioThreads)
             thread.start();
@@ -139,7 +139,7 @@ public class CustomTHsHaServer extends TNonblockingServer
     public void stop()
     {
         stopListening();
-        stopped_ = true;
+        stopped = true;
         for (SelectorThread thread : ioThreads)
             thread.wakeupSelector();
         joinSelector();
@@ -173,7 +173,7 @@ public class CustomTHsHaServer extends TNonblockingServer
         {
             try
             {
-                while (!stopped_)
+                while (!stopped)
                 {
                     select();
                 }

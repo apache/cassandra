@@ -38,17 +38,17 @@ import org.apache.cassandra.net.MessagingService;
 
 public class GossipDigestAckVerbHandler implements IVerbHandler
 {
-    private static Logger logger_ = LoggerFactory.getLogger(GossipDigestAckVerbHandler.class);
+    private static Logger logger = LoggerFactory.getLogger(GossipDigestAckVerbHandler.class);
 
     public void doVerb(Message message, String id)
     {
         InetAddress from = message.getFrom();
-        if (logger_.isTraceEnabled())
-            logger_.trace("Received a GossipDigestAckMessage from {}", from);
+        if (logger.isTraceEnabled())
+            logger.trace("Received a GossipDigestAckMessage from {}", from);
         if (!Gossiper.instance.isEnabled())
         {
-            if (logger_.isTraceEnabled())
-                logger_.trace("Ignoring GossipDigestAckMessage because gossip is disabled");
+            if (logger.isTraceEnabled())
+                logger.trace("Ignoring GossipDigestAckMessage because gossip is disabled");
             return;
         }
 
@@ -80,8 +80,8 @@ public class GossipDigestAckVerbHandler implements IVerbHandler
 
             GossipDigestAck2Message gDigestAck2 = new GossipDigestAck2Message(deltaEpStateMap);
             Message gDigestAck2Message = Gossiper.instance.makeGossipDigestAck2Message(gDigestAck2, message.getVersion());
-            if (logger_.isTraceEnabled())
-                logger_.trace("Sending a GossipDigestAck2Message to {}", from);
+            if (logger.isTraceEnabled())
+                logger.trace("Sending a GossipDigestAck2Message to {}", from);
             MessagingService.instance().sendOneWay(gDigestAck2Message, from);
         }
         catch ( IOException e )

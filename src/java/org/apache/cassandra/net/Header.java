@@ -33,24 +33,24 @@ import com.google.common.collect.Maps;
 
 public class Header
 {
-    private static IVersionedSerializer<Header> serializer_;
+    private static IVersionedSerializer<Header> serializer;
 
     static
     {
-        serializer_ = new HeaderSerializer();        
+        serializer = new HeaderSerializer();        
     }
     
     public static IVersionedSerializer<Header> serializer()
     {
-        return serializer_;
+        return serializer;
     }
 
     // "from" is the ultimate origin of this request (the coordinator), which in a multi-DC setup
     // is not necessarily the same as the node that forwards us the request (see StorageProxy.sendMessages
     // and RowMutationVerbHandler.forwardToLocalNodes)
-    private final InetAddress from_;
-    private final StorageService.Verb verb_;
-    protected final Map<String, byte[]> details_;
+    private final InetAddress from;
+    private final StorageService.Verb verb;
+    protected final Map<String, byte[]> details;
 
     Header(InetAddress from, StorageService.Verb verb)
     {
@@ -62,40 +62,40 @@ public class Header
         assert from != null;
         assert verb != null;
 
-        from_ = from;
-        verb_ = verb;
-        details_ = ImmutableMap.copyOf(details);
+        this.from = from;
+        this.verb = verb;
+        this.details = ImmutableMap.copyOf(details);
     }
 
     InetAddress getFrom()
     {
-        return from_;
+        return from;
     }
 
     StorageService.Verb getVerb()
     {
-        return verb_;
+        return verb;
     }
     
     byte[] getDetail(String key)
     {
-        return details_.get(key);
+        return details.get(key);
     }
 
     Header withDetailsAdded(String key, byte[] value)
     {
-        Map<String, byte[]> detailsCopy = Maps.newHashMap(details_);
+        Map<String, byte[]> detailsCopy = Maps.newHashMap(details);
         detailsCopy.put(key, value);
-        return new Header(from_, verb_, detailsCopy);
+        return new Header(from, verb, detailsCopy);
     }
 
     Header withDetailsRemoved(String key)
     {
-        if (!details_.containsKey(key))
+        if (!details.containsKey(key))
             return this;
-        Map<String, byte[]> detailsCopy = Maps.newHashMap(details_);
+        Map<String, byte[]> detailsCopy = Maps.newHashMap(details);
         detailsCopy.remove(key);
-        return new Header(from_, verb_, detailsCopy);
+        return new Header(from, verb, detailsCopy);
     }
 
     public int serializedSize()
@@ -104,10 +104,10 @@ public class Header
         size += CompactEndpointSerializationHelper.serializedSize(getFrom());
         size += 4;
         size += 4;
-        for (String key : details_.keySet())
+        for (String key : details.keySet())
         {
             size += 2 + FBUtilities.encodedUTF8Length(key);
-            byte[] value = details_.get(key);
+            byte[] value = details.get(key);
             size += 4 + value.length;
         }
         return size;
@@ -120,11 +120,11 @@ class HeaderSerializer implements IVersionedSerializer<Header>
     {           
         CompactEndpointSerializationHelper.serialize(t.getFrom(), dos);
         dos.writeInt(t.getVerb().ordinal());
-        dos.writeInt(t.details_.size());
-        for (String key : t.details_.keySet())
+        dos.writeInt(t.details.size());
+        for (String key : t.details.keySet())
         {
             dos.writeUTF(key);
-            byte[] value = t.details_.get(key);
+            byte[] value = t.details.get(key);
             dos.writeInt(value.length);
             dos.write(value);
         }

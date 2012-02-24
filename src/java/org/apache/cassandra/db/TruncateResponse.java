@@ -32,11 +32,11 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class TruncateResponse
 {
-    private static TruncateResponseSerializer serializer_ = new TruncateResponseSerializer();
+    private static TruncateResponseSerializer serializer = new TruncateResponseSerializer();
 
     public static TruncateResponseSerializer serializer()
     {
-        return serializer_;
+        return serializer;
     }
 
     public final String keyspace;

@@ -44,7 +44,7 @@ public class OutboundTcpConnection extends Thread
     private static final Message CLOSE_SENTINEL = new Message(FBUtilities.getBroadcastAddress(),
                                                               StorageService.Verb.INTERNAL_RESPONSE,
                                                               ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                              MessagingService.version_);
+                                                              MessagingService.current_version);
 
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
 
@@ -181,7 +181,7 @@ public class OutboundTcpConnection extends Thread
         */
         int header = 0;
         // Setting up the serializer bit
-        header |= MessagingService.serializerType_.ordinal();
+        header |= MessagingService.serializerType.ordinal();
         // set compression bit.
         if (false)
             header |= 4;
@@ -192,10 +192,10 @@ public class OutboundTcpConnection extends Thread
         out.writeInt(header);
         // compute total Message length for compatibility w/ 0.8 and earlier
         byte[] bytes = message.getMessageBody();
-        int total = messageLength(message.header_, id, bytes);
+        int total = messageLength(message.header, id, bytes);
         out.writeInt(total);
         out.writeUTF(id);
-        Header.serializer().serialize(message.header_, out, message.getVersion());
+        Header.serializer().serialize(message.header, out, message.getVersion());
         out.writeInt(bytes.length);
         out.write(bytes);
     }

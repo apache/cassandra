@@ -50,15 +50,15 @@ import org.apache.cassandra.utils.FBUtilities;
 */
 class StreamRequestMessage implements MessageProducer
 {
-    private static IVersionedSerializer<StreamRequestMessage> serializer_;
+    private static IVersionedSerializer<StreamRequestMessage> serializer;
     static
     {
-        serializer_ = new StreamRequestMessageSerializer();
+        serializer = new StreamRequestMessageSerializer();
     }
 
     protected static IVersionedSerializer<StreamRequestMessage> serializer()
     {
-        return serializer_;
+        return serializer;
     }
 
     protected final long sessionId;

@@ -208,7 +208,7 @@ public class CommitLogSegment
      */
     public boolean hasCapacityFor(RowMutation mutation)
     {
-        long totalSize = RowMutation.serializer().serializedSize(mutation, MessagingService.version_) + ENTRY_OVERHEAD_SIZE;
+        long totalSize = RowMutation.serializer().serializedSize(mutation, MessagingService.current_version) + ENTRY_OVERHEAD_SIZE;
         return totalSize <= buffer.remaining();
     }
 
@@ -246,7 +246,7 @@ public class CommitLogSegment
         markDirty(rowMutation, repPos);
 
         Checksum checksum = new PureJavaCrc32();
-        byte[] serializedRow = rowMutation.getSerializedBuffer(MessagingService.version_);
+        byte[] serializedRow = rowMutation.getSerializedBuffer(MessagingService.current_version);
 
         checksum.update(serializedRow.length);
         buffer.putInt(serializedRow.length);

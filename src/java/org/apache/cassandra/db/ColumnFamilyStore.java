@@ -70,7 +70,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /*
      * maybeSwitchMemtable puts Memtable.getSortedContents on the writer executor.  When the write is complete,
-     * we turn the writer into an SSTableReader and add it to ssTables_ where it is available for reads.
+     * we turn the writer into an SSTableReader and add it to ssTables where it is available for reads.
      *
      * There are two other things that maybeSwitchMemtable does.
      * First, it puts the Memtable into memtablesPendingFlush, where it stays until the flush is complete

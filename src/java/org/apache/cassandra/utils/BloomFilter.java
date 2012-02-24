@@ -29,7 +29,7 @@ public class BloomFilter extends Filter
 {
     private static final Logger logger = LoggerFactory.getLogger(BloomFilter.class);
     private static final int EXCESS = 20;
-    static BloomFilterSerializer serializer_ = new BloomFilterSerializer();
+    static BloomFilterSerializer serializer = new BloomFilterSerializer();
 
     public OpenBitSet bitset;
 
@@ -46,7 +46,7 @@ public class BloomFilter extends Filter
 
     public static BloomFilterSerializer serializer()
     {
-        return serializer_;
+        return serializer;
     }
 
     private static OpenBitSet bucketsFor(long numElements, int bucketsPer)
@@ -136,6 +136,6 @@ public class BloomFilter extends Filter
 
     public long serializedSize()
     {
-        return serializer_.serializedSize(this);
+        return serializer.serializedSize(this);
     }
 }

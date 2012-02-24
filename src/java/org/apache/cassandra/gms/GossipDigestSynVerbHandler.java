@@ -37,17 +37,17 @@ import org.apache.cassandra.net.MessagingService;
 
 public class GossipDigestSynVerbHandler implements IVerbHandler
 {
-    private static Logger logger_ = LoggerFactory.getLogger( GossipDigestSynVerbHandler.class);
+    private static Logger logger = LoggerFactory.getLogger( GossipDigestSynVerbHandler.class);
 
     public void doVerb(Message message, String id)
     {
         InetAddress from = message.getFrom();
-        if (logger_.isTraceEnabled())
-            logger_.trace("Received a GossipDigestSynMessage from {}", from);
+        if (logger.isTraceEnabled())
+            logger.trace("Received a GossipDigestSynMessage from {}", from);
         if (!Gossiper.instance.isEnabled())
         {
-            if (logger_.isTraceEnabled())
-                logger_.trace("Ignoring GossipDigestSynMessage because gossip is disabled");
+            if (logger.isTraceEnabled())
+                logger.trace("Ignoring GossipDigestSynMessage because gossip is disabled");
             return;
         }
 
@@ -58,14 +58,14 @@ public class GossipDigestSynVerbHandler implements IVerbHandler
         {
             GossipDigestSynMessage gDigestMessage = GossipDigestSynMessage.serializer().deserialize(dis, message.getVersion());
             /* If the message is from a different cluster throw it away. */
-            if ( !gDigestMessage.clusterId_.equals(DatabaseDescriptor.getClusterName()) )
+            if ( !gDigestMessage.clusterId.equals(DatabaseDescriptor.getClusterName()) )
             {
-                logger_.warn("ClusterName mismatch from " + from + " " + gDigestMessage.clusterId_  + "!=" + DatabaseDescriptor.getClusterName());
+                logger.warn("ClusterName mismatch from " + from + " " + gDigestMessage.clusterId  + "!=" + DatabaseDescriptor.getClusterName());
                 return;
             }
 
             List<GossipDigest> gDigestList = gDigestMessage.getGossipDigests();
-            if (logger_.isTraceEnabled())
+            if (logger.isTraceEnabled())
             {
                 StringBuilder sb = new StringBuilder();
                 for ( GossipDigest gDigest : gDigestList )
@@ -73,7 +73,7 @@ public class GossipDigestSynVerbHandler implements IVerbHandler
                     sb.append(gDigest);
                     sb.append(" ");
                 }
-                logger_.trace("Gossip syn digests are : " + sb.toString());
+                logger.trace("Gossip syn digests are : " + sb.toString());
             }
             /* Notify the Failure Detector */
             Gossiper.instance.notifyFailureDetector(gDigestList);
@@ -86,8 +86,8 @@ public class GossipDigestSynVerbHandler implements IVerbHandler
 
             GossipDigestAckMessage gDigestAck = new GossipDigestAckMessage(deltaGossipDigestList, deltaEpStateMap);
             Message gDigestAckMessage = Gossiper.instance.makeGossipDigestAckMessage(gDigestAck, message.getVersion());
-            if (logger_.isTraceEnabled())
-                logger_.trace("Sending a GossipDigestAckMessage to {}", from);
+            if (logger.isTraceEnabled())
+                logger.trace("Sending a GossipDigestAckMessage to {}", from);
             MessagingService.instance().sendOneWay(gDigestAckMessage, from);
         }
         catch (IOException e)

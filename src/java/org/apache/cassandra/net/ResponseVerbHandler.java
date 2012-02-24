@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
 
 public class ResponseVerbHandler implements IVerbHandler
 {
-    private static final Logger logger_ = LoggerFactory.getLogger( ResponseVerbHandler.class );
+    private static final Logger logger = LoggerFactory.getLogger( ResponseVerbHandler.class );
 
     public void doVerb(Message message, String id)
     {     
@@ -31,7 +31,7 @@ public class ResponseVerbHandler implements IVerbHandler
         CallbackInfo callbackInfo = MessagingService.instance().removeRegisteredCallback(id);
         if (callbackInfo == null)
         {
-            logger_.debug("Callback already removed for {}", id);
+            logger.debug("Callback already removed for {}", id);
             return;
         }
 
@@ -40,14 +40,14 @@ public class ResponseVerbHandler implements IVerbHandler
 
         if (cb instanceof IAsyncCallback)
         {
-            if (logger_.isDebugEnabled())
-                logger_.debug("Processing response on a callback from " + id + "@" + message.getFrom());
+            if (logger.isDebugEnabled())
+                logger.debug("Processing response on a callback from " + id + "@" + message.getFrom());
             ((IAsyncCallback) cb).response(message);
         }
         else
         {
-            if (logger_.isDebugEnabled())
-                logger_.debug("Processing response on an async result from " + id + "@" + message.getFrom());
+            if (logger.isDebugEnabled())
+                logger.debug("Processing response on an async result from " + id + "@" + message.getFrom());
             ((IAsyncResult) cb).result(message);
         }
     }

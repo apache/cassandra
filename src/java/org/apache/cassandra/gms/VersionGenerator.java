@@ -27,10 +27,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class VersionGenerator
 {
-    private static AtomicInteger version_ = new AtomicInteger(0);
+    private static AtomicInteger version = new AtomicInteger(0);
     
     public static int getNextVersion()
     {
-        return version_.incrementAndGet();
+        return version.incrementAndGet();
     }
 }

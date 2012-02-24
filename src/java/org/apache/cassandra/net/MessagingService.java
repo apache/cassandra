@@ -73,9 +73,9 @@ public final class MessagingService implements MessagingServiceMBean
     public static final int VERSION_080 = 2;
     public static final int VERSION_10 = 3;
     public static final int VERSION_11 = 4;
-    public static final int version_ = VERSION_11;
+    public static final int current_version = VERSION_11;
 
-    static SerializerType serializerType_ = SerializerType.BINARY;
+    static SerializerType serializerType = SerializerType.BINARY;
 
     /** we preface every message with this number so the recipient can validate the sender is sane */
     static final int PROTOCOL_MAGIC = 0xCA552DFA;
@@ -84,7 +84,7 @@ public final class MessagingService implements MessagingServiceMBean
     private final ExpiringMap<String, CallbackInfo> callbacks;
 
     /* Lookup table for registering message handlers based on the verb. */
-    private final Map<StorageService.Verb, IVerbHandler> verbHandlers_;
+    private final Map<StorageService.Verb, IVerbHandler> verbHandlers;
 
     /** One executor per destination InetAddress for streaming.
      *
@@ -101,9 +101,9 @@ public final class MessagingService implements MessagingServiceMBean
     private final ConcurrentMap<InetAddress, DebuggableThreadPoolExecutor> streamExecutors = new NonBlockingHashMap<InetAddress, DebuggableThreadPoolExecutor>();
     private final AtomicInteger activeStreamsOutbound = new AtomicInteger(0);
 
-    private final NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool> connectionManagers_ = new NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool>();
+    private final NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool> connectionManagers = new NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool>();
 
-    private static final Logger logger_ = LoggerFactory.getLogger(MessagingService.class);
+    private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
     private static final int LOG_DROPPED_INTERVAL_IN_MS = 5000;
 
     private List<SocketThread> socketThreads = Lists.newArrayList();
@@ -153,7 +153,7 @@ public final class MessagingService implements MessagingServiceMBean
         }
 
         listenGate = new SimpleCondition();
-        verbHandlers_ = new EnumMap<StorageService.Verb, IVerbHandler>(StorageService.Verb.class);
+        verbHandlers = new EnumMap<StorageService.Verb, IVerbHandler>(StorageService.Verb.class);
         Runnable logDropped = new Runnable()
         {
             public void run()
@@ -193,7 +193,7 @@ public final class MessagingService implements MessagingServiceMBean
                     }
                     catch (IOException e)
                     {
-                        logger_.error("Unable to deserialize mutation when writting hint for: " + expiredCallbackInfo.target);
+                        logger.error("Unable to deserialize mutation when writting hint for: " + expiredCallbackInfo.target);
                     }
                 }
 
@@ -235,7 +235,7 @@ public final class MessagingService implements MessagingServiceMBean
     /** called from gossiper when it notices a node is not responding. */
     public void convict(InetAddress ep)
     {
-        logger_.debug("Resetting pool for " + ep);
+        logger.debug("Resetting pool for " + ep);
         getConnectionPool(ep).reset();
     }
 
@@ -262,7 +262,7 @@ public final class MessagingService implements MessagingServiceMBean
         {
             ss.add(SSLFactory.getServerSocket(DatabaseDescriptor.getEncryptionOptions(), localEp, DatabaseDescriptor.getSSLStoragePort()));
             // setReuseAddress happens in the factory.
-            logger_.info("Starting Encrypted Messaging Service on SSL port {}", DatabaseDescriptor.getSSLStoragePort());
+            logger.info("Starting Encrypted Messaging Service on SSL port {}", DatabaseDescriptor.getSSLStoragePort());
         }
         
         ServerSocketChannel serverChannel = ServerSocketChannel.open();
@@ -283,7 +283,7 @@ public final class MessagingService implements MessagingServiceMBean
             else
                 throw e;
         }
-        logger_.info("Starting Messaging Service on port {}", DatabaseDescriptor.getStoragePort());
+        logger.info("Starting Messaging Service on port {}", DatabaseDescriptor.getStoragePort());
         ss.add(socket);
         return ss;
     }
@@ -296,17 +296,17 @@ public final class MessagingService implements MessagingServiceMBean
         }
         catch (InterruptedException ie)
         {
-            logger_.debug("await interrupted");
+            logger.debug("await interrupted");
         }
     }
 
     public OutboundTcpConnectionPool getConnectionPool(InetAddress to)
     {
-        OutboundTcpConnectionPool cp = connectionManagers_.get(to);
+        OutboundTcpConnectionPool cp = connectionManagers.get(to);
         if (cp == null)
         {
-            connectionManagers_.putIfAbsent(to, new OutboundTcpConnectionPool(to));
-            cp = connectionManagers_.get(to);
+            connectionManagers.putIfAbsent(to, new OutboundTcpConnectionPool(to));
+            cp = connectionManagers.get(to);
         }
         return cp;
     }
@@ -324,8 +324,8 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void registerVerbHandlers(StorageService.Verb verb, IVerbHandler verbHandler)
     {
-    	assert !verbHandlers_.containsKey(verb);
-    	verbHandlers_.put(verb, verbHandler);
+    	assert !verbHandlers.containsKey(verb);
+    	verbHandlers.put(verb, verbHandler);
     }
 
     /**
@@ -336,7 +336,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public IVerbHandler getVerbHandler(StorageService.Verb type)
     {
-        return verbHandlers_.get(type);
+        return verbHandlers.get(type);
     }
 
     public String addCallback(IMessageCallback cb, Message message, InetAddress to)
@@ -432,8 +432,8 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void sendOneWay(Message message, String id, InetAddress to)
     {
-        if (logger_.isTraceEnabled())
-            logger_.trace(FBUtilities.getBroadcastAddress() + " sending " + message.getVerb() + " to " + id + "@" + to);
+        if (logger.isTraceEnabled())
+            logger.trace(FBUtilities.getBroadcastAddress() + " sending " + message.getVerb() + " to " + id + "@" + to);
 
         // do local deliveries
         if ( message.getFrom().equals(to) )
@@ -529,7 +529,7 @@ public final class MessagingService implements MessagingServiceMBean
         for (DebuggableThreadPoolExecutor e : streamExecutors.values())
         {
             if (e.awaitTermination(24, TimeUnit.HOURS))
-                logger_.error("Stream took more than 24H to complete; skipping");
+                logger.error("Stream took more than 24H to complete; skipping");
         }
     }
 
@@ -538,7 +538,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void shutdown()
     {
-        logger_.info("Waiting for messaging service to quiesce");
+        logger.info("Waiting for messaging service to quiesce");
         // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first
         assert !StageManager.getStage(Stage.MUTATION).isShutdown();
 
@@ -559,8 +559,8 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void receive(Message message, String id)
     {
-        if (logger_.isTraceEnabled())
-            logger_.trace(FBUtilities.getBroadcastAddress() + " received " + message.getVerb()
+        if (logger.isTraceEnabled())
+            logger.trace(FBUtilities.getBroadcastAddress() + " received " + message.getVerb()
                           + " from " + id + "@" + message.getFrom());
 
         message = SinkManager.processServerMessage(message, id);
@@ -608,7 +608,7 @@ public final class MessagingService implements MessagingServiceMBean
         */
         int header = 0;
         // Setting up the serializer bit
-        header |= serializerType_.ordinal();
+        header |= serializerType.ordinal();
         // set compression bit.
         if ( compress )
             header |= 4;
@@ -662,7 +662,7 @@ public final class MessagingService implements MessagingServiceMBean
             if (recent > 0)
             {
                 logTpstats = true;
-                logger_.info("{} {} messages dropped in last {}ms",
+                logger.info("{} {} messages dropped in last {}ms",
                              new Object[] {recent, verb, LOG_DROPPED_INTERVAL_IN_MS});
                 lastDroppedInternal.put(verb, dropped.get());
             }
@@ -694,7 +694,7 @@ public final class MessagingService implements MessagingServiceMBean
                 catch (AsynchronousCloseException e)
                 {
                     // this happens when another thread calls close().
-                    logger_.info("MessagingService shutting down server thread.");
+                    logger.info("MessagingService shutting down server thread.");
                     break;
                 }
                 catch (IOException e)
@@ -713,7 +713,7 @@ public final class MessagingService implements MessagingServiceMBean
     public Map<String, Integer> getCommandPendingTasks()
     {
         Map<String, Integer> pendingTasks = new HashMap<String, Integer>();
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers_.entrySet())
+        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
             pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().cmdCon.getPendingMessages());
         return pendingTasks;
     }
@@ -721,7 +721,7 @@ public final class MessagingService implements MessagingServiceMBean
     public Map<String, Long> getCommandCompletedTasks()
     {
         Map<String, Long> completedTasks = new HashMap<String, Long>();
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers_.entrySet())
+        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
             completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().cmdCon.getCompletedMesssages());
         return completedTasks;
     }
@@ -729,7 +729,7 @@ public final class MessagingService implements MessagingServiceMBean
     public Map<String, Long> getCommandDroppedTasks()
     {
         Map<String, Long> droppedTasks = new HashMap<String, Long>();
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers_.entrySet())
+        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
             droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().cmdCon.getDroppedMessages());
         return droppedTasks;
     }
@@ -737,7 +737,7 @@ public final class MessagingService implements MessagingServiceMBean
     public Map<String, Integer> getResponsePendingTasks()
     {
         Map<String, Integer> pendingTasks = new HashMap<String, Integer>();
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers_.entrySet())
+        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
             pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().ackCon.getPendingMessages());
         return pendingTasks;
     }
@@ -745,7 +745,7 @@ public final class MessagingService implements MessagingServiceMBean
     public Map<String, Long> getResponseCompletedTasks()
     {
         Map<String, Long> completedTasks = new HashMap<String, Long>();
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers_.entrySet())
+        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
             completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().ackCon.getCompletedMesssages());
         return completedTasks;
     }

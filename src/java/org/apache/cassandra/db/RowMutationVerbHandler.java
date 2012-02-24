@@ -33,15 +33,15 @@ import org.apache.cassandra.net.MessagingService;
 
 public class RowMutationVerbHandler implements IVerbHandler
 {
-    private static Logger logger_ = LoggerFactory.getLogger(RowMutationVerbHandler.class);
+    private static Logger logger = LoggerFactory.getLogger(RowMutationVerbHandler.class);
 
     public void doVerb(Message message, String id)
     {
         try
         {
             RowMutation rm = RowMutation.fromBytes(message.getMessageBody(), message.getVersion());
-            if (logger_.isDebugEnabled())
-              logger_.debug("Applying " + rm);
+            if (logger.isDebugEnabled())
+              logger.debug("Applying " + rm);
 
             // Check if there were any forwarding headers in this message
             byte[] forwardBytes = message.getHeader(RowMutation.FORWARD_HEADER);
@@ -52,13 +52,13 @@ public class RowMutationVerbHandler implements IVerbHandler
 
             WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
-            if (logger_.isDebugEnabled())
-              logger_.debug(rm + " applied.  Sending response to " + id + "@" + message.getFrom());
+            if (logger.isDebugEnabled())
+              logger.debug(rm + " applied.  Sending response to " + id + "@" + message.getFrom());
             MessagingService.instance().sendReply(responseMessage, id, message.getFrom());
         }
         catch (IOException e)
         {
-            logger_.error("Error in row mutation", e);
+            logger.error("Error in row mutation", e);
         }
     }  
     
@@ -78,8 +78,8 @@ public class RowMutationVerbHandler implements IVerbHandler
             // Send a message to each of the addresses on our Forward List
             InetAddress address = CompactEndpointSerializationHelper.deserialize(dis);
             String id = dis.readUTF();
-            if (logger_.isDebugEnabled())
-                logger_.debug("Forwarding message to " + address + " with= ID: " + id);
+            if (logger.isDebugEnabled())
+                logger.debug("Forwarding message to " + address + " with= ID: " + id);
             // Let the response go back to the coordinator
             MessagingService.instance().sendOneWay(messageCopy, id, address);
         }

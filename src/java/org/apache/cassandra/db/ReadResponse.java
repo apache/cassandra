@@ -33,48 +33,48 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class ReadResponse
 {
-private static IVersionedSerializer<ReadResponse> serializer_;
+private static IVersionedSerializer<ReadResponse> serializer;
 
     static
     {
-        serializer_ = new ReadResponseSerializer();
+        serializer = new ReadResponseSerializer();
     }
 
     public static IVersionedSerializer<ReadResponse> serializer()
     {
-        return serializer_;
+        return serializer;
     }
     
-	private final Row row_;
-	private final ByteBuffer digest_;
+	private final Row row;
+	private final ByteBuffer digest;
 
-	public ReadResponse(ByteBuffer digest )
+	public ReadResponse(ByteBuffer digest)
     {
         assert digest != null;
-		digest_= digest;
-        row_ = null;
+		this.digest= digest;
+        this.row = null;
 	}
 
 	public ReadResponse(Row row)
     {
         assert row != null;
-		row_ = row;
-        digest_ = null;
+		this.row = row;
+        this.digest = null;
 	}
 
 	public Row row() 
     {
-		return row_;
+		return row;
     }
         
 	public ByteBuffer digest() 
     {
-		return digest_;
+		return digest;
 	}
 
 	public boolean isDigestQuery()
     {
-    	return digest_ != null;
+    	return digest != null;
     }
 }
 

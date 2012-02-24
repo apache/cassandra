@@ -73,7 +73,7 @@ public class IncomingTcpConnection extends Thread
             logger.debug("Version for {} is {}", from, version);
             if (isStream)
             {
-                if (version == MessagingService.version_)
+                if (version == MessagingService.current_version)
                 {
                     int size = input.readInt();
                     byte[] headerBytes = new byte[size];
@@ -84,7 +84,7 @@ public class IncomingTcpConnection extends Thread
                 {
                     // streaming connections are per-session and have a fixed version.  we can't do anything with a wrong-version stream connection, so drop it.
                     logger.error("Received stream using protocol version {} (my version {}). Terminating connection",
-                                 version, MessagingService.version_);
+                                 version, MessagingService.current_version);
                 }
                 // We are done with this connection....
                 return;
@@ -94,7 +94,7 @@ public class IncomingTcpConnection extends Thread
             input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
             // Receive the first message to set the version.
             Message msg = receiveMessage(input, version);
-            if (version > MessagingService.version_)
+            if (version > MessagingService.current_version)
             {
                 // save the endpoint so gossip will reconnect to it
                 Gossiper.instance.addSavedEndpoint(from);
@@ -154,7 +154,7 @@ public class IncomingTcpConnection extends Thread
 
         // for non-streaming connections, continue to read the messages (and ignore them) until sender
         // starts sending correct-version messages (which it can do without reconnecting -- version is per-Message)
-        if (version <= MessagingService.version_)
+        if (version <= MessagingService.current_version)
         {
             Message message = new Message(header, body, version);
             MessagingService.instance().receive(message, id);

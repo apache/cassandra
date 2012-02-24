@@ -39,7 +39,7 @@ public class SnapshotVerbHandler implements IVerbHandler
                 Table.open(command.keyspace).clearSnapshot(command.snapshot_name);
             else
                 Table.open(command.keyspace).getColumnFamilyStore(command.column_family).snapshot(command.snapshot_name);
-            Message response = message.getReply(FBUtilities.getBroadcastAddress(), new byte[0], MessagingService.version_);
+            Message response = message.getReply(FBUtilities.getBroadcastAddress(), new byte[0], MessagingService.current_version);
             if (logger.isDebugEnabled())
                 logger.debug("Sending response to snapshot request {} to {} ", command.snapshot_name, message.getFrom());
             MessagingService.instance().sendReply(response, id, message.getFrom());

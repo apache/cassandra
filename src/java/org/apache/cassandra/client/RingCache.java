@@ -45,7 +45,7 @@ import com.google.common.collect.Multimap;
  */
 public class RingCache
 {
-    final private static Logger logger_ = LoggerFactory.getLogger(RingCache.class);
+    final private static Logger logger = LoggerFactory.getLogger(RingCache.class);
 
     private final IPartitioner<?> partitioner;
     private final Configuration conf;
@@ -96,7 +96,7 @@ public class RingCache
             }
             catch (TException e)
             {
-                logger_.debug("Error contacting seed list" + ConfigHelper.getOutputInitialAddress(conf) + " " + e.getMessage());
+                logger.debug("Error contacting seed list" + ConfigHelper.getOutputInitialAddress(conf) + " " + e.getMessage());
             }
         }
 

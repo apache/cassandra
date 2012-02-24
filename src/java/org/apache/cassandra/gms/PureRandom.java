@@ -30,8 +30,8 @@ import java.util.Random;
 
 class PureRandom extends Random
 {
-    private BitSet bs_ = new BitSet();
-    private int lastUb_;
+    private BitSet bs = new BitSet();
+    private int lastUb;
 
     PureRandom()
     {
@@ -43,22 +43,22 @@ class PureRandom extends Random
     	if (ub <= 0)
     		throw new IllegalArgumentException("ub must be positive");
 
-        if ( lastUb_ !=  ub )
+        if (lastUb !=  ub)
         {
-            bs_.clear();
-            lastUb_ = ub;
+            bs.clear();
+            lastUb = ub;
         }
-        else if(bs_.cardinality() == ub)
+        else if(bs.cardinality() == ub)
         {
-        	bs_.clear();
+        	bs.clear();
         }
 
         int value = super.nextInt(ub);
-        while ( bs_.get(value) )
+        while ( bs.get(value) )
         {
             value = super.nextInt(ub);
         }
-        bs_.set(value);
+        bs.set(value);
         return value;
     }
 

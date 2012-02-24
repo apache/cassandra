@@ -36,34 +36,34 @@ import org.apache.cassandra.io.IVersionedSerializer;
 
 class GossipDigestAckMessage
 {
-    private static IVersionedSerializer<GossipDigestAckMessage> serializer_;
+    private static IVersionedSerializer<GossipDigestAckMessage> serializer;
     static
     {
-        serializer_ = new GossipDigestAckMessageSerializer();
+        serializer = new GossipDigestAckMessageSerializer();
     }
     
-    List<GossipDigest> gDigestList_ = new ArrayList<GossipDigest>();
-    Map<InetAddress, EndpointState> epStateMap_ = new HashMap<InetAddress, EndpointState>();
+    List<GossipDigest> gDigestList;
+    Map<InetAddress, EndpointState> epStateMap;
     
     static IVersionedSerializer<GossipDigestAckMessage> serializer()
     {
-        return serializer_;
+        return serializer;
     }
     
     GossipDigestAckMessage(List<GossipDigest> gDigestList, Map<InetAddress, EndpointState> epStateMap)
     {
-        gDigestList_ = gDigestList;
-        epStateMap_ = epStateMap;
+        this.gDigestList = gDigestList;
+        this.epStateMap = epStateMap;
     }
     
     List<GossipDigest> getGossipDigestList()
     {
-        return gDigestList_;
+        return gDigestList;
     }
     
     Map<InetAddress, EndpointState> getEndpointStateMap()
     {
-        return epStateMap_;
+        return epStateMap;
     }
 }
 
@@ -71,9 +71,9 @@ class GossipDigestAckMessageSerializer implements IVersionedSerializer<GossipDig
 {
     public void serialize(GossipDigestAckMessage gDigestAckMessage, DataOutput dos, int version) throws IOException
     {
-        GossipDigestSerializationHelper.serialize(gDigestAckMessage.gDigestList_, dos, version);
+        GossipDigestSerializationHelper.serialize(gDigestAckMessage.gDigestList, dos, version);
         dos.writeBoolean(true); // 0.6 compatibility
-        EndpointStatesSerializationHelper.serialize(gDigestAckMessage.epStateMap_, dos, version);
+        EndpointStatesSerializationHelper.serialize(gDigestAckMessage.epStateMap, dos, version);
     }
 
     public GossipDigestAckMessage deserialize(DataInput dis, int version) throws IOException

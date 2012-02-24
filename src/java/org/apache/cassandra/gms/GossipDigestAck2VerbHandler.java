@@ -35,14 +35,14 @@ import org.apache.cassandra.net.Message;
 
 public class GossipDigestAck2VerbHandler implements IVerbHandler
 {
-    private static Logger logger_ = LoggerFactory.getLogger(GossipDigestAck2VerbHandler.class);
+    private static Logger logger = LoggerFactory.getLogger(GossipDigestAck2VerbHandler.class);
 
     public void doVerb(Message message, String id)
     {
-        if (logger_.isTraceEnabled())
+        if (logger.isTraceEnabled())
         {
             InetAddress from = message.getFrom();
-            logger_.trace("Received a GossipDigestAck2Message from {}", from);
+            logger.trace("Received a GossipDigestAck2Message from {}", from);
         }
 
         byte[] bytes = message.getMessageBody();

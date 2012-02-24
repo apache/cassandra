@@ -47,13 +47,13 @@ import org.apache.thrift.transport.TTransportException;
 public class CustomTThreadPoolServer extends TServer
 {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(CustomTThreadPoolServer.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(CustomTThreadPoolServer.class.getName());
 
     // Executor service for handling client connections
-    private ExecutorService executorService_;
+    private ExecutorService executorService;
 
     // Flag for stopping the server
-    private volatile boolean stopped_;
+    private volatile boolean stopped;
 
     // Server options
     private TThreadPoolServer.Args args;
@@ -64,7 +64,7 @@ public class CustomTThreadPoolServer extends TServer
     
     public CustomTThreadPoolServer(TThreadPoolServer.Args args, ExecutorService executorService) {
         super(args);
-        executorService_ = executorService;
+        this.executorService = executorService;
         this.args = args;
     }
     
@@ -76,12 +76,12 @@ public class CustomTThreadPoolServer extends TServer
         }
         catch (TTransportException ttx)
         {
-            LOGGER.error("Error occurred during listening.", ttx);
+            logger.error("Error occurred during listening.", ttx);
             return;
         }
 
-        stopped_ = false;
-        while (!stopped_)
+        stopped = false;
+        while (!stopped)
         {
             // block until we are under max clients
             while (activeClients.get() >= args.maxWorkerThreads)
@@ -101,31 +101,31 @@ public class CustomTThreadPoolServer extends TServer
                 TTransport client = serverTransport_.accept();
                 activeClients.incrementAndGet();
                 WorkerProcess wp = new WorkerProcess(client);
-                executorService_.execute(wp);
+                executorService.execute(wp);
             }
             catch (TTransportException ttx)
             {
                 if (ttx.getCause() instanceof SocketTimeoutException) // thrift sucks
                     continue;
 
-                if (!stopped_)
+                if (!stopped)
                 {
-                    LOGGER.warn("Transport error occurred during acceptance of message.", ttx);
+                    logger.warn("Transport error occurred during acceptance of message.", ttx);
                 }
             }
 
             if (activeClients.get() >= args.maxWorkerThreads)
-                LOGGER.warn("Maximum number of clients " + args.maxWorkerThreads + " reached");
+                logger.warn("Maximum number of clients " + args.maxWorkerThreads + " reached");
         }
 
-        executorService_.shutdown();
+        executorService.shutdown();
         // Thrift's default shutdown waits for the WorkerProcess threads to complete.  We do not,
         // because doing that allows a client to hold our shutdown "hostage" by simply not sending
         // another message after stop is called (since process will block indefinitely trying to read
         // the next meessage header).
         //
         // The "right" fix would be to update thrift to set a socket timeout on client connections
-        // (and tolerate unintentional timeouts until stopped_ is set).  But this requires deep
+        // (and tolerate unintentional timeouts until stopped is set).  But this requires deep
         // changes to the code generator, so simply setting these threads to daemon (in our custom
         // CleaningThreadPool) and ignoring them after shutdown is good enough.
         //
@@ -141,7 +141,7 @@ public class CustomTThreadPoolServer extends TServer
 
     public void stop()
     {
-        stopped_ = true;
+        stopped = true;
         serverTransport_.interrupt();
     }
 
@@ -180,11 +180,11 @@ public class CustomTThreadPoolServer extends TServer
                 outputTransport = outputTransportFactory_.getTransport(client_);
                 inputProtocol = inputProtocolFactory_.getProtocol(inputTransport);
                 outputProtocol = outputProtocolFactory_.getProtocol(outputTransport);
-                // we check stopped_ first to make sure we're not supposed to be shutting
+                // we check stopped first to make sure we're not supposed to be shutting
                 // down. this is necessary for graceful shutdown.  (but not sufficient,
                 // since process() can take arbitrarily long waiting for client input.
                 // See comments at the end of serve().)
-                while (!stopped_ && processor.process(inputProtocol, outputProtocol))
+                while (!stopped && processor.process(inputProtocol, outputProtocol))
                 {
                     inputProtocol = inputProtocolFactory_.getProtocol(inputTransport);
                     outputProtocol = outputProtocolFactory_.getProtocol(outputTransport);
@@ -194,15 +194,15 @@ public class CustomTThreadPoolServer extends TServer
             {
                 // Assume the client died and continue silently
                 // Log at debug to allow debugging of "frame too large" errors (see CASSANDRA-3142).
-                LOGGER.debug("Thrift transport error occurred during processing of message.", ttx);
+                logger.debug("Thrift transport error occurred during processing of message.", ttx);
             }
             catch (TException tx)
             {
-                LOGGER.error("Thrift error occurred during processing of message.", tx);
+                logger.error("Thrift error occurred during processing of message.", tx);
             }
             catch (Exception x)
             {
-                LOGGER.error("Error occurred during processing of message.", x);
+                logger.error("Error occurred during processing of message.", x);
             }
             finally
             {

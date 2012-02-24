@@ -26,8 +26,8 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class Message
 {
-    final Header header_;
-    private final byte[] body_;
+    final Header header;
+    private final byte[] body;
     private final transient int version;
 
     public Message(Header header, byte[] body, int version)
@@ -35,8 +35,8 @@ public class Message
         assert header != null;
         assert body != null;
 
-        header_ = header;
-        body_ = body;
+        this.header = header;
+        this.body = body;
         this.version = version;
     }
     
@@ -47,22 +47,22 @@ public class Message
         
     public byte[] getHeader(String key)
     {
-        return header_.getDetail(key);
+        return header.getDetail(key);
     }
     
     public Message withHeaderAdded(String key, byte[] value)
     {
-        return new Message(header_.withDetailsAdded(key, value), body_, version);
+        return new Message(header.withDetailsAdded(key, value), body, version);
     }
     
     public Message withHeaderRemoved(String key)
     {
-        return new Message(header_.withDetailsRemoved(key), body_, version);
+        return new Message(header.withDetailsRemoved(key), body, version);
     }
 
     public byte[] getMessageBody()
     {
-        return body_;
+        return body;
     }
     
     public int getVersion()
@@ -72,7 +72,7 @@ public class Message
 
     public InetAddress getFrom()
     {
-        return header_.getFrom();
+        return header.getFrom();
     }
 
     public Stage getMessageType()
@@ -82,7 +82,7 @@ public class Message
 
     public StorageService.Verb getVerb()
     {
-        return header_.getVerb();
+        return header.getVerb();
     }
 
     // TODO should take byte[] + length so we don't have to copy to a byte[] of exactly the right len

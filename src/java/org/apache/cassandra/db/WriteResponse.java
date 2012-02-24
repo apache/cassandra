@@ -36,11 +36,11 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class WriteResponse 
 {
-    private static WriteResponseSerializer serializer_ = new WriteResponseSerializer();
+    private static WriteResponseSerializer serializer = new WriteResponseSerializer();
 
     public static WriteResponseSerializer serializer()
     {
-        return serializer_;
+        return serializer;
     }
 
     public static Message makeWriteResponseMessage(Message original, WriteResponse respose) throws IOException
@@ -49,29 +49,29 @@ public class WriteResponse
         return original.getReply(FBUtilities.getBroadcastAddress(), bytes, original.getVersion());
     }
 
-	private final String table_;
-	private final ByteBuffer key_;
-	private final boolean status_;
+	private final String table;
+	private final ByteBuffer key;
+	private final boolean status;
 
 	public WriteResponse(String table, ByteBuffer key, boolean bVal) {
-		table_ = table;
-		key_ = key;
-		status_ = bVal;
+		this.table = table;
+		this.key = key;
+		this.status = bVal;
 	}
 
 	public String table()
 	{
-		return table_;
+		return table;
 	}
 
 	public ByteBuffer key()
 	{
-		return key_;
+		return key;
 	}
 
 	public boolean isSuccess()
 	{
-		return status_;
+		return status;
 	}
 
     public static class WriteResponseSerializer implements IVersionedSerializer<WriteResponse>

@@ -41,7 +41,7 @@ public class StreamUtil
 
         try
         {
-            StreamRequestMessage srm = StreamRequestMessage.serializer().deserialize(new DataInputStream(bufIn), MessagingService.version_);
+            StreamRequestMessage srm = StreamRequestMessage.serializer().deserialize(new DataInputStream(bufIn), MessagingService.current_version);
             StreamInSession session = StreamInSession.get(to, srm.sessionId);
             session.closeIfFinished();
         }

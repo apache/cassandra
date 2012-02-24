@@ -75,9 +75,9 @@ public class ReadMessageTest extends SchemaLoader
         DataOutputBuffer dos = new DataOutputBuffer();
         ByteArrayInputStream bis;
 
-        rms.serialize(rm, dos, MessagingService.version_);
+        rms.serialize(rm, dos, MessagingService.current_version);
         bis = new ByteArrayInputStream(dos.getData(), 0, dos.getLength());
-        return rms.deserialize(new DataInputStream(bis), MessagingService.version_);
+        return rms.deserialize(new DataInputStream(bis), MessagingService.current_version);
     }
     
     @Test

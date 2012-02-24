@@ -232,7 +232,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
             rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
         DataOutputBuffer out = new DataOutputBuffer();
-        RowMutation.serializer().serialize(rm, out, MessagingService.version_);
+        RowMutation.serializer().serialize(rm, out, MessagingService.current_version);
         assert out.getLength() > DatabaseDescriptor.getColumnIndexSize();
         cfs.forceBlockingFlush();
 

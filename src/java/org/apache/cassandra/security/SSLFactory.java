@@ -48,7 +48,7 @@ import com.google.common.collect.Sets;
  */
 public final class SSLFactory
 {
-    private static final Logger logger_ = LoggerFactory.getLogger(SSLFactory.class);
+    private static final Logger logger = LoggerFactory.getLogger(SSLFactory.class);
 
     public static SSLServerSocket getServerSocket(EncryptionOptions options, InetAddress address, int port) throws IOException
     {
@@ -130,9 +130,9 @@ public final class SSLFactory
     private static String[] filterCipherSuites(String[] supported, String[] desired)
     {
         Set<String> des = Sets.newHashSet(desired);
-        Set<String> return_ = Sets.intersection(Sets.newHashSet(supported), des);
-        if (des.size() > return_.size())
-            logger_.warn("Filtering out {} as it isnt supported by the socket", StringUtils.join(Sets.difference(des, return_), ","));
-        return return_.toArray(new String[return_.size()]);
+        Set<String> toReturn = Sets.intersection(Sets.newHashSet(supported), des);
+        if (des.size() > toReturn.size())
+            logger.warn("Filtering out {} as it isnt supported by the socket", StringUtils.join(Sets.difference(des, toReturn), ","));
+        return toReturn.toArray(new String[toReturn.size()]);
     }
 }

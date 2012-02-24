@@ -142,7 +142,7 @@ public class RemoveTest extends CleanupHelper
 
         for (InetAddress host : hosts)
         {
-            Message msg = new Message(host, StorageService.Verb.REPLICATION_FINISHED, new byte[0], MessagingService.version_);
+            Message msg = new Message(host, StorageService.Verb.REPLICATION_FINISHED, new byte[0], MessagingService.current_version);
             MessagingService.instance().sendRR(msg, FBUtilities.getBroadcastAddress());
         }
 

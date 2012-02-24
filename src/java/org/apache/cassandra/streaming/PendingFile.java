@@ -36,11 +36,11 @@ import org.apache.cassandra.utils.Pair;
  */
 public class PendingFile
 {
-    private static PendingFileSerializer serializer_ = new PendingFileSerializer();
+    private static PendingFileSerializer serializer = new PendingFileSerializer();
 
     public static PendingFileSerializer serializer()
     {
-        return serializer_;
+        return serializer;
     }
 
     // NB: this reference is used to be able to release the acquired reference upon completion

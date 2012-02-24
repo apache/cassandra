@@ -34,7 +34,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class ReadVerbHandler implements IVerbHandler
 {
-    private static Logger logger_ = LoggerFactory.getLogger( ReadVerbHandler.class );
+    private static Logger logger = LoggerFactory.getLogger( ReadVerbHandler.class );
 
     public void doVerb(Message message, String id)
     {
@@ -54,8 +54,8 @@ public class ReadVerbHandler implements IVerbHandler
             byte[] bytes = FBUtilities.serialize(response, ReadResponse.serializer(), message.getVersion());
             Message reply = message.getReply(FBUtilities.getBroadcastAddress(), bytes, message.getVersion());
 
-            if (logger_.isDebugEnabled())
-              logger_.debug(String.format("Read key %s; sending response to %s@%s",
+            if (logger.isDebugEnabled())
+              logger.debug(String.format("Read key %s; sending response to %s@%s",
                                           ByteBufferUtil.bytesToHex(command.key), id, message.getFrom()));
             MessagingService.instance().sendReply(reply, id, message.getFrom());
         }
@@ -69,8 +69,8 @@ public class ReadVerbHandler implements IVerbHandler
     {
         if (command.isDigestQuery())
         {
-            if (logger_.isDebugEnabled())
-                logger_.debug("digest is " + ByteBufferUtil.bytesToHex(ColumnFamily.digest(row.cf)));
+            if (logger.isDebugEnabled())
+                logger.debug("digest is " + ByteBufferUtil.bytesToHex(ColumnFamily.digest(row.cf)));
             return new ReadResponse(ColumnFamily.digest(row.cf));
         }
         else

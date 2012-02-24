@@ -46,64 +46,64 @@ import org.apache.cassandra.utils.UUIDGen;
 
 public class RowMutation implements IMutation, MessageProducer
 {
-    private static RowMutationSerializer serializer_ = new RowMutationSerializer();
+    private static RowMutationSerializer serializer = new RowMutationSerializer();
     public static final String FORWARD_HEADER = "FORWARD";
 
     public static RowMutationSerializer serializer()
     {
-        return serializer_;
+        return serializer;
     }
 
-    private String table_;
-    private ByteBuffer key_;
+    private String table;
+    private ByteBuffer key;
     // map of column family id to mutations for that column family.
-    protected Map<Integer, ColumnFamily> modifications_ = new HashMap<Integer, ColumnFamily>();
+    protected Map<Integer, ColumnFamily> modifications = new HashMap<Integer, ColumnFamily>();
 
     private Map<Integer, byte[]> preserializedBuffers = new HashMap<Integer, byte[]>();
 
     public RowMutation(String table, ByteBuffer key)
     {
-        table_ = table;
-        key_ = key;
+        this.table = table;
+        this.key = key;
     }
 
     public RowMutation(String table, Row row)
     {
-        table_ = table;
-        key_ = row.key.key;
+        this.table = table;
+        this.key = row.key.key;
         add(row.cf);
     }
 
     protected RowMutation(String table, ByteBuffer key, Map<Integer, ColumnFamily> modifications)
     {
-        table_ = table;
-        key_ = key;
-        modifications_ = modifications;
+        this.table = table;
+        this.key = key;
+        this.modifications = modifications;
     }
 
     public String getTable()
     {
-        return table_;
+        return table;
     }
 
     public Collection<Integer> getColumnFamilyIds()
     {
-        return modifications_.keySet();
+        return modifications.keySet();
     }
 
     public ByteBuffer key()
     {
-        return key_;
+        return key;
     }
 
     public Collection<ColumnFamily> getColumnFamilies()
     {
-        return modifications_.values();
+        return modifications.values();
     }
 
     public ColumnFamily getColumnFamily(Integer cfId)
     {
-        return modifications_.get(cfId);
+        return modifications.get(cfId);
     }
 
     /**
@@ -137,11 +137,11 @@ public class RowMutation implements IMutation, MessageProducer
 
         // serialized RowMutation
         QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, hintId, ByteBufferUtil.bytes("mutation"));
-        rm.add(path, ByteBuffer.wrap(mutation.getSerializedBuffer(MessagingService.version_)), System.currentTimeMillis(), ttl);
+        rm.add(path, ByteBuffer.wrap(mutation.getSerializedBuffer(MessagingService.current_version)), System.currentTimeMillis(), ttl);
 
         // serialization version
         path = new QueryPath(HintedHandOffManager.HINTS_CF, hintId, ByteBufferUtil.bytes("version"));
-        rm.add(path, ByteBufferUtil.bytes(MessagingService.version_), System.currentTimeMillis(), ttl);
+        rm.add(path, ByteBufferUtil.bytes(MessagingService.current_version), System.currentTimeMillis(), ttl);
 
         // table
         path = new QueryPath(HintedHandOffManager.HINTS_CF, hintId, ByteBufferUtil.bytes("table"));
@@ -163,7 +163,7 @@ public class RowMutation implements IMutation, MessageProducer
     public void add(ColumnFamily columnFamily)
     {
         assert columnFamily != null;
-        ColumnFamily prev = modifications_.put(columnFamily.id(), columnFamily);
+        ColumnFamily prev = modifications.put(columnFamily.id(), columnFamily);
         if (prev != null)
             // developer error
             throw new IllegalArgumentException("ColumnFamily " + columnFamily + " already has modifications in this mutation: " + prev);
@@ -171,7 +171,7 @@ public class RowMutation implements IMutation, MessageProducer
 
     public boolean isEmpty()
     {
-        return modifications_.isEmpty();
+        return modifications.isEmpty();
     }
 
     /*
@@ -189,24 +189,24 @@ public class RowMutation implements IMutation, MessageProducer
      */
     public void add(QueryPath path, ByteBuffer value, long timestamp, int timeToLive)
     {
-        Integer id = Schema.instance.getId(table_, path.columnFamilyName);
-        ColumnFamily columnFamily = modifications_.get(id);
+        Integer id = Schema.instance.getId(table, path.columnFamilyName);
+        ColumnFamily columnFamily = modifications.get(id);
         if (columnFamily == null)
         {
-            columnFamily = ColumnFamily.create(table_, path.columnFamilyName);
-            modifications_.put(id, columnFamily);
+            columnFamily = ColumnFamily.create(table, path.columnFamilyName);
+            modifications.put(id, columnFamily);
         }
         columnFamily.addColumn(path, value, timestamp, timeToLive);
     }
 
     public void addCounter(QueryPath path, long value)
     {
-        Integer id = Schema.instance.getId(table_, path.columnFamilyName);
-        ColumnFamily columnFamily = modifications_.get(id);
+        Integer id = Schema.instance.getId(table, path.columnFamilyName);
+        ColumnFamily columnFamily = modifications.get(id);
         if (columnFamily == null)
         {
-            columnFamily = ColumnFamily.create(table_, path.columnFamilyName);
-            modifications_.put(id, columnFamily);
+            columnFamily = ColumnFamily.create(table, path.columnFamilyName);
+            modifications.put(id, columnFamily);
         }
         columnFamily.addCounter(path, value);
     }
@@ -218,15 +218,15 @@ public class RowMutation implements IMutation, MessageProducer
 
     public void delete(QueryPath path, long timestamp)
     {
-        Integer id = Schema.instance.getId(table_, path.columnFamilyName);
+        Integer id = Schema.instance.getId(table, path.columnFamilyName);
 
         int localDeleteTime = (int) (System.currentTimeMillis() / 1000);
 
-        ColumnFamily columnFamily = modifications_.get(id);
+        ColumnFamily columnFamily = modifications.get(id);
         if (columnFamily == null)
         {
-            columnFamily = ColumnFamily.create(table_, path.columnFamilyName);
-            modifications_.put(id, columnFamily);
+            columnFamily = ColumnFamily.create(table, path.columnFamilyName);
+            modifications.put(id, columnFamily);
         }
 
         if (path.superColumnName == null && path.columnName == null)
@@ -251,14 +251,14 @@ public class RowMutation implements IMutation, MessageProducer
             throw new IllegalArgumentException();
 
         RowMutation rm = (RowMutation)m;
-        if (!table_.equals(rm.table_) || !key_.equals(rm.key_))
+        if (!table.equals(rm.table) || !key.equals(rm.key))
             throw new IllegalArgumentException();
 
-        for (Map.Entry<Integer, ColumnFamily> entry : rm.modifications_.entrySet())
+        for (Map.Entry<Integer, ColumnFamily> entry : rm.modifications.entrySet())
         {
             // It's slighty faster to assume the key wasn't present and fix if
             // not in the case where it wasn't there indeed.
-            ColumnFamily cf = modifications_.put(entry.getKey(), entry.getValue());
+            ColumnFamily cf = modifications.put(entry.getKey(), entry.getValue());
             if (cf != null)
                 entry.getValue().resolve(cf);
         }
@@ -272,12 +272,12 @@ public class RowMutation implements IMutation, MessageProducer
     {
         KSMetaData ksm = Schema.instance.getTableDefinition(getTable());
 
-        Table.open(table_).apply(this, ksm.durableWrites);
+        Table.open(table).apply(this, ksm.durableWrites);
     }
 
     public void applyUnsafe() throws IOException
     {
-        Table.open(table_).apply(this, false);
+        Table.open(table).apply(this, false);
     }
 
     public Message getMessage(Integer version) throws IOException
@@ -309,13 +309,13 @@ public class RowMutation implements IMutation, MessageProducer
     public String toString(boolean shallow)
     {
         StringBuilder buff = new StringBuilder("RowMutation(");
-        buff.append("keyspace='").append(table_).append('\'');
-        buff.append(", key='").append(ByteBufferUtil.bytesToHex(key_)).append('\'');
+        buff.append("keyspace='").append(table).append('\'');
+        buff.append(", key='").append(ByteBufferUtil.bytesToHex(key)).append('\'');
         buff.append(", modifications=[");
         if (shallow)
         {
-            List<String> cfnames = new ArrayList<String>(modifications_.size());
-            for (Integer cfid : modifications_.keySet())
+            List<String> cfnames = new ArrayList<String>(modifications.size());
+            for (Integer cfid : modifications.keySet())
             {
                 CFMetaData cfm = Schema.instance.getCFMetaData(cfid);
                 cfnames.add(cfm == null ? "-dropped-" : cfm.cfName);
@@ -323,7 +323,7 @@ public class RowMutation implements IMutation, MessageProducer
             buff.append(StringUtils.join(cfnames, ", "));
         }
         else
-            buff.append(StringUtils.join(modifications_.values(), ", "));
+            buff.append(StringUtils.join(modifications.values(), ", "));
         return buff.append("])").toString();
     }
 
@@ -359,7 +359,7 @@ public class RowMutation implements IMutation, MessageProducer
         {
             for(ByteBuffer c : del.predicate.column_names)
             {
-                if (del.super_column == null && Schema.instance.getColumnFamilyType(table_, cfName) == ColumnFamilyType.Super)
+                if (del.super_column == null && Schema.instance.getColumnFamilyType(table, cfName) == ColumnFamilyType.Super)
                     delete(new QueryPath(cfName, c), del.timestamp);
                 else
                     delete(new QueryPath(cfName, del.super_column, c), del.timestamp);
@@ -373,9 +373,9 @@ public class RowMutation implements IMutation, MessageProducer
 
     public static RowMutation fromBytes(byte[] raw, int version) throws IOException
     {
-        RowMutation rm = serializer_.deserialize(new DataInputStream(new FastByteArrayInputStream(raw)), version);
+        RowMutation rm = serializer.deserialize(new DataInputStream(new FastByteArrayInputStream(raw)), version);
         boolean hasCounters = false;
-        for (Map.Entry<Integer, ColumnFamily> entry : rm.modifications_.entrySet())
+        for (Map.Entry<Integer, ColumnFamily> entry : rm.modifications.entrySet())
         {
             if (entry.getValue().metadata().getDefaultValidator().isCommutative())
             {
@@ -385,7 +385,7 @@ public class RowMutation implements IMutation, MessageProducer
         }
 
         // We need to deserialize at least once for counters to cleanup the delta
-        if (!hasCounters && version == MessagingService.version_)
+        if (!hasCounters && version == MessagingService.current_version)
             rm.preserializedBuffers.put(version, raw);
         return rm;
     }
@@ -397,11 +397,11 @@ public class RowMutation implements IMutation, MessageProducer
             dos.writeUTF(rm.getTable());
             ByteBufferUtil.writeWithShortLength(rm.key(), dos);
 
-            /* serialize the modifications_ in the mutation */
-            int size = rm.modifications_.size();
+            /* serialize the modifications in the mutation */
+            int size = rm.modifications.size();
             dos.writeInt(size);
             assert size >= 0;
-            for (Map.Entry<Integer,ColumnFamily> entry : rm.modifications_.entrySet())
+            for (Map.Entry<Integer,ColumnFamily> entry : rm.modifications.entrySet())
             {
                 dos.writeInt(entry.getKey());
                 ColumnFamily.serializer().serialize(entry.getValue(), dos);
@@ -434,7 +434,7 @@ public class RowMutation implements IMutation, MessageProducer
             size += DBConstants.shortSize + rm.key().remaining();
 
             size += DBConstants.intSize;
-            for (Map.Entry<Integer,ColumnFamily> entry : rm.modifications_.entrySet())
+            for (Map.Entry<Integer,ColumnFamily> entry : rm.modifications.entrySet())
             {
                 size += DBConstants.intSize;
                 size += entry.getValue().serializedSize();
