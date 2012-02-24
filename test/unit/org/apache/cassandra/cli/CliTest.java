@@ -23,7 +23,6 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.thrift.*;
 import org.apache.thrift.TException;
-import org.apache.thrift.transport.TTransportException;
 import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;

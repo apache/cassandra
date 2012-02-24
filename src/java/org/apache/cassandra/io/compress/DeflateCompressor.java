@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;

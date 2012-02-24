@@ -20,8 +20,6 @@ package org.apache.cassandra.utils;
 import java.io.*;
 import java.util.BitSet;
 
-import org.apache.cassandra.io.IVersionedSerializer;
-
 public class LegacyBloomFilterSerializer
 {
     public void serialize(LegacyBloomFilter bf, DataOutput dos)

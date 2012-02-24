@@ -28,7 +28,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.filter.QueryPath;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;

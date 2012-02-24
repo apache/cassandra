@@ -30,7 +30,6 @@ import org.apache.cassandra.stress.util.Operation;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.thrift.CqlResultType;
 
 public class CqlReader extends Operation
 {

@@ -18,9 +18,6 @@
 package org.apache.cassandra.config;
 
 import org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider;
-import org.apache.cassandra.cache.IRowCacheProvider;
-
-import java.util.List;
 
 
 public class Config

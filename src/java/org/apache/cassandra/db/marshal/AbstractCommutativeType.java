@@ -18,8 +18,6 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.sql.Types;
-
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.utils.ByteBufferUtil;

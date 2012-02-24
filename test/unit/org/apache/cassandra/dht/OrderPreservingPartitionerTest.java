@@ -18,12 +18,7 @@
 */
 package org.apache.cassandra.dht;
 
-import java.math.BigInteger;
-
-import org.junit.Before;
 import org.junit.Test;
-
-import org.apache.cassandra.utils.FBUtilities;
 
 public class OrderPreservingPartitionerTest extends PartitionerTestCase<StringToken> {
     public void initPartitioner()

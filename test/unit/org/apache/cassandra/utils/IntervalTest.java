@@ -21,7 +21,6 @@ package org.apache.cassandra.utils;
  */
 
 
-import junit.framework.Assert;
 import junit.framework.TestCase;
 import org.apache.cassandra.utils.IntervalTree.Interval;
 import org.junit.Test;

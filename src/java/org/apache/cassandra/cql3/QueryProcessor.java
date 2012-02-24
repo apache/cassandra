@@ -20,8 +20,6 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.base.Predicates;
-import com.google.common.collect.Maps;
 import org.antlr.runtime.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,10 +31,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.SemanticVersion;
 
 public class QueryProcessor

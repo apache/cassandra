@@ -28,8 +28,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 
-import static junit.framework.Assert.assertEquals;
-
 public class LongCompactionSpeedTest extends CleanupHelper
 {
     public static final String TABLE1 = "Keyspace1";

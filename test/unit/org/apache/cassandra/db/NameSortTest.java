@@ -20,8 +20,6 @@ package org.apache.cassandra.db;
 
 import static junit.framework.Assert.assertEquals;
 import static org.apache.cassandra.Util.addMutation;
-import static org.apache.cassandra.Util.column;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -29,7 +27,6 @@ import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
 

@@ -23,14 +23,10 @@ package org.apache.cassandra.cache;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.IColumn;
-
 import static org.apache.cassandra.Util.column;
 import static org.junit.Assert.*;
 

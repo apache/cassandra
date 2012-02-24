@@ -19,9 +19,6 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.*;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
  * Like DebuggableThreadPoolExecutor, DebuggableScheduledThreadPoolExecutor always
  * logs exceptions from the tasks it is given, even if Future.get is never called elsewhere.

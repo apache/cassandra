@@ -20,7 +20,6 @@ package org.apache.cassandra.utils;
 import java.nio.ByteBuffer;
 import java.util.BitSet;
 
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

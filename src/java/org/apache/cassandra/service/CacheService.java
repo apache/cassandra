@@ -20,7 +20,6 @@ package org.apache.cassandra.service;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -30,9 +29,6 @@ import javax.management.ObjectName;
 import org.apache.cassandra.cache.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.slf4j.Logger;

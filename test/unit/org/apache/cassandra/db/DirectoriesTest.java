@@ -29,7 +29,6 @@ import static org.junit.Assert.assertEquals;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.sstable.*;
-import org.apache.cassandra.utils.Pair;
 
 public class DirectoriesTest
 {

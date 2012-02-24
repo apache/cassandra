@@ -30,7 +30,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
 
-import com.google.common.base.Charsets;
 import org.junit.Test;
 
 public class ByteBufferUtilTest

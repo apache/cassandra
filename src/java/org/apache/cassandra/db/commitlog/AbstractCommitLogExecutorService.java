@@ -17,12 +17,9 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.lang.management.ManagementFactory;
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.TimeUnit;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 
 public abstract class AbstractCommitLogExecutorService extends AbstractExecutorService implements ICommitLogExecutorService
 {

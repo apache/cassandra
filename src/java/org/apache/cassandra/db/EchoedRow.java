@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.db.compaction.AbstractCompactedRow;
-import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 
 /**

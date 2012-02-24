@@ -22,11 +22,8 @@ import java.nio.ByteBuffer;
 import java.net.InetAddress;
 import java.security.MessageDigest;
 import java.util.concurrent.TimeoutException;
-import java.util.Arrays;
-import java.util.Map;
 import java.util.Collection;
 
-import com.google.common.collect.Multimap;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.CFMetaData;

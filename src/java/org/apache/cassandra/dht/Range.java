@@ -18,15 +18,12 @@
 package org.apache.cassandra.dht;
 
 import java.io.Serializable;
-import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.ObjectUtils;
 
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**

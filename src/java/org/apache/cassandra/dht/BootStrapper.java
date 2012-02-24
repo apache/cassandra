@@ -20,18 +20,13 @@ package org.apache.cassandra.dht;
  import java.io.IOException;
  import java.net.InetAddress;
  import java.util.*;
- import java.util.concurrent.CountDownLatch;
  import java.util.concurrent.TimeUnit;
  import java.util.concurrent.locks.Condition;
 
  import com.google.common.base.Charsets;
- import com.google.common.collect.ArrayListMultimap;
- import com.google.common.collect.HashMultimap;
- import com.google.common.collect.Multimap;
  import org.apache.cassandra.config.Schema;
  import org.apache.cassandra.gms.Gossiper;
  import org.apache.commons.lang.ArrayUtils;
- import org.apache.commons.lang.StringUtils;
  import org.slf4j.Logger;
  import org.slf4j.LoggerFactory;
 
@@ -39,7 +34,6 @@ package org.apache.cassandra.dht;
  import org.apache.cassandra.config.DatabaseDescriptor;
  import org.apache.cassandra.db.Table;
  import org.apache.cassandra.gms.FailureDetector;
- import org.apache.cassandra.gms.IFailureDetector;
  import org.apache.cassandra.locator.AbstractReplicationStrategy;
  import org.apache.cassandra.locator.TokenMetadata;
  import org.apache.cassandra.net.IAsyncCallback;
@@ -48,7 +42,6 @@ package org.apache.cassandra.dht;
  import org.apache.cassandra.net.MessagingService;
  import org.apache.cassandra.service.StorageService;
  import org.apache.cassandra.streaming.OperationType;
- import org.apache.cassandra.streaming.StreamIn;
  import org.apache.cassandra.utils.FBUtilities;
  import org.apache.cassandra.utils.SimpleCondition;
 

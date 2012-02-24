@@ -25,7 +25,6 @@ import java.net.InetAddress;
 
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 
 public class StreamUtil
 {

@@ -45,7 +45,6 @@ import org.apache.cassandra.utils.MerkleTree;
 import static org.apache.cassandra.service.AntiEntropyService.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper

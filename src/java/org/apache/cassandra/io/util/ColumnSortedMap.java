@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.Map.Entry;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.io.IColumnSerializer;

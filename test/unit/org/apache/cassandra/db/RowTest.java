@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.db;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import org.apache.cassandra.SchemaLoader;

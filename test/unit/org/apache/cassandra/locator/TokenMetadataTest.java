@@ -20,15 +20,12 @@ package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.List;
-
 import com.google.common.collect.Iterators;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
-import org.apache.cassandra.CleanupHelper;
 import static org.apache.cassandra.Util.token;
 
 import org.apache.cassandra.dht.Token;

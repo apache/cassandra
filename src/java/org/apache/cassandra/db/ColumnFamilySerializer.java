@@ -20,17 +20,14 @@ package org.apache.cassandra.db;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.util.Collection;
 
 import org.apache.cassandra.config.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.ISerializer;
-import org.apache.cassandra.io.sstable.SSTableMetadata;
 
 public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
 {

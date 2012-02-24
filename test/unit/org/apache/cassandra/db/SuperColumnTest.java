@@ -17,19 +17,15 @@
 */
 package org.apache.cassandra.db;
 
-import java.nio.ByteBuffer;
-
 import org.junit.Test;
 
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertNull;
 import static org.apache.cassandra.Util.getBytes;
-import static org.apache.cassandra.Util.concatByteArrays;
 import org.apache.cassandra.db.context.CounterContext;
 import static org.apache.cassandra.db.context.CounterContext.ContextState;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NodeId;
 
 public class SuperColumnTest

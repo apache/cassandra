@@ -22,10 +22,8 @@ import java.util.*;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.IFilter;
-import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
 
 public abstract class SecondaryIndexSearcher
 {

@@ -42,8 +42,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
 
 import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
-import static org.junit.Assert.assertEquals;
-
 import org.apache.cassandra.Util;
 
 import org.json.simple.parser.ParseException;

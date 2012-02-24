@@ -18,8 +18,6 @@
 package org.apache.cassandra.db.columniterator;
 
 import java.io.IOException;
-import java.util.Iterator;
-
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
