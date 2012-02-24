@@ -100,9 +100,9 @@ public class QueryPath
 
     public int serializedSize()
     {
-        int size = DBConstants.shortSize + (columnFamilyName == null ? 0 : FBUtilities.encodedUTF8Length(columnFamilyName));
-        size += DBConstants.shortSize + (superColumnName == null ? 0 : superColumnName.remaining());
-        size += DBConstants.shortSize + (columnName == null ? 0 : columnName.remaining());
+        int size = DBConstants.SHORT_SIZE + (columnFamilyName == null ? 0 : FBUtilities.encodedUTF8Length(columnFamilyName));
+        size += DBConstants.SHORT_SIZE + (superColumnName == null ? 0 : superColumnName.remaining());
+        size += DBConstants.SHORT_SIZE + (columnName == null ? 0 : columnName.remaining());
         return size;
     }
 }

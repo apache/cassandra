@@ -41,7 +41,7 @@ public class RangeSliceReply
 
     public Message getReply(Message originalMessage) throws IOException
     {
-        int size = DBConstants.intSize;
+        int size = DBConstants.INT_SIZE;
         for (Row row : rows)
             size += Row.serializer().serializedSize(row, originalMessage.getVersion());
 

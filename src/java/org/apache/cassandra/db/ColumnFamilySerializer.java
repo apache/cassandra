@@ -157,6 +157,6 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
 
     public long serializedSize(ColumnFamily cf)
     {
-        return cf == null ? DBConstants.boolSize : cf.serializedSize();
+        return cf == null ? DBConstants.BOOL_SIZE : cf.serializedSize();
     }
 }

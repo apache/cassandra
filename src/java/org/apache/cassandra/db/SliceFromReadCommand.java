@@ -185,14 +185,14 @@ class SliceFromReadCommandSerializer implements IVersionedSerializer<ReadCommand
     public long serializedSize(ReadCommand cmd, int version)
     {
         SliceFromReadCommand command = (SliceFromReadCommand) cmd;
-        int size = DBConstants.boolSize;
-        size += DBConstants.shortSize + FBUtilities.encodedUTF8Length(command.table);
-        size += DBConstants.shortSize + command.key.remaining();
+        int size = DBConstants.BOOL_SIZE;
+        size += DBConstants.SHORT_SIZE + FBUtilities.encodedUTF8Length(command.table);
+        size += DBConstants.SHORT_SIZE + command.key.remaining();
         size += command.queryPath.serializedSize();
-        size += DBConstants.shortSize + command.start.remaining();
-        size += DBConstants.shortSize + command.finish.remaining();
-        size += DBConstants.boolSize;
-        size += DBConstants.intSize;
+        size += DBConstants.SHORT_SIZE + command.start.remaining();
+        size += DBConstants.SHORT_SIZE + command.finish.remaining();
+        size += DBConstants.BOOL_SIZE;
+        size += DBConstants.INT_SIZE;
         return size;
     }
 }

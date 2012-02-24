@@ -103,8 +103,8 @@ public abstract class RowPosition implements RingPosition<RowPosition>
         public long serializedSize(RowPosition pos)
         {
             Kind kind = pos.kind();
-            return DBConstants.boolSize
-                + (kind == Kind.ROW_KEY ? DBConstants.shortSize + ((DecoratedKey)pos).key.remaining()
+            return DBConstants.BOOL_SIZE
+                + (kind == Kind.ROW_KEY ? DBConstants.SHORT_SIZE + ((DecoratedKey)pos).key.remaining()
                                         : Token.serializer().serializedSize(pos.getToken()));
         }
     }

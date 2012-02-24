@@ -123,7 +123,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
          * We need to keep the way we are calculating the column size in sync with the
          * way we are calculating the size for the column family serializer.
          */
-        return DBConstants.shortSize + name.remaining() + DBConstants.intSize + DBConstants.longSize + DBConstants.intSize + size();
+        return DBConstants.SHORT_SIZE + name.remaining() + DBConstants.INT_SIZE + DBConstants.LONG_SIZE + DBConstants.INT_SIZE + size();
     }
 
     public long timestamp()

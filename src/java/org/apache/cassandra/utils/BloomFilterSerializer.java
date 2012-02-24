@@ -76,8 +76,8 @@ public class BloomFilterSerializer implements ISerializer<BloomFilter>
      */
     public long serializedSize(BloomFilter bf)
     {
-        return DBConstants.intSize // hash count
-               + DBConstants.intSize // length
-               + bf.bitset.getNumWords() * DBConstants.longSize; // buckets
+        return DBConstants.INT_SIZE // hash count
+               + DBConstants.INT_SIZE // length
+               + bf.bitset.getNumWords() * DBConstants.LONG_SIZE; // buckets
     }
 }

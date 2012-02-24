@@ -336,16 +336,16 @@ public class ColumnFamily extends AbstractColumnContainer
 
     public long serializedSize()
     {
-        return boolSize // nullness bool
-               + intSize // id
+        return BOOL_SIZE // nullness bool
+               + INT_SIZE // id
                + serializedSizeForSSTable();
     }
 
     public long serializedSizeForSSTable()
     {
-        int size = intSize // local deletion time
-                 + longSize // client deletion time
-                 + intSize; // column count
+        int size = INT_SIZE // local deletion time
+                 + LONG_SIZE // client deletion time
+                 + INT_SIZE; // column count
         for (IColumn column : columns)
             size += column.serializedSize();
         return size;

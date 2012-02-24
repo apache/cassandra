@@ -20,9 +20,9 @@ package org.apache.cassandra.db;
 
 public class DBConstants
 {
-    public static final int boolSize = 1;
-    public static final int intSize = 4;
-    public static final int longSize = 8;
-    public static final int shortSize = 2;
-    public static final int tsSize = 8;
+    public static final int BOOL_SIZE = 1;
+    public static final int INT_SIZE = 4;
+    public static final int LONG_SIZE = 8;
+    public static final int SHORT_SIZE = 2;
+    public static final int TIMESTAMP_SIZE = 8;
 }

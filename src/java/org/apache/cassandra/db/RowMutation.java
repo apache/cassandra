@@ -430,13 +430,13 @@ public class RowMutation implements IMutation, MessageProducer
 
         public long serializedSize(RowMutation rm, int version)
         {
-            int size = DBConstants.shortSize + FBUtilities.encodedUTF8Length(rm.getTable());
-            size += DBConstants.shortSize + rm.key().remaining();
+            int size = DBConstants.SHORT_SIZE + FBUtilities.encodedUTF8Length(rm.getTable());
+            size += DBConstants.SHORT_SIZE + rm.key().remaining();
 
-            size += DBConstants.intSize;
+            size += DBConstants.INT_SIZE;
             for (Map.Entry<Integer,ColumnFamily> entry : rm.modifications.entrySet())
             {
-                size += DBConstants.intSize;
+                size += DBConstants.INT_SIZE;
                 size += entry.getValue().serializedSize();
             }
 
