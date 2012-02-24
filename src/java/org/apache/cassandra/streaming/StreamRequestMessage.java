@@ -182,7 +182,7 @@ class StreamRequestMessage implements MessageProducer
             {
                 String table = dis.readUTF();
                 int size = dis.readInt();
-                List<Range<Token>> ranges = (size == 0) ? null : new ArrayList<Range<Token>>();
+                List<Range<Token>> ranges = (size == 0) ? null : new ArrayList<Range<Token>>(size);
                 for( int i = 0; i < size; ++i )
                 {
                     ranges.add((Range<Token>) AbstractBounds.serializer().deserialize(dis, version).toTokenBounds());

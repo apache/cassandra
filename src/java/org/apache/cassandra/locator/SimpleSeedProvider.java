@@ -37,8 +37,8 @@ public class SimpleSeedProvider implements SeedProvider
     
     public SimpleSeedProvider(Map<String, String> args)
     {
-        seeds = new ArrayList<InetAddress>();
         String[] hosts = args.get("seeds").split(",", -1);
+        seeds = new ArrayList<InetAddress>(hosts.length);
         for (String host : hosts)
         {
             try

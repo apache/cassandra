@@ -460,6 +460,20 @@ commands:
           will not have any latency information from all the replicas to recognize
           when one is performing worse than usual.
 
+        - dclocal_read_repair_chance: Probability (0.0-1.0) with which to
+          perform read repairs against the node from the local data-center. If
+          this is lower than read_repair_chance, this will be ignored.
+
+          Example:
+            update column family Standard2
+                 with read_repair_chance=0.1
+                 and dclocal_read_repair_chance=0.5;
+
+            For 10 read queries, 1 will do read repair on all replicas (and
+            thus in particular on all replica of the local DC), 4 will only do
+            read repair on replica of the local DC and 5 will not do any read
+            repair.
+
         - subcomparator:  Validator to use to validate and compare sub column names
           in this column family. Only applied to Super column families. Default is
           BytesType, which is a straight forward lexical comparison of the bytes in
@@ -979,6 +993,7 @@ commands:
         list <cf>[<startKey>:];
         list <cf>[<startKey>:<endKey>];
         list <cf>[<startKey>:<endKey>] limit <limit>;
+        list <cf>[<startKey>:<endKey>] ?(limit <limit>) ?(columns <col_limit> ?(reversed));
 
         List a range of rows, and all of their columns, in the specified column
         family.
@@ -994,6 +1009,9 @@ commands:
 
         - limit: Number of rows to return. Default is 100.
 
+        - columns: Number of columns to return per row, Default to MAX_INTEGER. reversed -
+        columns in reverse order.
+
         - startKey: Key start the range from. The start key will be
         included in the result. Defaults to an empty byte array.
 
@@ -1001,6 +1019,9 @@ commands:
         list Standard1;
         list Super1[j:];
         list Standard1[j:k] limit 40;
+        list Standard1 columns 2;
+        list Standard1 limit 40 columns 0;
+        list Standard1 columns 3 reversed;
     - name: NODE_TRUNCATE
       help: |
         truncate <cf>;

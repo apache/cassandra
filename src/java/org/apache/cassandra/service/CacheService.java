@@ -275,7 +275,7 @@ public class CacheService implements CacheServiceMBean
 
     public void saveCaches() throws ExecutionException, InterruptedException
     {
-        List<Future<?>> futures = new ArrayList<Future<?>>();
+        List<Future<?>> futures = new ArrayList<Future<?>>(2);
         logger.debug("submitting cache saves");
 
         futures.add(keyCache.submitWrite(DatabaseDescriptor.getKeyCacheKeysToSave()));

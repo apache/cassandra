@@ -325,7 +325,7 @@ public class CompactionManager implements CompactionManagerMBean
                 {
                     // look up the sstables now that we're on the compaction executor, so we don't try to re-compact
                     // something that was already being compacted earlier.
-                    Collection<SSTableReader> sstables = new ArrayList<SSTableReader>();
+                    Collection<SSTableReader> sstables = new ArrayList<SSTableReader>(dataFiles.size());
                     for (Descriptor desc : dataFiles)
                     {
                         // inefficient but not in a performance sensitive path
@@ -762,7 +762,7 @@ public class CompactionManager implements CompactionManagerMBean
                 executor.finishCompaction(ci);
             }
 
-            List<SSTableReader> results = new ArrayList<SSTableReader>();
+            List<SSTableReader> results = new ArrayList<SSTableReader>(1);
             if (newSstable != null)
             {
                 results.add(newSstable);
@@ -807,23 +807,33 @@ public class CompactionManager implements CompactionManagerMBean
         if (!cfs.isValid())
             return;
 
-        // flush first so everyone is validating data that is as similar as possible
-        try
+        Collection<SSTableReader> sstables;
+        if (cfs.table.snapshotExists(validator.request.sessionid))
         {
-            StorageService.instance.forceTableFlush(cfs.table.name, cfs.getColumnFamilyName());
+            // If there is a snapshot created for the session then read from there.
+            sstables = cfs.getSnapshotSSTableReader(validator.request.sessionid);
         }
-        catch (ExecutionException e)
+        else
         {
-            throw new IOException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
+            // flush first so everyone is validating data that is as similar as possible
+            try
+            {
+                StorageService.instance.forceTableFlush(cfs.table.name, cfs.getColumnFamilyName());
+            }
+            catch (ExecutionException e)
+            {
+                throw new IOException(e);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+
+            // we don't mark validating sstables as compacting in DataTracker, so we have to mark them referenced
+            // instead so they won't be cleaned up if they do get compacted during the validation
+            sstables = cfs.markCurrentSSTablesReferenced();
         }
 
-        // we don't mark validating sstables as compacting in DataTracker, so we have to mark them referenced
-        // instead so they won't be cleaned up if they do get compacted during the validation
-        Collection<SSTableReader> sstables = cfs.markCurrentSSTablesReferenced();
         CompactionIterable ci = new ValidationCompactionIterable(cfs, sstables, validator.request.range);
         CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
         validationExecutor.beginCompaction(ci);
@@ -846,6 +856,9 @@ public class CompactionManager implements CompactionManagerMBean
         {
             SSTableReader.releaseReferences(sstables);
             iter.close();
+            if (cfs.table.snapshotExists(validator.request.sessionid))
+                cfs.table.clearSnapshot(validator.request.sessionid);
+
             validationExecutor.finishCompaction(ci);
         }
     }
@@ -1052,16 +1065,18 @@ public class CompactionManager implements CompactionManagerMBean
 
     public List<Map<String, String>> getCompactions()
     {
-        List<Map<String, String>> out = new ArrayList<Map<String, String>>();
-        for (CompactionInfo.Holder ci : CompactionExecutor.getCompactions())
+        List<Holder> compactionHolders = CompactionExecutor.getCompactions();
+        List<Map<String, String>> out = new ArrayList<Map<String, String>>(compactionHolders.size());
+        for (CompactionInfo.Holder ci : compactionHolders)
             out.add(ci.getCompactionInfo().asMap());
         return out;
     }
 
     public List<String> getCompactionSummary()
     {
-        List<String> out = new ArrayList<String>();
-        for (CompactionInfo.Holder ci : CompactionExecutor.getCompactions())
+        List<Holder> compactionHolders = CompactionExecutor.getCompactions();
+        List<String> out = new ArrayList<String>(compactionHolders.size());
+        for (CompactionInfo.Holder ci : compactionHolders)
             out.add(ci.getCompactionInfo().toString());
         return out;
     }

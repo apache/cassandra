@@ -1,4 +1,5 @@
 1.1-dev
+ * optimize commitlog checksumming (CASSANDRA-3610)
  * avoid unproductive deserializing of cached rows during compaction
    (CASSANDRA-3921)
  * fix concurrency issues with CQL keyspace creation (CASSANDRA-3903)
@@ -9,11 +10,13 @@
  * Remove deprecated merge_shard_chance (CASSANDRA-3940)
  * add a convenient way to reset a node's schema (CASSANDRA-2963)
  * fix for intermittent SchemaDisagreementException (CASSANDRA-3884)
+ * CLI `list <CF>` to limit number of columns and their order (CASSANDRA-3012)
 Merged from 1.0:
  * remove the wait on hint future during write (CASSANDRA-3870)
  * (cqlsh) ignore missing CfDef opts (CASSANDRA-3933)
  * (cqlsh) look for cqlshlib relative to realpath (CASSANDRA-3767)
  * Fix short read protection (CASSANDRA-3934)
+
 
 
 1.1-beta1

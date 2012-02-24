@@ -177,7 +177,7 @@ public class StorageProxy implements StorageProxyMBean
         final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
 
         long startTime = System.nanoTime();
-        List<IWriteResponseHandler> responseHandlers = new ArrayList<IWriteResponseHandler>();
+        List<IWriteResponseHandler> responseHandlers = new ArrayList<IWriteResponseHandler>(mutations.size());
 
         IMutation mostRecentMutation = null;
         try
@@ -206,7 +206,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             if (logger.isDebugEnabled())
             {
-                List<String> mstrings = new ArrayList<String>();
+                List<String> mstrings = new ArrayList<String>(mutations.size());
                 for (IMutation mutation : mutations)
                     mstrings.add(mutation.toString(true));
                 logger.debug("Write timeout {} for one (or more) of: ", ex.toString(), mstrings);

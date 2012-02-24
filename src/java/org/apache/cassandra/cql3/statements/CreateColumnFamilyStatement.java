@@ -189,7 +189,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                     }
                     else
                     {
-                        List<AbstractType<?>> types = new ArrayList<AbstractType<?>>();
+                        List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(columnAliases.size() + 1);
                         for (ColumnIdentifier t : columnAliases)
                         {
                             stmt.columnAliases.add(t.key);

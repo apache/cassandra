@@ -73,7 +73,6 @@ public class RowIteratorFactory
         {
             final SSTableScanner scanner = sstable.getScanner(filter);
             scanner.seekTo(startWith);
-            assert scanner instanceof Closeable; // otherwise we leak FDs
             iterators.add(scanner);
         }
 

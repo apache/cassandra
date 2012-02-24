@@ -30,7 +30,6 @@ import javax.management.*;
 
 import com.google.common.collect.*;
 
-import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.service.CacheService;
 import org.slf4j.Logger;
@@ -47,7 +46,6 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
-import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -56,6 +54,7 @@ import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
@@ -1431,6 +1430,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 SSTableReader.releaseReferences(currentView.sstables);
             }
         }
+    }
+
+    public List<SSTableReader> getSnapshotSSTableReader(String tag) throws IOException
+    {
+        Map<Descriptor, Set<Component>> snapshots = directories.sstableLister().snapshots(tag).list();
+        List<SSTableReader> readers = new ArrayList<SSTableReader>(snapshots.size());
+        for (Map.Entry<Descriptor, Set<Component>> entries : snapshots.entrySet())
+            readers.add(SSTableReader.open(entries.getKey(), entries.getValue(), metadata, partitioner));
+        return readers;
     }
 
     /**

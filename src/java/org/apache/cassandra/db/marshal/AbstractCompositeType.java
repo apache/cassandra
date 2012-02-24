@@ -161,8 +161,8 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     public ByteBuffer fromString(String source)
     {
         String[] parts = source.split(":");
-        List<ByteBuffer> components = new ArrayList<ByteBuffer>();
-        List<ParsedComparator> comparators = new ArrayList<ParsedComparator>();
+        List<ByteBuffer> components = new ArrayList<ByteBuffer>(parts.length);
+        List<ParsedComparator> comparators = new ArrayList<ParsedComparator>(parts.length);
         int totalLength = 0, i = 0;
         boolean lastByteIsOne = false;
 

@@ -149,7 +149,7 @@ public class BatchStatement extends ModificationStatement
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException
     {
-        List<AbstractType<?>> boundTypes = new ArrayList<AbstractType<?>>();
+        List<AbstractType<?>> boundTypes = new ArrayList<AbstractType<?>>(statements.size());
         // XXX: we use our knowledge that Modification don't create new
         // statement upon call to prepare()
         for (ModificationStatement statement : statements)

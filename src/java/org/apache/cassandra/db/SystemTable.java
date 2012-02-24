@@ -526,7 +526,7 @@ public class SystemTable
 
     public static List<Row> serializedSchema()
     {
-        List<Row> schema = new ArrayList<Row>();
+        List<Row> schema = new ArrayList<Row>(3);
 
         schema.addAll(serializedSchema(SCHEMA_KEYSPACES_CF));
         schema.addAll(serializedSchema(SCHEMA_COLUMNFAMILIES_CF));

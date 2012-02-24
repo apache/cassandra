@@ -255,7 +255,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
      */
     private ArrayList<Range<T>> subtractContained(Range<T> contained)
     {
-        ArrayList<Range<T>> difference = new ArrayList<Range<T>>();
+        ArrayList<Range<T>> difference = new ArrayList<Range<T>>(2);
 
         if (!left.equals(contained.left))
             difference.add(new Range<T>(left, contained.left, partitioner));
@@ -359,7 +359,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
     public static <T extends RingPosition> List<Range<T>> normalize(Collection<Range<T>> ranges)
     {
         // unwrap all
-        List<Range<T>> output = new ArrayList<Range<T>>();
+        List<Range<T>> output = new ArrayList<Range<T>>(ranges.size());
         for (Range<T> range : ranges)
             output.addAll(range.unwrap());
 

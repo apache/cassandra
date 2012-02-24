@@ -538,8 +538,6 @@ public class SecondaryIndexManager
      */
     private List<SecondaryIndexSearcher> getIndexSearchersForQuery(List<IndexExpression> clause)
     {
-        List<SecondaryIndexSearcher> indexSearchers = new ArrayList<SecondaryIndexSearcher>();
-        
         Map<String, Set<ByteBuffer>> groupByIndexType = new HashMap<String, Set<ByteBuffer>>();
  
         
@@ -562,6 +560,8 @@ public class SecondaryIndexManager
             columns.add(ix.column_name);        
         }
         
+        List<SecondaryIndexSearcher> indexSearchers = new ArrayList<SecondaryIndexSearcher>(groupByIndexType.size());
+
         //create searcher per type
         for (Map.Entry<String, Set<ByteBuffer>> entry : groupByIndexType.entrySet())
         {

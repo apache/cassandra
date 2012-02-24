@@ -135,8 +135,9 @@ public class QueryProcessor
     throws InvalidRequestException
     {
         String keyString = getKeyString(metadata);
-        List<ByteBuffer> columnNames = new ArrayList<ByteBuffer>();
-        for (Term column : select.getColumnNames())
+        List<Term> selectColumnNames = select.getColumnNames();
+        List<ByteBuffer> columnNames = new ArrayList<ByteBuffer>(selectColumnNames.size());
+        for (Term column : selectColumnNames)
         {
             // skip the key for the slice op; we'll add it to the resultset in extractThriftColumns
             if (!column.getText().equalsIgnoreCase(keyString))
@@ -175,8 +176,9 @@ public class QueryProcessor
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, metadata, variables);
         validateSlicePredicate(metadata, thriftSlicePredicate);
 
-        List<IndexExpression> expressions = new ArrayList<IndexExpression>();
-        for (Relation columnRelation : select.getColumnRelations())
+        List<Relation> columnRelations = select.getColumnRelations();
+        List<IndexExpression> expressions = new ArrayList<IndexExpression>(columnRelations.size());
+        for (Relation columnRelation : columnRelations)
         {
             // Left and right side of relational expression encoded according to comparator/validator.
             ByteBuffer entity = columnRelation.getEntity().getByteBuffer(metadata.comparator, variables);
@@ -237,8 +239,8 @@ public class QueryProcessor
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         String globalKeyspace = clientState.getKeyspace();
-        List<IMutation> rowMutations = new ArrayList<IMutation>();
-        List<String> cfamsSeen = new ArrayList<String>();
+        List<IMutation> rowMutations = new ArrayList<IMutation>(updateStatements.size());
+        List<String> cfamsSeen = new ArrayList<String>(updateStatements.size());
 
         for (UpdateStatement update : updateStatements)
         {
@@ -537,7 +539,7 @@ public class QueryProcessor
                                                 new HashMap<ByteBuffer, String>(),
                                                 TypeParser.getShortName(metadata.comparator),
                                                 TypeParser.getShortName(metadata.getDefaultValidator()));
-                List<CqlRow> cqlRows = new ArrayList<CqlRow>();
+                List<CqlRow> cqlRows = new ArrayList<CqlRow>(rows.size());
                 for (org.apache.cassandra.db.Row row : rows)
                 {
                     List<Column> thriftColumns = new ArrayList<Column>();
@@ -894,7 +896,7 @@ public class QueryProcessor
     throws RecognitionException, UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
     {
         logger.trace("CQL QUERY: {}", queryString);
-        return processStatement(getStatement(queryString), clientState, new ArrayList<ByteBuffer>());
+        return processStatement(getStatement(queryString), clientState, new ArrayList<ByteBuffer>(0));
     }
 
     public static CqlPreparedResult prepare(String queryString, ClientState clientState)

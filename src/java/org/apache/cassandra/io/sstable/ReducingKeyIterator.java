@@ -39,7 +39,7 @@ public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
 
     public ReducingKeyIterator(Collection<SSTableReader> sstables)
     {
-        ArrayList<KeyIterator> iters = new ArrayList<KeyIterator>();
+        ArrayList<KeyIterator> iters = new ArrayList<KeyIterator>(sstables.size());
         for (SSTableReader sstable : sstables)
             iters.add(new KeyIterator(sstable.descriptor));
         mi = MergeIterator.get(iters, DecoratedKey.comparator, new MergeIterator.Reducer<DecoratedKey,DecoratedKey>()

@@ -25,7 +25,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import com.google.common.collect.Ordering;
@@ -46,6 +45,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.PureJavaCrc32;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
@@ -179,7 +179,7 @@ public class CommitLog implements CommitLogMBean
         }
         final ReplayPosition globalPosition = Ordering.from(ReplayPosition.comparator).min(cfPositions.values());
 
-        Checksum checksum = new CRC32();
+        Checksum checksum = new PureJavaCrc32();
         for (final File file : clogs)
         {
             logger.info("Replaying " + file.getPath());

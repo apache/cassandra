@@ -418,9 +418,10 @@ public class SelectStatement implements CQLStatement
         }
         else
         {
-            List<ByteBuffer> columns = new ArrayList<ByteBuffer>();
             // Adds all (requested) columns
-            Iterator<Pair<CFDefinition.Name, ColumnIdentifier>> iter = getExpandedSelection().iterator();
+            List<Pair<CFDefinition.Name, ColumnIdentifier>> selection = getExpandedSelection();
+            List<ByteBuffer> columns = new ArrayList<ByteBuffer>(selection.size());
+            Iterator<Pair<CFDefinition.Name, ColumnIdentifier>> iter = selection.iterator();
             while (iter.hasNext())
             {
                 CFDefinition.Name name = iter.next().left;
@@ -589,7 +590,7 @@ public class SelectStatement implements CQLStatement
                     if (c.isMarkedForDelete())
                         continue;
 
-                    thriftColumns = new ArrayList<Column>();
+                    thriftColumns = new ArrayList<Column>(selection.size());
 
                     ByteBuffer[] components = cfDef.isComposite
                                             ? ((CompositeType)cfDef.cfm.comparator).split(c.name())
@@ -669,7 +670,7 @@ public class SelectStatement implements CQLStatement
             else
             {
                 // Static case: One cqlRow for all columns
-                thriftColumns = new ArrayList<Column>();
+                thriftColumns = new ArrayList<Column>(selection.size());
                 // Respect selection order
                 for (Pair<CFDefinition.Name, ColumnIdentifier> p : selection)
                 {
@@ -730,7 +731,7 @@ public class SelectStatement implements CQLStatement
 
     private CqlRow handleGroup(List<Pair<CFDefinition.Name, ColumnIdentifier>> selection, ByteBuffer key, ByteBuffer[] components, Map<ByteBuffer, IColumn> columns, CqlMetadata schema)
     {
-        List<Column> thriftColumns = new ArrayList<Column>();
+        List<Column> thriftColumns = new ArrayList<Column>(selection.size());
 
         // Respect requested order
         for (Pair<CFDefinition.Name, ColumnIdentifier> p : selection)

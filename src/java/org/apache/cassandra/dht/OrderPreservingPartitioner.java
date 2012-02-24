@@ -176,7 +176,7 @@ public class OrderPreservingPartitioner extends AbstractPartitioner<StringToken>
     {
         // allTokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
         Map<Token, Float> allTokens = new HashMap<Token, Float>();
-        List<Range<Token>> sortedRanges = new ArrayList<Range<Token>>();
+        List<Range<Token>> sortedRanges = new ArrayList<Range<Token>>(sortedTokens.size());
 
         // this initializes the counts to 0 and calcs the ranges in order.
         Token lastToken = sortedTokens.get(sortedTokens.size() - 1);

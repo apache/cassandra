@@ -87,7 +87,7 @@ public class DeleteStatement extends ModificationStatement
             }
         }
 
-        List<IMutation> rowMutations = new ArrayList<IMutation>();
+        List<IMutation> rowMutations = new ArrayList<IMutation>(keys.size());
 
         for (Term key : keys)
         {

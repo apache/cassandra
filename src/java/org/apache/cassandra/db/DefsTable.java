@@ -146,7 +146,7 @@ public class DefsTable
     {
         List<Row> serializedSchema = SystemTable.serializedSchema(SystemTable.SCHEMA_KEYSPACES_CF);
 
-        List<KSMetaData> keyspaces = new ArrayList<KSMetaData>();
+        List<KSMetaData> keyspaces = new ArrayList<KSMetaData>(serializedSchema.size());
 
         for (Row row : serializedSchema)
         {
@@ -191,9 +191,10 @@ public class DefsTable
             org.apache.avro.Schema schema = org.apache.avro.Schema.parse(ByteBufferUtil.string(value));
 
             // deserialize keyspaces using schema
-            keyspaces = new ArrayList<KSMetaData>();
+            Collection<IColumn> columns = cf.getSortedColumns();
+            keyspaces = new ArrayList<KSMetaData>(columns.size());
 
-            for (IColumn column : cf.getSortedColumns())
+            for (IColumn column : columns)
             {
                 if (column.name().equals(DEFINITION_SCHEMA_COLUMN_NAME))
                     continue;
@@ -278,7 +279,7 @@ public class DefsTable
 
         // instead of looping over all modified entries and skipping processed keys all the time
         // we would rather store "left to process" items and iterate over them removing already met keys
-        List<DecoratedKey> leftToProcess = new ArrayList<DecoratedKey>();
+        List<DecoratedKey> leftToProcess = new ArrayList<DecoratedKey>(modifiedEntries.size());
 
         for (Map.Entry<DecoratedKey, MapDifference.ValueDifference<ColumnFamily>> entry : modifiedEntries.entrySet())
         {
