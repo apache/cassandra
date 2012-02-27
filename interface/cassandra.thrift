@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "19.28.0"
+const string VERSION = "19.29.0"
 
 
 #
@@ -417,6 +417,29 @@ struct CfDef {
     35: optional list<binary> column_aliases,
     36: optional binary value_alias,
     37: optional double dclocal_read_repair_chance = 0.0,
+
+    /* All of the following are now ignored and unsupplied. */
+
+    /** @deprecated */
+    9: optional double row_cache_size,
+    /** @deprecated */
+    11: optional double key_cache_size,
+    /** @deprecated */
+    19: optional i32 row_cache_save_period_in_seconds,
+    /** @deprecated */
+    20: optional i32 key_cache_save_period_in_seconds,
+    /** @deprecated */
+    21: optional i32 memtable_flush_after_mins,
+    /** @deprecated */
+    22: optional i32 memtable_throughput_in_mb,
+    /** @deprecated */
+    23: optional double memtable_operations_in_millions,
+    /** @deprecated */
+    25: optional double merge_shards_chance,
+    /** @deprecated */
+    27: optional string row_cache_provider,
+    /** @deprecated */
+    31: optional i32 row_cache_keys_to_save,
 }
 
 /* describes a keyspace. */
@@ -424,6 +447,9 @@ struct KsDef {
     1: required string name,
     2: required string strategy_class,
     3: optional map<string,string> strategy_options,
+
+    /** @deprecated, ignored */
+    4: optional i32 replication_factor,
 
     5: required list<CfDef> cf_defs,
     6: optional bool durable_writes=1,

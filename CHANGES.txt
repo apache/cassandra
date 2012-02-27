@@ -13,6 +13,7 @@
  * fix for intermittent SchemaDisagreementException (CASSANDRA-3884)
  * ignore deprecated KsDef/CfDef/ColumnDef fields in native schema (CASSANDRA-3963)
  * CLI to report when unsupported column_metadata pair was given (CASSANDRA-3959)
+ * reincarnate removed and deprecated KsDef/CfDef attributes (CASSANDRA-3953)
 Merged from 1.0:
  * remove the wait on hint future during write (CASSANDRA-3870)
  * (cqlsh) ignore missing CfDef opts (CASSANDRA-3933)
