@@ -89,8 +89,6 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
      * Returns a CFMetaData instance based on the parameters parsed from this
      * <code>CREATE</code> statement, or defaults where applicable.
      *
-     * @param keyspace keyspace to apply this column family to
-     * @param variables list of bound variables (for prepared statement)
      * @return a CFMetaData instance corresponding to the values parsed from this statement
      * @throws InvalidRequestException on failure to validate parsed parameters
      */

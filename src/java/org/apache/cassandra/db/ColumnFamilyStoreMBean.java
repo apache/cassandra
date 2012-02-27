@@ -144,20 +144,17 @@ public interface ColumnFamilyStoreMBean
     public void forceMajorCompaction() throws ExecutionException, InterruptedException;
 
     /**
-     * return the size of the smallest compacted row
-     * @return
+     * @return the size of the smallest compacted row
      */
     public long getMinRowSize();
 
     /**
-     * return the size of the largest compacted row
-     * @return
+     * @return the size of the largest compacted row
      */
     public long getMaxRowSize();
 
     /**
-     * return the mean size of the rows compacted
-     * @return
+     * @return the size of the smallest compacted row
      */
     public long getMeanRowSize();
 

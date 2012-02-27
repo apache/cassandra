@@ -105,7 +105,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     }
 
     /**
-     * @param limit: number of columns to fetch in a slice
+     * @param limit number of columns to fetch in a slice
      */
     public CassandraStorage(int limit)
     {
