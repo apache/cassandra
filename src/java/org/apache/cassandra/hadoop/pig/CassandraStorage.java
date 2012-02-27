@@ -134,10 +134,11 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             assert key != null && cf != null;
 
             // output tuple, will hold the key, each indexed column in a tuple, then a bag of the rest
-            Tuple tuple = TupleFactory.getInstance().newTuple();
+            // NOTE: we're setting the tuple size here only for the key so we can use setTupleValue on it
+            Tuple tuple = TupleFactory.getInstance().newTuple(1);
             DefaultDataBag bag = new DefaultDataBag();
             // set the key
-            tuple.append(new DataByteArray(ByteBufferUtil.getArray(key)));
+            setTupleValue(tuple, 0, getDefaultMarshallers(cfDef).get(2).compose(key));
             // we must add all the indexed columns first to match the schema
             Map<ByteBuffer, Boolean> added = new HashMap<ByteBuffer, Boolean>();
             // take care to iterate these in the same order as the schema does

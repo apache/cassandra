@@ -20,3 +20,20 @@ STORE dislikes_extras INTO 'cassandra://PigTest/CopyOfSomeApp' USING CassandraSt
 -- filter to fully visible rows (no uuid columns) and dump
 visible = FILTER rows BY COUNT(columns) == 0;
 dump visible;
+
+
+
+-- test key types with a join
+U8 = load 'cassandra://PigTest/U8' using CassandraStorage();
+Bytes = load 'cassandra://PigTest/Bytes' using CassandraStorage();
+
+-- cast key to chararray
+b = foreach Bytes generate (chararray)key, columns;
+
+-- key in Bytes is a bytearray, U8 chararray
+a = join Bytes by key, U8 by key;
+dump a
+
+-- key should now be cast into a chararray
+c = join b by (chararray)key, U8 by (chararray)key;
+dump c

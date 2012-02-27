@@ -1,6 +1,8 @@
 create keyspace PigTest;
 use PigTest;
 create column family SomeApp with
+placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy' and
+strategy_options = {replication_factor:1} and
 key_validation_class = UTF8Type and
 default_validation_class = LexicalUUIDType and
 comparator = UTF8Type and
@@ -15,6 +17,8 @@ column_metadata =
 ];
 
 create column family CopyOfSomeApp with
+placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy' and
+strategy_options = {replication_factor:1} and
 key_validation_class = UTF8Type and
 default_validation_class = LexicalUUIDType and
 comparator = UTF8Type and
@@ -65,3 +69,14 @@ set SomeApp['qux']['extra4'] = lexicaluuid();
 set SomeApp['qux']['extra5'] = lexicaluuid();
 set SomeApp['qux']['extra6'] = lexicaluuid();
 set SomeApp['qux']['extra7'] = lexicaluuid();
+
+create column family U8 with
+    key_validation_class = UTF8Type and
+    comparator = UTF8Type;
+
+create column family Bytes with
+    key_validation_class = BytesType and
+    comparator = UTF8Type;
+
+set U8['foo']['x'] = ascii('Z');
+set Bytes[ascii('foo')]['x'] = ascii('Z')
