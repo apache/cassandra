@@ -307,6 +307,12 @@ public final class KSMetaData
                 continue;
 
             KsDef._Fields field = KsDef._Fields.findByName(comparator.getString(ksAttr.name()));
+
+            // this means that given field was deprecated
+            // but still exists in the serialized schema
+            if (field == null)
+                continue;
+
             ksDef.setFieldValue(field, deserializeValue(ksAttr.value(), getValueClass(KsDef.class, field.getFieldName())));
         }
 
@@ -381,6 +387,12 @@ public final class KSMetaData
             }
 
             CfDef._Fields field = CfDef._Fields.findByName(attr[1]);
+
+            // this means that given field was deprecated
+            // but still exists in the serialized schema
+            if (field == null)
+                continue;
+
             cfDef.setFieldValue(field, deserializeValue(column.value(), getValueClass(CfDef.class, field.getFieldName())));
         }
 

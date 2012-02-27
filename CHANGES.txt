@@ -9,6 +9,7 @@
  * Remove deprecated merge_shard_chance (CASSANDRA-3940)
  * add a convenient way to reset a node's schema (CASSANDRA-2963)
  * fix for intermittent SchemaDisagreementException (CASSANDRA-3884)
+ * ignore deprecated KsDef/CfDef/ColumnDef fields in native schema (CASSANDRA-3963)
 Merged from 1.0:
  * remove the wait on hint future during write (CASSANDRA-3870)
  * (cqlsh) ignore missing CfDef opts (CASSANDRA-3933)
