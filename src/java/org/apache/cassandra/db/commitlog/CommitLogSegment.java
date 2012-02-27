@@ -6,16 +6,16 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 package org.apache.cassandra.db.commitlog;
@@ -125,7 +125,7 @@ public class CommitLogSegment
         catch (IOException e)
         {
             throw new IOError(e);
-        } 
+        }
     }
 
     /**
@@ -177,7 +177,7 @@ public class CommitLogSegment
 
     /**
      * Recycle processes an unneeded segment file for reuse.
-     * 
+     *
      * @return a new CommitLogSegment representing the newly reusable segment.
      */
     public CommitLogSegment recycle()
@@ -235,7 +235,7 @@ public class CommitLogSegment
    /**
      * Appends a row mutation onto the commit log.  Requres that hasCapacityFor has already been checked.
      *
-     * @param   rowMutation   the mutation to append to the commit log. 
+     * @param   rowMutation   the mutation to append to the commit log.
      * @return  the position of the appended mutation
      */
     public ReplayPosition write(RowMutation rowMutation) throws IOException
@@ -369,7 +369,7 @@ public class CommitLogSegment
     /**
      * Check to see if a certain ReplayPosition is contained by this segment file.
      *
-     * @param   context the replay position to be checked 
+     * @param   context the replay position to be checked
      * @return  true if the replay position is contained by this segment file.
      */
     public boolean contains(ReplayPosition context)

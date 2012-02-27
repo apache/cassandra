@@ -27,13 +27,13 @@ import org.yaml.snakeyaml.representer.Representer;
 /* used to prevent null values from being included in generated YAML */
 public class SkipNullRepresenter extends Representer
 {
-    protected NodeTuple representJavaBeanProperty(Object javaBean, Property property, Object propertyValue, Tag customTag) 
+    protected NodeTuple representJavaBeanProperty(Object javaBean, Property property, Object propertyValue, Tag customTag)
     {
-        if (propertyValue == null) 
+        if (propertyValue == null)
         {
             return null;
-        } 
-        else 
+        }
+        else
         {
             return super.representJavaBeanProperty(javaBean, property, propertyValue, customTag);
         }

@@ -30,7 +30,7 @@ import org.apache.cassandra.net.MessagingService;
 public class SchemaCheckVerbHandler implements IVerbHandler
 {
     private final Logger logger = LoggerFactory.getLogger(SchemaCheckVerbHandler.class);
-    
+
     public void doVerb(Message message, String id)
     {
         logger.debug("Received schema check request.");

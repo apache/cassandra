@@ -181,7 +181,7 @@ public class FBUtilities
     {
         return FastByteComparisons.compareTo(bytes1, offset1, len1, bytes2, offset2, len2);
     }
-  
+
     /**
      * @return The bitwise XOR of the inputs. The output will be the same length as the
      * longer input, but if either input is null, the output will be null.
@@ -210,7 +210,7 @@ public class FBUtilities
     {
         byte[] result = hash(data);
         BigInteger hash = new BigInteger(result);
-        return hash.abs();        
+        return hash.abs();
     }
 
     public static byte[] hash(ByteBuffer... data)

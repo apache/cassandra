@@ -70,7 +70,7 @@ public class StreamHeader
     {
         this(table, sessionId, first, pendingFiles, FBUtilities.getBroadcastAddress());
     }
-    
+
     public StreamHeader(String table, long sessionId, PendingFile first, Collection<PendingFile> pendingFiles, InetAddress broadcastAddress)
     {
         this.table = table;

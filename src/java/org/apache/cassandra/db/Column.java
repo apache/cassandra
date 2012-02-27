@@ -243,7 +243,7 @@ public class Column implements IColumn
     {
         return localCopy(cfs, HeapAllocator.instance);
     }
-    
+
     public IColumn localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
         return new Column(cfs.internOrCopy(name, allocator), allocator.clone(value), timestamp);

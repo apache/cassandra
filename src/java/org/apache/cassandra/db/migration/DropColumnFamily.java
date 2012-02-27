@@ -29,7 +29,7 @@ public class DropColumnFamily extends Migration
 {
     private final String ksName;
     private final String cfName;
-    
+
     public DropColumnFamily(String ksName, String cfName) throws ConfigurationException
     {
         super(System.nanoTime());

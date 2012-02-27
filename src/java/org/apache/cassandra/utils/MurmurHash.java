@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 /**
  * This is a very fast, non-cryptographic hash suitable for general hash-based
  * lookup. See http://murmurhash.googlepages.com/ for more details.
- * 
+ *
  * <p>
  * The C version of MurmurHash 2.0 found at that site was ported to Java by
  * Andrzej Bialecki (ab at getopt org).
@@ -103,7 +103,7 @@ public class MurmurHash
 			            (((long) key.get(offset+i_8+2) & 0xff)<<16) + (((long) key.get(offset+i_8+3) & 0xff)<<24) +
 			            (((long) key.get(offset+i_8+4) & 0xff)<<32) + (((long) key.get(offset+i_8+5) & 0xff)<<40) +
 			            (((long) key.get(offset+i_8+6) & 0xff)<<48) + (((long) key.get(offset+i_8+7) & 0xff)<<56);
-           
+
             k64 *= m64;
             k64 ^= k64 >>> r64;
             k64 *= m64;

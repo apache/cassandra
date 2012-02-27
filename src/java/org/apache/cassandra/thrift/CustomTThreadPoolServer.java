@@ -60,14 +60,14 @@ public class CustomTThreadPoolServer extends TServer
 
     //Track and Limit the number of connected clients
     private final AtomicInteger activeClients = new AtomicInteger(0);
-    
-    
+
+
     public CustomTThreadPoolServer(TThreadPoolServer.Args args, ExecutorService executorService) {
         super(args);
         executorService_ = executorService;
         this.args = args;
     }
-    
+
     public void serve()
     {
         try

@@ -47,10 +47,10 @@ public class KeysIndex extends PerColumnSecondaryIndex
     private static final Logger logger = LoggerFactory.getLogger(KeysIndex.class);
     private ColumnFamilyStore indexCfs;
 
-    public KeysIndex() 
+    public KeysIndex()
     {
     }
-    
+
     public void init()
     {
         assert baseCfs != null && columnDefs != null;
@@ -75,7 +75,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
     {
         if (column.isMarkedForDelete())
             return;
-        
+
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
         ColumnFamily cfi = ColumnFamily.create(indexCfs.metadata);
         cfi.addTombstone(rowKey, localDeletionTime, column.timestamp());
@@ -98,30 +98,30 @@ public class KeysIndex extends PerColumnSecondaryIndex
         }
         if (logger.isDebugEnabled())
             logger.debug("applying index row {} in {}", indexCfs.metadata.getKeyValidator().getString(valueKey.key), cfi);
-        
+
         indexCfs.apply(valueKey, cfi);
     }
-    
+
     public void updateColumn(DecoratedKey<?> valueKey, ByteBuffer rowKey, IColumn col)
-    {        
-        insertColumn(valueKey, rowKey, col);        
+    {
+        insertColumn(valueKey, rowKey, col);
     }
 
     public void removeIndex(ByteBuffer columnName) throws IOException
-    {        
+    {
         indexCfs.invalidate();
     }
 
     public void forceBlockingFlush() throws IOException
-    {       
+    {
         try
         {
             indexCfs.forceBlockingFlush();
-        } 
+        }
         catch (ExecutionException e)
         {
             throw new IOException(e);
-        } 
+        }
         catch (InterruptedException e)
         {
             throw new IOException(e);

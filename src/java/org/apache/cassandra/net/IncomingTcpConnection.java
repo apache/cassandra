@@ -1,6 +1,6 @@
 package org.apache.cassandra.net;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.net;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -40,7 +40,7 @@ public class IncomingTcpConnection extends Thread
     private static Logger logger = LoggerFactory.getLogger(IncomingTcpConnection.class);
 
     private static final int CHUNK_SIZE = 1024 * 1024;
-    
+
     private Socket socket;
     public InetAddress from;
 
@@ -79,7 +79,7 @@ public class IncomingTcpConnection extends Thread
                     byte[] headerBytes = new byte[size];
                     input.readFully(headerBytes);
                     stream(StreamHeader.serializer().deserialize(new DataInputStream(new FastByteArrayInputStream(headerBytes)), version), input);
-                } 
+                }
                 else
                 {
                     // streaming connections are per-session and have a fixed version.  we can't do anything with a wrong-version stream connection, so drop it.
@@ -89,7 +89,7 @@ public class IncomingTcpConnection extends Thread
                 // We are done with this connection....
                 return;
             }
-            
+
             // we should buffer
             input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
             // Receive the first message to set the version.
@@ -105,7 +105,7 @@ public class IncomingTcpConnection extends Thread
                 Gossiper.instance.setVersion(msg.getFrom(), version);
                 logger.debug("set version for {} to {}", from, version);
             }
-            
+
             // loop to get the next message.
             while (true)
             {
@@ -117,12 +117,12 @@ public class IncomingTcpConnection extends Thread
                 logger.trace("Version is now {}", version);
                 receiveMessage(input, version);
             }
-        } 
+        }
         catch (EOFException e)
         {
             logger.trace("eof reading from socket; closing", e);
             // connection will be reset so no need to throw an exception.
-        } 
+        }
         catch (IOException e)
         {
             logger.debug("IOError reading from socket; closing", e);

@@ -75,7 +75,7 @@ public class CommitLogTest extends CleanupHelper
         checksum.update(100);
         testRecoveryWithBadSizeArgument(100, 100, ~checksum.getValue());
     }
-    
+
     @Test
     public void testRecoveryWithZeroSegmentSizeArgument() throws Exception
     {
@@ -164,7 +164,7 @@ public class CommitLogTest extends CleanupHelper
     public void testExceedSegmentSizeWithOverhead() throws Exception
     {
         CommitLog.instance.resetUnsafe();
-        
+
         RowMutation rm = new RowMutation("Keyspace1", bytes("k"));
         rm.add(new QueryPath("Standard1", null, bytes("c1")), ByteBuffer.allocate((128 * 1024 * 1024) - 83), 0);
         CommitLog.instance.add(rm);

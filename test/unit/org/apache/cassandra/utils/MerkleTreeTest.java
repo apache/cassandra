@@ -147,7 +147,7 @@ public class MerkleTreeTest
         assertTrue(mt.split(tok(4)));
         assertTrue(mt.split(tok(2)));
         assertEquals(3, mt.size());
-        
+
         // should fail to split below hashdepth
         assertFalse(mt.split(tok(1)));
         assertEquals(3, mt.size());
@@ -163,7 +163,7 @@ public class MerkleTreeTest
 
         assertTrue(mt.split(tok(4)));
         assertEquals(2, mt.size());
-        
+
         // should fail to split above maxsize
         assertFalse(mt.split(tok(2)));
         assertEquals(2, mt.size());
@@ -175,7 +175,7 @@ public class MerkleTreeTest
     public void testInvalids()
     {
         Iterator<TreeRange> ranges;
-        
+
         // (zero, zero]
         ranges = mt.invalids();
         assertEquals(new Range(tok(-1), tok(-1)), ranges.next());
@@ -207,10 +207,10 @@ public class MerkleTreeTest
 
         // (zero, zero]
         assertNull(mt.hash(range));
-        
+
         // validate the range
         mt.get(tok(-1)).hash(val);
-        
+
         assertHashEquals(val, mt.hash(range));
     }
 
@@ -234,12 +234,12 @@ public class MerkleTreeTest
         assertNull(mt.hash(right));
         assertNull(mt.hash(linvalid));
         assertNull(mt.hash(rinvalid));
-        
+
         // validate the range
         mt.get(tok(2)).hash(val);
         mt.get(tok(4)).hash(val);
         mt.get(tok(-1)).hash(val);
-        
+
         assertHashEquals(leftval, mt.hash(left));
         assertHashEquals(partialval, mt.hash(partial));
         assertHashEquals(val, mt.hash(right));
@@ -268,14 +268,14 @@ public class MerkleTreeTest
         assertNull(mt.hash(lchild));
         assertNull(mt.hash(rchild));
         assertNull(mt.hash(invalid));
-        
+
         // validate the range
         mt.get(tok(1)).hash(val);
         mt.get(tok(2)).hash(val);
         mt.get(tok(4)).hash(val);
         mt.get(tok(6)).hash(val);
         mt.get(tok(-1)).hash(val);
-        
+
         assertHashEquals(fullval, mt.hash(full));
         assertHashEquals(lchildval, mt.hash(lchild));
         assertHashEquals(rchildval, mt.hash(rchild));
@@ -303,7 +303,7 @@ public class MerkleTreeTest
         assertNull(mt.hash(full));
         assertNull(mt.hash(childfull));
         assertNull(mt.hash(invalid));
-        
+
         // validate the range
         mt.get(tok(1)).hash(val);
         mt.get(tok(2)).hash(val);
@@ -360,7 +360,7 @@ public class MerkleTreeTest
         mt.split(tok(12));
         mt.split(tok(6));
         mt.split(tok(10));
-        
+
         ranges = mt.invalids();
         ranges.next().addAll(new HIterator(2, 4)); // (-1,4]: depth 2
         ranges.next().addAll(new HIterator(6)); // (4,6]
@@ -399,7 +399,7 @@ public class MerkleTreeTest
         Range full = new Range(tok(-1), tok(-1));
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         ObjectOutputStream oout = new ObjectOutputStream(bout);
-    
+
         // populate and validate the tree
         mt.maxsize(256);
         mt.init();
@@ -413,7 +413,7 @@ public class MerkleTreeTest
         ByteArrayInputStream bin = new ByteArrayInputStream(bout.toByteArray());
         ObjectInputStream oin = new ObjectInputStream(bin);
         MerkleTree restored = (MerkleTree)oin.readObject();
-    
+
         // restore partitioner after serialization
         restored.partitioner(partitioner);
         restored.fullRange = fullRange();
@@ -500,12 +500,12 @@ public class MerkleTreeTest
                 tlist.add(tok(token));
             this.tokens = tlist.iterator();
         }
-    
+
         public HIterator(Token... tokens)
         {
             this.tokens = Arrays.asList(tokens).iterator();
         }
-    
+
         public RowHash computeNext()
         {
             if (tokens.hasNext())

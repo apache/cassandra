@@ -71,7 +71,7 @@ public class DatabaseDescriptor
     private static IPartitioner partitioner;
 
     private static Config.DiskAccessMode indexAccessMode;
-    
+
     private static Config conf;
 
     private static IAuthenticator authenticator = new AllowAllAuthenticator();
@@ -472,7 +472,7 @@ public class DatabaseDescriptor
     }
 
     /** load keyspace (table) definitions, but do not initialize the table instances. */
-    public static void loadSchemas() throws IOException                         
+    public static void loadSchemas() throws IOException
     {
         ColumnFamilyStore schemaCFS = SystemTable.schemaCFS(SystemTable.SCHEMA_KEYSPACES_CF);
 
@@ -556,8 +556,8 @@ public class DatabaseDescriptor
     {
         return conf.thrift_max_message_length_in_mb * 1024 * 1024;
     }
-    
-    public static int getThriftFramedTransportSize() 
+
+    public static int getThriftFramedTransportSize()
     {
         return conf.thrift_framed_transport_size_in_mb * 1024 * 1024;
     }
@@ -603,7 +603,7 @@ public class DatabaseDescriptor
     {
         partitioner = newPartitioner;
     }
-    
+
     public static IEndpointSnitch getEndpointSnitch()
     {
         return snitch;
@@ -632,7 +632,7 @@ public class DatabaseDescriptor
     {
         return conf.job_tracker_host;
     }
-    
+
     public static int getColumnIndexSize()
     {
     	return conf.column_index_size_in_kb * 1024;
@@ -762,7 +762,7 @@ public class DatabaseDescriptor
     {
         return conf.saved_caches_directory;
     }
-    
+
     public static Set<InetAddress> getSeeds()
     {
         return Collections.unmodifiableSet(new HashSet(seedProvider.getSeeds()));
@@ -772,22 +772,22 @@ public class DatabaseDescriptor
     {
         return listenAddress;
     }
-    
+
     public static InetAddress getBroadcastAddress()
     {
         return broadcastAddress;
     }
-    
+
     public static void setBroadcastAddress(InetAddress broadcastAdd)
     {
         broadcastAddress = broadcastAdd;
     }
-    
+
     public static InetAddress getRpcAddress()
     {
         return rpcAddress;
     }
-    
+
     public static String getRpcServerType()
     {
         return conf.rpc_server_type;
@@ -802,12 +802,12 @@ public class DatabaseDescriptor
     {
         return conf.rpc_min_threads;
     }
-    
+
     public static Integer getRpcMaxThreads()
     {
         return conf.rpc_max_threads;
     }
-    
+
     public static Integer getRpcSendBufferSize()
     {
         return conf.rpc_send_buff_size_in_bytes;

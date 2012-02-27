@@ -159,7 +159,7 @@ public class ClientState
 
         hasAccess(user, perms, perm, resource);
     }
-    
+
     /**
      * Confirms that the client thread has the given Permission for the ColumnFamily list of
      * the current keyspace.
@@ -176,10 +176,10 @@ public class ClientState
         resourceClear();
         resource.add(keyspace);
         Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
-        
+
         hasAccess(user, perms, perm, resource);
     }
-    
+
     /**
      * Confirms that the client thread has the given Permission in the context of the given
      * ColumnFamily and the current keyspace.
@@ -193,12 +193,12 @@ public class ClientState
     {
         validateLogin();
         validateKeyspace();
-        
+
         resourceClear();
         resource.add(keyspace);
         resource.add(columnFamily);
         Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
-        
+
         hasAccess(user, perms, perm, resource);
     }
 
@@ -207,7 +207,7 @@ public class ClientState
         if (user == null)
             throw new InvalidRequestException("You have not logged in");
     }
-    
+
     private void validateKeyspace() throws InvalidRequestException
     {
         if (keyspace == null)

@@ -158,15 +158,15 @@ public class BootStrapper
         assert !maxEndpoint.equals(FBUtilities.getBroadcastAddress());
         if (metadata.pendingRangeChanges(maxEndpoint) > 0)
             throw new RuntimeException("Every node is a bootstrap source! Please specify an initial token manually or wait for an existing bootstrap operation to finish.");
-        
+
         return maxEndpoint;
     }
 
     static Token<?> getBootstrapTokenFrom(InetAddress maxEndpoint)
     {
         Message message = new Message(FBUtilities.getBroadcastAddress(),
-                                      StorageService.Verb.BOOTSTRAP_TOKEN, 
-                                      ArrayUtils.EMPTY_BYTE_ARRAY, 
+                                      StorageService.Verb.BOOTSTRAP_TOKEN,
+                                      ArrayUtils.EMPTY_BYTE_ARRAY,
                                       Gossiper.instance.getVersion(maxEndpoint));
         int retries = 5;
         long timeout = Math.max(MessagingService.getDefaultCallbackTimeout(), BOOTSTRAP_TIMEOUT);

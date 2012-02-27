@@ -31,9 +31,9 @@ public class CompactEndpointSerializationHelper
         dos.writeByte(buf.length);
         dos.write(buf);
     }
-    
+
     public static InetAddress deserialize(DataInput dis) throws IOException
-    {     
+    {
         byte[] bytes = new byte[dis.readByte()];
         dis.readFully(bytes, 0, bytes.length);
         return InetAddress.getByAddress(bytes);

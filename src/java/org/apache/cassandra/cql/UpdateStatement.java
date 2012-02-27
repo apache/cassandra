@@ -1,5 +1,5 @@
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,16 +7,16 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 package org.apache.cassandra.cql;
 
@@ -73,7 +73,7 @@ public class UpdateStatement extends AbstractModification
         this.columns = columns;
         this.keys = keys;
     }
-    
+
     /**
      * Creates a new UpdateStatement from a column family name, a consistency level,
      * key, and lists of column names and values.  It is intended for use with the
@@ -105,17 +105,17 @@ public class UpdateStatement extends AbstractModification
     /**
      * Returns the consistency level of this <code>UPDATE</code> statement, either
      * one parsed from the CQL statement, or the default level otherwise.
-     * 
+     *
      * @return the consistency level as a Thrift enum.
      */
     public ConsistencyLevel getConsistencyLevel()
     {
         return (cLevel != null) ? cLevel : defaultConsistency;
     }
-    
+
     /**
      * True if an explicit consistency level was parsed from the statement.
-     * 
+     *
      * @return true if a consistency was parsed, false otherwise.
      */
     public boolean isSetConsistencyLevel()
@@ -244,29 +244,29 @@ public class UpdateStatement extends AbstractModification
     {
         return keys;
     }
-    
+
     public Map<Term, Operation> getColumns() throws InvalidRequestException
     {
         // Created from an UPDATE
         if (columns != null)
             return columns;
-        
+
         // Created from an INSERT
-        
+
         // Don't hate, validate.
         if (columnNames.size() != columnValues.size())
             throw new InvalidRequestException("unmatched column names/values");
         if (columnNames.size() < 1)
             throw new InvalidRequestException("no columns specified for INSERT");
-        
+
         columns = new HashMap<Term, Operation>();
-        
+
         for (int i = 0; i < columnNames.size(); i++)
             columns.put(columnNames.get(i), new Operation(columnValues.get(i)));
 
         return columns;
     }
-    
+
     public String toString()
     {
         return String.format("UpdateStatement(keyspace=%s, columnFamily=%s, keys=%s, columns=%s, consistency=%s, timestamp=%s, timeToLive=%s)",
@@ -278,17 +278,17 @@ public class UpdateStatement extends AbstractModification
                              timestamp,
                              timeToLive);
     }
-    
+
     public AbstractType<?> getKeyType(String keyspace)
     {
         return Schema.instance.getCFMetaData(keyspace, columnFamily).getKeyValidator();
     }
-    
+
     public AbstractType<?> getComparator(String keyspace)
     {
         return Schema.instance.getComparator(keyspace, columnFamily);
     }
-    
+
     public AbstractType<?> getValueValidator(String keyspace, ByteBuffer column)
     {
         return Schema.instance.getValueValidator(keyspace, columnFamily, column);
@@ -303,5 +303,5 @@ public class UpdateStatement extends AbstractModification
     {
         return columnValues;
     }
-    
+
 }

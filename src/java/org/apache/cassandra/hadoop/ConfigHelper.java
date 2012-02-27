@@ -1,6 +1,6 @@
 package org.apache.cassandra.hadoop;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.hadoop;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 import java.io.IOException;
@@ -73,7 +73,7 @@ public class ConfigHelper
     private static final String WRITE_CONSISTENCY_LEVEL = "cassandra.consistencylevel.write";
     private static final String OUTPUT_COMPRESSION_CLASS = "cassandra.output.compression.class";
     private static final String OUTPUT_COMPRESSION_CHUNK_LENGTH = "cassandra.output.compression.length";
-    
+
     private static final Logger logger = LoggerFactory.getLogger(ConfigHelper.class);
 
 
@@ -197,7 +197,7 @@ public class ConfigHelper
         String s = conf.get(INPUT_PREDICATE_CONFIG);
         return s == null ? null : predicateFromString(s);
     }
-    
+
     private static String thriftToString(TBase object)
     {
         assert object != null;
@@ -286,17 +286,17 @@ public class ConfigHelper
     {
         return conf.get(INPUT_KEYSPACE_CONFIG);
     }
-    
+
     public static String getOutputKeyspace(Configuration conf)
     {
         return conf.get(OUTPUT_KEYSPACE_CONFIG);
     }
-    
+
     public static String getInputKeyspaceUserName(Configuration conf)
     {
     	return conf.get(INPUT_KEYSPACE_USERNAME_CONFIG);
     }
-    
+
     public static String getInputKeyspacePassword(Configuration conf)
     {
     	return conf.get(INPUT_KEYSPACE_PASSWD_CONFIG);
@@ -306,7 +306,7 @@ public class ConfigHelper
     {
     	return conf.get(OUTPUT_KEYSPACE_USERNAME_CONFIG);
     }
-    
+
     public static String getOutputKeyspacePassword(Configuration conf)
     {
     	return conf.get(OUTPUT_KEYSPACE_PASSWD_CONFIG);
@@ -321,7 +321,7 @@ public class ConfigHelper
     {
         return Boolean.valueOf(conf.get(INPUT_WIDEROWS_CONFIG));
     }
-    
+
     public static String getOutputColumnFamily(Configuration conf)
     {
         return conf.get(OUTPUT_COLUMNFAMILY_CONFIG);
@@ -373,7 +373,7 @@ public class ConfigHelper
             throw new RuntimeException(e);
         }
     }
-    
+
     public static int getOutputRpcPort(Configuration conf)
     {
         return Integer.parseInt(conf.get(OUTPUT_THRIFT_PORT, "9160"));

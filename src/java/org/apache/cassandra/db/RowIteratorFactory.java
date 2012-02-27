@@ -41,7 +41,7 @@ public class RowIteratorFactory
         }
     };
 
-    
+
     /**
      * Get a row iterator over the provided memtables and sstables, between the provided keys
      * and filtered by the queryfilter.

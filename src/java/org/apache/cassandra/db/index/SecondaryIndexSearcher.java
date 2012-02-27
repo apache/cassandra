@@ -32,7 +32,7 @@ public abstract class SecondaryIndexSearcher
     protected SecondaryIndexManager    indexManager;
     protected Set<ByteBuffer> columns;
     protected ColumnFamilyStore baseCfs;
-    
+
     public SecondaryIndexSearcher(SecondaryIndexManager indexManager, Set<ByteBuffer> columns)
     {
         this.indexManager = indexManager;

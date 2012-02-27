@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
 public class FileStreamTask extends WrappedRunnable
 {
     private static Logger logger = LoggerFactory.getLogger(FileStreamTask.class);
-    
+
     public static final int CHUNK_SIZE = 64 * 1024;
     // around 10 minutes at the default rpctimeout
     public static final int MAX_CONNECT_ATTEMPTS = 8;
@@ -85,7 +85,7 @@ public class FileStreamTask extends WrappedRunnable
             }
         });
     }
-    
+
     public void runMayThrow() throws IOException
     {
         try

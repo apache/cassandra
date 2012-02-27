@@ -1,6 +1,6 @@
 package org.apache.cassandra.tools;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.tools;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -60,7 +60,7 @@ public class NodeCmd
     private static ToolOptions options = null;
 
     private NodeProbe probe;
-    
+
     static
     {
         options = new ToolOptions();
@@ -72,7 +72,7 @@ public class NodeCmd
         options.addOption(TAG_OPT,      true, "optional name to give a snapshot");
         options.addOption(PRIMARY_RANGE_OPT, false, "only repair the first range returned by the partitioner for the node");
     }
-    
+
     public NodeCmd(NodeProbe probe)
     {
         this.probe = probe;
@@ -124,7 +124,7 @@ public class NodeCmd
         RESETLOCALSCHEMA
     }
 
-    
+
     /**
      * Prints usage information to stdout.
      */
@@ -199,10 +199,10 @@ public class NodeCmd
             for (int i = cmd.length(); i < 22; ++i) sb.append(" ");
         sb.append(" - ").append(description).append("\n");
     }
-    
+
     /**
      * Write a textual representation of the Cassandra ring.
-     * 
+     *
      * @param outs the stream to write to
      */
     public void printRing(PrintStream outs, String keyspace)
@@ -218,7 +218,7 @@ public class NodeCmd
         Map<String, String> loadMap = probe.getLoadMap();
 
         String format = "%-16s%-12s%-12s%-7s%-8s%-16s%-20s%-44s%n";
-        
+
         // Calculate per-token ownership of the ring
         Map<String, Float> ownerships;
         try
@@ -232,7 +232,7 @@ public class NodeCmd
             outs.printf("Note: Ownership information does not include topology, please specify a keyspace. \n");
             outs.printf(format, "Address", "DC", "Rack", "Status", "State", "Load", "Owns", "Token");
         }
-        
+
         // show pre-wrap token twice so you can always read a node's range as
         // (previous line token, current line token]
         if (sortedTokens.size() > 1)
@@ -308,7 +308,7 @@ public class NodeCmd
 
     /**
      * Write node information.
-     * 
+     *
      * @param outs the stream to write to
      */
     public void printInfo(PrintStream outs)
@@ -532,7 +532,7 @@ public class NodeCmd
                 outs.println("\t\tSSTable count: " + cfstore.getLiveSSTableCount());
                 outs.println("\t\tSpace used (live): " + cfstore.getLiveDiskSpaceUsed());
                 outs.println("\t\tSpace used (total): " + cfstore.getTotalDiskSpaceUsed());
-                outs.println("\t\tNumber of Keys (estimate): " + cfstore.estimateKeys());				
+                outs.println("\t\tNumber of Keys (estimate): " + cfstore.estimateKeys());
                 outs.println("\t\tMemtable Columns Count: " + cfstore.getMemtableColumnsCount());
                 outs.println("\t\tMemtable Data Size: " + cfstore.getMemtableDataSize());
                 outs.println("\t\tMemtable Switch Count: " + cfstore.getMemtableSwitchCount());
@@ -553,7 +553,7 @@ public class NodeCmd
             outs.println("----------------");
         }
     }
-    
+
     public void printRemovalStatus(PrintStream outs)
     {
         outs.println("RemovalStatus: " + probe.getRemovalStatus());
@@ -621,7 +621,7 @@ public class NodeCmd
         String host = cmd.hasOption(HOST_OPT.left) ? cmd.getOptionValue(HOST_OPT.left) : DEFAULT_HOST;
 
         int port = DEFAULT_PORT;
-        
+
         String portNum = cmd.getOptionValue(PORT_OPT.left);
         if (portNum != null)
         {
@@ -637,7 +637,7 @@ public class NodeCmd
 
         String username = cmd.getOptionValue(USERNAME_OPT.left);
         String password = cmd.getOptionValue(PASSWORD_OPT.left);
-        
+
         NodeProbe probe = null;
         try
         {
@@ -668,7 +668,7 @@ public class NodeCmd
 
             switch (command)
             {
-                case RING : 
+                case RING :
                     if (arguments.length > 0) { nodeCmd.printRing(System.out, arguments[0]); }
                     else                      { nodeCmd.printRing(System.out, null); };
                     break;
@@ -685,7 +685,7 @@ public class NodeCmd
                 case ENABLETHRIFT    : probe.startThriftServer(); break;
                 case STATUSTHRIFT    : nodeCmd.printIsThriftServerRunning(System.out); break;
                 case RESETLOCALSCHEMA: probe.resetLocalSchema(); break;
-    
+
                 case DRAIN :
                     try { probe.drain(); }
                     catch (ExecutionException ee) { err(ee, "Error occured during flushing"); }
@@ -797,7 +797,7 @@ public class NodeCmd
                         probe.rebuildIndex(arguments[0], arguments[1], arguments[2].split(","));
                     else
                         probe.rebuildIndex(arguments[0], arguments[1]);
-                    
+
                     break;
 
                 case GOSSIPINFO : nodeCmd.printGossipInfo(System.out); break;
@@ -862,7 +862,7 @@ public class NodeCmd
             outs.println("\t" + tokenString);
         }
     }
-    
+
     private void printGossipInfo(PrintStream out) {
         out.println(probe.getGossipInfo());
     }
@@ -880,7 +880,7 @@ public class NodeCmd
         e.printStackTrace();
         System.exit(3);
     }
-    
+
     private static void complainNonzeroArgs(String[] args, NodeCommand cmd)
     {
         if (args.length > 0) {
@@ -893,18 +893,18 @@ public class NodeCmd
     private static void handleSnapshots(NodeCommand nc, String tag, String[] cmdArgs, NodeProbe probe) throws InterruptedException, IOException
     {
         String[] keyspaces = Arrays.copyOfRange(cmdArgs, 0, cmdArgs.length);
-        System.out.print("Requested snapshot for: ");        
-        if ( keyspaces.length > 0 ) 
+        System.out.print("Requested snapshot for: ");
+        if ( keyspaces.length > 0 )
         {
-          for (int i = 0; i < keyspaces.length; i++) 
-              System.out.print(keyspaces[i] + " ");            
-        } 
-        else 
+          for (int i = 0; i < keyspaces.length; i++)
+              System.out.print(keyspaces[i] + " ");
+        }
+        else
         {
             System.out.print("all keyspaces");
         }
         System.out.println();
-        
+
         switch (nc)
         {
             case SNAPSHOT :

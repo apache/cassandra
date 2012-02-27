@@ -18,7 +18,7 @@
  */
 package org.apache.cassandra.thrift;
 
- 
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -30,37 +30,37 @@ import org.apache.thrift.transport.TIOStreamTransport;
 import org.apache.thrift.transport.TTransportException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
- 
+
 /**
- * Socket implementation of the TTransport interface. 
- * 
+ * Socket implementation of the TTransport interface.
+ *
  * Adds socket buffering
  *
  */
 public class TCustomSocket extends TIOStreamTransport {
- 
+
   private static final Logger LOGGER = LoggerFactory.getLogger(TCustomSocket.class.getName());
- 
+
   /**
    * Wrapped Socket object
    */
   private Socket socket_ = null;
- 
+
   /**
    * Remote host
    */
   private String host_  = null;
- 
+
   /**
    * Remote port
    */
   private int port_ = 0;
- 
+
   /**
    * Socket timeout
    */
   private int timeout_ = 0;
- 
+
   /**
    * Constructor that takes an already created socket.
    *
@@ -75,7 +75,7 @@ public class TCustomSocket extends TIOStreamTransport {
     } catch (SocketException sx) {
       LOGGER.warn("Could not configure socket.", sx);
     }
- 
+
     if (isOpen()) {
       try {
         inputStream_ = new BufferedInputStream(socket_.getInputStream(), 1024);
@@ -86,7 +86,7 @@ public class TCustomSocket extends TIOStreamTransport {
       }
     }
   }
- 
+
   /**
    * Creates a new unconnected socket that will connect to the given host
    * on the given port.
@@ -97,7 +97,7 @@ public class TCustomSocket extends TIOStreamTransport {
   public TCustomSocket(String host, int port) {
     this(host, port, 0);
   }
- 
+
   /**
    * Creates a new unconnected socket that will connect to the given host
    * on the given port.
@@ -112,7 +112,7 @@ public class TCustomSocket extends TIOStreamTransport {
     timeout_ = timeout;
     initSocket();
   }
- 
+
   /**
    * Initializes the socket object
    */
@@ -126,7 +126,7 @@ public class TCustomSocket extends TIOStreamTransport {
       LOGGER.error("Could not configure socket.", sx);
     }
   }
- 
+
   /**
    * Sets the socket timeout
    *
@@ -140,7 +140,7 @@ public class TCustomSocket extends TIOStreamTransport {
       LOGGER.warn("Could not set socket timeout.", sx);
     }
   }
- 
+
   /**
    * Returns a reference to the underlying socket.
    */
@@ -150,7 +150,7 @@ public class TCustomSocket extends TIOStreamTransport {
     }
     return socket_;
   }
- 
+
   /**
    * Checks whether the socket is connected.
    */
@@ -160,7 +160,7 @@ public class TCustomSocket extends TIOStreamTransport {
     }
     return socket_.isConnected();
   }
- 
+
   /**
    * Connects the socket, creating a new socket object if necessary.
    */
@@ -168,18 +168,18 @@ public class TCustomSocket extends TIOStreamTransport {
     if (isOpen()) {
       throw new TTransportException(TTransportException.ALREADY_OPEN, "Socket already connected.");
     }
- 
+
     if (host_.length() == 0) {
       throw new TTransportException(TTransportException.NOT_OPEN, "Cannot open null host.");
     }
     if (port_ <= 0) {
       throw new TTransportException(TTransportException.NOT_OPEN, "Cannot open without port.");
     }
- 
+
     if (socket_ == null) {
       initSocket();
     }
- 
+
     try {
       socket_.connect(new InetSocketAddress(host_, port_), timeout_);
       inputStream_ = new BufferedInputStream(socket_.getInputStream(), 1024);
@@ -189,14 +189,14 @@ public class TCustomSocket extends TIOStreamTransport {
       throw new TTransportException(TTransportException.NOT_OPEN, iox);
     }
   }
- 
+
   /**
    * Closes the socket.
    */
   public void close() {
     // Close the underlying streams
     super.close();
- 
+
     // Close the socket
     if (socket_ != null) {
       try {
@@ -207,5 +207,5 @@ public class TCustomSocket extends TIOStreamTransport {
       socket_ = null;
     }
   }
- 
+
 }

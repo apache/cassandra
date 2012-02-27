@@ -71,17 +71,17 @@ public class DefsTest extends CleanupHelper
     @Test
     public void ensureStaticCFMIdsAreLessThan1000()
     {
-        assert CFMetaData.StatusCf.cfId == 0;    
-        assert CFMetaData.HintsCf.cfId == 1;    
-        assert CFMetaData.MigrationsCf.cfId == 2;    
-        assert CFMetaData.SchemaCf.cfId == 3;    
+        assert CFMetaData.StatusCf.cfId == 0;
+        assert CFMetaData.HintsCf.cfId == 1;
+        assert CFMetaData.MigrationsCf.cfId == 2;
+        assert CFMetaData.SchemaCf.cfId == 3;
     }
-    
+
     @Test
     public void testCFMetaDataApply() throws ConfigurationException
     {
         Map<ByteBuffer, ColumnDefinition> indexes = new HashMap<ByteBuffer, ColumnDefinition>();
-        for (int i = 0; i < 5; i++) 
+        for (int i = 0; i < 5; i++)
         {
             ByteBuffer name = ByteBuffer.wrap(new byte[] { (byte)i });
             indexes.put(name, new ColumnDefinition(name, BytesType.instance, IndexType.KEYS, null, Integer.toString(i)));
@@ -104,7 +104,7 @@ public class DefsTest extends CleanupHelper
         // we'll be adding this one later. make sure it's not already there.
         assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 5 })) == null;
         CfDef cfDef = cfm.toThrift();
-        
+
         // add one.
         ColumnDef addIndexDef = new ColumnDef();
         addIndexDef.index_name = "5";
@@ -112,7 +112,7 @@ public class DefsTest extends CleanupHelper
         addIndexDef.name = ByteBuffer.wrap(new byte[] { 5 });
         addIndexDef.validation_class = BytesType.class.getName();
         cfDef.column_metadata.add(addIndexDef);
-        
+
         // remove one.
         ColumnDef removeIndexDef = new ColumnDef();
         removeIndexDef.index_name = "0";
@@ -120,22 +120,22 @@ public class DefsTest extends CleanupHelper
         removeIndexDef.name = ByteBuffer.wrap(new byte[] { 0 });
         removeIndexDef.validation_class = BytesType.class.getName();
         assert cfDef.column_metadata.remove(removeIndexDef);
-        
+
         cfm.apply(cfDef);
-        
+
         for (int i = 1; i < indexes.size(); i++)
             assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 1 })) != null;
         assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 0 })) == null;
         assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 5 })) != null;
     }
-    
+
     @Test
     public void testInvalidNames() throws IOException
     {
         String[] valid = {"1", "a", "_1", "b_", "__", "1_a"};
         for (String s : valid)
             assert Migration.isLegalName(s);
-        
+
         String[] invalid = {"b@t", "dash-y", "", " ", "dot.s", ".hidden"};
         for (String s : invalid)
             assert !Migration.isLegalName(s);
@@ -177,7 +177,7 @@ public class DefsTest extends CleanupHelper
             throw new AssertionError("Unexpected exception.");
         }
     }
-    
+
     @Test
     public void addNewCfWithNullComment() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
@@ -217,7 +217,7 @@ public class DefsTest extends CleanupHelper
         ColumnFamilyStore store = Table.open(ks).getColumnFamilyStore(cf);
         assert store != null;
         store.forceBlockingFlush();
-        
+
         ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cf), ByteBufferUtil.bytes("col0")));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
         IColumn col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
@@ -233,7 +233,7 @@ public class DefsTest extends CleanupHelper
         assert ks != null;
         final CFMetaData cfm = ks.cfMetaData().get("Standard1");
         assert cfm != null;
-        
+
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
@@ -244,11 +244,11 @@ public class DefsTest extends CleanupHelper
         store.forceBlockingFlush();
         store.getFlushPath(1024, Descriptor.CURRENT_VERSION);
         assert store.directories.sstableLister().list().size() > 0;
-        
+
         new DropColumnFamily(ks.name, cfm.cfName).apply();
 
         assert !Schema.instance.getTableDefinition(ks.name).cfMetaData().containsKey(cfm.cfName);
-        
+
         // any write should fail.
         rm = new RowMutation(ks.name, dk.key);
         boolean success = true;
@@ -278,7 +278,7 @@ public class DefsTest extends CleanupHelper
         CFMetaData newCf = addTestCF("NewKeyspace1", "AddedStandard1", "A new cf for a new ks");
 
         KSMetaData newKs = KSMetaData.testMetadata(newCf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), newCf);
-        
+
         new AddKeyspace(newKs).apply();
 
         assert Schema.instance.getTableDefinition(newCf.ksName) != null;
@@ -291,13 +291,13 @@ public class DefsTest extends CleanupHelper
         ColumnFamilyStore store = Table.open(newCf.ksName).getColumnFamilyStore(newCf.cfName);
         assert store != null;
         store.forceBlockingFlush();
-        
+
         ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), ByteBufferUtil.bytes("col0")));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
         IColumn col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
         assert ByteBufferUtil.bytes("value0").equals(col.value());
     }
-    
+
     @Test
     public void dropKS() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
@@ -317,11 +317,11 @@ public class DefsTest extends CleanupHelper
         assert store != null;
         store.forceBlockingFlush();
         assert store.directories.sstableLister().list().size() > 0;
-        
+
         new DropKeyspace(ks.name).apply();
 
         assert Schema.instance.getTableDefinition(ks.name) == null;
-        
+
         // write should fail.
         rm = new RowMutation(ks.name, dk.key);
         boolean success = true;
@@ -374,7 +374,7 @@ public class DefsTest extends CleanupHelper
     public void createEmptyKsAddNewCf() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         assert Schema.instance.getTableDefinition("EmptyKeyspace") == null;
-        
+
         KSMetaData newKs = KSMetaData.testMetadata("EmptyKeyspace", SimpleStrategy.class, KSMetaData.optsWithRF(5));
 
         new AddKeyspace(newKs).apply();
@@ -405,19 +405,19 @@ public class DefsTest extends CleanupHelper
         IColumn col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
         assert ByteBufferUtil.bytes("value0").equals(col.value());
     }
-    
+
     @Test
     public void testUpdateKeyspace() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         // create a keyspace to serve as existing.
         CFMetaData cf = addTestCF("UpdatedKeyspace", "AddedStandard1", "A new cf for a new ks");
         KSMetaData oldKs = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), cf);
-        
+
         new AddKeyspace(oldKs).apply();
 
         assert Schema.instance.getTableDefinition(cf.ksName) != null;
         assert Schema.instance.getTableDefinition(cf.ksName) == oldKs;
-        
+
         // anything with cf defs should fail.
         CFMetaData cf2 = addTestCF(cf.ksName, "AddedStandard2", "A new cf for a new ks");
         KSMetaData newBadKs = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(4), cf2);
@@ -430,7 +430,7 @@ public class DefsTest extends CleanupHelper
         {
             // expected.
         }
-        
+
         // names should match.
         KSMetaData newBadKs2 = KSMetaData.testMetadata(cf.ksName + "trash", SimpleStrategy.class, KSMetaData.optsWithRF(4));
         try
@@ -442,7 +442,7 @@ public class DefsTest extends CleanupHelper
         {
             // expected.
         }
-        
+
         KSMetaData newKs = KSMetaData.testMetadata(cf.ksName, OldNetworkTopologyStrategy.class, KSMetaData.optsWithRF(1));
         new UpdateKeyspace(newKs.toThrift()).apply();
 
@@ -462,24 +462,24 @@ public class DefsTest extends CleanupHelper
         assert Schema.instance.getTableDefinition(cf.ksName) != null;
         assert Schema.instance.getTableDefinition(cf.ksName) == ksm;
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName) != null;
-        
+
         // updating certain fields should fail.
         CfDef cf_def = cf.toThrift();
         cf_def.column_metadata = new ArrayList<ColumnDef>();
         cf_def.default_validation_class ="BytesType";
         cf_def.min_compaction_threshold = 5;
         cf_def.max_compaction_threshold = 31;
-        
+
         // test valid operations.
         cf_def.comment = "Modified comment";
         new UpdateColumnFamily(cf_def).apply(); // doesn't get set back here.
 
         cf_def.read_repair_chance = 0.23;
         new UpdateColumnFamily(cf_def).apply();
-        
+
         cf_def.gc_grace_seconds = 12;
         new UpdateColumnFamily(cf_def).apply();
-        
+
         cf_def.default_validation_class = "UTF8Type";
         new UpdateColumnFamily(cf_def).apply();
 
@@ -490,13 +490,13 @@ public class DefsTest extends CleanupHelper
         new UpdateColumnFamily(cf_def).apply();
 
         // can't test changing the reconciler because there is only one impl.
-        
+
         // check the cumulative affect.
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getComment().equals(cf_def.comment);
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getReadRepairChance() == cf_def.read_repair_chance;
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getGcGraceSeconds() == cf_def.gc_grace_seconds;
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getDefaultValidator() == UTF8Type.instance;
-        
+
         // todo: we probably don't need to reset old values in the catches anymore.
         // make sure some invalid operations fail.
         int oldId = cf_def.id;
@@ -506,11 +506,11 @@ public class DefsTest extends CleanupHelper
             cf.apply(cf_def);
             throw new AssertionError("Should have blown up when you used a different id.");
         }
-        catch (ConfigurationException expected) 
+        catch (ConfigurationException expected)
         {
-            cf_def.id = oldId;    
+            cf_def.id = oldId;
         }
-        
+
         String oldStr = cf_def.name;
         try
         {
@@ -522,7 +522,7 @@ public class DefsTest extends CleanupHelper
         {
             cf_def.name = oldStr;
         }
-        
+
         oldStr = cf_def.keyspace;
         try
         {
@@ -534,7 +534,7 @@ public class DefsTest extends CleanupHelper
         {
             cf_def.keyspace = oldStr;
         }
-        
+
         try
         {
             cf_def.column_type = ColumnFamilyType.Super.name();
@@ -545,9 +545,9 @@ public class DefsTest extends CleanupHelper
         {
             cf_def.column_type = ColumnFamilyType.Standard.name();
         }
-        
+
         oldStr = cf_def.comparator_type;
-        try 
+        try
         {
             cf_def.comparator_type = TimeUUIDType.class.getSimpleName();
             cf.apply(cf_def);

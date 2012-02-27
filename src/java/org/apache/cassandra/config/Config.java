@@ -1,6 +1,6 @@
 package org.apache.cassandra.config;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.config;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 import org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider;
@@ -31,46 +31,46 @@ public class Config
     public String cluster_name = "Test Cluster";
     public String authenticator;
     public String authority;
-    
+
     /* Hashing strategy Random or OPHF */
     public String partitioner;
-    
+
     public Boolean auto_bootstrap = true;
     public Boolean hinted_handoff_enabled = true;
     public Integer max_hint_window_in_ms = Integer.MAX_VALUE;
-    
+
     public SeedProviderDef seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
-    
+
     /* Address where to run the job tracker */
     public String job_tracker_host;
-    
+
     /* Job Jar Location */
     public String job_jar_file_location;
-    
+
     /* initial token in the ring */
     public String initial_token;
-    
+
     public Long rpc_timeout_in_ms = new Long(2000);
 
     public Integer streaming_socket_timeout_in_ms = new Integer(0);
 
     public Integer phi_convict_threshold = 8;
-    
+
     public Integer concurrent_reads = 8;
     public Integer concurrent_writes = 32;
     public Integer concurrent_replicates = 32;
-    
+
     public Integer memtable_flush_writers = null; // will get set to the length of data dirs in DatabaseDescriptor
     public Integer memtable_total_space_in_mb;
 
     public Integer sliced_buffer_size_in_kb = 64;
-    
+
     public Integer storage_port = 7000;
     public Integer ssl_storage_port = 7001;
     public String listen_address;
     public String broadcast_address;
-    
+
     public String rpc_address;
     public Integer rpc_port = 9160;
     public String rpc_server_type = "sync";
@@ -103,7 +103,7 @@ public class Config
     public CommitLogSync commitlog_sync;
     public Double commitlog_sync_batch_window_in_ms;
     public Integer commitlog_sync_period_in_ms;
-    
+
     public String endpoint_snitch;
     public Boolean dynamic_snitch = true;
     public Integer dynamic_snitch_update_interval_in_ms = 100;
@@ -163,14 +163,14 @@ public class Config
         periodic,
         batch
     }
-    
+
     public static enum DiskAccessMode {
         auto,
         mmap,
         mmap_index_only,
         standard,
     }
-    
+
     public static enum RequestSchedulerId
     {
         keyspace

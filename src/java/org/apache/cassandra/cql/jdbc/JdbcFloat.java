@@ -1,6 +1,6 @@
 package org.apache.cassandra.cql.jdbc;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.cql.jdbc;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -29,9 +29,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class JdbcFloat extends AbstractJdbcType<Float>
 {
     public static final JdbcFloat instance = new JdbcFloat();
-    
+
     JdbcFloat() {}
-    
+
     public boolean isCaseSensitive()
     {
         return false;
@@ -77,7 +77,7 @@ public class JdbcFloat extends AbstractJdbcType<Float>
         {
             throw new MarshalException("A float is exactly 4 bytes : "+bytes.remaining());
         }
-        
+
         return ((Float)ByteBufferUtil.toFloat(bytes)).toString();
     }
 
@@ -95,7 +95,7 @@ public class JdbcFloat extends AbstractJdbcType<Float>
     {
         return ByteBufferUtil.toFloat(bytes);
     }
-    
+
     public ByteBuffer decompose(Float value)
     {
         return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);

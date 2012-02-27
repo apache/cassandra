@@ -42,14 +42,14 @@ import org.apache.cassandra.utils.UUIDGen;
  * There are two parts to a migration (think of it as a schema update):
  * 1. data is written to the schema cf (SCHEMA_KEYSPACES_CF).
  * 2. updated models are applied to the cassandra instance.
- * 
+ *
  * Since all steps are not committed atomically, care should be taken to ensure that a node/cluster is reasonably
  * quiescent with regard to the Keyspace or ColumnFamily whose schema is being modified.
  */
 public abstract class Migration
 {
     protected static final Logger logger = LoggerFactory.getLogger(Migration.class);
-    
+
     public static final String NAME_VALIDATOR_REGEX = "\\w+";
     public static final String MIGRATIONS_CF = "Migrations";
     public static final String SCHEMA_CF = "Schema";
@@ -120,7 +120,7 @@ public abstract class Migration
         else
             return UUIDGen.getUUID(cf.getColumn(LAST_MIGRATION_KEY).value());
     }
-    
+
     public static boolean isLegalName(String s)
     {
         return s.matches(Migration.NAME_VALIDATOR_REGEX);

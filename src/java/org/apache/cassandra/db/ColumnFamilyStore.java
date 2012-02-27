@@ -177,12 +177,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         metadata.compactionStrategyClass = CFMetaData.createCompactionStrategy(compactionStrategyClass);
         maybeReloadCompactionStrategy();
     }
-    
+
     public String getCompactionStrategyClass()
     {
         return metadata.compactionStrategyClass.getName();
     }
-    
+
     public Map<String,String> getCompressionParameters()
     {
         return metadata.compressionParameters().asThriftOptions();
@@ -248,7 +248,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             valid = false;
             unregisterMBean();
-           
+
             data.unreferenceSSTables();
             indexManager.invalidate();
         }
@@ -411,7 +411,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param ksName The keyspace name
      * @param cfName The columnFamily name
      */
-    public static synchronized void loadNewSSTables(String ksName, String cfName) 
+    public static synchronized void loadNewSSTables(String ksName, String cfName)
     {
         /** ks/cf existence checks will be done by open and getCFS methods for us */
         Table table = Table.open(ksName);
@@ -530,7 +530,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (String idxName : idxNames)
             indexes.add(cfs.indexManager.getColumnByIdxName(idxName));
 
-        Collection<SSTableReader> sstables = cfs.getSSTables();    
+        Collection<SSTableReader> sstables = cfs.getSSTables();
         try
         {
             cfs.indexManager.setIndexRemoved(indexes);
@@ -651,11 +651,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 public void runMayThrow() throws InterruptedException, IOException
                 {
                     latch.await();
-                    
+
                     if (!icc.isEmpty())
                     {
                         //only valid when memtables exist
-                        
+
                         for (SecondaryIndex index : indexManager.getIndexesNotBackedByCfs())
                         {
                             // flush any non-cfs backed indexes
@@ -663,7 +663,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                             index.forceBlockingFlush();
                         }
                     }
-                    
+
                     if (writeCommitLog)
                     {
                         // if we're not writing to the commit log, we are replaying the log, so marking
@@ -1767,7 +1767,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return data.getCompressionRatio();
     }
-    
+
     /** true if this CFS contains secondary index data */
     public boolean isIndex()
     {

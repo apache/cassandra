@@ -1,6 +1,6 @@
 package org.apache.cassandra.thrift;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.thrift;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 import java.nio.ByteBuffer;
@@ -678,16 +678,16 @@ public class ThriftValidation
                         if (!oldCd.getIndexName().equals(c.index_name))
                             throw new InvalidRequestException("Cannot modify index name");
                     }
-                    
+
                     if (c.index_type == IndexType.CUSTOM)
                     {
                         if (c.index_options == null || !c.index_options.containsKey(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME))
-                            throw new InvalidRequestException("Required index option missing: " + SecondaryIndex.CUSTOM_INDEX_OPTION_NAME);                    
+                            throw new InvalidRequestException("Required index option missing: " + SecondaryIndex.CUSTOM_INDEX_OPTION_NAME);
                     }
-                    
+
                     // Create the index type and validate the options
                     ColumnDefinition cdef = ColumnDefinition.fromThrift(c);
-                   
+
                     // This method validates the column metadata but does not intialize the index
                     SecondaryIndex.createInstance(null, cdef);
                 }

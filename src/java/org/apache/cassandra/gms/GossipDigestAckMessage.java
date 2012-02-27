@@ -41,26 +41,26 @@ class GossipDigestAckMessage
     {
         serializer_ = new GossipDigestAckMessageSerializer();
     }
-    
+
     List<GossipDigest> gDigestList_ = new ArrayList<GossipDigest>();
     Map<InetAddress, EndpointState> epStateMap_ = new HashMap<InetAddress, EndpointState>();
-    
+
     static IVersionedSerializer<GossipDigestAckMessage> serializer()
     {
         return serializer_;
     }
-    
+
     GossipDigestAckMessage(List<GossipDigest> gDigestList, Map<InetAddress, EndpointState> epStateMap)
     {
         gDigestList_ = gDigestList;
         epStateMap_ = epStateMap;
     }
-    
+
     List<GossipDigest> getGossipDigestList()
     {
         return gDigestList_;
     }
-    
+
     Map<InetAddress, EndpointState> getEndpointStateMap()
     {
         return epStateMap_;

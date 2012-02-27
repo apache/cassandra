@@ -27,7 +27,7 @@ import java.io.UnsupportedEncodingException;
  * implementation. The synchronized methods of the original have been
  * replaced by non-synchronized methods. This makes certain operations
  * much FASTer, but also *not thread-safe*.
- * 
+ *
  * This file remains formatted the same as the Apache Harmony original to
  * make patching easier if any bug fixes are made to the Harmony version.
  */
@@ -37,7 +37,7 @@ import java.io.UnsupportedEncodingException;
  * (internal) byte array. As bytes are written to this stream, the byte array
  * may be expanded to hold more bytes. When the writing is considered to be
  * finished, a copy of the byte array can be requested from the class.
- * 
+ *
  * @see ByteArrayOutputStream
  */
 public class FastByteArrayOutputStream extends OutputStream {
@@ -64,7 +64,7 @@ public class FastByteArrayOutputStream extends OutputStream {
      * Constructs a new {@code ByteArrayOutputStream} with a default size of
      * {@code size} bytes. If more than {@code size} bytes are written to this
      * instance, the underlying byte array will expand.
-     * 
+     *
      * @param size
      *            initial size for the underlying byte array, must be
      *            non-negative.
@@ -81,7 +81,7 @@ public class FastByteArrayOutputStream extends OutputStream {
 
     /**
      * Closes this stream. This releases system resources used for this stream.
-     * 
+     *
      * @throws IOException
      *             if an error occurs while attempting to close this stream.
      */
@@ -117,7 +117,7 @@ public class FastByteArrayOutputStream extends OutputStream {
 
     /**
      * Returns the total number of bytes written to this stream so far.
-     * 
+     *
      * @return the number of bytes written to this stream.
      */
     public int size() {
@@ -128,7 +128,7 @@ public class FastByteArrayOutputStream extends OutputStream {
      * Returns the contents of this ByteArrayOutputStream as a byte array. Any
      * changes made to the receiver after returning will not be reflected in the
      * byte array returned to the caller.
-     * 
+     *
      * @return this stream's current contents as a byte array.
      */
     public byte[] toByteArray() {
@@ -141,7 +141,7 @@ public class FastByteArrayOutputStream extends OutputStream {
      * Returns the contents of this ByteArrayOutputStream as a string. Any
      * changes made to the receiver after returning will not be reflected in the
      * string returned to the caller.
-     * 
+     *
      * @return this stream's current contents as a string.
      */
 
@@ -157,7 +157,7 @@ public class FastByteArrayOutputStream extends OutputStream {
      * {@code c == (char)(((hibyte & 0xff) << 8) | (b & 0xff))}. This method is
      * deprecated and either {@link #toString()} or {@link #toString(String)}
      * should be used.
-     * 
+     *
      * @param hibyte
      *            the high byte of each resulting Unicode character.
      * @return this stream's current contents as a string with the high byte set
@@ -176,7 +176,7 @@ public class FastByteArrayOutputStream extends OutputStream {
     /**
      * Returns the contents of this ByteArrayOutputStream as a string converted
      * according to the encoding declared in {@code enc}.
-     * 
+     *
      * @param enc
      *            a string representing the encoding to use when translating
      *            this stream to a string.
@@ -191,7 +191,7 @@ public class FastByteArrayOutputStream extends OutputStream {
     /**
      * Writes {@code count} bytes from the byte array {@code buffer} starting at
      * offset {@code index} to this stream.
-     * 
+     *
      * @param buffer
      *            the buffer to be written.
      * @param offset
@@ -225,7 +225,7 @@ public class FastByteArrayOutputStream extends OutputStream {
     /**
      * Writes the specified byte {@code oneByte} to the OutputStream. Only the
      * low order byte of {@code oneByte} is written.
-     * 
+     *
      * @param oneByte
      *            the byte to be written.
      */
@@ -240,7 +240,7 @@ public class FastByteArrayOutputStream extends OutputStream {
     /**
      * Takes the contents of this stream and writes it to the output stream
      * {@code out}.
-     * 
+     *
      * @param out
      *            an OutputStream on which to write the contents of this stream.
      * @throws IOException

@@ -74,9 +74,9 @@ public class Table
 
     // It is possible to call Table.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
-    static 
+    static
     {
-        if (!StorageService.instance.isClientMode()) 
+        if (!StorageService.instance.isClientMode())
         {
             try
             {
@@ -145,7 +145,7 @@ public class Table
             return t;
         }
     }
-    
+
     public Collection<ColumnFamilyStore> getColumnFamilyStores()
     {
         return Collections.unmodifiableCollection(columnFamilyStores.values());
@@ -199,7 +199,7 @@ public class Table
 
     /**
      * Take a snapshot of the entire set of column families with a given timestamp
-     * 
+     *
      * @param snapshotName the tag associated with the name of the snapshot.  This value may not be null
      */
     public void snapshot(String snapshotName)
@@ -253,7 +253,7 @@ public class Table
             cfStore.clearSnapshot(snapshotName);
         }
     }
-    
+
     /**
      * @return A list of open SSTableReaders
      */
@@ -295,7 +295,7 @@ public class Table
     {
         if (replicationStrategy != null)
             StorageService.instance.getTokenMetadata().unregister(replicationStrategy);
-            
+
         replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(ksm.name,
                                                                                     ksm.strategyClass,
                                                                                     StorageService.instance.getTokenMetadata(),
@@ -310,10 +310,10 @@ public class Table
         ColumnFamilyStore cfs = columnFamilyStores.remove(cfId);
         if (cfs == null)
             return;
-        
+
         unloadCf(cfs);
     }
-    
+
     // disassociate a cfs from this table instance.
     private void unloadCf(ColumnFamilyStore cfs) throws IOException
     {
@@ -331,7 +331,7 @@ public class Table
         }
         cfs.invalidate();
     }
-    
+
     /** adds a cf to internal structures, ends up creating disk files). */
     public void initCf(Integer cfId, String cfName)
     {
@@ -386,7 +386,7 @@ public class Table
         {
             if (writeCommitLog)
                 CommitLog.instance.add(mutation);
-        
+
             DecoratedKey<?> key = StorageService.getPartitioner().decorateKey(mutation.key());
             for (ColumnFamily cf : mutation.getColumnFamilies())
             {

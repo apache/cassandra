@@ -58,7 +58,7 @@ public class HexTest
             new byte[] { 0x0f },
             new byte[] { (byte)0x000000ff }
         };
-        
+
         for (int i = 0; i < values.length; i++)
             assert Arrays.equals(Hex.hexToBytes(values[i]), expected[i]);
     }

@@ -60,8 +60,8 @@ public class RowMutationVerbHandler implements IVerbHandler
         {
             logger_.error("Error in row mutation", e);
         }
-    }  
-    
+    }
+
     /**
      * Older version (< 1.0) will not send this message at all, hence we don't
      * need to check the version of the data.
@@ -70,7 +70,7 @@ public class RowMutationVerbHandler implements IVerbHandler
     {
         DataInputStream dis = new DataInputStream(new FastByteArrayInputStream(forwardBytes));
         int size = dis.readInt();
-        
+
         // remove fwds from message to avoid infinite loop
         Message messageCopy = message.withHeaderRemoved(RowMutation.FORWARD_HEADER);
         for (int i = 0; i < size; i++)

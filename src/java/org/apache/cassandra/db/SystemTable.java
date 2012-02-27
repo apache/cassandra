@@ -74,7 +74,7 @@ public class SystemTable
     {
         return StorageService.getPartitioner().decorateKey(key);
     }
-    
+
     public static void finishStartup() throws IOException
     {
         setupVersion();
@@ -273,13 +273,13 @@ public class SystemTable
             ex.initCause(err);
             throw ex;
         }
-        
+
         SortedSet<ByteBuffer> cols = new TreeSet<ByteBuffer>(BytesType.instance);
         cols.add(CLUSTERNAME);
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCATION_KEY), new QueryPath(STATUS_CF), cols);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(STATUS_CF);
         ColumnFamily cf = cfs.getColumnFamily(filter);
-        
+
         if (cf == null)
         {
             // this is a brand new node
@@ -295,8 +295,8 @@ public class SystemTable
 
             return;
         }
-        
-        
+
+
         IColumn clusterCol = cf.getColumn(CLUSTERNAME);
         assert clusterCol != null;
         String savedClusterName = ByteBufferUtil.string(clusterCol.value());
@@ -352,7 +352,7 @@ public class SystemTable
 
         return generation;
     }
-    
+
     public static boolean isBootstrapped()
     {
         Table table = Table.open(Table.SYSTEM_TABLE);
@@ -369,7 +369,7 @@ public class SystemTable
     public static void setBootstrapped(boolean isBootstrapped)
     {
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
-        cf.addColumn(new Column(BOOTSTRAP, 
+        cf.addColumn(new Column(BOOTSTRAP,
                                 ByteBuffer.wrap(new byte[] { (byte) (isBootstrapped ? 1 : 0) }),
                                 FBUtilities.timestampMicros()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, BOOTSTRAP_KEY);

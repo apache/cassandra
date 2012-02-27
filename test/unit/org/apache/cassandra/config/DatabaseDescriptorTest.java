@@ -57,7 +57,7 @@ public class DatabaseDescriptorTest
             assert ksmDupe.equals(ksm);
         }
     }
-    
+
     // this came as a result of CASSANDRA-995
     @Test
     public void testTransKsMigration() throws IOException, ConfigurationException

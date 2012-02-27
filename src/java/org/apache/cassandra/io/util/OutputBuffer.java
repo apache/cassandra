@@ -40,12 +40,12 @@ public final class OutputBuffer extends FastByteArrayOutputStream
     {
         return buf;
     }
-    
+
     public int getLength()
     {
         return count;
     }
-    
+
     public void write(DataInput in, int len) throws IOException
     {
         int newcount = count + len;
@@ -58,7 +58,7 @@ public final class OutputBuffer extends FastByteArrayOutputStream
         in.readFully(buf, count, len);
         count = newcount;
     }
-    
+
     /**
      * @return The valid contents of the buffer, possibly by copying: only safe for one-time-use buffers.
      */

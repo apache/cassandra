@@ -86,7 +86,7 @@ public abstract class PartitionerTestCase<T extends Token>
     @Test
     public void testMidpointMinimum()
     {
-        T mintoken = partitioner.getMinimumToken(); 
+        T mintoken = partitioner.getMinimumToken();
         assert mintoken.compareTo(partitioner.midpoint(mintoken, mintoken)) != 0;
         assertMidpoint(mintoken, tok("a"), 16);
         assertMidpoint(mintoken, tok("aaa"), 16);
@@ -100,14 +100,14 @@ public abstract class PartitionerTestCase<T extends Token>
         assertMidpoint(tok("b"), tok("a"), 16);
         assertMidpoint(tok("bbb"), tok("a"), 16);
     }
-    
+
     @Test
     public void testTokenFactoryBytes()
     {
         Token.TokenFactory factory = partitioner.getTokenFactory();
         assert tok("a").compareTo(factory.fromByteArray(factory.toByteArray(tok("a")))) == 0;
     }
-    
+
     @Test
     public void testTokenFactoryStrings()
     {

@@ -46,7 +46,7 @@ public class GuidGenerator {
 
     public static String guid() {
         ByteBuffer array = guidAsBytes();
-        
+
         StringBuilder sb = new StringBuilder();
         for (int j = array.position(); j < array.limit(); ++j)
         {
@@ -57,7 +57,7 @@ public class GuidGenerator {
 
         return convertToStandardFormat( sb.toString() );
     }
-    
+
     public static String guidToString(byte[] bytes)
     {
         StringBuilder sb = new StringBuilder();
@@ -69,7 +69,7 @@ public class GuidGenerator {
 
         return convertToStandardFormat( sb.toString() );
     }
-    
+
     public static ByteBuffer guidAsBytes()
     {
         StringBuilder sbValueBeforeMD5 = new StringBuilder();
