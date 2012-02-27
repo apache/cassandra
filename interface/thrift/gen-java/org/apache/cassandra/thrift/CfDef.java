@@ -69,6 +69,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField COLUMN_ALIASES_FIELD_DESC = new org.apache.thrift.protocol.TField("column_aliases", org.apache.thrift.protocol.TType.LIST, (short)35);
   private static final org.apache.thrift.protocol.TField VALUE_ALIAS_FIELD_DESC = new org.apache.thrift.protocol.TField("value_alias", org.apache.thrift.protocol.TType.STRING, (short)36);
   private static final org.apache.thrift.protocol.TField DCLOCAL_READ_REPAIR_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("dclocal_read_repair_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)37);
+  private static final org.apache.thrift.protocol.TField ROW_CACHE_SIZE_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_size", org.apache.thrift.protocol.TType.DOUBLE, (short)9);
+  private static final org.apache.thrift.protocol.TField KEY_CACHE_SIZE_FIELD_DESC = new org.apache.thrift.protocol.TField("key_cache_size", org.apache.thrift.protocol.TType.DOUBLE, (short)11);
+  private static final org.apache.thrift.protocol.TField ROW_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_save_period_in_seconds", org.apache.thrift.protocol.TType.I32, (short)19);
+  private static final org.apache.thrift.protocol.TField KEY_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new org.apache.thrift.protocol.TField("key_cache_save_period_in_seconds", org.apache.thrift.protocol.TType.I32, (short)20);
+  private static final org.apache.thrift.protocol.TField MEMTABLE_FLUSH_AFTER_MINS_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_flush_after_mins", org.apache.thrift.protocol.TType.I32, (short)21);
+  private static final org.apache.thrift.protocol.TField MEMTABLE_THROUGHPUT_IN_MB_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_throughput_in_mb", org.apache.thrift.protocol.TType.I32, (short)22);
+  private static final org.apache.thrift.protocol.TField MEMTABLE_OPERATIONS_IN_MILLIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_operations_in_millions", org.apache.thrift.protocol.TType.DOUBLE, (short)23);
+  private static final org.apache.thrift.protocol.TField MERGE_SHARDS_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("merge_shards_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)25);
+  private static final org.apache.thrift.protocol.TField ROW_CACHE_PROVIDER_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_provider", org.apache.thrift.protocol.TType.STRING, (short)27);
+  private static final org.apache.thrift.protocol.TField ROW_CACHE_KEYS_TO_SAVE_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_keys_to_save", org.apache.thrift.protocol.TType.I32, (short)31);
 
   public String keyspace; // required
   public String name; // required
@@ -94,6 +104,46 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   public List<ByteBuffer> column_aliases; // required
   public ByteBuffer value_alias; // required
   public double dclocal_read_repair_chance; // required
+  /**
+   * @deprecated
+   */
+  public double row_cache_size; // required
+  /**
+   * @deprecated
+   */
+  public double key_cache_size; // required
+  /**
+   * @deprecated
+   */
+  public int row_cache_save_period_in_seconds; // required
+  /**
+   * @deprecated
+   */
+  public int key_cache_save_period_in_seconds; // required
+  /**
+   * @deprecated
+   */
+  public int memtable_flush_after_mins; // required
+  /**
+   * @deprecated
+   */
+  public int memtable_throughput_in_mb; // required
+  /**
+   * @deprecated
+   */
+  public double memtable_operations_in_millions; // required
+  /**
+   * @deprecated
+   */
+  public double merge_shards_chance; // required
+  /**
+   * @deprecated
+   */
+  public String row_cache_provider; // required
+  /**
+   * @deprecated
+   */
+  public int row_cache_keys_to_save; // required
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -120,7 +170,47 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     CACHING((short)34, "caching"),
     COLUMN_ALIASES((short)35, "column_aliases"),
     VALUE_ALIAS((short)36, "value_alias"),
-    DCLOCAL_READ_REPAIR_CHANCE((short)37, "dclocal_read_repair_chance");
+    DCLOCAL_READ_REPAIR_CHANCE((short)37, "dclocal_read_repair_chance"),
+    /**
+     * @deprecated
+     */
+    ROW_CACHE_SIZE((short)9, "row_cache_size"),
+    /**
+     * @deprecated
+     */
+    KEY_CACHE_SIZE((short)11, "key_cache_size"),
+    /**
+     * @deprecated
+     */
+    ROW_CACHE_SAVE_PERIOD_IN_SECONDS((short)19, "row_cache_save_period_in_seconds"),
+    /**
+     * @deprecated
+     */
+    KEY_CACHE_SAVE_PERIOD_IN_SECONDS((short)20, "key_cache_save_period_in_seconds"),
+    /**
+     * @deprecated
+     */
+    MEMTABLE_FLUSH_AFTER_MINS((short)21, "memtable_flush_after_mins"),
+    /**
+     * @deprecated
+     */
+    MEMTABLE_THROUGHPUT_IN_MB((short)22, "memtable_throughput_in_mb"),
+    /**
+     * @deprecated
+     */
+    MEMTABLE_OPERATIONS_IN_MILLIONS((short)23, "memtable_operations_in_millions"),
+    /**
+     * @deprecated
+     */
+    MERGE_SHARDS_CHANCE((short)25, "merge_shards_chance"),
+    /**
+     * @deprecated
+     */
+    ROW_CACHE_PROVIDER((short)27, "row_cache_provider"),
+    /**
+     * @deprecated
+     */
+    ROW_CACHE_KEYS_TO_SAVE((short)31, "row_cache_keys_to_save");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -183,6 +273,26 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return VALUE_ALIAS;
         case 37: // DCLOCAL_READ_REPAIR_CHANCE
           return DCLOCAL_READ_REPAIR_CHANCE;
+        case 9: // ROW_CACHE_SIZE
+          return ROW_CACHE_SIZE;
+        case 11: // KEY_CACHE_SIZE
+          return KEY_CACHE_SIZE;
+        case 19: // ROW_CACHE_SAVE_PERIOD_IN_SECONDS
+          return ROW_CACHE_SAVE_PERIOD_IN_SECONDS;
+        case 20: // KEY_CACHE_SAVE_PERIOD_IN_SECONDS
+          return KEY_CACHE_SAVE_PERIOD_IN_SECONDS;
+        case 21: // MEMTABLE_FLUSH_AFTER_MINS
+          return MEMTABLE_FLUSH_AFTER_MINS;
+        case 22: // MEMTABLE_THROUGHPUT_IN_MB
+          return MEMTABLE_THROUGHPUT_IN_MB;
+        case 23: // MEMTABLE_OPERATIONS_IN_MILLIONS
+          return MEMTABLE_OPERATIONS_IN_MILLIONS;
+        case 25: // MERGE_SHARDS_CHANCE
+          return MERGE_SHARDS_CHANCE;
+        case 27: // ROW_CACHE_PROVIDER
+          return ROW_CACHE_PROVIDER;
+        case 31: // ROW_CACHE_KEYS_TO_SAVE
+          return ROW_CACHE_KEYS_TO_SAVE;
         default:
           return null;
       }
@@ -231,7 +341,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final int __REPLICATE_ON_WRITE_ISSET_ID = 5;
   private static final int __BLOOM_FILTER_FP_CHANCE_ISSET_ID = 6;
   private static final int __DCLOCAL_READ_REPAIR_CHANCE_ISSET_ID = 7;
-  private BitSet __isset_bit_vector = new BitSet(8);
+  private static final int __ROW_CACHE_SIZE_ISSET_ID = 8;
+  private static final int __KEY_CACHE_SIZE_ISSET_ID = 9;
+  private static final int __ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 10;
+  private static final int __KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 11;
+  private static final int __MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID = 12;
+  private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 13;
+  private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 14;
+  private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 15;
+  private static final int __ROW_CACHE_KEYS_TO_SAVE_ISSET_ID = 16;
+  private BitSet __isset_bit_vector = new BitSet(17);
 
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
@@ -290,6 +409,26 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
     tmpMap.put(_Fields.DCLOCAL_READ_REPAIR_CHANCE, new org.apache.thrift.meta_data.FieldMetaData("dclocal_read_repair_chance", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
+    tmpMap.put(_Fields.ROW_CACHE_SIZE, new org.apache.thrift.meta_data.FieldMetaData("row_cache_size", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
+    tmpMap.put(_Fields.KEY_CACHE_SIZE, new org.apache.thrift.meta_data.FieldMetaData("key_cache_size", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
+    tmpMap.put(_Fields.ROW_CACHE_SAVE_PERIOD_IN_SECONDS, new org.apache.thrift.meta_data.FieldMetaData("row_cache_save_period_in_seconds", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.KEY_CACHE_SAVE_PERIOD_IN_SECONDS, new org.apache.thrift.meta_data.FieldMetaData("key_cache_save_period_in_seconds", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.MEMTABLE_FLUSH_AFTER_MINS, new org.apache.thrift.meta_data.FieldMetaData("memtable_flush_after_mins", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.MEMTABLE_THROUGHPUT_IN_MB, new org.apache.thrift.meta_data.FieldMetaData("memtable_throughput_in_mb", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.MEMTABLE_OPERATIONS_IN_MILLIONS, new org.apache.thrift.meta_data.FieldMetaData("memtable_operations_in_millions", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
+    tmpMap.put(_Fields.MERGE_SHARDS_CHANCE, new org.apache.thrift.meta_data.FieldMetaData("merge_shards_chance", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
+    tmpMap.put(_Fields.ROW_CACHE_PROVIDER, new org.apache.thrift.meta_data.FieldMetaData("row_cache_provider", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.ROW_CACHE_KEYS_TO_SAVE, new org.apache.thrift.meta_data.FieldMetaData("row_cache_keys_to_save", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
@@ -414,6 +553,18 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
 ;
     }
     this.dclocal_read_repair_chance = other.dclocal_read_repair_chance;
+    this.row_cache_size = other.row_cache_size;
+    this.key_cache_size = other.key_cache_size;
+    this.row_cache_save_period_in_seconds = other.row_cache_save_period_in_seconds;
+    this.key_cache_save_period_in_seconds = other.key_cache_save_period_in_seconds;
+    this.memtable_flush_after_mins = other.memtable_flush_after_mins;
+    this.memtable_throughput_in_mb = other.memtable_throughput_in_mb;
+    this.memtable_operations_in_millions = other.memtable_operations_in_millions;
+    this.merge_shards_chance = other.merge_shards_chance;
+    if (other.isSetRow_cache_provider()) {
+      this.row_cache_provider = other.row_cache_provider;
+    }
+    this.row_cache_keys_to_save = other.row_cache_keys_to_save;
   }
 
   public CfDef deepCopy() {
@@ -457,6 +608,25 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.value_alias = null;
     this.dclocal_read_repair_chance = 0;
 
+    setRow_cache_sizeIsSet(false);
+    this.row_cache_size = 0.0;
+    setKey_cache_sizeIsSet(false);
+    this.key_cache_size = 0.0;
+    setRow_cache_save_period_in_secondsIsSet(false);
+    this.row_cache_save_period_in_seconds = 0;
+    setKey_cache_save_period_in_secondsIsSet(false);
+    this.key_cache_save_period_in_seconds = 0;
+    setMemtable_flush_after_minsIsSet(false);
+    this.memtable_flush_after_mins = 0;
+    setMemtable_throughput_in_mbIsSet(false);
+    this.memtable_throughput_in_mb = 0;
+    setMemtable_operations_in_millionsIsSet(false);
+    this.memtable_operations_in_millions = 0.0;
+    setMerge_shards_chanceIsSet(false);
+    this.merge_shards_chance = 0.0;
+    this.row_cache_provider = null;
+    setRow_cache_keys_to_saveIsSet(false);
+    this.row_cache_keys_to_save = 0;
   }
 
   public String getKeyspace() {
@@ -1099,6 +1269,297 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     __isset_bit_vector.set(__DCLOCAL_READ_REPAIR_CHANCE_ISSET_ID, value);
   }
 
+  /**
+   * @deprecated
+   */
+  public double getRow_cache_size() {
+    return this.row_cache_size;
+  }
+
+  /**
+   * @deprecated
+   */
+  public CfDef setRow_cache_size(double row_cache_size) {
+    this.row_cache_size = row_cache_size;
+    setRow_cache_sizeIsSet(true);
+    return this;
+  }
+
+  public void unsetRow_cache_size() {
+    __isset_bit_vector.clear(__ROW_CACHE_SIZE_ISSET_ID);
+  }
+
+  /** Returns true if field row_cache_size is set (has been assigned a value) and false otherwise */
+  public boolean isSetRow_cache_size() {
+    return __isset_bit_vector.get(__ROW_CACHE_SIZE_ISSET_ID);
+  }
+
+  public void setRow_cache_sizeIsSet(boolean value) {
+    __isset_bit_vector.set(__ROW_CACHE_SIZE_ISSET_ID, value);
+  }
+
+  /**
+   * @deprecated
+   */
+  public double getKey_cache_size() {
+    return this.key_cache_size;
+  }
+
+  /**
+   * @deprecated
+   */
+  public CfDef setKey_cache_size(double key_cache_size) {
+    this.key_cache_size = key_cache_size;
+    setKey_cache_sizeIsSet(true);
+    return this;
+  }
+
+  public void unsetKey_cache_size() {
+    __isset_bit_vector.clear(__KEY_CACHE_SIZE_ISSET_ID);
+  }
+
+  /** Returns true if field key_cache_size is set (has been assigned a value) and false otherwise */
+  public boolean isSetKey_cache_size() {
+    return __isset_bit_vector.get(__KEY_CACHE_SIZE_ISSET_ID);
+  }
+
+  public void setKey_cache_sizeIsSet(boolean value) {
+    __isset_bit_vector.set(__KEY_CACHE_SIZE_ISSET_ID, value);
+  }
+
+  /**
+   * @deprecated
+   */
+  public int getRow_cache_save_period_in_seconds() {
+    return this.row_cache_save_period_in_seconds;
+  }
+
+  /**
+   * @deprecated
+   */
+  public CfDef setRow_cache_save_period_in_seconds(int row_cache_save_period_in_seconds) {
+    this.row_cache_save_period_in_seconds = row_cache_save_period_in_seconds;
+    setRow_cache_save_period_in_secondsIsSet(true);
+    return this;
+  }
+
+  public void unsetRow_cache_save_period_in_seconds() {
+    __isset_bit_vector.clear(__ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID);
+  }
+
+  /** Returns true if field row_cache_save_period_in_seconds is set (has been assigned a value) and false otherwise */
+  public boolean isSetRow_cache_save_period_in_seconds() {
+    return __isset_bit_vector.get(__ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID);
+  }
+
+  public void setRow_cache_save_period_in_secondsIsSet(boolean value) {
+    __isset_bit_vector.set(__ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID, value);
+  }
+
+  /**
+   * @deprecated
+   */
+  public int getKey_cache_save_period_in_seconds() {
+    return this.key_cache_save_period_in_seconds;
+  }
+
+  /**
+   * @deprecated
+   */
+  public CfDef setKey_cache_save_period_in_seconds(int key_cache_save_period_in_seconds) {
+    this.key_cache_save_period_in_seconds = key_cache_save_period_in_seconds;
+    setKey_cache_save_period_in_secondsIsSet(true);
+    return this;
+  }
+
+  public void unsetKey_cache_save_period_in_seconds() {
+    __isset_bit_vector.clear(__KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID);
+  }
+
+  /** Returns true if field key_cache_save_period_in_seconds is set (has been assigned a value) and false otherwise */
+  public boolean isSetKey_cache_save_period_in_seconds() {
+    return __isset_bit_vector.get(__KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID);
+  }
+
+  public void setKey_cache_save_period_in_secondsIsSet(boolean value) {
+    __isset_bit_vector.set(__KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID, value);
+  }
+
+  /**
+   * @deprecated
+   */
+  public int getMemtable_flush_after_mins() {
+    return this.memtable_flush_after_mins;
+  }
+
+  /**
+   * @deprecated
+   */
+  public CfDef setMemtable_flush_after_mins(int memtable_flush_after_mins) {
+    this.memtable_flush_after_mins = memtable_flush_after_mins;
+    setMemtable_flush_after_minsIsSet(true);
+    return this;
+  }
+
+  public void unsetMemtable_flush_after_mins() {
+    __isset_bit_vector.clear(__MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID);
+  }
+
+  /** Returns true if field memtable_flush_after_mins is set (has been assigned a value) and false otherwise */
+  public boolean isSetMemtable_flush_after_mins() {
+    return __isset_bit_vector.get(__MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID);
+  }
+
+  public void setMemtable_flush_after_minsIsSet(boolean value) {
+    __isset_bit_vector.set(__MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID, value);
+  }
+
+  /**
+   * @deprecated
+   */
+  public int getMemtable_throughput_in_mb() {
+    return this.memtable_throughput_in_mb;
+  }
+
+  /**
+   * @deprecated
+   */
+  public CfDef setMemtable_throughput_in_mb(int memtable_throughput_in_mb) {
+    this.memtable_throughput_in_mb = memtable_throughput_in_mb;
+    setMemtable_throughput_in_mbIsSet(true);
+    return this;
+  }
+
+  public void unsetMemtable_throughput_in_mb() {
+    __isset_bit_vector.clear(__MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID);
+  }
+
+  /** Returns true if field memtable_throughput_in_mb is set (has been assigned a value) and false otherwise */
+  public boolean isSetMemtable_throughput_in_mb() {
+    return __isset_bit_vector.get(__MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID);
+  }
+
+  public void setMemtable_throughput_in_mbIsSet(boolean value) {
+    __isset_bit_vector.set(__MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID, value);
+  }
+
+  /**
+   * @deprecated
+   */
+  public double getMemtable_operations_in_millions() {
+    return this.memtable_operations_in_millions;
+  }
+
+  /**
+   * @deprecated
+   */
+  public CfDef setMemtable_operations_in_millions(double memtable_operations_in_millions) {
+    this.memtable_operations_in_millions = memtable_operations_in_millions;
+    setMemtable_operations_in_millionsIsSet(true);
+    return this;
+  }
+
+  public void unsetMemtable_operations_in_millions() {
+    __isset_bit_vector.clear(__MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID);
+  }
+
+  /** Returns true if field memtable_operations_in_millions is set (has been assigned a value) and false otherwise */
+  public boolean isSetMemtable_operations_in_millions() {
+    return __isset_bit_vector.get(__MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID);
+  }
+
+  public void setMemtable_operations_in_millionsIsSet(boolean value) {
+    __isset_bit_vector.set(__MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID, value);
+  }
+
+  /**
+   * @deprecated
+   */
+  public double getMerge_shards_chance() {
+    return this.merge_shards_chance;
+  }
+
+  /**
+   * @deprecated
+   */
+  public CfDef setMerge_shards_chance(double merge_shards_chance) {
+    this.merge_shards_chance = merge_shards_chance;
+    setMerge_shards_chanceIsSet(true);
+    return this;
+  }
+
+  public void unsetMerge_shards_chance() {
+    __isset_bit_vector.clear(__MERGE_SHARDS_CHANCE_ISSET_ID);
+  }
+
+  /** Returns true if field merge_shards_chance is set (has been assigned a value) and false otherwise */
+  public boolean isSetMerge_shards_chance() {
+    return __isset_bit_vector.get(__MERGE_SHARDS_CHANCE_ISSET_ID);
+  }
+
+  public void setMerge_shards_chanceIsSet(boolean value) {
+    __isset_bit_vector.set(__MERGE_SHARDS_CHANCE_ISSET_ID, value);
+  }
+
+  /**
+   * @deprecated
+   */
+  public String getRow_cache_provider() {
+    return this.row_cache_provider;
+  }
+
+  /**
+   * @deprecated
+   */
+  public CfDef setRow_cache_provider(String row_cache_provider) {
+    this.row_cache_provider = row_cache_provider;
+    return this;
+  }
+
+  public void unsetRow_cache_provider() {
+    this.row_cache_provider = null;
+  }
+
+  /** Returns true if field row_cache_provider is set (has been assigned a value) and false otherwise */
+  public boolean isSetRow_cache_provider() {
+    return this.row_cache_provider != null;
+  }
+
+  public void setRow_cache_providerIsSet(boolean value) {
+    if (!value) {
+      this.row_cache_provider = null;
+    }
+  }
+
+  /**
+   * @deprecated
+   */
+  public int getRow_cache_keys_to_save() {
+    return this.row_cache_keys_to_save;
+  }
+
+  /**
+   * @deprecated
+   */
+  public CfDef setRow_cache_keys_to_save(int row_cache_keys_to_save) {
+    this.row_cache_keys_to_save = row_cache_keys_to_save;
+    setRow_cache_keys_to_saveIsSet(true);
+    return this;
+  }
+
+  public void unsetRow_cache_keys_to_save() {
+    __isset_bit_vector.clear(__ROW_CACHE_KEYS_TO_SAVE_ISSET_ID);
+  }
+
+  /** Returns true if field row_cache_keys_to_save is set (has been assigned a value) and false otherwise */
+  public boolean isSetRow_cache_keys_to_save() {
+    return __isset_bit_vector.get(__ROW_CACHE_KEYS_TO_SAVE_ISSET_ID);
+  }
+
+  public void setRow_cache_keys_to_saveIsSet(boolean value) {
+    __isset_bit_vector.set(__ROW_CACHE_KEYS_TO_SAVE_ISSET_ID, value);
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case KEYSPACE:
@@ -1293,6 +1754,86 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       break;
 
+    case ROW_CACHE_SIZE:
+      if (value == null) {
+        unsetRow_cache_size();
+      } else {
+        setRow_cache_size((Double)value);
+      }
+      break;
+
+    case KEY_CACHE_SIZE:
+      if (value == null) {
+        unsetKey_cache_size();
+      } else {
+        setKey_cache_size((Double)value);
+      }
+      break;
+
+    case ROW_CACHE_SAVE_PERIOD_IN_SECONDS:
+      if (value == null) {
+        unsetRow_cache_save_period_in_seconds();
+      } else {
+        setRow_cache_save_period_in_seconds((Integer)value);
+      }
+      break;
+
+    case KEY_CACHE_SAVE_PERIOD_IN_SECONDS:
+      if (value == null) {
+        unsetKey_cache_save_period_in_seconds();
+      } else {
+        setKey_cache_save_period_in_seconds((Integer)value);
+      }
+      break;
+
+    case MEMTABLE_FLUSH_AFTER_MINS:
+      if (value == null) {
+        unsetMemtable_flush_after_mins();
+      } else {
+        setMemtable_flush_after_mins((Integer)value);
+      }
+      break;
+
+    case MEMTABLE_THROUGHPUT_IN_MB:
+      if (value == null) {
+        unsetMemtable_throughput_in_mb();
+      } else {
+        setMemtable_throughput_in_mb((Integer)value);
+      }
+      break;
+
+    case MEMTABLE_OPERATIONS_IN_MILLIONS:
+      if (value == null) {
+        unsetMemtable_operations_in_millions();
+      } else {
+        setMemtable_operations_in_millions((Double)value);
+      }
+      break;
+
+    case MERGE_SHARDS_CHANCE:
+      if (value == null) {
+        unsetMerge_shards_chance();
+      } else {
+        setMerge_shards_chance((Double)value);
+      }
+      break;
+
+    case ROW_CACHE_PROVIDER:
+      if (value == null) {
+        unsetRow_cache_provider();
+      } else {
+        setRow_cache_provider((String)value);
+      }
+      break;
+
+    case ROW_CACHE_KEYS_TO_SAVE:
+      if (value == null) {
+        unsetRow_cache_keys_to_save();
+      } else {
+        setRow_cache_keys_to_save((Integer)value);
+      }
+      break;
+
     }
   }
 
@@ -1370,6 +1911,36 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     case DCLOCAL_READ_REPAIR_CHANCE:
       return Double.valueOf(getDclocal_read_repair_chance());
 
+    case ROW_CACHE_SIZE:
+      return Double.valueOf(getRow_cache_size());
+
+    case KEY_CACHE_SIZE:
+      return Double.valueOf(getKey_cache_size());
+
+    case ROW_CACHE_SAVE_PERIOD_IN_SECONDS:
+      return Integer.valueOf(getRow_cache_save_period_in_seconds());
+
+    case KEY_CACHE_SAVE_PERIOD_IN_SECONDS:
+      return Integer.valueOf(getKey_cache_save_period_in_seconds());
+
+    case MEMTABLE_FLUSH_AFTER_MINS:
+      return Integer.valueOf(getMemtable_flush_after_mins());
+
+    case MEMTABLE_THROUGHPUT_IN_MB:
+      return Integer.valueOf(getMemtable_throughput_in_mb());
+
+    case MEMTABLE_OPERATIONS_IN_MILLIONS:
+      return Double.valueOf(getMemtable_operations_in_millions());
+
+    case MERGE_SHARDS_CHANCE:
+      return Double.valueOf(getMerge_shards_chance());
+
+    case ROW_CACHE_PROVIDER:
+      return getRow_cache_provider();
+
+    case ROW_CACHE_KEYS_TO_SAVE:
+      return Integer.valueOf(getRow_cache_keys_to_save());
+
     }
     throw new IllegalStateException();
   }
@@ -1429,6 +2000,26 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetValue_alias();
     case DCLOCAL_READ_REPAIR_CHANCE:
       return isSetDclocal_read_repair_chance();
+    case ROW_CACHE_SIZE:
+      return isSetRow_cache_size();
+    case KEY_CACHE_SIZE:
+      return isSetKey_cache_size();
+    case ROW_CACHE_SAVE_PERIOD_IN_SECONDS:
+      return isSetRow_cache_save_period_in_seconds();
+    case KEY_CACHE_SAVE_PERIOD_IN_SECONDS:
+      return isSetKey_cache_save_period_in_seconds();
+    case MEMTABLE_FLUSH_AFTER_MINS:
+      return isSetMemtable_flush_after_mins();
+    case MEMTABLE_THROUGHPUT_IN_MB:
+      return isSetMemtable_throughput_in_mb();
+    case MEMTABLE_OPERATIONS_IN_MILLIONS:
+      return isSetMemtable_operations_in_millions();
+    case MERGE_SHARDS_CHANCE:
+      return isSetMerge_shards_chance();
+    case ROW_CACHE_PROVIDER:
+      return isSetRow_cache_provider();
+    case ROW_CACHE_KEYS_TO_SAVE:
+      return isSetRow_cache_keys_to_save();
     }
     throw new IllegalStateException();
   }
@@ -1662,6 +2253,96 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return false;
     }
 
+    boolean this_present_row_cache_size = true && this.isSetRow_cache_size();
+    boolean that_present_row_cache_size = true && that.isSetRow_cache_size();
+    if (this_present_row_cache_size || that_present_row_cache_size) {
+      if (!(this_present_row_cache_size && that_present_row_cache_size))
+        return false;
+      if (this.row_cache_size != that.row_cache_size)
+        return false;
+    }
+
+    boolean this_present_key_cache_size = true && this.isSetKey_cache_size();
+    boolean that_present_key_cache_size = true && that.isSetKey_cache_size();
+    if (this_present_key_cache_size || that_present_key_cache_size) {
+      if (!(this_present_key_cache_size && that_present_key_cache_size))
+        return false;
+      if (this.key_cache_size != that.key_cache_size)
+        return false;
+    }
+
+    boolean this_present_row_cache_save_period_in_seconds = true && this.isSetRow_cache_save_period_in_seconds();
+    boolean that_present_row_cache_save_period_in_seconds = true && that.isSetRow_cache_save_period_in_seconds();
+    if (this_present_row_cache_save_period_in_seconds || that_present_row_cache_save_period_in_seconds) {
+      if (!(this_present_row_cache_save_period_in_seconds && that_present_row_cache_save_period_in_seconds))
+        return false;
+      if (this.row_cache_save_period_in_seconds != that.row_cache_save_period_in_seconds)
+        return false;
+    }
+
+    boolean this_present_key_cache_save_period_in_seconds = true && this.isSetKey_cache_save_period_in_seconds();
+    boolean that_present_key_cache_save_period_in_seconds = true && that.isSetKey_cache_save_period_in_seconds();
+    if (this_present_key_cache_save_period_in_seconds || that_present_key_cache_save_period_in_seconds) {
+      if (!(this_present_key_cache_save_period_in_seconds && that_present_key_cache_save_period_in_seconds))
+        return false;
+      if (this.key_cache_save_period_in_seconds != that.key_cache_save_period_in_seconds)
+        return false;
+    }
+
+    boolean this_present_memtable_flush_after_mins = true && this.isSetMemtable_flush_after_mins();
+    boolean that_present_memtable_flush_after_mins = true && that.isSetMemtable_flush_after_mins();
+    if (this_present_memtable_flush_after_mins || that_present_memtable_flush_after_mins) {
+      if (!(this_present_memtable_flush_after_mins && that_present_memtable_flush_after_mins))
+        return false;
+      if (this.memtable_flush_after_mins != that.memtable_flush_after_mins)
+        return false;
+    }
+
+    boolean this_present_memtable_throughput_in_mb = true && this.isSetMemtable_throughput_in_mb();
+    boolean that_present_memtable_throughput_in_mb = true && that.isSetMemtable_throughput_in_mb();
+    if (this_present_memtable_throughput_in_mb || that_present_memtable_throughput_in_mb) {
+      if (!(this_present_memtable_throughput_in_mb && that_present_memtable_throughput_in_mb))
+        return false;
+      if (this.memtable_throughput_in_mb != that.memtable_throughput_in_mb)
+        return false;
+    }
+
+    boolean this_present_memtable_operations_in_millions = true && this.isSetMemtable_operations_in_millions();
+    boolean that_present_memtable_operations_in_millions = true && that.isSetMemtable_operations_in_millions();
+    if (this_present_memtable_operations_in_millions || that_present_memtable_operations_in_millions) {
+      if (!(this_present_memtable_operations_in_millions && that_present_memtable_operations_in_millions))
+        return false;
+      if (this.memtable_operations_in_millions != that.memtable_operations_in_millions)
+        return false;
+    }
+
+    boolean this_present_merge_shards_chance = true && this.isSetMerge_shards_chance();
+    boolean that_present_merge_shards_chance = true && that.isSetMerge_shards_chance();
+    if (this_present_merge_shards_chance || that_present_merge_shards_chance) {
+      if (!(this_present_merge_shards_chance && that_present_merge_shards_chance))
+        return false;
+      if (this.merge_shards_chance != that.merge_shards_chance)
+        return false;
+    }
+
+    boolean this_present_row_cache_provider = true && this.isSetRow_cache_provider();
+    boolean that_present_row_cache_provider = true && that.isSetRow_cache_provider();
+    if (this_present_row_cache_provider || that_present_row_cache_provider) {
+      if (!(this_present_row_cache_provider && that_present_row_cache_provider))
+        return false;
+      if (!this.row_cache_provider.equals(that.row_cache_provider))
+        return false;
+    }
+
+    boolean this_present_row_cache_keys_to_save = true && this.isSetRow_cache_keys_to_save();
+    boolean that_present_row_cache_keys_to_save = true && that.isSetRow_cache_keys_to_save();
+    if (this_present_row_cache_keys_to_save || that_present_row_cache_keys_to_save) {
+      if (!(this_present_row_cache_keys_to_save && that_present_row_cache_keys_to_save))
+        return false;
+      if (this.row_cache_keys_to_save != that.row_cache_keys_to_save)
+        return false;
+    }
+
     return true;
   }
 
@@ -1788,6 +2469,56 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     builder.append(present_dclocal_read_repair_chance);
     if (present_dclocal_read_repair_chance)
       builder.append(dclocal_read_repair_chance);
+
+    boolean present_row_cache_size = true && (isSetRow_cache_size());
+    builder.append(present_row_cache_size);
+    if (present_row_cache_size)
+      builder.append(row_cache_size);
+
+    boolean present_key_cache_size = true && (isSetKey_cache_size());
+    builder.append(present_key_cache_size);
+    if (present_key_cache_size)
+      builder.append(key_cache_size);
+
+    boolean present_row_cache_save_period_in_seconds = true && (isSetRow_cache_save_period_in_seconds());
+    builder.append(present_row_cache_save_period_in_seconds);
+    if (present_row_cache_save_period_in_seconds)
+      builder.append(row_cache_save_period_in_seconds);
+
+    boolean present_key_cache_save_period_in_seconds = true && (isSetKey_cache_save_period_in_seconds());
+    builder.append(present_key_cache_save_period_in_seconds);
+    if (present_key_cache_save_period_in_seconds)
+      builder.append(key_cache_save_period_in_seconds);
+
+    boolean present_memtable_flush_after_mins = true && (isSetMemtable_flush_after_mins());
+    builder.append(present_memtable_flush_after_mins);
+    if (present_memtable_flush_after_mins)
+      builder.append(memtable_flush_after_mins);
+
+    boolean present_memtable_throughput_in_mb = true && (isSetMemtable_throughput_in_mb());
+    builder.append(present_memtable_throughput_in_mb);
+    if (present_memtable_throughput_in_mb)
+      builder.append(memtable_throughput_in_mb);
+
+    boolean present_memtable_operations_in_millions = true && (isSetMemtable_operations_in_millions());
+    builder.append(present_memtable_operations_in_millions);
+    if (present_memtable_operations_in_millions)
+      builder.append(memtable_operations_in_millions);
+
+    boolean present_merge_shards_chance = true && (isSetMerge_shards_chance());
+    builder.append(present_merge_shards_chance);
+    if (present_merge_shards_chance)
+      builder.append(merge_shards_chance);
+
+    boolean present_row_cache_provider = true && (isSetRow_cache_provider());
+    builder.append(present_row_cache_provider);
+    if (present_row_cache_provider)
+      builder.append(row_cache_provider);
+
+    boolean present_row_cache_keys_to_save = true && (isSetRow_cache_keys_to_save());
+    builder.append(present_row_cache_keys_to_save);
+    if (present_row_cache_keys_to_save)
+      builder.append(row_cache_keys_to_save);
 
     return builder.toHashCode();
   }
@@ -2040,6 +2771,106 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetRow_cache_size()).compareTo(typedOther.isSetRow_cache_size());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetRow_cache_size()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.row_cache_size, typedOther.row_cache_size);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetKey_cache_size()).compareTo(typedOther.isSetKey_cache_size());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetKey_cache_size()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.key_cache_size, typedOther.key_cache_size);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetRow_cache_save_period_in_seconds()).compareTo(typedOther.isSetRow_cache_save_period_in_seconds());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetRow_cache_save_period_in_seconds()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.row_cache_save_period_in_seconds, typedOther.row_cache_save_period_in_seconds);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetKey_cache_save_period_in_seconds()).compareTo(typedOther.isSetKey_cache_save_period_in_seconds());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetKey_cache_save_period_in_seconds()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.key_cache_save_period_in_seconds, typedOther.key_cache_save_period_in_seconds);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetMemtable_flush_after_mins()).compareTo(typedOther.isSetMemtable_flush_after_mins());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetMemtable_flush_after_mins()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.memtable_flush_after_mins, typedOther.memtable_flush_after_mins);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetMemtable_throughput_in_mb()).compareTo(typedOther.isSetMemtable_throughput_in_mb());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetMemtable_throughput_in_mb()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.memtable_throughput_in_mb, typedOther.memtable_throughput_in_mb);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetMemtable_operations_in_millions()).compareTo(typedOther.isSetMemtable_operations_in_millions());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetMemtable_operations_in_millions()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.memtable_operations_in_millions, typedOther.memtable_operations_in_millions);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetMerge_shards_chance()).compareTo(typedOther.isSetMerge_shards_chance());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetMerge_shards_chance()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.merge_shards_chance, typedOther.merge_shards_chance);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetRow_cache_provider()).compareTo(typedOther.isSetRow_cache_provider());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetRow_cache_provider()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.row_cache_provider, typedOther.row_cache_provider);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetRow_cache_keys_to_save()).compareTo(typedOther.isSetRow_cache_keys_to_save());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetRow_cache_keys_to_save()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.row_cache_keys_to_save, typedOther.row_cache_keys_to_save);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -2278,6 +3109,85 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 9: // ROW_CACHE_SIZE
+          if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
+            this.row_cache_size = iprot.readDouble();
+            setRow_cache_sizeIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 11: // KEY_CACHE_SIZE
+          if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
+            this.key_cache_size = iprot.readDouble();
+            setKey_cache_sizeIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 19: // ROW_CACHE_SAVE_PERIOD_IN_SECONDS
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
+            this.row_cache_save_period_in_seconds = iprot.readI32();
+            setRow_cache_save_period_in_secondsIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 20: // KEY_CACHE_SAVE_PERIOD_IN_SECONDS
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
+            this.key_cache_save_period_in_seconds = iprot.readI32();
+            setKey_cache_save_period_in_secondsIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 21: // MEMTABLE_FLUSH_AFTER_MINS
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
+            this.memtable_flush_after_mins = iprot.readI32();
+            setMemtable_flush_after_minsIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 22: // MEMTABLE_THROUGHPUT_IN_MB
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
+            this.memtable_throughput_in_mb = iprot.readI32();
+            setMemtable_throughput_in_mbIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 23: // MEMTABLE_OPERATIONS_IN_MILLIONS
+          if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
+            this.memtable_operations_in_millions = iprot.readDouble();
+            setMemtable_operations_in_millionsIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 25: // MERGE_SHARDS_CHANCE
+          if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
+            this.merge_shards_chance = iprot.readDouble();
+            setMerge_shards_chanceIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 27: // ROW_CACHE_PROVIDER
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
+            this.row_cache_provider = iprot.readString();
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 31: // ROW_CACHE_KEYS_TO_SAVE
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
+            this.row_cache_keys_to_save = iprot.readI32();
+            setRow_cache_keys_to_saveIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
@@ -2331,6 +3241,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         oprot.writeFieldEnd();
       }
     }
+    if (isSetRow_cache_size()) {
+      oprot.writeFieldBegin(ROW_CACHE_SIZE_FIELD_DESC);
+      oprot.writeDouble(this.row_cache_size);
+      oprot.writeFieldEnd();
+    }
+    if (isSetKey_cache_size()) {
+      oprot.writeFieldBegin(KEY_CACHE_SIZE_FIELD_DESC);
+      oprot.writeDouble(this.key_cache_size);
+      oprot.writeFieldEnd();
+    }
     if (isSetRead_repair_chance()) {
       oprot.writeFieldBegin(READ_REPAIR_CHANCE_FIELD_DESC);
       oprot.writeDouble(this.read_repair_chance);
@@ -2377,15 +3297,52 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       oprot.writeI32(this.max_compaction_threshold);
       oprot.writeFieldEnd();
     }
+    if (isSetRow_cache_save_period_in_seconds()) {
+      oprot.writeFieldBegin(ROW_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC);
+      oprot.writeI32(this.row_cache_save_period_in_seconds);
+      oprot.writeFieldEnd();
+    }
+    if (isSetKey_cache_save_period_in_seconds()) {
+      oprot.writeFieldBegin(KEY_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC);
+      oprot.writeI32(this.key_cache_save_period_in_seconds);
+      oprot.writeFieldEnd();
+    }
+    if (isSetMemtable_flush_after_mins()) {
+      oprot.writeFieldBegin(MEMTABLE_FLUSH_AFTER_MINS_FIELD_DESC);
+      oprot.writeI32(this.memtable_flush_after_mins);
+      oprot.writeFieldEnd();
+    }
+    if (isSetMemtable_throughput_in_mb()) {
+      oprot.writeFieldBegin(MEMTABLE_THROUGHPUT_IN_MB_FIELD_DESC);
+      oprot.writeI32(this.memtable_throughput_in_mb);
+      oprot.writeFieldEnd();
+    }
+    if (isSetMemtable_operations_in_millions()) {
+      oprot.writeFieldBegin(MEMTABLE_OPERATIONS_IN_MILLIONS_FIELD_DESC);
+      oprot.writeDouble(this.memtable_operations_in_millions);
+      oprot.writeFieldEnd();
+    }
     if (isSetReplicate_on_write()) {
       oprot.writeFieldBegin(REPLICATE_ON_WRITE_FIELD_DESC);
       oprot.writeBool(this.replicate_on_write);
+      oprot.writeFieldEnd();
+    }
+    if (isSetMerge_shards_chance()) {
+      oprot.writeFieldBegin(MERGE_SHARDS_CHANCE_FIELD_DESC);
+      oprot.writeDouble(this.merge_shards_chance);
       oprot.writeFieldEnd();
     }
     if (this.key_validation_class != null) {
       if (isSetKey_validation_class()) {
         oprot.writeFieldBegin(KEY_VALIDATION_CLASS_FIELD_DESC);
         oprot.writeString(this.key_validation_class);
+        oprot.writeFieldEnd();
+      }
+    }
+    if (this.row_cache_provider != null) {
+      if (isSetRow_cache_provider()) {
+        oprot.writeFieldBegin(ROW_CACHE_PROVIDER_FIELD_DESC);
+        oprot.writeString(this.row_cache_provider);
         oprot.writeFieldEnd();
       }
     }
@@ -2417,6 +3374,11 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         }
         oprot.writeFieldEnd();
       }
+    }
+    if (isSetRow_cache_keys_to_save()) {
+      oprot.writeFieldBegin(ROW_CACHE_KEYS_TO_SAVE_FIELD_DESC);
+      oprot.writeI32(this.row_cache_keys_to_save);
+      oprot.writeFieldEnd();
     }
     if (this.compression_options != null) {
       if (isSetCompression_options()) {
@@ -2681,6 +3643,70 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (!first) sb.append(", ");
       sb.append("dclocal_read_repair_chance:");
       sb.append(this.dclocal_read_repair_chance);
+      first = false;
+    }
+    if (isSetRow_cache_size()) {
+      if (!first) sb.append(", ");
+      sb.append("row_cache_size:");
+      sb.append(this.row_cache_size);
+      first = false;
+    }
+    if (isSetKey_cache_size()) {
+      if (!first) sb.append(", ");
+      sb.append("key_cache_size:");
+      sb.append(this.key_cache_size);
+      first = false;
+    }
+    if (isSetRow_cache_save_period_in_seconds()) {
+      if (!first) sb.append(", ");
+      sb.append("row_cache_save_period_in_seconds:");
+      sb.append(this.row_cache_save_period_in_seconds);
+      first = false;
+    }
+    if (isSetKey_cache_save_period_in_seconds()) {
+      if (!first) sb.append(", ");
+      sb.append("key_cache_save_period_in_seconds:");
+      sb.append(this.key_cache_save_period_in_seconds);
+      first = false;
+    }
+    if (isSetMemtable_flush_after_mins()) {
+      if (!first) sb.append(", ");
+      sb.append("memtable_flush_after_mins:");
+      sb.append(this.memtable_flush_after_mins);
+      first = false;
+    }
+    if (isSetMemtable_throughput_in_mb()) {
+      if (!first) sb.append(", ");
+      sb.append("memtable_throughput_in_mb:");
+      sb.append(this.memtable_throughput_in_mb);
+      first = false;
+    }
+    if (isSetMemtable_operations_in_millions()) {
+      if (!first) sb.append(", ");
+      sb.append("memtable_operations_in_millions:");
+      sb.append(this.memtable_operations_in_millions);
+      first = false;
+    }
+    if (isSetMerge_shards_chance()) {
+      if (!first) sb.append(", ");
+      sb.append("merge_shards_chance:");
+      sb.append(this.merge_shards_chance);
+      first = false;
+    }
+    if (isSetRow_cache_provider()) {
+      if (!first) sb.append(", ");
+      sb.append("row_cache_provider:");
+      if (this.row_cache_provider == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.row_cache_provider);
+      }
+      first = false;
+    }
+    if (isSetRow_cache_keys_to_save()) {
+      if (!first) sb.append(", ");
+      sb.append("row_cache_keys_to_save:");
+      sb.append(this.row_cache_keys_to_save);
       first = false;
     }
     sb.append(")");
