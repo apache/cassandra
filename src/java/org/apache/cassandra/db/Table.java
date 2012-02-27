@@ -211,7 +211,7 @@ public class Table
 
     /**
      * @param clientSuppliedName may be null.
-     * @return
+     * @return the name of the snapshot
      */
     public static String getTimestampedSnapshotName(String clientSuppliedName)
     {

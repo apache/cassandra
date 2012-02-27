@@ -57,8 +57,7 @@ public class UpdateStatement extends ModificationStatement
      * Creates a new UpdateStatement from a column family name, columns map, consistency
      * level, and key term.
      *
-     * @param keyspace Keyspace (optional)
-     * @param columnFamily column family name
+     * @param name column family name
      * @param columns a map of column name/values pairs
      * @param whereClause the where clause
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
@@ -81,8 +80,7 @@ public class UpdateStatement extends ModificationStatement
      * key, and lists of column names and values.  It is intended for use with the
      * alternate update format, <code>INSERT</code>.
      *
-     * @param keyspace Keyspace (optional)
-     * @param columnFamily column family name
+     * @param name column family name
      * @param columnNames list of column names
      * @param columnValues list of column values (corresponds to names)
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
