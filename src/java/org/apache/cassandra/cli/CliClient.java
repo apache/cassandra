@@ -2296,6 +2296,10 @@ public class CliClient
                 {
                     columnDefinition.setIndex_name(metaVal);
                 }
+                else
+                {
+                    throw new RuntimeException("Unsupported column_metadata pair given => " + metaKey + ": " + metaVal);
+                }
             }
 
             // validating columnDef structure, 'name' and 'validation_class' must be set
