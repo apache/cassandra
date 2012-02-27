@@ -41,16 +41,16 @@ class AsyncResult implements IAsyncResult
     private InetAddress from;
 
     public AsyncResult()
-    {        
+    {
         condition = lock.newCondition();
         startTime = System.currentTimeMillis();
-    }    
-            
+    }
+
     public byte[] get(long timeout, TimeUnit tu) throws TimeoutException
     {
         lock.lock();
         try
-        {            
+        {
             boolean bVal = true;
             try
             {
@@ -65,9 +65,9 @@ class AsyncResult implements IAsyncResult
             {
                 throw new AssertionError(ex);
             }
-            
+
             if (!bVal && !done.get())
-            {                                           
+            {
                 throw new TimeoutException("Operation timed out.");
             }
         }
@@ -79,7 +79,7 @@ class AsyncResult implements IAsyncResult
     }
 
     public void result(Message response)
-    {        
+    {
         try
         {
             lock.lock();
@@ -94,7 +94,7 @@ class AsyncResult implements IAsyncResult
         finally
         {
             lock.unlock();
-        }        
+        }
     }
 
     public boolean isLatencyForSnitch()

@@ -57,7 +57,7 @@ public abstract class ReadCommand implements MessageProducer, IReadCommand
     public final QueryPath queryPath;
     public final String table;
     public final ByteBuffer key;
-    private boolean isDigestQuery = false;    
+    private boolean isDigestQuery = false;
     protected final byte commandType;
 
     protected ReadCommand(String table, ByteBuffer key, QueryPath queryPath, byte cmdType)
@@ -113,7 +113,7 @@ public abstract class ReadCommand implements MessageProducer, IReadCommand
 class ReadCommandSerializer implements IVersionedSerializer<ReadCommand>
 {
     private static final Map<Byte, IVersionedSerializer<ReadCommand>> CMD_SERIALIZER_MAP = new HashMap<Byte, IVersionedSerializer<ReadCommand>>();
-    static 
+    static
     {
         CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_SLICE_BY_NAMES, new SliceByNamesReadCommandSerializer());
         CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_SLICE, new SliceFromReadCommandSerializer());

@@ -59,7 +59,7 @@ import javax.management.ObjectName;
 public class CommitLog implements CommitLogMBean
 {
     private static final int MAX_OUTSTANDING_REPLAY_COUNT = 1024;
-    
+
     static final Logger logger = LoggerFactory.getLogger(CommitLog.class);
 
     public static final CommitLog instance = new CommitLog();
@@ -281,7 +281,7 @@ public class CommitLog implements CommitLogMBean
                             i.incrementAndGet();
                         continue;
                     }
-                    
+
                     if (logger.isDebugEnabled())
                         logger.debug(String.format("replaying mutation for %s.%s: %s",
                                                     rm.getTable(),
@@ -339,7 +339,7 @@ public class CommitLog implements CommitLogMBean
                 logger.info("Finished reading " + file);
             }
         }
-        
+
         for (Map.Entry<Integer, AtomicInteger> entry : invalidMutations.entrySet())
             logger.info(String.format("Skipped %d mutations from unknown (probably removed) CF with id %d", entry.getValue().intValue(), entry.getKey()));
 
@@ -453,11 +453,11 @@ public class CommitLog implements CommitLogMBean
                     if (segment.contains(context))
                         break;
                 }
-                
+
                 return null;
             }
         };
-        
+
         try
         {
             executor.submit(task).get();
@@ -508,7 +508,7 @@ public class CommitLog implements CommitLogMBean
     }
 
     /**
-     * Forces a new segment file to be allocated and activated. Used mainly by truncate. 
+     * Forces a new segment file to be allocated and activated. Used mainly by truncate.
      */
     public void forceNewSegment() throws ExecutionException, InterruptedException
     {
@@ -530,7 +530,7 @@ public class CommitLog implements CommitLogMBean
 
     /**
      * Fetches a new segment file from the allocator and activates it.
-     * 
+     *
      * @return the newly activated segment
      */
     private void activateNextSegment() throws IOException

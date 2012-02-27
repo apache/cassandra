@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 import java.io.Closeable;
 import java.util.*;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.columniterator.IColumnIterator;
@@ -41,7 +40,7 @@ public class RowIteratorFactory
         }
     };
 
-    
+
     /**
      * Get a row iterator over the provided memtables and sstables, between the provided keys
      * and filtered by the queryfilter.

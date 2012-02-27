@@ -40,12 +40,12 @@ import org.apache.cassandra.net.MessagingService;
  * full depth of the perfect binary tree: the leaves of this tree are Leaf objects,
  * which contain the computed values of the nodes that would be below them if
  * the tree were perfect.
- * 
+ *
  * The hash values of the inner nodes of the MerkleTree are calculated lazily based
  * on their children when the hash of a range is requested with hash(range).
  *
  * Inputs passed to TreeRange.validate should be calculated using a very secure hash,
- * because all hashing internal to the tree is accomplished using XOR. 
+ * because all hashing internal to the tree is accomplished using XOR.
  *
  * If two MerkleTrees have the same hashdepth, they represent a perfect tree
  * of the same depth, and can always be compared, regardless of size or splits.
@@ -78,7 +78,7 @@ public class MerkleTree implements Serializable
     private long maxsize;
     private long size;
     private Hashable root;
-    
+
     public static class MerkleTreeSerializer
     {
         public void serialize(MerkleTree mt, DataOutputStream dos, int version) throws IOException
@@ -230,7 +230,7 @@ public class MerkleTree implements Serializable
 
         List<TreeRange> diff = new ArrayList<TreeRange>();
         TreeRange active = new TreeRange(null, ltree.fullRange.left, ltree.fullRange.right, (byte)0, null);
-        
+
         byte[] lhash = ltree.hash(active);
         byte[] rhash = rtree.hash(active);
 
@@ -258,7 +258,7 @@ public class MerkleTree implements Serializable
         TreeRange right = new TreeRange(null, midpoint, active.right, inc(active.depth), null);
         byte[] lhash;
         byte[] rhash;
-        
+
         // see if we should recurse left
         lhash = ltree.hash(left);
         rhash = rtree.hash(left);
@@ -315,7 +315,7 @@ public class MerkleTree implements Serializable
             return new TreeRange(this, pleft, pright, depth, hashable);
         }
         // else: node.
-        
+
         Inner node = (Inner)hashable;
         if (Range.contains(pleft, node.token, t))
             // left child contains token
@@ -384,7 +384,7 @@ public class MerkleTree implements Serializable
             return hashable.hash();
         }
         // else: node.
-        
+
         Inner node = (Inner)hashable;
         Range<Token> leftactive = new Range<Token>(active.left, node.token);
         Range<Token> rightactive = new Range<Token>(node.token, active.right);
@@ -402,7 +402,7 @@ public class MerkleTree implements Serializable
             node.hash(lhash, rhash);
             return node.hash();
         } // else: one of our children contains the range
-        
+
         if (leftactive.contains(range))
             // left child contains/matches the range
             return hashHelper(node.lchild, leftactive, range);
@@ -435,7 +435,7 @@ public class MerkleTree implements Serializable
         }
         return true;
     }
-    
+
     private Hashable splitHelper(Hashable hashable, Token pleft, Token pright, byte depth, Token t) throws StopRecursion.TooDeep
     {
         if (depth >= hashdepth)
@@ -568,7 +568,7 @@ public class MerkleTree implements Serializable
             tovisit.add(new TreeRange(tree, tree.fullRange.left, tree.fullRange.right, (byte)0, tree.root));
             this.tree = tree;
         }
-        
+
         /**
          * Find the next TreeRange.
          *
@@ -608,7 +608,7 @@ public class MerkleTree implements Serializable
             }
             return endOfData();
         }
-        
+
         public Iterator<TreeRange> iterator()
         {
             return this;
@@ -628,7 +628,7 @@ public class MerkleTree implements Serializable
         private Hashable rchild;
 
         private static InnerSerializer serializer = new InnerSerializer();
-        
+
         /**
          * Constructs an Inner with the given token and children, and a null hash.
          */
@@ -695,7 +695,7 @@ public class MerkleTree implements Serializable
             toString(buff, 1);
             return buff.toString();
         }
-        
+
         private static class InnerSerializer
         {
             public void serialize(Inner inner, DataOutput dos, int version) throws IOException
@@ -740,7 +740,7 @@ public class MerkleTree implements Serializable
         public static final long serialVersionUID = 1L;
         static final byte IDENT = 1;
         private static LeafSerializer serializer = new LeafSerializer();
-        
+
         /**
          * Constructs a null hash.
          */
@@ -763,7 +763,7 @@ public class MerkleTree implements Serializable
         {
             buff.append(toString());
         }
-        
+
         @Override
         public String toString()
         {
@@ -805,17 +805,17 @@ public class MerkleTree implements Serializable
         public final byte[] hash;
         public RowHash(Token token, byte[] hash)
         {
-            this.token = token;      
+            this.token = token;
             this.hash  = hash;
         }
-        
+
         @Override
         public String toString()
         {
             return "#<RowHash " + token + " " + Hashable.toString(hash) + ">";
         }
     }
-    
+
     /**
      * Abstract class containing hashing logic, and containing a single hash field.
      */
@@ -873,19 +873,19 @@ public class MerkleTree implements Serializable
         }
 
         public abstract void toString(StringBuilder buff, int maxdepth);
-        
+
         public static String toString(byte[] hash)
         {
             if (hash == null)
                 return "null";
             return "[" + Hex.bytesToHex(hash) + "]";
         }
-        
+
         private static class HashableSerializer implements IVersionedSerializer<Hashable>
         {
             public void serialize(Hashable h, DataOutput dos, int version) throws IOException
             {
-                if (h instanceof Inner) 
+                if (h instanceof Inner)
                 {
                     dos.writeByte(Inner.IDENT);
                     Inner.serializer.serialize((Inner)h, dos, version);

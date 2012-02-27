@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 

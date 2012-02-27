@@ -32,8 +32,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -264,7 +262,7 @@ public final class MessagingService implements MessagingServiceMBean
             // setReuseAddress happens in the factory.
             logger_.info("Starting Encrypted Messaging Service on SSL port {}", DatabaseDescriptor.getSSLStoragePort());
         }
-        
+
         ServerSocketChannel serverChannel = ServerSocketChannel.open();
         ServerSocket socket = serverChannel.socket();
         socket.setReuseAddress(true);
@@ -343,7 +341,7 @@ public final class MessagingService implements MessagingServiceMBean
     {
         return addCallback(cb, message, to, DEFAULT_CALLBACK_TIMEOUT);
     }
-    
+
     public String addCallback(IMessageCallback cb, Message message, InetAddress to, long timeout)
     {
         String messageId = nextId();

@@ -20,7 +20,6 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
@@ -28,10 +27,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.TokenRange;
 import org.apache.cassandra.thrift.UnavailableException;
 
 
@@ -300,7 +296,7 @@ public interface StorageServiceMBean
     public Map<String, Float> getOwnership();
 
     /**
-     * Effective ownership is % of the data each node owns given the keyspace 
+     * Effective ownership is % of the data each node owns given the keyspace
      * we calculate the percentage using replication factor.
      * If Keyspace == null, this method will try to verify if all the keyspaces
      * in the cluster have the same replication strategies and if yes then we will
@@ -344,7 +340,7 @@ public interface StorageServiceMBean
     public boolean isJoined();
 
     public int getExceptionCount();
-    
+
     public void setStreamThroughputMbPerSec(int value);
     public int getStreamThroughputMbPerSec();
 
@@ -378,7 +374,7 @@ public interface StorageServiceMBean
     /**
      * Return a List of Tokens representing a sample of keys
      * across all ColumnFamilyStores
-     * 
+     *
      * @return set of Tokens as Strings
      */
     public List<String> getRangeKeySample();

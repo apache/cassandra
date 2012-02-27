@@ -21,7 +21,6 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.RandomPartitioner;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;

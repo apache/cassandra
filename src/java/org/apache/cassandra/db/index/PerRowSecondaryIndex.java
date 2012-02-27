@@ -36,35 +36,35 @@ public abstract class PerRowSecondaryIndex extends SecondaryIndex
     /**
      * Removes obsolete index entries and creates new ones for the given row key
      * and mutated columns.
-     * 
+     *
      * @param rowKey the row key
      * @param cf the current rows data
      * @param mutatedIndexedColumns the set of columns that were changed or added
      * @param oldIndexedColumns the columns which were deleted
-     * @throws IOException 
+     * @throws IOException
      */
     public abstract void applyIndexUpdates(ByteBuffer rowKey,
                                            ColumnFamily cf,
                                            SortedSet<ByteBuffer> mutatedIndexedColumns,
                                            ColumnFamily oldIndexedColumns) throws IOException;
-    
-    
+
+
     /**
      * cleans up deleted columns from cassandra cleanup compaction
-     * 
+     *
      * @param key
      * @param indexedColumnsInRow
      */
     public abstract void deleteFromIndex(DecoratedKey<?> key, List<IColumn> indexedColumnsInRow);
-   
-    
+
+
     @Override
     public String getNameForSystemTable(ByteBuffer columnName)
     {
         try
         {
             return getIndexName()+ByteBufferUtil.string(columnName);
-        } 
+        }
         catch (CharacterCodingException e)
         {
             throw new RuntimeException(e);

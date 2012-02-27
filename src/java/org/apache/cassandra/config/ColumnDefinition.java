@@ -1,6 +1,6 @@
 package org.apache.cassandra.config;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.config;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -45,13 +45,13 @@ public class ColumnDefinition
     private IndexType index_type;
     private Map<String,String> index_options;
     private String index_name;
-    
+
     public ColumnDefinition(ByteBuffer name, AbstractType<?> validator, IndexType index_type, Map<String, String> index_options, String index_name)
     {
         this.name = name;
         this.index_name = index_name;
         this.validator = validator;
-    
+
         this.setIndexType(index_type, index_options);
     }
 
@@ -282,7 +282,7 @@ public class ColumnDefinition
     {
         return index_name;
     }
-    
+
     public void setIndexName(String s)
     {
         index_name = s;
@@ -291,19 +291,19 @@ public class ColumnDefinition
     public void setIndexType(IndexType index_type, Map<String,String> index_options)
     {
         this.index_type = index_type;
-        this.index_options = index_options;         
+        this.index_options = index_options;
     }
 
     public IndexType getIndexType()
     {
         return index_type;
     }
-    
+
     public Map<String,String> getIndexOptions()
     {
         return index_options;
     }
-    
+
     public AbstractType<?> getValidator()
     {
         return validator;
@@ -313,18 +313,18 @@ public class ColumnDefinition
     {
         this.validator = validator;
     }
-    
+
     public static Map<String,String> getStringMap(Map<CharSequence, CharSequence> charMap)
     {
         if (charMap == null)
             return null;
-        
+
         Map<String,String> stringMap = new HashMap<String, String>();
-            
-        for (Map.Entry<CharSequence, CharSequence> entry : charMap.entrySet())        
+
+        for (Map.Entry<CharSequence, CharSequence> entry : charMap.entrySet())
             stringMap.put(entry.getKey().toString(), entry.getValue().toString());
-            
-            
+
+
         return stringMap;
     }
 }

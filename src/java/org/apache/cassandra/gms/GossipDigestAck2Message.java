@@ -27,7 +27,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 
 
 /**
- * This message gets sent out as a result of the receipt of a GossipDigestAckMessage. This the 
+ * This message gets sent out as a result of the receipt of a GossipDigestAckMessage. This the
  * last stage of the 3 way messaging of the Gossip protocol.
  */
 
@@ -38,19 +38,19 @@ class GossipDigestAck2Message
     {
         serializer_ = new GossipDigestAck2MessageSerializer();
     }
-    
+
     Map<InetAddress, EndpointState> epStateMap_ = new HashMap<InetAddress, EndpointState>();
 
     public static IVersionedSerializer<GossipDigestAck2Message> serializer()
     {
         return serializer_;
     }
-    
+
     GossipDigestAck2Message(Map<InetAddress, EndpointState> epStateMap)
     {
         epStateMap_ = epStateMap;
     }
-        
+
     Map<InetAddress, EndpointState> getEndpointStateMap()
     {
          return epStateMap_;
@@ -68,7 +68,7 @@ class GossipDigestAck2MessageSerializer implements IVersionedSerializer<GossipDi
     public GossipDigestAck2Message deserialize(DataInput dis, int version) throws IOException
     {
         Map<InetAddress, EndpointState> epStateMap = EndpointStatesSerializationHelper.deserialize(dis, version);
-        return new GossipDigestAck2Message(epStateMap);        
+        return new GossipDigestAck2Message(epStateMap);
     }
 
     public long serializedSize(GossipDigestAck2Message gossipDigestAck2Message, int version)

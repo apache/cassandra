@@ -26,7 +26,6 @@ import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowPosition;
 
 /**
  * Two approaches to building an IndexSummary:

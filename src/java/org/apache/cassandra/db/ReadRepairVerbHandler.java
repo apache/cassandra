@@ -28,12 +28,12 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 
 public class ReadRepairVerbHandler implements IVerbHandler
-{    
+{
     public void doVerb(Message message, String id)
-    {          
+    {
         byte[] body = message.getMessageBody();
         FastByteArrayInputStream buffer = new FastByteArrayInputStream(body);
-        
+
         try
         {
             RowMutation rm = RowMutation.serializer().deserialize(new DataInputStream(buffer), message.getVersion());

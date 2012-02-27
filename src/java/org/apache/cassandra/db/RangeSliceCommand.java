@@ -43,7 +43,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
@@ -64,7 +63,7 @@ import org.apache.thrift.TSerializer;
 public class RangeSliceCommand implements MessageProducer, IReadCommand
 {
     private static final RangeSliceCommandSerializer serializer = new RangeSliceCommandSerializer();
-    
+
     public final String keyspace;
 
     public final String column_family;

@@ -55,7 +55,7 @@ public class SSTableExport
 
     private static Options options;
     private static CommandLine cmd;
-    
+
     static
     {
         options = new Options();
@@ -203,7 +203,7 @@ public class SSTableExport
 
     /**
      * Enumerate row keys from an SSTableReader and write the result to a PrintStream.
-     * 
+     *
      * @param ssTableFile the file to export the rows from
      * @param outs PrintStream to write the output to
      * @throws IOException on failure to read/write input/output
@@ -231,7 +231,7 @@ public class SSTableExport
 
     /**
      * Export specific rows from an SSTable and write the resulting JSON to a PrintStream.
-     * 
+     *
      * @param ssTableFile the SSTableScanner to export the rows from
      * @param outs PrintStream to write the output to
      * @param toExport the keys corresponding to the rows to export
@@ -329,7 +329,7 @@ public class SSTableExport
 
     /**
      * Export an SSTable and write the resulting JSON to a PrintStream.
-     * 
+     *
      * @param ssTableFile the SSTable to export
      * @param outs PrintStream to write the output to
      * @param excludes keys to exclude from export
@@ -343,7 +343,7 @@ public class SSTableExport
 
     /**
      * Export an SSTable and write the resulting JSON to standard out.
-     * 
+     *
      * @param ssTableFile SSTable to export
      * @param excludes keys to exclude from export
      *
@@ -357,7 +357,7 @@ public class SSTableExport
     /**
      * Given arguments specifying an SSTable, and optionally an output file,
      * export the contents of the SSTable to JSON.
-     *  
+     *
      * @param args command lines arguments
      *
      * @throws IOException on failure to open/read/write files or output streams
@@ -366,7 +366,7 @@ public class SSTableExport
     public static void main(String[] args) throws IOException, ConfigurationException
     {
         String usage = String.format("Usage: %s <sstable> [-k key [-k key [...]] -x key [-x key [...]]]%n", SSTableExport.class.getName());
-        
+
         CommandLineParser parser = new PosixParser();
         try
         {
@@ -386,7 +386,7 @@ public class SSTableExport
             System.err.println(usage);
             System.exit(1);
         }
-        
+
 
         String[] keys = cmd.getOptionValues(KEY_OPTION);
         String[] excludes = cmd.getOptionValues(EXCLUDEKEY_OPTION);

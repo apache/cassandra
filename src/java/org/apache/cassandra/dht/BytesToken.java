@@ -46,10 +46,10 @@ public class BytesToken extends Token<byte[]>
     }
 
     public int compareTo(Token<byte[]> o)
-    {   
+    {
         return FBUtilities.compareUnsigned(token, o.token, 0, 0, token.length, o.token.length);
     }
-    
+
 
     @Override
     public int hashCode()
@@ -66,7 +66,7 @@ public class BytesToken extends Token<byte[]>
         if (!(obj instanceof BytesToken))
             return false;
         BytesToken other = (BytesToken) obj;
-           
+
         return Arrays.equals(token, other.token);
     }
 }

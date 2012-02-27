@@ -36,7 +36,7 @@ public class CliCompiler
     // of the ANTLRStringStream class. Note: This doesn't change the
     // token text-- but just relaxes the matching rules to match
     // in upper case. [Logic borrowed from Hive code.]
-    // 
+    //
     // Also see discussion on this topic in:
     // http://www.antlr.org/wiki/pages/viewpage.action?pageId=1782.
     public static class ANTLRNoCaseStringStream  extends ANTLRStringStream
@@ -45,15 +45,15 @@ public class CliCompiler
         {
             super(input);
         }
-    
+
         public int LA(int i)
         {
             int returnChar = super.LA(i);
             if (returnChar == CharStream.EOF)
             {
-                return returnChar; 
+                return returnChar;
             }
-            else if (returnChar == 0) 
+            else if (returnChar == 0)
             {
                 return returnChar;
             }
@@ -65,7 +65,7 @@ public class CliCompiler
     public static Tree compileQuery(String query)
     {
         Tree queryTree;
-        
+
         try
         {
             ANTLRStringStream input = new ANTLRNoCaseStringStream(query);
@@ -87,7 +87,7 @@ public class CliCompiler
             // if there was an exception we don't want to process request any further
             throw new RuntimeException(e.getMessage(), e);
         }
-        
+
         return queryTree;
     }
     /*
@@ -167,7 +167,7 @@ public class CliCompiler
     public static String getColumn(Tree astNode, int pos)
     {
         // Skip over table, column family and rowKey
-        return CliUtils.unescapeSQLString(astNode.getChild(pos + 2).getText()); 
+        return CliUtils.unescapeSQLString(astNode.getChild(pos + 2).getText());
     }
- 
+
 }

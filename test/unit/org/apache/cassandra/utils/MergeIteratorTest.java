@@ -55,7 +55,7 @@ public class MergeIteratorTest
             {
                 concatted += value;
             }
-            
+
             public String getReduced()
             {
                 String tmp = concatted;
@@ -80,13 +80,13 @@ public class MergeIteratorTest
         {
             this.iter = Arrays.asList(items).iterator();
         }
-        
+
         protected E computeNext()
         {
             if (!iter.hasNext()) return endOfData();
             return iter.next();
         }
-        
+
         public void close()
         {
             assert !this.closed;

@@ -134,16 +134,16 @@ public class TableTest extends CleanupHelper
         cf.addColumn(column("c", "val3", 1L));
         rm.add(cf);
         rm.apply();
-        
+
         cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ByteBufferUtil.bytes("b"), ByteBufferUtil.bytes("c"), false, 100);
         assertEquals(2, cf.getColumnCount());
-        
+
         cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ByteBufferUtil.bytes("b"), ByteBufferUtil.bytes("b"), false, 100);
         assertEquals(1, cf.getColumnCount());
-        
+
         cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ByteBufferUtil.bytes("b"), ByteBufferUtil.bytes("c"), false, 1);
         assertEquals(1, cf.getColumnCount());
-        
+
         cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ByteBufferUtil.bytes("c"), ByteBufferUtil.bytes("b"), false, 1);
         assertNull(cf);
     }
@@ -365,13 +365,13 @@ public class TableTest extends CleanupHelper
 
                 cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), ByteBufferUtil.bytes("col2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 3);
                 assertColumns(cf, "col2", "col3", "col4");
-                
+
                 ByteBuffer col = cf.getColumn(ByteBufferUtil.bytes("col2")).value();
                 assertEquals(ByteBufferUtil.string(col), "valx");
-                
+
                 col = cf.getColumn(ByteBufferUtil.bytes("col3")).value();
                 assertEquals(ByteBufferUtil.string(col), "valx");
-                
+
                 col = cf.getColumn(ByteBufferUtil.bytes("col4")).value();
                 assertEquals(ByteBufferUtil.string(col), "val4");
             }
@@ -422,26 +422,26 @@ public class TableTest extends CleanupHelper
         ColumnFamily cf;
         cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ByteBufferUtil.bytes("col1000"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 3);
         assertColumns(cf, "col1000", "col1001", "col1002");
-        
-        ByteBuffer col; 
+
+        ByteBuffer col;
         col = cf.getColumn(ByteBufferUtil.bytes("col1000")).value();
         assertEquals(ByteBufferUtil.string(col), "v1000");
         col = cf.getColumn(ByteBufferUtil.bytes("col1001")).value();
         assertEquals(ByteBufferUtil.string(col), "v1001");
         col = cf.getColumn(ByteBufferUtil.bytes("col1002")).value();
         assertEquals(ByteBufferUtil.string(col), "v1002");
-        
+
         cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ByteBufferUtil.bytes("col1195"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 3);
         assertColumns(cf, "col1195", "col1196", "col1197");
-        
+
         col = cf.getColumn(ByteBufferUtil.bytes("col1195")).value();
         assertEquals(ByteBufferUtil.string(col), "v1195");
         col = cf.getColumn(ByteBufferUtil.bytes("col1196")).value();
         assertEquals(ByteBufferUtil.string(col), "v1196");
         col = cf.getColumn(ByteBufferUtil.bytes("col1197")).value();
         assertEquals(ByteBufferUtil.string(col), "v1197");
-        
-       
+
+
         cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ByteBufferUtil.bytes("col1996"), ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 1000);
         IColumn[] columns = cf.getSortedColumns().toArray(new IColumn[0]);
         for (int i = 1000; i < 1996; i++)
@@ -460,7 +460,7 @@ public class TableTest extends CleanupHelper
         assertEquals(ByteBufferUtil.string(col), "v1991");
         col = cf.getColumn(ByteBufferUtil.bytes("col1992")).value();
         assertEquals(ByteBufferUtil.string(col), "v1992");
-        
+
         cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 3);
         assertColumns(cf, "col1997", "col1998", "col1999");
         col = cf.getColumn(ByteBufferUtil.bytes("col1997")).value();
@@ -469,7 +469,7 @@ public class TableTest extends CleanupHelper
         assertEquals(ByteBufferUtil.string(col), "v1998");
         col = cf.getColumn(ByteBufferUtil.bytes("col1999")).value();
         assertEquals(ByteBufferUtil.string(col), "v1999");
-        
+
         cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ByteBufferUtil.bytes("col9000"), ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 3);
         assertColumns(cf, "col1997", "col1998", "col1999");
 
@@ -499,9 +499,9 @@ public class TableTest extends CleanupHelper
             {
                 ColumnFamily cf = cfStore.getColumnFamily(ROW, new QueryPath("Super1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 10);
                 assertColumns(cf, "sc1");
-                
+
                 ByteBuffer val = cf.getColumn(ByteBufferUtil.bytes("sc1")).getSubColumn(getBytes(1)).value();
-                
+
                 assertEquals(ByteBufferUtil.string(val), "val1");
             }
         };

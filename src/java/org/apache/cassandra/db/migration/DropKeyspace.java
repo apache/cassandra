@@ -29,7 +29,7 @@ import org.apache.cassandra.db.RowMutation;
 public class DropKeyspace extends Migration
 {
     private final String name;
-    
+
     public DropKeyspace(String name) throws ConfigurationException
     {
         super(System.nanoTime());
@@ -45,7 +45,7 @@ public class DropKeyspace extends Migration
     {
         return MigrationHelper.dropKeyspace(name, timestamp);
     }
-    
+
     @Override
     public String toString()
     {

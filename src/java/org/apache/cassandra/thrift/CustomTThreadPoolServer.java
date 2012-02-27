@@ -21,7 +21,6 @@ package org.apache.cassandra.thrift;
 
 import java.net.SocketTimeoutException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
@@ -60,14 +59,14 @@ public class CustomTThreadPoolServer extends TServer
 
     //Track and Limit the number of connected clients
     private final AtomicInteger activeClients = new AtomicInteger(0);
-    
-    
+
+
     public CustomTThreadPoolServer(TThreadPoolServer.Args args, ExecutorService executorService) {
         super(args);
         executorService_ = executorService;
         this.args = args;
     }
-    
+
     public void serve()
     {
         try

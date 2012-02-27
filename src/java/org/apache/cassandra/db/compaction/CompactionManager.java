@@ -134,7 +134,7 @@ public class CompactionManager implements CompactionManagerMBean
                     }
                     submitBackground(cfs);
                 }
-                finally 
+                finally
                 {
                     compactionLock.readLock().unlock();
                 }
@@ -180,7 +180,7 @@ public class CompactionManager implements CompactionManagerMBean
                     }
                     return this;
                 }
-                finally 
+                finally
                 {
                     // we probably already downgraded
                     if (compactionLock.writeLock().isHeldByCurrentThread())
@@ -775,7 +775,7 @@ public class CompactionManager implements CompactionManagerMBean
                 logger.info(String.format(format, writer.getFilename(), startsize, endsize, (int)(ratio*100), totalkeysWritten, dTime));
             }
 
-            // flush to ensure we don't lose the tombstones on a restart, since they are not commitlog'd         
+            // flush to ensure we don't lose the tombstones on a restart, since they are not commitlog'd
             cfs.indexManager.flushIndexesBlocking();
 
             cfs.replaceCompactedSSTables(Arrays.asList(sstable), results);
@@ -891,7 +891,7 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             }
         };
-        
+
         // don't submit to the executor if the compaction lock is held by the current thread. Instead return a simple
         // future that will be immediately immediately get()ed and executed. Happens during a migration, which locks
         // the compaction thread and then reinitializes a ColumnFamilyStore. Under normal circumstances, CFS spawns
@@ -1098,16 +1098,16 @@ public class CompactionManager implements CompactionManagerMBean
     {
         return executor.getCompletedTaskCount() + validationExecutor.getCompletedTaskCount();
     }
-    
+
     private static class SimpleFuture implements Future
     {
         private Runnable runnable;
-        
-        private SimpleFuture(Runnable r) 
+
+        private SimpleFuture(Runnable r)
         {
             runnable = r;
         }
-        
+
         public boolean cancel(boolean mayInterruptIfRunning)
         {
             throw new IllegalStateException("May not call SimpleFuture.cancel()");

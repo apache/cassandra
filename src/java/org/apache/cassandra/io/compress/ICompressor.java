@@ -19,7 +19,6 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.IOException;
-import java.util.Map;
 
 public interface ICompressor
 {

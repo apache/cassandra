@@ -66,7 +66,7 @@ public class CliMain
         {
             transport = new TFramedTransport(socket);
         }
-        else 
+        else
         {
             transport = socket;
         }
@@ -88,7 +88,7 @@ public class CliMain
 
         thriftClient = cassandraClient;
         cliClient = new CliClient(sessionState, thriftClient);
-        
+
         if ((sessionState.username != null) && (sessionState.password != null))
         {
             // Authenticate
@@ -121,7 +121,7 @@ public class CliMain
                 return;
             }
         }
-        
+
         if (sessionState.keyspace != null)
         {
             try
@@ -192,7 +192,7 @@ public class CliMain
         }
         return true;
     }
-    
+
     public static void updateCompletor(Set<String> candidates)
     {
         Set<String> actions = new HashSet<String>();
@@ -201,9 +201,9 @@ public class CliMain
             for (String cmd : completer.getKeyspaceCommands())
                 actions.add(String.format("%s %s", cmd, cf));
         }
-        
+
         String[] strs = Arrays.copyOf(actions.toArray(), actions.toArray().length, String[].class);
-        
+
         completer.setCandidateStrings(strs);
     }
 
@@ -252,14 +252,14 @@ public class CliMain
         {
             try
             {
-                connect(sessionState.hostName, sessionState.thriftPort);   
+                connect(sessionState.hostName, sessionState.thriftPort);
             }
             catch (RuntimeException e)
             {
                 sessionState.err.println(e.getMessage());
             }
         }
-        
+
         if ( cliClient == null )
         {
             // Connection parameter was either invalid or not present.
@@ -287,12 +287,12 @@ public class CliMain
         }
 
         ConsoleReader reader = new ConsoleReader();
-        
+
         if (!sessionState.batch)
         {
             reader.addCompletor(completer);
             reader.setBellEnabled(false);
-            
+
             String historyFile = System.getProperty("user.home") + File.separator + HISTORYFILE;
 
             try

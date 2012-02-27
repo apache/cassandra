@@ -29,7 +29,7 @@ import javax.management.ObjectName;
 
 /**
  * This is a wrapper class for the <i>ScheduledThreadPoolExecutor</i>. It provides an implementation
- * for the <i>afterExecute()</i> found in the <i>ThreadPoolExecutor</i> class to log any unexpected 
+ * for the <i>afterExecute()</i> found in the <i>ThreadPoolExecutor</i> class to log any unexpected
  * Runtime Exceptions.
  */
 
@@ -64,7 +64,7 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
     {
         this(corePoolSize, corePoolSize, keepAliveTime, unit, workQueue, threadFactory, jmxPath);
     }
-    
+
     public JMXEnabledThreadPoolExecutor(int corePoolSize,
                                         int maxPoolSize,
                                         long keepAliveTime,

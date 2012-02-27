@@ -1,7 +1,7 @@
 package org.apache.cassandra.hadoop;
 
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -9,16 +9,16 @@ package org.apache.cassandra.hadoop;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ import org.apache.thrift.transport.TSocket;
  * OutputFormat that allows reduce tasks to store keys (and corresponding
  * values) as Cassandra rows (and respective columns) in a given
  * ColumnFamily.
- * 
+ *
  * <p>
  * As is the case with the {@link ColumnFamilyInputFormat}, you need to set the
  * Keyspace and ColumnFamily in your
@@ -51,7 +51,7 @@ import org.apache.thrift.transport.TSocket;
  * {@link ConfigHelper#setOutputColumnFamily} method, is provided to make this
  * simple.
  * </p>
- * 
+ *
  * <p>
  * For the sake of performance, this class employs a lazy write-back caching
  * mechanism, where its record writer batches mutations created based on the
@@ -63,13 +63,13 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
     implements org.apache.hadoop.mapred.OutputFormat<ByteBuffer,List<Mutation>>
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyOutputFormat.class);
-    
+
     public static final String BATCH_THRESHOLD = "mapreduce.output.columnfamilyoutputformat.batch.threshold";
     public static final String QUEUE_SIZE = "mapreduce.output.columnfamilyoutputformat.queue.size";
 
     /**
      * Check for validity of the output-specification for the job.
-     * 
+     *
      * @param context
      *            information about the job
      * @throws IOException
@@ -95,7 +95,7 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
 
     /**
      * The OutputCommitter for this format does not write any data to the DFS.
-     * 
+     *
      * @param context
      *            the task context
      * @return an output committer
@@ -107,7 +107,7 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
     {
         return new NullOutputCommitter();
     }
-    
+
     /** Fills the deprecated OutputFormat interface for streaming. */
     @Deprecated
     public void checkOutputSpecs(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job) throws IOException
@@ -124,7 +124,7 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
 
     /**
      * Get the {@link RecordWriter} for the given task.
-     * 
+     *
      * @param context
      *            the information about the current task.
      * @return a {@link RecordWriter} to write the output for the job.

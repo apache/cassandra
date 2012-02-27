@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public interface IAsyncResult extends IMessageCallback
-{    
+{
     /**
      * Same operation as the above get() but allows the calling
      * thread to specify a timeout.
@@ -32,7 +32,7 @@ public interface IAsyncResult extends IMessageCallback
      * @return the result wrapped in an Object[]
     */
     public byte[] get(long timeout, TimeUnit tu) throws TimeoutException;
-        
+
     /**
      * Store the result obtained for the submitted task.
      * @param result the response message

@@ -62,24 +62,24 @@ public class SSTableExportTest extends SchemaLoader
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
-        
+
         // Add rowA
         cfamily.addColumn(new QueryPath("Standard1", null, ByteBufferUtil.bytes("colA")), ByteBufferUtil.bytes("valA"), System.currentTimeMillis());
         writer.append(Util.dk("rowA"), cfamily);
         cfamily.clear();
-        
+
         // Add rowB
         cfamily.addColumn(new QueryPath("Standard1", null, ByteBufferUtil.bytes("colB")), ByteBufferUtil.bytes("valB"), System.currentTimeMillis());
         writer.append(Util.dk("rowB"), cfamily);
         cfamily.clear();
-     
+
         writer.closeAndOpenReader();
-        
+
         // Enumerate and verify
         File temp = File.createTempFile("Standard1", ".txt");
         SSTableExport.enumeratekeys(writer.getFilename(), new PrintStream(temp.getPath()));
 
-        
+
         FileReader file = new FileReader(temp);
         char[] buf = new char[(int) temp.length()];
         file.read(buf);
@@ -95,14 +95,14 @@ public class SSTableExportTest extends SchemaLoader
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
-        
+
         int nowInSec = (int)(System.currentTimeMillis() / 1000) + 42; //live for 42 seconds
         // Add rowA
         cfamily.addColumn(new QueryPath("Standard1", null, ByteBufferUtil.bytes("colA")), ByteBufferUtil.bytes("valA"), System.currentTimeMillis());
         cfamily.addColumn(null, new ExpiringColumn(ByteBufferUtil.bytes("colExp"), ByteBufferUtil.bytes("valExp"), System.currentTimeMillis(), 42, nowInSec));
         writer.append(Util.dk("rowA"), cfamily);
         cfamily.clear();
-        
+
         // Add rowB
         cfamily.addColumn(new QueryPath("Standard1", null, ByteBufferUtil.bytes("colB")), ByteBufferUtil.bytes("valB"), System.currentTimeMillis());
         writer.append(Util.dk("rowB"), cfamily);
@@ -114,13 +114,13 @@ public class SSTableExportTest extends SchemaLoader
         cfamily.clear();
 
         SSTableReader reader = writer.closeAndOpenReader();
-        
+
         // Export to JSON and verify
         File tempJson = File.createTempFile("Standard1", ".json");
         SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")});
-        
+
         JSONObject json = (JSONObject)JSONValue.parse(new FileReader(tempJson));
-        
+
         JSONArray rowA = (JSONArray)json.get(asHex("rowA"));
         JSONArray colA = (JSONArray)rowA.get(0);
         assert hexToBytes((String)colA.get(1)).equals(ByteBufferUtil.bytes("valA"));
@@ -128,7 +128,7 @@ public class SSTableExportTest extends SchemaLoader
         JSONArray colExp = (JSONArray)rowA.get(1);
         assert ((Long)colExp.get(4)) == 42;
         assert ((Long)colExp.get(5)) == nowInSec;
-        
+
         JSONArray rowB = (JSONArray)json.get(asHex("rowB"));
         JSONArray colB = (JSONArray)rowB.get(0);
         assert colB.size() == 3;
@@ -143,12 +143,12 @@ public class SSTableExportTest extends SchemaLoader
         File tempSS = tempSSTableFile("Keyspace1", "Super4");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Super4");
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
-        
+
         // Add rowA
         cfamily.addColumn(new QueryPath("Super4", ByteBufferUtil.bytes("superA"), ByteBufferUtil.bytes("colA")), ByteBufferUtil.bytes("valA"), System.currentTimeMillis());
         writer.append(Util.dk("rowA"), cfamily);
         cfamily.clear();
-        
+
         // Add rowB
         cfamily.addColumn(new QueryPath("Super4", ByteBufferUtil.bytes("superB"), ByteBufferUtil.bytes("colB")), ByteBufferUtil.bytes("valB"), System.currentTimeMillis());
         writer.append(Util.dk("rowB"), cfamily);
@@ -160,13 +160,13 @@ public class SSTableExportTest extends SchemaLoader
         cfamily.clear();
 
         SSTableReader reader = writer.closeAndOpenReader();
-        
+
         // Export to JSON and verify
         File tempJson = File.createTempFile("Super4", ".json");
         SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")});
-        
+
         JSONObject json = (JSONObject)JSONValue.parse(new FileReader(tempJson));
-        
+
         JSONObject rowA = (JSONObject)json.get(asHex("rowA"));
         JSONObject superA = (JSONObject)rowA.get(cfamily.getComparator().getString(ByteBufferUtil.bytes("superA")));
         JSONArray subColumns = (JSONArray)superA.get("subColumns");
@@ -176,14 +176,14 @@ public class SSTableExportTest extends SchemaLoader
         assert colA.size() == 3;
         assert rowExclude == null;
     }
-    
+
     @Test
     public void testRoundTripStandardCf() throws IOException, ParseException
     {
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
-        
+
         // Add rowA
         cfamily.addColumn(new QueryPath("Standard1", null, ByteBufferUtil.bytes("name")), ByteBufferUtil.bytes("val"), System.currentTimeMillis());
         writer.append(Util.dk("rowA"), cfamily);
@@ -195,11 +195,11 @@ public class SSTableExportTest extends SchemaLoader
         cfamily.clear();
 
         SSTableReader reader = writer.closeAndOpenReader();
-        
+
         // Export to JSON and verify
         File tempJson = File.createTempFile("Standard1", ".json");
         SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")});
-        
+
         // Import JSON to another SSTable file
         File tempSS2 = tempSSTableFile("Keyspace1", "Standard1");
         SSTableImport.importJson(tempJson.getPath(), "Keyspace1", "Standard1", tempSS2.getPath());

@@ -1,6 +1,6 @@
 package org.apache.cassandra.locator;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.locator;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -57,15 +57,15 @@ public class EC2SnitchTest
         Ec2Snitch snitch = new TestEC2Snitch();
         InetAddress local = InetAddress.getByName("127.0.0.1");
         InetAddress nonlocal = InetAddress.getByName("127.0.0.7");
-        
+
         Gossiper.instance.addSavedEndpoint(nonlocal);
         Map<ApplicationState,VersionedValue> stateMap = Gossiper.instance.getEndpointStateForEndpoint(nonlocal).getApplicationStateMap();
         stateMap.put(ApplicationState.DC, StorageService.instance.valueFactory.datacenter("us-west"));
         stateMap.put(ApplicationState.RACK, StorageService.instance.valueFactory.datacenter("1a"));
-        
+
         assertEquals("us-west", snitch.getDatacenter(nonlocal));
         assertEquals("1a", snitch.getRack(nonlocal));
-        
+
         assertEquals("us-east", snitch.getDatacenter(local));
         assertEquals("1d", snitch.getRack(local));
     }

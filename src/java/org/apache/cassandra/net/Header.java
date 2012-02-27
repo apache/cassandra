@@ -37,9 +37,9 @@ public class Header
 
     static
     {
-        serializer_ = new HeaderSerializer();        
+        serializer_ = new HeaderSerializer();
     }
-    
+
     public static IVersionedSerializer<Header> serializer()
     {
         return serializer_;
@@ -76,7 +76,7 @@ public class Header
     {
         return verb_;
     }
-    
+
     byte[] getDetail(String key)
     {
         return details_.get(key);
@@ -117,7 +117,7 @@ public class Header
 class HeaderSerializer implements IVersionedSerializer<Header>
 {
     public void serialize(Header t, DataOutput dos, int version) throws IOException
-    {           
+    {
         CompactEndpointSerializationHelper.serialize(t.getFrom(), dos);
         dos.writeInt(t.getVerb().ordinal());
         dos.writeInt(t.details_.size());

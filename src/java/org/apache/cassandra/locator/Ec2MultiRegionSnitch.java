@@ -1,6 +1,6 @@
 package org.apache.cassandra.locator;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.locator;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -37,15 +37,15 @@ import org.apache.cassandra.service.StorageService;
 
 /**
  * 1) Snitch will automatically set the public IP by querying the AWS API
- * 
+ *
  * 2) Snitch will set the private IP as a Gossip application state.
- * 
+ *
  * 3) Snitch implements IESCS and will reset the connection if it is within the
  * same region to communicate via private IP.
- * 
+ *
  * Implements Ec2Snitch to inherit its functionality and extend it for
  * Multi-Region.
- * 
+ *
  * Operational: All the nodes in this cluster needs to be able to (modify the
  * Security group settings in AWS) communicate via Public IP's.
  */
@@ -65,7 +65,7 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch implements IEndpointStateCha
         // use the Public IP to broadcast Address to other nodes.
         DatabaseDescriptor.setBroadcastAddress(public_ip);
     }
-    
+
     @Override
     public void onJoin(InetAddress endpoint, EndpointState epState)
     {
@@ -109,7 +109,7 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch implements IEndpointStateCha
     {
         if (!getDatacenter(endpoint).equals(getDatacenter(public_ip)))
             return; // do nothing return back...
-        
+
         try
         {
             InetAddress remoteIP = InetAddress.getByName(versionedValue.value);
@@ -120,7 +120,7 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch implements IEndpointStateCha
             logger.error("Error in getting the IP address resolved: ", e);
         }
     }
-    
+
     public void gossiperStarting()
     {
         super.gossiperStarting();

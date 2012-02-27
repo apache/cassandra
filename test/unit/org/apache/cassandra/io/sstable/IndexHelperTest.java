@@ -20,8 +20,6 @@ package org.apache.cassandra.io.sstable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.nio.ByteBuffer;
-
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.AbstractType;

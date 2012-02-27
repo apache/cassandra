@@ -39,7 +39,7 @@ public class TimeUUIDTypeTest
     {
         UUID a = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
         UUID b = new UUID(a.getMostSignificantBits(), a.getLeastSignificantBits());
-        
+
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(a)));
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(b)));
         assertEquals(0, timeUUIDType.compare(ByteBuffer.wrap(UUIDGen.decompose(a)), ByteBuffer.wrap(UUIDGen.decompose(b))));
@@ -55,7 +55,7 @@ public class TimeUUIDTypeTest
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(a)));
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(b)));
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(c)));
-        
+
         assert timeUUIDType.compare(ByteBuffer.wrap(UUIDGen.decompose(a)), ByteBuffer.wrap(UUIDGen.decompose(b))) < 0;
         assert timeUUIDType.compare(ByteBuffer.wrap(UUIDGen.decompose(b)), ByteBuffer.wrap(UUIDGen.decompose(c))) < 0;
         assert timeUUIDType.compare(ByteBuffer.wrap(UUIDGen.decompose(a)), ByteBuffer.wrap(UUIDGen.decompose(c))) < 0;
@@ -98,7 +98,7 @@ public class TimeUUIDTypeTest
             assert i0 <= i1;
         }
     }
-    
+
     @Test
     public void testValidTimeVersion()
     {
@@ -106,7 +106,7 @@ public class TimeUUIDTypeTest
         assert uuid1.version() == 1;
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(uuid1)));
     }
-    
+
     @Test(expected = MarshalException.class)
     public void testInvalidTimeVersion()
     {
@@ -114,6 +114,6 @@ public class TimeUUIDTypeTest
         assert uuid2.version() == 2;
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(uuid2)));
     }
-    
-    
+
+
 }

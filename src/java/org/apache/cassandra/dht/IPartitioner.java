@@ -30,11 +30,11 @@ public interface IPartitioner<T extends Token>
      * @deprecated Used by SSTables before version 'e'.
      *
      * Convert the on disk representation to a DecoratedKey object
-     * @param key On disk representation 
+     * @param key On disk representation
      * @return DecoratedKey object
      */
     public DecoratedKey<T> convertFromDiskFormat(ByteBuffer key);
-    
+
     /**
      * Transform key to object representation of the on-disk format.
      *
@@ -69,7 +69,7 @@ public interface IPartitioner<T extends Token>
     public T getRandomToken();
 
     public Token.TokenFactory getTokenFactory();
-    
+
     /**
      * @return True if the implementing class preserves key order in the Tokens
      * it generates.

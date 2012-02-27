@@ -1,6 +1,6 @@
 package org.apache.cassandra.service;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.service;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 import java.lang.management.GarbageCollectorMXBean;
@@ -44,7 +44,7 @@ public class GCInspector
     final static long INTERVAL_IN_MS = 1000;
     final static long MIN_DURATION = 200;
     final static long MIN_DURATION_TPSTATS = 1000;
-    
+
     public static final GCInspector instance = new GCInspector();
 
     private HashMap<String, Long> gctimes = new HashMap<String, Long>();
@@ -77,7 +77,7 @@ public class GCInspector
     {
         // don't bother starting a thread that will do nothing.
         if (beans.size() == 0)
-            return;         
+            return;
         Runnable t = new Runnable()
         {
             public void run()
@@ -103,12 +103,12 @@ public class GCInspector
 
             Long previousCount = gccounts.get(gc.getName());
             Long count = gc.getCollectionCount();
-            
+
             if (previousCount == null)
-                previousCount = 0L;           
+                previousCount = 0L;
             if (count.equals(previousCount))
                 continue;
-            
+
             gccounts.put(gc.getName(), count);
 
             MemoryUsage mu = membean.getHeapMemoryUsage();

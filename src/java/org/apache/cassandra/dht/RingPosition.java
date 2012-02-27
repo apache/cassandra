@@ -18,15 +18,6 @@
 */
 package org.apache.cassandra.dht;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
 /**
  * Interface representing a position on the ring.
  * Both Token and DecoratedKey represent a position in the ring, a token being

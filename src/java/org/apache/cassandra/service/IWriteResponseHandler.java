@@ -22,7 +22,6 @@ package org.apache.cassandra.service;
 
 import java.util.concurrent.TimeoutException;
 
-import org.apache.cassandra.concurrent.CreationTimeAwareFuture;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.thrift.UnavailableException;
 

@@ -1,6 +1,6 @@
 package org.apache.cassandra.db.marshal;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.db.marshal;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -48,7 +48,7 @@ public class RoundTripTest
         assert IntegerType.instance.compose(ByteBuffer.wrap(bi.toByteArray())).equals(bi);
         assert JdbcInteger.instance.toString(bi).equals("1");
     }
-    
+
     @Test
     public void testLong()
     {
@@ -59,7 +59,7 @@ public class RoundTripTest
         assert LongType.instance.compose(ByteBuffer.wrap(v)) == 1L;
         assert JdbcLong.instance.toString(1L).equals("1");
     }
-    
+
     @Test
     public void intLong()
     {
@@ -70,7 +70,7 @@ public class RoundTripTest
         assert Int32Type.instance.compose(ByteBuffer.wrap(v)) == 1;
         // assert Int32Type.instance.toString(1).equals("1");
     }
-    
+
     @Test
     public void testAscii() throws Exception
     {
@@ -81,7 +81,7 @@ public class RoundTripTest
         assert AsciiType.instance.compose(ByteBuffer.wrap(abc)).equals("abc");
         assert JdbcAscii.instance.toString("abc").equals("abc");
     }
-    
+
     @Test
     public void testBytes()
     {
@@ -93,7 +93,7 @@ public class RoundTripTest
         assert BytesType.instance.compose(ByteBuffer.wrap(v)).equals(ByteBuffer.wrap(v));
         assert JdbcBytes.instance.toString(ByteBuffer.wrap(v)).equals(Hex.bytesToHex(v));
     }
-    
+
     @Test
     public void testLexicalUUID()
     {
@@ -105,7 +105,7 @@ public class RoundTripTest
         assert LexicalUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
         assert JdbcLexicalUUID.instance.toString(uuid).equals(uuid.toString());
     }
-    
+
     @Test
     public void testTimeUUID()
     {
@@ -115,10 +115,10 @@ public class RoundTripTest
         assert TimeUUIDType.instance.fromString(TimeUUIDType.instance.getString(ByteBuffer.wrap(UUIDGen.decompose(uuid))))
                 .equals(ByteBuffer.wrap(UUIDGen.decompose(uuid)));
         assert TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
-        
+
         assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(uuid.toString())));
         assert JdbcTimeUUID.instance.toString(uuid).equals(uuid.toString());
-        
+
         TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"));
         Calendar c = Calendar.getInstance();
         c.set(Calendar.YEAR, 2011);
@@ -130,7 +130,7 @@ public class RoundTripTest
         c.set(Calendar.MILLISECOND, 0);
         Long ts = new Long(1299560400000L);
         assert ts.equals(c.getTimeInMillis()) : c.getTimeInMillis();
-        
+
         // create a uuid with a known time.
         uuid = TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(ts.toString()));
         assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(uuid.toString())));
@@ -143,9 +143,9 @@ public class RoundTripTest
         assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08T00:00:00")));
         assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08T00:00:00-0500")));
         assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08")));
-        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08-0500")));  
+        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08-0500")));
     }
-    
+
     @Test
     public void testUtf8() throws Exception
     {

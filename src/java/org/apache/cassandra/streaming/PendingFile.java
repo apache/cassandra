@@ -1,6 +1,6 @@
 package org.apache.cassandra.streaming;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.streaming;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -63,7 +63,7 @@ public class PendingFile
     {
         this(sstable, desc, component, sections, type, 0);
     }
-    
+
     public PendingFile(SSTableReader sstable, Descriptor desc, String component, List<Pair<Long,Long>> sections, OperationType type, long estimatedKeys)
     {
         this.sstable = sstable;
@@ -86,7 +86,7 @@ public class PendingFile
     {
         return desc.filenameFor(component);
     }
-    
+
     public boolean equals(Object o)
     {
         if ( !(o instanceof PendingFile) )
@@ -134,14 +134,14 @@ public class PendingFile
             String filename = dis.readUTF();
             if (filename.isEmpty())
                 return null;
-            
+
             Descriptor desc = Descriptor.fromFilename(filename);
             String component = dis.readUTF();
             int count = dis.readInt();
             List<Pair<Long,Long>> sections = new ArrayList<Pair<Long,Long>>(count);
             for (int i = 0; i < count; i++)
                 sections.add(new Pair<Long,Long>(Long.valueOf(dis.readLong()), Long.valueOf(dis.readLong())));
-            // this controls the way indexes are rebuilt when streaming in.  
+            // this controls the way indexes are rebuilt when streaming in.
             OperationType type = OperationType.RESTORE_REPLICA_COUNT;
             if (version > MessagingService.VERSION_07)
                 type = OperationType.valueOf(dis.readUTF());

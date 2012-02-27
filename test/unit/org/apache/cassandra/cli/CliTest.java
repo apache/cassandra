@@ -23,7 +23,6 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.thrift.*;
 import org.apache.thrift.TException;
-import org.apache.thrift.transport.TTransportException;
 import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -208,7 +207,7 @@ public class CliTest extends CleanupHelper
         "show schema",
         "show schema TestKeySpace"
     };
-   
+
     @Test
     public void testCli() throws IOException, TException, ConfigurationException, ClassNotFoundException, TimedOutException, NotFoundException, SchemaDisagreementException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException
     {

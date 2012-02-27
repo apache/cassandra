@@ -46,7 +46,7 @@ public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
     {
         return new DecoratedKey<BigIntegerToken>(getToken(key), key);
     }
-    
+
     public DecoratedKey<BigIntegerToken> convertFromDiskFormat(ByteBuffer fromdisk)
     {
         // find the delimiter position

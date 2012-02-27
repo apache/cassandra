@@ -62,7 +62,7 @@ abstract class FastByteComparisons {
   private static class LexicographicalComparerHolder {
     static final String UNSAFE_COMPARER_NAME =
         LexicographicalComparerHolder.class.getName() + "$UnsafeComparer";
-    
+
     static final Comparer<byte[]> BEST_COMPARER = getBestComparer();
     /**
      * Returns the Unsafe-using Comparer, or falls back to the pure-Java
@@ -81,7 +81,7 @@ abstract class FastByteComparisons {
         return lexicographicalComparerJavaImpl();
       }
     }
-    
+
     private enum PureJavaComparer implements Comparer<byte[]> {
       INSTANCE;
 
@@ -106,7 +106,7 @@ abstract class FastByteComparisons {
         return length1 - length2;
       }
     }
-    
+
     @SuppressWarnings("unused") // used via reflection
     private enum UnsafeComparer implements Comparer<byte[]> {
       INSTANCE;

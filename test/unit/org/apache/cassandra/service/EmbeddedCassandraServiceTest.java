@@ -22,15 +22,12 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 
-import com.google.common.base.Charsets;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.TException;
@@ -77,7 +74,7 @@ public class EmbeddedCassandraServiceTest extends CleanupHelper
         client.set_keyspace("Keyspace1");
 
         ByteBuffer key_user_id = ByteBufferUtil.bytes("1");
-        
+
         long timestamp = System.currentTimeMillis();
         ColumnPath cp = new ColumnPath("Standard1");
         ColumnParent par = new ColumnParent("Standard1");

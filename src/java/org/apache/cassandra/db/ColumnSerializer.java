@@ -1,6 +1,6 @@
 package org.apache.cassandra.db;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.db;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -29,7 +29,6 @@ import java.nio.ByteBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -37,7 +36,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class ColumnSerializer implements IColumnSerializer
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnSerializer.class);
-    
+
     public final static int DELETION_MASK       = 0x01;
     public final static int EXPIRATION_MASK     = 0x02;
     public final static int COUNTER_MASK        = 0x04;

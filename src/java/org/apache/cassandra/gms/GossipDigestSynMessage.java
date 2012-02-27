@@ -34,8 +34,8 @@ import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 
 /**
- * This is the first message that gets sent out as a start of the Gossip protocol in a 
- * round. 
+ * This is the first message that gets sent out as a start of the Gossip protocol in a
+ * round.
  */
 
 class GossipDigestSynMessage
@@ -45,7 +45,7 @@ class GossipDigestSynMessage
     {
         serializer_ = new GossipDigestSynMessageSerializer();
     }
-    
+
     String clusterId_;
     List<GossipDigest> gDigests_ = new ArrayList<GossipDigest>();
 
@@ -53,13 +53,13 @@ class GossipDigestSynMessage
     {
         return serializer_;
     }
- 
+
     public GossipDigestSynMessage(String clusterId, List<GossipDigest> gDigests)
-    {      
+    {
         clusterId_ = clusterId;
         gDigests_ = gDigests;
     }
-    
+
     List<GossipDigest> getGossipDigests()
     {
         return gDigests_;
@@ -69,7 +69,7 @@ class GossipDigestSynMessage
 class GossipDigestSerializationHelper
 {
     private static Logger logger_ = LoggerFactory.getLogger(GossipDigestSerializationHelper.class);
-    
+
     static void serialize(List<GossipDigest> gDigestList, DataOutput dos, int version) throws IOException
     {
         dos.writeInt(gDigestList.size());
@@ -81,13 +81,13 @@ class GossipDigestSerializationHelper
 
     static List<GossipDigest> deserialize(DataInput dis, int version) throws IOException
     {
-        int size = dis.readInt();            
+        int size = dis.readInt();
         List<GossipDigest> gDigests = new ArrayList<GossipDigest>(size);
-        
+
         for ( int i = 0; i < size; ++i )
         {
             gDigests.add(GossipDigest.serializer().deserialize(dis, version));
-        }        
+        }
         return gDigests;
     }
 }
@@ -109,7 +109,7 @@ class EndpointStatesSerializationHelper
 
     static Map<InetAddress, EndpointState> deserialize(DataInput dis, int version) throws IOException
     {
-        int size = dis.readInt();            
+        int size = dis.readInt();
         Map<InetAddress, EndpointState> epStateMap = new HashMap<InetAddress, EndpointState>(size);
 
         for ( int i = 0; i < size; ++i )
@@ -123,9 +123,9 @@ class EndpointStatesSerializationHelper
 }
 
 class GossipDigestSynMessageSerializer implements IVersionedSerializer<GossipDigestSynMessage>
-{   
+{
     public void serialize(GossipDigestSynMessage gDigestSynMessage, DataOutput dos, int version) throws IOException
-    {    
+    {
         dos.writeUTF(gDigestSynMessage.clusterId_);
         GossipDigestSerializationHelper.serialize(gDigestSynMessage.gDigests_, dos, version);
     }

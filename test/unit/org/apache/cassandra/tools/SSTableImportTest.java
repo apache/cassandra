@@ -42,15 +42,13 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
 
 import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
-import static org.junit.Assert.assertEquals;
-
 import org.apache.cassandra.Util;
 
 import org.json.simple.parser.ParseException;
 import org.junit.Test;
 
 public class SSTableImportTest extends SchemaLoader
-{   
+{
     @Test
     public void testImportSimpleCf() throws IOException, URISyntaxException
     {
@@ -108,7 +106,7 @@ public class SSTableImportTest extends SchemaLoader
         String jsonUrl = resourcePath("SuperCF.json");
         File tempSS = tempSSTableFile("Keyspace1", "Super4");
         SSTableImport.importJson(jsonUrl, "Keyspace1", "Super4", tempSS.getPath());
-        
+
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
         QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), new QueryPath("Super4", null, null), ByteBufferUtil.bytes("superA"));

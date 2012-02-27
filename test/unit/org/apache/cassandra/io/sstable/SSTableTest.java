@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.collect.Sets;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;

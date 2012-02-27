@@ -29,7 +29,6 @@ import org.apache.cassandra.CleanupHelper;
 import static org.apache.cassandra.Util.token;
 import static org.apache.cassandra.Util.rp;
 
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -39,8 +38,6 @@ import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import java.util.Arrays;
 
 public class StorageProxyTest extends CleanupHelper
 {

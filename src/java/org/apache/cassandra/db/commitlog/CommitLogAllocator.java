@@ -248,7 +248,7 @@ public class CommitLogAllocator
      * Adds a segment to our internal tracking list and makes it ready for consumption.
      *
      * @param   segment the segment to add
-     * @return  the newly added segment 
+     * @return  the newly added segment
      */
     private CommitLogSegment internalAddReadySegment(CommitLogSegment segment)
     {
@@ -335,7 +335,7 @@ public class CommitLogAllocator
      */
     public void awaitTermination() throws InterruptedException
     {
-        allocationThread.join(); 
+        allocationThread.join();
     }
 
     /**

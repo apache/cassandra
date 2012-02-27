@@ -27,7 +27,7 @@ import java.net.UnknownHostException;
 public interface EndpointSnitchInfoMBean
 {
     /**
-     * Provides the Rack name depending on the respective snitch used, given the host name/ip 
+     * Provides the Rack name depending on the respective snitch used, given the host name/ip
      * @param host
      * @throws UnknownHostException
      */

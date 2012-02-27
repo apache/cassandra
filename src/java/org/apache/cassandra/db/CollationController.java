@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -151,7 +150,7 @@ public class CollationController
             };
             ColumnFamily returnCF = container.cloneMeShallow();
             filter.collateColumns(returnCF, Collections.singletonList(toCollate), gcBefore);
-            
+
             // "hoist up" the requested data into a more recent sstable
             if (sstablesIterated > cfs.getMinimumCompactionThreshold()
                 && !cfs.isCompactionDisabled()

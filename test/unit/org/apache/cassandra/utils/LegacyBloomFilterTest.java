@@ -47,7 +47,7 @@ public class LegacyBloomFilterTest
 
         ByteArrayInputStream in = new ByteArrayInputStream(out.getData(), 0, out.getLength());
         LegacyBloomFilter f2 = f.serializer().deserialize(new DataInputStream(in));
-        
+
         assert f2.isPresent(ByteBufferUtil.bytes("a"));
         assert !f2.isPresent(ByteBufferUtil.bytes("b"));
         return f2;

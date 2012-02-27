@@ -135,7 +135,7 @@ public final class IntegerType extends AbstractType<BigInteger>
         // Return an empty ByteBuffer for an empty string.
         if (source.isEmpty())
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        
+
         BigInteger integerType;
 
         try

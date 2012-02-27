@@ -53,7 +53,7 @@ public class CompressedSequentialWriter extends SequentialWriter
     private long originalSize = 0, compressedSize = 0;
 
     private Collector sstableMetadataCollector;
-    
+
     public CompressedSequentialWriter(File file, String indexFilePath, boolean skipIOCache, CompressionParameters parameters, Collector sstableMetadataCollector) throws IOException
     {
         super(file, parameters.chunkLength(), skipIOCache);
@@ -90,7 +90,7 @@ public class CompressedSequentialWriter extends SequentialWriter
 
         originalSize += validBufferBytes;
         compressedSize += compressedLength;
-        
+
         // update checksum
         checksum.update(buffer, 0, validBufferBytes);
 

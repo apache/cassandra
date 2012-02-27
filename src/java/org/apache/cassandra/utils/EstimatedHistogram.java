@@ -188,7 +188,7 @@ public class EstimatedHistogram
     public long count()
     {
        long sum = 0L;
-       for (int i = 0; i < buckets.length(); i++) 
+       for (int i = 0; i < buckets.length(); i++)
            sum += buckets.get(i);
        return sum;
     }
@@ -206,10 +206,10 @@ public class EstimatedHistogram
     {
         if (this == o)
             return true;
-        
+
         if (!(o instanceof EstimatedHistogram))
             return false;
-        
+
         EstimatedHistogram that = (EstimatedHistogram) o;
         return Arrays.equals(getBucketOffsets(), that.getBucketOffsets()) &&
                Arrays.equals(getBuckets(false), that.getBuckets(false));
