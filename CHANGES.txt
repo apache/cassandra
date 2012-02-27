@@ -1,5 +1,10 @@
-1.1-dev
+1.1.1-dev
  * optimize commitlog checksumming (CASSANDRA-3610)
+
+
+1.1-dev
+ * start hint replay as soon as FD notifies that the target is back up
+   (CASSANDRA-3958)
  * avoid unproductive deserializing of cached rows during compaction
    (CASSANDRA-3921)
  * fix concurrency issues with CQL keyspace creation (CASSANDRA-3903)
