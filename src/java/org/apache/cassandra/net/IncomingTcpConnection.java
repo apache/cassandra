@@ -23,7 +23,6 @@ package org.apache.cassandra.net;
 
 import java.io.*;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.Socket;
 
 import org.apache.cassandra.gms.Gossiper;
@@ -33,7 +32,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.streaming.IncomingStreamReader;
 import org.apache.cassandra.streaming.StreamHeader;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class IncomingTcpConnection extends Thread
 {

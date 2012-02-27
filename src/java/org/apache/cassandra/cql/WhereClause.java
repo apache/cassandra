@@ -20,7 +20,6 @@ package org.apache.cassandra.cql;
  *
  */
 
-import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;

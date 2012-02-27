@@ -18,14 +18,11 @@
 
 package org.apache.cassandra.utils;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.util.Arrays;
-
 import com.google.common.base.Charsets;
 import com.google.common.primitives.Ints;
 import org.junit.Test;

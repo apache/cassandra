@@ -22,15 +22,10 @@ package org.apache.cassandra.io.sstable;
 
 
 import java.io.File;
-import java.io.IOException;
 import java.util.StringTokenizer;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.io.sstable.Component.separator;

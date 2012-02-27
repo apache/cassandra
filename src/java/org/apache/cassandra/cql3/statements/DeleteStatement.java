@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.IMutation;

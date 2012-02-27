@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 import java.io.Closeable;
 import java.util.*;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.columniterator.IColumnIterator;

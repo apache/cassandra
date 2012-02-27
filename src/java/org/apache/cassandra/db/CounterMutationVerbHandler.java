@@ -21,10 +21,6 @@ package org.apache.cassandra.db;
 import java.io.*;
 import java.util.concurrent.TimeoutException;
 
-import java.net.InetAddress;
-import java.nio.ByteBuffer;
-import java.util.Collections;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +29,6 @@ import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 
 public class CounterMutationVerbHandler implements IVerbHandler

@@ -24,8 +24,6 @@ package org.apache.cassandra.db.commitlog;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
-import org.apache.cassandra.concurrent.IExecutorMBean;
-
 /**
  * Like ExecutorService, but customized for batch and periodic commitlog execution.
  */

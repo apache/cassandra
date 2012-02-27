@@ -28,7 +28,6 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import org.apache.cassandra.Util;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.db.TableTest.assertColumns;
 

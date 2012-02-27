@@ -24,11 +24,6 @@ package org.apache.cassandra.streaming;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;

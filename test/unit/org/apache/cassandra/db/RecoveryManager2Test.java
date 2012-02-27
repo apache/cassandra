@@ -22,8 +22,6 @@ package org.apache.cassandra.db;
 
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-
 import org.junit.Test;
 
 import org.slf4j.Logger;
@@ -31,7 +29,6 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.Util.column;
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.utils.ByteBufferUtil;

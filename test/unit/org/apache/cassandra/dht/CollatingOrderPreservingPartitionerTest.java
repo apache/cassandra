@@ -18,11 +18,7 @@
 */
 package org.apache.cassandra.dht;
 
-import java.nio.ByteBuffer;
-
 import org.junit.Test;
-
-import org.apache.cassandra.utils.FBUtilities;
 
 public class CollatingOrderPreservingPartitionerTest extends PartitionerTestCase<BytesToken>
 {

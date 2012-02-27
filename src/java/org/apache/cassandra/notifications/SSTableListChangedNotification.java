@@ -23,8 +23,6 @@ package org.apache.cassandra.notifications;
 
 import org.apache.cassandra.io.sstable.SSTableReader;
 
-import java.util.List;
-
 public class SSTableListChangedNotification implements INotification
 {
     public Iterable<SSTableReader> removed;

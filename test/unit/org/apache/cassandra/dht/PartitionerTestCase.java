@@ -21,12 +21,8 @@ package org.apache.cassandra.dht;
 import java.nio.ByteBuffer;
 import java.util.Random;
 
-import static org.junit.Assert.assertEquals;
-
 import org.junit.Before;
 import org.junit.Test;
-
-import org.apache.cassandra.db.DecoratedKey;
 
 public abstract class PartitionerTestCase<T extends Token>
 {

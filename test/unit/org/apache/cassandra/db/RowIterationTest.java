@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.ArrayList;
 import java.util.Set;
 import java.util.HashSet;
 
@@ -31,7 +29,6 @@ import org.apache.cassandra.Util;
 
 import org.junit.Test;
 
-import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.FBUtilities;

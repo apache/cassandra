@@ -27,7 +27,6 @@ import java.nio.ByteBuffer;
 
 import com.google.common.collect.AbstractIterator;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;

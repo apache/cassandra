@@ -24,8 +24,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.PrintStream;
 import java.net.Socket;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
 
 public class StressThread extends Thread
 {

@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.IOException;
 import java.util.Random;
 
 import org.junit.Test;

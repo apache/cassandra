@@ -29,7 +29,6 @@ import org.junit.Test;
 
 import static org.apache.cassandra.db.TableTest.assertColumns;
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.Util;
 import static org.apache.cassandra.Util.column;
 
 public class MultitableTest extends CleanupHelper

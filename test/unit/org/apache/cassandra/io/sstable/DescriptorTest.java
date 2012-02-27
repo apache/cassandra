@@ -21,11 +21,7 @@ package org.apache.cassandra.io.sstable;
  */
 
 
-import java.io.File;
-
 import org.junit.Test;
-
-import org.apache.cassandra.db.Directories;
 
 public class DescriptorTest
 {

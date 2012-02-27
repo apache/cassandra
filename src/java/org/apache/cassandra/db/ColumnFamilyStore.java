@@ -30,7 +30,6 @@ import javax.management.*;
 
 import com.google.common.collect.*;
 
-import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.service.CacheService;
 import org.slf4j.Logger;
@@ -47,7 +46,6 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
-import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.QueryFilter;

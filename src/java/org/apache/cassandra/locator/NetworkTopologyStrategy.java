@@ -25,15 +25,12 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.Map.Entry;
 
-import com.google.common.collect.Multimap;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.service.*;
-import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 

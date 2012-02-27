@@ -24,7 +24,6 @@ package org.apache.cassandra.db.compaction;
 import java.io.DataOutput;
 import java.io.IOError;
 import java.io.IOException;
-import java.nio.channels.ClosedByInterruptException;
 import java.security.MessageDigest;
 import java.util.Iterator;
 import java.util.List;

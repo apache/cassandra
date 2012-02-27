@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang.builder.HashCodeBuilder;

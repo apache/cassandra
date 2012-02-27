@@ -43,7 +43,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
