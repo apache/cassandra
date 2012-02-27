@@ -249,6 +249,12 @@ public class ColumnDefinition
             }
 
             ColumnDef._Fields field = ColumnDef._Fields.findByName(components[2]);
+
+            // this means that given field was deprecated
+            // but still exists in the serialized schema
+            if (field == null)
+                continue;
+
             columnDef.setFieldValue(field, deserializeValue(column.value(), getValueClass(ColumnDef.class, field.getFieldName())));
         }
 

@@ -1194,6 +1194,12 @@ public final class CFMetaData
             assert attr.length == 2;
 
             CfDef._Fields field = CfDef._Fields.findByName(attr[1]);
+
+            // this means that given field was deprecated
+            // but still exists in the serialized schema
+            if (field == null)
+                continue;
+
             cfDef.setFieldValue(field, deserializeValue(cfAttr.value(), getValueClass(CfDef.class, field.getFieldName())));
         }
         return cfDef;
