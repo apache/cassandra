@@ -222,17 +222,11 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         AbstractType subcomparator;
         AbstractType default_validator;
         AbstractType key_validator;
-        try
-        {
-            comparator = TypeParser.parse(cfDef.getComparator_type());
-            subcomparator = TypeParser.parse(cfDef.getSubcomparator_type());
-            default_validator = TypeParser.parse(cfDef.getDefault_validation_class());
-            key_validator = TypeParser.parse(cfDef.getKey_validation_class());
-        }
-        catch (ConfigurationException e)
-        {
-            throw new IOException(e);
-        }
+
+        comparator = parseType(cfDef.getComparator_type());
+        subcomparator = parseType(cfDef.getSubcomparator_type());
+        default_validator = parseType(cfDef.getDefault_validation_class());
+        key_validator = parseType(cfDef.getKey_validation_class());
 
         marshallers.add(comparator);
         marshallers.add(default_validator);
@@ -267,6 +261,9 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     {
         try
         {
+            // always treat counters like longs, specifically CCT.compose is not what we need
+            if (type != null && type.equals("org.apache.cassandra.db.marshal.CounterColumnType"))
+                    return LongType.instance;
             return TypeParser.parse(type);
         }
         catch (ConfigurationException e)
