@@ -124,8 +124,7 @@ public class IncomingStreamReader
                     key = SSTableReader.decodeKey(StorageService.getPartitioner(), localFile.desc, ByteBufferUtil.readWithShortLength(in));
                     long dataSize = SSTableReader.readRowSize(in, localFile.desc);
 
-                    ColumnFamily cached = cfs.getRawCachedRow(key);
-                    if (cached != null && remoteFile.type == OperationType.AES && dataSize <= DatabaseDescriptor.getInMemoryCompactionLimit())
+                    if (cfs.containsCachedRow(key) && remoteFile.type == OperationType.AES && dataSize <= DatabaseDescriptor.getInMemoryCompactionLimit())
                     {
                         // need to update row cache
                         // Note: Because we won't just echo the columns, there is no need to use the PRESERVE_SIZE flag, contrarily to what appendFromStream does below

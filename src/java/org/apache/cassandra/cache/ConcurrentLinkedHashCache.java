@@ -117,6 +117,16 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
         map.put(key, value);
     }
 
+    public boolean putIfAbsent(K key, V value)
+    {
+        return map.putIfAbsent(key, value) == null;
+    }
+
+    public boolean replace(K key, V old, V value)
+    {
+        return map.replace(key, old, value);
+    }
+
     public void remove(K key)
     {
         map.remove(key);

@@ -76,7 +76,6 @@ public class SerializingCache<K, V> implements ICache<K, V>
     {
         return new Weigher<FreeableMemory>()
         {
-            @Override
             public int weightOf(FreeableMemory value)
             {
                 return (int) Math.min(value.size(), Integer.MAX_VALUE);
@@ -180,6 +179,40 @@ public class SerializingCache<K, V> implements ICache<K, V>
         FreeableMemory old = map.put(key, mem);
         if (old != null)
             old.unreference();
+    }
+
+    public boolean putIfAbsent(K key, V value)
+    {
+        FreeableMemory mem = serialize(value);
+        if (mem == null)
+            return false; // out of memory.  never mind.
+
+        FreeableMemory old = map.putIfAbsent(key, mem);
+        if (old != null)
+            // the new value was not put, we've uselessly allocated some memory, free it
+            mem.unreference();
+        return old == null;
+    }
+
+    public boolean replace(K key, V oldToReplace, V value)
+    {
+        // if there is no old value in our map, we fail
+        FreeableMemory old = map.get(key);
+        if (old == null)
+            return false;
+
+        // see if the old value matches the one we want to replace
+        FreeableMemory mem = serialize(value);
+        if (mem == null)
+            return false; // out of memory.  never mind.
+        V oldValue = deserialize(old);
+        boolean success = oldValue.equals(oldToReplace) && map.replace(key, old, mem);
+
+        if (success)
+            old.unreference();
+        else
+            mem.unreference();
+        return success;
     }
 
     public void remove(K key)

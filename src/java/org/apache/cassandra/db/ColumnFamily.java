@@ -25,6 +25,7 @@ import java.security.MessageDigest;
 
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
+import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -36,10 +37,10 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.HeapAllocator;
 
-public class ColumnFamily extends AbstractColumnContainer
+public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEntry
 {
-    /* The column serializer for this Column Family. Create based on config. */
-    private static ColumnFamilySerializer serializer = new ColumnFamilySerializer();
+    public static final ColumnFamilySerializer serializer = new ColumnFamilySerializer();
+
     private final CFMetaData cfm;
 
     public static ColumnFamilySerializer serializer()
@@ -77,7 +78,7 @@ public class ColumnFamily extends AbstractColumnContainer
         return new ColumnFamily(cfm, factory.create(cfm.comparator, reversedInsertOrder));
     }
 
-    private ColumnFamily(CFMetaData cfm, ISortedColumns map)
+    protected ColumnFamily(CFMetaData cfm, ISortedColumns map)
     {
         super(map);
         assert cfm != null;

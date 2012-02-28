@@ -102,8 +102,10 @@ public class RowIteratorFactory
                 // First check if this row is in the rowCache. If it is we can skip the rest
                 ColumnFamily cached = cfs.getRawCachedRow(key);
                 if (cached == null)
+                {
                     // not cached: collate
                     filter.collateColumns(returnCF, colIters, gcBefore);
+                }
                 else
                 {
                     QueryFilter keyFilter = new QueryFilter(key, filter.path, filter.filter);
