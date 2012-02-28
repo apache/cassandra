@@ -421,6 +421,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         initialized = true;
         isClientMode = false;
 
+        // Ensure StorageProxy is initialized on start-up; see CASSANDRA-3797.
+        try
+        {
+            Class.forName("org.apache.cassandra.service.StorageProxy");
+        }
+        catch (ClassNotFoundException e)
+        {
+            throw new AssertionError(e);
+        }
+
         if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
         {
             logger.info("Loading persisted ring state");
