@@ -72,6 +72,7 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
         }
         catch (IOException e)
         {
+            sstable.markSuspect();
             throw new IOError(e);
         }
     }

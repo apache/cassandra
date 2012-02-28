@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -107,4 +105,24 @@ public abstract class AbstractCompactionStrategy
      * is going to be expensive
      */
     public abstract boolean isKeyExistenceExpensive(Set<? extends SSTable> sstablesToIgnore);
+
+    /**
+     * Filters SSTables that are to be blacklisted from the given collection
+     *
+     * @param originalCandidates The collection to check for blacklisted SSTables
+     *
+     * @return list of the SSTables with blacklisted ones filtered out
+     */
+    public static List<SSTableReader> filterSuspectSSTables(Collection<SSTableReader> originalCandidates)
+    {
+        List<SSTableReader> filteredCandidates = new ArrayList<SSTableReader>();
+
+        for (SSTableReader candidate : originalCandidates)
+        {
+            if (!candidate.isMarkedSuspect())
+                filteredCandidates.add(candidate);
+        }
+
+        return filteredCandidates;
+    }
 }

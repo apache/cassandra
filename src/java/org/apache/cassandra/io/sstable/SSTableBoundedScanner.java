@@ -48,6 +48,7 @@ public class SSTableBoundedScanner extends SSTableScanner
             }
             catch (IOException e)
             {
+                sstable.markSuspect();
                 throw new RuntimeException(e);
             }
         }

@@ -40,6 +40,8 @@ import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 
+import static org.apache.cassandra.db.compaction.AbstractCompactionStrategy.filterSuspectSSTables;
+
 public class LeveledManifest
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledManifest.class);
@@ -245,13 +247,37 @@ public class LeveledManifest
             if (score > 1.001 || i == 0)
             {
                 Collection<SSTableReader> candidates = getCandidatesFor(i);
+
                 if (logger.isDebugEnabled())
                     logger.debug("Compaction candidates for L{} are {}", i, toString(candidates));
-                return candidates;
+
+                // check if have any SSTables marked as suspected,
+                // saves us filter time when no SSTables are suspects
+                return hasSuspectSSTables(candidates)
+                        ? filterSuspectSSTables(candidates)
+                        : candidates;
             }
         }
 
         return Collections.emptyList();
+    }
+
+    /**
+     * Go through candidates collection and check if any of the SSTables are marked as suspected.
+     *
+     * @param candidates The SSTable collection to examine.
+     *
+     * @return true if collection has at least one SSTable marked as suspected, false otherwise.
+     */
+    private boolean hasSuspectSSTables(Collection<SSTableReader> candidates)
+    {
+        for (SSTableReader candidate : candidates)
+        {
+            if (candidate.isMarkedSuspect())
+                return true;
+        }
+
+        return false;
     }
 
     public int getLevelSize(int i)

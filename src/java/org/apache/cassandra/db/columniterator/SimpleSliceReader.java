@@ -58,6 +58,7 @@ class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIter
         }
         catch (IOException e)
         {
+            sstable.markSuspect();
             throw new IOError(e);
         }
     }

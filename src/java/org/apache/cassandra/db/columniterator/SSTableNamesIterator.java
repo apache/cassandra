@@ -70,6 +70,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         }
         catch (IOException e)
         {
+            sstable.markSuspect();
             throw new IOError(e);
         }
         finally
@@ -90,6 +91,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         }
         catch (IOException ioe)
         {
+            sstable.markSuspect();
             throw new IOError(ioe);
         }
     }
