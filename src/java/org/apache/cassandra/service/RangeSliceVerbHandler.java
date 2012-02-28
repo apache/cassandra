@@ -59,7 +59,6 @@ public class RangeSliceVerbHandler implements IVerbHandler
                 throw new RuntimeException("Cannot service reads while bootstrapping!");
             }
             RangeSliceCommand command = RangeSliceCommand.read(message);
-            ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
             RangeSliceReply reply = new RangeSliceReply(executeLocally(command));
             Message response = reply.getReply(message);
             if (logger.isDebugEnabled())
