@@ -159,7 +159,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         String newdelay = System.getProperty("cassandra.ring_delay_ms");
         if (newdelay != null)
         {
-            logger_.warn("Overriding RING_DELAY to {}ms", newdelay);
+            logger_.info("Overriding RING_DELAY to {}ms", newdelay);
             return Integer.parseInt(newdelay);
         }
         else
