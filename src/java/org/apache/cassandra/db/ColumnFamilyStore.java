@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOError;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -28,14 +30,17 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import javax.management.*;
 
-import com.google.common.collect.*;
-
-import org.apache.cassandra.io.compress.CompressionParameters;
-import org.apache.cassandra.service.CacheService;
+import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.*;
+import org.apache.cassandra.cache.AutoSavingCache;
+import org.apache.cassandra.cache.IRowCacheEntry;
+import org.apache.cassandra.cache.RowCacheKey;
+import org.apache.cassandra.cache.RowCacheSentinel;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
@@ -54,9 +59,11 @@ import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.*;
@@ -386,13 +393,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         long start = System.currentTimeMillis();
 
-        AutoSavingCache<RowCacheKey, ColumnFamily> rowCache = CacheService.instance.rowCache;
+        AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache = CacheService.instance.rowCache;
 
         // results are sorted on read (via treeset) because there are few reads and many writes and reads only happen at startup
         int cachedRowsRead = 0;
         for (DecoratedKey key : rowCache.readSaved(table.name, columnFamily))
         {
-            cacheRow(metadata.cfId, key);
+            ColumnFamily data = getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(columnFamily)),
+                                                   Integer.MIN_VALUE,
+                                                   true);
+            CacheService.instance.rowCache.put(new RowCacheKey(metadata.cfId, key), data);
         }
 
         if (cachedRowsRead > 0)
@@ -708,15 +718,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         RowCacheKey cacheKey = new RowCacheKey(metadata.cfId, key);
 
+        // always invalidate a copying cache value
         if (CacheService.instance.rowCache.isPutCopying())
         {
             invalidateCachedRow(cacheKey);
+            return;
         }
-        else
+
+        // invalidate a normal cache value if it's a sentinel, so the read will retry (and include the new update)
+        IRowCacheEntry cachedRow = getCachedRowInternal(cacheKey);
+        if (cachedRow != null)
         {
-            ColumnFamily cachedRow = getRawCachedRow(cacheKey);
-            if (cachedRow != null)
-                cachedRow.addAll(columnFamily, HeapAllocator.instance);
+            if (cachedRow instanceof RowCacheSentinel)
+                invalidateCachedRow(cacheKey);
+            else
+                ((ColumnFamily) cachedRow).addAll(columnFamily, HeapAllocator.instance);
         }
     }
 
@@ -1088,30 +1104,52 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return (int) (System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
     }
 
-    public ColumnFamily cacheRow(Integer cfId, DecoratedKey decoratedKey)
+    /**
+     * fetch the row given by filter.key if it is in the cache; if not, read it from disk and cache it
+     * @param cfId the column family to read the row from
+     * @param filter the columns being queried.  Note that we still cache entire rows, but if a row is uncached
+     *               and we race to cache it, only the winner will read the entire row
+     * @return the entire row for filter.key, if present in the cache (or we can cache it), or just the column
+     *         specified by filter otherwise
+     */
+    private ColumnFamily getThroughCache(Integer cfId, QueryFilter filter)
     {
         assert isRowCacheEnabled()
-                : String.format("Row cache is not enabled on column family [" + getColumnFamilyName() + "]");
+               : String.format("Row cache is not enabled on column family [" + getColumnFamilyName() + "]");
 
-        RowCacheKey key = new RowCacheKey(cfId, decoratedKey);
+        RowCacheKey key = new RowCacheKey(cfId, filter.key);
 
-        ColumnFamily cached;
-
-        if ((cached = CacheService.instance.rowCache.get(key)) == null)
+        // attempt a sentinel-read-cache sequence.  if a write invalidates our sentinel, we'll return our
+        // (now potentially obsolete) data, but won't cache it. see CASSANDRA-3862
+        IRowCacheEntry cached = CacheService.instance.rowCache.get(key);
+        if (cached != null)
         {
-            // We force ThreadSafeSortedColumns because cached row will be accessed concurrently
-            cached = getTopLevelColumns(QueryFilter.getIdentityFilter(decoratedKey, new QueryPath(columnFamily)),
-                                        Integer.MIN_VALUE,
-                                        true);
-
-            if (cached == null)
-                return null;
-
-            // avoid keeping a permanent reference to the original key buffer
-            CacheService.instance.rowCache.put(key, cached);
+            if (cached instanceof RowCacheSentinel)
+            {
+                // Some other read is trying to cache the value, just do a normal non-caching read
+                return getTopLevelColumns(filter, Integer.MIN_VALUE, false);
+            }
+            return (ColumnFamily) cached;
         }
 
-        return cached;
+        RowCacheSentinel sentinel = new RowCacheSentinel();
+        boolean sentinelSuccess = CacheService.instance.rowCache.putIfAbsent(key, sentinel);
+
+        try
+        {
+            ColumnFamily data = getTopLevelColumns(QueryFilter.getIdentityFilter(filter.key, new QueryPath(columnFamily)),
+                                                   Integer.MIN_VALUE,
+                                                   true);
+            if (sentinelSuccess && data != null)
+                CacheService.instance.rowCache.replace(key, sentinel, data);
+
+            return data;
+        }
+        finally
+        {
+            if (sentinelSuccess && data == null)
+                CacheService.instance.rowCache.remove(key);
+        }
     }
 
     ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore)
@@ -1137,7 +1175,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (cfId == null)
                 return null; // secondary index
 
-            ColumnFamily cached = cacheRow(cfId, filter.key);
+            ColumnFamily cached = getThroughCache(cfId, filter);
             if (cached == null)
                 return null;
 
@@ -1484,19 +1522,34 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getSSTables().size();
     }
 
-    /** raw cached row -- does not fetch the row if it is not present.  not counted in cache statistics.  */
-
+    /**
+     * @return the cached row for @param key if it is already present in the cache.
+     * That is, unlike getThroughCache, it will not readAndCache the row if it is not present, nor
+     * are these calls counted in cache statistics.
+     *
+     * Note that this WILL cause deserialization of a SerializingCache row, so if all you
+     * need to know is whether a row is present or not, use containsCachedRow instead.
+     */
     public ColumnFamily getRawCachedRow(DecoratedKey key)
     {
         if (metadata.cfId == null)
             return null; // secondary index
 
-        return getRawCachedRow(new RowCacheKey(metadata.cfId, key));
+        IRowCacheEntry cached = getCachedRowInternal(new RowCacheKey(metadata.cfId, key));
+        return cached == null || cached instanceof RowCacheSentinel ? null : (ColumnFamily) cached;
     }
 
-    public ColumnFamily getRawCachedRow(RowCacheKey key)
+    private IRowCacheEntry getCachedRowInternal(RowCacheKey key)
     {
         return CacheService.instance.rowCache.getCapacity() == 0 ? null : CacheService.instance.rowCache.getInternal(key);
+    }
+
+    /**
+     * @return true if @param key is contained in the row cache
+     */
+    public boolean containsCachedRow(DecoratedKey key)
+    {
+        return CacheService.instance.rowCache.getCapacity() != 0 && CacheService.instance.rowCache.containsKey(new RowCacheKey(metadata.cfId, key));
     }
 
     public void invalidateCachedRow(RowCacheKey key)
