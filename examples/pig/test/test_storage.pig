@@ -37,3 +37,13 @@ dump a
 -- key should now be cast into a chararray
 c = join b by (chararray)key, U8 by (chararray)key;
 dump c
+
+
+--
+--  Test counter column family support
+--
+CC = load 'cassandra://PigTest/CC' using CassandraStorage();
+
+total_hits = foreach CC generate key, SUM(columns.value);
+
+dump total_hits;
