@@ -57,6 +57,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
         }
         catch (IOException e)
         {
+            sstable.markSuspect();
             throw new IOError(e);
         }
         this.sstable = sstable;
@@ -74,6 +75,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
         }
         catch (IOException e)
         {
+            sstable.markSuspect();
             throw new IOError(e);
         }
         this.sstable = sstable;
@@ -100,6 +102,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
         }
         catch (IOException e)
         {
+            sstable.markSuspect();
             throw new RuntimeException("corrupt sstable", e);
         }
     }
@@ -154,6 +157,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
             }
             catch (IOException e)
             {
+                sstable.markSuspect();
                 throw new RuntimeException(e);
             }
         }
@@ -185,6 +189,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
             }
             catch (IOException e)
             {
+                sstable.markSuspect();
                 throw new RuntimeException(SSTableScanner.this + " failed to provide next columns from " + this, e);
             }
         }

@@ -92,6 +92,7 @@ public class SSTableReader extends SSTable
     // technically isCompacted is not necessary since it should never be unreferenced unless it is also compacted,
     // but it seems like a good extra layer of protection against reference counting bugs to not delete data based on that alone
     private final AtomicBoolean isCompacted = new AtomicBoolean(false);
+    private final AtomicBoolean isSuspect = new AtomicBoolean(false);
     private final SSTableDeletingTask deletingTask;
 
     private final SSTableMetadata sstableMetadata;
@@ -713,6 +714,7 @@ public class SSTableReader extends SSTable
             }
             catch (IOException e)
             {
+                markSuspect();
                 throw new IOError(e);
             }
             finally
@@ -797,6 +799,19 @@ public class SSTableReader extends SSTable
             throw new IOError(e);
         }
         return true;
+    }
+
+    public void markSuspect()
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("Marking " + getFilename() + " as a suspect for blacklisting.");
+
+        isSuspect.getAndSet(true);
+    }
+
+    public boolean isMarkedSuspect()
+    {
+        return isSuspect.get();
     }
 
     /**

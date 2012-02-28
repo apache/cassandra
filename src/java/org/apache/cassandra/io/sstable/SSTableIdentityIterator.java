@@ -151,6 +151,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         }
         catch (IOException e)
         {
+            sstable.markSuspect();
             throw new IOError(e);
         }
     }

@@ -60,6 +60,7 @@ public class SSTableSliceIterator implements IColumnIterator
         }
         catch (IOException e)
         {
+            sstable.markSuspect();
             throw new IOError(e);
         }
 

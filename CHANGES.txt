@@ -1,6 +1,6 @@
 1.1.1-dev
  * optimize commitlog checksumming (CASSANDRA-3610)
-
+ * identify and blacklist corrupted SSTables from future compactions (CASSANDRA-2261)
 
 1.1-dev
  * start hint replay as soon as FD notifies that the target is back up
