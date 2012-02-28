@@ -62,7 +62,7 @@ public class CacheService implements CacheServiceMBean
     public final static CacheService instance = new CacheService();
 
     public final AutoSavingCache<KeyCacheKey, Long> keyCache;
-    public final AutoSavingCache<RowCacheKey, ColumnFamily> rowCache;
+    public final AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache;
 
     private int rowCacheSavePeriod;
     private int keyCacheSavePeriod;
@@ -116,7 +116,7 @@ public class CacheService implements CacheServiceMBean
     /**
      * @return initialized row cache
      */
-    private AutoSavingCache<RowCacheKey, ColumnFamily> initRowCache()
+    private AutoSavingCache<RowCacheKey, IRowCacheEntry> initRowCache()
     {
         logger.info("Initializing row cache with capacity of {} MBs and provider {}",
                     DatabaseDescriptor.getRowCacheSizeInMB(),
@@ -125,8 +125,8 @@ public class CacheService implements CacheServiceMBean
         int rowCacheInMemoryCapacity = DatabaseDescriptor.getRowCacheSizeInMB() * 1024 * 1024;
 
         // cache object
-        ICache<RowCacheKey, ColumnFamily> rc = DatabaseDescriptor.getRowCacheProvider().create(rowCacheInMemoryCapacity, true);
-        AutoSavingCache<RowCacheKey, ColumnFamily> rowCache = new AutoSavingCache<RowCacheKey, ColumnFamily>(rc, CacheType.ROW_CACHE);
+        ICache<RowCacheKey, IRowCacheEntry> rc = DatabaseDescriptor.getRowCacheProvider().create(rowCacheInMemoryCapacity, true);
+        AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache = new AutoSavingCache<RowCacheKey, IRowCacheEntry>(rc, CacheType.ROW_CACHE);
 
         int rowCacheKeysToSave = DatabaseDescriptor.getRowCacheKeysToSave();
 

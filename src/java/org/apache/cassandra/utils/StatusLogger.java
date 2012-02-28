@@ -27,6 +27,7 @@ import javax.management.ObjectName;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.cache.AutoSavingCache;
+import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.db.ColumnFamily;
@@ -86,7 +87,7 @@ public class StatusLogger
 
         // Global key/row cache information
         AutoSavingCache<KeyCacheKey, Long> keyCache = CacheService.instance.keyCache;
-        AutoSavingCache<RowCacheKey, ColumnFamily> rowCache = CacheService.instance.rowCache;
+        AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache = CacheService.instance.rowCache;
 
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
         int rowCacheKeysToSave = DatabaseDescriptor.getRowCacheKeysToSave();

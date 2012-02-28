@@ -106,7 +106,7 @@ public class CompactionIterable extends AbstractCompactionIterable
                     // If the raw is cached, we call removeDeleted on it to have/ coherent query returns. However it would look
                     // like some deleted columns lived longer than gc_grace + compaction. This can also free up big amount of
                     // memory on long running instances
-                    controller.removeDeletedInCache(compactedRow.key);
+                    controller.invalidateCachedRow(compactedRow.key);
                 }
 
                 return compactedRow;
