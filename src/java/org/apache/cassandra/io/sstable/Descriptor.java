@@ -53,8 +53,9 @@ public class Descriptor
     // h (1.0): tracks max client timestamp in metadata component
     // hb (1.0.3): records compression ration in metadata component
     // hc (1.0.4): records partitioner in metadata component
-    // hd (1.2): records estimated histogram of deletion times in tombstones
-    public static final String CURRENT_VERSION = "hd";
+    // ia (1.2.0): column indexes are promoted to the index file
+    //             records estimated histogram of deletion times in tombstones
+    public static final String CURRENT_VERSION = "ia";
 
     public final File directory;
     /** version has the following format: <code>[a-z]+</code> */
@@ -75,6 +76,7 @@ public class Descriptor
     public final boolean hasCompressionRatio;
     public final boolean hasPartitioner;
     public final boolean tracksTombstones;
+    public final boolean hasPromotedIndexes;
 
     /**
      * A descriptor that assumes CURRENT_VERSION.
@@ -103,7 +105,8 @@ public class Descriptor
         tracksMaxTimestamp = version.compareTo("h") >= 0;
         hasCompressionRatio = version.compareTo("hb") >= 0;
         hasPartitioner = version.compareTo("hc") >= 0;
-        tracksTombstones = version.compareTo("hd") >= 0;
+        tracksTombstones = version.compareTo("ia") >= 0;
+        hasPromotedIndexes = version.compareTo("ia") >= 0;
         isLatestVersion = version.compareTo(CURRENT_VERSION) == 0;
     }
 

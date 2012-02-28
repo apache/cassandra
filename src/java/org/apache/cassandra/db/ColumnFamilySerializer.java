@@ -95,12 +95,6 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
         dos.writeLong(columnFamily.getMarkedForDeleteAt());
     }
 
-    public void serializeWithIndexes(ColumnFamily columnFamily, ColumnIndexer.RowHeader index, DataOutput dos)
-    {
-        ColumnIndexer.serialize(index, dos);
-        serializeForSSTable(columnFamily, dos);
-    }
-
     public ColumnFamily deserialize(DataInput dis) throws IOException
     {
         return deserialize(dis, IColumnSerializer.Flag.LOCAL, TreeMapBackedSortedColumns.factory());

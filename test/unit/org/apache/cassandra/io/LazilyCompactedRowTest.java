@@ -108,8 +108,8 @@ public class LazilyCompactedRowTest extends CleanupHelper
             new FileOutputStream(tmpFile1).write(out1.getData()); // writing data from row1
             new FileOutputStream(tmpFile2).write(out2.getData()); // writing data from row2
 
-            MappedFileDataInput in1 = new MappedFileDataInput(new FileInputStream(tmpFile1), tmpFile1.getAbsolutePath(), 0);
-            MappedFileDataInput in2 = new MappedFileDataInput(new FileInputStream(tmpFile2), tmpFile2.getAbsolutePath(), 0);
+            MappedFileDataInput in1 = new MappedFileDataInput(new FileInputStream(tmpFile1), tmpFile1.getAbsolutePath(), 0, 0);
+            MappedFileDataInput in2 = new MappedFileDataInput(new FileInputStream(tmpFile2), tmpFile2.getAbsolutePath(), 0, 0);
 
             // key isn't part of what CompactedRow writes, that's done by SSTW.append
 
@@ -118,18 +118,6 @@ public class LazilyCompactedRowTest extends CleanupHelper
             long rowSize2 = SSTableReader.readRowSize(in2, sstables.iterator().next().descriptor);
             assertEquals(rowSize1 + 8, out1.getLength());
             assertEquals(rowSize2 + 8, out2.getLength());
-            // bloom filter
-            IndexHelper.defreezeBloomFilter(in1, rowSize1, false);
-            IndexHelper.defreezeBloomFilter(in2, rowSize2, false);
-            // index
-            int indexSize1 = in1.readInt();
-            int indexSize2 = in2.readInt();
-            assertEquals(indexSize1, indexSize2);
-
-            ByteBuffer bytes1 = in1.readBytes(indexSize1);
-            ByteBuffer bytes2 = in2.readBytes(indexSize2);
-
-            assert bytes1.equals(bytes2);
 
             // cf metadata
             ColumnFamily cf1 = ColumnFamily.create(cfs.metadata);

@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -162,6 +163,11 @@ public abstract class SSTable
         return descriptor.filenameFor(COMPONENT_DATA);
     }
 
+    public String getIndexFilename()
+    {
+        return descriptor.filenameFor(COMPONENT_INDEX);
+    }
+
     public String getColumnFamilyName()
     {
         return descriptor.cfname;
@@ -207,7 +213,7 @@ public abstract class SSTable
     }
 
     /** @return An estimate of the number of keys contained in the given index file. */
-    static long estimateRowsFromIndex(RandomAccessReader ifile) throws IOException
+    long estimateRowsFromIndex(RandomAccessReader ifile) throws IOException
     {
         // collect sizes for the first 10000 keys, or first 10 megabytes of data
         final int SAMPLES_CAP = 10000, BYTES_CAP = (int)Math.min(10000000, ifile.length());
@@ -215,7 +221,7 @@ public abstract class SSTable
         while (ifile.getFilePointer() < BYTES_CAP && keys < SAMPLES_CAP)
         {
             ByteBufferUtil.skipShortLength(ifile);
-            FileUtils.skipBytesFully(ifile, 8);
+            RowIndexEntry.serializer.skip(ifile, descriptor);
             keys++;
         }
         assert keys > 0 && ifile.getFilePointer() > 0 && ifile.length() > 0 : "Unexpected empty index file: " + ifile;

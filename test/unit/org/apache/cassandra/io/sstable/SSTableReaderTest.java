@@ -123,7 +123,7 @@ public class SSTableReaderTest extends CleanupHelper
         for (int j = 0; j < 100; j += 2)
         {
             DecoratedKey dk = Util.dk(String.valueOf(j));
-            FileDataInput file = sstable.getFileDataInput(dk, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
+            FileDataInput file = sstable.getFileDataInput(sstable.getPosition(dk, SSTableReader.Operator.EQ).position);
             DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.partitioner,
                                                              sstable.descriptor,
                                                              ByteBufferUtil.readWithShortLength(file));
@@ -134,7 +134,7 @@ public class SSTableReaderTest extends CleanupHelper
         for (int j = 1; j < 110; j += 2)
         {
             DecoratedKey dk = Util.dk(String.valueOf(j));
-            assert sstable.getPosition(dk, SSTableReader.Operator.EQ) == -1;
+            assert sstable.getPosition(dk, SSTableReader.Operator.EQ) == null;
         }
     }
 
@@ -184,10 +184,10 @@ public class SSTableReaderTest extends CleanupHelper
         CompactionManager.instance.performMaximal(store);
 
         SSTableReader sstable = store.getSSTables().iterator().next();
-        long p2 = sstable.getPosition(k(2), SSTableReader.Operator.EQ);
-        long p3 = sstable.getPosition(k(3), SSTableReader.Operator.EQ);
-        long p6 = sstable.getPosition(k(6), SSTableReader.Operator.EQ);
-        long p7 = sstable.getPosition(k(7), SSTableReader.Operator.EQ);
+        long p2 = sstable.getPosition(k(2), SSTableReader.Operator.EQ).position;
+        long p3 = sstable.getPosition(k(3), SSTableReader.Operator.EQ).position;
+        long p6 = sstable.getPosition(k(6), SSTableReader.Operator.EQ).position;
+        long p7 = sstable.getPosition(k(7), SSTableReader.Operator.EQ).position;
 
         Pair<Long, Long> p = sstable.getPositionsForRanges(makeRanges(t(2), t(6))).iterator().next();
 

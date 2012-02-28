@@ -179,12 +179,8 @@ public class SSTableUtils
             return write(map);
         }
 
-        public SSTableReader write(Map<String, ColumnFamily> entries) throws IOException
+        public SSTableReader write(SortedMap<DecoratedKey, ColumnFamily> sorted) throws IOException
         {
-            SortedMap<DecoratedKey, ColumnFamily> sorted = new TreeMap<DecoratedKey, ColumnFamily>();
-            for (Map.Entry<String, ColumnFamily> entry : entries.entrySet())
-                sorted.put(Util.dk(entry.getKey()), entry.getValue());
-
             final Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter = sorted.entrySet().iterator();
             return write(sorted.size(), new Appender()
             {
@@ -200,30 +196,13 @@ public class SSTableUtils
             });
         }
 
-        /**
-         * @Deprecated: Writes the binary content of a row, which should be encapsulated.
-         */
-        @Deprecated
-        public SSTableReader writeRaw(Map<ByteBuffer, ByteBuffer> entries) throws IOException
+        public SSTableReader write(Map<String, ColumnFamily> entries) throws IOException
         {
-            File datafile = (dest == null) ? tempSSTableFile(ksname, cfname, generation) : new File(dest.filenameFor(Component.DATA));
-            SSTableWriter writer = new SSTableWriter(datafile.getAbsolutePath(), entries.size());
-            SortedMap<DecoratedKey, ByteBuffer> sorted = new TreeMap<DecoratedKey, ByteBuffer>();
-            for (Map.Entry<ByteBuffer, ByteBuffer> entry : entries.entrySet())
-                sorted.put(writer.partitioner.decorateKey(entry.getKey()), entry.getValue());
-            final Iterator<Map.Entry<DecoratedKey, ByteBuffer>> iter = sorted.entrySet().iterator();
-            return write(sorted.size(), new Appender()
-            {
-                @Override
-                public boolean append(SSTableWriter writer) throws IOException
-                {
-                    if (!iter.hasNext())
-                        return false;
-                    Map.Entry<DecoratedKey, ByteBuffer> entry = iter.next();
-                    writer.append(entry.getKey(), entry.getValue());
-                    return true;
-                }
-            });
+            SortedMap<DecoratedKey, ColumnFamily> sorted = new TreeMap<DecoratedKey, ColumnFamily>();
+            for (Map.Entry<String, ColumnFamily> entry : entries.entrySet())
+                sorted.put(Util.dk(entry.getKey()), entry.getValue());
+
+            return write(sorted);
         }
 
         public SSTableReader write(int expectedSize, Appender appender) throws IOException

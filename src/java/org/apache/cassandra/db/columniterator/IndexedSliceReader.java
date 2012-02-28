@@ -29,12 +29,14 @@ import com.google.common.collect.AbstractIterator;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  *  This is a reader that finds the block for a starting column and returns
@@ -45,8 +47,10 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
 {
     private final ColumnFamily emptyColumnFamily;
 
+    private final SSTableReader sstable;
     private final List<IndexHelper.IndexInfo> indexes;
-    private final FileDataInput file;
+    private final FileDataInput originalInput;
+    private FileDataInput file;
     private final ByteBuffer startColumn;
     private final ByteBuffer finishColumn;
     private final boolean reversed;
@@ -55,26 +59,62 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
     private final Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
     private final AbstractType<?> comparator;
 
-    public IndexedSliceReader(SSTableReader sstable, FileDataInput input, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
+    public IndexedSliceReader(SSTableReader sstable, RowIndexEntry indexEntry, FileDataInput input, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
     {
-        this.file = input;
+        this.sstable = sstable;
+        this.originalInput = input;
         this.startColumn = startColumn;
         this.finishColumn = finishColumn;
         this.reversed = reversed;
         this.comparator = sstable.metadata.comparator;
+
         try
         {
-            IndexHelper.skipBloomFilter(file);
-            indexes = IndexHelper.deserializeIndex(file);
-
-            emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(sstable.metadata), file);
-            fetcher = indexes == null ? new SimpleBlockFetcher() : new IndexedBlockFetcher();
+            if (sstable.descriptor.hasPromotedIndexes)
+            {
+                this.indexes = indexEntry.columnsIndex();
+                if (indexes.isEmpty())
+                {
+                    setToRowStart(sstable, indexEntry, input);
+                    this.emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(sstable.metadata), file);
+                    fetcher = new SimpleBlockFetcher();
+                }
+                else
+                {
+                    this.emptyColumnFamily = ColumnFamily.create(sstable.metadata);
+                    emptyColumnFamily.delete(indexEntry.deletionInfo());
+                    fetcher = new IndexedBlockFetcher(indexEntry);
+                }
+            }
+            else
+            {
+                setToRowStart(sstable, indexEntry, input);
+                IndexHelper.skipBloomFilter(file);
+                this.indexes = IndexHelper.deserializeIndex(file);
+                this.emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(sstable.metadata), file);
+                fetcher = indexes.isEmpty() ? new SimpleBlockFetcher() : new IndexedBlockFetcher();
+            }
         }
         catch (IOException e)
         {
             sstable.markSuspect();
             throw new IOError(e);
         }
+    }
+
+    private void setToRowStart(SSTableReader reader, RowIndexEntry indexEntry, FileDataInput input) throws IOException
+    {
+        if (input == null)
+        {
+            this.file = sstable.getFileDataInput(indexEntry.position);
+        }
+        else
+        {
+            this.file = input;
+            input.seek(indexEntry.position);
+        }
+        sstable.decodeKey(ByteBufferUtil.readWithShortLength(file));
+        SSTableReader.readRowSize(file, sstable.descriptor);
     }
 
     public ColumnFamily getColumnFamily()
@@ -124,8 +164,10 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
         }
     }
 
-    public void close()
+    public void close() throws IOException
     {
+        if (originalInput == null && file != null)
+            file.close();
     }
 
     interface BlockFetcher
@@ -135,13 +177,19 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
 
     private class IndexedBlockFetcher implements BlockFetcher
     {
-        private final FileMark mark;
+        private final long basePosition;
         private int curRangeIndex;
 
         IndexedBlockFetcher() throws IOException
         {
             file.readInt(); // column count
-            this.mark = file.mark();
+            basePosition = file.getFilePointer();
+            curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator, reversed);
+        }
+
+        IndexedBlockFetcher(RowIndexEntry indexEntry)
+        {
+            basePosition = indexEntry.position;
             curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator, reversed);
         }
 
@@ -168,9 +216,15 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
             }
 
             boolean outOfBounds = false;
-            file.reset(mark);
-            FileUtils.skipBytesFully(file, curColPosition.offset);
-            while (file.bytesPastMark(mark) < curColPosition.offset + curColPosition.width && !outOfBounds)
+            long positionToSeek = basePosition + curColPosition.offset;
+
+            // With new promoted indexes, our first seek in the data file will happen at that point.
+            if (file == null)
+                file = originalInput == null ? sstable.getFileDataInput(positionToSeek) : originalInput;
+
+            file.seek(positionToSeek);
+            FileMark mark = file.mark();
+            while (file.bytesPastMark(mark) < curColPosition.width && !outOfBounds)
             {
                 IColumn column = emptyColumnFamily.getColumnSerializer().deserialize(file);
                 if (reversed)

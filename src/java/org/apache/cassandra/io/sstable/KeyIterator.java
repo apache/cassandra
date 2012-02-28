@@ -24,6 +24,7 @@ import java.io.IOException;
 import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -54,7 +55,7 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
             if (in.isEOF())
                 return endOfData();
             DecoratedKey key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, ByteBufferUtil.readWithShortLength(in));
-            in.readLong(); // skip data position
+            RowIndexEntry.serializer.skip(in, desc); // skip remainder of the entry
             return key;
         }
         catch (IOException e)

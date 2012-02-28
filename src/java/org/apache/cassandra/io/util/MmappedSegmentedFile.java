@@ -77,7 +77,7 @@ public class MmappedSegmentedFile extends SegmentedFile
         if (segment.right != null)
         {
             // segment is mmap'd
-            return new MappedFileDataInput(segment.right, path, (int) (position - segment.left));
+            return new MappedFileDataInput(segment.right, path, segment.left, (int) (position - segment.left));
         }
 
         // not mmap'd: open a braf covering the segment

@@ -125,7 +125,7 @@ public class AtomicSortedColumns implements ISortedColumns
             if (current.deletionInfo.localDeletionTime > gcBefore)
                 break;
         }
-        while (!ref.compareAndSet(current, current.with(new DeletionInfo())));
+        while (!ref.compareAndSet(current, current.with(DeletionInfo.LIVE)));
     }
 
     public void retainAll(ISortedColumns columns)
@@ -293,12 +293,12 @@ public class AtomicSortedColumns implements ISortedColumns
 
         Holder(AbstractType<?> comparator)
         {
-            this(new SnapTreeMap<ByteBuffer, IColumn>(comparator), new DeletionInfo());
+            this(new SnapTreeMap<ByteBuffer, IColumn>(comparator), DeletionInfo.LIVE);
         }
 
         Holder(SortedMap<ByteBuffer, IColumn> columns)
         {
-            this(new SnapTreeMap<ByteBuffer, IColumn>(columns), new DeletionInfo());
+            this(new SnapTreeMap<ByteBuffer, IColumn>(columns), DeletionInfo.LIVE);
         }
 
         Holder(SnapTreeMap<ByteBuffer, IColumn> map, DeletionInfo deletionInfo)

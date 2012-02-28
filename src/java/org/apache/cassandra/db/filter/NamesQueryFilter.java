@@ -20,6 +20,7 @@ package org.apache.cassandra.db.filter;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.SortedSet;
 
 import org.apache.commons.lang.StringUtils;
@@ -56,9 +57,9 @@ public class NamesQueryFilter implements IFilter
         return new SSTableNamesIterator(sstable, key, columns);
     }
 
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key)
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry)
     {
-        return new SSTableNamesIterator(sstable, file, key, columns);
+        return new SSTableNamesIterator(sstable, file, key, columns, indexEntry);
     }
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)

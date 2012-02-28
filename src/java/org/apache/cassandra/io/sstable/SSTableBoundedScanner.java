@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.Iterator;
 
 import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.Pair;
@@ -44,7 +45,7 @@ public class SSTableBoundedScanner extends SSTableScanner
             currentRange = rangeIterator.next();
             try
             {
-                file.seek(currentRange.left);
+                dfile.seek(currentRange.left);
             }
             catch (IOException e)
             {
@@ -56,6 +57,16 @@ public class SSTableBoundedScanner extends SSTableScanner
         {
             exhausted = true;
         }
+    }
+
+    /*
+     * This shouldn't be used with a bounded scanner as it could put the
+     * bounded scanner outside it's range.
+     */
+    @Override
+    public void seekTo(RowPosition seekKey)
+    {
+        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -28,21 +28,24 @@ public class MappedFileDataInput extends AbstractDataInput implements FileDataIn
 {
     private final MappedByteBuffer buffer;
     private final String filename;
+    private final long segmentOffset;
     private int position;
 
-    public MappedFileDataInput(FileInputStream stream, String filename, int position) throws IOException
+    public MappedFileDataInput(FileInputStream stream, String filename, long segmentOffset, int position) throws IOException
     {
         FileChannel channel = stream.getChannel();
         buffer = channel.map(FileChannel.MapMode.READ_ONLY, position, channel.size());
         this.filename = filename;
+        this.segmentOffset = segmentOffset;
         this.position = position;
     }
 
-    public MappedFileDataInput(MappedByteBuffer buffer, String filename, int position)
+    public MappedFileDataInput(MappedByteBuffer buffer, String filename, long segmentOffset, int position)
     {
         assert buffer != null;
         this.buffer = buffer;
         this.filename = filename;
+        this.segmentOffset = segmentOffset;
         this.position = position;
     }
 
@@ -50,6 +53,22 @@ public class MappedFileDataInput extends AbstractDataInput implements FileDataIn
     protected void seekInternal(int pos)
     {
         position = pos;
+    }
+
+    // Only use when we know the seek in within the mapped segment. Throws an
+    // IOException otherwise.
+    public void seek(long pos) throws IOException
+    {
+        long inSegmentPos = pos - segmentOffset;
+        if (inSegmentPos < 0 || inSegmentPos > buffer.capacity())
+            throw new IOException(String.format("Seek position %d is not within mmap segment (seg offs: %d, length: %d)", pos, segmentOffset, buffer.capacity()));
+
+        seekInternal((int) inSegmentPos);
+    }
+
+    public long getFilePointer()
+    {
+        return segmentOffset + (long)position;
     }
 
     protected int getPosition()

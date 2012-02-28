@@ -110,7 +110,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 if (dataStart + dataSize > file.length())
                     throw new IOException(String.format("dataSize of %s starting at %s would be larger than file %s length %s",
                                           dataSize, dataStart, file.getPath(), file.length()));
-                if (checkData)
+                if (checkData && !sstable.descriptor.hasPromotedIndexes)
                 {
                     try
                     {
@@ -137,8 +137,11 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 }
             }
 
-            IndexHelper.skipBloomFilter(inputWithTracker);
-            IndexHelper.skipIndex(inputWithTracker);
+            if (!sstable.descriptor.hasPromotedIndexes)
+            {
+                IndexHelper.skipBloomFilter(inputWithTracker);
+                IndexHelper.skipIndex(inputWithTracker);
+            }
             columnFamily = ColumnFamily.create(metadata);
             ColumnFamily.serializer().deserializeFromSSTableNoColumns(columnFamily, inputWithTracker);
             columnCount = inputWithTracker.readInt();

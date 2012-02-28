@@ -46,12 +46,17 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
     @Deprecated // TODO this is a hack to set initial value outside constructor
     public void delete(int localtime, long timestamp)
     {
-        columns.delete(new ISortedColumns.DeletionInfo(timestamp, localtime));
+        columns.delete(new DeletionInfo(timestamp, localtime));
     }
 
     public void delete(AbstractColumnContainer cc2)
     {
-        columns.delete(cc2.columns.getDeletionInfo());
+        delete(cc2.columns.getDeletionInfo());
+    }
+
+    public void delete(DeletionInfo delInfo)
+    {
+        columns.delete(delInfo);
     }
 
     public boolean isMarkedForDelete()
@@ -67,6 +72,11 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
     public int getLocalDeletionTime()
     {
         return columns.getDeletionInfo().localDeletionTime;
+    }
+
+    public DeletionInfo deletionInfo()
+    {
+        return columns.getDeletionInfo();
     }
 
     public AbstractType<?> getComparator()

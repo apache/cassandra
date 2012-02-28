@@ -30,7 +30,7 @@ public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumn
 
     public AbstractThreadUnsafeSortedColumns()
     {
-        deletionInfo = new DeletionInfo();
+        deletionInfo = DeletionInfo.LIVE;
     }
 
     public DeletionInfo getDeletionInfo()
@@ -49,7 +49,7 @@ public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumn
     {
         // Update if it's not MIN_VALUE anymore and it has expired
         if (deletionInfo.localDeletionTime <= gcBefore)
-            deletionInfo = new DeletionInfo();
+            deletionInfo = DeletionInfo.LIVE;
     }
 
     public void retainAll(ISortedColumns columns)

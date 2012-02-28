@@ -26,15 +26,18 @@ import com.google.common.collect.AbstractIterator;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIterator
 {
     private final FileDataInput file;
+    private final boolean needsClosing;
     private final ByteBuffer finishColumn;
     private final AbstractType<?> comparator;
     private final ColumnFamily emptyColumnFamily;
@@ -42,15 +45,33 @@ class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIter
     private int i;
     private FileMark mark;
 
-    public SimpleSliceReader(SSTableReader sstable, FileDataInput input, ByteBuffer finishColumn)
+    public SimpleSliceReader(SSTableReader sstable, RowIndexEntry indexEntry, FileDataInput input, ByteBuffer finishColumn)
     {
-        this.file = input;
         this.finishColumn = finishColumn;
-        comparator = sstable.metadata.comparator;
+        this.comparator = sstable.metadata.comparator;
         try
         {
-            IndexHelper.skipBloomFilter(file);
-            IndexHelper.skipIndex(file);
+            if (input == null)
+            {
+                this.file = sstable.getFileDataInput(indexEntry.position);
+                this.needsClosing = true;
+            }
+            else
+            {
+                this.file = input;
+                input.seek(indexEntry.position);
+                this.needsClosing = false;
+            }
+
+            // Skip key and data size
+            ByteBufferUtil.skipShortLength(file);
+            SSTableReader.readRowSize(file, sstable.descriptor);
+
+            if (!sstable.descriptor.hasPromotedIndexes)
+            {
+                IndexHelper.skipBloomFilter(file);
+                IndexHelper.skipIndex(file);
+            }
 
             emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(sstable.metadata), file);
             columns = file.readInt();
@@ -92,6 +113,8 @@ class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIter
 
     public void close() throws IOException
     {
+        if (needsClosing)
+            file.close();
     }
 
     public DecoratedKey getKey()

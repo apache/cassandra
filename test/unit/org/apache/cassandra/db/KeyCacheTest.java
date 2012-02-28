@@ -72,7 +72,7 @@ public class KeyCacheTest extends CleanupHelper
         assertEquals(100, CacheService.instance.keyCache.size());
 
         // really? our caches don't implement the map interface? (hence no .addAll)
-        Map<KeyCacheKey, Long> savedMap = new HashMap<KeyCacheKey, Long>();
+        Map<KeyCacheKey, RowIndexEntry> savedMap = new HashMap<KeyCacheKey, RowIndexEntry>();
         for (KeyCacheKey k : CacheService.instance.keyCache.getKeySet())
         {
             savedMap.put(k, CacheService.instance.keyCache.get(k));

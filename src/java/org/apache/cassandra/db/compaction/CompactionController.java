@@ -26,7 +26,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.EchoedRow;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.CacheService;
@@ -43,7 +42,6 @@ public class CompactionController
     private final boolean forceDeserialize;
 
     public final int gcBefore;
-    public final boolean keyExistenceIsExpensive;
     public final int mergeShardBefore;
 
     public CompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
@@ -58,7 +56,6 @@ public class CompactionController
         // current 'stop all write during memtable switch' situation).
         this.mergeShardBefore = (int) ((cfs.oldestUnflushedMemtable() + 5 * 3600) / 1000);
         this.forceDeserialize = forceDeserialize;
-        this.keyExistenceIsExpensive = cfs.getCompactionStrategy().isKeyExistenceExpensive(this.sstables);
     }
 
     public String getKeyspace()
@@ -123,15 +120,6 @@ public class CompactionController
         long rowSize = 0;
         for (SSTableIdentityIterator row : rows)
             rowSize += row.dataSize;
-
-        // in-memory echoedrow is only enabled if we think checking for the key's existence in the other sstables,
-        // is going to be less expensive than simply de/serializing the row again
-        if (rows.size() == 1 && !needDeserialize()
-            && (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit() || !keyExistenceIsExpensive)
-            && !shouldPurge(rows.get(0).getKey()))
-        {
-            return new EchoedRow(rows.get(0));
-        }
 
         if (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit())
         {

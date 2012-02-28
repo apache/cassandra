@@ -19,10 +19,13 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.List;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.sstable.ColumnStats;
+import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.ColumnIndex;
 
 /**
  * a CompactedRow is an object that takes a bunch of rows (keys + columnfamilies)
@@ -65,4 +68,14 @@ public abstract class AbstractCompactedRow
      * contain default values if computing them value would require extra effort we're not willing to make.
      */
     public abstract ColumnStats columnStats();
+
+    /**
+     * @return the compacted row deletion infos.
+     */
+    public abstract DeletionInfo deletionInfo();
+
+    /**
+     * @return the column index for this row.
+     */
+    public abstract ColumnIndex index();
 }

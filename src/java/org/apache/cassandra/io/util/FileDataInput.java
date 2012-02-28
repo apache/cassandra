@@ -30,11 +30,15 @@ public interface FileDataInput extends DataInput, Closeable
 
     public long bytesRemaining() throws IOException;
 
+    public void seek(long pos) throws IOException;
+
     public FileMark mark();
 
     public void reset(FileMark mark) throws IOException;
 
     public long bytesPastMark(FileMark mark);
+
+    public long getFilePointer();
 
     /**
      * Read length bytes from current file position

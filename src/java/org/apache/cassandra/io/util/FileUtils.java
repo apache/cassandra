@@ -19,6 +19,7 @@ package org.apache.cassandra.io.util;
 
 import java.io.*;
 import java.text.DecimalFormat;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -96,6 +97,11 @@ public class FileUtils
         {
             logger.warn("Failed closing " + c, e);
         }
+    }
+
+    public static void close(Closeable... cs) throws IOException
+    {
+        close(Arrays.asList(cs));
     }
 
     public static void close(Iterable<? extends Closeable> cs) throws IOException

@@ -20,8 +20,7 @@ package org.apache.cassandra;
  *
  */
 
-import java.io.EOFException;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -54,6 +53,11 @@ public class Util
     public static DecoratedKey dk(String key)
     {
         return StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(key));
+    }
+
+    public static DecoratedKey dk(ByteBuffer key)
+    {
+        return StorageService.getPartitioner().decorateKey(key);
     }
 
     public static RowPosition rp(String key)
@@ -255,5 +259,13 @@ public class Util
         }
 
         assert thrown : exception.getName() + " not received";
+    }
+
+    public static ByteBuffer serializeForSSTable(ColumnFamily cf)
+    {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(baos);
+        cf.serializer().serializeForSSTable(cf, dos);
+        return ByteBuffer.wrap(baos.toByteArray());
     }
 }

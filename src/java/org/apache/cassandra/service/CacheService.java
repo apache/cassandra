@@ -29,6 +29,7 @@ import javax.management.ObjectName;
 import org.apache.cassandra.cache.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.slf4j.Logger;
@@ -61,7 +62,7 @@ public class CacheService implements CacheServiceMBean
 
     public final static CacheService instance = new CacheService();
 
-    public final AutoSavingCache<KeyCacheKey, Long> keyCache;
+    public final AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache;
     public final AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache;
 
     private int rowCacheSavePeriod;
@@ -91,7 +92,7 @@ public class CacheService implements CacheServiceMBean
      * We can use Weighers.singleton() because Long can't be leaking memory
      * @return auto saving cache object
      */
-    private AutoSavingCache<KeyCacheKey, Long> initKeyCache()
+    private AutoSavingCache<KeyCacheKey, RowIndexEntry> initKeyCache()
     {
         logger.info("Initializing key cache with capacity of {} MBs.", DatabaseDescriptor.getKeyCacheSizeInMB());
 
@@ -99,8 +100,8 @@ public class CacheService implements CacheServiceMBean
 
         // as values are constant size we can use singleton weigher
         // where 48 = 40 bytes (average size of the key) + 8 bytes (size of value)
-        ICache<KeyCacheKey, Long> kc = ConcurrentLinkedHashCache.create(keyCacheInMemoryCapacity / AVERAGE_KEY_CACHE_ROW_SIZE);
-        AutoSavingCache<KeyCacheKey, Long> keyCache = new AutoSavingCache<KeyCacheKey, Long>(kc, CacheType.KEY_CACHE);
+        ICache<KeyCacheKey, RowIndexEntry> kc = ConcurrentLinkedHashCache.create(keyCacheInMemoryCapacity / AVERAGE_KEY_CACHE_ROW_SIZE);
+        AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = new AutoSavingCache<KeyCacheKey, RowIndexEntry>(kc, CacheType.KEY_CACHE);
 
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
 

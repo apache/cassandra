@@ -168,26 +168,4 @@ public interface ISortedColumns extends IIterableColumns
          */
         public ISortedColumns fromSorted(SortedMap<ByteBuffer, IColumn> sm, boolean insertReversed);
     }
-
-    public static class DeletionInfo
-    {
-        public final long markedForDeleteAt;
-        public final int localDeletionTime;
-
-        public DeletionInfo()
-        {
-            this(Long.MIN_VALUE, Integer.MAX_VALUE);
-        }
-
-        public DeletionInfo(long markedForDeleteAt, int localDeletionTime)
-        {
-            // Pre-1.1 node may return MIN_VALUE for non-deleted container, but the new default is MAX_VALUE
-            // (see CASSANDRA-3872)
-            if (localDeletionTime == Integer.MIN_VALUE)
-                localDeletionTime = Integer.MAX_VALUE;
-
-            this.markedForDeleteAt = markedForDeleteAt;
-            this.localDeletionTime = localDeletionTime;
-        }
-    }
 }
