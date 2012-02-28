@@ -21,11 +21,11 @@ import java.io.IOException;
  */
 
 
-public class UnserializableColumnFamilyException extends IOException
+public class UnknownColumnFamilyException extends IOException
 {
     public final int cfId;
     
-    public UnserializableColumnFamilyException(String msg, int cfId)
+    public UnknownColumnFamilyException(String msg, int cfId)
     {
         super(msg);
         this.cfId = cfId;

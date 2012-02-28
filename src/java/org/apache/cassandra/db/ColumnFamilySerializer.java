@@ -24,17 +24,14 @@ package org.apache.cassandra.db;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.util.Collection;
 
 import org.apache.cassandra.config.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.ISerializer;
-import org.apache.cassandra.io.sstable.SSTableMetadata;
 
 public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
 {
@@ -126,7 +123,7 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
         // create a ColumnFamily based on the cf id
         int cfId = dis.readInt();
         if (Schema.instance.getCF(cfId) == null)
-            throw new UnserializableColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
+            throw new UnknownColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
         ColumnFamily cf = ColumnFamily.create(cfId, factory);
         deserializeFromSSTableNoColumns(cf, dis);
         deserializeColumns(dis, cf, flag);
