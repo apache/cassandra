@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.TypeParser;
@@ -36,6 +37,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractCompositeType.CompositeComponent;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.thrift.Deletion;
@@ -169,11 +171,35 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
     }
 
+    /**
+     *  Deconstructs a composite type to a Tuple.
+     */
+    private Tuple composeComposite( AbstractCompositeType comparator, ByteBuffer name ) throws IOException
+    {
+        List<CompositeComponent> result = comparator.deconstruct( name );
+
+        Tuple t = TupleFactory.getInstance().newTuple( result.size() );
+
+        for( int i = 0; i < result.size(); i++ )
+        {
+            setTupleValue( t, i, result.get(i).comparator.compose( result.get(i).value ) );
+        }
+
+        return t;
+    }
+
     private Tuple columnToTuple(IColumn col, CfDef cfDef, AbstractType comparator) throws IOException
     {
         Tuple pair = TupleFactory.getInstance().newTuple(2);
 
-        setTupleValue(pair, 0, comparator.compose(col.name()));
+        if( comparator instanceof AbstractCompositeType )
+        {
+            setTupleValue(pair, 0, composeComposite((AbstractCompositeType)comparator,col.name()));
+        }
+        else
+        {
+            setTupleValue(pair, 0, comparator.compose(col.name()));
+        }
         if (col instanceof Column)
         {
             // standard
@@ -509,6 +535,9 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             return DataType.FLOAT;
         else if (type instanceof DoubleType)
             return DataType.DOUBLE;
+        else if (type instanceof AbstractCompositeType )
+            return DataType.TUPLE;
+
         return DataType.BYTEARRAY;
     }
 

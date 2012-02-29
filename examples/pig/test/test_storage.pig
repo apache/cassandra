@@ -47,3 +47,24 @@ CC = load 'cassandra://PigTest/CC' using CassandraStorage();
 total_hits = foreach CC generate key, SUM(columns.value);
 
 dump total_hits;
+
+--
+--  Test CompositeType
+--
+
+compo = load 'cassandra://PigTest/Compo' using CassandraStorage();
+
+compo = foreach compo generate key as method, flatten(columns);
+
+lee = filter compo by columns::name == ('bruce','lee');
+
+dump lee;
+
+night = load 'cassandra://PigTest/CompoInt' using CassandraStorage();
+night = foreach night generate flatten(columns);
+night = foreach night generate (int)columns::name.$0+(double)columns::name.$1/60 as hour, columns::value as noise;
+
+-- What happens at the darkest hour?
+darkest = filter night by hour > 2 and hour < 5;
+
+dump darkest;
