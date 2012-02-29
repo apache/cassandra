@@ -19,11 +19,14 @@
 package org.apache.cassandra.io.util;
 
 import java.io.DataOutputStream;
+import java.io.IOException;
 
 
 /**
- * An implementation of the DataOutputStream interface. This class is completely thread
- * unsafe.
+ * An implementation of the DataOutputStream interface using a FastByteArrayOutputStream and exposing
+ * its buffer so copies can be avoided.
+ *
+ * This class is completely thread unsafe.
  */
 public final class DataOutputBuffer extends DataOutputStream
 {
@@ -34,12 +37,33 @@ public final class DataOutputBuffer extends DataOutputStream
 
     public DataOutputBuffer(int size)
     {
-        super(new OutputBuffer(size));
+        super(new FastByteArrayOutputStream(size));
     }
 
-    private OutputBuffer buffer()
+    @Override
+    public void write(int b)
     {
-        return (OutputBuffer)out;
+        try
+        {
+            super.write(b);
+        }
+        catch (IOException e)
+        {
+            throw new AssertionError(e); // FBOS does not throw IOE
+        }
+    }
+
+    @Override
+    public void write(byte[] b, int off, int len)
+    {
+        try
+        {
+            super.write(b, off, len);
+        }
+        catch (IOException e)
+        {
+            throw new AssertionError(e); // FBOS does not throw IOE
+        }
     }
 
     /**
@@ -48,20 +72,12 @@ public final class DataOutputBuffer extends DataOutputStream
      */
     public byte[] getData()
     {
-        return buffer().getData();
+        return ((FastByteArrayOutputStream) out).buf;
     }
 
     /** Returns the length of the valid data currently in the buffer. */
     public int getLength()
     {
-        return buffer().getLength();
-    }
-
-    /** Resets the buffer to empty. */
-    public DataOutputBuffer reset()
-    {
-        this.written = 0;
-        buffer().reset();
-        return this;
+        return ((FastByteArrayOutputStream) out).count;
     }
 }
