@@ -86,3 +86,23 @@ incr CC['chuck']['kick'];
 incr CC['chuck']['kick'];
 incr CC['chuck']['kick'];
 incr CC['chuck']['fist'];
+
+create column family Compo
+    with key_validation_class = UTF8Type
+    and default_validation_class = UTF8Type
+    and comparator = 'CompositeType(UTF8Type,UTF8Type)';
+
+set Compo['punch']['bruce:lee'] = 'ouch';
+set Compo['punch']['bruce:bruce'] = 'hunh?';
+set Compo['kick']['bruce:lee'] = 'oww';
+set Compo['kick']['bruce:bruce'] = 'watch it, mate';
+
+create column family CompoInt
+    with key_validation_class = UTF8Type
+    and default_validation_class = UTF8Type
+    and comparator = 'CompositeType(LongType,LongType)';
+
+set CompoInt['clock']['1:0'] = 'z';
+set CompoInt['clock']['1:30'] = 'zzzz';
+set CompoInt['clock']['2:30'] = 'daddy?';
+set CompoInt['clock']['6:30'] = 'coffee...';
