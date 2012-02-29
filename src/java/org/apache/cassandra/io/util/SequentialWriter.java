@@ -214,7 +214,7 @@ public class SequentialWriter extends OutputStream
                 // periodically we update this starting offset
                 bytesSinceCacheFlush += validBufferBytes;
 
-                if (bytesSinceCacheFlush >= RandomAccessReader.MAX_BYTES_IN_PAGE_CACHE)
+                if (bytesSinceCacheFlush >= RandomAccessReader.CACHE_FLUSH_INTERVAL_IN_BYTES)
                 {
                     CLibrary.trySkipCache(this.fd, ioCacheStartOffset, 0);
                     ioCacheStartOffset = bufferOffset;
