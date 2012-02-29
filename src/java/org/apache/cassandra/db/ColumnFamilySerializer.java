@@ -119,7 +119,7 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
         // create a ColumnFamily based on the cf id
         int cfId = dis.readInt();
         if (Schema.instance.getCF(cfId) == null)
-            throw new UnserializableColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
+            throw new UnknownColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
         ColumnFamily cf = ColumnFamily.create(cfId, factory);
         deserializeFromSSTableNoColumns(cf, dis);
         deserializeColumns(dis, cf, flag);
