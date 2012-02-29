@@ -345,7 +345,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 }
                 catch (UnknownColumnFamilyException e)
                 {
-                    logger_.debug("Skipping delivery of hint for deleted columnfamily", e);
+                    logger.debug("Skipping delivery of hint for deleted columnfamily", e);
                     rm = null;
                 }
 
