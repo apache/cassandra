@@ -3,6 +3,8 @@
  * delete hints from dropped ColumnFamilies on handoff instead of
    erroring out (CASSANDRA-3975)
  * add CompositeType ref to the CLI doc for create/update column family (CASSANDRA-3980)
+ * Pig: support Counter ColumnFamilies (CASSANDRA-3973)
+ * Pig: Composite column support (CASSANDRA-384)
 
 
 1.0.8
