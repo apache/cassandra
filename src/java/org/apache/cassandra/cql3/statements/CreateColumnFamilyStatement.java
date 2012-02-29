@@ -105,7 +105,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
             newCFMD.comment(properties.get(CFPropDefs.KW_COMMENT))
                    .readRepairChance(properties.getDouble(CFPropDefs.KW_READREPAIRCHANCE, CFMetaData.DEFAULT_READ_REPAIR_CHANCE))
-                   .dclocalReadRepairChance(properties.getDouble(CFPropDefs.KW_DCLOCALREADREPAIRCHANCE, CFMetaData.DEFAULT_DCLOCAL_READ_REPAIR_CHANCE))
+                   .dcLocalReadRepairChance(properties.getDouble(CFPropDefs.KW_DCLOCALREADREPAIRCHANCE, CFMetaData.DEFAULT_DCLOCAL_READ_REPAIR_CHANCE))
                    .replicateOnWrite(properties.getBoolean(CFPropDefs.KW_REPLICATEONWRITE, CFMetaData.DEFAULT_REPLICATE_ON_WRITE))
                    .gcGraceSeconds(properties.getInt(CFPropDefs.KW_GCGRACESECONDS, CFMetaData.DEFAULT_GC_GRACE_SECONDS))
                    .defaultValidator(defaultValidator)

@@ -85,4 +85,9 @@ public class DeletedColumn extends Column
         if (getLocalDeletionTime() < 0)
             throw new MarshalException("The local deletion time should not be negative");
     }
+
+    public static DeletedColumn create(int localDeletionTime, long timestamp, String... names)
+    {
+        return new DeletedColumn(decomposeName(names), localDeletionTime, timestamp);
+    }
 }

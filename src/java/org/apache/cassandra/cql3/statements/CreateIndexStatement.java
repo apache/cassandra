@@ -90,7 +90,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
             CFMetaData.addDefaultIndexNames(cf_def);
             ThriftValidation.validateCfDef(cf_def, oldCfm);
-            return new UpdateColumnFamily(cf_def);
+            return new UpdateColumnFamily(CFMetaData.fromThrift(cf_def));
         }
         catch (InvalidRequestException e)
         {

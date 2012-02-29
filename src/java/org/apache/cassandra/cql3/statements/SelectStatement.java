@@ -155,13 +155,24 @@ public class SelectStatement implements CQLStatement
         else
         {
             // otherwise create resultset from query results
-            result.schema = new CqlMetadata(new HashMap<ByteBuffer, String>(),
-                    new HashMap<ByteBuffer, String>(),
-                    TypeParser.getShortName(cfDef.cfm.comparator),
-                    TypeParser.getShortName(cfDef.cfm.getDefaultValidator()));
+            result.schema = createSchema();
             result.rows = process(rows, result.schema, variables);
             return result;
         }
+    }
+
+    public List<CqlRow> process(List<Row> rows) throws InvalidRequestException
+    {
+        assert !parameters.isCount; // not yet needed
+        return process(rows, createSchema(), Collections.<ByteBuffer>emptyList());
+    }
+
+    private CqlMetadata createSchema()
+    {
+        return new CqlMetadata(new HashMap<ByteBuffer, String>(),
+                               new HashMap<ByteBuffer, String>(),
+                               TypeParser.getShortName(cfDef.cfm.comparator),
+                               TypeParser.getShortName(cfDef.cfm.getDefaultValidator()));
     }
 
     public String keyspace()

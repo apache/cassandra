@@ -14,6 +14,8 @@ by version X, but the inverse is not necessarily the case.)
 
 Upgrading
 ---------
+    - Non-string column aliases are no longer supported; that is, the
+      column names for defined metadata must be strings.
     - The KsDef.replication_factor field (deprecated since 0.8) has
       been removed.  Older clients will need to be updated to be able
       to continue to created and update keyspaces.

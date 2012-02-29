@@ -121,6 +121,35 @@ public class QueryProcessor
         return processStatement(getStatement(queryString, clientState).statement, clientState, Collections.<ByteBuffer>emptyList());
     }
 
+    public static UntypedResultSet resultify(String queryString, Row row)
+    {
+        SelectStatement ss;
+        try
+        {
+            ss = (SelectStatement) getStatement(queryString, null).statement;
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (RecognitionException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        List<CqlRow> cqlRows;
+        try
+        {
+            cqlRows = ss.process(Collections.singletonList(row));
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        return new UntypedResultSet(cqlRows);
+    }
+
     public static CqlPreparedResult prepare(String queryString, ClientState clientState)
     throws RecognitionException, InvalidRequestException
     {

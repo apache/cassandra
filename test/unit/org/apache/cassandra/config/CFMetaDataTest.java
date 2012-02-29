@@ -24,14 +24,19 @@ import java.util.HashMap;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.compress.*;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
@@ -40,6 +45,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+
+import java.util.Map;
+import java.nio.ByteBuffer;
 
 public class CFMetaDataTest extends CleanupHelper
 {
@@ -117,6 +125,8 @@ public class CFMetaDataTest extends CleanupHelper
 
     private void checkInverses(CFMetaData cfm) throws Exception
     {
+        DecoratedKey k = StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(cfm.ksName));
+
         // Test thrift conversion
         assert cfm.equals(CFMetaData.fromThrift(cfm.toThrift())) : String.format("\n%s\n!=\n%s", cfm, CFMetaData.fromThrift(cfm.toThrift()));
 
@@ -124,7 +134,8 @@ public class CFMetaDataTest extends CleanupHelper
         RowMutation rm = cfm.toSchema(System.currentTimeMillis());
         ColumnFamily serializedCf = rm.getColumnFamily(Schema.instance.getId(Table.SYSTEM_TABLE, SystemTable.SCHEMA_COLUMNFAMILIES_CF));
         ColumnFamily serializedCD = rm.getColumnFamily(Schema.instance.getId(Table.SYSTEM_TABLE, SystemTable.SCHEMA_COLUMNS_CF));
-        CfDef cfDef = CFMetaData.addColumnDefinitionSchema(CFMetaData.fromSchema(serializedCf), serializedCD);
-        assert cfm.equals(CFMetaData.fromThrift(cfDef)) : String.format("\n%s\n!=\n%s", cfm, CFMetaData.fromThrift(cfDef));
+        UntypedResultSet.Row result = QueryProcessor.resultify("SELECT * FROM system.schema_columnfamilies", new Row(k, serializedCf)).one();
+        CFMetaData newCfm = CFMetaData.addColumnDefinitionSchema(CFMetaData.fromSchemaNoColumns(result), new Row(k, serializedCD));
+        assert cfm.equals(newCfm) : String.format("\n%s\n!=\n%s", cfm, newCfm);
     }
 }

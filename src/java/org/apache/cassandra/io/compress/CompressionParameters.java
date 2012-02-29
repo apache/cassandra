@@ -196,21 +196,6 @@ public class CompressionParameters
             throw new ConfigurationException("crc_check_chance should be between 0.0 to 1.0");
     }
 
-    public Map<CharSequence, CharSequence> asAvroOptions()
-    {
-        Map<CharSequence, CharSequence> options = new HashMap<CharSequence, CharSequence>();
-        for (Map.Entry<String, String> entry : otherOptions.entrySet())
-            options.put(new Utf8(entry.getKey()), new Utf8(entry.getValue()));
-
-        if (sstableCompressor == null)
-            return options;
-
-        options.put(new Utf8(SSTABLE_COMPRESSION), new Utf8(sstableCompressor.getClass().getName()));
-        if (chunkLength != null)
-            options.put(new Utf8(CHUNK_LENGTH_KB), new Utf8(chunkLengthInKB()));
-        return options;
-    }
-
     public Map<String, String> asThriftOptions()
     {
         Map<String, String> options = new HashMap<String, String>(otherOptions);

@@ -25,6 +25,8 @@ import com.google.common.base.Objects;
 import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang.StringUtils;
 
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -37,6 +39,7 @@ import org.apache.cassandra.thrift.KsDef;
 import org.apache.cassandra.thrift.ColumnDef;
 
 import static org.apache.cassandra.db.migration.MigrationHelper.*;
+import static org.apache.cassandra.utils.FBUtilities.*;
 
 public final class KSMetaData
 {
@@ -46,7 +49,7 @@ public final class KSMetaData
     private final Map<String, CFMetaData> cfMetaData;
     public final boolean durableWrites;
 
-    private KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, boolean durableWrites, Iterable<CFMetaData> cfDefs)
+    KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, boolean durableWrites, Iterable<CFMetaData> cfDefs)
     {
         this.name = name;
         this.strategyClass = strategyClass == null ? NetworkTopologyStrategy.class : strategyClass;
@@ -124,47 +127,6 @@ public final class KSMetaData
         return sb.toString();
     }
 
-    @Deprecated
-    public static KSMetaData fromAvro(org.apache.cassandra.db.migration.avro.KsDef ks)
-    {
-        Class<? extends AbstractReplicationStrategy> repStratClass;
-        try
-        {
-            String strategyClassName = convertOldStrategyName(ks.strategy_class.toString());
-            repStratClass = (Class<AbstractReplicationStrategy>)Class.forName(strategyClassName);
-        }
-        catch (Exception ex)
-        {
-            throw new RuntimeException("Could not create ReplicationStrategy of type " + ks.strategy_class, ex);
-        }
-
-        Map<String, String> strategyOptions = new HashMap<String, String>();
-        if (ks.strategy_options != null)
-        {
-            for (Map.Entry<CharSequence, CharSequence> e : ks.strategy_options.entrySet())
-            {
-                String name = e.getKey().toString();
-                // Silently discard a replication_factor option to NTS.
-                // The history is, people were creating CFs with the default settings (which in the CLI is NTS) and then
-                // giving it a replication_factor option, which is nonsensical.  Initially our strategy was to silently
-                // ignore this option, but that turned out to confuse people more.  So in 0.8.2 we switched to throwing
-                // an exception in the NTS constructor, which would be turned into an InvalidRequestException for the
-                // client.  But, it also prevented startup for anyone upgrading without first cleaning that option out.
-                if (repStratClass == NetworkTopologyStrategy.class && name.trim().toLowerCase().equals("replication_factor"))
-                    continue;
-                strategyOptions.put(name, e.getValue().toString());
-            }
-        }
-
-        int cfsz = ks.cf_defs.size();
-        List<CFMetaData> cfMetaData = new ArrayList<CFMetaData>(cfsz);
-        Iterator<org.apache.cassandra.db.migration.avro.CfDef> cfiter = ks.cf_defs.iterator();
-        for (int i = 0; i < cfsz; i++)
-            cfMetaData.add(CFMetaData.fromAvro(cfiter.next()));
-
-        return new KSMetaData(ks.name.toString(), repStratClass, strategyOptions, ks.durable_writes, cfMetaData);
-    }
-
     public static String convertOldStrategyName(String name)
     {
         return name.replace("RackUnawareStrategy", "SimpleStrategy")
@@ -199,209 +161,115 @@ public final class KSMetaData
         return ksdef;
     }
 
-    public RowMutation diff(KsDef newState, long modificationTimestamp)
+    public RowMutation diff(KSMetaData newState, long modificationTimestamp)
     {
-        KsDef curState = toThrift();
-        RowMutation m = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(name));
-
-        for (KsDef._Fields field : KsDef._Fields.values())
-        {
-            if (field.equals(KsDef._Fields.CF_DEFS))
-                continue;
-
-            Object curValue = curState.getFieldValue(field);
-            Object newValue = newState.getFieldValue(field);
-
-            if (Objects.equal(curValue, newValue))
-                continue;
-
-            m.add(new QueryPath(SystemTable.SCHEMA_KEYSPACES_CF, null, AsciiType.instance.fromString(field.getFieldName())),
-                  valueAsBytes(newValue),
-                  modificationTimestamp);
-        }
-
-        return m;
+        return newState.toSchema(modificationTimestamp);
     }
 
     public KSMetaData reloadAttributes() throws IOException
     {
         Row ksDefRow = SystemTable.readSchemaRow(name);
 
-        if (ksDefRow.cf == null || ksDefRow.cf.isEmpty())
+        if (ksDefRow.cf == null)
             throw new IOException(String.format("%s not found in the schema definitions table (%s).", name, SystemTable.SCHEMA_KEYSPACES_CF));
 
-        return fromSchema(ksDefRow.cf, null);
+        return fromSchema(ksDefRow, Collections.<CFMetaData>emptyList());
     }
 
-    public List<RowMutation> dropFromSchema(long timestamp)
+    public RowMutation dropFromSchema(long timestamp)
     {
-        List<RowMutation> mutations = new ArrayList<RowMutation>();
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(name));
+        rm.delete(new QueryPath(SystemTable.SCHEMA_KEYSPACES_CF), timestamp);
+        rm.delete(new QueryPath(SystemTable.SCHEMA_COLUMNFAMILIES_CF), timestamp);
+        rm.delete(new QueryPath(SystemTable.SCHEMA_COLUMNS_CF), timestamp);
 
-        RowMutation ksMutation = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(name));
-        ksMutation.delete(new QueryPath(SystemTable.SCHEMA_KEYSPACES_CF), timestamp);
-        mutations.add(ksMutation);
+        return rm;
+    }
+
+    public RowMutation toSchema(long timestamp)
+    {
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(name));
+        ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_KEYSPACES_CF);
+
+        cf.addColumn(Column.create(name, timestamp, "name"));
+        cf.addColumn(Column.create(durableWrites, timestamp, "durable_writes"));
+        cf.addColumn(Column.create(strategyClass.getName(), timestamp, "strategy_class"));
+        cf.addColumn(Column.create(json(strategyOptions), timestamp, "strategy_options"));
 
         for (CFMetaData cfm : cfMetaData.values())
-            mutations.add(cfm.dropFromSchema(timestamp));
+            cfm.toSchema(rm, timestamp);
 
-        return mutations;
-    }
-
-    public static RowMutation toSchema(KsDef ksDef, long timestamp) throws IOException
-    {
-        RowMutation mutation = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(ksDef.name));
-
-        for (KsDef._Fields field : KsDef._Fields.values())
-        {
-            if (field.equals(KsDef._Fields.CF_DEFS))
-                continue;
-
-            mutation.add(new QueryPath(SystemTable.SCHEMA_KEYSPACES_CF,
-                                       null,
-                                       AsciiType.instance.fromString(field.getFieldName())),
-                         valueAsBytes(ksDef.getFieldValue(field)),
-                         timestamp);
-        }
-
-        if (!ksDef.isSetCf_defs())
-            return mutation;
-
-        for (CfDef cf : ksDef.cf_defs)
-        {
-            try
-            {
-                CFMetaData.toSchema(mutation, cf, timestamp);
-            }
-            catch (ConfigurationException e)
-            {
-                throw new IOException(e);
-            }
-        }
-
-        return mutation;
-    }
-
-    public RowMutation toSchema(long timestamp) throws IOException
-    {
-        return toSchema(toThrift(), timestamp);
+        return rm;
     }
 
     /**
      * Deserialize only Keyspace attributes without nested ColumnFamilies
      *
-     * @param serializedKsDef Keyspace attributes in serialized form
+     * @param row Keyspace attributes in serialized form
      *
      * @return deserialized keyspace without cf_defs
      *
      * @throws IOException if deserialization failed
      */
-    public static KsDef fromSchema(ColumnFamily serializedKsDef) throws IOException
+    public static KSMetaData fromSchema(Row row, Iterable<CFMetaData> cfms) throws IOException
     {
-        KsDef ksDef = new KsDef();
-
-        AbstractType comparator = serializedKsDef.getComparator();
-
-        for (IColumn ksAttr : serializedKsDef.getSortedColumns())
+        UntypedResultSet.Row result = QueryProcessor.resultify("SELECT * FROM system.schema_keyspaces", row).one();
+        try
         {
-            if (ksAttr == null || ksAttr.isMarkedForDelete())
-                continue;
-
-            KsDef._Fields field = KsDef._Fields.findByName(comparator.getString(ksAttr.name()));
-
-            // this means that given field was deprecated
-            // but still exists in the serialized schema
-            if (field == null)
-                continue;
-
-            ksDef.setFieldValue(field, deserializeValue(ksAttr.value(), getValueClass(KsDef.class, field.getFieldName())));
+            return new KSMetaData(result.getString("name"),
+                                  AbstractReplicationStrategy.getClass(result.getString("strategy_class")),
+                                  fromJsonMap(result.getString("strategy_options")),
+                                  result.getBoolean("durable_writes"),
+                                  cfms);
         }
-
-        return ksDef.name == null ? null : ksDef;
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
      * Deserialize Keyspace with nested ColumnFamilies
      *
-     * @param serializedKsDef Keyspace in serialized form
+     * @param serializedKs Keyspace in serialized form
      * @param serializedCFs Collection of the serialized ColumnFamilies
      *
      * @return deserialized keyspace with cf_defs
      *
      * @throws IOException if deserialization failed
      */
-    public static KSMetaData fromSchema(ColumnFamily serializedKsDef, ColumnFamily serializedCFs) throws IOException
+    public static KSMetaData fromSchema(Row serializedKs, Row serializedCFs) throws IOException
     {
-        KsDef ksDef = fromSchema(serializedKsDef);
-
-        assert ksDef != null;
-
-        Map<String, CfDef> cfs = deserializeColumnFamilies(serializedCFs);
-
-        try
-        {
-            CFMetaData[] cfms = new CFMetaData[cfs.size()];
-
-            int index = 0;
-            for (CfDef cfDef : cfs.values())
-                cfms[index++] = CFMetaData.fromThrift(cfDef);
-
-            return fromThrift(ksDef, cfms);
-        }
-        catch (Exception e)
-        {
-            // this is critical because indicates that something is wrong with serialized schema
-            throw new IOException(e);
-        }
+        Map<String, CFMetaData> cfs = deserializeColumnFamilies(serializedCFs);
+        return fromSchema(serializedKs, cfs.values());
     }
 
     /**
      * Deserialize ColumnFamilies from low-level schema representation, all of them belong to the same keyspace
      *
-     * @param serializedColumnFamilies ColumnFamilies in the serialized form
-     *
+     * @param row
      * @return map containing name of the ColumnFamily and it's metadata for faster lookup
      */
-    public static Map<String, CfDef> deserializeColumnFamilies(ColumnFamily serializedColumnFamilies)
+    public static Map<String, CFMetaData> deserializeColumnFamilies(Row row)
     {
-        Map<String, CfDef> cfs = new HashMap<String, CfDef>();
+        if (row.cf == null)
+            return Collections.emptyMap();
 
-        if (serializedColumnFamilies == null)
-            return cfs;
-
-        AbstractType<?> comparator = serializedColumnFamilies.getComparator();
-
-        for (IColumn column : serializedColumnFamilies.getSortedColumns())
+        Map<String, CFMetaData> cfms = new HashMap<String, CFMetaData>();
+        UntypedResultSet results = QueryProcessor.resultify("SELECT * FROM system.schema_columnfamilies", row);
+        for (UntypedResultSet.Row result : results)
         {
-            if (column == null || column.isMarkedForDelete())
-                continue;
-
-            String[] attr = comparator.getString(column.name()).split(":");
-            assert attr.length == 2;
-
-            CfDef cfDef = cfs.get(attr[0]);
-
-            if (cfDef == null)
-            {
-                cfDef = new CfDef();
-                cfs.put(attr[0], cfDef);
-            }
-
-            CfDef._Fields field = CfDef._Fields.findByName(attr[1]);
-
-            // this means that given field was deprecated
-            // but still exists in the serialized schema
-            if (field == null)
-                continue;
-
-            cfDef.setFieldValue(field, deserializeValue(column.value(), getValueClass(CfDef.class, field.getFieldName())));
+            CFMetaData cfm = CFMetaData.fromSchema(result);
+            cfms.put(cfm.cfName, cfm);
         }
 
-        for (CfDef cfDef : cfs.values())
+        for (CFMetaData cfm : cfms.values())
         {
-            for (ColumnDef columnDef : ColumnDefinition.fromSchema(ColumnDefinition.readSchema(cfDef.keyspace, cfDef.name)))
-                cfDef.addToColumn_metadata(columnDef);
+            Row columnRow = ColumnDefinition.readSchema(cfm.ksName, cfm.cfName);
+            for (ColumnDefinition cd : ColumnDefinition.fromSchema(columnRow, cfm.comparator))
+                cfm.column_metadata.put(cd.name, cd);
         }
 
-        return cfs;
+        return cfms;
     }
 }

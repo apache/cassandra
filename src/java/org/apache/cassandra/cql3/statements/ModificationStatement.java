@@ -64,7 +64,6 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
         state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.WRITE);
     }
 
-    @Override
     public void validate(ClientState state) throws InvalidRequestException
     {
         if (timeToLive < 0)

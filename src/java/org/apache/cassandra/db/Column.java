@@ -21,14 +21,15 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -284,6 +285,49 @@ public class Column implements IColumn
     public boolean hasExpiredTombstones(int gcBefore)
     {
         return getLocalDeletionTime() < gcBefore;
+    }
+
+    public static Column create(String value, long timestamp, String... names)
+    {
+        return new Column(decomposeName(names), UTF8Type.instance.decompose(value), timestamp);
+    }
+
+    public static Column create(int value, long timestamp, String... names)
+    {
+        return new Column(decomposeName(names), Int32Type.instance.decompose(value), timestamp);
+    }
+
+    public static Column create(boolean value, long timestamp, String... names)
+    {
+        return new Column(decomposeName(names), BooleanType.instance.decompose(value), timestamp);
+    }
+
+    public static Column create(double value, long timestamp, String... names)
+    {
+        return new Column(decomposeName(names), DoubleType.instance.decompose(value), timestamp);
+    }
+
+    public static Column create(ByteBuffer value, long timestamp, String... names)
+    {
+        return new Column(decomposeName(names), value, timestamp);
+    }
+
+    static ByteBuffer decomposeName(String... names)
+    {
+        assert names.length > 0;
+
+        if (names.length == 1)
+            return UTF8Type.instance.decompose(names[0]);
+
+        // not super performant.  at this time, only infrequently called schema code uses this.
+        List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(names.length);
+        for (int i = 0; i < names.length; i++)
+            types.add(UTF8Type.instance);
+
+        CompositeType.Builder builder = new CompositeType.Builder(CompositeType.getInstance(types));
+        for (String name : names)
+            builder.add(UTF8Type.instance.decompose(name));
+        return builder.build();
     }
 }
 
