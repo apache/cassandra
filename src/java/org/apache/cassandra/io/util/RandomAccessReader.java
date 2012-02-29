@@ -29,7 +29,7 @@ import org.apache.cassandra.utils.CLibrary;
 
 public class RandomAccessReader extends RandomAccessFile implements FileDataInput
 {
-    public static final long MAX_BYTES_IN_PAGE_CACHE = (long) Math.pow(2, 27); // 128mb
+    public static final long CACHE_FLUSH_INTERVAL_IN_BYTES = (long) Math.pow(2, 27); // 128mb
 
     // default buffer size, 64Kb
     public static final int DEFAULT_BUFFER_SIZE = 65536;
@@ -134,7 +134,7 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
 
         bytesSinceCacheFlush += read;
 
-        if (skipIOCache && bytesSinceCacheFlush >= MAX_BYTES_IN_PAGE_CACHE)
+        if (skipIOCache && bytesSinceCacheFlush >= CACHE_FLUSH_INTERVAL_IN_BYTES)
         {
             // with random I/O we can't control what we are skipping so
             // it will be more appropriate to just skip a whole file after
