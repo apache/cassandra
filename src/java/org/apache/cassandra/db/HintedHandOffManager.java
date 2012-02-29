@@ -339,13 +339,25 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 assert keyColumn != null;
                 assert mutationColumn != null;
                 DataInputStream in = new DataInputStream(ByteBufferUtil.inputStream(mutationColumn.value()));
-                RowMutation rm = RowMutation.serializer().deserialize(in, ByteBufferUtil.toInt(versionColumn.value()));
+                RowMutation rm;
+                try
+                {
+                    rm = RowMutation.serializer().deserialize(in, ByteBufferUtil.toInt(versionColumn.value()));
+                }
+                catch (UnknownColumnFamilyException e)
+                {
+                    logger_.debug("Skipping delivery of hint for deleted columnfamily", e);
+                    rm = null;
+                }
 
                 try
                 {
-                    sendMutation(endpoint, rm);
+                    if (rm != null)
+                    {
+                        sendMutation(endpoint, rm);
+                        rowsReplayed++;
+                    }
                     deleteHint(tokenBytes, hint.name(), hint.maxTimestamp());
-                    rowsReplayed++;
                 }
                 catch (TimeoutException e)
                 {

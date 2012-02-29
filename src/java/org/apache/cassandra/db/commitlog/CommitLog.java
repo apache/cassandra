@@ -269,7 +269,7 @@ public class CommitLog implements CommitLogMBean
                         // the current version.  so do make sure the CL is drained prior to upgrading a node.
                         rm = RowMutation.serializer().deserialize(new DataInputStream(bufIn), MessagingService.version_, IColumnSerializer.Flag.LOCAL);
                     }
-                    catch (UnserializableColumnFamilyException ex)
+                    catch (UnknownColumnFamilyException ex)
                     {
                         AtomicInteger i = invalidMutations.get(ex.cfId);
                         if (i == null)
