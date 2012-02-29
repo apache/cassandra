@@ -227,6 +227,14 @@ memtable_flush_queue_size: 4
 # Increase this to the size of the column slices you typically perform
 sliced_buffer_size_in_kb: 64
 
+# Whether to, when doing sequential writing, fsync() at intervals in
+# order to force the operating system to flush the dirty
+# buffers. Enable this to avoid sudden dirty buffer flushing from
+# impacting read latencies. Almost always a good idea on SSD:s; not
+# necessarily on platters.
+trickle_fsync: false
+trickle_fsync_interval_in_kb: 10240
+
 # TCP port, for commands and data
 storage_port: 7000
 
