@@ -141,6 +141,38 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         return sb.toString();
     }
 
+    public static class CompositeComponent
+    {
+        public AbstractType comparator;
+        public ByteBuffer   value;
+
+        public CompositeComponent( AbstractType comparator, ByteBuffer value )
+        {
+            this.comparator = comparator;
+            this.value      = value;
+        }
+    }
+
+    public List<CompositeComponent> deconstruct( ByteBuffer bytes )
+    {
+        List<CompositeComponent> list = new ArrayList<CompositeComponent>();
+
+        ByteBuffer bb = bytes.duplicate();
+        int i = 0;
+
+        while (bb.remaining() > 0)
+        {
+            AbstractType comparator = getNextComparator(i, bb);
+            ByteBuffer value = getWithShortLength(bb);
+
+            list.add( new CompositeComponent(comparator,value) );
+
+            byte b = bb.get(); // Ignore; not relevant here
+            ++i;
+        }
+        return list;
+    }
+
     /*
      * FIXME: this would break if some of the component string representation
      * contains ':'. None of our current comparator do so, so this is probably

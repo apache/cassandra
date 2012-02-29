@@ -5,9 +5,9 @@
  * licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.TypeParser;
@@ -35,6 +36,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractCompositeType.CompositeComponent;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.thrift.Deletion;
@@ -100,7 +102,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         this.limit = limit;
     }
 
-    public int getLimit() 
+    public int getLimit()
     {
         return limit;
     }
@@ -155,13 +157,37 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
     }
 
+    /**
+     *  Deconstructs a composite type to a Tuple.
+     */
+    private Tuple composeComposite( AbstractCompositeType comparator, ByteBuffer name ) throws IOException
+    {
+        List<CompositeComponent> result = comparator.deconstruct( name );
+
+        Tuple t = TupleFactory.getInstance().newTuple( result.size() );
+
+        for( int i = 0; i < result.size(); i++ )
+        {
+            setTupleValue( t, i, result.get(i).comparator.compose( result.get(i).value ) );
+        }
+
+        return t;
+    }
+
     private Tuple columnToTuple(IColumn col, CfDef cfDef, AbstractType comparator) throws IOException
     {
         Tuple pair = TupleFactory.getInstance().newTuple(2);
         List<AbstractType> marshallers = getDefaultMarshallers(cfDef);
         Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
 
-        setTupleValue(pair, 0, comparator.compose(col.name()));
+        if( comparator instanceof AbstractCompositeType )
+        {
+            setTupleValue(pair, 0, composeComposite((AbstractCompositeType)comparator,col.name()));
+        }
+        else
+        {
+            setTupleValue(pair, 0, comparator.compose(col.name()));
+        }
         if (col instanceof Column)
         {
             // standard
@@ -321,15 +347,15 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     {
         if (System.getenv(PIG_RPC_PORT) != null)
             ConfigHelper.setRpcPort(conf, System.getenv(PIG_RPC_PORT));
-        else if (ConfigHelper.getRpcPort(conf) == 0) 
+        else if (ConfigHelper.getRpcPort(conf) == 0)
             throw new IOException("PIG_RPC_PORT environment variable not set");
         if (System.getenv(PIG_INITIAL_ADDRESS) != null)
             ConfigHelper.setInitialAddress(conf, System.getenv(PIG_INITIAL_ADDRESS));
-        else if (ConfigHelper.getInitialAddress(conf) == null) 
+        else if (ConfigHelper.getInitialAddress(conf) == null)
             throw new IOException("PIG_INITIAL_ADDRESS environment variable not set");
         if (System.getenv(PIG_PARTITIONER) != null)
             ConfigHelper.setPartitioner(conf, System.getenv(PIG_PARTITIONER));
-        else if (ConfigHelper.getPartitioner(conf) == null) 
+        else if (ConfigHelper.getPartitioner(conf) == null)
             throw new IOException("PIG_PARTITIONER environment variable not set");
         if (System.getenv(PIG_ALLOW_DELETES) != null)
             allow_deletes = Boolean.valueOf(System.getenv(PIG_ALLOW_DELETES));
@@ -449,6 +475,9 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             return DataType.FLOAT;
         else if (type instanceof DoubleType)
             return DataType.DOUBLE;
+        else if (type instanceof AbstractCompositeType )
+            return DataType.TUPLE;
+
         return DataType.BYTEARRAY;
     }
 
