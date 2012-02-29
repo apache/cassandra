@@ -366,6 +366,8 @@ commands:
                 - LexicalUUIDType
                 - LongType
                 - UTF8Type
+                - CompositeType (should be used with sub-types specified e.g. 'CompositeType(UTF8Type, Int32Type)'
+                  quotes are important (!) in this case)
 
               It is also valid to specify the fully-qualified class name to a class
               that extends org.apache.Cassandra.db.marshal.AbstractType.
@@ -408,6 +410,8 @@ commands:
             - LexicalUUIDType
             - LongType
             - UTF8Type
+            - CompositeType (should be used with sub-types specified e.g. 'CompositeType(UTF8Type, Int32Type)'
+              quotes are important (!) in this case)
 
           It is also valid to specify the fully-qualified class name to a class that
           extends org.apache.Cassandra.db.marshal.AbstractType.
@@ -425,6 +429,8 @@ commands:
             - LexicalUUIDType
             - LongType
             - UTF8Type
+            - CompositeType (should be used with sub-types specified e.g. 'CompositeType(UTF8Type, Int32Type)'
+              quotes are important (!) in this case)
 
           It is also valid to specify the fully-qualified class name to a class that
           extends org.apache.Cassandra.db.marshal.AbstractType.
@@ -626,6 +632,8 @@ commands:
                 - LexicalUUIDType
                 - LongType
                 - UTF8Type
+                - CompositeType (should be used with sub-types specified e.g. 'CompositeType(UTF8Type, Int32Type)'
+                  quotes are important (!) in this case)
 
               It is also valid to specify the fully-qualified class name to a class
               that extends org.apache.Cassandra.db.marshal.AbstractType.
@@ -672,6 +680,8 @@ commands:
             - LexicalUUIDType
             - LongType
             - UTF8Type
+            - CompositeType (should be used with sub-types specified e.g. 'CompositeType(UTF8Type, Int32Type)'
+              quotes are important (!) in this case)
 
           It is also valid to specify the fully-qualified class name to a class that
           extends org.apache.Cassandra.db.marshal.AbstractType.
@@ -689,6 +699,8 @@ commands:
             - LexicalUUIDType
             - LongType
             - UTF8Type
+            - CompositeType (should be used with sub-types specified e.g. 'CompositeType(UTF8Type, Int32Type)'
+              quotes are important (!) in this case)
 
           It is also valid to specify the fully-qualified class name to a class that
           extends org.apache.Cassandra.db.marshal.AbstractType.

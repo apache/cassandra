@@ -2,6 +2,7 @@
  * always compact away deleted hints immediately after handoff (CASSANDRA-3955)
  * delete hints from dropped ColumnFamilies on handoff instead of
    erroring out (CASSANDRA-3975)
+ * add CompositeType ref to the CLI doc for create/update column family (CASSANDRA-3980)
 
 
 1.0.8
