@@ -21,6 +21,7 @@
  * reincarnate removed and deprecated KsDef/CfDef attributes (CASSANDRA-3953)
  * Fix race between writes and read for cache (CASSANDRA-3862)
  * perform static initialization of StorageProxy on start-up (CASSANDRA-3797)
+ * support trickling fsync() on writes (CASSANDRA-3950)
 Merged from 1.0:
  * remove the wait on hint future during write (CASSANDRA-3870)
  * (cqlsh) ignore missing CfDef opts (CASSANDRA-3933)

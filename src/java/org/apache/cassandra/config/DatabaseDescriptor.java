@@ -980,6 +980,16 @@ public class DatabaseDescriptor
         return conf.commitlog_total_space_in_mb;
     }
 
+    public static boolean getTrickleFsync()
+    {
+        return conf.trickle_fsync;
+    }
+
+    public static int getTrickleFsyncIntervalInKb()
+    {
+        return conf.trickle_fsync_interval_in_kb;
+    }
+
     public static int getKeyCacheSizeInMB()
     {
         return conf.key_cache_size_in_mb;

@@ -120,6 +120,8 @@ public class Config
 
     public boolean incremental_backups = false;
     public int memtable_flush_queue_size = 4;
+    public boolean trickle_fsync = false;
+    public int trickle_fsync_interval_in_kb = 10240;
 
     public int key_cache_size_in_mb = 2;
     public int key_cache_save_period = 14400;

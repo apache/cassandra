@@ -22,6 +22,7 @@ import java.nio.channels.ClosedChannelException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.CLibrary;
 
 public class SequentialWriter extends OutputStream
@@ -50,6 +51,12 @@ public class SequentialWriter extends OutputStream
     // used if skip I/O cache was enabled
     private long ioCacheStartOffset = 0, bytesSinceCacheFlush = 0;
 
+    // whether to do trickling fsync() to avoid sudden bursts of dirty buffer flushing by kernel causing read
+    // latency spikes
+    private boolean trickleFsync;
+    private int trickleFsyncByteInterval;
+    private int bytesSinceTrickleFsync = 0;
+
     public final DataOutputStream stream;
     private MessageDigest digest;
 
@@ -61,6 +68,8 @@ public class SequentialWriter extends OutputStream
 
         buffer = new byte[bufferSize];
         this.skipIOCache = skipIOCache;
+        this.trickleFsync = DatabaseDescriptor.getTrickleFsync();
+        this.trickleFsyncByteInterval = DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024;
         fd = CLibrary.getfd(out.getFD());
         directoryFD = CLibrary.tryOpenDirectory(file.getParent());
         stream = new DataOutputStream(this);
@@ -144,12 +153,17 @@ public class SequentialWriter extends OutputStream
         syncInternal();
     }
 
+    protected void syncDataOnlyInternal() throws IOException
+    {
+        out.getFD().sync();
+    }
+
     protected void syncInternal() throws IOException
     {
         if (syncNeeded)
         {
             flushInternal();
-            out.getFD().sync();
+            syncDataOnlyInternal();
 
             if (!directorySynced)
             {
@@ -179,6 +193,16 @@ public class SequentialWriter extends OutputStream
         if (isDirty)
         {
             flushData();
+
+            if (trickleFsync)
+            {
+                bytesSinceTrickleFsync += validBufferBytes;
+                if (bytesSinceTrickleFsync >= trickleFsyncByteInterval)
+                {
+                    syncDataOnlyInternal();
+                    bytesSinceTrickleFsync = 0;
+                }
+            }
 
             if (skipIOCache)
             {
