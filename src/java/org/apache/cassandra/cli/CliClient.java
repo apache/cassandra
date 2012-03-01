@@ -1144,7 +1144,7 @@ public class CliClient
             {
                 SimpleSnitch snitch = new SimpleSnitch();
                 Map<String, String> options = new HashMap<String, String>();
-                options.put(snitch.getDatacenter(FBUtilities.getBroadcastAddress()), "1");
+                options.put(snitch.getDatacenter(InetAddress.getLocalHost()), "1");
 
                 ksDef.setStrategy_options(options);
             }

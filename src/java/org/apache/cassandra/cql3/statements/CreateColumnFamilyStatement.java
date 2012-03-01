@@ -121,7 +121,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         }
         catch (ConfigurationException e)
         {
-            throw new InvalidRequestException(e.toString());
+            throw new InvalidRequestException(e.getMessage());
         }
         return newCFMD;
     }
