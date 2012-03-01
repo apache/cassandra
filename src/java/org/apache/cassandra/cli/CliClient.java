@@ -22,6 +22,8 @@ import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 
 import com.google.common.base.Predicate;
@@ -1154,8 +1156,14 @@ public class CliClient
             {
                 SimpleSnitch snitch = new SimpleSnitch();
                 Map<String, String> options = new HashMap<String, String>();
-                options.put(snitch.getDatacenter(InetAddress.getLocalHost()), "1");
-
+                try
+                {
+                    options.put(snitch.getDatacenter(InetAddress.getLocalHost()), "1");
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new RuntimeException(e);
+                }
                 ksDef.setStrategy_options(options);
             }
         }
