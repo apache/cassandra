@@ -71,7 +71,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
                : new LocalByPartionerType(StorageService.getPartitioner());
     }
 
-    public void deleteColumn(DecoratedKey<?> valueKey, ByteBuffer rowKey, IColumn column)
+    public void deleteColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn column)
     {
         if (column.isMarkedForDelete())
             return;
@@ -84,7 +84,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
             logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
     }
 
-    public void insertColumn(DecoratedKey<?> valueKey, ByteBuffer rowKey, IColumn column)
+    public void insertColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn column)
     {
         ColumnFamily cfi = ColumnFamily.create(indexCfs.metadata);
         if (column instanceof ExpiringColumn)
@@ -102,7 +102,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
         indexCfs.apply(valueKey, cfi);
     }
 
-    public void updateColumn(DecoratedKey<?> valueKey, ByteBuffer rowKey, IColumn col)
+    public void updateColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col)
     {
         insertColumn(valueKey, rowKey, col);
     }

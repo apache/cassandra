@@ -37,14 +37,14 @@ public class LocalPartitioner extends AbstractPartitioner<LocalToken>
         this.comparator = comparator;
     }
 
-    public DecoratedKey<LocalToken> convertFromDiskFormat(ByteBuffer key)
+    public DecoratedKey convertFromDiskFormat(ByteBuffer key)
     {
         return decorateKey(key);
     }
 
-    public DecoratedKey<LocalToken> decorateKey(ByteBuffer key)
+    public DecoratedKey decorateKey(ByteBuffer key)
     {
-        return new DecoratedKey<LocalToken>(getToken(key), key);
+        return new DecoratedKey(getToken(key), key);
     }
 
     public Token midpoint(Token left, Token right)

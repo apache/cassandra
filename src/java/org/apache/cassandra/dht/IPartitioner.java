@@ -33,7 +33,7 @@ public interface IPartitioner<T extends Token>
      * @param key On disk representation
      * @return DecoratedKey object
      */
-    public DecoratedKey<T> convertFromDiskFormat(ByteBuffer key);
+    public DecoratedKey convertFromDiskFormat(ByteBuffer key);
 
     /**
      * Transform key to object representation of the on-disk format.
@@ -41,7 +41,7 @@ public interface IPartitioner<T extends Token>
      * @param key the raw, client-facing key
      * @return decorated version of key
      */
-    public DecoratedKey<T> decorateKey(ByteBuffer key);
+    public DecoratedKey decorateKey(ByteBuffer key);
 
     /**
      * Calculate a Token representing the approximate "middle" of the given

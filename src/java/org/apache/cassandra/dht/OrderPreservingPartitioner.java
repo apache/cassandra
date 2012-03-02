@@ -37,14 +37,14 @@ public class OrderPreservingPartitioner extends AbstractPartitioner<StringToken>
 
     public static final BigInteger CHAR_MASK = new BigInteger("65535");
 
-    public DecoratedKey<StringToken> decorateKey(ByteBuffer key)
+    public DecoratedKey decorateKey(ByteBuffer key)
     {
-        return new DecoratedKey<StringToken>(getToken(key), key);
+        return new DecoratedKey(getToken(key), key);
     }
 
-    public DecoratedKey<StringToken> convertFromDiskFormat(ByteBuffer key)
+    public DecoratedKey convertFromDiskFormat(ByteBuffer key)
     {
-        return new DecoratedKey<StringToken>(getToken(key), key);
+        return new DecoratedKey(getToken(key), key);
     }
 
     public StringToken midpoint(Token ltoken, Token rtoken)

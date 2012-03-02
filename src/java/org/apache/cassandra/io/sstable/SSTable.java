@@ -150,7 +150,7 @@ public abstract class SSTable
      * If the given @param key occupies only part of a larger buffer, allocate a new buffer that is only
      * as large as necessary.
      */
-    public static DecoratedKey<?> getMinimalKey(DecoratedKey<?> key)
+    public static DecoratedKey getMinimalKey(DecoratedKey key)
     {
         return key.key.position() > 0 || key.key.hasRemaining()
                                        ? new DecoratedKey(key.token, HeapAllocator.instance.clone(key.key))

@@ -49,13 +49,13 @@ public class PrecompactedRow extends AbstractCompactedRow
     private final ColumnFamily compactedCf;
 
     /** it is caller's responsibility to call removeDeleted + removeOldShards from the cf before calling this constructor */
-    public PrecompactedRow(DecoratedKey<?> key, ColumnFamily cf)
+    public PrecompactedRow(DecoratedKey key, ColumnFamily cf)
     {
         super(key);
         compactedCf = cf;
     }
 
-    public static ColumnFamily removeDeletedAndOldShards(DecoratedKey<?> key, CompactionController controller, ColumnFamily cf)
+    public static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, CompactionController controller, ColumnFamily cf)
     {
         assert key != null;
         assert controller != null;

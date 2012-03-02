@@ -35,7 +35,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * if this matters, you can subclass RP to use a stronger hash, or use a non-lossy tokenization scheme (as in the
  * OrderPreservingPartitioner classes).
  */
-public class DecoratedKey<T extends Token> extends RowPosition
+public class DecoratedKey extends RowPosition
 {
     private static final IPartitioner partitioner = StorageService.getPartitioner();
 
@@ -47,10 +47,10 @@ public class DecoratedKey<T extends Token> extends RowPosition
         }
     };
 
-    public final T token;
+    public final Token token;
     public final ByteBuffer key;
 
-    public DecoratedKey(T token, ByteBuffer key)
+    public DecoratedKey(Token token, ByteBuffer key)
     {
         assert token != null && key != null && key.remaining() > 0;
         this.token = token;
@@ -108,7 +108,7 @@ public class DecoratedKey<T extends Token> extends RowPosition
         return "DecoratedKey(" + token + ", " + keystring + ")";
     }
 
-    public T getToken()
+    public Token getToken()
     {
         return token;
     }

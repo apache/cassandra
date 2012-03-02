@@ -293,7 +293,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         Token<?> token = StorageService.instance.getTokenMetadata().getToken(endpoint);
         logger_.info("Started hinted handoff for token: {} with IP: {}", token, endpoint);
         ByteBuffer tokenBytes = StorageService.getPartitioner().getTokenFactory().toByteArray(token);
-        DecoratedKey<?> epkey =  StorageService.getPartitioner().decorateKey(tokenBytes);
+        DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(tokenBytes);
         int rowsReplayed = 0;
         ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
 

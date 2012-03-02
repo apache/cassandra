@@ -35,7 +35,7 @@ import org.apache.cassandra.db.DecoratedKey;
 public class IndexSummary
 {
     private ArrayList<Long> positions;
-    private ArrayList<DecoratedKey<?>> keys;
+    private ArrayList<DecoratedKey> keys;
     private long keysWritten = 0;
 
     public IndexSummary(long expectedKeys)
@@ -45,7 +45,7 @@ public class IndexSummary
             // TODO: that's a _lot_ of keys, or a very low interval
             throw new RuntimeException("Cannot use index_interval of " + DatabaseDescriptor.getIndexInterval() + " with " + expectedKeys + " (expected) keys.");
         positions = new ArrayList<Long>((int)expectedEntries);
-        keys = new ArrayList<DecoratedKey<?>>((int)expectedEntries);
+        keys = new ArrayList<DecoratedKey>((int)expectedEntries);
     }
 
     public void incrementRowid()
@@ -58,20 +58,20 @@ public class IndexSummary
         return keysWritten % DatabaseDescriptor.getIndexInterval() == 0;
     }
 
-    public void addEntry(DecoratedKey<?> key, long indexPosition)
+    public void addEntry(DecoratedKey key, long indexPosition)
     {
         keys.add(SSTable.getMinimalKey(key));
         positions.add(indexPosition);
     }
 
-    public void maybeAddEntry(DecoratedKey<?> decoratedKey, long indexPosition)
+    public void maybeAddEntry(DecoratedKey decoratedKey, long indexPosition)
     {
         if (shouldAddEntry())
             addEntry(decoratedKey, indexPosition);
         incrementRowid();
     }
 
-    public List<DecoratedKey<?>> getKeys()
+    public List<DecoratedKey> getKeys()
     {
         return keys;
     }

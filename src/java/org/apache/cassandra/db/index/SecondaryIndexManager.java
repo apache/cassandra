@@ -289,9 +289,9 @@ public class SecondaryIndexManager
      * @param value column value
      * @return decorated key
      */
-    public DecoratedKey<LocalToken> getIndexKeyFor(ByteBuffer name, ByteBuffer value)
+    public DecoratedKey getIndexKeyFor(ByteBuffer name, ByteBuffer value)
     {
-        return new DecoratedKey<LocalToken>(new LocalToken(baseCfs.metadata.getColumnDefinition(name).getValidator(), value), value);
+        return new DecoratedKey(new LocalToken(baseCfs.metadata.getColumnDefinition(name).getValidator(), value), value);
     }
 
 
@@ -455,7 +455,7 @@ public class SecondaryIndexManager
                 }
                 else
                 {
-                    DecoratedKey<LocalToken> valueKey = getIndexKeyFor(columnName, column.value());
+                    DecoratedKey valueKey = getIndexKeyFor(columnName, column.value());
 
                     ((PerColumnSecondaryIndex)index).deleteColumn(valueKey, rowKey, column);
                 }
@@ -487,7 +487,7 @@ public class SecondaryIndexManager
             }
             else
             {
-                DecoratedKey<LocalToken> valueKey = getIndexKeyFor(columnName, column.value());
+                DecoratedKey valueKey = getIndexKeyFor(columnName, column.value());
 
                 ((PerColumnSecondaryIndex)index).insertColumn(valueKey, rowKey, column);
             }
@@ -499,7 +499,7 @@ public class SecondaryIndexManager
      * @param key the row key
      * @param indexedColumnsInRow all column names in row
      */
-    public void deleteFromIndexes(DecoratedKey<?> key, List<IColumn> indexedColumnsInRow) throws IOException
+    public void deleteFromIndexes(DecoratedKey key, List<IColumn> indexedColumnsInRow) throws IOException
     {
 
         // Identify the columns with isRowLevelIndex == true
@@ -524,7 +524,7 @@ public class SecondaryIndexManager
             }
             else
             {
-                DecoratedKey<LocalToken> valueKey = getIndexKeyFor(column.name(), column.value());
+                DecoratedKey valueKey = getIndexKeyFor(column.name(), column.value());
                 ((PerColumnSecondaryIndex) index).deleteColumn(valueKey, key.key, column);
             }
         }

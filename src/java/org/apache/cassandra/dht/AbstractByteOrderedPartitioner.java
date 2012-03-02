@@ -38,14 +38,14 @@ public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner
 
     public static final BigInteger BYTE_MASK = new BigInteger("255");
 
-    public DecoratedKey<BytesToken> decorateKey(ByteBuffer key)
+    public DecoratedKey decorateKey(ByteBuffer key)
     {
-        return new DecoratedKey<BytesToken>(getToken(key), key);
+        return new DecoratedKey(getToken(key), key);
     }
 
-    public DecoratedKey<BytesToken> convertFromDiskFormat(ByteBuffer key)
+    public DecoratedKey convertFromDiskFormat(ByteBuffer key)
     {
-        return new DecoratedKey<BytesToken>(getToken(key), key);
+        return new DecoratedKey(getToken(key), key);
     }
 
     public BytesToken midpoint(Token ltoken, Token rtoken)

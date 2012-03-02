@@ -487,12 +487,12 @@ public class SSTableReader extends SSTable
     /**
      * @return Approximately 1/INDEX_INTERVALth of the keys in this SSTable.
      */
-    public Collection<DecoratedKey<?>> getKeySamples()
+    public Collection<DecoratedKey> getKeySamples()
     {
         return indexSummary.getKeys();
     }
 
-    private static List<Pair<Integer,Integer>> getSampleIndexesForRanges(List<DecoratedKey<?>> samples, Collection<Range<Token>> ranges)
+    private static List<Pair<Integer,Integer>> getSampleIndexesForRanges(List<DecoratedKey> samples, Collection<Range<Token>> ranges)
     {
         // use the index to determine a minimal section for each range
         List<Pair<Integer,Integer>> positions = new ArrayList<Pair<Integer,Integer>>();
@@ -536,20 +536,20 @@ public class SSTableReader extends SSTable
         return positions;
     }
 
-    public Iterable<DecoratedKey<?>> getKeySamples(final Range<Token> range)
+    public Iterable<DecoratedKey> getKeySamples(final Range<Token> range)
     {
-        final List<DecoratedKey<?>> samples = indexSummary.getKeys();
+        final List<DecoratedKey> samples = indexSummary.getKeys();
 
         final List<Pair<Integer, Integer>> indexRanges = getSampleIndexesForRanges(samples, Collections.singletonList(range));
 
         if (indexRanges.isEmpty())
             return Collections.emptyList();
 
-        return new Iterable<DecoratedKey<?>>()
+        return new Iterable<DecoratedKey>()
         {
-            public Iterator<DecoratedKey<?>> iterator()
+            public Iterator<DecoratedKey> iterator()
             {
-                return new Iterator<DecoratedKey<?>>()
+                return new Iterator<DecoratedKey>()
                 {
                     private Iterator<Pair<Integer, Integer>> rangeIter = indexRanges.iterator();
                     private Pair<Integer, Integer> current;
@@ -576,7 +576,7 @@ public class SSTableReader extends SSTable
                         RowPosition k = samples.get(idx++);
                         // the index should only contain valid row key, we only allow RowPosition in KeyPosition for search purposes
                         assert k instanceof DecoratedKey;
-                        return (DecoratedKey<?>)k;
+                        return (DecoratedKey)k;
                     }
 
                     public void remove()
