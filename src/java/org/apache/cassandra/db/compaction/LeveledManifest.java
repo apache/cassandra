@@ -59,7 +59,6 @@ public class LeveledManifest
     private final List<SSTableReader>[] generations;
     private final RowPosition[] lastCompactedKeys;
     private final int maxSSTableSizeInMB;
-    private int levelCount;
 
     private LeveledManifest(ColumnFamilyStore cfs, int maxSSTableSizeInMB)
     {
@@ -173,7 +172,13 @@ public class LeveledManifest
         if (!added.iterator().hasNext())
             return;
 
-        int newLevel = minimumLevel == maximumLevel ? maximumLevel + 1 : maximumLevel;
+        // avoid increasing the level if we had a single source sstable involved.  This prevents
+        // cleanup, scrub, and upgradesstables from blowing through the level cap.
+        // See CASSANDRA-3989
+        int newLevel = Iterables.size(removed) == 1
+                     ? maximumLevel
+                     : minimumLevel == maximumLevel ? maximumLevel + 1 : maximumLevel;
+
         newLevel = skipLevels(newLevel, added);
         assert newLevel > 0;
         if (logger.isDebugEnabled())
@@ -317,6 +322,7 @@ public class LeveledManifest
 
     private void add(SSTableReader sstable, int level)
     {
+        assert level < generations.length : "Invalid level " + level + " out of " + (generations.length - 1);
         generations[level].add(sstable);
     }
 
