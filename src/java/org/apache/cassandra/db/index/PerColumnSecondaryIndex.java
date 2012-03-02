@@ -36,7 +36,7 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
      * @param rowKey the underlying row key which is indexed
      * @param col all the column info
      */
-    public abstract void deleteColumn(DecoratedKey<?> valueKey, ByteBuffer rowKey, IColumn col) throws IOException;
+    public abstract void deleteColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col) throws IOException;
 
     /**
      * insert a column to the index
@@ -45,7 +45,7 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
      * @param rowKey the underlying row key which is indexed
      * @param col all the column info
      */
-    public abstract void insertColumn(DecoratedKey<?> valueKey, ByteBuffer rowKey, IColumn col) throws IOException;
+    public abstract void insertColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col) throws IOException;
 
     /**
      * update a column from the index
@@ -54,7 +54,7 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
      * @param rowKey the underlying row key which is indexed
      * @param col all the column info
      */
-    public abstract void updateColumn(DecoratedKey<?> valueKey, ByteBuffer rowKey, IColumn col) throws IOException;
+    public abstract void updateColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col) throws IOException;
 
     public String getNameForSystemTable(ByteBuffer column)
     {

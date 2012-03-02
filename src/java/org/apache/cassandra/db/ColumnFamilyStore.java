@@ -1597,10 +1597,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return cfses;
     }
 
-    public Iterable<DecoratedKey<?>> keySamples(Range<Token> range)
+    public Iterable<DecoratedKey> keySamples(Range<Token> range)
     {
         Collection<SSTableReader> sstables = getSSTables();
-        Iterable<DecoratedKey<?>>[] samples = new Iterable[sstables.size()];
+        Iterable<DecoratedKey>[] samples = new Iterable[sstables.size()];
         int i = 0;
         for (SSTableReader sstable: sstables)
         {

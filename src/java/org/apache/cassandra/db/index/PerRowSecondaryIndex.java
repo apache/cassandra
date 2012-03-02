@@ -55,7 +55,7 @@ public abstract class PerRowSecondaryIndex extends SecondaryIndex
      * @param key
      * @param indexedColumnsInRow
      */
-    public abstract void deleteFromIndex(DecoratedKey<?> key, List<IColumn> indexedColumnsInRow);
+    public abstract void deleteFromIndex(DecoratedKey key, List<IColumn> indexedColumnsInRow);
 
 
     @Override

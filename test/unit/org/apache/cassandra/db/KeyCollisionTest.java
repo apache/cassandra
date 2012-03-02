@@ -99,12 +99,12 @@ public class KeyCollisionTest extends CleanupHelper
 
         private static final byte DELIMITER_BYTE = ":".getBytes()[0];
 
-        public DecoratedKey<BigIntegerToken> decorateKey(ByteBuffer key)
+        public DecoratedKey decorateKey(ByteBuffer key)
         {
-            return new DecoratedKey<BigIntegerToken>(getToken(key), key);
+            return new DecoratedKey(getToken(key), key);
         }
 
-        public DecoratedKey<BigIntegerToken> convertFromDiskFormat(ByteBuffer fromdisk)
+        public DecoratedKey convertFromDiskFormat(ByteBuffer fromdisk)
         {
             throw new UnsupportedOperationException();
         }

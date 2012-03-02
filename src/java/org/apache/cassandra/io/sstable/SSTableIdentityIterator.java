@@ -34,7 +34,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableIdentityIterator.class);
 
-    private final DecoratedKey<?> key;
+    private final DecoratedKey key;
     private final DataInput input;
     private final long dataStart;
     public final long dataSize;
@@ -60,7 +60,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
      * @param dataSize length of row data
      * @throws IOException
      */
-    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey<?> key, long dataStart, long dataSize)
+    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey key, long dataStart, long dataSize)
     throws IOException
     {
         this(sstable, file, key, dataStart, dataSize, false);
@@ -76,20 +76,20 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
      * @param checkData if true, do its best to deserialize and check the coherence of row data
      * @throws IOException
      */
-    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey<?> key, long dataStart, long dataSize, boolean checkData)
+    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey key, long dataStart, long dataSize, boolean checkData)
     throws IOException
     {
         this(sstable.metadata, file, key, dataStart, dataSize, checkData, sstable, IColumnSerializer.Flag.LOCAL);
     }
 
-    public SSTableIdentityIterator(CFMetaData metadata, DataInput file, DecoratedKey<?> key, long dataStart, long dataSize, IColumnSerializer.Flag flag)
+    public SSTableIdentityIterator(CFMetaData metadata, DataInput file, DecoratedKey key, long dataStart, long dataSize, IColumnSerializer.Flag flag)
     throws IOException
     {
         this(metadata, file, key, dataStart, dataSize, false, null, flag);
     }
 
     // sstable may be null *if* deserializeRowHeader is false
-    private SSTableIdentityIterator(CFMetaData metadata, DataInput input, DecoratedKey<?> key, long dataStart, long dataSize, boolean checkData, SSTableReader sstable, IColumnSerializer.Flag flag)
+    private SSTableIdentityIterator(CFMetaData metadata, DataInput input, DecoratedKey key, long dataStart, long dataSize, boolean checkData, SSTableReader sstable, IColumnSerializer.Flag flag)
     throws IOException
     {
         this.input = input;
@@ -152,7 +152,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         }
     }
 
-    public DecoratedKey<?> getKey()
+    public DecoratedKey getKey()
     {
         return key;
     }

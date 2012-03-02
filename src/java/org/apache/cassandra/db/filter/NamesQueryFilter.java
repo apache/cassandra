@@ -46,17 +46,17 @@ public class NamesQueryFilter implements IFilter
         this(FBUtilities.singleton(column));
     }
 
-    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey<?> key)
+    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key)
     {
         return Memtable.getNamesIterator(key, cf, this);
     }
 
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey<?> key)
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key)
     {
         return new SSTableNamesIterator(sstable, key, columns);
     }
 
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey<?> key)
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key)
     {
         return new SSTableNamesIterator(sstable, file, key, columns);
     }

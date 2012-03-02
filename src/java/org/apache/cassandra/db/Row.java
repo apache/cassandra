@@ -33,10 +33,10 @@ public class Row
         return serializer;
     }
 
-    public final DecoratedKey<?> key;
+    public final DecoratedKey key;
     public final ColumnFamily cf;
 
-    public Row(DecoratedKey<?> key, ColumnFamily cf)
+    public Row(DecoratedKey key, ColumnFamily cf)
     {
         assert key != null;
         // cf may be null, indicating no data

@@ -43,7 +43,7 @@ public abstract class AbstractRowResolver implements IResponseResolver<Row>
 
     protected final String table;
     protected final ConcurrentMap<Message, ReadResponse> replies = new NonBlockingHashMap<Message, ReadResponse>();
-    protected final DecoratedKey<?> key;
+    protected final DecoratedKey key;
 
     public AbstractRowResolver(ByteBuffer key, String table)
     {

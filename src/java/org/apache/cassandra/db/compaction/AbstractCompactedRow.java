@@ -30,9 +30,9 @@ import org.apache.cassandra.db.DecoratedKey;
  */
 public abstract class AbstractCompactedRow
 {
-    public final DecoratedKey<?> key;
+    public final DecoratedKey key;
 
-    public AbstractCompactedRow(DecoratedKey<?> key)
+    public AbstractCompactedRow(DecoratedKey key)
     {
         this.key = key;
     }
