@@ -604,6 +604,6 @@ public class SecondaryIndexManager
     public void setIndexRemoved(Collection<ByteBuffer> indexes)
     {
         for (ByteBuffer colName : indexes)
-            indexesByColumn.get(colName).setIndexBuilt(colName);
+            indexesByColumn.get(colName).setIndexRemoved(colName);
     }
 }
