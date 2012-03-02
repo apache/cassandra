@@ -118,14 +118,15 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         if (predicate.getSlice_range() == null)
             return true;
 
-        byte[] start  = predicate.getSlice_range().getStart();
+        byte[] start = predicate.getSlice_range().getStart();
+        if ((start != null) && (start.length > 0))
+            return false;
+            
         byte[] finish = predicate.getSlice_range().getFinish();
-        if ( (start == null || start == ArrayUtils.EMPTY_BYTE_ARRAY) &&
-             (finish == null || finish == ArrayUtils.EMPTY_BYTE_ARRAY) )
-            return true;
+        if ((finish != null) && (finish.length > 0))
+            return false;
 
-
-        return false;
+        return true;
     }
 
     public void initialize(InputSplit split, TaskAttemptContext context) throws IOException
