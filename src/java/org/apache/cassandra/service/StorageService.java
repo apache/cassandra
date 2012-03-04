@@ -1874,6 +1874,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         for (Range<Token> range : ranges)
         {
             AntiEntropyService.RepairFuture future = forceTableRepair(range, tableName, isSequential, columnFamilies);
+            if (future == null)
+                continue;
             futures.add(future);
             // wait for a session to be done with its differencing before starting the next one
             try
@@ -1914,6 +1916,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             return;
 
         AntiEntropyService.RepairFuture future = forceTableRepair(getLocalPrimaryRange(), tableName, isSequential, columnFamilies);
+        if (future == null)
+            return;
         try
         {
             future.get();
@@ -1931,6 +1935,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
         {
             names.add(cfStore.getColumnFamilyName());
+        }
+
+        if (names.isEmpty())
+        {
+            logger_.info("No column family to repair for keyspace " + tableName);
+            return null;
         }
 
         return AntiEntropyService.instance.submitRepairSession(range, tableName, isSequential, names.toArray(new String[names.size()]));
