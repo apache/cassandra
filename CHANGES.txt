@@ -7,6 +7,7 @@
  * add CompositeType ref to the CLI doc for create/update column family (CASSANDRA-3980)
  * Pig: support Counter ColumnFamilies (CASSANDRA-3973)
  * Pig: Composite column support (CASSANDRA-384)
+ * Avoid NPE during repair when a keyspace has no CFs (CASSANDRA-3988)
 
 
 1.0.8
