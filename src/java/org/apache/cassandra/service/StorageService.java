@@ -1938,7 +1938,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         if (names.isEmpty())
         {
-            logger_.info("No column family to repair for keyspace " + tableName);
+            logger.info("No column family to repair for keyspace " + tableName);
             return null;
         }
 
