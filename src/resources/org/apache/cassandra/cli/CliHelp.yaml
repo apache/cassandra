@@ -215,9 +215,9 @@ commands:
           one datacenter defined with a replication factor of 1 ("[datacenter1:1]").
 
           Supported values are:
-            - org.apache.Cassandra.locator.SimpleStrategy
-            - org.apache.Cassandra.locator.NetworkTopologyStrategy
-            - org.apache.Cassandra.locator.OldNetworkTopologyStrategy
+            - org.apache.cassandra.locator.SimpleStrategy
+            - org.apache.cassandra.locator.NetworkTopologyStrategy
+            - org.apache.cassandra.locator.OldNetworkTopologyStrategy
 
           SimpleStrategy merely places the first replica at the node whose
           token is closest to the key (as determined by the Partitioner), and
@@ -283,9 +283,9 @@ commands:
           one datacenter defined with a replication factor of 1 ("[datacenter1:1]").
 
           Supported values are:
-            - org.apache.Cassandra.locator.SimpleStrategy
-            - org.apache.Cassandra.locator.NetworkTopologyStrategy
-            - org.apache.Cassandra.locator.OldNetworkTopologyStrategy
+            - org.apache.cassandra.locator.SimpleStrategy
+            - org.apache.cassandra.locator.NetworkTopologyStrategy
+            - org.apache.cassandra.locator.OldNetworkTopologyStrategy
 
           SimpleStrategy merely places the first replica at the node whose
           token is closest to the key (as determined by the Partitioner), and
@@ -370,7 +370,7 @@ commands:
                   quotes are important (!) in this case)
 
               It is also valid to specify the fully-qualified class name to a class
-              that extends org.apache.Cassandra.db.marshal.AbstractType.
+              that extends org.apache.cassandra.db.marshal.AbstractType.
 
           Column Optional parameters:
             - index_name: Name for the index. Both an index name and
@@ -414,7 +414,7 @@ commands:
               quotes are important (!) in this case)
 
           It is also valid to specify the fully-qualified class name to a class that
-          extends org.apache.Cassandra.db.marshal.AbstractType.
+          extends org.apache.cassandra.db.marshal.AbstractType.
 
         - default_validation_class: Validator to use for values in columns which are
           not listed in the column_metadata. Default is BytesType which applies
@@ -433,7 +433,7 @@ commands:
               quotes are important (!) in this case)
 
           It is also valid to specify the fully-qualified class name to a class that
-          extends org.apache.Cassandra.db.marshal.AbstractType.
+          extends org.apache.cassandra.db.marshal.AbstractType.
 
         - key_validation_class: Validator to use for keys.
           Default is BytesType which applies no validation.
@@ -448,7 +448,7 @@ commands:
             - UTF8Type
 
           It is also valid to specify the fully-qualified class name to a class that
-          extends org.apache.Cassandra.db.marshal.AbstractType.
+          extends org.apache.cassandra.db.marshal.AbstractType.
 
         - gc_grace: Time to wait in seconds before garbage collecting tombstone
           deletion markers. Default value is 864000 or 10 days.
@@ -496,7 +496,7 @@ commands:
             - UTF8Type
 
           It is also valid to specify the fully-qualified class name to a class that
-          extends org.apache.Cassandra.db.marshal.AbstractType.
+          extends org.apache.cassandra.db.marshal.AbstractType.
 
         - max_compaction_threshold: The maximum number of SSTables allowed before a
         minor compaction is forced. Default is 32, setting to 0 disables minor
@@ -591,7 +591,7 @@ commands:
                   quotes are important (!) in this case)
 
               It is also valid to specify the fully-qualified class name to a class
-              that extends org.apache.Cassandra.db.marshal.AbstractType.
+              that extends org.apache.cassandra.db.marshal.AbstractType.
 
           Column Optional parameters:
             - index_name: Name for the index. Both an index name and
@@ -639,7 +639,7 @@ commands:
               quotes are important (!) in this case)
 
           It is also valid to specify the fully-qualified class name to a class that
-          extends org.apache.Cassandra.db.marshal.AbstractType.
+          extends org.apache.cassandra.db.marshal.AbstractType.
 
         - default_validation_class: Validator to use for values in columns which are
           not listed in the column_metadata. Default is BytesType which applies
@@ -658,7 +658,7 @@ commands:
               quotes are important (!) in this case)
 
           It is also valid to specify the fully-qualified class name to a class that
-          extends org.apache.Cassandra.db.marshal.AbstractType.
+          extends org.apache.cassandra.db.marshal.AbstractType.
 
         - key_valiation_class: Validator to use for keys.
           Default is BytesType which applies no validation.
@@ -673,7 +673,7 @@ commands:
             - UTF8Type
 
           It is also valid to specify the fully-qualified class name to a class that
-          extends org.apache.Cassandra.db.marshal.AbstractType.
+          extends org.apache.cassandra.db.marshal.AbstractType.
 
         - gc_grace: Time to wait in seconds before garbage collecting tombstone
           deletion markers. Default value is 864000 or 10 days.
@@ -721,7 +721,7 @@ commands:
             - UTF8Type
 
           It is also valid to specify the fully-qualified class name to a class that
-          extends org.apache.Cassandra.db.marshal.AbstractType.
+          extends org.apache.cassandra.db.marshal.AbstractType.
 
         - max_compaction_threshold: The maximum number of SSTables allowed before a
         minor compaction is forced. Default is 32, setting to 0 disables minor
@@ -1084,7 +1084,7 @@ commands:
             - utf8
 
           It is also valid to specify the fully-qualified class name to a class that
-          extends org.apache.Cassandra.db.marshal.AbstractType.
+          extends org.apache.cassandra.db.marshal.AbstractType.
 
         Examples:
         assume Standard1 comparator as lexicaluuid;
