@@ -1,6 +1,7 @@
 1.1.1-dev
  * optimize commitlog checksumming (CASSANDRA-3610)
  * identify and blacklist corrupted SSTables from future compactions (CASSANDRA-2261)
+ * expose counters for unavailable/timeout exceptions given to thrift clients (CASSANDRA-3671)
 
 
 1.1-dev

@@ -54,6 +54,7 @@ import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.*;
@@ -201,6 +202,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (TimeoutException ex)
         {
+            ClientRequestMetrics.writeTimeouts.inc();
             if (logger.isDebugEnabled())
             {
                 List<String> mstrings = new ArrayList<String>(mutations.size());
@@ -209,6 +211,11 @@ public class StorageProxy implements StorageProxyMBean
                 logger.debug("Write timeout {} for one (or more) of: ", ex.toString(), mstrings);
             }
             throw ex;
+        }
+        catch (UnavailableException e)
+        {
+            ClientRequestMetrics.writeUnavailables.inc();
+            throw e;
         }
         catch (IOException e)
         {
@@ -586,12 +593,25 @@ public class StorageProxy implements StorageProxyMBean
             throws IOException, UnavailableException, TimeoutException, InvalidRequestException
     {
         if (StorageService.instance.isBootstrapMode())
+        {
+            ClientRequestMetrics.readUnavailables.inc();
             throw new UnavailableException();
+        }
         long startTime = System.nanoTime();
         List<Row> rows;
         try
         {
             rows = fetchRows(commands, consistency_level);
+        }
+        catch (UnavailableException e)
+        {
+            ClientRequestMetrics.readUnavailables.inc();
+            throw e;
+        }
+        catch (TimeoutException e)
+        {
+            ClientRequestMetrics.readTimeouts.inc();
+            throw e;
         }
         finally
         {
