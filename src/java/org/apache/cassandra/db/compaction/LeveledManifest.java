@@ -61,6 +61,7 @@ public class LeveledManifest
 
     private final ColumnFamilyStore cfs;
     private final List<SSTableReader>[] generations;
+    private final Map<SSTableReader, Integer> sstableGenerations;
     private final RowPosition[] lastCompactedKeys;
     private final int maxSSTableSizeInMB;
 
@@ -78,6 +79,7 @@ public class LeveledManifest
             generations[i] = new ArrayList<SSTableReader>();
             lastCompactedKeys[i] = cfs.partitioner.getMinimumToken().minKeyBound();
         }
+        sstableGenerations = new HashMap<SSTableReader, Integer>();
     }
 
     static LeveledManifest create(ColumnFamilyStore cfs, int maxSSTableSize)
@@ -140,7 +142,7 @@ public class LeveledManifest
     }
 
     /**
-     * if the number of SSTables in the current compacted set *by itself* exeeds the target level's
+     * if the number of SSTables in the current compacted set *by itself* exceeds the target level's
      * (regardless of the level's current contents), find an empty level instead
      */
     private int skipLevels(int newLevel, Iterable<SSTableReader> added)
@@ -167,6 +169,7 @@ public class LeveledManifest
         for (SSTableReader sstable : removed)
         {
             int thisLevel = levelOf(sstable);
+            assert thisLevel >= 0;
             maximumLevel = Math.max(maximumLevel, thisLevel);
             minimumLevel = Math.min(minimumLevel, thisLevel);
             remove(sstable);
@@ -309,12 +312,11 @@ public class LeveledManifest
 
     private int levelOf(SSTableReader sstable)
     {
-        for (int level = 0; level < generations.length; level++)
-        {
-            if (generations[level].contains(sstable))
-                return level;
-        }
-        return -1;
+        Integer level = sstableGenerations.get(sstable);
+        if (level == null)
+            return -1;
+
+        return level.intValue();
     }
 
     private void remove(SSTableReader reader)
@@ -322,12 +324,14 @@ public class LeveledManifest
         int level = levelOf(reader);
         assert level >= 0 : reader + " not present in manifest";
         generations[level].remove(reader);
+        sstableGenerations.remove(reader);
     }
 
     private void add(SSTableReader sstable, int level)
     {
         assert level < generations.length : "Invalid level " + level + " out of " + (generations.length - 1);
         generations[level].add(sstable);
+        sstableGenerations.put(sstable, Integer.valueOf(level));
     }
 
     private static List<SSTableReader> overlapping(SSTableReader sstable, Iterable<SSTableReader> candidates)
