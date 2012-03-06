@@ -155,7 +155,8 @@ public class QueryFilter
     }
 
     /**
-     * @return a QueryFilter object to satisfy the given slice criteria:  @param key the row to slice
+     * @return a QueryFilter object to satisfy the given slice criteria:
+     * @param key the row to slice
      * @param path path to the level to slice at (CF or SuperColumn)
      * @param start column to start slice at, inclusive; empty for "the first column"
      * @param finish column to stop slice at, inclusive; empty for "the last column"
