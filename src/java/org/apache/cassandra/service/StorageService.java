@@ -35,6 +35,7 @@ import javax.management.ObjectName;
 import com.google.common.base.Supplier;
 import com.google.common.collect.*;
 
+import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -429,6 +430,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         catch (ClassNotFoundException e)
         {
             throw new AssertionError(e);
+        }
+
+        if (!isClientMode)
+        {
+            // "Touch" metrics classes to trigger static initialization, such that all metrics become available
+            // on start-up even if they have not yet been used.
+            new ClientRequestMetrics();
         }
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
