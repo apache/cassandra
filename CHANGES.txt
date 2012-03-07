@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 1.1-dev
  * start hint replay as soon as FD notifies that the target is back up
    (CASSANDRA-3958)
@@ -26,6 +27,9 @@ Merged from 1.0:
  * Fix short read protection (CASSANDRA-3934)
  * don't change manifest level for cleanup, scrub, and upgradesstables
    operations under LeveledCompactionStrategy (CASSANDRA-3989)
+=======
+1.0.9
+>>>>>>> cassandra-1.0
  * always compact away deleted hints immediately after handoff (CASSANDRA-3955)
  * delete hints from dropped ColumnFamilies on handoff instead of
    erroring out (CASSANDRA-3975)
@@ -34,6 +38,9 @@ Merged from 1.0:
  * Pig: Composite column support (CASSANDRA-384)
  * Avoid NPE during repair when a keyspace has no CFs (CASSANDRA-3988)
  * Fix division-by-zero error on get_slice (CASSANDRA-4000)
+ * don't change manifest level for cleanup, scrub, and upgradesstables
+   operations under LeveledCompactionStrategy (CASSANDRA-3989)
+ * fix race leading to super columns assertion failure (CASSANDRA-3957)
 
 
 1.1-beta1

@@ -52,6 +52,7 @@ import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.filter.ExtendedFilter;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -732,7 +733,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (cachedRow instanceof RowCacheSentinel)
                 invalidateCachedRow(cacheKey);
             else
-                ((ColumnFamily) cachedRow).addAll(columnFamily, HeapAllocator.instance);
+                // columnFamily is what is written in the commit log. Because of the PeriodicCommitLog, this can be done in concurrency
+                // with this. So columnFamily shouldn't be modified and if it contains super columns, neither should they. So for super
+                // columns, we must make sure to clone them when adding to the cache. That's what addAllWithSCCopy does (see #3957)
+                ((ColumnFamily) cachedRow).addAllWithSCCopy(columnFamily, HeapAllocator.instance);
         }
     }
 
@@ -938,15 +942,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionManager.instance.performSSTableRewrite(ColumnFamilyStore.this);
     }
 
-    public void markCompacted(Collection<SSTableReader> sstables)
+    public void markCompacted(Collection<SSTableReader> sstables, OperationType compactionType)
     {
         assert !sstables.isEmpty();
-        data.markCompacted(sstables);
+        data.markCompacted(sstables, compactionType);
     }
 
-    public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements)
+    public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements, OperationType compactionType)
     {
-        data.replaceCompactedSSTables(sstables, replacements);
+        data.replaceCompactedSSTables(sstables, replacements, compactionType);
     }
 
     void replaceFlushed(Memtable memtable, SSTableReader sstable)
@@ -1958,6 +1962,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         if (!truncatedSSTables.isEmpty())
-            markCompacted(truncatedSSTables);
+            markCompacted(truncatedSSTables, OperationType.UNKNOWN);
     }
 }

@@ -35,6 +35,7 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.sstable.*;
@@ -206,7 +207,7 @@ public class CompactionsTest extends CleanupHelper
         assertEquals(2, store.getSSTables().size());
 
         // Now, we remove the sstable that was just created to force the use of EchoedRow (so that it doesn't hide the problem)
-        store.markCompacted(Collections.singleton(tmpSSTable));
+        store.markCompacted(Collections.singleton(tmpSSTable), OperationType.UNKNOWN);
         assertEquals(1, store.getSSTables().size());
 
         // Now assert we do have the 4 keys
