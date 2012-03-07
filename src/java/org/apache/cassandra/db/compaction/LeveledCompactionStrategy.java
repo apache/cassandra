@@ -138,7 +138,18 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         else if (notification instanceof SSTableListChangedNotification)
         {
             SSTableListChangedNotification listChangedNotification = (SSTableListChangedNotification) notification;
-            manifest.promote(listChangedNotification.removed, listChangedNotification.added);
+            switch (listChangedNotification.compactionType)
+            {
+                // Cleanup, scrub and updateSSTable shouldn't promote (see #3989)
+                case CLEANUP:
+                case SCRUB:
+                case UPGRADE_SSTABLES:
+                    manifest.replace(listChangedNotification.removed, listChangedNotification.added);
+                    break;
+                default:
+                    manifest.promote(listChangedNotification.removed, listChangedNotification.added);
+                    break;
+            }
         }
     }
 

@@ -29,6 +29,7 @@ public enum OperationType
     ROW_CACHE_SAVE("Row cache save"),
     CLEANUP("Cleanup"),
     SCRUB("Scrub"),
+    UPGRADE_SSTABLES("Upgrade sstables"),
     INDEX_BUILD("Secondary index build"),
     UNKNOWN("Unkown compaction type");
 

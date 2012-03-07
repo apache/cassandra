@@ -61,7 +61,6 @@ public class LeveledManifest
     private final List<SSTableReader>[] generations;
     private final DecoratedKey[] lastCompactedKeys;
     private final int maxSSTableSizeInMB;
-    private int levelCount;
 
     private LeveledManifest(ColumnFamilyStore cfs, int maxSSTableSizeInMB)
     {
@@ -165,10 +164,9 @@ public class LeveledManifest
         int maximumLevel = 0;
         for (SSTableReader sstable : removed)
         {
-            int thisLevel = levelOf(sstable);
+            int thisLevel = remove(sstable);
             maximumLevel = Math.max(maximumLevel, thisLevel);
             minimumLevel = Math.min(minimumLevel, thisLevel);
-            remove(sstable);
         }
 
         // it's valid to do a remove w/o an add (e.g. on truncate)
@@ -185,6 +183,22 @@ public class LeveledManifest
         for (SSTableReader ssTableReader : added)
             add(ssTableReader, newLevel);
 
+        serialize();
+    }
+
+    public synchronized void replace(Iterable<SSTableReader> removed, Iterable<SSTableReader> added)
+    {
+        // replace is for compaction operation that don't really change the
+        // content of a sstable (cleanup, scrub) and much replace one sstable by another
+        assert Iterables.size(removed) == 1;
+        assert Iterables.size(added) == 1;
+        SSTableReader toRemove = removed.iterator().next();
+        SSTableReader toAdd = added.iterator().next();
+        logDistribution();
+        if (logger.isDebugEnabled())
+            logger.debug("Replacing " + removed + " by " + toAdd);
+
+        add(toAdd, remove(toRemove));
         serialize();
     }
 
@@ -266,12 +280,15 @@ public class LeveledManifest
 
     private void logDistribution()
     {
-        for (int i = 0; i < generations.length; i++)
+        if (logger.isDebugEnabled())
         {
-            if (!generations[i].isEmpty())
+            for (int i = 0; i < generations.length; i++)
             {
-                logger.debug("L{} contains {} SSTables ({} bytes) in {}",
-                             new Object[] {i, generations[i].size(), SSTableReader.getTotalBytes(generations[i]), this});
+                if (!generations[i].isEmpty())
+                {
+                    logger.debug("L{} contains {} SSTables ({} bytes) in {}",
+                            new Object[] {i, generations[i].size(), SSTableReader.getTotalBytes(generations[i]), this});
+                }
             }
         }
     }
@@ -286,15 +303,17 @@ public class LeveledManifest
         return -1;
     }
 
-    private void remove(SSTableReader reader)
+    private int remove(SSTableReader reader)
     {
         int level = levelOf(reader);
         assert level >= 0 : reader + " not present in manifest";
         generations[level].remove(reader);
+        return level;
     }
 
     private void add(SSTableReader sstable, int level)
     {
+        assert level < generations.length : "Invalid level " + level + " out of " + (generations.length - 1);
         generations[level].add(sstable);
     }
 

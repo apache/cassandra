@@ -7,6 +7,8 @@
  * Pig: Composite column support (CASSANDRA-384)
  * Avoid NPE during repair when a keyspace has no CFs (CASSANDRA-3988)
  * Fix division-by-zero error on get_slice (CASSANDRA-4000)
+ * don't change manifest level for cleanup, scrub, and upgradesstables
+   operations under LeveledCompactionStrategy (CASSANDRA-3989)
 
 
 1.0.8
