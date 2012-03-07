@@ -84,7 +84,7 @@ public class SliceFromReadCommand extends ReadCommand
             // From that, we can estimate that on this row, for x requested
             // columns, only l/t end up live after reconciliation. So for next
             // round we want to ask x column so that x * (l/t) == t, i.e. x = t^2/l.
-            int retryCount = ((count * count) / liveColumnsInRow) + 1;
+            int retryCount = liveColumnsInRow == 0 ? count + 1 : ((count * count) / liveColumnsInRow) + 1;
             return new RetriedSliceFromReadCommand(table, key, queryPath, start, finish, reversed, getOriginalRequestedCount(), retryCount);
         }
 
