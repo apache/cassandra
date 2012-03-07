@@ -26,6 +26,9 @@ import java.util.List;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
+import org.apache.cassandra.io.sstable.ColumnStats;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.utils.StreamingHistogram;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,8 +61,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
     private final DataOutputBuffer headerBuffer;
     private ColumnFamily emptyColumnFamily;
     private Reducer reducer;
-    private int columnCount;
-    private long maxTimestamp;
+    private final ColumnStats columnStats;
     private long columnSerializedSize;
     private boolean closed;
 
@@ -85,9 +87,10 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         ColumnIndexer.serialize(this, headerBuffer);
         // reach into the reducer used during iteration to get column count, size, max column timestamp
         // (however, if there are zero columns, iterator() will not be called by ColumnIndexer and reducer will be null)
-        columnCount = reducer == null ? 0 : reducer.size;
+        columnStats = new ColumnStats(reducer == null ? 0 : reducer.columns, reducer == null ? Long.MIN_VALUE : reducer.maxTimestampSeen,
+                                      reducer == null ? new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE) : reducer.tombstones
+        );
         columnSerializedSize = reducer == null ? 0 : reducer.serializedSize;
-        maxTimestamp = reducer == null ? Long.MIN_VALUE : reducer.maxTimestampSeen;
         reducer = null;
     }
 
@@ -106,7 +109,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         out.writeLong(dataSize);
         out.write(headerBuffer.getData(), 0, headerBuffer.getLength());
         out.write(clockOut.getData(), 0, clockOut.getLength());
-        out.writeInt(columnCount);
+        out.writeInt(columnStats.columnCount);
 
         Iterator<IColumn> iter = iterator();
         while (iter.hasNext())
@@ -133,7 +136,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         try
         {
             ColumnFamily.serializer().serializeCFInfo(emptyColumnFamily, out);
-            out.writeInt(columnCount);
+            out.writeInt(columnStats.columnCount);
             digest.update(out.getData(), 0, out.getLength());
         }
         catch (IOException e)
@@ -154,7 +157,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         boolean cfIrrelevant = shouldPurge
                              ? ColumnFamilyStore.removeDeletedCF(emptyColumnFamily, controller.gcBefore) == null
                              : !emptyColumnFamily.isMarkedForDelete(); // tombstones are relevant
-        return cfIrrelevant && columnCount == 0;
+        return cfIrrelevant && columnStats.columnCount == 0;
     }
 
     public int getEstimatedColumnCount()
@@ -179,14 +182,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         return Iterators.filter(iter, Predicates.notNull());
     }
 
-    public int columnCount()
+    public ColumnStats columnStats()
     {
-        return columnCount;
-    }
-
-    public long maxTimestamp()
-    {
-        return maxTimestamp;
+        return columnStats;
     }
 
     private void close()
@@ -209,8 +207,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
     {
         ColumnFamily container = emptyColumnFamily.cloneMeShallow();
         long serializedSize = 4; // int for column count
-        int size = 0;
+        int columns = 0;
         long maxTimestampSeen = Long.MIN_VALUE;
+        StreamingHistogram tombstones = new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE);
 
         public void reduce(IColumn current)
         {
@@ -227,9 +226,15 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
             }
             IColumn reduced = purged.iterator().next();
             container.clear();
+
             serializedSize += reduced.serializedSize();
-            size++;
+            columns++;
             maxTimestampSeen = Math.max(maxTimestampSeen, reduced.maxTimestamp());
+            int deletionTime = reduced.getLocalDeletionTime();
+            if (deletionTime < Integer.MAX_VALUE)
+            {
+                tombstones.update(deletionTime);
+            }
             return reduced;
         }
     }

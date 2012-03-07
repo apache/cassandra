@@ -42,14 +42,12 @@ public class CompactionTask extends AbstractCompactionTask
 {
     protected static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
     protected final int gcBefore;
-    protected boolean isUserDefined;
     protected static long totalBytesCompacted = 0;
 
     public CompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, final int gcBefore)
     {
         super(cfs, sstables);
         this.gcBefore = gcBefore;
-        this.isUserDefined = false;
     }
 
     public static synchronized long addToTotalBytesCompacted(long bytesCompacted)
@@ -261,11 +259,5 @@ public class CompactionTask extends AbstractCompactionTask
                 max = sstable.maxDataAge;
         }
         return max;
-    }
-
-    public CompactionTask isUserDefined(boolean isUserDefined)
-    {
-        this.isUserDefined = isUserDefined;
-        return this;
     }
 }

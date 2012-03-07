@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.io.sstable.ColumnStats;
 
 /**
  * a CompactedRow is an object that takes a bunch of rows (keys + columnfamilies)
@@ -60,14 +61,8 @@ public abstract class AbstractCompactedRow
     public abstract boolean isEmpty();
 
     /**
-     * @return the number of columns in the row
+     * @return aggregate information about the columns in this row.  Some fields may
+     * contain default values if computing them value would require extra effort we're not willing to make.
      */
-    public abstract int columnCount();
-
-    /**
-     * @return the max column timestamp in the row or Long.MIN_VALUE if
-     * computing this value would require extra effort we're not willing to
-     * make.
-     */
-    public abstract long maxTimestamp();
+    public abstract ColumnStats columnStats();
 }

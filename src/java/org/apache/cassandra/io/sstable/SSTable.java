@@ -61,6 +61,8 @@ public abstract class SSTable
 
     public static final String TEMPFILE_MARKER = "tmp";
 
+    public static final int TOMBSTONE_HISTOGRAM_BIN_SIZE = 100;
+
     public static final Comparator<SSTableReader> maxTimestampComparator = new Comparator<SSTableReader>()
     {
         public int compare(SSTableReader o1, SSTableReader o2)

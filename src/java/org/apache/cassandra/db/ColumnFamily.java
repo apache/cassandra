@@ -22,6 +22,8 @@ import static org.apache.cassandra.db.DBConstants.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.utils.*;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
 import org.apache.cassandra.cache.IRowCacheEntry;
@@ -31,10 +33,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.IColumnSerializer;
-import org.apache.cassandra.utils.Allocator;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.HeapAllocator;
+import org.apache.cassandra.io.sstable.ColumnStats;
 
 public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEntry
 {
@@ -363,5 +362,20 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
         {
             column.validateFields(metadata);
         }
+    }
+
+    public ColumnStats getColumnStats()
+    {
+        long maxTimestampSeen = Long.MIN_VALUE;
+        StreamingHistogram tombstones = new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE);
+
+        for (IColumn column : columns)
+        {
+            maxTimestampSeen = Math.max(maxTimestampSeen, column.maxTimestamp());
+            int deletionTime = column.getLocalDeletionTime();
+            if (deletionTime < Integer.MAX_VALUE)
+                tombstones.update(deletionTime);
+        }
+        return new ColumnStats(getColumnCount(), maxTimestampSeen, tombstones);
     }
 }

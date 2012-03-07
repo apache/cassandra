@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.List;
 
+import org.apache.cassandra.io.sstable.ColumnStats;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,6 +66,7 @@ public class PrecompactedRow extends AbstractCompactedRow
 
         if (cf.hasExpiredTombstones(controller.gcBefore))
             shouldPurge = controller.shouldPurge(key);
+
         // We should only gc tombstone if shouldPurge == true. But otherwise,
         // it is still ok to collect column that shadowed by their (deleted)
         // container, which removeDeleted(cf, Integer.MAX_VALUE) will do
@@ -161,14 +163,9 @@ public class PrecompactedRow extends AbstractCompactedRow
         return compactedCf == null;
     }
 
-    public int columnCount()
+    public ColumnStats columnStats()
     {
-        return compactedCf == null ? 0 : compactedCf.getColumnCount();
-    }
-
-    public long maxTimestamp()
-    {
-        return compactedCf.maxTimestamp();
+        return compactedCf.getColumnStats();
     }
 
     /**

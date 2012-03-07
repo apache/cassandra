@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.sstable.ColumnStats;
 
 public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
 {
@@ -70,7 +71,7 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
         serializeForSSTable(columnFamily, dos);
     }
 
-    public int serializeForSSTable(ColumnFamily columnFamily, DataOutput dos)
+    public void serializeForSSTable(ColumnFamily columnFamily, DataOutput dos)
     {
         try
         {
@@ -79,14 +80,8 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
             Collection<IColumn> columns = columnFamily.getSortedColumns();
             int count = columns.size();
             dos.writeInt(count);
-            int i = 0;
             for (IColumn column : columns)
-            {
                 columnFamily.getColumnSerializer().serialize(column, dos);
-                i++;
-            }
-            assert count == i: "CF size changed during serialization: was " + count + " initially but " + i + " written";
-            return count;
         }
         catch (IOException e)
         {
@@ -100,10 +95,10 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
         dos.writeLong(columnFamily.getMarkedForDeleteAt());
     }
 
-    public int serializeWithIndexes(ColumnFamily columnFamily, ColumnIndexer.RowHeader index, DataOutput dos)
+    public void serializeWithIndexes(ColumnFamily columnFamily, ColumnIndexer.RowHeader index, DataOutput dos)
     {
         ColumnIndexer.serialize(index, dos);
-        return serializeForSSTable(columnFamily, dos);
+        serializeForSSTable(columnFamily, dos);
     }
 
     public ColumnFamily deserialize(DataInput dis) throws IOException

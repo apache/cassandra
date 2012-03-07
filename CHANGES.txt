@@ -1,3 +1,8 @@
+1.2-dev
+ * Track tombstone expiration and compact when tombstone content is
+   higher than a configurable threshold, default 20% (CASSANDRA-3442)
+
+
 1.1.1-dev
  * optimize commitlog checksumming (CASSANDRA-3610)
  * identify and blacklist corrupted SSTables from future compactions (CASSANDRA-2261)

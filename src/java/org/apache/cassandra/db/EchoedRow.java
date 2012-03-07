@@ -22,7 +22,10 @@ import java.io.IOException;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.db.compaction.AbstractCompactedRow;
+import org.apache.cassandra.io.sstable.ColumnStats;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
+import org.apache.cassandra.utils.StreamingHistogram;
 
 /**
  * A CompactedRow implementation that just echos the original row bytes without deserializing.
@@ -60,13 +63,8 @@ public class EchoedRow extends AbstractCompactedRow
         return false;
     }
 
-    public int columnCount()
+    public ColumnStats columnStats()
     {
-        return row.getColumnCount();
-    }
-
-    public long maxTimestamp()
-    {
-        return Long.MIN_VALUE;
+        return new ColumnStats(row.getColumnCount(), Long.MIN_VALUE, new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE));
     }
 }

@@ -20,17 +20,15 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
+import static junit.framework.Assert.assertTrue;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
@@ -100,6 +98,60 @@ public class CompactionsTest extends CleanupHelper
         store.truncate();
     }
 
+    /**
+     * Test to see if sstable has enough expired columns, it is compacted itself.
+     */
+    @Test
+    public void testSingleSSTableCompaction() throws Exception
+    {
+        Table table = Table.open(TABLE1);
+        ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
+        store.clearUnsafe();
+        store.metadata.gcGraceSeconds(5);
+
+        // update SizeTieredCompactionStrategy's min_sstable_size to something small
+        // to split bucket for ttl'd sstable from others
+        Map<String, String> opts = new HashMap<String, String>();
+        opts.put(SizeTieredCompactionStrategy.MIN_SSTABLE_SIZE_KEY, "512");
+        store.metadata.compactionStrategyOptions(opts);
+        store.setCompactionStrategyClass(SizeTieredCompactionStrategy.class.getCanonicalName());
+        // disable compaction while flushing
+        store.disableAutoCompaction();
+
+        long timestamp = System.currentTimeMillis();
+        for (int i = 0; i < 10; i++)
+        {
+            DecoratedKey key = Util.dk(Integer.toString(i));
+            RowMutation rm = new RowMutation(TABLE1, key.key);
+            for (int j = 0; j < 10; j++)
+                rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(Integer.toString(j))),
+                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                       timestamp,
+                       j > 0 ? 3 : 0); // let first column never expire, since deleting all columns does not produce sstable
+            rm.apply();
+        }
+        store.forceBlockingFlush();
+        assertEquals(1, store.getSSTables().size());
+        long originalSize = store.getSSTables().iterator().next().uncompressedLength();
+
+        // wait enough to force single compaction
+        TimeUnit.SECONDS.sleep(5);
+
+        // enable compaction, submit background and wait for it to complete
+        store.setMinimumCompactionThreshold(2);
+        store.setMaximumCompactionThreshold(4);
+        FBUtilities.waitOnFuture(CompactionManager.instance.submitBackground(store));
+        while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0)
+            TimeUnit.SECONDS.sleep(1);
+
+        // and sstable with ttl should be compacted
+        assertEquals(1, store.getSSTables().size());
+        long size = store.getSSTables().iterator().next().uncompressedLength();
+        assertTrue("should be less than " + originalSize + ", but was " + size, size < originalSize);
+
+        // make sure max timestamp of compacted sstables is recorded properly after compaction.
+        assertMaxTimestamp(store, timestamp);
+    }
 
     @Test
     public void testSuperColumnCompactions() throws IOException, ExecutionException, InterruptedException

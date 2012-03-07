@@ -29,11 +29,13 @@ public abstract class AbstractCompactionTask
 {
     protected final ColumnFamilyStore cfs;
     protected Collection<SSTableReader> sstables;
+    protected boolean isUserDefined;
 
     public AbstractCompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
     {
         this.cfs = cfs;
         this.sstables = sstables;
+        this.isUserDefined = false;
     }
 
     public abstract int execute(CompactionExecutorStatsCollector collector) throws IOException;
@@ -58,7 +60,9 @@ public abstract class AbstractCompactionTask
      */
     public boolean markSSTablesForCompaction()
     {
-        return markSSTablesForCompaction(cfs.getMinimumCompactionThreshold(), cfs.getMaximumCompactionThreshold());
+        int min = isUserDefined ? 1 : cfs.getMinimumCompactionThreshold();
+        int max = isUserDefined ? Integer.MAX_VALUE : cfs.getMaximumCompactionThreshold();
+        return markSSTablesForCompaction(min, max);
     }
 
     public boolean markSSTablesForCompaction(int min, int max)
@@ -83,4 +87,10 @@ public abstract class AbstractCompactionTask
     // Can be overriden for action that need to be performed if the task won't
     // execute (if sstable can't be marked successfully)
     protected void cancel() {}
+
+    public AbstractCompactionTask isUserDefined(boolean isUserDefined)
+    {
+        this.isUserDefined = isUserDefined;
+        return this;
+    }
 }

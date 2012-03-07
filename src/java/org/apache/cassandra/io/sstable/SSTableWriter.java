@@ -158,16 +158,8 @@ public class SSTableWriter extends SSTable
         long dataSize = row.write(dataFile.stream);
         assert dataSize == dataFile.getFilePointer() - (dataStart + 8)
                 : "incorrect row data size " + dataSize + " written to " + dataFile.getPath() + "; correct is " + (dataFile.getFilePointer() - (dataStart + 8));
-        /*
-         * The max timestamp is not always collected here (more precisely, row.maxTimestamp() may return Long.MIN_VALUE),
-         * to avoid deserializing an EchoedRow.
-         * This is the reason why it is collected first when calling ColumnFamilyStore.createCompactionWriter
-         * However, for old sstables without timestamp, we still want to update the timestamp (and we know
-         * that in this case we will not use EchoedRow, since CompactionControler.needsDeserialize() will be true).
-        */
-        sstableMetadataCollector.updateMaxTimestamp(row.maxTimestamp());
-        sstableMetadataCollector.addRowSize(dataFile.getFilePointer() - currentPosition);
-        sstableMetadataCollector.addColumnCount(row.columnCount());
+
+        sstableMetadataCollector.update(dataFile.getFilePointer() - currentPosition, row.columnStats());
         afterAppend(row.key, currentPosition);
         return currentPosition;
     }
@@ -184,13 +176,10 @@ public class SSTableWriter extends SSTable
         dataFile.stream.writeLong(header.serializedSize() + cf.serializedSizeForSSTable());
 
         // write out row header and data
-        int columnCount = ColumnFamily.serializer().serializeWithIndexes(cf, header, dataFile.stream);
+        ColumnFamily.serializer().serializeWithIndexes(cf, header, dataFile.stream);
         afterAppend(decoratedKey, startPosition);
 
-        // track max column timestamp
-        sstableMetadataCollector.updateMaxTimestamp(cf.maxTimestamp());
-        sstableMetadataCollector.addRowSize(dataFile.getFilePointer() - startPosition);
-        sstableMetadataCollector.addColumnCount(columnCount);
+        sstableMetadataCollector.update(dataFile.getFilePointer() - startPosition, cf.getColumnStats());
     }
 
     public void append(DecoratedKey decoratedKey, ByteBuffer value) throws IOException
@@ -234,6 +223,7 @@ public class SSTableWriter extends SSTable
 
         // deserialize each column to obtain maxTimestamp and immediately serialize it.
         long maxTimestamp = Long.MIN_VALUE;
+        StreamingHistogram tombstones = new StreamingHistogram(TOMBSTONE_HISTOGRAM_BIN_SIZE);
         ColumnFamily cf = ColumnFamily.create(metadata, ArrayBackedSortedColumns.factory());
         for (int i = 0; i < columnCount; i++)
         {
@@ -256,6 +246,12 @@ public class SSTableWriter extends SSTable
                     }
                 }
             }
+
+            int deletionTime = column.getLocalDeletionTime();
+            if (deletionTime < Integer.MAX_VALUE)
+            {
+                tombstones.update(deletionTime);
+            }
             maxTimestamp = Math.max(maxTimestamp, column.maxTimestamp());
             cf.getColumnSerializer().serialize(column, dataFile.stream);
         }
@@ -265,13 +261,9 @@ public class SSTableWriter extends SSTable
         sstableMetadataCollector.updateMaxTimestamp(maxTimestamp);
         sstableMetadataCollector.addRowSize(dataFile.getFilePointer() - currentPosition);
         sstableMetadataCollector.addColumnCount(columnCount);
+        sstableMetadataCollector.mergeTombstoneHistogram(tombstones);
         afterAppend(key, currentPosition);
         return currentPosition;
-    }
-
-    public void updateMaxTimestamp(long timestamp)
-    {
-        sstableMetadataCollector.updateMaxTimestamp(timestamp);
     }
 
     /**
