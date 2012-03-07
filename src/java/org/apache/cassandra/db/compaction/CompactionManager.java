@@ -212,8 +212,10 @@ public class CompactionManager implements CompactionManagerMBean
                 for (final SSTableReader sstable : sstables)
                 {
                     // SSTables are marked by the caller
+                    // NOTE: it is important that the task create one and only one sstable, even for Leveled compaction (see LeveledManifest.replace())
                     CompactionTask task = new CompactionTask(cfs, Collections.singletonList(sstable), Integer.MAX_VALUE);
                     task.isUserDefined(true);
+                    task.setCompactionType(OperationType.UPGRADE_SSTABLES);
                     task.execute(executor);
                 }
             }
@@ -625,7 +627,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         if (newSstable == null)
         {
-            cfs.markCompacted(Arrays.asList(sstable));
+            cfs.markCompacted(Arrays.asList(sstable), OperationType.SCRUB);
             if (badRows > 0)
                 logger.warn("No valid rows found while scrubbing " + sstable + "; it is marked for deletion now. If you want to attempt manual recovery, you can find a copy in the pre-scrub snapshot");
             else
@@ -633,7 +635,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
         else
         {
-            cfs.replaceCompactedSSTables(Arrays.asList(sstable), Arrays.asList(newSstable));
+            cfs.replaceCompactedSSTables(Arrays.asList(sstable), Arrays.asList(newSstable), OperationType.SCRUB);
             logger.info("Scrub of " + sstable + " complete: " + goodRows + " rows in new sstable and " + emptyRows + " empty (tombstoned) rows dropped");
             if (badRows > 0)
                 logger.warn("Unable to recover " + badRows + " rows that were skipped.  You can attempt manual recovery from the pre-scrub snapshot.  You can also run nodetool repair to transfer the data from a healthy replica, if any");
@@ -778,7 +780,7 @@ public class CompactionManager implements CompactionManagerMBean
             // flush to ensure we don't lose the tombstones on a restart, since they are not commitlog'd
             cfs.indexManager.flushIndexesBlocking();
 
-            cfs.replaceCompactedSSTables(Arrays.asList(sstable), results);
+            cfs.replaceCompactedSSTables(Arrays.asList(sstable), results, OperationType.CLEANUP);
         }
     }
 
