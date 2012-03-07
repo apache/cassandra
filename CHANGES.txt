@@ -9,6 +9,7 @@
  * Fix division-by-zero error on get_slice (CASSANDRA-4000)
  * don't change manifest level for cleanup, scrub, and upgradesstables
    operations under LeveledCompactionStrategy (CASSANDRA-3989)
+ * fix race leading to super columns assertion failure (CASSANDRA-3957)
 
 
 1.0.8
