@@ -19,13 +19,18 @@ package org.apache.cassandra.notifications;
 
 import org.apache.cassandra.io.sstable.SSTableReader;
 
+import org.apache.cassandra.db.compaction.OperationType;
+
 public class SSTableListChangedNotification implements INotification
 {
     public final Iterable<SSTableReader> removed;
     public final Iterable<SSTableReader> added;
-    public SSTableListChangedNotification(Iterable<SSTableReader> added, Iterable<SSTableReader> removed)
+    public final OperationType compactionType;
+
+    public SSTableListChangedNotification(Iterable<SSTableReader> added, Iterable<SSTableReader> removed, OperationType compactionType)
     {
         this.removed = removed;
         this.added = added;
+        this.compactionType = compactionType;
     }
 }

@@ -30,12 +30,14 @@ public abstract class AbstractCompactionTask
     protected final ColumnFamilyStore cfs;
     protected Collection<SSTableReader> sstables;
     protected boolean isUserDefined;
+    protected OperationType compactionType;
 
     public AbstractCompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
     {
         this.cfs = cfs;
         this.sstables = sstables;
         this.isUserDefined = false;
+        this.compactionType = OperationType.COMPACTION;
     }
 
     public abstract int execute(CompactionExecutorStatsCollector collector) throws IOException;
@@ -91,6 +93,12 @@ public abstract class AbstractCompactionTask
     public AbstractCompactionTask isUserDefined(boolean isUserDefined)
     {
         this.isUserDefined = isUserDefined;
+        return this;
+    }
+
+    public AbstractCompactionTask setCompactionType(OperationType compactionType)
+    {
+        this.compactionType = compactionType;
         return this;
     }
 }

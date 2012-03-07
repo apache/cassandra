@@ -121,8 +121,8 @@ public class CompactionTask extends AbstractCompactionTask
             logger.debug("Expected bloom filter size : " + keysPerSSTable);
 
         AbstractCompactionIterable ci = DatabaseDescriptor.isMultithreadedCompaction()
-                                      ? new ParallelCompactionIterable(OperationType.COMPACTION, toCompact, controller)
-                                      : new CompactionIterable(OperationType.COMPACTION, toCompact, controller);
+                                      ? new ParallelCompactionIterable(compactionType, toCompact, controller)
+                                      : new CompactionIterable(compactionType, toCompact, controller);
         CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
         Iterator<AbstractCompactedRow> nni = Iterators.filter(iter, Predicates.notNull());
         Map<DecoratedKey, Long> cachedKeys = new HashMap<DecoratedKey, Long>();
@@ -143,7 +143,7 @@ public class CompactionTask extends AbstractCompactionTask
                 // don't mark compacted in the finally block, since if there _is_ nondeleted data,
                 // we need to sync it (via closeAndOpen) first, so there is no period during which
                 // a crash could cause data loss.
-                cfs.markCompacted(toCompact);
+                cfs.markCompacted(toCompact, compactionType);
                 return 0;
             }
 
@@ -199,7 +199,7 @@ public class CompactionTask extends AbstractCompactionTask
                 collector.finishCompaction(ci);
         }
 
-        cfs.replaceCompactedSSTables(toCompact, sstables);
+        cfs.replaceCompactedSSTables(toCompact, sstables, compactionType);
         // TODO: this doesn't belong here, it should be part of the reader to load when the tracker is wired up
         for (Entry<SSTableReader, Map<DecoratedKey, Long>> ssTableReaderMapEntry : cachedKeyMap.entrySet())
         {
