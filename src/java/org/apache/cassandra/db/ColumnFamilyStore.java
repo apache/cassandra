@@ -732,7 +732,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (cachedRow instanceof RowCacheSentinel)
                 invalidateCachedRow(cacheKey);
             else
-                ((ColumnFamily) cachedRow).addAll(columnFamily, HeapAllocator.instance);
+                // columnFamily is what is written in the commit log. Because of the PeriodicCommitLog, this can be done in concurrency
+                // with this. So columnFamily shouldn't be modified and if it contains super columns, neither should they. So for super
+                // columns, we must make sure to clone them when adding to the cache. That's what addAllWithSCCopy does (see #3957)
+                ((ColumnFamily) cachedRow).addAllWithSCCopy(columnFamily, HeapAllocator.instance);
         }
     }
 
