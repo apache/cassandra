@@ -538,10 +538,10 @@ commands:
         create column family Super4
             with column_type = 'Super'
             and comparator = 'AsciiType'
-            and rows_cached = 10000;
+            and caching='ALL';
         create column family Standard3
             with comparator = 'LongType'
-            and rows_cached = 10000;
+            and caching='ALL';
         create column family Standard4
             with comparator = AsciiType
             and column_metadata =
@@ -723,6 +723,27 @@ commands:
           It is also valid to specify the fully-qualified class name to a class that
           extends org.apache.cassandra.db.marshal.AbstractType.
 
+        - caching: Enable/Disable caching for the column family.
+
+          There is 2 kind of caches: key cache and row cache. A column family
+          can be set to use no cache, only one of them or both.
+
+          A key cache hit saves 1 seek while a row cache hit avoids disk
+          completely (saving at least 2 seeks). However the row cache holds
+          entire rows and is thus much more space-intensive. Also, since full
+          rows are stored, row cache should be used only for column families
+          whose rows are small.
+
+          Note: the global memory size of both cache can be set in the
+          configuration file (yaml) or through JMX (though it isn't persisted
+          across restarts in that latter case).
+
+          Supported values are:
+            - ALL (Enable row cache and key Cache)
+            - KEYS_ONLY
+            - ROWS_ONLY
+            - NONE;
+
         - max_compaction_threshold: The maximum number of SSTables allowed before a
         minor compaction is forced. Default is 32, setting to 0 disables minor
         compactions.
@@ -762,9 +783,9 @@ commands:
         Examples:
         update column family Super4
             with column_type = 'Super'
-            and rows_cached = 10000;
+            and caching='ALL';
         update column family Standard3
-            with rows_cached = 10000;
+            and caching='ALL';
         update column family Standard4
             with column_metadata =
             [{
