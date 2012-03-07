@@ -148,23 +148,6 @@ public class FileUtils
         return f.delete();
     }
 
-    public static boolean delete(List<String> files)
-    {
-        boolean bVal = true;
-        for ( int i = 0; i < files.size(); ++i )
-        {
-            String file = files.get(i);
-            bVal = delete(file);
-            if (bVal)
-            {
-            	if (logger_.isDebugEnabled())
-            	  logger_.debug("Deleted file {}", file);
-                files.remove(i);
-            }
-        }
-        return bVal;
-    }
-
     public static void delete(File[] files)
     {
         for ( File file : files )
