@@ -18,21 +18,20 @@
 */
 package org.apache.cassandra.utils;
 
-import java.util.ArrayDeque;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.concurrent.LinkedBlockingDeque;
 
 /**
- * not threadsafe.  caller is responsible for any locking necessary.
+ * bounded threadsafe deque
  */
 public class BoundedStatsDeque extends AbstractStatsDeque
 {
-    private final int size;
-    protected final ArrayDeque<Double> deque;
+    protected final LinkedBlockingDeque<Double> deque;
 
     public BoundedStatsDeque(int size)
     {
-        this.size = size;
-        deque = new ArrayDeque<Double>(size);
+        deque = new LinkedBlockingDeque<Double>(size);
     }
 
     public Iterator<Double> iterator()
@@ -50,12 +49,19 @@ public class BoundedStatsDeque extends AbstractStatsDeque
         deque.clear();
     }
 
-    public void add(double o)
+    public void add(double i)
     {
-        if (size == deque.size())
+        if (!deque.offer(i))
         {
-            deque.remove();
+            try
+            {
+                deque.remove();
+            }
+            catch (NoSuchElementException e)
+            {
+                // oops, clear() beat us to it
+            }
+            deque.offer(i);
         }
-        deque.add(o);
     }
 }
