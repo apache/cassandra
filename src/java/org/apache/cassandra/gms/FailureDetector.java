@@ -47,7 +47,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public static final IFailureDetector instance = new FailureDetector();
     private static final Logger logger = LoggerFactory.getLogger(FailureDetector.class);
-    private static int phiConvictThreshold;
+    private static double phiConvictThreshold;
 
     private final Map<InetAddress, ArrivalWindow> arrivalSamples = new Hashtable<InetAddress, ArrivalWindow>();
     private final List<IFailureDetectionEventListener> fdEvntListeners = new CopyOnWriteArrayList<IFailureDetectionEventListener>();
@@ -127,12 +127,12 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         }
     }
 
-    public void setPhiConvictThreshold(int phi)
+    public void setPhiConvictThreshold(double phi)
     {
         phiConvictThreshold = phi;
     }
 
-    public int getPhiConvictThreshold()
+    public double getPhiConvictThreshold()
     {
         return phiConvictThreshold;
     }

@@ -682,7 +682,7 @@ public class DatabaseDescriptor
         conf.rpc_timeout_in_ms = timeOutInMillis;
     }
 
-    public static int getPhiConvictThreshold()
+    public static double getPhiConvictThreshold()
     {
         return conf.phi_convict_threshold;
     }

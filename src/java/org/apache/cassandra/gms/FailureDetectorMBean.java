@@ -24,9 +24,9 @@ public interface FailureDetectorMBean
 {
     public void dumpInterArrivalTimes();
 
-    public void setPhiConvictThreshold(int phi);
+    public void setPhiConvictThreshold(double phi);
 
-    public int getPhiConvictThreshold();
+    public double getPhiConvictThreshold();
 
     public String getAllEndpointStates();
 

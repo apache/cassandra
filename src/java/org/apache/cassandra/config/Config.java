@@ -49,7 +49,7 @@ public class Config
 
     public Integer streaming_socket_timeout_in_ms = new Integer(0);
 
-    public Integer phi_convict_threshold = 8;
+    public Double phi_convict_threshold = 8.0;
 
     public Integer concurrent_reads = 8;
     public Integer concurrent_writes = 32;
