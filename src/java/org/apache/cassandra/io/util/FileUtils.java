@@ -151,7 +151,7 @@ public class FileUtils
     public static boolean delete(List<String> files)
     {
         boolean bVal = true;
-        for ( int i = 0; i < files.size(); ++i )
+        for ( int i = files.size() - 1; i >= 0; --i )
         {
             String file = files.get(i);
             bVal = delete(file);
