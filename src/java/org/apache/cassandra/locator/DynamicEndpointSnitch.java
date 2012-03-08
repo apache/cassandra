@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.locator;
 
 import java.lang.management.ManagementFactory;
@@ -22,7 +23,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
@@ -31,7 +31,7 @@ import javax.management.ObjectName;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.AbstractStatsDeque;
+import org.apache.cassandra.utils.BoundedStatsDeque;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -42,14 +42,14 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     private static final int UPDATES_PER_INTERVAL = 10000;
     private static final int WINDOW_SIZE = 100;
 
-    private final int UPDATE_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicUpdateInterval();
-    private final int RESET_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicResetInterval();
-    private final double BADNESS_THRESHOLD = DatabaseDescriptor.getDynamicBadnessThreshold();
-    private final String mbeanName;
+    private int UPDATE_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicUpdateInterval();
+    private int RESET_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicResetInterval();
+    private double BADNESS_THRESHOLD = DatabaseDescriptor.getDynamicBadnessThreshold();
+    private String mbeanName;
     private boolean registered = false;
 
     private final ConcurrentHashMap<InetAddress, Double> scores = new ConcurrentHashMap<InetAddress, Double>();
-    private final ConcurrentHashMap<InetAddress, AdaptiveLatencyTracker> windows = new ConcurrentHashMap<InetAddress, AdaptiveLatencyTracker>();
+    private final ConcurrentHashMap<InetAddress, BoundedStatsDeque> windows = new ConcurrentHashMap<InetAddress, BoundedStatsDeque>();
     private final AtomicInteger intervalupdates = new AtomicInteger(0);
 
     public final IEndpointSnitch subsnitch;
@@ -172,7 +172,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     {
         Double scored1 = scores.get(a1);
         Double scored2 = scores.get(a2);
-
+        
         if (scored1 == null)
         {
             scored1 = 0.0;
@@ -197,21 +197,21 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     {
         if (intervalupdates.intValue() >= UPDATES_PER_INTERVAL)
             return;
-        AdaptiveLatencyTracker tracker = windows.get(host);
-        if (tracker == null)
+        BoundedStatsDeque deque = windows.get(host);
+        if (deque == null)
         {
-            AdaptiveLatencyTracker alt = new AdaptiveLatencyTracker(WINDOW_SIZE);
-            tracker = windows.putIfAbsent(host, alt);
-            if (tracker == null)
-                tracker = alt;
+            BoundedStatsDeque maybeNewDeque  = new BoundedStatsDeque(WINDOW_SIZE);
+            deque = windows.putIfAbsent(host, maybeNewDeque);
+            if (deque == null)
+                deque = maybeNewDeque;
         }
-        tracker.add(latency);
+        deque.add(latency);
         intervalupdates.getAndIncrement();
     }
 
     private void updateScores() // this is expensive
     {
-        if (!StorageService.instance.isInitialized())
+        if (!StorageService.instance.isInitialized()) 
             return;
         if (!registered)
         {
@@ -222,18 +222,18 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             }
 
         }
-        for (Map.Entry<InetAddress, AdaptiveLatencyTracker> entry: windows.entrySet())
+        for (Map.Entry<InetAddress, BoundedStatsDeque> entry: windows.entrySet())
         {
-            scores.put(entry.getKey(), entry.getValue().score());
+            scores.put(entry.getKey(), entry.getValue().mean());
         }
         intervalupdates.set(0);
     }
 
     private void reset()
     {
-        for (AdaptiveLatencyTracker tracker : windows.values())
+        for (BoundedStatsDeque deque : windows.values())
         {
-            tracker.clear();
+            deque.clear();
         }
     }
 
@@ -263,7 +263,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     {
         InetAddress host = InetAddress.getByName(hostname);
         ArrayList<Double> timings = new ArrayList<Double>();
-        AdaptiveLatencyTracker window = windows.get(host);
+        BoundedStatsDeque window = windows.get(host);
         if (window != null)
         {
             for (double time: window)
@@ -272,54 +272,6 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             }
         }
         return timings;
-    }
-
-}
-
-/** a threadsafe version of BoundedStatsDeque+ArrivalWindow with modification for arbitrary times **/
-class AdaptiveLatencyTracker extends AbstractStatsDeque
-{
-    private final LinkedBlockingDeque<Double> latencies;
-
-    AdaptiveLatencyTracker(int size)
-    {
-        latencies = new LinkedBlockingDeque<Double>(size);
-    }
-
-    public void add(double i)
-    {
-        if (!latencies.offer(i))
-        {
-            try
-            {
-                latencies.remove();
-            }
-            catch (NoSuchElementException e)
-            {
-                // oops, clear() beat us to it
-            }
-            latencies.offer(i);
-        }
-    }
-
-    public void clear()
-    {
-        latencies.clear();
-    }
-
-    public Iterator<Double> iterator()
-    {
-        return latencies.iterator();
-    }
-
-    public int size()
-    {
-        return latencies.size();
-    }
-
-    double score()
-    {
-        return (size() > 0) ? mean() : 0.0;
     }
 
 }

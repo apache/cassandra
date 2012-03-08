@@ -272,29 +272,9 @@ class ArrivalWindow
         tLast = value;
     }
 
-    synchronized double sum()
-    {
-        return arrivalIntervals.sum();
-    }
-
-    synchronized double sumOfDeviations()
-    {
-        return arrivalIntervals.sumOfDeviations();
-    }
-
-    synchronized double mean()
+    double mean()
     {
         return arrivalIntervals.mean();
-    }
-
-    synchronized double variance()
-    {
-        return arrivalIntervals.variance();
-    }
-
-    double stdev()
-    {
-        return arrivalIntervals.stdev();
     }
 
     void clear()
@@ -303,7 +283,7 @@ class ArrivalWindow
     }
 
     // see CASSANDRA-2597 for an explanation of the math at work here.
-    synchronized double phi(long tnow)
+    double phi(long tnow)
     {
         int size = arrivalIntervals.size();
         double t = tnow - tLast;
