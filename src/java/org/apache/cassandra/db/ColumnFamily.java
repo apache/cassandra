@@ -138,6 +138,26 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
         return getType() == ColumnFamilyType.Super;
     }
 
+    /**
+     * Same as addAll() but do a cloneMeShallow of SuperColumn if necessary to
+     * avoid keeping references to the structure (see #3957).
+     */
+    public void addAllWithSCCopy(ColumnFamily cf, Allocator allocator)
+    {
+        if (cf.isSuper())
+        {
+            for (IColumn c : cf)
+            {
+                columns.addColumn(((SuperColumn)c).cloneMeShallow(), allocator);
+            }
+            delete(cf);
+        }
+        else
+        {
+            addAll(cf, allocator);
+        }
+    }
+
     public void addColumn(QueryPath path, ByteBuffer value, long timestamp)
     {
         addColumn(path, value, timestamp, 0);

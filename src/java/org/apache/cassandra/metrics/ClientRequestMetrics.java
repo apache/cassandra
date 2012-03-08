@@ -1,4 +1,3 @@
-package org.apache.cassandra.notifications;
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,22 +18,15 @@ package org.apache.cassandra.notifications;
  * under the License.
  *
  */
+package org.apache.cassandra.metrics;
 
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.Counter;
 
-import org.apache.cassandra.io.sstable.SSTableReader;
-
-import org.apache.cassandra.db.compaction.OperationType;
-
-public class SSTableListChangedNotification implements INotification
+public class ClientRequestMetrics
 {
-    public final Iterable<SSTableReader> removed;
-    public final Iterable<SSTableReader> added;
-    public final OperationType compactionType;
-
-    public SSTableListChangedNotification(Iterable<SSTableReader> added, Iterable<SSTableReader> removed, OperationType compactionType)
-    {
-        this.removed = removed;
-        this.added = added;
-        this.compactionType = compactionType;
-    }
+    public static final Counter readTimeouts = Metrics.newCounter(ClientRequestMetrics.class, "ReadTimeouts");
+    public static final Counter writeTimeouts = Metrics.newCounter(ClientRequestMetrics.class, "WriteTimeouts");
+    public static final Counter readUnavailables = Metrics.newCounter(ClientRequestMetrics.class, "ReadUnavailables");
+    public static final Counter writeUnavailables = Metrics.newCounter(ClientRequestMetrics.class, "WriteUnavailables");
 }

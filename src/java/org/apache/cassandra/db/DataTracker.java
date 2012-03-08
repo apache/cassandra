@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
@@ -241,16 +242,16 @@ public class DataTracker
         while (!view.compareAndSet(currentView, newView));
     }
 
-    public void markCompacted(Collection<SSTableReader> sstables)
+    public void markCompacted(Collection<SSTableReader> sstables, OperationType compactionType)
     {
         replace(sstables, Collections.<SSTableReader>emptyList());
-        notifySSTablesChanged(sstables, Collections.<SSTableReader>emptyList());
+        notifySSTablesChanged(sstables, Collections.<SSTableReader>emptyList(), compactionType);
     }
 
-    public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements)
+    public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements, OperationType compactionType)
     {
         replace(sstables, replacements);
-        notifySSTablesChanged(sstables, replacements);
+        notifySSTablesChanged(sstables, replacements, compactionType);
     }
 
     public void addInitialSSTables(Collection<SSTableReader> sstables)
@@ -290,7 +291,7 @@ public class DataTracker
             // notifySSTablesChanged -> LeveledManifest.promote doesn't like a no-op "promotion"
             return;
         }
-        notifySSTablesChanged(notCompacting, Collections.<SSTableReader>emptySet());
+        notifySSTablesChanged(notCompacting, Collections.<SSTableReader>emptySet(), OperationType.UNKNOWN);
         postReplace(notCompacting, Collections.<SSTableReader>emptySet());
     }
 
@@ -522,11 +523,11 @@ public class DataTracker
         return (double) falseCount / (trueCount + falseCount);
     }
 
-    public void notifySSTablesChanged(Iterable<SSTableReader> removed, Iterable<SSTableReader> added)
+    public void notifySSTablesChanged(Iterable<SSTableReader> removed, Iterable<SSTableReader> added, OperationType compactionType)
     {
         for (INotificationConsumer subscriber : subscribers)
         {
-            INotification notification = new SSTableListChangedNotification(added, removed);
+            INotification notification = new SSTableListChangedNotification(added, removed, compactionType);
             subscriber.handleNotification(notification, this);
         }
     }

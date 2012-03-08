@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 1.1-dev
  * start hint replay as soon as FD notifies that the target is back up
    (CASSANDRA-3958)
@@ -17,6 +18,8 @@
  * Fix race between writes and read for cache (CASSANDRA-3862)
  * perform static initialization of StorageProxy on start-up (CASSANDRA-3797)
  * support trickling fsync() on writes (CASSANDRA-3950)
+ * expose counters for unavailable/timeout exceptions given to thrift clients (CASSANDRA-3671)
+ * avoid quadratic startup time in LeveledManifest (CASSANDRA-3952)
 Merged from 1.0:
  * remove the wait on hint future during write (CASSANDRA-3870)
  * (cqlsh) ignore missing CfDef opts (CASSANDRA-3933)
@@ -24,6 +27,9 @@ Merged from 1.0:
  * Fix short read protection (CASSANDRA-3934)
  * don't change manifest level for cleanup, scrub, and upgradesstables
    operations under LeveledCompactionStrategy (CASSANDRA-3989)
+=======
+1.0.9
+>>>>>>> cassandra-1.0
  * always compact away deleted hints immediately after handoff (CASSANDRA-3955)
  * delete hints from dropped ColumnFamilies on handoff instead of
    erroring out (CASSANDRA-3975)
@@ -31,6 +37,10 @@ Merged from 1.0:
  * Pig: support Counter ColumnFamilies (CASSANDRA-3973)
  * Pig: Composite column support (CASSANDRA-384)
  * Avoid NPE during repair when a keyspace has no CFs (CASSANDRA-3988)
+ * Fix division-by-zero error on get_slice (CASSANDRA-4000)
+ * don't change manifest level for cleanup, scrub, and upgradesstables
+   operations under LeveledCompactionStrategy (CASSANDRA-3989)
+ * fix race leading to super columns assertion failure (CASSANDRA-3957)
 
 
 1.1-beta1
