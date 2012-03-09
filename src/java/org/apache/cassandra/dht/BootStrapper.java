@@ -117,7 +117,7 @@ public class BootStrapper
         List<InetAddress> endpoints = new ArrayList<InetAddress>(load.size());
         for (InetAddress endpoint : load.keySet())
         {
-            if (!metadata.isMember(endpoint))
+            if (!metadata.isMember(endpoint) || !FailureDetector.instance.isAlive(endpoint))
                 continue;
             endpoints.add(endpoint);
         }

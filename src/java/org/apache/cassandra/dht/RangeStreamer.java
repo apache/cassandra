@@ -30,8 +30,14 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
+import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.IFailureDetector;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -42,7 +48,7 @@ import org.apache.cassandra.utils.FBUtilities;
 /**
  * Assists in streaming ranges to a node.
  */
-public class RangeStreamer
+public class RangeStreamer implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeStreamer.class);
 
@@ -51,6 +57,9 @@ public class RangeStreamer
     private final OperationType opType;
     private final Multimap<String, Map.Entry<InetAddress, Collection<Range<Token>>>> toFetch = HashMultimap.create();
     private final Set<ISourceFilter> sourceFilters = new HashSet<ISourceFilter>();
+    // protected for testing.
+    protected CountDownLatch latch;
+    protected volatile String exceptionMessage = null;
 
     /**
      * A filter applied to sources to stream from when constructing a fetch map.
@@ -212,7 +221,7 @@ public class RangeStreamer
 
     public void fetch()
     {
-        final CountDownLatch latch = new CountDownLatch(toFetch().entries().size());
+        latch = new CountDownLatch(toFetch().entries().size());
         for (Map.Entry<String, Map.Entry<InetAddress, Collection<Range<Token>>>> entry : toFetch.entries())
         {
             final String table = entry.getKey();
@@ -234,13 +243,64 @@ public class RangeStreamer
             StreamIn.requestRanges(source, table, ranges, callback, opType);
         }
 
+        FailureDetector.instance.registerFailureDetectionEventListener(this);
+        Gossiper.instance.register(this);
         try
         {
             latch.await();
+            if (exceptionMessage != null)
+                throw new RuntimeException(exceptionMessage);
         }
         catch (InterruptedException e)
         {
             throw new AssertionError(e);
+        }
+        finally
+        {
+            FailureDetector.instance.unregisterFailureDetectionEventListener(this);
+            Gossiper.instance.unregister(this);
+        }
+    }
+    
+    @Override
+    public void onJoin(InetAddress endpoint, EndpointState epState) {}
+
+    @Override
+    public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value) {}
+
+    @Override
+    public void onAlive(InetAddress endpoint, EndpointState state) {}
+
+    @Override
+    public void onDead(InetAddress endpoint, EndpointState state) {}
+    
+    @Override
+    public void onRemove(InetAddress endpoint)
+    {
+        convict(endpoint, Double.MAX_VALUE);
+    }
+
+    @Override
+    public void onRestart(InetAddress endpoint, EndpointState epState)
+    {
+        convict(endpoint, Double.MAX_VALUE);
+    }
+
+    public void convict(InetAddress endpoint, double phi)
+    {        
+        // We want a higher confidence in the failure detection than usual because failing a repair wrongly has a high cost.
+        // same logic as in RepairSession
+        if (phi < 2 * DatabaseDescriptor.getPhiConvictThreshold())
+            return;
+
+        for (Map.Entry<InetAddress, Collection<Range<Token>>> value: toFetch().values())
+        {
+            if (value.getKey().equals(endpoint))
+            {
+                exceptionMessage = String.format("Node: %s died while streaming the ranges. Boostrap/rebuild Aborded.", endpoint);
+                while (latch.getCount() > 0)
+                    latch.countDown();
+            }
         }
     }
 }

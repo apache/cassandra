@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 import org.junit.Test;
 
@@ -33,12 +34,15 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.junit.Assert.*;
 
 import static org.junit.Assert.assertEquals;
 
@@ -73,7 +77,10 @@ public class BootStrapperTest extends CleanupHelper
         };
         Map<InetAddress, Double> load = new HashMap<InetAddress, Double>();
         for (int i = 0; i < addrs.length; i++)
+        {
+            Gossiper.instance.initializeNodeUnsafe(addrs[i], 1);
             load.put(addrs[i], (double)i+2);
+        }
 
         // give every node a bootstrap source.
         for (int i = 3; i >=0; i--)
@@ -155,7 +162,7 @@ public class BootStrapperTest extends CleanupHelper
         }
     }
 
-    private void testSourceTargetComputation(String table, int numOldNodes, int replicationFactor) throws UnknownHostException
+    private RangeStreamer testSourceTargetComputation(String table, int numOldNodes, int replicationFactor) throws UnknownHostException
     {
         StorageService ss = StorageService.instance;
 
@@ -196,6 +203,18 @@ public class BootStrapperTest extends CleanupHelper
         // is used, they will vary.
         assert toFetch.iterator().next().getValue().size() > 0;
         assert !toFetch.iterator().next().getKey().equals(myEndpoint);
+        return s;
+    }
+
+    @Test
+    public void testException() throws UnknownHostException
+    {
+        String table = Schema.instance.getNonSystemTables().iterator().next();
+        int replicationFactor = Table.open(table).getReplicationStrategy().getReplicationFactor();
+        RangeStreamer streamer = testSourceTargetComputation(table, replicationFactor, replicationFactor);
+        streamer.latch = new CountDownLatch(4);
+        streamer.convict(streamer.toFetch().get(table).iterator().next().getKey(), Double.MAX_VALUE);
+        assertNotNull("Exception message not set, test failed", streamer.exceptionMessage);
     }
 
     private void generateFakeEndpoints(int numOldNodes) throws UnknownHostException
