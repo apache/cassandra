@@ -50,10 +50,16 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
 
     public Ec2Snitch() throws IOException, ConfigurationException
     {
+        String az = awsApiCall(ZONE_NAME_QUERY_URL);
         // Split "us-east-1a" or "asia-1a" into "us-east"/"1a" and "asia"/"1a".
-        String[] splits = awsApiCall(ZONE_NAME_QUERY_URL).split("-");
+        String[] splits = az.split("-");
         ec2zone = splits[splits.length - 1];
-        ec2region = splits.length < 3 ? splits[0] : splits[0] + "-" + splits[1];
+        
+        // hack for CASSANDRA-4026
+        ec2region = az.substring(0, az.length() - 1);
+        if (ec2region.endsWith("1"))
+            ec2region = az.substring(0, az.length() - 3);
+        
         logger.info("EC2Snitch using region: " + ec2region + ", zone: " + ec2zone + ".");
     }
 
