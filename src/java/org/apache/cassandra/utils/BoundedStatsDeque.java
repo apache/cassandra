@@ -22,7 +22,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.LinkedBlockingDeque;
 
 /**
- * threadsafe bounded deque with statistical functions
+ * bounded threadsafe deque
  */
 public class BoundedStatsDeque implements Iterable<Double>
 {

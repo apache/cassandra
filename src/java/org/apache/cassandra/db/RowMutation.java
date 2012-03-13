@@ -166,6 +166,21 @@ public class RowMutation implements IMutation, MessageProducer
             throw new IllegalArgumentException("ColumnFamily " + columnFamily + " already has modifications in this mutation: " + prev);
     }
 
+    /**
+     * @return the ColumnFamily in this RowMutation corresponding to @param cfName, creating an empty one if necessary.
+     */
+    public ColumnFamily addOrGet(String cfName)
+    {
+        CFMetaData cfm = Schema.instance.getCFMetaData(table, cfName);
+        ColumnFamily cf = modifications.get(cfm.cfId);
+        if (cf == null)
+        {
+            cf = ColumnFamily.create(cfm);
+            modifications.put(cfm.cfId, cf);
+        }
+        return cf;
+    }
+
     public boolean isEmpty()
     {
         return modifications.isEmpty();
@@ -183,6 +198,10 @@ public class RowMutation implements IMutation, MessageProducer
      * param @ value - value associated with the column
      * param @ timestamp - timestamp associated with this data.
      * param @ timeToLive - ttl for the column, 0 for standard (non expiring) columns
+     *
+     * @Deprecated this tends to be low-performance; we're doing two hash lookups,
+     * one of which instantiates a Pair, and callers tend to instantiate new QP objects
+     * for each call as well.  Use the add(ColumnFamily) overload instead.
      */
     public void add(QueryPath path, ByteBuffer value, long timestamp, int timeToLive)
     {

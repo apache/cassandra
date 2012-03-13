@@ -97,12 +97,8 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     /** get a string representation of the bytes suitable for log messages */
     public abstract String getString(ByteBuffer bytes);
 
-    /** get a byte representation of the given string.
-     *  defaults to unsupportedoperation so people deploying custom Types can update at their leisure. */
-    public ByteBuffer fromString(String source) throws MarshalException
-    {
-        throw new UnsupportedOperationException();
-    }
+    /** get a byte representation of the given string. */
+    public abstract ByteBuffer fromString(String source) throws MarshalException;
 
     /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
     public abstract void validate(ByteBuffer bytes) throws MarshalException;

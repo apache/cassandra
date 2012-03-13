@@ -18,21 +18,25 @@
 package org.apache.cassandra.config;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 import com.google.common.collect.Maps;
 
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.migration.MigrationHelper;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.migration.MigrationHelper.*;
+import static org.apache.cassandra.utils.FBUtilities.json;
 
 public class ColumnDefinition
 {
@@ -44,11 +48,37 @@ public class ColumnDefinition
 
     public ColumnDefinition(ByteBuffer name, AbstractType<?> validator, IndexType index_type, Map<String, String> index_options, String index_name)
     {
+        assert name != null && validator != null;
         this.name = name;
         this.index_name = index_name;
         this.validator = validator;
 
         this.setIndexType(index_type, index_options);
+    }
+
+    public static ColumnDefinition ascii(String name)
+    {
+        return new ColumnDefinition(ByteBufferUtil.bytes(name), AsciiType.instance, null, null, null);
+    }
+
+    public static ColumnDefinition bool(String name)
+    {
+        return new ColumnDefinition(ByteBufferUtil.bytes(name), BooleanType.instance, null, null, null);
+    }
+
+    public static ColumnDefinition utf8(String name)
+    {
+        return new ColumnDefinition(ByteBufferUtil.bytes(name), UTF8Type.instance, null, null, null);
+    }
+
+    public static ColumnDefinition int32(String name)
+    {
+        return new ColumnDefinition(ByteBufferUtil.bytes(name), Int32Type.instance, null, null, null);
+    }
+
+    public static ColumnDefinition double_(String name)
+    {
+        return new ColumnDefinition(ByteBufferUtil.bytes(name), DoubleType.instance, null, null, null);
     }
 
     @Override
@@ -80,22 +110,6 @@ public class ColumnDefinition
         result = 31 * result + (index_options != null ? index_options.hashCode() : 0);
         result = 31 * result + (index_name != null ? index_name.hashCode() : 0);
         return result;
-    }
-
-    @Deprecated
-    public static ColumnDefinition fromAvro(org.apache.cassandra.db.migration.avro.ColumnDef cd)
-    {
-        IndexType index_type = cd.index_type == null ? null : Enum.valueOf(IndexType.class, cd.index_type.name());
-        String index_name = cd.index_name == null ? null : cd.index_name.toString();
-        try
-        {
-            AbstractType<?> validatorType = TypeParser.parse(cd.validation_class);
-            return new ColumnDefinition(ByteBufferUtil.clone(cd.name), validatorType, index_type, getStringMap(cd.index_options), index_name);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
     }
 
     public ColumnDef toThrift()
@@ -135,138 +149,102 @@ public class ColumnDefinition
         return cds;
     }
 
-    public static Map<ByteBuffer, ColumnDef> toMap(List<ColumnDef> columnDefs)
-    {
-        Map<ByteBuffer, ColumnDef> map = new HashMap<ByteBuffer, ColumnDef>();
-
-        if (columnDefs == null)
-            return map;
-
-        for (ColumnDef columnDef : columnDefs)
-            map.put(columnDef.name, columnDef);
-
-        return map;
-    }
-
     /**
-     * Drop specified column from the schema using given row mutation.
+     * Drop specified column from the schema using given row.
      *
-     * @param mutation   The schema row mutation
+     * @param rm         The schema row mutation
      * @param cfName     The name of the parent ColumnFamily
-     * @param comparator The comparator to serialize column name in human-readable format
-     * @param columnName The column name as String
      * @param timestamp  The timestamp to use for column modification
      */
-    public static void deleteFromSchema(RowMutation mutation, String cfName, AbstractType comparator, ByteBuffer columnName, long timestamp)
+    public void deleteFromSchema(RowMutation rm, String cfName, AbstractType<?> comparator, long timestamp)
     {
-        toSchema(mutation, comparator, cfName, columnName, null, timestamp, true);
+        ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_COLUMNS_CF);
+        int ldt = (int) (System.currentTimeMillis() / 1000);
+
+        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "validator"));
+        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "index_type"));
+        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "index_options"));
+        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "index_name"));
     }
 
-    /**
-     * Add new/update column to/in the schema.
-     *
-     * @param mutation   The schema row mutation
-     * @param cfName     The name of the parent ColumnFamily
-     * @param comparator The comparator to serialize column name in human-readable format
-     * @param columnDef  The Thrift-based column definition that contains all attributes
-     * @param timestamp  The timestamp to use for column modification
-     */
-    public static void addToSchema(RowMutation mutation, String cfName, AbstractType comparator, ColumnDef columnDef, long timestamp)
+    public void toSchema(RowMutation rm, String cfName, AbstractType<?> comparator, long timestamp)
     {
-        toSchema(mutation, comparator, cfName, columnDef.name, columnDef, timestamp, false);
+        ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_COLUMNS_CF);
+        int ldt = (int) (System.currentTimeMillis() / 1000);
+
+        cf.addColumn(Column.create(validator.toString(), timestamp, cfName, comparator.getString(name), "validator"));
+        cf.addColumn(index_type == null ? DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "index_type")
+                                        : Column.create(index_type.toString(), timestamp, cfName, comparator.getString(name), "index_type"));
+        cf.addColumn(index_options == null ? DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "index_options")
+                                           : Column.create(json(index_options), timestamp, cfName, comparator.getString(name), "index_options"));
+        cf.addColumn(index_name == null ? DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "index_name")
+                                        : Column.create(index_name, timestamp, cfName, comparator.getString(name), "index_name"));
     }
 
-    /**
-     * Serialize given ColumnDef into given schema row mutation to add or drop it.
-     *
-     * @param mutation   The mutation to use for serialization
-     * @param comparator The comparator to serialize column name in human-readable format
-     * @param cfName     The name of the parent ColumnFamily
-     * @param columnName The column name as String
-     * @param columnDef  The Thrift-based column definition that contains all attributes
-     * @param timestamp  The timestamp to use for column modification
-     * @param delete     The flag which indicates if column should be deleted or added to the schema
-     */
-    private static void toSchema(RowMutation mutation, AbstractType comparator, String cfName, ByteBuffer columnName, ColumnDef columnDef, long timestamp, boolean delete)
+    public void apply(ColumnDefinition def, AbstractType<?> comparator)  throws ConfigurationException
     {
-        for (ColumnDef._Fields field : ColumnDef._Fields.values())
-        {
-            QueryPath path = new QueryPath(SystemTable.SCHEMA_COLUMNS_CF,
-                                           null,
-                                           compositeNameFor(cfName,
-                                                            readableColumnName(columnName, comparator),
-                                                            field.getFieldName()));
+        // If an index is set (and not drop by this update), the validator shouldn't be change to a non-compatible one
+        if (getIndexType() != null && def.getIndexType() != null && !def.validator.isCompatibleWith(validator))
+            throw new ConfigurationException(String.format("Cannot modify validator to a non-compatible one for column %s since an index is set", comparator.getString(name)));
 
-            if (delete)
-                mutation.delete(path, timestamp);
-            else
-                mutation.add(path, valueAsBytes(columnDef.getFieldValue(field)), timestamp);
-        }
-    }
-
-    public static ColumnFamily readSchema(String ksName, String cfName)
-    {
-        DecoratedKey key = StorageService.getPartitioner().decorateKey(SystemTable.getSchemaKSKey(ksName));
-        ColumnFamilyStore columnsStore = SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNS_CF);
-        return columnsStore.getColumnFamily(key,
-                                            new QueryPath(SystemTable.SCHEMA_COLUMNS_CF),
-                                            MigrationHelper.searchComposite(cfName, true),
-                                            MigrationHelper.searchComposite(cfName, false),
-                                            false,
-                                            Integer.MAX_VALUE);
+        setValidator(def.getValidator());
+        setIndexType(def.getIndexType(), def.getIndexOptions());
+        setIndexName(def.getIndexName());
     }
 
     /**
      * Deserialize columns from low-level representation
      *
      * @return Thrift-based deserialized representation of the column
+     * @param row
      */
-    public static List<ColumnDef> fromSchema(ColumnFamily columns)
+    public static List<ColumnDefinition> fromSchema(Row row, AbstractType<?> comparator)
     {
-
-        if (columns == null || columns.isEmpty())
+        if (row.cf == null)
             return Collections.emptyList();
 
-        // contenders to be a valid columns, re-check is done after all attributes
-        // were read from serialized state, if ColumnDef has all required fields it gets promoted to be returned
-        Map<String, ColumnDef> contenders = new HashMap<String, ColumnDef>();
-
-        for (IColumn column : columns.getSortedColumns())
+        List<ColumnDefinition> cds = new ArrayList<ColumnDefinition>();
+        for (UntypedResultSet.Row result : QueryProcessor.resultify("SELECT * FROM system.schema_columns", row))
         {
-            if (column.isMarkedForDelete())
-                continue;
-
-            // column name format <cf>:<column name>:<attribute name>
-            String[] components = columns.getComparator().getString(column.name()).split(":");
-            assert components.length == 3;
-
-            ColumnDef columnDef = contenders.get(components[1]);
-
-            if (columnDef == null)
+            try
             {
-                columnDef = new ColumnDef();
-                contenders.put(components[1], columnDef);
+                IndexType index_type = null;
+                Map<String,String> index_options = null;
+                String index_name = null;
+
+                if (result.has("index_type"))
+                    index_type = IndexType.valueOf(result.getString("index_type"));
+                if (result.has("index_options"))
+                    index_options = FBUtilities.fromJsonMap(result.getString("index_options"));
+                if (result.has("index_name"))
+                    index_name = result.getString("index_name");
+
+                cds.add(new ColumnDefinition(comparator.fromString(result.getString("column")),
+                                             TypeParser.parse(result.getString("validator")),
+                                             index_type,
+                                             index_options,
+                                             index_name));
             }
-
-            ColumnDef._Fields field = ColumnDef._Fields.findByName(components[2]);
-
-            // this means that given field was deprecated
-            // but still exists in the serialized schema
-            if (field == null)
-                continue;
-
-            columnDef.setFieldValue(field, deserializeValue(column.value(), getValueClass(ColumnDef.class, field.getFieldName())));
+            catch (ConfigurationException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
-        List<ColumnDef> columnDefs = new ArrayList<ColumnDef>();
+        return cds;
+    }
 
-        for (ColumnDef columnDef : contenders.values())
-        {
-            if (columnDef.isSetName() && columnDef.isSetValidation_class())
-                columnDefs.add(columnDef);
-        }
-
-        return columnDefs;
+    public static Row readSchema(String ksName, String cfName)
+    {
+        DecoratedKey key = StorageService.getPartitioner().decorateKey(SystemTable.getSchemaKSKey(ksName));
+        ColumnFamilyStore columnsStore = SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNS_CF);
+        ColumnFamily cf = columnsStore.getColumnFamily(key,
+                                                       new QueryPath(SystemTable.SCHEMA_COLUMNS_CF),
+                                                       MigrationHelper.searchComposite(cfName, true),
+                                                       MigrationHelper.searchComposite(cfName, false),
+                                                       false,
+                                                       Integer.MAX_VALUE);
+        return new Row(key, cf);
     }
 
     @Override

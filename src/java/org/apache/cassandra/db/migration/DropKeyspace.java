@@ -40,9 +40,9 @@ public class DropKeyspace extends Migration
         this.name = name;
     }
 
-    protected Collection<RowMutation> applyImpl() throws ConfigurationException, IOException
+    protected RowMutation applyImpl() throws ConfigurationException, IOException
     {
-        return MigrationHelper.dropKeyspace(name, timestamp);
+        return MigrationHelper.dropKeyspace(name, timestamp, true);
     }
 
     @Override

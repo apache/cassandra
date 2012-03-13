@@ -6,6 +6,7 @@
 1.1.1-dev
  * optimize commitlog checksumming (CASSANDRA-3610)
  * identify and blacklist corrupted SSTables from future compactions (CASSANDRA-2261)
+ * fix KEYS index from skipping results (CASSANDRA-3996)
 
 
 1.1-dev
@@ -30,13 +31,13 @@
  * support trickling fsync() on writes (CASSANDRA-3950)
  * expose counters for unavailable/timeout exceptions given to thrift clients (CASSANDRA-3671)
  * avoid quadratic startup time in LeveledManifest (CASSANDRA-3952)
+ * Add type information to new schema_ columnfamilies and remove thrift
+   serialization for schema (CASSANDRA-3792)
 Merged from 1.0:
  * remove the wait on hint future during write (CASSANDRA-3870)
  * (cqlsh) ignore missing CfDef opts (CASSANDRA-3933)
  * (cqlsh) look for cqlshlib relative to realpath (CASSANDRA-3767)
  * Fix short read protection (CASSANDRA-3934)
- * don't change manifest level for cleanup, scrub, and upgradesstables
-   operations under LeveledCompactionStrategy (CASSANDRA-3989)
  * always compact away deleted hints immediately after handoff (CASSANDRA-3955)
  * delete hints from dropped ColumnFamilies on handoff instead of
    erroring out (CASSANDRA-3975)

@@ -135,7 +135,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     applyPropertiesToCfDef(thriftDef, cfProps);
                     break;
             }
-            return new UpdateColumnFamily(thriftDef);
+            return new UpdateColumnFamily(CFMetaData.fromThrift(thriftDef));
         }
         catch (ConfigurationException e)
         {

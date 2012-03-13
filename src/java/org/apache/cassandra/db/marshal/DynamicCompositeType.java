@@ -328,6 +328,11 @@ public class DynamicCompositeType extends AbstractCompositeType
             throw new UnsupportedOperationException();
         }
 
+        public ByteBuffer fromString(String str)
+        {
+            throw new UnsupportedOperationException();
+        }
+
         public void validate(ByteBuffer bytes)
         {
             throw new UnsupportedOperationException();

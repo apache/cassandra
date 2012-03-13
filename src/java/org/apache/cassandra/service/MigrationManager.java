@@ -84,7 +84,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public void onRemove(InetAddress endpoint)
     {}
 
-    public static void rectifySchema(UUID theirVersion, final InetAddress endpoint)
+    private static void rectifySchema(UUID theirVersion, final InetAddress endpoint)
     {
         // Can't request migrations from nodes with versions younger than 1.1
         if (Gossiper.instance.getVersion(endpoint) < MessagingService.VERSION_11)
