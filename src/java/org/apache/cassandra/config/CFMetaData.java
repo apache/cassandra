@@ -713,7 +713,7 @@ public final class CFMetaData
         {
             ColumnDefinition oldDef = column_metadata.get(name);
             ColumnDefinition def = cfm.column_metadata.get(name);
-            oldDef.apply(def, comparator);
+            oldDef.apply(def, getColumnDefinitionComparator());
         }
 
         compactionStrategyClass = cfm.compactionStrategyClass;
@@ -901,17 +901,17 @@ public final class CFMetaData
 
         // columns that are no longer needed
         for (ColumnDefinition cd : columnDiff.entriesOnlyOnLeft().values())
-            cd.deleteFromSchema(rm, cfName, comparator, modificationTimestamp);
+            cd.deleteFromSchema(rm, cfName, getColumnDefinitionComparator(), modificationTimestamp);
 
         // newly added columns
         for (ColumnDefinition cd : columnDiff.entriesOnlyOnRight().values())
-            cd.toSchema(rm, cfName, comparator, modificationTimestamp);
+            cd.toSchema(rm, cfName, getColumnDefinitionComparator(), modificationTimestamp);
 
         // old columns with updated attributes
         for (ByteBuffer name : columnDiff.entriesDiffering().keySet())
         {
             ColumnDefinition cd = newState.getColumnDefinition(name);
-            cd.toSchema(rm, cfName, comparator, modificationTimestamp);
+            cd.toSchema(rm, cfName, getColumnDefinitionComparator(), modificationTimestamp);
         }
 
         return rm;
@@ -953,7 +953,7 @@ public final class CFMetaData
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "compaction_strategy_options"));
 
         for (ColumnDefinition cd : column_metadata.values())
-            cd.deleteFromSchema(rm, cfName, comparator, timestamp);
+            cd.deleteFromSchema(rm, cfName, getColumnDefinitionComparator(), timestamp);
 
         return rm;
     }
@@ -963,7 +963,7 @@ public final class CFMetaData
         toSchemaNoColumns(rm, timestamp);
 
         for (ColumnDefinition cd : column_metadata.values())
-            cd.toSchema(rm, cfName, comparator, timestamp);
+            cd.toSchema(rm, cfName, getColumnDefinitionComparator(), timestamp);
     }
 
     private void toSchemaNoColumns(RowMutation rm, long timestamp)
@@ -1101,6 +1101,20 @@ public final class CFMetaData
                                                         ? cfDef.subcomparator_type
                                                         : cfDef.comparator_type);
 
+        if (cfComparator instanceof CompositeType)
+        {
+            List<AbstractType<?>> types = ((CompositeType)cfComparator).types;
+            return types.get(types.size() - 1);
+        }
+        else
+        {
+            return cfComparator;
+        }
+    }
+
+    public AbstractType<?> getColumnDefinitionComparator()
+    {
+        AbstractType<?> cfComparator = cfType == ColumnFamilyType.Super ? subcolumnComparator : comparator;
         if (cfComparator instanceof CompositeType)
         {
             List<AbstractType<?>> types = ((CompositeType)cfComparator).types;
