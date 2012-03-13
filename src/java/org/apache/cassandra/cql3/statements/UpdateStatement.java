@@ -23,9 +23,7 @@ import java.util.*;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.CounterMutation;
-import org.apache.cassandra.db.IMutation;
-import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.LongType;
@@ -143,12 +141,6 @@ public class UpdateStatement extends ModificationStatement
     /**
      * Compute a row mutation for a single key
      *
-     *
-     * @param keyspace working keyspace
-     * @param key key to change
-     * @param metadata information about CF
-     *
-     * @param clientState
      * @return row mutation
      *
      * @throws InvalidRequestException on the wrong request
@@ -159,6 +151,7 @@ public class UpdateStatement extends ModificationStatement
         // if true we need to wrap RowMutation into CounterMutation
         boolean hasCounterColumn = false;
         RowMutation rm = new RowMutation(cfDef.cfm.ksName, key);
+        ColumnFamily cf = rm.addOrGet(cfDef.cfm.cfName);
 
         if (cfDef.isCompact)
         {
@@ -168,7 +161,7 @@ public class UpdateStatement extends ModificationStatement
             Operation value = processedColumns.get(cfDef.value.name);
             if (value == null)
                 throw new InvalidRequestException(String.format("Missing mandatory column %s", cfDef.value));
-            hasCounterColumn = addToMutation(clientState, rm, builder.build(), cfDef.value, value, variables);
+            hasCounterColumn = addToMutation(clientState, cf, builder.build(), cfDef.value, value, variables);
         }
         else
         {
@@ -179,7 +172,7 @@ public class UpdateStatement extends ModificationStatement
                     continue;
 
                 ByteBuffer colName = builder.copy().add(name.name.key).build();
-                hasCounterColumn |= addToMutation(clientState, rm, colName, name, value, variables);
+                hasCounterColumn |= addToMutation(clientState, cf, colName, name, value, variables);
             }
         }
 
@@ -187,7 +180,7 @@ public class UpdateStatement extends ModificationStatement
     }
 
     private boolean addToMutation(ClientState clientState,
-                                  RowMutation rm,
+                                  ColumnFamily cf,
                                   ByteBuffer colName,
                                   CFDefinition.Name valueDef,
                                   Operation value,
@@ -195,12 +188,12 @@ public class UpdateStatement extends ModificationStatement
     {
         if (value.isUnary())
         {
-            ByteBuffer valueBytes = value.value.getByteBuffer(valueDef.type, variables);
             validateColumnName(colName);
-            rm.add(new QueryPath(columnFamily(), null, colName),
-                   valueBytes,
-                   getTimestamp(clientState),
-                   getTimeToLive());
+            ByteBuffer valueBytes = value.value.getByteBuffer(valueDef.type, variables);
+            Column c = timeToLive > 0
+                       ? new ExpiringColumn(colName, valueBytes, getTimestamp(clientState), timeToLive)
+                       : new Column(colName, valueBytes, getTimestamp(clientState));
+            cf.addColumn(c);
             return false;
         }
         else
@@ -226,7 +219,7 @@ public class UpdateStatement extends ModificationStatement
                 else
                     val = -val;
             }
-            rm.addCounter(new QueryPath(columnFamily(), null, colName), val);
+            cf.addCounter(new QueryPath(columnFamily(), null, colName), val);
             return true;
         }
     }

@@ -792,7 +792,7 @@ public class QueryProcessor
                 ThriftValidation.validateCfDef(cf_def, oldCfm);
                 try
                 {
-                    applyMigrationOnStage(new UpdateColumnFamily(cf_def));
+                    applyMigrationOnStage(new UpdateColumnFamily(CFMetaData.fromThrift(cf_def)));
                 }
                 catch (ConfigurationException e)
                 {
@@ -877,7 +877,7 @@ public class QueryProcessor
 
                 try
                 {
-                    applyMigrationOnStage(new UpdateColumnFamily(alterTable.getCfDef(keyspace)));
+                    applyMigrationOnStage(new UpdateColumnFamily(CFMetaData.fromThrift(alterTable.getCfDef(keyspace))));
                 }
                 catch (ConfigurationException e)
                 {

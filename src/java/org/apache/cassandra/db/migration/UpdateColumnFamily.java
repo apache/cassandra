@@ -20,28 +20,28 @@ package org.apache.cassandra.db.migration;
 import java.io.IOException;
 import java.util.Collection;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.thrift.CfDef;
 
 public class UpdateColumnFamily extends Migration
 {
-    private final CfDef newState;
+    private final CFMetaData newState;
 
-    public UpdateColumnFamily(CfDef newState) throws ConfigurationException
+    public UpdateColumnFamily(CFMetaData newState) throws ConfigurationException
     {
         super(System.nanoTime());
 
-        if (Schema.instance.getCFMetaData(newState.keyspace, newState.name) == null)
-            throw new ConfigurationException(String.format("(ks=%s, cf=%s) cannot be updated because it doesn't exist.", newState.keyspace, newState.name));
+        if (Schema.instance.getCFMetaData(newState.ksName, newState.cfName) == null)
+            throw new ConfigurationException(String.format("(ks=%s, cf=%s) cannot be updated because it doesn't exist.", newState.ksName, newState.cfName));
 
         this.newState = newState;
     }
 
-    protected Collection<RowMutation> applyImpl() throws ConfigurationException, IOException
+    protected RowMutation applyImpl() throws ConfigurationException, IOException
     {
-        return MigrationHelper.updateColumnFamily(newState, timestamp);
+        return MigrationHelper.updateColumnFamily(newState, timestamp, true);
     }
 
     @Override

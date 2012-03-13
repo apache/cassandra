@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db;
+package org.apache.cassandra.config;
 
 import java.io.File;
 import java.io.IOException;
@@ -26,7 +26,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -103,25 +103,26 @@ public class DefsTest extends CleanupHelper
 
         // we'll be adding this one later. make sure it's not already there.
         assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 5 })) == null;
-        CfDef cfDef = cfm.toThrift();
+
+        CFMetaData cfNew = cfm.clone();
 
         // add one.
-        ColumnDef addIndexDef = new ColumnDef();
-        addIndexDef.index_name = "5";
-        addIndexDef.index_type = IndexType.KEYS;
-        addIndexDef.name = ByteBuffer.wrap(new byte[] { 5 });
-        addIndexDef.validation_class = BytesType.class.getName();
-        cfDef.column_metadata.add(addIndexDef);
+        ColumnDefinition addIndexDef = new ColumnDefinition(ByteBuffer.wrap(new byte[] { 5 }),
+                                                            BytesType.instance,
+                                                            IndexType.KEYS,
+                                                            null,
+                                                            "5");
+        cfNew.addColumnDefinition(addIndexDef);
 
         // remove one.
-        ColumnDef removeIndexDef = new ColumnDef();
-        removeIndexDef.index_name = "0";
-        removeIndexDef.index_type = IndexType.KEYS;
-        removeIndexDef.name = ByteBuffer.wrap(new byte[] { 0 });
-        removeIndexDef.validation_class = BytesType.class.getName();
-        assert cfDef.column_metadata.remove(removeIndexDef);
+        ColumnDefinition removeIndexDef = new ColumnDefinition(ByteBuffer.wrap(new byte[] { 0 }),
+                                                               BytesType.instance,
+                                                               IndexType.KEYS,
+                                                               null,
+                                                               "0");
+        assert cfNew.removeColumnDefinition(removeIndexDef);
 
-        cfm.apply(cfDef);
+        cfm.apply(cfNew);
 
         for (int i = 1; i < indexes.size(); i++)
             assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 1 })) != null;
@@ -423,7 +424,7 @@ public class DefsTest extends CleanupHelper
         KSMetaData newBadKs = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(4), cf2);
         try
         {
-            new UpdateKeyspace(newBadKs.toThrift()).apply();
+            new UpdateKeyspace(newBadKs).apply();
             throw new AssertionError("Should not have been able to update a KS with a KS that described column families.");
         }
         catch (ConfigurationException ex)
@@ -435,7 +436,7 @@ public class DefsTest extends CleanupHelper
         KSMetaData newBadKs2 = KSMetaData.testMetadata(cf.ksName + "trash", SimpleStrategy.class, KSMetaData.optsWithRF(4));
         try
         {
-            new UpdateKeyspace(newBadKs2.toThrift()).apply();
+            new UpdateKeyspace(newBadKs2).apply();
             throw new AssertionError("Should not have been able to update a KS with an invalid KS name.");
         }
         catch (ConfigurationException ex)
@@ -444,7 +445,7 @@ public class DefsTest extends CleanupHelper
         }
 
         KSMetaData newKs = KSMetaData.testMetadata(cf.ksName, OldNetworkTopologyStrategy.class, KSMetaData.optsWithRF(1));
-        new UpdateKeyspace(newKs.toThrift()).apply();
+        new UpdateKeyspace(newKs).apply();
 
         KSMetaData newFetchedKs = Schema.instance.getKSMetaData(newKs.name);
         assert newFetchedKs.strategyClass.equals(newKs.strategyClass);
@@ -464,121 +465,88 @@ public class DefsTest extends CleanupHelper
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName) != null;
 
         // updating certain fields should fail.
-        CfDef cf_def = cf.toThrift();
-        cf_def.column_metadata = new ArrayList<ColumnDef>();
-        cf_def.default_validation_class ="BytesType";
-        cf_def.min_compaction_threshold = 5;
-        cf_def.max_compaction_threshold = 31;
+        CFMetaData newCfm = cf.clone();
+        newCfm.columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>());
+        newCfm.defaultValidator(BytesType.instance);
+        newCfm.minCompactionThreshold(5);
+        newCfm.maxCompactionThreshold(31);
 
         // test valid operations.
-        cf_def.comment = "Modified comment";
-        new UpdateColumnFamily(cf_def).apply(); // doesn't get set back here.
+        newCfm.comment("Modified comment");
+        new UpdateColumnFamily(newCfm).apply(); // doesn't get set back here.
 
-        cf_def.read_repair_chance = 0.23;
-        new UpdateColumnFamily(cf_def).apply();
+        newCfm.readRepairChance(0.23);
+        new UpdateColumnFamily(newCfm).apply();
 
-        cf_def.gc_grace_seconds = 12;
-        new UpdateColumnFamily(cf_def).apply();
+        newCfm.gcGraceSeconds(12);
+        new UpdateColumnFamily(newCfm).apply();
 
-        cf_def.default_validation_class = "UTF8Type";
-        new UpdateColumnFamily(cf_def).apply();
+        newCfm.defaultValidator(UTF8Type.instance);
+        new UpdateColumnFamily(newCfm).apply();
 
-        cf_def.min_compaction_threshold = 3;
-        new UpdateColumnFamily(cf_def).apply();
+        newCfm.minCompactionThreshold(3);
+        new UpdateColumnFamily(newCfm).apply();
 
-        cf_def.max_compaction_threshold = 33;
-        new UpdateColumnFamily(cf_def).apply();
+        newCfm.maxCompactionThreshold(33);
+        new UpdateColumnFamily(newCfm).apply();
 
         // can't test changing the reconciler because there is only one impl.
 
         // check the cumulative affect.
-        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getComment().equals(cf_def.comment);
-        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getReadRepairChance() == cf_def.read_repair_chance;
-        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getGcGraceSeconds() == cf_def.gc_grace_seconds;
+        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getComment().equals(newCfm.getComment());
+        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getReadRepairChance() == newCfm.getReadRepairChance();
+        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getGcGraceSeconds() == newCfm.getGcGraceSeconds();
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getDefaultValidator() == UTF8Type.instance;
 
-        // todo: we probably don't need to reset old values in the catches anymore.
-        // make sure some invalid operations fail.
-        int oldId = cf_def.id;
+        // Change cfId
+        newCfm = new CFMetaData(cf.ksName, cf.cfName, cf.cfType, cf.comparator, cf.subcolumnComparator, cf.cfId + 1);
+        CFMetaData.copyOpts(newCfm, cf);
         try
         {
-            cf_def.id++;
-            cf.apply(cf_def);
+            cf.apply(newCfm);
             throw new AssertionError("Should have blown up when you used a different id.");
         }
-        catch (ConfigurationException expected)
-        {
-            cf_def.id = oldId;
-        }
+        catch (ConfigurationException expected) {}
 
-        String oldStr = cf_def.name;
+        // Change cfName
+        newCfm = new CFMetaData(cf.ksName, cf.cfName + "_renamed", cf.cfType, cf.comparator, cf.subcolumnComparator, cf.cfId);
+        CFMetaData.copyOpts(newCfm, cf);
         try
         {
-            cf_def.name = cf_def.name + "_renamed";
-            cf.apply(cf_def);
+            cf.apply(newCfm);
             throw new AssertionError("Should have blown up when you used a different name.");
         }
-        catch (ConfigurationException expected)
-        {
-            cf_def.name = oldStr;
-        }
+        catch (ConfigurationException expected) {}
 
-        oldStr = cf_def.keyspace;
+        // Change ksName
+        newCfm = new CFMetaData(cf.ksName + "_renamed", cf.cfName, cf.cfType, cf.comparator, cf.subcolumnComparator, cf.cfId);
+        CFMetaData.copyOpts(newCfm, cf);
         try
         {
-            cf_def.keyspace = oldStr + "_renamed";
-            cf.apply(cf_def);
+            cf.apply(newCfm);
             throw new AssertionError("Should have blown up when you used a different keyspace.");
         }
-        catch (ConfigurationException expected)
-        {
-            cf_def.keyspace = oldStr;
-        }
+        catch (ConfigurationException expected) {}
 
+        // Change cf type
+        newCfm = new CFMetaData(cf.ksName, cf.cfName, ColumnFamilyType.Super, cf.comparator, cf.subcolumnComparator, cf.cfId);
+        CFMetaData.copyOpts(newCfm, cf);
         try
         {
-            cf_def.column_type = ColumnFamilyType.Super.name();
-            cf.apply(cf_def);
+            cf.apply(newCfm);
             throw new AssertionError("Should have blwon up when you used a different cf type.");
         }
-        catch (ConfigurationException expected)
-        {
-            cf_def.column_type = ColumnFamilyType.Standard.name();
-        }
+        catch (ConfigurationException expected) {}
 
-        oldStr = cf_def.comparator_type;
+        // Change comparator
+        newCfm = new CFMetaData(cf.ksName, cf.cfName, cf.cfType, TimeUUIDType.instance, cf.subcolumnComparator, cf.cfId);
+        CFMetaData.copyOpts(newCfm, cf);
         try
         {
-            cf_def.comparator_type = TimeUUIDType.class.getSimpleName();
-            cf.apply(cf_def);
+            cf.apply(newCfm);
             throw new AssertionError("Should have blown up when you used a different comparator.");
         }
-        catch (ConfigurationException expected)
-        {
-            cf_def.comparator_type = UTF8Type.class.getSimpleName();
-        }
-
-        try
-        {
-            cf_def.min_compaction_threshold = 34;
-            cf.apply(cf_def);
-            throw new AssertionError("Should have blown up when min > max.");
-        }
-        catch (ConfigurationException expected)
-        {
-            cf_def.min_compaction_threshold = 3;
-        }
-
-        try
-        {
-            cf_def.max_compaction_threshold = 2;
-            cf.apply(cf_def);
-            throw new AssertionError("Should have blown up when max > min.");
-        }
-        catch (ConfigurationException expected)
-        {
-            cf_def.max_compaction_threshold = 33;
-        }
+        catch (ConfigurationException expected) {}
     }
 
     @Test
@@ -598,11 +566,11 @@ public class DefsTest extends CleanupHelper
         Descriptor desc = indexedCfs.getSSTables().iterator().next().descriptor;
 
         // drop the index
-        CFMetaData meta = CFMetaData.rename(cfs.metadata, cfs.metadata.cfName); // abusing rename to clone
+        CFMetaData meta = cfs.metadata.clone();
         ColumnDefinition cdOld = meta.getColumn_metadata().values().iterator().next();
         ColumnDefinition cdNew = new ColumnDefinition(cdOld.name, cdOld.getValidator(), null, null, null);
         meta.columnMetadata(Collections.singletonMap(cdOld.name, cdNew));
-        UpdateColumnFamily update = new UpdateColumnFamily(meta.toThrift());
+        UpdateColumnFamily update = new UpdateColumnFamily(meta);
         update.apply();
 
         // check

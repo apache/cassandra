@@ -1050,7 +1050,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             ThriftValidation.validateKsDef(ks_def);
-            applyMigrationOnStage(new UpdateKeyspace(ks_def));
+            applyMigrationOnStage(new UpdateKeyspace(KSMetaData.fromThrift(ks_def)));
             return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
@@ -1079,7 +1079,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             // ideally, apply() would happen on the stage with the
             CFMetaData.applyImplicitDefaults(cf_def);
-            UpdateColumnFamily update = new UpdateColumnFamily(cf_def);
+            UpdateColumnFamily update = new UpdateColumnFamily(CFMetaData.fromThrift(cf_def));
             applyMigrationOnStage(update);
             return Schema.instance.getVersion().toString();
         }

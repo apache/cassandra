@@ -54,7 +54,7 @@ public class DropIndexStatement
         if (cfDef == null)
             throw new InvalidRequestException("Index '" + index + "' could not be found in any of the ColumnFamilies of keyspace '" + keyspace + "'");
 
-        return new UpdateColumnFamily(cfDef);
+        return new UpdateColumnFamily(CFMetaData.fromThrift(cfDef));
     }
 
     private CfDef getUpdatedCFDef(CfDef cfDef) throws InvalidRequestException
