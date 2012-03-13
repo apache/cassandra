@@ -60,6 +60,10 @@ Features
       be pinned to specfic media.
     - Hadoop: a new BulkOutputFormat is included which will directly write
       SSTables locally and then stream them into the cluster.
+      YOU SHOULD USE BulkOutputFormat BY DEFAULT.  ColumnFamilyOutputFormat
+      is still around in case for some strange reason you want results
+      trickling out over Thrift, but BulkOutputFormat is significantly
+      more efficient.
     - Hadoop: KeyRange.filter is now supported with ColumnFamilyInputFormat
     - The bulk loader is not longer a fat client; it can be run from an
       existing machine in a cluster.
