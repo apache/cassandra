@@ -147,6 +147,8 @@ public class StreamingHistogram
         else
         {
             Map.Entry<Double, Long> pi = bin.floorEntry(b);
+            if (pi == null)
+                return 0;
             // calculate estimated count mb for point b
             double weight = (b - pi.getKey()) / (pnext.getKey() - pi.getKey());
             double mb = pi.getValue() + (pnext.getValue() - pi.getValue()) * weight;
