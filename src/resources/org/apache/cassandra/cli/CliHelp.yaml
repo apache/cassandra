@@ -359,8 +359,12 @@ commands:
 
               Supported values are:
                 - AsciiType
+                - BooleanType
                 - BytesType
                 - CounterColumnType (distributed counter column)
+                - DateType
+                - DoubleType
+                - FloatType
                 - Int32Type
                 - IntegerType (a generic variable-length integer type)
                 - LexicalUUIDType
@@ -403,8 +407,12 @@ commands:
 
           Supported values are:
             - AsciiType
+            - BooleanType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - DateType
+            - DoubleType
+            - FloatType
             - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
@@ -422,8 +430,12 @@ commands:
 
           Supported values are:
             - AsciiType
+            - BooleanType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - DateType
+            - DoubleType
+            - FloatType
             - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
@@ -440,7 +452,11 @@ commands:
 
           Supported values are:
             - AsciiType
+            - BooleanType
             - BytesType
+            - DateType
+            - DoubleType
+            - FloatType
             - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
@@ -487,8 +503,12 @@ commands:
 
           Supported values are:
             - AsciiType
+            - BooleanType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - DateType
+            - DoubleType
+            - FloatType
             - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
@@ -580,8 +600,12 @@ commands:
 
               Supported values are:
                 - AsciiType
+                - BooleanType
                 - BytesType
                 - CounterColumnType (distributed counter column)
+                - DateType
+                - DoubleType
+                - FloatType
                 - Int32Type
                 - IntegerType (a generic variable-length integer type)
                 - LexicalUUIDType
@@ -628,8 +652,12 @@ commands:
 
           Supported values are:
             - AsciiType
+            - BooleanType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - DateType
+            - DoubleType
+            - FloatType
             - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
@@ -647,8 +675,12 @@ commands:
 
           Supported values are:
             - AsciiType
+            - BooleanType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - DateType
+            - DoubleType
+            - FloatType
             - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
@@ -665,7 +697,11 @@ commands:
 
           Supported values are:
             - AsciiType
+            - BooleanType
             - BytesType
+            - DateType
+            - DoubleType
+            - FloatType
             - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
@@ -712,8 +748,12 @@ commands:
 
           Supported values are:
             - AsciiType
+            - BooleanType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - DateType
+            - DoubleType
+            - FloatType
             - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
@@ -896,8 +936,12 @@ commands:
 
           Valid options are:
             - AsciiType
+            - BooleanType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - DateType
+            - DoubleType
+            - FloatType
             - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
