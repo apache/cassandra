@@ -324,6 +324,7 @@ public final class CFMetaData
                              .keyValidator(info.getValidator())
                              .readRepairChance(0.0)
                              .dcLocalReadRepairChance(0.0)
+                             .caching(Caching.NONE)
                              .reloadSecondaryIndexMetadata(parent);
     }
 
