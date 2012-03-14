@@ -20,9 +20,9 @@ package org.apache.cassandra.service;
 
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 
-public class CassandraServerTest extends CleanupHelper
+public class CassandraServerTest extends SchemaLoader
 {
     @Test
     public void test_get_column() throws Throwable {

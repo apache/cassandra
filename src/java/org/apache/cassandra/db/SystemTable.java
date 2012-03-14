@@ -37,7 +37,6 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.migration.MigrationHelper;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -610,8 +609,8 @@ public class SystemTable
         ColumnFamilyStore schemaCFS = SystemTable.schemaCFS(SCHEMA_COLUMNFAMILIES_CF);
         ColumnFamily result = schemaCFS.getColumnFamily(key,
                                                         new QueryPath(SCHEMA_COLUMNFAMILIES_CF),
-                                                        MigrationHelper.searchComposite(cfName, true),
-                                                        MigrationHelper.searchComposite(cfName, false),
+                                                        DefsTable.searchComposite(cfName, true),
+                                                        DefsTable.searchComposite(cfName, false),
                                                         false,
                                                         Integer.MAX_VALUE);
 

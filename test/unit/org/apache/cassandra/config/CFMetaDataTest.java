@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -49,7 +49,7 @@ import static org.junit.Assert.assertEquals;
 import java.util.Map;
 import java.nio.ByteBuffer;
 
-public class CFMetaDataTest extends CleanupHelper
+public class CFMetaDataTest extends SchemaLoader
 {
     private static String KEYSPACE = "Keyspace1";
     private static String COLUMN_FAMILY = "Standard1";

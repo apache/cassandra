@@ -22,13 +22,13 @@ import java.util.*;
 
 import org.apache.cassandra.config.Schema;
 import org.junit.Test;
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 
-public class LongCompactionSpeedTest extends CleanupHelper
+public class LongCompactionSpeedTest extends SchemaLoader
 {
     public static final String TABLE1 = "Keyspace1";
 

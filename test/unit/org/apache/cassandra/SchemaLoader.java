@@ -18,22 +18,29 @@
 
 package org.apache.cassandra;
 
+import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import com.google.common.base.Charsets;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.SnappyCompressor;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.IndexType;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,8 +50,11 @@ public class SchemaLoader
     private static Logger logger = LoggerFactory.getLogger(SchemaLoader.class);
 
     @BeforeClass
-    public static void loadSchema()
+    public static void loadSchema() throws IOException
     {
+        // Cleanup first
+        cleanupAndLeaveDirs();
+
         CommitLog.instance.allocator.enableReserveSegmentCreation();
 
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
@@ -55,14 +65,29 @@ public class SchemaLoader
             }
         });
 
+
+        // Migrations aren't happy if gossiper is not started
+        startGossiper();
         try
         {
-            Schema.instance.load(schemaDefinition());
+            for (KSMetaData ksm : schemaDefinition())
+                MigrationManager.announceNewKeyspace(ksm);
         }
         catch (ConfigurationException e)
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void startGossiper()
+    {
+        Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
+    }
+
+    @AfterClass
+    public static void stopGossiper()
+    {
+        Gossiper.instance.stop();
     }
 
     public static Collection<KSMetaData> schemaDefinition() throws ConfigurationException
@@ -288,5 +313,85 @@ public class SchemaLoader
     private static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)
     {
         return new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, comp, null).defaultValidator(comp);
+    }
+
+    public static void cleanupAndLeaveDirs() throws IOException
+    {
+        mkdirs();
+        cleanup();
+        mkdirs();
+        CommitLog.instance.resetUnsafe(); // cleanup screws w/ CommitLog, this brings it back to safe state
+    }
+
+    public static void cleanup() throws IOException
+    {
+        // clean up commitlog
+        String[] directoryNames = { DatabaseDescriptor.getCommitLogLocation(), };
+        for (String dirName : directoryNames)
+        {
+            File dir = new File(dirName);
+            if (!dir.exists())
+                throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
+            FileUtils.deleteRecursive(dir);
+        }
+
+        cleanupSavedCaches();
+
+        // clean up data directory which are stored as data directory/table/data files
+        for (String dirName : DatabaseDescriptor.getAllDataFileLocations())
+        {
+            File dir = new File(dirName);
+            if (!dir.exists())
+                throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
+            FileUtils.deleteRecursive(dir);
+        }
+    }
+
+    public static void mkdirs()
+    {
+        try
+        {
+            DatabaseDescriptor.createAllDirectories();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    protected void insertData(String keyspace, String columnFamily, int offset, int numberOfRows) throws IOException
+    {
+        for (int i = offset; i < offset + numberOfRows; i++)
+        {
+            ByteBuffer key = ByteBufferUtil.bytes("key" + i);
+            RowMutation rowMutation = new RowMutation(keyspace, key);
+            QueryPath path = new QueryPath(columnFamily, null, ByteBufferUtil.bytes("col" + i));
+
+            rowMutation.add(path, ByteBufferUtil.bytes("val" + i), System.currentTimeMillis());
+            rowMutation.applyUnsafe();
+        }
+    }
+
+    /* usually used to populate the cache */
+    protected void readData(String keyspace, String columnFamily, int offset, int numberOfRows) throws IOException
+    {
+        ColumnFamilyStore store = Table.open(keyspace).getColumnFamilyStore(columnFamily);
+        for (int i = offset; i < offset + numberOfRows; i++)
+        {
+            DecoratedKey key = Util.dk("key" + i);
+            QueryPath path = new QueryPath(columnFamily, null, ByteBufferUtil.bytes("col" + i));
+
+            store.getColumnFamily(key, path, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+        }
+    }
+
+    protected static void cleanupSavedCaches()
+    {
+        File cachesDir = new File(DatabaseDescriptor.getSavedCachesLocation());
+
+        if (!cachesDir.exists() || !cachesDir.isDirectory())
+            return;
+
+        FileUtils.delete(cachesDir.listFiles());
     }
 }

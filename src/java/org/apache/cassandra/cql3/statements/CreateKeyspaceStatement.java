@@ -26,10 +26,9 @@ import java.util.Map;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.migration.AddKeyspace;
-import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -103,12 +102,12 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
         }
     }
 
-    public Migration getMigration() throws InvalidRequestException, ConfigurationException, IOException
+    public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
         KsDef ksd = new KsDef(name, strategyClass, Collections.<CfDef>emptyList());
         ksd.setStrategy_options(strategyOptions);
         ThriftValidation.validateKsDef(ksd);
         ThriftValidation.validateKeyspaceNotYetExisting(name);
-        return new AddKeyspace(KSMetaData.fromThrift(ksd));
+        MigrationManager.announceNewKeyspace(KSMetaData.fromThrift(ksd));
     }
 }

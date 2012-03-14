@@ -22,8 +22,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.cql3.CFName;
-import org.apache.cassandra.db.migration.DropColumnFamily;
-import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.service.MigrationManager;
 
 public class DropColumnFamilyStatement extends SchemaAlteringStatement
 {
@@ -32,8 +31,8 @@ public class DropColumnFamilyStatement extends SchemaAlteringStatement
         super(name);
     }
 
-    public Migration getMigration() throws ConfigurationException, IOException
+    public void announceMigration() throws ConfigurationException
     {
-        return new DropColumnFamily(keyspace(), columnFamily());
+        MigrationManager.announceColumnFamilyDrop(keyspace(), columnFamily());
     }
 }

@@ -36,27 +36,23 @@ import org.slf4j.LoggerFactory;
 
 import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.cql.QueryProcessor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
-import org.apache.cassandra.db.migration.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.SocketSessionManagementService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.thrift.TException;
 
 public class CassandraServer implements Cassandra.Iface
@@ -911,22 +907,7 @@ public class CassandraServer implements Cassandra.Iface
         requestScheduler.release();
     }
 
-    // helper method to apply migration on the migration stage. typical migration failures will throw an
-    // InvalidRequestException. atypical failures will throw a RuntimeException.
-    private static void applyMigrationOnStage(final Migration m)
-    {
-        Future f = StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
-        {
-            public void runMayThrow() throws Exception
-            {
-                m.apply();
-            }
-        });
-
-        FBUtilities.waitOnFuture(f);
-    }
-
-    public synchronized String system_add_column_family(CfDef cf_def)
+    public String system_add_column_family(CfDef cf_def)
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("add_column_family");
@@ -938,7 +919,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             cf_def.unsetId(); // explicitly ignore any id set by client (Hector likes to set zero)
-            applyMigrationOnStage(new AddColumnFamily(CFMetaData.fromThrift(cf_def)));
+            MigrationManager.announceNewColumnFamily(CFMetaData.fromThrift(cf_def));
             return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
@@ -949,7 +930,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public synchronized String system_drop_column_family(String column_family)
+    public String system_drop_column_family(String column_family)
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("drop_column_family");
@@ -960,7 +941,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            applyMigrationOnStage(new DropColumnFamily(cState.getKeyspace(), column_family));
+            MigrationManager.announceColumnFamilyDrop(cState.getKeyspace(), column_family);
             return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
@@ -971,7 +952,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public synchronized String system_add_keyspace(KsDef ks_def)
+    public String system_add_keyspace(KsDef ks_def)
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("add_keyspace");
@@ -1001,7 +982,7 @@ public class CassandraServer implements Cassandra.Iface
             }
 
             ThriftValidation.validateKsDef(ks_def);
-            applyMigrationOnStage(new AddKeyspace(KSMetaData.fromThrift(ks_def, cfDefs.toArray(new CFMetaData[cfDefs.size()]))));
+            MigrationManager.announceNewKeyspace(KSMetaData.fromThrift(ks_def, cfDefs.toArray(new CFMetaData[cfDefs.size()])));
             return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
@@ -1012,7 +993,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public synchronized String system_drop_keyspace(String keyspace)
+    public String system_drop_keyspace(String keyspace)
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("drop_keyspace");
@@ -1022,7 +1003,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            applyMigrationOnStage(new DropKeyspace(keyspace));
+            MigrationManager.announceKeyspaceDrop(keyspace);
             return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
@@ -1036,7 +1017,7 @@ public class CassandraServer implements Cassandra.Iface
     /** update an existing keyspace, but do not allow column family modifications.
      * @throws SchemaDisagreementException
      */
-    public synchronized String system_update_keyspace(KsDef ks_def)
+    public String system_update_keyspace(KsDef ks_def)
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("update_keyspace");
@@ -1050,7 +1031,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             ThriftValidation.validateKsDef(ks_def);
-            applyMigrationOnStage(new UpdateKeyspace(KSMetaData.fromThrift(ks_def)));
+            MigrationManager.announceKeyspaceUpdate(KSMetaData.fromThrift(ks_def));
             return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
@@ -1061,7 +1042,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public synchronized String system_update_column_family(CfDef cf_def)
+    public String system_update_column_family(CfDef cf_def)
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("update_column_family");
@@ -1077,10 +1058,8 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            // ideally, apply() would happen on the stage with the
             CFMetaData.applyImplicitDefaults(cf_def);
-            UpdateColumnFamily update = new UpdateColumnFamily(CFMetaData.fromThrift(cf_def));
-            applyMigrationOnStage(update);
+            MigrationManager.announceColumnFamilyUpdate(CFMetaData.fromThrift(cf_def));
             return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)

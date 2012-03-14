@@ -26,7 +26,7 @@ import java.util.*;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.Util;
 
@@ -36,7 +36,7 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class TimeSortTest extends CleanupHelper
+public class TimeSortTest extends SchemaLoader
 {
     @Test
     public void testMixedSources() throws IOException, ExecutionException, InterruptedException

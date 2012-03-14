@@ -29,14 +29,14 @@ import org.apache.cassandra.Util;
 
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.FBUtilities;
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class RowIterationTest extends CleanupHelper
+public class RowIterationTest extends SchemaLoader
 {
     public static final String TABLE1 = "Keyspace2";
     public static final InetAddress LOCAL = FBUtilities.getBroadcastAddress();

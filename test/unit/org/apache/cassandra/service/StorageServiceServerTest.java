@@ -28,7 +28,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.junit.Assert.assertEquals;
@@ -39,8 +39,8 @@ public class StorageServiceServerTest
     @Test
     public void testRegularMode() throws IOException, InterruptedException, ConfigurationException
     {
-        CleanupHelper.mkdirs();
-        CleanupHelper.cleanup();
+        SchemaLoader.mkdirs();
+        SchemaLoader.cleanup();
         StorageService.instance.initServer(0);
         for (String path : DatabaseDescriptor.getAllDataFileLocations())
         {

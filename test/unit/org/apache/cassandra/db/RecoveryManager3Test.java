@@ -27,7 +27,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -36,7 +36,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.db.TableTest.assertColumns;
 
-public class RecoveryManager3Test extends CleanupHelper
+public class RecoveryManager3Test extends SchemaLoader
 {
     @Test
     public void testMissingHeader() throws IOException, ExecutionException, InterruptedException

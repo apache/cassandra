@@ -38,7 +38,6 @@ import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.KsDef;
 import org.apache.cassandra.thrift.ColumnDef;
 
-import static org.apache.cassandra.db.migration.MigrationHelper.*;
 import static org.apache.cassandra.utils.FBUtilities.*;
 
 public final class KSMetaData
@@ -161,7 +160,7 @@ public final class KSMetaData
         return ksdef;
     }
 
-    public RowMutation diff(KSMetaData newState, long modificationTimestamp)
+    public RowMutation toSchemaUpdate(KSMetaData newState, long modificationTimestamp)
     {
         return newState.toSchema(modificationTimestamp);
     }
@@ -266,10 +265,15 @@ public final class KSMetaData
         for (CFMetaData cfm : cfms.values())
         {
             Row columnRow = ColumnDefinition.readSchema(cfm.ksName, cfm.cfName);
-            for (ColumnDefinition cd : ColumnDefinition.fromSchema(columnRow, cfm.comparator))
+            for (ColumnDefinition cd : ColumnDefinition.fromSchema(columnRow, cfm.getColumnDefinitionComparator()))
                 cfm.column_metadata.put(cd.name, cd);
         }
 
         return cfms;
+    }
+
+    public KSMetaData validate() throws ConfigurationException
+    {
+        return this;
     }
 }

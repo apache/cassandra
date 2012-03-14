@@ -25,11 +25,11 @@ import java.util.*;
 
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class SSTableTest extends CleanupHelper
+public class SSTableTest extends SchemaLoader
 {
     @Test
     public void testSingleWrite() throws IOException {

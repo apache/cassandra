@@ -813,7 +813,8 @@ public class StorageProxy implements StorageProxyMBean
                 logger.debug("LocalReadRunnable reading " + command);
 
             Table table = Table.open(command.table);
-            ReadResponse result = ReadVerbHandler.getResponse(command, command.getRow(table));
+            Row r = command.getRow(table);
+            ReadResponse result = ReadVerbHandler.getResponse(command, r);
             MessagingService.instance().addLatency(FBUtilities.getBroadcastAddress(), System.currentTimeMillis() - start);
             handler.response(result);
         }

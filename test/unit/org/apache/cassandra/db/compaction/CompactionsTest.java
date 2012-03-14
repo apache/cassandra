@@ -31,7 +31,7 @@ import java.util.concurrent.Future;
 import org.junit.Test;
 import static junit.framework.Assert.assertEquals;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -42,7 +42,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class CompactionsTest extends CleanupHelper
+public class CompactionsTest extends SchemaLoader
 {
     public static final String TABLE1 = "Keyspace1";
 

@@ -24,8 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.db.migration.UpdateColumnFamily;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
@@ -47,60 +46,47 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         this.columnName = columnName;
     }
 
-    public Migration getMigration() throws InvalidRequestException, ConfigurationException
+    public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
-        try
+        CFMetaData oldCfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+        boolean columnExists = false;
+        // mutating oldCfm directly would be bad, but mutating a Thrift copy is fine.  This also
+        // sets us up to use validateCfDef to check for index name collisions.
+        CfDef cf_def = oldCfm.toThrift();
+        for (ColumnDef cd : cf_def.column_metadata)
         {
-            CFMetaData oldCfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
-            boolean columnExists = false;
-            // mutating oldCfm directly would be bad, but mutating a Thrift copy is fine.  This also
-            // sets us up to use validateCfDef to check for index name collisions.
-            CfDef cf_def = oldCfm.toThrift();
-            for (ColumnDef cd : cf_def.column_metadata)
+            if (cd.name.equals(columnName.key))
             {
-                if (cd.name.equals(columnName.key))
+                if (cd.index_type != null)
+                    throw new InvalidRequestException("Index already exists");
+                if (logger.isDebugEnabled())
+                    logger.debug("Updating column {} definition for index {}", columnName, indexName);
+                cd.setIndex_type(IndexType.KEYS);
+                cd.setIndex_name(indexName);
+                columnExists = true;
+                break;
+            }
+        }
+        if (!columnExists)
+        {
+            CFDefinition cfDef = oldCfm.getCfDef();
+            CFDefinition.Name name = cfDef.get(columnName);
+            if (name != null)
+            {
+                switch (name.kind)
                 {
-                    if (cd.index_type != null)
-                        throw new InvalidRequestException("Index already exists");
-                    if (logger.isDebugEnabled())
-                        logger.debug("Updating column {} definition for index {}", columnName, indexName);
-                    cd.setIndex_type(IndexType.KEYS);
-                    cd.setIndex_name(indexName);
-                    columnExists = true;
-                    break;
+                    case KEY_ALIAS:
+                    case COLUMN_ALIAS:
+                        throw new InvalidRequestException(String.format("Cannot create index on PRIMARY KEY part %s", columnName));
+                    case VALUE_ALIAS:
+                        throw new InvalidRequestException(String.format("Cannot create index on column %s of compact CF", columnName));
                 }
             }
-            if (!columnExists)
-            {
-                CFDefinition cfDef = oldCfm.getCfDef();
-                CFDefinition.Name name = cfDef.get(columnName);
-                if (name != null)
-                {
-                    switch (name.kind)
-                    {
-                        case KEY_ALIAS:
-                        case COLUMN_ALIAS:
-                            throw new InvalidRequestException(String.format("Cannot create index on PRIMARY KEY part %s", columnName));
-                        case VALUE_ALIAS:
-                            throw new InvalidRequestException(String.format("Cannot create index on column %s of compact CF", columnName));
-                    }
-                }
-                throw new InvalidRequestException("No column definition found for column " + columnName);
-            }
+            throw new InvalidRequestException("No column definition found for column " + columnName);
+        }
 
-            CFMetaData.addDefaultIndexNames(cf_def);
-            ThriftValidation.validateCfDef(cf_def, oldCfm);
-            return new UpdateColumnFamily(CFMetaData.fromThrift(cf_def));
-        }
-        catch (InvalidRequestException e)
-        {
-            logger.error("oups", e);
-            throw e;
-        }
-        catch (ConfigurationException e)
-        {
-            logger.error("oups", e);
-            throw e;
-        }
+        CFMetaData.addDefaultIndexNames(cf_def);
+        ThriftValidation.validateCfDef(cf_def, oldCfm);
+        MigrationManager.announceColumnFamilyUpdate(CFMetaData.fromThrift(cf_def));
     }
 }

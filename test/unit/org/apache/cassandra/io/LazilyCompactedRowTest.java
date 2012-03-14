@@ -34,7 +34,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.*;
@@ -53,7 +53,7 @@ import org.apache.cassandra.utils.UUIDGen;
 import static junit.framework.Assert.assertEquals;
 
 
-public class LazilyCompactedRowTest extends CleanupHelper
+public class LazilyCompactedRowTest extends SchemaLoader
 {
     private static void assertBytes(ColumnFamilyStore cfs, int gcBefore) throws IOException
     {

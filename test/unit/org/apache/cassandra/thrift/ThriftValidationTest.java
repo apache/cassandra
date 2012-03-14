@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
 
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.Schema;
@@ -35,7 +35,7 @@ import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class ThriftValidationTest extends CleanupHelper
+public class ThriftValidationTest extends SchemaLoader
 {
     @Test(expected=InvalidRequestException.class)
     public void testValidateCommutativeWithStandard() throws InvalidRequestException
