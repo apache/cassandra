@@ -36,6 +36,7 @@ import org.junit.Test;
 
 public class EC2SnitchTest
 {
+    private static String az;
 
     private class TestEC2Snitch extends Ec2Snitch
     {
@@ -47,13 +48,14 @@ public class EC2SnitchTest
         @Override
         String awsApiCall(String url) throws IOException, ConfigurationException
         {
-            return "us-east-1d";
+            return az;
         }
     }
 
     @Test
     public void testRac() throws IOException, ConfigurationException
     {
+        az = "us-east-1d";
         Ec2Snitch snitch = new TestEC2Snitch();
         InetAddress local = InetAddress.getByName("127.0.0.1");
         InetAddress nonlocal = InetAddress.getByName("127.0.0.7");
@@ -68,5 +70,15 @@ public class EC2SnitchTest
 
         assertEquals("us-east", snitch.getDatacenter(local));
         assertEquals("1d", snitch.getRack(local));
+    }
+    
+    @Test
+    public void testNewRegions() throws IOException, ConfigurationException
+    {
+        az = "us-east-2d";
+        Ec2Snitch snitch = new TestEC2Snitch();
+        InetAddress local = InetAddress.getByName("127.0.0.1");
+        assertEquals("us-east-2", snitch.getDatacenter(local));
+        assertEquals("2d", snitch.getRack(local));
     }
 }

@@ -44,6 +44,7 @@ Merged from 1.0:
 
 
 1.1-beta1
+ * add SOURCE and CAPTURE cqlsh commands (CASSANDRA-3479)
  * add nodetool rebuild_index (CASSANDRA-3583)
  * add nodetool rangekeysample (CASSANDRA-2917)
  * Fix streaming too much data during move operations (CASSANDRA-3639)
