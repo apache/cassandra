@@ -82,13 +82,15 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         this(sstable.metadata, file, key, dataStart, dataSize, checkData, sstable, IColumnSerializer.Flag.LOCAL);
     }
 
+    // Must only be used against current file format
     public SSTableIdentityIterator(CFMetaData metadata, DataInput file, DecoratedKey key, long dataStart, long dataSize, IColumnSerializer.Flag flag)
     throws IOException
     {
         this(metadata, file, key, dataStart, dataSize, false, null, flag);
     }
 
-    // sstable may be null *if* deserializeRowHeader is false
+    // sstable may be null *if* checkData is false
+    // If it is null, we assume the data is in the current file format
     private SSTableIdentityIterator(CFMetaData metadata, DataInput input, DecoratedKey key, long dataStart, long dataSize, boolean checkData, SSTableReader sstable, IColumnSerializer.Flag flag)
     throws IOException
     {
@@ -137,7 +139,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 }
             }
 
-            if (!sstable.descriptor.hasPromotedIndexes)
+            if (sstable != null && !sstable.descriptor.hasPromotedIndexes)
             {
                 IndexHelper.skipBloomFilter(inputWithTracker);
                 IndexHelper.skipIndex(inputWithTracker);
