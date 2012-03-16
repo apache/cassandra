@@ -363,6 +363,12 @@ public class SSTableWriter extends SSTable
     static Descriptor rename(Descriptor tmpdesc, Set<Component> components)
     {
         Descriptor newdesc = tmpdesc.asTemporary(false);
+        rename(tmpdesc, newdesc, components);
+        return newdesc;
+    }
+
+    public static void rename(Descriptor tmpdesc, Descriptor newdesc, Set<Component> components)
+    {
         try
         {
             // do -Data last because -Data present should mean the sstable was completely renamed before crash
@@ -374,7 +380,6 @@ public class SSTableWriter extends SSTable
         {
             throw new IOError(e);
         }
-        return newdesc;
     }
 
     public long getFilePointer()
