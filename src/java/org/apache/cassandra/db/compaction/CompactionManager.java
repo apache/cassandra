@@ -346,7 +346,7 @@ public class CompactionManager implements CompactionManagerMBean
                     {
                         if (sstables.isEmpty())
                         {
-                            logger.error("No file to compact for user defined compaction");
+                            logger.info("No file to compact for user defined compaction");
                         }
                         // attempt to schedule the set
                         else if ((toCompact = cfs.getDataTracker().markCompacting(sstables, 1, Integer.MAX_VALUE)) != null)
@@ -365,7 +365,7 @@ public class CompactionManager implements CompactionManagerMBean
                         }
                         else
                         {
-                            logger.error("SSTables for user defined compaction are already being compacted.");
+                            logger.info("SSTables for user defined compaction are already being compacted.");
                         }
                     }
                     finally
