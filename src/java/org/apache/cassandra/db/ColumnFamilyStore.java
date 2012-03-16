@@ -71,6 +71,8 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.IntervalTree.Interval;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
+import static org.apache.cassandra.config.CFMetaData.Caching;
+
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
@@ -199,7 +201,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         metadata.compressionParameters = CompressionParameters.create(opts);
     }
 
-    private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata, Directories directories)
+    private ColumnFamilyStore(Table table,
+                              String columnFamilyName,
+                              IPartitioner partitioner,
+                              int generation,
+                              CFMetaData metadata,
+                              Directories directories)
     {
         assert metadata != null : "null metadata for " + table + ":" + columnFamilyName;
 
@@ -213,12 +220,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.indexManager = new SecondaryIndexManager(this);
         fileIndexGenerator.set(generation);
 
+        Caching caching = metadata.getCaching();
+
         if (logger.isDebugEnabled())
             logger.debug("Starting CFS {}", columnFamily);
 
         // scan for sstables corresponding to this cf and load them
         data = new DataTracker(this);
-        Set<DecoratedKey> savedKeys = CacheService.instance.keyCache.readSaved(table.name, columnFamily);
+        Set<DecoratedKey> savedKeys = caching == Caching.NONE || caching == Caching.ROWS_ONLY
+                                       ? Collections.<DecoratedKey>emptySet()
+                                       : CacheService.instance.keyCache.readSaved(table.name, columnFamily);
+
         Directories.SSTableLister sstables = directories.sstableLister().skipCompacted(true).skipTemporary(true);
         data.addInitialSSTables(SSTableReader.batchOpen(sstables.list().entrySet(), savedKeys, data, metadata, this.partitioner));
 
@@ -298,7 +310,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return createColumnFamilyStore(table, columnFamily, StorageService.getPartitioner(), Schema.instance.getCFMetaData(table.name, columnFamily));
     }
 
-    public static synchronized ColumnFamilyStore createColumnFamilyStore(Table table, String columnFamily, IPartitioner partitioner, CFMetaData metadata)
+    public static synchronized ColumnFamilyStore createColumnFamilyStore(Table table,
+                                                                         String columnFamily,
+                                                                         IPartitioner partitioner,
+                                                                         CFMetaData metadata)
     {
         // get the max generation number, to prevent generation conflicts
         Directories directories = Directories.create(table.name, columnFamily);
@@ -1949,8 +1964,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private boolean isRowCacheEnabled()
     {
-        return !(metadata.getCaching() == CFMetaData.Caching.NONE
-              || metadata.getCaching() == CFMetaData.Caching.KEYS_ONLY
+        return !(metadata.getCaching() == Caching.NONE
+              || metadata.getCaching() == Caching.KEYS_ONLY
               || CacheService.instance.rowCache.getCapacity() == 0);
     }
 
