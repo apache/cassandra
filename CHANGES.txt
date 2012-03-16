@@ -1,6 +1,7 @@
 1.1.1-dev
  * optimize commitlog checksumming (CASSANDRA-3610)
  * identify and blacklist corrupted SSTables from future compactions (CASSANDRA-2261)
+ * Move CfDef and KsDef validation out of thrift (CASSANDRA-4037)
 
 
 1.1-dev

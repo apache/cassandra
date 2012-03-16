@@ -28,7 +28,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -580,130 +579,6 @@ public class ThriftValidation
         return isIndexed;
     }
 
-    public static void validateCfDef(CfDef cf_def, CFMetaData old) throws InvalidRequestException
-    {
-        try
-        {
-            if (cf_def.name.length() > 32)
-                throw new InvalidRequestException(String.format("Column family names shouldn't be more than 32 character long (got \"%s\")", cf_def.name));
-            if (!CFMetaData.isNameValid(cf_def.name))
-                throw new ConfigurationException(String.format("Invalid column family name. Should be only alphanumerical characters (got \"%s\")", cf_def.name));
-            if (cf_def.key_alias != null)
-            {
-                if (!cf_def.key_alias.hasRemaining())
-                    throw new InvalidRequestException("key_alias may not be empty");
-                try
-                {
-                    // it's hard to use a key in a select statement if we can't type it.
-                    // for now let's keep it simple and require ascii.
-                    AsciiType.instance.validate(cf_def.key_alias);
-                }
-                catch (MarshalException e)
-                {
-                    throw new InvalidRequestException("Key aliases must be ascii");
-                }
-            }
-
-            ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
-            if (cfType == null)
-                throw new InvalidRequestException("invalid column type " + cf_def.column_type);
-
-            TypeParser.parse(cf_def.key_validation_class);
-            TypeParser.parse(cf_def.comparator_type);
-            TypeParser.parse(cf_def.subcomparator_type);
-            TypeParser.parse(cf_def.default_validation_class);
-            if (cfType != ColumnFamilyType.Super && cf_def.subcomparator_type != null)
-                throw new InvalidRequestException("subcomparator_type is invalid for standard columns");
-
-            if (cf_def.column_metadata == null)
-                return;
-
-            if (cf_def.key_alias != null)
-            {
-                // check if any of the columns has name equal to the cf.key_alias
-                for (ColumnDef columnDef : cf_def.column_metadata)
-                {
-                    if (cf_def.key_alias.equals(columnDef.name))
-                        throw new InvalidRequestException("Invalid column name: "
-                                                          + AsciiType.instance.compose(cf_def.key_alias)
-                                                          + ", because it equals the key_alias");
-                }
-            }
-
-            // initialize a set of names NOT in the CF under consideration
-            Set<String> indexNames = new HashSet<String>();
-            for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-            {
-                if (!cfs.getColumnFamilyName().equals(cf_def.name))
-                    for (ColumnDefinition cd : cfs.metadata.getColumn_metadata().values())
-                        indexNames.add(cd.getIndexName());
-            }
-
-            AbstractType<?> comparator = CFMetaData.getColumnDefinitionComparator(cf_def);
-
-            for (ColumnDef c : cf_def.column_metadata)
-            {
-                TypeParser.parse(c.validation_class);
-
-                try
-                {
-                    comparator.validate(c.name);
-                }
-                catch (MarshalException e)
-                {
-                    throw new InvalidRequestException(String.format("Column name %s is not valid for comparator %s",
-                                                                    ByteBufferUtil.bytesToHex(c.name), comparator));
-                }
-
-                if (c.index_type == null)
-                {
-                    if (c.index_name != null)
-                        throw new ConfigurationException("index_name cannot be set without index_type");
-                }
-                else
-                {
-                    if (cfType == ColumnFamilyType.Super)
-                        throw new InvalidRequestException("Secondary indexes are not supported on supercolumns");
-                    assert c.index_name != null; // should have a default set by now if none was provided
-                    if (!CFMetaData.isNameValid(c.index_name))
-                        throw new InvalidRequestException("Illegal index name " + c.index_name);
-                    // check index names against this CF _and_ globally
-                    if (indexNames.contains(c.index_name))
-                        throw new InvalidRequestException("Duplicate index name " + c.index_name);
-                    indexNames.add(c.index_name);
-
-                    ColumnDefinition oldCd = old == null ? null : old.getColumnDefinition(c.name);
-                    if (oldCd != null && oldCd.getIndexType() != null)
-                    {
-                        assert oldCd.getIndexName() != null;
-                        if (!oldCd.getIndexName().equals(c.index_name))
-                            throw new InvalidRequestException("Cannot modify index name");
-                    }
-
-                    if (c.index_type == IndexType.CUSTOM)
-                    {
-                        if (c.index_options == null || !c.index_options.containsKey(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME))
-                            throw new InvalidRequestException("Required index option missing: " + SecondaryIndex.CUSTOM_INDEX_OPTION_NAME);
-                    }
-
-                    // Create the index type and validate the options
-                    ColumnDefinition cdef = ColumnDefinition.fromThrift(c);
-
-                    // This method validates the column metadata but does not intialize the index
-                    SecondaryIndex.createInstance(null, cdef);
-                }
-            }
-            validateMinMaxCompactionThresholds(cf_def);
-
-            // validates compression parameters
-            CompressionParameters.create(cf_def.compression_options);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new InvalidRequestException(e.getMessage());
-        }
-    }
-
     public static void validateCommutativeForWrite(CFMetaData metadata, ConsistencyLevel consistency) throws InvalidRequestException
     {
         if (consistency == ConsistencyLevel.ANY)
@@ -714,59 +589,6 @@ public class ThriftValidation
         {
             throw new InvalidRequestException("cannot achieve CL > CL.ONE without replicate_on_write on columnfamily " + metadata.cfName);
         }
-    }
-
-    public static void validateKsDef(KsDef ks_def) throws ConfigurationException
-    {
-        if (ks_def.name.length() > 32)
-            throw new ConfigurationException(String.format("Keyspace names shouldn't be more than 32 character long (got \"%s\")", ks_def.name));
-        if (!CFMetaData.isNameValid(ks_def.name))
-            throw new ConfigurationException(String.format("Invalid keyspace name. Should be only alphanumerical characters (got \"%s\")", ks_def.name));
-
-        // Attempt to instantiate the ARS, which will throw a ConfigException if
-        //  the strategy_options aren't fully formed or if the ARS Classname is invalid.
-        Map<String, String> options = ks_def.strategy_options == null ? Collections.<String, String>emptyMap() : ks_def.strategy_options;
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-        IEndpointSnitch eps = DatabaseDescriptor.getEndpointSnitch();
-        Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(ks_def.strategy_class);
-
-        if (cls.equals(LocalStrategy.class))
-            throw new ConfigurationException("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
-
-        AbstractReplicationStrategy.createReplicationStrategy(ks_def.name, cls, tmd, eps, options);
-    }
-
-    public static void validateMinMaxCompactionThresholds(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
-    {
-        if (cf_def.isSetMin_compaction_threshold() && cf_def.isSetMax_compaction_threshold())
-        {
-            validateMinCompactionThreshold(cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
-        }
-        else if (cf_def.isSetMin_compaction_threshold())
-        {
-            validateMinCompactionThreshold(cf_def.min_compaction_threshold, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD);
-        }
-        else if (cf_def.isSetMax_compaction_threshold())
-        {
-            if (cf_def.max_compaction_threshold < CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD && cf_def.max_compaction_threshold != 0)
-            {
-                throw new ConfigurationException("max_compaction_threshold cannot be less than min_compaction_threshold");
-            }
-        }
-        else
-        {
-            //Defaults are valid.
-        }
-    }
-
-    public static void validateMinCompactionThreshold(int min_compaction_threshold, int max_compaction_threshold) throws ConfigurationException
-    {
-        if (min_compaction_threshold <= 1)
-            throw new ConfigurationException("min_compaction_threshold cannot be less than 2.");
-
-        if (min_compaction_threshold > max_compaction_threshold && max_compaction_threshold != 0)
-            throw new ConfigurationException(String.format("min_compaction_threshold cannot be greater than max_compaction_threshold %d",
-                                                            max_compaction_threshold));
     }
 
     public static void validateKeyspaceNotYetExisting(String newKsName) throws InvalidRequestException

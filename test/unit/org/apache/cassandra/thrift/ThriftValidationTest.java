@@ -28,6 +28,8 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -102,42 +104,40 @@ public class ThriftValidationTest extends SchemaLoader
     public void testColumnNameEqualToKeyAlias()
     {
         CFMetaData metaData = Schema.instance.getCFMetaData("Keyspace1", "Standard1");
-        CfDef newMetadata = metaData.toThrift();
+        CFMetaData newMetadata = metaData.clone();
 
         boolean gotException = false;
 
         // add a key_alias = "id"
-        newMetadata.setKey_alias(AsciiType.instance.decompose("id"));
+        newMetadata.keyAlias(AsciiType.instance.decompose("id"));
 
         // should not throw IRE here
         try
         {
-            ThriftValidation.validateCfDef(newMetadata, metaData);
+            newMetadata.validate();
         }
-        catch (InvalidRequestException e)
+        catch (ConfigurationException e)
         {
             gotException = true;
         }
 
-        assert !gotException : "got unexpected InvalidRequestException";
+        assert !gotException : "got unexpected ConfigurationException";
 
         // add a column with name = "id"
-        newMetadata.addToColumn_metadata(new ColumnDef(UTF8Type.instance.decompose("id"),
-                                                       "org.apache.cassandra.db.marshal.UTF8Type"));
-
+        newMetadata.addColumnDefinition(ColumnDefinition.utf8("id"));
 
         gotException = false;
 
         try
         {
-            ThriftValidation.validateCfDef(newMetadata, metaData);
+            newMetadata.validate();
         }
-        catch (InvalidRequestException e)
+        catch (ConfigurationException e)
         {
             gotException = true;
         }
 
-        assert gotException : "expected InvalidRequestException but not received.";
+        assert gotException : "expected ConfigurationException but not received.";
     }
 
     @Test
@@ -152,7 +152,7 @@ public class ThriftValidationTest extends SchemaLoader
 
         try
         {
-            ThriftValidation.validateKsDef(ks_def);
+            KSMetaData.fromThrift(ks_def).validate();
         }
         catch (ConfigurationException e)
         {
@@ -167,7 +167,7 @@ public class ThriftValidationTest extends SchemaLoader
 
         try
         {
-            ThriftValidation.validateKsDef(ks_def);
+            KSMetaData.fromThrift(ks_def).validate();
         }
         catch (ConfigurationException e)
         {
@@ -182,7 +182,7 @@ public class ThriftValidationTest extends SchemaLoader
 
         try
         {
-            ThriftValidation.validateKsDef(ks_def);
+            KSMetaData.fromThrift(ks_def).validate();
         }
         catch (ConfigurationException e)
         {

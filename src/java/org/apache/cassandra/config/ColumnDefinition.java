@@ -185,9 +185,16 @@ public class ColumnDefinition
 
     public void apply(ColumnDefinition def, AbstractType<?> comparator)  throws ConfigurationException
     {
-        // If an index is set (and not drop by this update), the validator shouldn't be change to a non-compatible one
-        if (getIndexType() != null && def.getIndexType() != null && !def.validator.isCompatibleWith(validator))
-            throw new ConfigurationException(String.format("Cannot modify validator to a non-compatible one for column %s since an index is set", comparator.getString(name)));
+        if (getIndexType() != null && def.getIndexType() != null)
+        {
+            // If an index is set (and not drop by this update), the validator shouldn't be change to a non-compatible one
+            if (!def.getValidator().isCompatibleWith(getValidator()))
+                throw new ConfigurationException(String.format("Cannot modify validator to a non-compatible one for column %s since an index is set", comparator.getString(name)));
+
+            assert getIndexName() != null;
+            if (!getIndexName().equals(def.getIndexName()))
+                throw new ConfigurationException("Cannot modify index name");
+        }
 
         setValidator(def.getValidator());
         setIndexType(def.getIndexType(), def.getIndexOptions());
