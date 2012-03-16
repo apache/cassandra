@@ -55,12 +55,6 @@ public class CreateColumnFamilyStatement
     {
         cfProps.validate();
 
-        // Column family name
-        if (!name.matches("\\w+"))
-            throw new InvalidRequestException(String.format("\"%s\" is not a valid column family name", name));
-        if (name.length() > 32)
-            throw new InvalidRequestException(String.format("Column family names shouldn't be more than 32 character long (got \"%s\")", name));
-
         // Ensure that exactly one key has been specified.
         if (keyValidator.size() < 1)
             throw new InvalidRequestException("You must specify a PRIMARY KEY");
@@ -190,8 +184,7 @@ public class CreateColumnFamilyStatement
                    .compactionStrategyOptions(cfProps.compactionStrategyOptions)
                    .compressionParameters(CompressionParameters.create(cfProps.compressionParameters))
                    .caching(CFMetaData.Caching.fromString(getPropertyString(CFPropDefs.KW_CACHING, CFMetaData.DEFAULT_CACHING_STRATEGY.toString())))
-                   .bloomFilterFpChance(getPropertyDouble(CFPropDefs.KW_BF_FP_CHANCE, CFMetaData.DEFAULT_BF_FP_CHANCE))
-                   .validate();
+                   .bloomFilterFpChance(getPropertyDouble(CFPropDefs.KW_BF_FP_CHANCE, CFMetaData.DEFAULT_BF_FP_CHANCE));
         }
         catch (ConfigurationException e)
         {

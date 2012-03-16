@@ -18,10 +18,13 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.util.Collections;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.service.MigrationManager;
@@ -50,19 +53,18 @@ public class CreateIndexStatement extends SchemaAlteringStatement
     {
         CFMetaData oldCfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
         boolean columnExists = false;
-        // mutating oldCfm directly would be bad, but mutating a Thrift copy is fine.  This also
-        // sets us up to use validateCfDef to check for index name collisions.
-        CfDef cf_def = oldCfm.toThrift();
-        for (ColumnDef cd : cf_def.column_metadata)
+        // Mutating oldCfm directly would be bad so cloning.
+        CFMetaData cfm = oldCfm.clone();
+        for (ColumnDefinition cd : cfm.getColumn_metadata().values())
         {
             if (cd.name.equals(columnName.key))
             {
-                if (cd.index_type != null)
+                if (cd.getIndexType() != null)
                     throw new InvalidRequestException("Index already exists");
                 if (logger.isDebugEnabled())
                     logger.debug("Updating column {} definition for index {}", columnName, indexName);
-                cd.setIndex_type(IndexType.KEYS);
-                cd.setIndex_name(indexName);
+                cd.setIndexType(IndexType.KEYS, Collections.<String, String>emptyMap());
+                cd.setIndexName(indexName);
                 columnExists = true;
                 break;
             }
@@ -85,8 +87,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             throw new InvalidRequestException("No column definition found for column " + columnName);
         }
 
-        CFMetaData.addDefaultIndexNames(cf_def);
-        ThriftValidation.validateCfDef(cf_def, oldCfm);
-        MigrationManager.announceColumnFamilyUpdate(CFMetaData.fromThrift(cf_def));
+        cfm.addDefaultIndexNames();
+        MigrationManager.announceColumnFamilyUpdate(cfm);
     }
 }

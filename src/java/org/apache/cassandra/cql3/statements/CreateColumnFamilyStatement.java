@@ -79,9 +79,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
-        CFMetaData cfmd = getCFMetaData();
-        ThriftValidation.validateCfDef(cfmd.toThrift(), null);
-        MigrationManager.announceNewColumnFamily(cfmd);
+        MigrationManager.announceNewColumnFamily(getCFMetaData());
     }
 
     /**
@@ -118,8 +116,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                    .compactionStrategyOptions(properties.compactionStrategyOptions)
                    .compressionParameters(CompressionParameters.create(properties.compressionParameters))
                    .caching(CFMetaData.Caching.fromString(properties.getString(CFPropDefs.KW_CACHING, CFMetaData.DEFAULT_CACHING_STRATEGY.toString())))
-                   .bloomFilterFpChance(properties.getDouble(CFPropDefs.KW_BF_FP_CHANCE, CFMetaData.DEFAULT_BF_FP_CHANCE))
-                   .validate();
+                   .bloomFilterFpChance(properties.getDouble(CFPropDefs.KW_BF_FP_CHANCE, CFMetaData.DEFAULT_BF_FP_CHANCE));
         }
         catch (ConfigurationException e)
         {

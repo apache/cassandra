@@ -11,6 +11,7 @@
    non-Windows platforms (CASSANDRA-4110)
  * fix terminination of the stress.java when errors were encountered
    (CASSANDRA-4128)
+ * Move CfDef and KsDef validation out of thrift (CASSANDRA-4037)
 Merged from 1.0:
  * allow short snitch names (CASSANDRA-4130)
 
