@@ -154,7 +154,7 @@ public class StreamingHistogram
             double mb = pi.getValue() + (pnext.getValue() - pi.getValue()) * weight;
             sum += (pi.getValue() + mb) * weight / 2;
 
-            sum += pi.getValue() / 2;
+            sum += pi.getValue() / 2.0;
             for (Long value : bin.headMap(pi.getKey(), false).values())
                 sum += value;
         }
