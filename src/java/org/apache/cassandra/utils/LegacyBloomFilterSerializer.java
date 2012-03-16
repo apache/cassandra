@@ -32,10 +32,17 @@ public class LegacyBloomFilterSerializer
 //        oos.flush();
     }
 
-    public LegacyBloomFilter deserialize(DataInputStream dis) throws IOException
+    public LegacyBloomFilter deserialize(final DataInput dis) throws IOException
     {
         int hashes = dis.readInt();
-        ObjectInputStream ois = new ObjectInputStream(dis);
+        ObjectInputStream ois = new ObjectInputStream(new InputStream()
+        {
+            @Override
+            public int read() throws IOException
+            {
+                return dis.readByte() & 0xFF;
+            }
+        });
         try
         {
           BitSet bs = (BitSet) ois.readObject();

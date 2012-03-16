@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataOutput;
-import java.io.IOError;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,23 +25,23 @@ import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.IIterableColumns;
-import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.utils.Filter;
+import org.apache.cassandra.utils.FilterFactory;
 
 public class ColumnIndex
 {
     public final List<IndexHelper.IndexInfo> columnsIndex;
-    public final BloomFilter bloomFilter;
+    public final Filter bloomFilter;
 
-    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList(), BloomFilter.emptyFilter());
+    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList(), FilterFactory.emptyFilter());
 
     private ColumnIndex(int estimatedColumnCount)
     {
-        this(new ArrayList<IndexHelper.IndexInfo>(), BloomFilter.getFilter(estimatedColumnCount, 4));
+        this(new ArrayList<IndexHelper.IndexInfo>(), FilterFactory.getFilter(estimatedColumnCount, 4));
     }
 
-    private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex, BloomFilter bloomFilter)
+    private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex, Filter bloomFilter)
     {
         this.columnsIndex = columnsIndex;
         this.bloomFilter = bloomFilter;

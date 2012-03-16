@@ -104,9 +104,9 @@ public class IndexHelper
         return indexList;
     }
 
-    public static Filter defreezeBloomFilter(FileDataInput file, boolean usesOldBloomFilter) throws IOException
+    public static Filter defreezeBloomFilter(FileDataInput file, FilterFactory.Type type) throws IOException
     {
-        return defreezeBloomFilter(file, Integer.MAX_VALUE, usesOldBloomFilter);
+        return defreezeBloomFilter(file, Integer.MAX_VALUE, type);
     }
 
     /**
@@ -114,14 +114,14 @@ public class IndexHelper
      *
      * @param file - source file
      * @param maxSize - sanity check: if filter claimes to be larger than this it is bogus
-     * @param useOldBuffer - do we need to reuse old buffer?
+     * @param type - Bloom Filter type.
      *
      * @return bloom filter summarizing the column information
      * @throws java.io.IOException if an I/O error occurs.
      * Guarantees that file's current position will be just after the bloom filter, even if
      * the filter cannot be deserialized, UNLESS EOFException is thrown.
      */
-    public static Filter defreezeBloomFilter(FileDataInput file, long maxSize, boolean useOldBuffer) throws IOException
+    public static Filter defreezeBloomFilter(FileDataInput file, long maxSize, FilterFactory.Type type) throws IOException
     {
         int size = file.readInt();
         if (size > maxSize || size <= 0)
@@ -129,9 +129,7 @@ public class IndexHelper
         ByteBuffer bytes = file.readBytes(size);
 
         DataInputStream stream = new DataInputStream(ByteBufferUtil.inputStream(bytes));
-        return useOldBuffer
-               ? LegacyBloomFilter.serializer().deserialize(stream)
-               : BloomFilter.serializer().deserialize(stream);
+        return FilterFactory.deserialize(stream, type);
     }
 
     /**

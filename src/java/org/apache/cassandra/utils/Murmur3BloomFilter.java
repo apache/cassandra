@@ -19,18 +19,33 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 
-public abstract class Filter
-{
-    int hashCount;
+import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.utils.obs.OpenBitSet;
 
-    int getHashCount()
+public class Murmur3BloomFilter extends BloomFilter
+{
+    public static final ISerializer<BloomFilter> serializer = new Murmur3BloomFilterSerializer();
+
+    Murmur3BloomFilter(int hashes, long numElements, int bucketsPer)
     {
-        return hashCount;
+        super(hashes, numElements, bucketsPer);
     }
 
-    public abstract void add(ByteBuffer key);
+    private Murmur3BloomFilter(int hashes, OpenBitSet bs)
+    {
+        super(hashes, bs);
+    }
 
-    public abstract boolean isPresent(ByteBuffer key);
+    protected long[] hash(ByteBuffer b, int position, int remaining, long seed)
+    {
+        return MurmurHash.hash3_x64_128(b, b.position(), b.remaining(), seed);
+    }
 
-    public abstract void clear();
+    private static class Murmur3BloomFilterSerializer extends BloomFilterSerializer
+    {
+        protected BloomFilter createFilter(int hashes, OpenBitSet bs)
+        {
+            return new Murmur3BloomFilter(hashes, bs);
+        }
+    }
 }

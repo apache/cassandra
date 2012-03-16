@@ -24,14 +24,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
-import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Filter;
+import org.apache.cassandra.utils.FilterFactory;
 
 public class RowIndexEntry
 {
@@ -67,7 +64,7 @@ public class RowIndexEntry
         return Collections.<IndexHelper.IndexInfo>emptyList();
     }
 
-    public BloomFilter bloomFilter()
+    public Filter bloomFilter()
     {
         throw new UnsupportedOperationException();
     }
@@ -85,7 +82,7 @@ public class RowIndexEntry
                 dos.writeInt(rie.columnsIndex().size());
                 for (IndexHelper.IndexInfo info : rie.columnsIndex())
                     info.serialize(dos);
-                BloomFilter.serializer().serialize(rie.bloomFilter(), dos);
+                FilterFactory.serialize(rie.bloomFilter(), dos);
             }
             else
             {
@@ -107,7 +104,7 @@ public class RowIndexEntry
                     List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
                     for (int i = 0; i < entries; i++)
                         columnsIndex.add(IndexHelper.IndexInfo.deserialize(dis));
-                    BloomFilter bf = BloomFilter.serializer().deserialize(dis);
+                    Filter bf = FilterFactory.deserialize(dis, descriptor.filterType);
                     return new IndexedEntry(position, new DeletionInfo(mfda, ldt), columnsIndex, bf);
                 }
                 else
@@ -142,9 +139,9 @@ public class RowIndexEntry
     {
         private final DeletionInfo deletionInfo;
         private final List<IndexHelper.IndexInfo> columnsIndex;
-        private final BloomFilter bloomFilter;
+        private final Filter bloomFilter;
 
-        private IndexedEntry(long position, DeletionInfo deletionInfo, List<IndexHelper.IndexInfo> columnsIndex, BloomFilter bloomFilter)
+        private IndexedEntry(long position, DeletionInfo deletionInfo, List<IndexHelper.IndexInfo> columnsIndex, Filter bloomFilter)
         {
             super(position);
             assert deletionInfo != null;
@@ -167,7 +164,7 @@ public class RowIndexEntry
         }
 
         @Override
-        public BloomFilter bloomFilter()
+        public Filter bloomFilter()
         {
             return bloomFilter;
         }
@@ -178,7 +175,8 @@ public class RowIndexEntry
             size += DBConstants.INT_SIZE; // number of entries
             for (IndexHelper.IndexInfo info : columnsIndex)
                 size += info.serializedSize();
-            return size + (int)bloomFilter.serializedSize();
+
+            return size + (int) FilterFactory.serializedSize(bloomFilter);
         }
     }
 }

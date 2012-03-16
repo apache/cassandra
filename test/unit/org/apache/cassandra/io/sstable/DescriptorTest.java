@@ -20,8 +20,9 @@ package org.apache.cassandra.io.sstable;
  *
  */
 
-
+import org.apache.cassandra.utils.FilterFactory;
 import org.junit.Test;
+import static org.junit.Assert.*;
 
 public class DescriptorTest
 {
@@ -31,7 +32,7 @@ public class DescriptorTest
         Descriptor descriptor = Descriptor.fromFilename("Keyspace1-userActionUtilsKey-9-Data.db");
 
         assert descriptor.version.equals(Descriptor.LEGACY_VERSION);
-        assert descriptor.usesOldBloomFilter;
+        assert descriptor.filterType == FilterFactory.Type.SHA;
     }
 
     @Test
@@ -51,5 +52,17 @@ public class DescriptorTest
         desc = Descriptor.fromFilename("Keyspace1-Standard1-gz-1-Data.db");
         assert "gz".equals(desc.version);
         assert !desc.tracksMaxTimestamp;
+    }
+
+    @Test
+    public void testMurmurBloomFilter()
+    {
+        Descriptor desc = Descriptor.fromFilename("Keyspace1-Standard1-ia-1-Data.db");
+        assertEquals("ia", desc.version);
+        assertEquals(desc.filterType, FilterFactory.Type.MURMUR2);
+
+        desc = Descriptor.fromFilename("Keyspace1-Standard1-ib-1-Data.db");
+        assertEquals("ib", desc.version);
+        assertEquals(desc.filterType, FilterFactory.Type.MURMUR3);
     }
 }

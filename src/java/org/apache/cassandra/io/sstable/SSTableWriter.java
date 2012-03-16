@@ -368,7 +368,7 @@ public class SSTableWriter extends SSTable
         private final SequentialWriter indexFile;
         public final SegmentedFile.Builder builder;
         public final IndexSummary summary;
-        public final BloomFilter bf;
+        public final Filter bf;
         private FileMark mark;
 
         IndexWriter(long keyCount) throws IOException
@@ -384,9 +384,8 @@ public class SSTableWriter extends SSTable
                 logger.error("Bloom filter FP chance of zero isn't supposed to happen");
                 fpChance = null;
             }
-            bf = fpChance == null
-               ? BloomFilter.getFilter(keyCount, 15)
-               : BloomFilter.getFilter(keyCount, fpChance);
+            bf = fpChance == null ? FilterFactory.getFilter(keyCount, 15)
+                                  : FilterFactory.getFilter(keyCount, fpChance);
         }
 
         public void append(DecoratedKey key, RowIndexEntry indexEntry) throws IOException
@@ -410,7 +409,7 @@ public class SSTableWriter extends SSTable
             // bloom filter
             FileOutputStream fos = new FileOutputStream(descriptor.filenameFor(SSTable.COMPONENT_FILTER));
             DataOutputStream stream = new DataOutputStream(fos);
-            BloomFilter.serializer().serialize(bf, stream);
+            FilterFactory.serialize(bf, stream, descriptor.filterType);
             stream.flush();
             fos.getFD().sync();
             stream.close();

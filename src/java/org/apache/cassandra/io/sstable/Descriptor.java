@@ -22,6 +22,7 @@ import java.util.StringTokenizer;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.io.sstable.Component.separator;
@@ -55,7 +56,7 @@ public class Descriptor
     // hc (1.0.4): records partitioner in metadata component
     // ia (1.2.0): column indexes are promoted to the index file
     //             records estimated histogram of deletion times in tombstones
-    public static final String CURRENT_VERSION = "ia";
+    public static final String CURRENT_VERSION = "ib";
 
     public final File directory;
     /** version has the following format: <code>[a-z]+</code> */
@@ -70,13 +71,13 @@ public class Descriptor
     public final boolean hasIntRowSize;
     public final boolean hasEncodedKeys;
     public final boolean isLatestVersion;
-    public final boolean usesOldBloomFilter;
     public final boolean metadataIncludesReplayPosition;
     public final boolean tracksMaxTimestamp;
     public final boolean hasCompressionRatio;
     public final boolean hasPartitioner;
     public final boolean tracksTombstones;
     public final boolean hasPromotedIndexes;
+    public final FilterFactory.Type filterType;
 
     /**
      * A descriptor that assumes CURRENT_VERSION.
@@ -100,7 +101,6 @@ public class Descriptor
         hasStringsInBloomFilter = version.compareTo("c") < 0;
         hasIntRowSize = version.compareTo("d") < 0;
         hasEncodedKeys = version.compareTo("e") < 0;
-        usesOldBloomFilter = version.compareTo("f") < 0;
         metadataIncludesReplayPosition = version.compareTo("g") >= 0;
         tracksMaxTimestamp = version.compareTo("h") >= 0;
         hasCompressionRatio = version.compareTo("hb") >= 0;
@@ -108,6 +108,12 @@ public class Descriptor
         tracksTombstones = version.compareTo("ia") >= 0;
         hasPromotedIndexes = version.compareTo("ia") >= 0;
         isLatestVersion = version.compareTo(CURRENT_VERSION) == 0;
+        if (version.compareTo("f") < 0)
+            filterType = FilterFactory.Type.SHA;
+        else if (version.compareTo("ia") <= 0)
+            filterType = FilterFactory.Type.MURMUR2;
+        else
+            filterType = FilterFactory.Type.MURMUR3;
     }
 
     public String filenameFor(Component component)

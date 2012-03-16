@@ -309,7 +309,7 @@ public class SSTableReader extends SSTable
     {
         if (!components.contains(Component.FILTER))
         {
-            bf = BloomFilter.emptyFilter();
+            bf = FilterFactory.emptyFilter();
             return;
         }
 
@@ -317,14 +317,7 @@ public class SSTableReader extends SSTable
         try
         {
             stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER))));
-            if (descriptor.usesOldBloomFilter)
-            {
-                bf = LegacyBloomFilter.serializer().deserialize(stream);
-            }
-            else
-            {
-                bf = BloomFilter.serializer().deserialize(stream);
-            }
+            bf = FilterFactory.deserialize(stream, descriptor.filterType);
         }
         finally
         {
@@ -455,10 +448,7 @@ public class SSTableReader extends SSTable
 
     public long getBloomFilterSerializedSize()
     {
-        if (descriptor.usesOldBloomFilter)
-            return LegacyBloomFilter.serializer().serializedSize((LegacyBloomFilter) bf);
-        else
-            return BloomFilter.serializer().serializedSize((BloomFilter) bf);
+        return FilterFactory.serializedSize(bf, descriptor.filterType);
     }
 
     /**

@@ -33,21 +33,21 @@ import org.junit.Test;
 
 public class BloomFilterTest
 {
-    public BloomFilter bf;
+    public Filter bf;
 
     public BloomFilterTest()
     {
-        bf = BloomFilter.getFilter(10000L, FilterTestHelper.MAX_FAILURE_RATE);
+        bf = FilterFactory.getFilter(10000L, FilterTestHelper.MAX_FAILURE_RATE);
     }
 
-    public static BloomFilter testSerialize(BloomFilter f) throws IOException
+    public static Filter testSerialize(Filter f) throws IOException
     {
         f.add(ByteBufferUtil.bytes("a"));
         DataOutputBuffer out = new DataOutputBuffer();
-        f.serializer().serialize(f, out);
+        FilterFactory.serialize(f, out, FilterFactory.Type.MURMUR3);
 
         ByteArrayInputStream in = new ByteArrayInputStream(out.getData(), 0, out.getLength());
-        BloomFilter f2 = f.serializer().deserialize(new DataInputStream(in));
+        Filter f2 = FilterFactory.deserialize(new DataInputStream(in), FilterFactory.Type.MURMUR3);
 
         assert f2.isPresent(ByteBufferUtil.bytes("a"));
         assert !f2.isPresent(ByteBufferUtil.bytes("b"));
@@ -101,7 +101,7 @@ public class BloomFilterTest
         {
             return;
         }
-        BloomFilter bf2 = BloomFilter.getFilter(KeyGenerator.WordGenerator.WORDS / 2, FilterTestHelper.MAX_FAILURE_RATE);
+        Filter bf2 = FilterFactory.getFilter(KeyGenerator.WordGenerator.WORDS / 2, FilterTestHelper.MAX_FAILURE_RATE);
         int skipEven = KeyGenerator.WordGenerator.WORDS % 2 == 0 ? 0 : 2;
         FilterTestHelper.testFalsePositives(bf2,
                                             new KeyGenerator.WordGenerator(skipEven, 2),
@@ -123,7 +123,8 @@ public class BloomFilterTest
         {
             hashes.clear();
             ByteBuffer buf = keys.next();
-            for (long hashIndex : BloomFilter.getHashBuckets(buf, MAX_HASH_COUNT, 1024 * 1024))
+            BloomFilter bf = (BloomFilter) FilterFactory.getFilter(10, 10);
+            for (long hashIndex : bf.getHashBuckets(buf, MAX_HASH_COUNT, 1024 * 1024))
             {
                 hashes.add(hashIndex);
             }

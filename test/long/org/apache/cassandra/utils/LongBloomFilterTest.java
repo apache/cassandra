@@ -21,45 +21,82 @@ package org.apache.cassandra.utils;
 import java.util.Random;
 
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class LongBloomFilterTest
 {
-    public BloomFilter bf;
+    private static final Logger logger = LoggerFactory.getLogger(LongBloomFilterTest.class);
 
     /**
      * NB: needs to run with -mx1G
      */
-    @Test
-    public void testBigInt()
+    public void testBigInt(FilterFactory.Type type)
     {
         int size = 10 * 1000 * 1000;
-        bf = BloomFilter.getFilter(size, FilterTestHelper.spec.bucketsPerElement);
-        FilterTestHelper.testFalsePositives(bf,
-                                            new KeyGenerator.IntGenerator(size),
-                                            new KeyGenerator.IntGenerator(size, size * 2));
+        Filter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, type);
+        double fp = FilterTestHelper.testFalsePositives(bf, new KeyGenerator.IntGenerator(size),
+                                                            new KeyGenerator.IntGenerator(size, size * 2));
+        logger.info("Bloom filter false positive: {}", fp);
     }
 
-    @Test
-    public void testBigRandom()
+    public void testBigRandom(FilterFactory.Type type)
     {
         int size = 10 * 1000 * 1000;
-        bf = BloomFilter.getFilter(size, FilterTestHelper.spec.bucketsPerElement);
-        FilterTestHelper.testFalsePositives(bf,
-                                            new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
-                                            new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
+        Filter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, type);
+        double fp = FilterTestHelper.testFalsePositives(bf, new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
+                                                            new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
+        logger.info("Bloom filter false positive: {}", fp);
     }
 
-    @Test
-    public void timeit()
+    public void timeit(FilterFactory.Type type)
     {
         int size = 300 * FilterTestHelper.ELEMENTS;
-        bf = BloomFilter.getFilter(size, FilterTestHelper.spec.bucketsPerElement);
+        Filter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, type);
+        double sumfp = 0;
         for (int i = 0; i < 10; i++)
         {
-            FilterTestHelper.testFalsePositives(bf,
-                                                new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
-                                                new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
+            FilterTestHelper.testFalsePositives(bf, new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
+                                                    new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
+
             bf.clear();
         }
+        logger.info("Bloom filter mean false positive: {}", sumfp/10);
+    }
+
+    @Test
+    public void testBigIntMurm2()
+    {
+        testBigInt(FilterFactory.Type.MURMUR2);
+    }
+
+    @Test
+    public void testBigRandomMurm2()
+    {
+        testBigRandom(FilterFactory.Type.MURMUR2);
+    }
+
+    @Test
+    public void timeitMurm2()
+    {
+        timeit(FilterFactory.Type.MURMUR2);
+    }
+
+    @Test
+    public void testBigIntMurm3()
+    {
+        testBigInt(FilterFactory.Type.MURMUR3);
+    }
+
+    @Test
+    public void testBigRandomMurm3()
+    {
+        testBigRandom(FilterFactory.Type.MURMUR3);
+    }
+
+    @Test
+    public void timeitMurm3()
+    {
+        timeit(FilterFactory.Type.MURMUR3);
     }
 }
