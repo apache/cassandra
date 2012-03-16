@@ -33,11 +33,17 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class CleanupHelper extends SchemaLoader
+public class CleanupHelper
 {
     private static Logger logger = LoggerFactory.getLogger(CleanupHelper.class);
 
     @BeforeClass
+    public static void cleanupLoadSchema() throws IOException
+    {
+        cleanupAndLeaveDirs();
+        SchemaLoader.loadSchema(); // also opens CommitLog, so make sure this is last
+    }
+
     public static void cleanupAndLeaveDirs() throws IOException
     {
         mkdirs();

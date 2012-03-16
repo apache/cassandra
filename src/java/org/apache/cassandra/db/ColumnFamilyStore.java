@@ -448,75 +448,59 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         logger.info("Loading new SSTables for " + table.name + "/" + columnFamily + "...");
 
-        // current view over ColumnFamilyStore
-        DataTracker.View view = data.getView();
-        // descriptors of currently registered SSTables
         Set<Descriptor> currentDescriptors = new HashSet<Descriptor>();
-        // going to hold new SSTable view of the CFS containing old and new SSTables
-        Set<SSTableReader> sstables = new HashSet<SSTableReader>();
-        // get the max generation number, to prevent generation conflicts
-        int generation = 0;
-
-        for (SSTableReader reader : view.sstables)
-        {
-            sstables.add(reader); // first of all, add old SSTables
-            currentDescriptors.add(reader.descriptor);
-
-            if (reader.descriptor.generation > generation)
-                generation = reader.descriptor.generation;
-        }
-
-        SSTableReader reader;
-        // set to true if we have at least one new SSTable to load
-        boolean atLeastOneNew = false;
+        for (SSTableReader sstable : data.getView().sstables)
+            currentDescriptors.add(sstable.descriptor);
+        Set<SSTableReader> newSSTables = new HashSet<SSTableReader>();
 
         Directories.SSTableLister lister = directories.sstableLister().skipCompacted(true).skipTemporary(true);
-        for (Map.Entry<Descriptor, Set<Component>> rawSSTable : lister.list().entrySet())
+        for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
         {
-            Descriptor descriptor = rawSSTable.getKey();
+            Descriptor descriptor = entry.getKey();
 
             if (currentDescriptors.contains(descriptor))
                 continue; // old (initialized) SSTable found, skipping
+            if (descriptor.temporary) // in the process of being written
+                continue;
 
             if (!descriptor.isCompatible())
                 throw new RuntimeException(String.format("Can't open incompatible SSTable! Current version %s, found file: %s",
                                                          Descriptor.CURRENT_VERSION,
                                                          descriptor));
 
-            logger.info("Initializing new SSTable {}", rawSSTable);
+            Descriptor newDescriptor = new Descriptor(descriptor.directory,
+                                                      descriptor.ksname,
+                                                      descriptor.cfname,
+                                                      fileIndexGenerator.incrementAndGet(),
+                                                      false);
+            logger.info("Renaming new SSTable {} to {}", descriptor, newDescriptor);
+            SSTableWriter.rename(descriptor, newDescriptor, entry.getValue());
 
+            SSTableReader reader;
             try
             {
-                Set<DecoratedKey> savedKeys = CacheService.instance.keyCache.readSaved(descriptor.ksname, descriptor.cfname);
-                reader = SSTableReader.open(rawSSTable.getKey(), rawSSTable.getValue(), savedKeys, data, metadata, partitioner);
+                reader = SSTableReader.open(newDescriptor, entry.getValue(), Collections.<DecoratedKey>emptySet(), data, metadata, partitioner);
             }
             catch (IOException e)
             {
-                SSTableReader.logOpenException(rawSSTable.getKey(), e);
+                SSTableReader.logOpenException(entry.getKey(), e);
                 continue;
             }
-
-            sstables.add(reader);
-
-            if (descriptor.generation > generation)
-                generation = descriptor.generation;
-
-            if (!atLeastOneNew) // set flag only once
-                atLeastOneNew = true;
+            newSSTables.add(reader);
         }
 
-        if (!atLeastOneNew)
+        if (newSSTables.isEmpty())
         {
             logger.info("No new SSTables where found for " + table.name + "/" + columnFamily);
             return;
         }
 
-        logger.info("Loading new SSTables and building secondary indexes for " + table.name + "/" + columnFamily + ": " + sstables);
-        SSTableReader.acquireReferences(sstables);
-        data.addSSTables(sstables);
+        logger.info("Loading new SSTables and building secondary indexes for " + table.name + "/" + columnFamily + ": " + newSSTables);
+        SSTableReader.acquireReferences(newSSTables);
+        data.addSSTables(newSSTables);
         try
         {
-            indexManager.maybeBuildSecondaryIndexes(sstables, indexManager.getIndexedColumns());
+            indexManager.maybeBuildSecondaryIndexes(newSSTables, indexManager.getIndexedColumns());
         }
         catch (IOException e)
         {
@@ -524,20 +508,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         finally
         {
-            SSTableReader.releaseReferences(sstables);
-        }
-
-        if (fileIndexGenerator.get() < generation)
-        {
-            // we don't bother with CAS here since if the generations used in the new files overlap with
-            // files that we create during load, we're already screwed
-            logger.info("Setting up new generation: " + generation);
-            fileIndexGenerator.set(generation);
-        }
-        else
-        {
-            logger.warn("Largest generation seen in loaded sstables was {}, which may overlap with native sstable files (generation {}).",
-                        generation, fileIndexGenerator.get());
+            SSTableReader.releaseReferences(newSSTables);
         }
 
         logger.info("Done loading load new SSTables for " + table.name + "/" + columnFamily);
@@ -1629,22 +1600,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
-     * For testing.  no effort is made to clear historical memtables, nor for
-     * thread safety
+     * For testing.  No effort is made to clear historical or even the current memtables, nor for
+     * thread safety.  All we do is wipe the sstable containers clean, while leaving the actual
+     * data files present on disk.  (This allows tests to easily call loadNewSSTables on them.)
      */
     public void clearUnsafe()
     {
-        fileIndexGenerator.set(0); // Avoid unit test failures (see CASSANDRA-3735).
-
-        // Clear backups
-        Directories.SSTableLister lister = directories.sstableLister().onlyBackups(true);
-        for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
-        {
-            Descriptor desc = entry.getKey();
-            for (Component comp : entry.getValue())
-                FileUtils.delete(desc.filenameFor(comp));
-        }
-
         for (ColumnFamilyStore cfs : concatWithIndexes())
             cfs.data.init();
     }

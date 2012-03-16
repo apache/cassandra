@@ -10,6 +10,8 @@
 
 
 1.1-dev
+ * rename loaded sstables to avoid conflicts with local snapshots
+   (CASSANDRA-3967)
  * start hint replay as soon as FD notifies that the target is back up
    (CASSANDRA-3958)
  * avoid unproductive deserializing of cached rows during compaction
