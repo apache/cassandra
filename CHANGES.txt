@@ -34,6 +34,7 @@
  * Add type information to new schema_ columnfamilies and remove thrift
    serialization for schema (CASSANDRA-3792)
  * add missing column validator options to the CLI help (CASSANDRA-3926)
+ * skip reading saved key cache if CF's caching strategy is NONE or ROWS_ONLY (CASSANDRA-3954)
 Merged from 1.0:
  * always compact away deleted hints immediately after handoff (CASSANDRA-3955)
  * delete hints from dropped ColumnFamilies on handoff instead of
