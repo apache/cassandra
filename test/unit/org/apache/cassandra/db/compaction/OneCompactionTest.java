@@ -34,11 +34,11 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.ColumnFamilyStore;
 
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class OneCompactionTest extends CleanupHelper
+public class OneCompactionTest extends SchemaLoader
 {
     private void testCompaction(String columnFamilyName, int insertsPerTable) throws IOException, ExecutionException, InterruptedException
     {

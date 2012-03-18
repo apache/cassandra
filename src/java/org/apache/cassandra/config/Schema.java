@@ -37,7 +37,6 @@ import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.utils.Pair;
 
@@ -95,23 +94,8 @@ public class Schema
      */
     public Schema load(KSMetaData keyspaceDef)
     {
-        if (!Migration.isLegalName(keyspaceDef.name))
-            throw new RuntimeException("invalid keyspace name: " + keyspaceDef.name);
-
         for (CFMetaData cfm : keyspaceDef.cfMetaData().values())
-        {
-            if (!Migration.isLegalName(cfm.cfName))
-                throw new RuntimeException("invalid column family name: " + cfm.cfName);
-
-            try
-            {
-                load(cfm);
-            }
-            catch (ConfigurationException ex)
-            {
-                throw new IOError(ex);
-            }
-        }
+            load(cfm);
 
         setTableDefinition(keyspaceDef);
 
@@ -382,12 +366,12 @@ public class Schema
      *
      * @throws ConfigurationException if ColumnFamily was already loaded
      */
-    public void load(CFMetaData cfm) throws ConfigurationException
+    public void load(CFMetaData cfm)
     {
         Pair<String, String> key = new Pair<String, String>(cfm.ksName, cfm.cfName);
 
         if (cfIdMap.containsKey(key))
-            throw new ConfigurationException("Attempt to assign id to existing column family.");
+            throw new RuntimeException(String.format("Attempting to load already loaded column family %s.%s", cfm.ksName, cfm.cfName));
 
         logger.debug("Adding {} to cfIdMap", cfm);
         cfIdMap.put(key, cfm.cfId);

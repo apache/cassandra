@@ -19,6 +19,7 @@
 
 package org.apache.cassandra.service;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -28,9 +29,11 @@ import org.apache.cassandra.config.Schema;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.dht.*;
@@ -41,8 +44,25 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 
-public class LeaveAndBootstrapTest extends CleanupHelper
+public class LeaveAndBootstrapTest
 {
+    private static final IPartitioner partitioner = new RandomPartitioner();
+    private static IPartitioner oldPartitioner;
+
+    @BeforeClass
+    public static void setup() throws IOException
+    {
+        oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
+        SchemaLoader.loadSchema();
+    }
+
+    @AfterClass
+    public static void tearDown()
+    {
+        StorageService.instance.setPartitionerUnsafe(oldPartitioner);
+        SchemaLoader.stopGossiper();
+    }
+
     /**
      * Test whether write endpoints is correct when the node is leaving. Uses
      * StorageService.onChange and does not manipulate token metadata directly.
@@ -58,8 +78,6 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
-
-        IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
@@ -112,8 +130,6 @@ public class LeaveAndBootstrapTest extends CleanupHelper
                 assertEquals("mismatched endpoint sets", expected, actual);
             }
         }
-
-        ss.setPartitionerUnsafe(oldPartitioner);
     }
 
     /**
@@ -129,8 +145,6 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
-
-        IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
@@ -406,8 +420,6 @@ public class LeaveAndBootstrapTest extends CleanupHelper
             assertTrue(endpoints.contains(hosts.get(1)));
             assertTrue(endpoints.contains(hosts.get(2)));
         }
-
-        ss.setPartitionerUnsafe(oldPartitioner);
     }
 
     @Test
@@ -418,8 +430,6 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
-
-        IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
@@ -473,8 +483,6 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         assertTrue(tmd.getToken(hosts.get(3)).equals(keyTokens.get(2)));
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
-
-        ss.setPartitionerUnsafe(oldPartitioner);
     }
 
     @Test
@@ -485,8 +493,6 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
-
-        IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
@@ -516,8 +522,6 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         assertTrue(tmd.getBootstrapTokens().isEmpty());
         assertTrue(tmd.getLeavingEndpoints().isEmpty());
         assertTrue(tmd.getToken(hosts.get(2)).equals(keyTokens.get(4)));
-
-        ss.setPartitionerUnsafe(oldPartitioner);
     }
 
     @Test
@@ -528,8 +532,6 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
-
-        IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
@@ -565,8 +567,6 @@ public class LeaveAndBootstrapTest extends CleanupHelper
 
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
-
-        ss.setPartitionerUnsafe(oldPartitioner);
     }
 
     @Test
@@ -577,8 +577,6 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
-
-        IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
@@ -607,8 +605,6 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         assertTrue(tmd.getBootstrapTokens().size() == 0);
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
-
-        ss.setPartitionerUnsafe(oldPartitioner);
     }
 
     private static Collection<InetAddress> makeAddrs(String... hosts) throws UnknownHostException

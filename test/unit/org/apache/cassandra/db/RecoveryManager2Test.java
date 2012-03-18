@@ -28,12 +28,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.Util.column;
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class RecoveryManager2Test extends CleanupHelper
+public class RecoveryManager2Test extends SchemaLoader
 {
     private static Logger logger = LoggerFactory.getLogger(RecoveryManager2Test.class);
 

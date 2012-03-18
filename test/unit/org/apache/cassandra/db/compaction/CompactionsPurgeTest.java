@@ -25,7 +25,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.DecoratedKey;
@@ -43,7 +43,7 @@ import static org.apache.cassandra.db.TableTest.assertColumns;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class CompactionsPurgeTest extends CleanupHelper
+public class CompactionsPurgeTest extends SchemaLoader
 {
     public static final String TABLE1 = "Keyspace1";
     public static final String TABLE2 = "Keyspace2";

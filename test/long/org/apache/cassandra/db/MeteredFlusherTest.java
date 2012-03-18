@@ -26,14 +26,14 @@ import java.nio.ByteBuffer;
 
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.migration.AddColumnFamily;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class MeteredFlusherTest extends CleanupHelper
+public class MeteredFlusherTest extends SchemaLoader
 {
     @Test
     public void testManyMemtables() throws IOException, ConfigurationException
@@ -42,7 +42,7 @@ public class MeteredFlusherTest extends CleanupHelper
         for (int i = 0; i < 100; i++)
         {
             CFMetaData metadata = new CFMetaData(table.name, "_CF" + i, ColumnFamilyType.Standard, UTF8Type.instance, null);
-            new AddColumnFamily(metadata).apply();
+            MigrationManager.announceNewColumnFamily(metadata);
         }
 
         ByteBuffer name = ByteBufferUtil.bytes("c");

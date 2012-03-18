@@ -27,7 +27,7 @@ import org.apache.cassandra.service.CassandraDaemon;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-public class EmbeddedServer extends CleanupHelper
+public class EmbeddedServer extends SchemaLoader
 {
     protected static CassandraDaemon daemon = null;
 

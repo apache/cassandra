@@ -43,11 +43,11 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.TypeParser;
-import org.apache.cassandra.db.migration.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -324,45 +324,6 @@ public class QueryProcessor
             }
             throw new InvalidRequestException("No indexed columns present in by-columns clause with \"equals\" operator");
         }
-    }
-
-    // Copypasta from o.a.c.thrift.CassandraDaemon
-    private static void applyMigrationOnStage(final Migration m) throws SchemaDisagreementException, InvalidRequestException
-    {
-        Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(new Callable<Object>()
-        {
-            public Object call() throws Exception
-            {
-                m.apply();
-                return null;
-            }
-        });
-        try
-        {
-            f.get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (ExecutionException e)
-        {
-            // this means call() threw an exception. deal with it directly.
-            if (e.getCause() != null)
-            {
-                InvalidRequestException ex = new InvalidRequestException(e.getCause().getMessage());
-                ex.initCause(e.getCause());
-                throw ex;
-            }
-            else
-            {
-                InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-                ex.initCause(e);
-                throw ex;
-            }
-        }
-
-        validateSchemaIsSettled();
     }
 
     public static void validateKey(ByteBuffer key) throws InvalidRequestException
@@ -725,7 +686,8 @@ public class QueryProcessor
                                 .setStrategy_options(create.getStrategyOptions());
                     ThriftValidation.validateKsDef(ksd);
                     ThriftValidation.validateKeyspaceNotYetExisting(create.getName());
-                    applyMigrationOnStage(new AddKeyspace(KSMetaData.fromThrift(ksd)));
+                    MigrationManager.announceNewKeyspace(KSMetaData.fromThrift(ksd));
+                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {
@@ -746,7 +708,8 @@ public class QueryProcessor
 
                 try
                 {
-                    applyMigrationOnStage(new AddColumnFamily(cfmd));
+                    MigrationManager.announceNewColumnFamily(cfmd);
+                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {
@@ -792,7 +755,8 @@ public class QueryProcessor
                 ThriftValidation.validateCfDef(cf_def, oldCfm);
                 try
                 {
-                    applyMigrationOnStage(new UpdateColumnFamily(CFMetaData.fromThrift(cf_def)));
+                    MigrationManager.announceColumnFamilyUpdate(CFMetaData.fromThrift(cf_def));
+                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {
@@ -811,7 +775,8 @@ public class QueryProcessor
 
                 try
                 {
-                    applyMigrationOnStage(dropIdx.generateMutation(clientState.getKeyspace()));
+                    MigrationManager.announceColumnFamilyUpdate(dropIdx.generateCFMetadataUpdate(clientState.getKeyspace()));
+                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {
@@ -837,7 +802,8 @@ public class QueryProcessor
 
                 try
                 {
-                    applyMigrationOnStage(new DropKeyspace(deleteKeyspace));
+                    MigrationManager.announceKeyspaceDrop(deleteKeyspace);
+                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {
@@ -856,7 +822,8 @@ public class QueryProcessor
 
                 try
                 {
-                    applyMigrationOnStage(new DropColumnFamily(keyspace, deleteColumnFamily));
+                    MigrationManager.announceColumnFamilyDrop(keyspace, deleteColumnFamily);
+                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {
@@ -877,7 +844,8 @@ public class QueryProcessor
 
                 try
                 {
-                    applyMigrationOnStage(new UpdateColumnFamily(CFMetaData.fromThrift(alterTable.getCfDef(keyspace))));
+                    MigrationManager.announceColumnFamilyUpdate(CFMetaData.fromThrift(alterTable.getCfDef(keyspace)));
+                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {

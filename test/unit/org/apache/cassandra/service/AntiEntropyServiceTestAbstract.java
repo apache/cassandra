@@ -27,7 +27,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -47,7 +47,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
+public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
 {
     // table and column family to test against
     public AntiEntropyService aes;

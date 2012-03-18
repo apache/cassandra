@@ -26,10 +26,12 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
@@ -46,24 +48,36 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.*;
 
-public class RemoveTest extends CleanupHelper
+public class RemoveTest
 {
+    static final IPartitioner partitioner = new RandomPartitioner();
     StorageService ss = StorageService.instance;
     TokenMetadata tmd = ss.getTokenMetadata();
-    IPartitioner oldPartitioner;
+    static IPartitioner oldPartitioner;
     ArrayList<Token> endpointTokens = new ArrayList<Token>();
     ArrayList<Token> keyTokens = new ArrayList<Token>();
     List<InetAddress> hosts = new ArrayList<InetAddress>();
     InetAddress removalhost;
     Token removaltoken;
 
+    @BeforeClass
+    public static void setupClass() throws IOException
+    {
+        oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
+        SchemaLoader.loadSchema();
+    }
+
+    @AfterClass
+    public static void tearDownClass()
+    {
+        StorageService.instance.setPartitionerUnsafe(oldPartitioner);
+        SchemaLoader.stopGossiper();
+    }
+
     @Before
     public void setup() throws IOException, ConfigurationException
     {
         tmd.clearUnsafe();
-        IPartitioner partitioner = new RandomPartitioner();
-
-        oldPartitioner = ss.setPartitionerUnsafe(partitioner);
 
         // create a ring of 5 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
@@ -86,7 +100,6 @@ public class RemoveTest extends CleanupHelper
         SinkManager.clear();
         MessagingService.instance().clearCallbacksUnsafe();
         MessagingService.instance().shutdown();
-        ss.setPartitionerUnsafe(oldPartitioner);
     }
 
     @Test(expected = UnsupportedOperationException.class)

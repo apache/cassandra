@@ -28,10 +28,10 @@ import org.apache.cassandra.Util;
 import org.junit.Test;
 
 import static org.apache.cassandra.db.TableTest.assertColumns;
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import static org.apache.cassandra.Util.column;
 
-public class MultitableTest extends CleanupHelper
+public class MultitableTest extends SchemaLoader
 {
     @Test
     public void testSameCFs() throws IOException, ExecutionException, InterruptedException

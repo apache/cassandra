@@ -29,7 +29,7 @@ import java.util.Map;
 
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.gms.ApplicationState;
@@ -42,7 +42,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 
-public class BootStrapperTest extends CleanupHelper
+public class BootStrapperTest extends SchemaLoader
 {
     @Test
     public void testTokenRoundtrip() throws Exception

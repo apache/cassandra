@@ -39,7 +39,6 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.SnappyCompressor;
@@ -72,9 +71,9 @@ public final class CFMetaData
     public static final CFMetaData StatusCf = newSystemMetadata(SystemTable.STATUS_CF, 0, "persistent metadata for the local node", BytesType.instance, null);
     public static final CFMetaData HintsCf = newSystemMetadata(HintedHandOffManager.HINTS_CF, 1, "hinted handoff data", BytesType.instance, BytesType.instance);
     @Deprecated
-    public static final CFMetaData MigrationsCf = newSystemMetadata(Migration.MIGRATIONS_CF, 2, "individual schema mutations", TimeUUIDType.instance, null);
+    public static final CFMetaData MigrationsCf = newSystemMetadata(DefsTable.OLD_MIGRATIONS_CF, 2, "individual schema mutations", TimeUUIDType.instance, null);
     @Deprecated
-    public static final CFMetaData SchemaCf = newSystemMetadata(Migration.SCHEMA_CF, 3, "current state of the schema", UTF8Type.instance, null);
+    public static final CFMetaData SchemaCf = newSystemMetadata(DefsTable.OLD_SCHEMA_CF, 3, "current state of the schema", UTF8Type.instance, null);
     public static final CFMetaData IndexCf = newSystemMetadata(SystemTable.INDEX_CF, 5, "indexes that have been completed", UTF8Type.instance, null);
     public static final CFMetaData NodeIdCf = newSystemMetadata(SystemTable.NODE_ID_CF, 6, "nodeId and their metadata", TimeUUIDType.instance, null);
     public static final CFMetaData VersionCf =
@@ -884,16 +883,14 @@ public final class CFMetaData
     }
 
     /**
-     * Calculate the difference between current metadata and given and serialize it as schema RowMutation
+     * Create schema mutations to update this metadata to provided new state.
      *
      * @param newState The new metadata (for the same CF)
      * @param modificationTimestamp Timestamp to use for mutation
      *
      * @return Difference between attributes in form of schema mutation
-     *
-     * @throws ConfigurationException if any of the attributes didn't pass validation
      */
-    public RowMutation diff(CFMetaData newState, long modificationTimestamp) throws ConfigurationException
+    public RowMutation toSchemaUpdate(CFMetaData newState, long modificationTimestamp)
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(ksName));
 
@@ -1056,7 +1053,7 @@ public final class CFMetaData
         CFMetaData cfDef = fromSchemaNoColumns(result);
 
         Row serializedColumnDefinitions = ColumnDefinition.readSchema(cfDef.ksName, cfDef.cfName);
-        return addColumnDefinitionSchema(cfDef, serializedColumnDefinitions);
+        return addColumnDefinitionSchema(cfDef, serializedColumnDefinitions).updateCfDef();
     }
 
     private static CFMetaData fromSchema(Row row)
@@ -1131,7 +1128,7 @@ public final class CFMetaData
     // Package protected for use by tests
     static CFMetaData addColumnDefinitionSchema(CFMetaData cfDef, Row serializedColumnDefinitions)
     {
-        for (ColumnDefinition cd : ColumnDefinition.fromSchema(serializedColumnDefinitions, cfDef.comparator))
+        for (ColumnDefinition cd : ColumnDefinition.fromSchema(serializedColumnDefinitions, cfDef.getColumnDefinitionComparator()))
             cfDef.column_metadata.put(cd.name, cd);
         return cfDef;
     }
@@ -1146,15 +1143,21 @@ public final class CFMetaData
         return column_metadata.remove(def.name) != null;
     }
 
-    private void updateCfDef()
+    private CFMetaData updateCfDef()
     {
         cqlCfDef = new CFDefinition(this);
+        return this;
     }
 
     public CFDefinition getCfDef()
     {
         assert cqlCfDef != null;
         return cqlCfDef;
+    }
+
+    public static boolean isNameValid(String name)
+    {
+        return name.matches("\\w+");
     }
 
     @Override
@@ -1178,7 +1181,7 @@ public final class CFMetaData
             .append("maxCompactionThreshold", maxCompactionThreshold)
             .append("keyAlias", keyAlias)
             .append("columnAliases", columnAliases)
-            .append("valueAlias", keyAlias)
+            .append("valueAlias", valueAlias)
             .append("column_metadata", column_metadata)
             .append("compactionStrategyClass", compactionStrategyClass)
             .append("compactionStrategyOptions", compactionStrategyOptions)

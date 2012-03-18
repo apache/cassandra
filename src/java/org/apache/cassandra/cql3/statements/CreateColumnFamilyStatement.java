@@ -35,9 +35,8 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.migration.AddColumnFamily;
-import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.ThriftValidation;
@@ -78,11 +77,11 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         return columnDefs;
     }
 
-    public Migration getMigration() throws InvalidRequestException, ConfigurationException, IOException
+    public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
         CFMetaData cfmd = getCFMetaData();
         ThriftValidation.validateCfDef(cfmd.toThrift(), null);
-        return new AddColumnFamily(cfmd);
+        MigrationManager.announceNewColumnFamily(cfmd);
     }
 
     /**

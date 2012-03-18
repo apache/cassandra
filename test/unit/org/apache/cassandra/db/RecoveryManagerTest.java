@@ -24,14 +24,14 @@ import java.util.concurrent.ExecutionException;
 import org.apache.cassandra.Util;
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.db.TableTest.assertColumns;
 
-public class RecoveryManagerTest extends CleanupHelper
+public class RecoveryManagerTest extends SchemaLoader
 {
     @Test
     public void testNothingToRecover() throws IOException {

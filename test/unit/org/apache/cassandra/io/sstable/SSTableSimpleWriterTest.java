@@ -23,7 +23,7 @@ import java.io.File;
 import org.apache.cassandra.dht.IPartitioner;
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.IntegerType;
@@ -31,7 +31,7 @@ import org.apache.cassandra.service.StorageService;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.apache.cassandra.utils.ByteBufferUtil.toInt;
 
-public class SSTableSimpleWriterTest extends CleanupHelper
+public class SSTableSimpleWriterTest extends SchemaLoader
 {
     @Test
     public void testSSTableSimpleUnsortedWriter() throws Exception
