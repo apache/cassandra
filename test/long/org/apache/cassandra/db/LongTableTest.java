@@ -20,7 +20,7 @@ package org.apache.cassandra.db;
 
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;
@@ -30,7 +30,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class LongTableTest extends CleanupHelper
+public class LongTableTest extends SchemaLoader
 {
     @Test
     public void testGetRowMultiColumn() throws Throwable

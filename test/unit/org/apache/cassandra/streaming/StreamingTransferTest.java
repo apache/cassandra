@@ -27,7 +27,7 @@ import static org.apache.cassandra.Util.addMutation;
 import java.net.InetAddress;
 import java.util.*;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.context.CounterContext;
@@ -52,7 +52,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class StreamingTransferTest extends CleanupHelper
+public class StreamingTransferTest extends SchemaLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingTransferTest.class);
 

@@ -31,7 +31,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -52,7 +52,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Pair;
 
-public class SSTableReaderTest extends CleanupHelper
+public class SSTableReaderTest extends SchemaLoader
 {
     static Token t(int i)
     {

@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.columniterator.SSTableNamesIterator;
 import org.apache.cassandra.utils.FBUtilities;
@@ -36,7 +36,7 @@ import org.junit.Test;
  * Tests backwards compatibility for SSTables. Requires that older SSTables match up with the existing config file,
  * and currently only tests specific cases for specific upgrades.
  */
-public class LegacySSTableTest extends CleanupHelper
+public class LegacySSTableTest extends SchemaLoader
 {
     public static final String LEGACY_SSTABLE_PROP = "legacy-sstable-root";
     public static final String KSNAME = "Keyspace1";

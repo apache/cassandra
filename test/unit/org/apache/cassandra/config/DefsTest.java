@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -32,41 +32,21 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.migration.AddColumnFamily;
-import org.apache.cassandra.db.migration.AddKeyspace;
-import org.apache.cassandra.db.migration.DropColumnFamily;
-import org.apache.cassandra.db.migration.DropKeyspace;
-import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.db.migration.UpdateColumnFamily;
-import org.apache.cassandra.db.migration.UpdateKeyspace;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class DefsTest extends CleanupHelper
+public class DefsTest extends SchemaLoader
 {
-    @BeforeClass
-    public static void startGossiper()
-    {
-        Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
-    }
-
-    @AfterClass
-    public static void stopGossiper()
-    {
-        Gossiper.instance.stop();
-    }
 
     @Test
     public void ensureStaticCFMIdsAreLessThan1000()
@@ -135,11 +115,11 @@ public class DefsTest extends CleanupHelper
     {
         String[] valid = {"1", "a", "_1", "b_", "__", "1_a"};
         for (String s : valid)
-            assert Migration.isLegalName(s);
+            assert CFMetaData.isNameValid(s);
 
         String[] invalid = {"b@t", "dash-y", "", " ", "dot.s", ".hidden"};
         for (String s : invalid)
-            assert !Migration.isLegalName(s);
+            assert !CFMetaData.isNameValid(s);
     }
 
     @Test
@@ -167,15 +147,11 @@ public class DefsTest extends CleanupHelper
         CFMetaData newCf = addTestCF("MadeUpKeyspace", "NewCF", "new cf");
         try
         {
-            new AddColumnFamily(newCf).apply();
+            MigrationManager.announceNewColumnFamily(newCf);
             throw new AssertionError("You shouldn't be able to do anything to a keyspace that doesn't exist.");
         }
         catch (ConfigurationException expected)
         {
-        }
-        catch (IOException unexpected)
-        {
-            throw new AssertionError("Unexpected exception.");
         }
     }
 
@@ -189,7 +165,7 @@ public class DefsTest extends CleanupHelper
         CFMetaData newCf = addTestCF(original.name, cf, null);
 
         assert !Schema.instance.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
-        new AddColumnFamily(newCf).apply();
+        MigrationManager.announceNewColumnFamily(newCf);
 
         assert Schema.instance.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
         assert Schema.instance.getTableDefinition(ks).cfMetaData().get(newCf.cfName).equals(newCf);
@@ -205,7 +181,7 @@ public class DefsTest extends CleanupHelper
         CFMetaData newCf = addTestCF(original.name, cf, "A New Column Family");
 
         assert !Schema.instance.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
-        new AddColumnFamily(newCf).apply();
+        MigrationManager.announceNewColumnFamily(newCf);
 
         assert Schema.instance.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
         assert Schema.instance.getTableDefinition(ks).cfMetaData().get(newCf.cfName).equals(newCf);
@@ -246,7 +222,7 @@ public class DefsTest extends CleanupHelper
         store.getFlushPath(1024, Descriptor.CURRENT_VERSION);
         assert store.directories.sstableLister().list().size() > 0;
 
-        new DropColumnFamily(ks.name, cfm.cfName).apply();
+        MigrationManager.announceColumnFamilyDrop(ks.name, cfm.cfName);
 
         assert !Schema.instance.getTableDefinition(ks.name).cfMetaData().containsKey(cfm.cfName);
 
@@ -280,10 +256,10 @@ public class DefsTest extends CleanupHelper
 
         KSMetaData newKs = KSMetaData.testMetadata(newCf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), newCf);
 
-        new AddKeyspace(newKs).apply();
+        MigrationManager.announceNewKeyspace(newKs);
 
         assert Schema.instance.getTableDefinition(newCf.ksName) != null;
-        assert Schema.instance.getTableDefinition(newCf.ksName) == newKs;
+        assert Schema.instance.getTableDefinition(newCf.ksName).equals(newKs);
 
         // test reads and writes.
         RowMutation rm = new RowMutation(newCf.ksName, dk.key);
@@ -319,7 +295,7 @@ public class DefsTest extends CleanupHelper
         store.forceBlockingFlush();
         assert store.directories.sstableLister().list().size() > 0;
 
-        new DropKeyspace(ks.name).apply();
+        MigrationManager.announceKeyspaceDrop(ks.name);
 
         assert Schema.instance.getTableDefinition(ks.name) == null;
 
@@ -366,7 +342,7 @@ public class DefsTest extends CleanupHelper
             rm.add(new QueryPath(cfm.cfName, null, ByteBufferUtil.bytes(("col" + i))), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
 
-        new DropKeyspace(ks.name).apply();
+        MigrationManager.announceKeyspaceDrop(ks.name);
 
         assert Schema.instance.getTableDefinition(ks.name) == null;
     }
@@ -378,7 +354,7 @@ public class DefsTest extends CleanupHelper
 
         KSMetaData newKs = KSMetaData.testMetadata("EmptyKeyspace", SimpleStrategy.class, KSMetaData.optsWithRF(5));
 
-        new AddKeyspace(newKs).apply();
+        MigrationManager.announceNewKeyspace(newKs);
         assert Schema.instance.getTableDefinition("EmptyKeyspace") != null;
 
         CFMetaData newCf = addTestCF("EmptyKeyspace", "AddedLater", "A new CF to add to an empty KS");
@@ -387,7 +363,7 @@ public class DefsTest extends CleanupHelper
         assert !Schema.instance.getTableDefinition(newKs.name).cfMetaData().containsKey(newCf.cfName);
 
         //add the new CF to the empty space
-        new AddColumnFamily(newCf).apply();
+        MigrationManager.announceNewColumnFamily(newCf);
 
         assert Schema.instance.getTableDefinition(newKs.name).cfMetaData().containsKey(newCf.cfName);
         assert Schema.instance.getTableDefinition(newKs.name).cfMetaData().get(newCf.cfName).equals(newCf);
@@ -414,29 +390,16 @@ public class DefsTest extends CleanupHelper
         CFMetaData cf = addTestCF("UpdatedKeyspace", "AddedStandard1", "A new cf for a new ks");
         KSMetaData oldKs = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), cf);
 
-        new AddKeyspace(oldKs).apply();
+        MigrationManager.announceNewKeyspace(oldKs);
 
         assert Schema.instance.getTableDefinition(cf.ksName) != null;
-        assert Schema.instance.getTableDefinition(cf.ksName) == oldKs;
-
-        // anything with cf defs should fail.
-        CFMetaData cf2 = addTestCF(cf.ksName, "AddedStandard2", "A new cf for a new ks");
-        KSMetaData newBadKs = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(4), cf2);
-        try
-        {
-            new UpdateKeyspace(newBadKs).apply();
-            throw new AssertionError("Should not have been able to update a KS with a KS that described column families.");
-        }
-        catch (ConfigurationException ex)
-        {
-            // expected.
-        }
+        assert Schema.instance.getTableDefinition(cf.ksName).equals(oldKs);
 
         // names should match.
         KSMetaData newBadKs2 = KSMetaData.testMetadata(cf.ksName + "trash", SimpleStrategy.class, KSMetaData.optsWithRF(4));
         try
         {
-            new UpdateKeyspace(newBadKs2).apply();
+            MigrationManager.announceKeyspaceUpdate(newBadKs2);
             throw new AssertionError("Should not have been able to update a KS with an invalid KS name.");
         }
         catch (ConfigurationException ex)
@@ -445,7 +408,7 @@ public class DefsTest extends CleanupHelper
         }
 
         KSMetaData newKs = KSMetaData.testMetadata(cf.ksName, OldNetworkTopologyStrategy.class, KSMetaData.optsWithRF(1));
-        new UpdateKeyspace(newKs).apply();
+        MigrationManager.announceKeyspaceUpdate(newKs);
 
         KSMetaData newFetchedKs = Schema.instance.getKSMetaData(newKs.name);
         assert newFetchedKs.strategyClass.equals(newKs.strategyClass);
@@ -458,10 +421,10 @@ public class DefsTest extends CleanupHelper
         // create a keyspace with a cf to update.
         CFMetaData cf = addTestCF("UpdatedCfKs", "Standard1added", "A new cf that will be updated");
         KSMetaData ksm = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(1), cf);
-        new AddKeyspace(ksm).apply();
+        MigrationManager.announceNewKeyspace(ksm);
 
         assert Schema.instance.getTableDefinition(cf.ksName) != null;
-        assert Schema.instance.getTableDefinition(cf.ksName) == ksm;
+        assert Schema.instance.getTableDefinition(cf.ksName).equals(ksm);
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName) != null;
 
         // updating certain fields should fail.
@@ -473,22 +436,22 @@ public class DefsTest extends CleanupHelper
 
         // test valid operations.
         newCfm.comment("Modified comment");
-        new UpdateColumnFamily(newCfm).apply(); // doesn't get set back here.
+        MigrationManager.announceColumnFamilyUpdate(newCfm); // doesn't get set back here.
 
         newCfm.readRepairChance(0.23);
-        new UpdateColumnFamily(newCfm).apply();
+        MigrationManager.announceColumnFamilyUpdate(newCfm);
 
         newCfm.gcGraceSeconds(12);
-        new UpdateColumnFamily(newCfm).apply();
+        MigrationManager.announceColumnFamilyUpdate(newCfm);
 
         newCfm.defaultValidator(UTF8Type.instance);
-        new UpdateColumnFamily(newCfm).apply();
+        MigrationManager.announceColumnFamilyUpdate(newCfm);
 
         newCfm.minCompactionThreshold(3);
-        new UpdateColumnFamily(newCfm).apply();
+        MigrationManager.announceColumnFamilyUpdate(newCfm);
 
         newCfm.maxCompactionThreshold(33);
-        new UpdateColumnFamily(newCfm).apply();
+        MigrationManager.announceColumnFamilyUpdate(newCfm);
 
         // can't test changing the reconciler because there is only one impl.
 
@@ -570,8 +533,7 @@ public class DefsTest extends CleanupHelper
         ColumnDefinition cdOld = meta.getColumn_metadata().values().iterator().next();
         ColumnDefinition cdNew = new ColumnDefinition(cdOld.name, cdOld.getValidator(), null, null, null);
         meta.columnMetadata(Collections.singletonMap(cdOld.name, cdNew));
-        UpdateColumnFamily update = new UpdateColumnFamily(meta);
-        update.apply();
+        MigrationManager.announceColumnFamilyUpdate(meta);
 
         // check
         assert cfs.indexManager.getIndexedColumns().isEmpty();

@@ -23,14 +23,14 @@ import java.util.Collection;
 import org.junit.AfterClass;
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.db.filter.QueryPath;
 
-public class RowCacheTest extends CleanupHelper
+public class RowCacheTest extends SchemaLoader
 {
     private String KEYSPACE = "RowCacheSpace";
     private String COLUMN_FAMILY = "CachedCF";

@@ -30,7 +30,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.TypeParser;
-import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -584,6 +583,8 @@ public class ThriftValidation
         {
             if (cf_def.name.length() > 32)
                 throw new InvalidRequestException(String.format("Column family names shouldn't be more than 32 character long (got \"%s\")", cf_def.name));
+            if (!CFMetaData.isNameValid(cf_def.name))
+                throw new ConfigurationException(String.format("Invalid column family name. Should be only alphanumerical characters (got \"%s\")", cf_def.name));
             if (cf_def.key_alias != null)
             {
                 if (!cf_def.key_alias.hasRemaining())
@@ -661,7 +662,7 @@ public class ThriftValidation
                     if (cfType == ColumnFamilyType.Super)
                         throw new InvalidRequestException("Secondary indexes are not supported on supercolumns");
                     assert c.index_name != null; // should have a default set by now if none was provided
-                    if (!Migration.isLegalName(c.index_name))
+                    if (!CFMetaData.isNameValid(c.index_name))
                         throw new InvalidRequestException("Illegal index name " + c.index_name);
                     // check index names against this CF _and_ globally
                     if (indexNames.contains(c.index_name))
@@ -716,6 +717,8 @@ public class ThriftValidation
     {
         if (ks_def.name.length() > 32)
             throw new ConfigurationException(String.format("Keyspace names shouldn't be more than 32 character long (got \"%s\")", ks_def.name));
+        if (!CFMetaData.isNameValid(ks_def.name))
+            throw new ConfigurationException(String.format("Invalid keyspace name. Should be only alphanumerical characters (got \"%s\")", ks_def.name));
 
         // Attempt to instantiate the ARS, which will throw a ConfigException if
         //  the strategy_options aren't fully formed or if the ARS Classname is invalid.

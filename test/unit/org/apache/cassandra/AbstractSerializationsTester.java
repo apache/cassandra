@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class AbstractSerializationsTester extends CleanupHelper
+public class AbstractSerializationsTester extends SchemaLoader
 {
     protected static final String CUR_VER = System.getProperty("cassandra.version", "0.7");
     protected static final Map<String, Integer> VERSION_MAP = new HashMap<String, Integer> ()

@@ -33,14 +33,14 @@ import org.apache.cassandra.thrift.ColumnParent;
 import org.junit.AfterClass;
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import static junit.framework.Assert.assertEquals;
 
-public class KeyCacheTest extends CleanupHelper
+public class KeyCacheTest extends SchemaLoader
 {
     private static final String TABLE1 = "KeyCacheSpace";
     private static final String COLUMN_FAMILY1 = "Standard1";

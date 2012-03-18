@@ -28,14 +28,12 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.db.migration.MigrationHelper;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.db.migration.MigrationHelper.*;
 import static org.apache.cassandra.utils.FBUtilities.json;
 
 public class ColumnDefinition
@@ -240,8 +238,8 @@ public class ColumnDefinition
         ColumnFamilyStore columnsStore = SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNS_CF);
         ColumnFamily cf = columnsStore.getColumnFamily(key,
                                                        new QueryPath(SystemTable.SCHEMA_COLUMNS_CF),
-                                                       MigrationHelper.searchComposite(cfName, true),
-                                                       MigrationHelper.searchComposite(cfName, false),
+                                                       DefsTable.searchComposite(cfName, true),
+                                                       DefsTable.searchComposite(cfName, false),
                                                        false,
                                                        Integer.MAX_VALUE);
         return new Row(key, cf);

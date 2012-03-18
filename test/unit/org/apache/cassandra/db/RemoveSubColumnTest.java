@@ -28,11 +28,11 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class RemoveSubColumnTest extends CleanupHelper
+public class RemoveSubColumnTest extends SchemaLoader
 {
     @Test
     public void testRemoveSubColumn() throws IOException, ExecutionException, InterruptedException

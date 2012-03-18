@@ -27,12 +27,12 @@ import static junit.framework.Assert.assertNull;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class RemoveColumnFamilyTest extends CleanupHelper
+public class RemoveColumnFamilyTest extends SchemaLoader
 {
     @Test
     public void testRemoveColumnFamily() throws IOException, ExecutionException, InterruptedException

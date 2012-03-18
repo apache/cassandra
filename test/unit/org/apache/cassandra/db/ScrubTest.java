@@ -28,7 +28,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
@@ -41,7 +41,7 @@ import static org.apache.cassandra.Util.column;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-public class ScrubTest extends CleanupHelper
+public class ScrubTest extends SchemaLoader
 {
     public String TABLE = "Keyspace1";
     public String CF = "Standard1";
@@ -83,6 +83,7 @@ public class ScrubTest extends CleanupHelper
 
         Table table = Table.open(TABLE);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF2);
+        cfs.loadNewSSTables();
         assert cfs.getSSTables().size() > 0;
 
         List<Row> rows;

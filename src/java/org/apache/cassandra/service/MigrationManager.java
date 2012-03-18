@@ -22,7 +22,9 @@ import java.io.DataOutputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.ArrayList;
@@ -36,16 +38,23 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.commons.lang.ArrayUtils;
 
@@ -55,6 +64,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     // try that many times to send migration request to the node before giving up
     private static final int MIGRATION_REQUEST_RETRIES = 3;
+    private static final ByteBuffer LAST_MIGRATION_KEY = ByteBufferUtil.bytes("Last Migration");
 
     public void onJoin(InetAddress endpoint, EndpointState epState)
     {}
@@ -108,6 +118,78 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         return StageManager.getStage(Stage.MIGRATION).getActiveCount() == 0;
     }
 
+    public static void announceNewKeyspace(KSMetaData ksm) throws ConfigurationException
+    {
+        ksm.validate();
+
+        if (Schema.instance.getTableDefinition(ksm.name) != null)
+            throw new ConfigurationException(String.format("Cannot add already existing keyspace '%s'.", ksm.name));
+
+        announce(ksm.toSchema(System.nanoTime()));
+    }
+
+    public static void announceNewColumnFamily(CFMetaData cfm) throws ConfigurationException
+    {
+        cfm.validate();
+
+        KSMetaData ksm = Schema.instance.getTableDefinition(cfm.ksName);
+        if (ksm == null)
+            throw new ConfigurationException(String.format("Cannot add column family '%s' to non existing keyspace '%s'.", cfm.cfName, cfm.ksName));
+        else if (ksm.cfMetaData().containsKey(cfm.cfName))
+            throw new ConfigurationException(String.format("Cannot add already existing column family '%s' to keyspace '%s'.", cfm.cfName, cfm.ksName));
+
+        announce(cfm.toSchema(System.nanoTime()));
+    }
+
+    public static void announceKeyspaceUpdate(KSMetaData ksm) throws ConfigurationException
+    {
+        ksm.validate();
+
+        KSMetaData oldKsm = Schema.instance.getKSMetaData(ksm.name);
+        if (oldKsm == null)
+            throw new ConfigurationException(String.format("Cannot update non existing keyspace '%s'.", ksm.name));
+
+        announce(oldKsm.toSchemaUpdate(ksm, System.nanoTime()));
+    }
+
+    public static void announceColumnFamilyUpdate(CFMetaData cfm) throws ConfigurationException
+    {
+        cfm.validate();
+
+        CFMetaData oldCfm = Schema.instance.getCFMetaData(cfm.ksName, cfm.cfName);
+        if (oldCfm == null)
+            throw new ConfigurationException(String.format("Cannot update non existing column family '%s' in keyspace '%s'.", cfm.cfName, cfm.ksName));
+
+        announce(oldCfm.toSchemaUpdate(cfm, System.nanoTime()));
+    }
+
+    public static void announceKeyspaceDrop(String ksName) throws ConfigurationException
+    {
+        KSMetaData oldKsm = Schema.instance.getKSMetaData(ksName);
+        if (oldKsm == null)
+            throw new ConfigurationException(String.format("Cannot drop non existing keyspace '%s'.", ksName));
+
+        announce(oldKsm.dropFromSchema(System.nanoTime()));
+    }
+
+    public static void announceColumnFamilyDrop(String ksName, String cfName) throws ConfigurationException
+    {
+        CFMetaData oldCfm = Schema.instance.getCFMetaData(ksName, cfName);
+        if (oldCfm == null)
+            throw new ConfigurationException(String.format("Cannot drop non existing column family '%s' in keyspace '%s'.", cfName, ksName));
+
+        announce(oldCfm.dropFromSchema(System.nanoTime()));
+    }
+
+    /**
+     * actively announce a new version to active hosts via rpc
+     * @param schema The schema mutation to be applied
+     */
+    private static void announce(RowMutation schema)
+    {
+        FBUtilities.waitOnFuture(announce(Collections.singletonList(schema)));
+    }
+
     private static void pushSchemaMutation(InetAddress endpoint, Collection<RowMutation> schema)
     {
         try
@@ -121,16 +203,22 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
     }
 
-    /**
-     * actively announce a new version to active hosts via rpc
-     * @param schema The list of schema mutations to be applied on the recipient
-     */
-    public static void announce(Collection<RowMutation> schema)
+    // Returns a future on the local application of the schema
+    private static Future<?> announce(final Collection<RowMutation> schema)
     {
+        Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(new Callable<Object>()
+        {
+            public Object call() throws Exception
+            {
+                DefsTable.mergeSchema(schema);
+                return null;
+            }
+        });
+
         for (InetAddress endpoint : Gossiper.instance.getLiveMembers())
         {
             if (endpoint.equals(FBUtilities.getBroadcastAddress()))
-                continue; // don't push schema mutation to self
+                continue; // we've delt with localhost already
 
             // don't send migrations to the nodes with the versions older than < 1.1
             if (Gossiper.instance.getVersion(endpoint) < MessagingService.VERSION_11)
@@ -138,6 +226,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
             pushSchemaMutation(endpoint, schema);
         }
+        return f;
     }
 
     /**
@@ -272,6 +361,24 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Used only in case node has old style migration schema (newly updated)
+     * @return the UUID identifying version of the last applied migration
+     */
+    @Deprecated
+    public static UUID getLastMigrationId()
+    {
+        DecoratedKey dkey = StorageService.getPartitioner().decorateKey(LAST_MIGRATION_KEY);
+        Table defs = Table.open(Table.SYSTEM_TABLE);
+        ColumnFamilyStore cfStore = defs.getColumnFamilyStore(DefsTable.OLD_SCHEMA_CF);
+        QueryFilter filter = QueryFilter.getNamesFilter(dkey, new QueryPath(DefsTable.OLD_SCHEMA_CF), LAST_MIGRATION_KEY);
+        ColumnFamily cf = cfStore.getColumnFamily(filter);
+        if (cf == null || cf.getColumnNames().size() == 0)
+            return null;
+        else
+            return UUIDGen.getUUID(cf.getColumn(LAST_MIGRATION_KEY).value());
     }
 
     static class MigrationTask extends WrappedRunnable

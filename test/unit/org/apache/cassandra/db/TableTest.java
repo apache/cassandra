@@ -32,7 +32,7 @@ import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
 
 import static junit.framework.Assert.*;
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -47,7 +47,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class TableTest extends CleanupHelper
+public class TableTest extends SchemaLoader
 {
     private static final DecoratedKey TEST_KEY = Util.dk("key1");
     private static final DecoratedKey TEST_SLICE_KEY = Util.dk("key1-slicerange");

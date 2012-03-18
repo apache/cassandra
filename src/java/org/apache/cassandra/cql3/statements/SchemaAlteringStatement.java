@@ -75,7 +75,7 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
         return new Prepared(this);
     }
 
-    public abstract Migration getMigration() throws InvalidRequestException, IOException, ConfigurationException;
+    public abstract void announceMigration() throws InvalidRequestException, ConfigurationException;
 
     public void checkAccess(ClientState state) throws InvalidRequestException
     {
@@ -95,7 +95,7 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
     {
         try
         {
-            applyMigrationOnStage(getMigration());
+            announceMigration();
         }
         catch (ConfigurationException e)
         {
@@ -103,12 +103,7 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
             ex.initCause(e);
             throw ex;
         }
-        catch (IOException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.toString());
-            ex.initCause(e);
-            throw ex;
-        }
+        validateSchemaIsSettled();
         return null;
     }
 
@@ -117,45 +112,6 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
     {
        if (describeSchemaVersions().size() > 1)
             throw new SchemaDisagreementException();
-    }
-
-    // Copypasta from o.a.c.thrift.CassandraDaemon
-    private static void applyMigrationOnStage(final Migration m) throws SchemaDisagreementException, InvalidRequestException
-    {
-        Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(new Callable<Object>()
-        {
-            public Object call() throws Exception
-            {
-                m.apply();
-                return null;
-            }
-        });
-        try
-        {
-            f.get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (ExecutionException e)
-        {
-            // this means call() threw an exception. deal with it directly.
-            if (e.getCause() != null)
-            {
-                InvalidRequestException ex = new InvalidRequestException(e.getCause().getMessage());
-                ex.initCause(e.getCause());
-                throw ex;
-            }
-            else
-            {
-                InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-                ex.initCause(e);
-                throw ex;
-            }
-        }
-
-        validateSchemaIsSettled();
     }
 
     private static Map<String, List<String>> describeSchemaVersions()

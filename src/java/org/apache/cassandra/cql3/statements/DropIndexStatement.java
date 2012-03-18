@@ -21,8 +21,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.db.migration.UpdateColumnFamily;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -37,7 +36,7 @@ public class DropIndexStatement extends SchemaAlteringStatement
         index = indexName;
     }
 
-    public Migration getMigration() throws InvalidRequestException, ConfigurationException, IOException
+    public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
         CfDef cfDef = null;
 
@@ -53,7 +52,7 @@ public class DropIndexStatement extends SchemaAlteringStatement
         if (cfDef == null)
             throw new InvalidRequestException("Index '" + index + "' could not be found in any of the column families of keyspace '" + keyspace() + "'");
 
-        return new UpdateColumnFamily(CFMetaData.fromThrift(cfDef));
+        MigrationManager.announceColumnFamilyUpdate(CFMetaData.fromThrift(cfDef));
     }
 
     private CfDef getUpdatedCFDef(CfDef cfDef) throws InvalidRequestException

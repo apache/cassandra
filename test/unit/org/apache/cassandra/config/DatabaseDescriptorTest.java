@@ -18,10 +18,10 @@
 */
 package org.apache.cassandra.config;
 
-import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.db.migration.AddKeyspace;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
 import org.junit.Test;
@@ -62,7 +62,7 @@ public class DatabaseDescriptorTest
     @Test
     public void testTransKsMigration() throws IOException, ConfigurationException
     {
-        CleanupHelper.cleanupAndLeaveDirs();
+        SchemaLoader.cleanupAndLeaveDirs();
         DatabaseDescriptor.loadSchemas();
         assert Schema.instance.getNonSystemTables().size() == 0;
 
@@ -71,10 +71,8 @@ public class DatabaseDescriptorTest
         try
         {
             // add a few.
-            AddKeyspace ks0 = new AddKeyspace(KSMetaData.testMetadata("ks0", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
-            ks0.apply();
-            AddKeyspace ks1 = new AddKeyspace(KSMetaData.testMetadata("ks1", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
-            ks1.apply();
+            MigrationManager.announceNewKeyspace(KSMetaData.testMetadata("ks0", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
+            MigrationManager.announceNewKeyspace(KSMetaData.testMetadata("ks1", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
 
             assert Schema.instance.getTableDefinition("ks0") != null;
             assert Schema.instance.getTableDefinition("ks1") != null;

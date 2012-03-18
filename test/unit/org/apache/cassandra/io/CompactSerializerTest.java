@@ -21,7 +21,7 @@ package org.apache.cassandra.io;
  */
 
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -33,7 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class CompactSerializerTest extends CleanupHelper
+public class CompactSerializerTest extends SchemaLoader
 {
     private static Set<String> expectedClassNames;
     private static List<String> discoveredClassNames;

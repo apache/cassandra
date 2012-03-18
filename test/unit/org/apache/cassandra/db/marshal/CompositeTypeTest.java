@@ -27,7 +27,7 @@ import java.util.UUID;
 import org.junit.Test;
 import static org.junit.Assert.fail;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.*;
@@ -35,7 +35,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.*;
 
-public class CompositeTypeTest extends CleanupHelper
+public class CompositeTypeTest extends SchemaLoader
 {
     private static final String cfName = "StandardComposite";
     private static final CompositeType comparator;

@@ -27,14 +27,14 @@ import java.util.UUID;
 import org.junit.Test;
 import static org.junit.Assert.fail;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.*;
 
-public class DynamicCompositeTypeTest extends CleanupHelper
+public class DynamicCompositeTypeTest extends SchemaLoader
 {
     private static final String cfName = "StandardDynamicComposite";
 

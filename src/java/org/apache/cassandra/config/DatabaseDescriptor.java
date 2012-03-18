@@ -38,7 +38,6 @@ import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
@@ -49,6 +48,7 @@ import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CassandraDaemon;
 import org.apache.cassandra.utils.FBUtilities;
 import org.yaml.snakeyaml.Loader;
@@ -481,7 +481,7 @@ public class DatabaseDescriptor
             // we can load tables from local storage if a version is set in the system table and that actually maps to
             // real data in the definitions table.  If we do end up loading from xml, store the definitions so that we
             // don't load from xml anymore.
-            UUID uuid = Migration.getLastMigrationId();
+            UUID uuid = MigrationManager.getLastMigrationId();
 
             if (uuid == null)
             {

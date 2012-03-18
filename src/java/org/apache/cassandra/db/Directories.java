@@ -154,7 +154,7 @@ public class Directories
                 maxLocation = dir;
             }
         }
-        logger.debug("expected data files size is {}; largest free partition has {} bytes free", estimatedSize, maxFreeDisk);
+        logger.debug(String.format("expected data files size is %d; largest free partition (%s) has %d bytes free", estimatedSize, maxLocation, maxFreeDisk));
 
         // Load factor of 0.9 we do not want to use the entire disk that is too risky.
         maxFreeDisk = (long)(0.9 * maxFreeDisk);

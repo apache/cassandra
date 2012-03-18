@@ -20,9 +20,8 @@ package org.apache.cassandra.cql3.statements;
 import java.io.IOException;
 
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.db.migration.DropKeyspace;
-import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.thrift.ThriftValidation;
@@ -44,8 +43,8 @@ public class DropKeyspaceStatement extends SchemaAlteringStatement
         ThriftValidation.validateKeyspaceNotSystem(keyspace);
     }
 
-    public Migration getMigration() throws ConfigurationException, IOException
+    public void announceMigration() throws ConfigurationException
     {
-        return new DropKeyspace(keyspace);
+        MigrationManager.announceKeyspaceDrop(keyspace);
     }
 }
