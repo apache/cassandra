@@ -119,7 +119,7 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
     @Deprecated @Override
     public ColumnFamilyRecordWriter getRecordWriter(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job, String name, org.apache.hadoop.util.Progressable progress) throws IOException
     {
-        return new ColumnFamilyRecordWriter(job);
+        return new ColumnFamilyRecordWriter(job, new Progressable(progress));
     }
 
     /**

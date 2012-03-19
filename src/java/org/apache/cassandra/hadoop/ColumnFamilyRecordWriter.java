@@ -78,6 +78,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     private final long batchThreshold;
 
     private final ConsistencyLevel consistencyLevel;
+    private Progressable progressable;
 
 
     /**
@@ -90,6 +91,13 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     ColumnFamilyRecordWriter(TaskAttemptContext context) throws IOException
     {
         this(context.getConfiguration());
+        this.progressable = new Progressable(context);
+    }
+
+    ColumnFamilyRecordWriter(Configuration conf, Progressable progressable) throws IOException
+    {
+        this(conf);
+        this.progressable = progressable;
     }
 
     ColumnFamilyRecordWriter(Configuration conf) throws IOException
@@ -133,6 +141,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
 
         for (Mutation amut : value)
             client.put(new Pair<ByteBuffer,Mutation>(keybuff, amut));
+            progressable.progress();
     }
 
     /**
