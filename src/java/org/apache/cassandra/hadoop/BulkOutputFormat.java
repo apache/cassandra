@@ -67,7 +67,7 @@ public class BulkOutputFormat extends OutputFormat<ByteBuffer,List<Mutation>>
     @Deprecated
     public BulkRecordWriter getRecordWriter(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job, String name, org.apache.hadoop.util.Progressable progress) throws IOException
     {
-        return new BulkRecordWriter(job);
+        return new BulkRecordWriter(job, new Progressable(progress));
     }
 
     @Override
