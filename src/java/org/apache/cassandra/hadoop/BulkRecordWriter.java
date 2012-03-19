@@ -55,7 +55,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     private final Configuration conf;
     private SSTableSimpleUnsortedWriter writer;
     private SSTableLoader loader;
-    private File outputdir;
+    private final File outputdir;
     private Progressable progress;
 
     private enum CFType
