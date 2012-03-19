@@ -24,6 +24,8 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -53,7 +55,8 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     private final Configuration conf;
     private SSTableSimpleUnsortedWriter writer;
     private SSTableLoader loader;
-    private final File outputdir;
+    private File outputdir;
+    private Progressable progress;
 
     private enum CFType
     {
@@ -73,6 +76,14 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     BulkRecordWriter(TaskAttemptContext context) throws IOException
     {
         this(context.getConfiguration());
+        this.progress = new Progressable(context);
+    }
+
+
+    BulkRecordWriter(Configuration conf, Progressable progress) throws IOException
+    {
+        this(conf);
+        this.progress = progress;
     }
 
     BulkRecordWriter(Configuration conf) throws IOException
@@ -166,6 +177,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                         writer.addExpiringColumn(mut.getColumn_or_supercolumn().column.name, mut.getColumn_or_supercolumn().column.value, mut.getColumn_or_supercolumn().column.timestamp, mut.getColumn_or_supercolumn().column.ttl, System.currentTimeMillis() + ((long)(mut.getColumn_or_supercolumn().column.ttl) * 1000));
                 }
             }
+            progress.progress();
         }
     }
     @Override
@@ -186,13 +198,22 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
         if (writer != null)
         {
             writer.close();
-            try
+            SSTableLoader.LoaderFuture future = loader.stream();
+            while (true)
             {
-                loader.stream().get();
-            }
-            catch (InterruptedException e)
-            {
-                throw new IOException(e);
+                try
+                {
+                    future.get(1000, TimeUnit.MILLISECONDS);
+                    break;
+                }
+                catch (TimeoutException te)
+                {
+                    progress.progress();
+                }
+                catch (InterruptedException e)
+                {
+                    throw new IOException(e);
+                }
             }
         }
     }
