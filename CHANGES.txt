@@ -2,6 +2,7 @@
  * Track tombstone expiration and compact when tombstone content is
    higher than a configurable threshold, default 20% (CASSANDRA-3442)
  * update MurmurHash to version 3 (CASSANDRA-2975)
+ * (CLI) track elapsed time for `delete' operation (CASSANDRA-4060)
 
 
 1.1.1-dev

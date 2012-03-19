@@ -389,6 +389,8 @@ public class CliClient
             return;
         }
 
+        long startTime = System.currentTimeMillis();
+
         Tree columnTree = (columnSpecCnt >= 1)
                            ? columnFamilySpec.getChild(2)
                            : null;
@@ -442,6 +444,7 @@ public class CliClient
             thriftClient.remove(key, path, FBUtilities.timestampMicros(), consistencyLevel);
         }
         sessionState.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
+        elapsedTime(startTime);
     }
 
     private void doSlice(String keyspace, ByteBuffer key, String columnFamily, byte[] superColumnName, int limit)
