@@ -30,10 +30,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-import javax.management.JMX;
-import javax.management.MBeanServerConnection;
-import javax.management.MalformedObjectNameException;
-import javax.management.ObjectName;
+import javax.management.*;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
@@ -521,13 +518,21 @@ public class NodeProbe
         ColumnFamilyStoreMBean cfsProxy = null;
         try
         {
-            cfsProxy = JMX.newMBeanProxy(mbeanServerConn,
-                    new ObjectName("org.apache.cassandra.db:type=ColumnFamilies,keyspace="+ks+",columnfamily="+cf), 
-                    ColumnFamilyStoreMBean.class);
+            Set<ObjectName> beans = mbeanServerConn.queryNames(new ObjectName("org.apache.cassandra.db:type=*ColumnFamilies,keyspace=" + ks + ",columnfamily=" + cf), null);
+            if (beans.isEmpty())
+                throw new MalformedObjectNameException("couldn't find that bean");
+            assert beans.size() == 1;
+            for (ObjectName bean : beans)
+                cfsProxy = JMX.newMBeanProxy(mbeanServerConn, bean, ColumnFamilyStoreMBean.class);
         }
         catch (MalformedObjectNameException mone)
         {
             System.err.println("ColumnFamilyStore for " + ks + "/" + cf + " not found.");
+            System.exit(1);
+        }
+        catch (IOException e)
+        {
+            System.err.println("ColumnFamilyStore for " + ks + "/" + cf + " not found: " + e);
             System.exit(1);
         }
 
