@@ -31,6 +31,7 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql.QueryProcessor.validateColumnName;
+import static org.apache.cassandra.cql.QueryProcessor.validateKey;
 
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 import static org.apache.cassandra.thrift.ThriftValidation.validateCommutativeForWrite;
@@ -147,6 +148,7 @@ public class UpdateStatement extends ModificationStatement
     private IMutation mutationForKey(CFDefinition cfDef, ClientState clientState, ByteBuffer key, ColumnNameBuilder builder, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
+        validateKey(key);
         // if true we need to wrap RowMutation into CounterMutation
         boolean hasCounterColumn = false;
         RowMutation rm = new RowMutation(cfDef.cfm.ksName, key);
