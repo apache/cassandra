@@ -36,6 +36,7 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
 import static org.apache.cassandra.cql.QueryProcessor.validateColumn;
+import static org.apache.cassandra.cql.QueryProcessor.validateKey;
 
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 import static org.apache.cassandra.thrift.ThriftValidation.validateCommutativeForWrite;
@@ -185,6 +186,7 @@ public class UpdateStatement extends AbstractModification
     private IMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp, ClientState clientState, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
+        validateKey(key);
         AbstractType<?> comparator = getComparator(keyspace);
 
         // if true we need to wrap RowMutation into CounterMutation
