@@ -52,7 +52,7 @@ public class DecoratedKey<T extends Token> extends RowPosition
 
     public DecoratedKey(T token, ByteBuffer key)
     {
-        assert token != null && key != null && key.remaining() > 0;
+        assert token != null && key != null;
         this.token = token;
         this.key = key;
     }
