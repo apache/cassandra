@@ -1,4 +1,5 @@
 1.0.9
+ * improve index sampling performance (CASSANDRA-4023)
  * always compact away deleted hints immediately after handoff (CASSANDRA-3955)
  * delete hints from dropped ColumnFamilies on handoff instead of
    erroring out (CASSANDRA-3975)
