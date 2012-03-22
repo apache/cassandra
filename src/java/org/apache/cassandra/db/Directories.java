@@ -112,7 +112,12 @@ public class Directories
 
     public File getDirectoryForNewSSTables(long estimatedSize)
     {
-        File path = getLocationWithMaximumAvailableSpace(estimatedSize);
+        return getDirectoryForNewSSTables(estimatedSize, true);
+    }
+
+    public File getDirectoryForNewSSTables(long estimatedSize, boolean ensureFreeSpace)
+    {
+        File path = getLocationWithMaximumAvailableSpace(estimatedSize, ensureFreeSpace);
         // Requesting GC has a chance to free space only if we're using mmap and a non SUN jvm
         if (path == null
          && (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap || DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
@@ -130,7 +135,7 @@ public class Directories
             {
                 throw new AssertionError(e);
             }
-            path = getLocationWithMaximumAvailableSpace(estimatedSize);
+            path = getLocationWithMaximumAvailableSpace(estimatedSize, ensureFreeSpace);
         }
         return path;
     }
@@ -141,7 +146,7 @@ public class Directories
      * compacted file is greater than the max disk space available return null, we cannot
      * do compaction in this case.
      */
-    public File getLocationWithMaximumAvailableSpace(long estimatedSize)
+    public File getLocationWithMaximumAvailableSpace(long estimatedSize, boolean ensureFreeSpace)
     {
         long maxFreeDisk = 0;
         File maxLocation = null;
@@ -154,11 +159,26 @@ public class Directories
                 maxLocation = dir;
             }
         }
-        logger.debug(String.format("expected data files size is %d; largest free partition (%s) has %d bytes free", estimatedSize, maxLocation, maxFreeDisk));
+        logger.debug(String.format("expected data files size is %d; largest free partition (%s) has %d bytes free",
+                                   estimatedSize,
+                                   maxLocation,
+                                   maxFreeDisk));
 
         // Load factor of 0.9 we do not want to use the entire disk that is too risky.
-        maxFreeDisk = (long)(0.9 * maxFreeDisk);
-        return estimatedSize < maxFreeDisk ? maxLocation : null;
+        maxFreeDisk = (long) (0.9 * maxFreeDisk);
+
+        if (!ensureFreeSpace || estimatedSize < maxFreeDisk)
+        {
+            if (estimatedSize >= maxFreeDisk)
+                logger.warn(String.format("Data file location %s only has %d free, estimated size is %d",
+                                          maxLocation,
+                                          maxFreeDisk,
+                                          estimatedSize));
+
+            return maxLocation;
+        }
+
+        return null;
     }
 
     public static File getSnapshotDirectory(Descriptor desc, String snapshotName)
