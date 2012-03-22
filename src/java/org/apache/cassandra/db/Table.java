@@ -556,7 +556,12 @@ public class Table
 
     public String getDataFileLocation(long expectedSize)
     {
-        String path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize);
+        return getDataFileLocation(expectedSize, true);
+    }
+
+    public String getDataFileLocation(long expectedSize, boolean ensureFreeSpace)
+    {
+        String path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize, ensureFreeSpace);
         // Requesting GC has a chance to free space only if we're using mmap and a non SUN jvm
         if (path == null
          && (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap || DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
@@ -574,7 +579,7 @@ public class Table
             {
                 throw new AssertionError(e);
             }
-            path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize);
+            path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize, ensureFreeSpace);
         }
         return path;
     }

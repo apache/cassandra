@@ -77,21 +77,20 @@ public class CompactionTask extends AbstractCompactionTask
             return 0;
 
         if (compactionFileLocation == null)
-            compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact));
-        if (partialCompactionsAcceptable())
+            compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact), ensureFreeSpace());
+
+        if (compactionFileLocation == null && partialCompactionsAcceptable())
         {
             // If the compaction file path is null that means we have no space left for this compaction.
             // Try again w/o the largest one.
-            if (compactionFileLocation == null)
+            while (compactionFileLocation == null && toCompact.size() > 1)
             {
-                while (compactionFileLocation == null && toCompact.size() > 1)
-                {
-                    logger.warn("insufficient space to compact all requested files " + StringUtils.join(toCompact, ", "));
-                    // Note that we have removed files that are still marked as compacting. This suboptimal but ok since the caller will unmark all
-                    // the sstables at the end.
-                    toCompact.remove(cfs.getMaxSizeFile(toCompact));
-                    compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact));
-                }
+                logger.warn("insufficient space to compact all requested files " + StringUtils.join(toCompact, ", "));
+                // Note that we have removed files that are still marked as compacting.
+                // This suboptimal but ok since the caller will unmark all the sstables at the end.
+                toCompact.remove(cfs.getMaxSizeFile(toCompact));
+                compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact),
+                                                                       ensureFreeSpace());
             }
 
             if (compactionFileLocation == null)
@@ -100,6 +99,7 @@ public class CompactionTask extends AbstractCompactionTask
                 return 0;
             }
         }
+        assert compactionFileLocation != null;
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-" + "compact-" + cfs.columnFamily);
@@ -227,6 +227,11 @@ public class CompactionTask extends AbstractCompactionTask
     }
 
     protected boolean partialCompactionsAcceptable()
+    {
+        return !isUserDefined;
+    }
+
+    protected boolean ensureFreeSpace()
     {
         return !isUserDefined;
     }

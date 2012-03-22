@@ -63,8 +63,6 @@ public class DatabaseDescriptor
     private static InetAddress broadcastAddress;
     private static InetAddress rpcAddress;
     private static SeedProvider seedProvider;
-    /* Current index into the above list of directories */
-    private static int currentIndex = 0;
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
@@ -741,12 +739,6 @@ public class DatabaseDescriptor
         return tableLocations;
     }
 
-    public synchronized static String getNextAvailableDataLocation()
-    {
-        String dataFileDirectory = conf.data_file_directories[currentIndex];
-        currentIndex = (currentIndex + 1) % conf.data_file_directories.length;
-        return dataFileDirectory;
-    }
 
     public static String getCommitLogLocation()
     {
@@ -763,41 +755,57 @@ public class DatabaseDescriptor
         return Collections.unmodifiableSet(new HashSet(seedProvider.getSeeds()));
     }
 
+    public synchronized static String getDataFileLocationForTable(String table, long expectedCompactedFileSize)
+    {
+        return getDataFileLocationForTable(table, expectedCompactedFileSize, true);
+    }
+
     /*
      * Loop through all the disks to see which disk has the max free space
      * return the disk with max free space for compactions. If the size of the expected
      * compacted file is greater than the max disk space available return null, we cannot
      * do compaction in this case.
+     *
+     * @param table name of the table.
+     * @param expectedCompactedSize expected file size in bytes.
+     * @param ensureFreeSpace Flag if the function should ensure enough free space exists for the expected file size.
+     *                        If False and there is not enough free space a warning is logged, and the dir with the most space is returned.
      */
-    public static String getDataFileLocationForTable(String table, long expectedCompactedFileSize)
+    public synchronized static String getDataFileLocationForTable(String table, long expectedCompactedFileSize, boolean ensureFreeSpace)
     {
-      long maxFreeDisk = 0;
-      int maxDiskIndex = 0;
-      String dataFileDirectory = null;
-      String[] dataDirectoryForTable = getAllDataFileLocationsForTable(table);
+        long maxFreeDisk = 0;
+        int maxDiskIndex = 0;
+        String dataFileDirectory = null;
+        String[] dataDirectoryForTable = getAllDataFileLocationsForTable(table);
 
-      for ( int i = 0 ; i < dataDirectoryForTable.length ; i++ )
-      {
-        File f = new File(dataDirectoryForTable[i]);
-        if( maxFreeDisk < f.getUsableSpace())
+        for (int i = 0; i < dataDirectoryForTable.length; i++)
         {
-          maxFreeDisk = f.getUsableSpace();
-          maxDiskIndex = i;
+            File f = new File(dataDirectoryForTable[i]);
+
+            if (maxFreeDisk < f.getUsableSpace())
+            {
+                maxFreeDisk = f.getUsableSpace();
+                maxDiskIndex = i;
+            }
         }
-      }
+
         logger.debug("expected data files size is {}; largest free partition has {} bytes free",
-                     expectedCompactedFileSize, maxFreeDisk);
-      // Load factor of 0.9 we do not want to use the entire disk that is too risky.
-      maxFreeDisk = (long)(0.9 * maxFreeDisk);
-      if( expectedCompactedFileSize < maxFreeDisk )
-      {
-        dataFileDirectory = dataDirectoryForTable[maxDiskIndex];
-        currentIndex = (maxDiskIndex + 1 )%dataDirectoryForTable.length ;
-      }
-      else
-      {
-        currentIndex = maxDiskIndex;
-      }
+                     expectedCompactedFileSize,
+                     maxFreeDisk);
+
+        // Load factor of 0.9 we do not want to use the entire disk that is too risky.
+        maxFreeDisk = (long) (0.9 * maxFreeDisk);
+        if (!ensureFreeSpace || expectedCompactedFileSize < maxFreeDisk)
+        {
+            dataFileDirectory = dataDirectoryForTable[maxDiskIndex];
+
+            if (expectedCompactedFileSize >= maxFreeDisk)
+                logger.warn(String.format("Data file location %s only has %d free, expected size is %d",
+                                          dataFileDirectory,
+                                          maxFreeDisk,
+                                          expectedCompactedFileSize));
+        }
+
         return dataFileDirectory;
     }
 

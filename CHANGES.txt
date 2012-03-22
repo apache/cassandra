@@ -10,6 +10,7 @@
  * don't change manifest level for cleanup, scrub, and upgradesstables
    operations under LeveledCompactionStrategy (CASSANDRA-3989)
  * fix race leading to super columns assertion failure (CASSANDRA-3957)
+ * ensure that directory is selected for compaction (CASSANDRA-3985)
 
 
 1.0.8
