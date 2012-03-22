@@ -352,6 +352,12 @@ public final class CFMetaData
 
     static CFMetaData copyOpts(CFMetaData newCFMD, CFMetaData oldCFMD)
     {
+        Map<ByteBuffer, ColumnDefinition> clonedColumns = new HashMap<ByteBuffer, ColumnDefinition>();
+        for (ColumnDefinition cd : oldCFMD.column_metadata.values())
+        {
+            ColumnDefinition cloned = cd.clone();
+            clonedColumns.put(cloned.name, cloned);
+        }
         return newCFMD.comment(oldCFMD.comment)
                       .readRepairChance(oldCFMD.readRepairChance)
                       .dcLocalReadRepairChance(oldCFMD.dcLocalReadRepairChance)
@@ -361,7 +367,10 @@ public final class CFMetaData
                       .keyValidator(oldCFMD.keyValidator)
                       .minCompactionThreshold(oldCFMD.minCompactionThreshold)
                       .maxCompactionThreshold(oldCFMD.maxCompactionThreshold)
-                      .columnMetadata(oldCFMD.column_metadata)
+                      .keyAlias(oldCFMD.keyAlias)
+                      .columnAliases(new ArrayList<ByteBuffer>(oldCFMD.columnAliases))
+                      .valueAlias(oldCFMD.valueAlias)
+                      .columnMetadata(clonedColumns)
                       .compactionStrategyClass(oldCFMD.compactionStrategyClass)
                       .compactionStrategyOptions(oldCFMD.compactionStrategyOptions)
                       .compressionParameters(oldCFMD.compressionParameters)
