@@ -676,13 +676,11 @@ public class QueryProcessor
 
                 try
                 {
-                    KsDef ksd = new KsDef(create.getName(),
-                                          create.getStrategyClass(),
-                                          Collections.<CfDef>emptyList())
-                                .setStrategy_options(create.getStrategyOptions());
-                    ThriftValidation.validateKsDef(ksd);
-                    ThriftValidation.validateKeyspaceNotYetExisting(create.getName());
-                    MigrationManager.announceNewKeyspace(KSMetaData.fromThrift(ksd));
+                    KSMetaData ksm = KSMetaData.newKeyspace(create.getName(),
+                                                            create.getStrategyClass(),
+                                                            create.getStrategyOptions());
+                    ThriftValidation.validateKeyspaceNotYetExisting(ksm.name);
+                    MigrationManager.announceNewKeyspace(ksm);
                     validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
@@ -699,12 +697,10 @@ public class QueryProcessor
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
                 clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
-                CFMetaData cfmd = createCf.getCFMetaData(keyspace, variables);
-                ThriftValidation.validateCfDef(cfmd.toThrift(), null);
 
                 try
                 {
-                    MigrationManager.announceNewColumnFamily(cfmd);
+                    MigrationManager.announceNewColumnFamily(createCf.getCFMetaData(keyspace, variables));
                     validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
@@ -727,19 +723,18 @@ public class QueryProcessor
 
                 boolean columnExists = false;
                 ByteBuffer columnName = createIdx.getColumnName().getByteBuffer();
-                // mutating oldCfm directly would be bad, but mutating a Thrift copy is fine.  This also
-                // sets us up to use validateCfDef to check for index name collisions.
-                CfDef cf_def = oldCfm.toThrift();
-                for (ColumnDef cd : cf_def.column_metadata)
+                // mutating oldCfm directly would be bad, but mutating a copy is fine.
+                CFMetaData cfm = oldCfm.clone();
+                for (ColumnDefinition cd : cfm.getColumn_metadata().values())
                 {
                     if (cd.name.equals(columnName))
                     {
-                        if (cd.index_type != null)
+                        if (cd.getIndexType() != null)
                             throw new InvalidRequestException("Index already exists");
                         if (logger.isDebugEnabled())
-                            logger.debug("Updating column {} definition for index {}", oldCfm.comparator.getString(columnName), createIdx.getIndexName());
-                        cd.setIndex_type(IndexType.KEYS);
-                        cd.setIndex_name(createIdx.getIndexName());
+                            logger.debug("Updating column {} definition for index {}", cfm.comparator.getString(columnName), createIdx.getIndexName());
+                        cd.setIndexType(IndexType.KEYS, Collections.<String, String>emptyMap());
+                        cd.setIndexName(createIdx.getIndexName());
                         columnExists = true;
                         break;
                     }
@@ -747,11 +742,10 @@ public class QueryProcessor
                 if (!columnExists)
                     throw new InvalidRequestException("No column definition found for column " + oldCfm.comparator.getString(columnName));
 
-                CFMetaData.addDefaultIndexNames(cf_def);
-                ThriftValidation.validateCfDef(cf_def, oldCfm);
                 try
                 {
-                    MigrationManager.announceColumnFamilyUpdate(CFMetaData.fromThrift(cf_def));
+                    cfm.addDefaultIndexNames();
+                    MigrationManager.announceColumnFamilyUpdate(cfm);
                     validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
@@ -840,7 +834,7 @@ public class QueryProcessor
 
                 try
                 {
-                    MigrationManager.announceColumnFamilyUpdate(CFMetaData.fromThrift(alterTable.getCfDef(keyspace)));
+                    MigrationManager.announceColumnFamilyUpdate(alterTable.getCFMetaData(keyspace));
                     validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)

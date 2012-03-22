@@ -30,9 +30,8 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.LocalStrategy;
-import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.locator.*;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.KsDef;
 import org.apache.cassandra.thrift.ColumnDef;
@@ -57,6 +56,16 @@ public final class KSMetaData
             cfmap.put(cfm.cfName, cfm);
         this.cfMetaData = Collections.unmodifiableMap(cfmap);
         this.durableWrites = durableWrites;
+    }
+
+    // For new user created keyspaces (through CQL)
+    public static KSMetaData newKeyspace(String name, String strategyName, Map<String, String> options) throws ConfigurationException
+    {
+        Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(strategyName);
+        if (cls.equals(LocalStrategy.class))
+            throw new ConfigurationException("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
+
+        return new KSMetaData(name, cls, options, true, Collections.<CFMetaData>emptyList());
     }
 
     public static KSMetaData cloneWith(KSMetaData ksm, Iterable<CFMetaData> cfDefs)
@@ -140,8 +149,12 @@ public final class KSMetaData
 
     public static KSMetaData fromThrift(KsDef ksd, CFMetaData... cfDefs) throws ConfigurationException
     {
+        Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(ksd.strategy_class);
+        if (cls.equals(LocalStrategy.class))
+            throw new ConfigurationException("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
+
         return new KSMetaData(ksd.name,
-                              AbstractReplicationStrategy.getClass(ksd.strategy_class),
+                              cls,
                               ksd.strategy_options == null ? Collections.<String, String>emptyMap() : ksd.strategy_options,
                               ksd.durable_writes,
                               Arrays.asList(cfDefs));
@@ -163,6 +176,23 @@ public final class KSMetaData
     {
         return newState.toSchema(modificationTimestamp);
     }
+
+    public KSMetaData validate() throws ConfigurationException
+    {
+        if (!CFMetaData.isNameValid(name))
+            throw new ConfigurationException(String.format("Invalid keyspace name: shouldn't be empty nor more than 32 character long (got \"%s\")", name));
+
+        // Attempt to instantiate the ARS, which will throw a ConfigException if the strategy_options aren't fully formed
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        IEndpointSnitch eps = DatabaseDescriptor.getEndpointSnitch();
+        AbstractReplicationStrategy.createReplicationStrategy(name, strategyClass, tmd, eps, strategyOptions);
+
+        for (CFMetaData cfm : cfMetaData.values())
+            cfm.validate();
+
+        return this;
+    }
+
 
     public KSMetaData reloadAttributes() throws IOException
     {
@@ -269,10 +299,5 @@ public final class KSMetaData
         }
 
         return cfms;
-    }
-
-    public KSMetaData validate() throws ConfigurationException
-    {
-        return this;
     }
 }

@@ -37,11 +37,13 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -356,6 +358,7 @@ public final class CFMetaData
                       .replicateOnWrite(oldCFMD.replicateOnWrite)
                       .gcGraceSeconds(oldCFMD.gcGraceSeconds)
                       .defaultValidator(oldCFMD.defaultValidator)
+                      .keyValidator(oldCFMD.keyValidator)
                       .minCompactionThreshold(oldCFMD.minCompactionThreshold)
                       .maxCompactionThreshold(oldCFMD.maxCompactionThreshold)
                       .columnMetadata(oldCFMD.column_metadata)
@@ -621,8 +624,7 @@ public final class CFMetaData
                       .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
                       .keyValidator(TypeParser.parse(cf_def.key_validation_class))
                       .columnMetadata(ColumnDefinition.fromThrift(cf_def.column_metadata))
-                      .compressionParameters(cp)
-                      .validate();
+                      .compressionParameters(cp);
     }
 
     public void reload() throws IOException
@@ -820,26 +822,13 @@ public final class CFMetaData
 
     /**
      * Convert a null index_name to appropriate default name according to column status
-     * @param cf_def Thrift ColumnFamily Definition
      */
-    public static void addDefaultIndexNames(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException
+    public void addDefaultIndexNames() throws ConfigurationException
     {
-        if (cf_def.column_metadata == null)
-            return;
-
-        try
+        for (ColumnDefinition column : column_metadata.values())
         {
-            AbstractType<?> comparator = TypeParser.parse(cf_def.comparator_type);
-
-            for (org.apache.cassandra.thrift.ColumnDef column : cf_def.column_metadata)
-            {
-                if (column.index_type != null && column.index_name == null)
-                    column.index_name = getDefaultIndexName(cf_def.name, comparator, column.name);
-            }
-        }
-        catch (ConfigurationException e)
-        {
-            throw new InvalidRequestException(e.getMessage());
+            if (column.getIndexType() != null && column.getIndexName() == null)
+                column.setIndexName(getDefaultIndexName(cfName, comparator, column.name));
         }
     }
 
@@ -855,8 +844,38 @@ public final class CFMetaData
         return SuperColumn.serializer(subcolumnComparator);
     }
 
+    public static boolean isNameValid(String name)
+    {
+        return name != null && !name.isEmpty() && name.length() <= 32 && name.matches("\\w+");
+    }
+
+    public static boolean isIndexNameValid(String name)
+    {
+        return name != null && !name.isEmpty() && name.matches("\\w+");
+    }
+
     public CFMetaData validate() throws ConfigurationException
     {
+        if (!isNameValid(ksName))
+            throw new ConfigurationException(String.format("Invalid keyspace name: shouldn't be empty nor more than 32 character long (got \"%s\")", ksName));
+        if (!isNameValid(cfName))
+            throw new ConfigurationException(String.format("Invalid keyspace name: shouldn't be empty nor more than 32 character long (got \"%s\")", cfName));
+
+        if (cfType == null)
+            throw new ConfigurationException(String.format("Invalid column family type for %s", cfName));
+
+        if (cfType == ColumnFamilyType.Super)
+        {
+            if (subcolumnComparator == null)
+                throw new ConfigurationException(String.format("Missing subcolumn comparator for super column family %s", cfName));
+        }
+        else
+        {
+            if (subcolumnComparator != null)
+                throw new ConfigurationException(String.format("Subcolumn comparator (%s) is invalid for standard column family %s", subcolumnComparator, cfName));
+        }
+
+
         if (comparator instanceof CounterColumnType)
             throw new ConfigurationException("CounterColumnType is not a valid comparator");
         if (subcolumnComparator instanceof CounterColumnType)
@@ -878,7 +897,108 @@ public final class CFMetaData
                     throw new ConfigurationException("Cannot add a counter column (" + comparator.getString(def.name) + ") in a non counter column family");
         }
 
+        // check if any of the columns has name equal to the cf.key_alias
+        for (ColumnDefinition columndef : column_metadata.values())
+        {
+            if (keyAlias != null && keyAlias.equals(columndef.name))
+                throw new ConfigurationException("Cannot have key alias equals to a column name: " + UTF8Type.instance.compose(keyAlias));
+
+            for (ByteBuffer alias : columnAliases)
+                if (alias.equals(columndef.name))
+                    throw new ConfigurationException("Cannot have column alias equals to a column name: " + UTF8Type.instance.compose(alias));
+
+            if (valueAlias != null && valueAlias.equals(columndef.name))
+                throw new ConfigurationException("Cannot have value alias equals to a column name: " + UTF8Type.instance.compose(valueAlias));
+        }
+
+        validateAlias(keyAlias, "Key");
+        for (ByteBuffer alias : columnAliases)
+            validateAlias(alias, "Column");
+        validateAlias(valueAlias, "Value");
+
+        // initialize a set of names NOT in the CF under consideration
+        Set<String> indexNames = new HashSet<String>();
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+        {
+            if (!cfs.getColumnFamilyName().equals(cfName))
+                for (ColumnDefinition cd : cfs.metadata.getColumn_metadata().values())
+                    indexNames.add(cd.getIndexName());
+        }
+
+        AbstractType<?> comparator = getColumnDefinitionComparator();
+
+        for (ColumnDefinition c : column_metadata.values())
+        {
+            try
+            {
+                comparator.validate(c.name);
+            }
+            catch (MarshalException e)
+            {
+                throw new ConfigurationException(String.format("Column name %s is not valid for comparator %s",
+                                                               ByteBufferUtil.bytesToHex(c.name), comparator));
+            }
+
+            if (c.getIndexType() == null)
+            {
+                if (c.getIndexName() != null)
+                    throw new ConfigurationException("Index name cannot be set without index type");
+            }
+            else
+            {
+                if (cfType == ColumnFamilyType.Super)
+                    throw new ConfigurationException("Secondary indexes are not supported on super column families");
+                if (!isIndexNameValid(c.getIndexName()))
+                    throw new ConfigurationException("Illegal index name " + c.getIndexName());
+                // check index names against this CF _and_ globally
+                if (indexNames.contains(c.getIndexName()))
+                    throw new ConfigurationException("Duplicate index name " + c.getIndexName());
+                indexNames.add(c.getIndexName());
+
+                if (c.getIndexType() == IndexType.CUSTOM)
+                {
+                    if (c.getIndexOptions() == null || !c.getIndexOptions().containsKey(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME))
+                        throw new ConfigurationException("Required index option missing: " + SecondaryIndex.CUSTOM_INDEX_OPTION_NAME);
+                }
+
+                // This method validates the column metadata but does not intialize the index
+                SecondaryIndex.createInstance(null, c);
+            }
+        }
+
+        validateCompactionThresholds();
+
         return this;
+    }
+
+    private static void validateAlias(ByteBuffer alias, String msg) throws ConfigurationException
+    {
+        if (alias != null)
+        {
+            if (!alias.hasRemaining())
+                throw new ConfigurationException(msg + " alias may not be empty");
+            try
+            {
+                UTF8Type.instance.validate(alias);
+            }
+            catch (MarshalException e)
+            {
+                throw new ConfigurationException(msg + " alias must be UTF8");
+            }
+        }
+    }
+
+    private void validateCompactionThresholds() throws ConfigurationException
+    {
+        if (maxCompactionThreshold == 0)
+            return;
+
+        if (minCompactionThreshold <= 1)
+            throw new ConfigurationException(String.format("Min compaction threshold cannot be less than 2 (got %d).", minCompactionThreshold));
+
+        if (minCompactionThreshold > maxCompactionThreshold)
+            throw new ConfigurationException(String.format("Min compaction threshold (got %d) cannot be greater than max compaction threshold (got %d)",
+                                                            minCompactionThreshold, maxCompactionThreshold));
     }
 
     /**
@@ -1152,11 +1272,6 @@ public final class CFMetaData
     {
         assert cqlCfDef != null;
         return cqlCfDef;
-    }
-
-    public static boolean isNameValid(String name)
-    {
-        return name.matches("\\w+");
     }
 
     @Override

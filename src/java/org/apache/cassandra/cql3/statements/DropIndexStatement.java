@@ -38,32 +38,32 @@ public class DropIndexStatement extends SchemaAlteringStatement
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
-        CfDef cfDef = null;
+        CFMetaData updatedCfm = null;
 
         KSMetaData ksm = Schema.instance.getTableDefinition(keyspace());
 
         for (CFMetaData cfm : ksm.cfMetaData().values())
         {
-            cfDef = getUpdatedCFDef(cfm.toThrift());
-            if (cfDef != null)
+            updatedCfm = getUpdatedCFMetadata(cfm);
+            if (updatedCfm != null)
                 break;
         }
 
-        if (cfDef == null)
+        if (updatedCfm == null)
             throw new InvalidRequestException("Index '" + index + "' could not be found in any of the column families of keyspace '" + keyspace() + "'");
 
-        MigrationManager.announceColumnFamilyUpdate(CFMetaData.fromThrift(cfDef));
+        MigrationManager.announceColumnFamilyUpdate(updatedCfm);
     }
 
-    private CfDef getUpdatedCFDef(CfDef cfDef) throws InvalidRequestException
+    private CFMetaData getUpdatedCFMetadata(CFMetaData cfm) throws InvalidRequestException
     {
-        for (ColumnDef column : cfDef.column_metadata)
+        for (ColumnDefinition column : cfm.getColumn_metadata().values())
         {
-            if (column.index_type != null && column.index_name != null && column.index_name.equals(index))
+            if (column.getIndexType() != null && column.getIndexName() != null && column.getIndexName().equals(index))
             {
-                column.index_name = null;
-                column.index_type = null;
-                return cfDef;
+                column.setIndexName(null);
+                column.setIndexType(null, null);
+                return cfm;
             }
         }
 

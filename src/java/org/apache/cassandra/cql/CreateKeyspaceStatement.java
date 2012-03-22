@@ -56,12 +56,6 @@ public class CreateKeyspaceStatement
      */
     public void validate() throws InvalidRequestException
     {
-        // keyspace name
-        if (!name.matches("\\w+"))
-            throw new InvalidRequestException(String.format("\"%s\" is not a valid keyspace name", name));
-        if (name.length() > 32)
-            throw new InvalidRequestException(String.format("Keyspace names shouldn't be more than 32 character long (got \"%s\")", name));
-
         // required
         if (!attrs.containsKey("strategy_class"))
             throw new InvalidRequestException("missing required argument \"strategy_class\"");
@@ -71,20 +65,6 @@ public class CreateKeyspaceStatement
         for (String key : attrs.keySet())
             if ((key.contains(":")) && (key.startsWith("strategy_options")))
                 strategyOptions.put(key.split(":")[1], attrs.get(key));
-
-        // trial run to let ARS validate class + per-class options
-        try
-        {
-            AbstractReplicationStrategy.createReplicationStrategy(name,
-                                                                  AbstractReplicationStrategy.getClass(strategyClass),
-                                                                  StorageService.instance.getTokenMetadata(),
-                                                                  DatabaseDescriptor.getEndpointSnitch(),
-                                                                  strategyOptions);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new InvalidRequestException(e.getMessage());
-        }
     }
 
     public String getName()

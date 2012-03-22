@@ -103,10 +103,8 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
-        KsDef ksd = new KsDef(name, strategyClass, Collections.<CfDef>emptyList());
-        ksd.setStrategy_options(strategyOptions);
-        ThriftValidation.validateKsDef(ksd);
+        KSMetaData ksm = KSMetaData.newKeyspace(name, strategyClass, strategyOptions);
         ThriftValidation.validateKeyspaceNotYetExisting(name);
-        MigrationManager.announceNewKeyspace(KSMetaData.fromThrift(ksd));
+        MigrationManager.announceNewKeyspace(ksm);
     }
 }

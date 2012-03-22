@@ -911,14 +911,15 @@ public class CassandraServer implements Cassandra.Iface
     {
         logger.debug("add_column_family");
         state().hasColumnFamilySchemaAccess(Permission.WRITE);
-        CFMetaData.addDefaultIndexNames(cf_def);
-        ThriftValidation.validateCfDef(cf_def, null);
+
         validateSchemaAgreement();
 
         try
         {
             cf_def.unsetId(); // explicitly ignore any id set by client (Hector likes to set zero)
-            MigrationManager.announceNewColumnFamily(CFMetaData.fromThrift(cf_def));
+            CFMetaData cfm = CFMetaData.fromThrift(cf_def);
+            cfm.addDefaultIndexNames();
+            MigrationManager.announceNewColumnFamily(cfm);
             return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
@@ -975,12 +976,10 @@ public class CassandraServer implements Cassandra.Iface
             for (CfDef cf_def : ks_def.cf_defs)
             {
                 cf_def.unsetId(); // explicitly ignore any id set by client (same as system_add_column_family)
-                CFMetaData.addDefaultIndexNames(cf_def);
-                ThriftValidation.validateCfDef(cf_def, null);
-                cfDefs.add(CFMetaData.fromThrift(cf_def));
+                CFMetaData cfm = CFMetaData.fromThrift(cf_def);
+                cfm.addDefaultIndexNames();
+                cfDefs.add(cfm);
             }
-
-            ThriftValidation.validateKsDef(ks_def);
             MigrationManager.announceNewKeyspace(KSMetaData.fromThrift(ks_def, cfDefs.toArray(new CFMetaData[cfDefs.size()])));
             return Schema.instance.getVersion().toString();
         }
@@ -1029,7 +1028,6 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            ThriftValidation.validateKsDef(ks_def);
             MigrationManager.announceKeyspaceUpdate(KSMetaData.fromThrift(ks_def));
             return Schema.instance.getVersion().toString();
         }
@@ -1051,14 +1049,14 @@ public class CassandraServer implements Cassandra.Iface
         CFMetaData oldCfm = Schema.instance.getCFMetaData(cf_def.keyspace, cf_def.name);
         if (oldCfm == null)
             throw new InvalidRequestException("Could not find column family definition to modify.");
-        CFMetaData.addDefaultIndexNames(cf_def);
-        ThriftValidation.validateCfDef(cf_def, oldCfm);
         validateSchemaAgreement();
 
         try
         {
             CFMetaData.applyImplicitDefaults(cf_def);
-            MigrationManager.announceColumnFamilyUpdate(CFMetaData.fromThrift(cf_def));
+            CFMetaData cfm = CFMetaData.fromThrift(cf_def);
+            cfm.addDefaultIndexNames();
+            MigrationManager.announceColumnFamilyUpdate(cfm);
             return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)

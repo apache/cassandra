@@ -1773,7 +1773,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void setMaximumCompactionThreshold(int maxCompactionThreshold)
     {
-        if (maxCompactionThreshold < this.minCompactionThreshold.value())
+        if (maxCompactionThreshold > 0 && maxCompactionThreshold < this.minCompactionThreshold.value())
         {
             throw new RuntimeException("The max_compaction_threshold cannot be smaller than the min.");
         }

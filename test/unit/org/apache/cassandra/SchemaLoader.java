@@ -129,14 +129,14 @@ public class SchemaLoader
             UTF8Type.instance,
             null,
             null,
-            "Column42"));
+            null));
         Map<ByteBuffer, ColumnDefinition> utf8Column = new HashMap<ByteBuffer, ColumnDefinition>();
         utf8Column.put(UTF8Type.instance.fromString("fortytwo"), new ColumnDefinition(
             UTF8Type.instance.fromString("fortytwo"),
             IntegerType.instance,
             null,
             null,
-            "Column42"));
+            null));
 
         // Keyspace 1
         schema.add(KSMetaData.testMetadata(ks1,
@@ -307,7 +307,7 @@ public class SchemaLoader
                    {{
                         ByteBuffer cName = ByteBuffer.wrap("birthdate".getBytes(Charsets.UTF_8));
                         IndexType keys = withIdxType ? IndexType.KEYS : null;
-                        put(cName, new ColumnDefinition(cName, LongType.instance, keys, null, ByteBufferUtil.bytesToHex(cName)));
+                        put(cName, new ColumnDefinition(cName, LongType.instance, keys, null, withIdxType ? ByteBufferUtil.bytesToHex(cName) : null));
                     }});
     }
     private static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)

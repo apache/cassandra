@@ -22,6 +22,7 @@ import java.util.*;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
@@ -52,7 +53,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
     public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
         CFMetaData meta = validateColumnFamily(keyspace(), columnFamily());
-        CfDef thriftDef = meta.toThrift();
+        CFMetaData cfm = meta.clone();
 
         CFDefinition cfDef = meta.getCfDef();
         CFDefinition.Name name = this.oType == Type.OPTS ? null : cfDef.get(columnName);
@@ -72,11 +73,11 @@ public class AlterTableStatement extends SchemaAlteringStatement
                             throw new InvalidRequestException(String.format("Invalid column name %s because it conflicts with an existing column", columnName));
                     }
                 }
-                thriftDef.column_metadata.add(new ColumnDefinition(columnName.key,
-                            CFPropDefs.parseType(validator),
-                            null,
-                            null,
-                            null).toThrift());
+                cfm.addColumnDefinition(new ColumnDefinition(columnName.key,
+                                                             CFPropDefs.parseType(validator),
+                                                             null,
+                                                             null,
+                                                             null));
                 break;
 
             case ALTER:
@@ -86,17 +87,17 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 switch (name.kind)
                 {
                     case KEY_ALIAS:
-                        thriftDef.key_validation_class = CFPropDefs.parseType(validator).toString();
+                        cfm.keyValidator(CFPropDefs.parseType(validator));
                         break;
                     case COLUMN_ALIAS:
                         throw new InvalidRequestException(String.format("Cannot alter PRIMARY KEY part %s", columnName));
                     case VALUE_ALIAS:
-                        thriftDef.default_validation_class = CFPropDefs.parseType(validator).toString();
+                        cfm.defaultValidator(CFPropDefs.parseType(validator));
                         break;
                     case COLUMN_METADATA:
                         ColumnDefinition column = meta.getColumnDefinition(columnName.key);
                         column.setValidator(CFPropDefs.parseType(validator));
-                        thriftDef.column_metadata.add(column.toThrift());
+                        cfm.addColumnDefinition(column);
                         break;
                 }
                 break;
@@ -113,14 +114,14 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     case COLUMN_ALIAS:
                         throw new InvalidRequestException(String.format("Cannot drop PRIMARY KEY part %s", columnName));
                     case COLUMN_METADATA:
-                        ColumnDef toDelete = null;
-                        for (ColumnDef columnDef : thriftDef.column_metadata)
+                        ColumnDefinition toDelete = null;
+                        for (ColumnDefinition columnDef : cfm.getColumn_metadata().values())
                         {
                             if (columnDef.name.equals(columnName.key))
                                 toDelete = columnDef;
                         }
                         assert toDelete != null;
-                        thriftDef.column_metadata.remove(toDelete);
+                        cfm.removeColumnDefinition(toDelete);
                         break;
                 }
                 break;
@@ -129,35 +130,35 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     throw new InvalidRequestException(String.format("ALTER COLUMNFAMILY WITH invoked, but no parameters found"));
 
                 cfProps.validate();
-                applyPropertiesToCfDef(thriftDef, cfProps);
+                applyPropertiesToCFMetadata(cfm, cfProps);
                 break;
         }
 
-        MigrationManager.announceColumnFamilyUpdate(CFMetaData.fromThrift(thriftDef));
+        MigrationManager.announceColumnFamilyUpdate(cfm);
     }
 
-    public static void applyPropertiesToCfDef(CfDef cfDef, CFPropDefs cfProps) throws InvalidRequestException
+    public static void applyPropertiesToCFMetadata(CFMetaData cfm, CFPropDefs cfProps) throws InvalidRequestException, ConfigurationException
     {
         if (cfProps.hasProperty(CFPropDefs.KW_COMMENT))
         {
-            cfDef.comment = cfProps.get(CFPropDefs.KW_COMMENT);
+            cfm.comment(cfProps.get(CFPropDefs.KW_COMMENT));
         }
 
-        cfDef.read_repair_chance = cfProps.getDouble(CFPropDefs.KW_READREPAIRCHANCE, cfDef.read_repair_chance);
-        cfDef.dclocal_read_repair_chance = cfProps.getDouble(CFPropDefs.KW_DCLOCALREADREPAIRCHANCE, cfDef.dclocal_read_repair_chance);
-        cfDef.gc_grace_seconds = cfProps.getInt(CFPropDefs.KW_GCGRACESECONDS, cfDef.gc_grace_seconds);
-        cfDef.replicate_on_write = cfProps.getBoolean(CFPropDefs.KW_REPLICATEONWRITE, cfDef.replicate_on_write);
-        cfDef.min_compaction_threshold = cfProps.getInt(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, cfDef.min_compaction_threshold);
-        cfDef.max_compaction_threshold = cfProps.getInt(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, cfDef.max_compaction_threshold);
+        cfm.readRepairChance(cfProps.getDouble(CFPropDefs.KW_READREPAIRCHANCE, cfm.getReadRepairChance()));
+        cfm.dcLocalReadRepairChance(cfProps.getDouble(CFPropDefs.KW_DCLOCALREADREPAIRCHANCE, cfm.getDcLocalReadRepair()));
+        cfm.gcGraceSeconds(cfProps.getInt(CFPropDefs.KW_GCGRACESECONDS, cfm.getGcGraceSeconds()));
+        cfm.replicateOnWrite(cfProps.getBoolean(CFPropDefs.KW_REPLICATEONWRITE, cfm.getReplicateOnWrite()));
+        cfm.minCompactionThreshold(cfProps.getInt(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, cfm.getMinCompactionThreshold()));
+        cfm.maxCompactionThreshold(cfProps.getInt(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, cfm.getMaxCompactionThreshold()));
 
         if (!cfProps.compactionStrategyOptions.isEmpty())
         {
-            cfDef.compaction_strategy_options = new HashMap<String, String>(cfProps.compactionStrategyOptions);
+            cfm.compactionStrategyOptions(new HashMap<String, String>(cfProps.compactionStrategyOptions));
         }
 
         if (!cfProps.compressionParameters.isEmpty())
         {
-            cfDef.compression_options = new HashMap<String, String>(cfProps.compressionParameters);
+            cfm.compressionParameters(CompressionParameters.create(cfProps.compressionParameters));
         }
     }
 
