@@ -21,17 +21,17 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.*;
 
+import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.EchoedRow;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.utils.IntervalTree.Interval;
+import org.apache.cassandra.utils.IntervalTree.IntervalTree;
 
 /**
  * Manage compaction options.
@@ -41,8 +41,8 @@ public class CompactionController
     private static Logger logger = LoggerFactory.getLogger(CompactionController.class);
 
     private final ColumnFamilyStore cfs;
-    private final Set<SSTableReader> sstables;
-    private final boolean forceDeserialize;
+    private final boolean deserializeRequired;
+    private final IntervalTree<SSTableReader> overlappingTree;
 
     public final int gcBefore;
     public boolean keyExistenceIsExpensive;
@@ -52,15 +52,16 @@ public class CompactionController
     {
         assert cfs != null;
         this.cfs = cfs;
-        this.sstables = new HashSet<SSTableReader>(sstables);
         this.gcBefore = gcBefore;
         // If we merge an old NodeId id, we must make sure that no further increment for that id are in an active memtable.
         // For that, we must make sure that this id was renewed before the creation of the oldest unflushed memtable. We
         // add 5 minutes to be sure we're on the safe side in terms of thread safety (though we should be fine in our
         // current 'stop all write during memtable switch' situation).
         this.mergeShardBefore = (int) ((cfs.oldestUnflushedMemtable() + 5 * 3600) / 1000);
-        this.forceDeserialize = forceDeserialize;
-        keyExistenceIsExpensive = cfs.getCompactionStrategy().isKeyExistenceExpensive(this.sstables);
+        deserializeRequired = forceDeserialize || !allLatestVersion(sstables);
+        Set<SSTableReader> overlappingSSTables = cfs.getOverlappingSSTables(sstables);
+        overlappingTree = DataTracker.buildIntervalTree(overlappingSSTables);
+        keyExistenceIsExpensive = cfs.getCompactionStrategy().isKeyExistenceExpensive(ImmutableSet.copyOf(sstables));
     }
 
     public String getKeyspace()
@@ -79,19 +80,21 @@ public class CompactionController
      */
     public boolean shouldPurge(DecoratedKey key)
     {
-        return !cfs.isKeyInRemainingSSTables(key, sstables);
+        List<SSTableReader> filteredSSTables = overlappingTree.search(new Interval(key, key));
+        for (SSTableReader sstable : filteredSSTables)
+        {
+            if (sstable.getBloomFilter().isPresent(key.key))
+                return false;
+        }
+        return true;
     }
 
-    public boolean needDeserialize()
+    private static boolean allLatestVersion(Iterable<SSTableReader> sstables)
     {
-        if (forceDeserialize)
-            return true;
-
         for (SSTableReader sstable : sstables)
             if (!sstable.descriptor.isLatestVersion)
-                return true;
-
-        return false;
+                return false;
+        return true;
     }
 
     public void invalidateCachedRow(DecoratedKey key)
@@ -128,7 +131,7 @@ public class CompactionController
 
         // in-memory echoedrow is only enabled if we think checking for the key's existence in the other sstables,
         // is going to be less expensive than simply de/serializing the row again
-        if (rows.size() == 1 && !needDeserialize()
+        if (rows.size() == 1 && !deserializeRequired
             && (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit() || !keyExistenceIsExpensive)
             && !shouldPurge(rows.get(0).getKey()))
         {
