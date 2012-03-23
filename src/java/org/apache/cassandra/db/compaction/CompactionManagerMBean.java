@@ -39,6 +39,16 @@ public interface CompactionManagerMBean
     public long getCompletedTasks();
 
     /**
+     * @return total number of bytes compacted since server [re]start
+     */
+    public long getTotalBytesCompacted();
+
+    /**
+     * @return total number of compactions since server [re]start
+     */
+    public long getTotalCompactionsCompleted();
+
+    /**
      * Triggers the compaction of user specified sstables.
      *
      * @param ksname the keyspace for the sstables to compact
