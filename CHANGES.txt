@@ -1,4 +1,4 @@
-1.1-dev
+1.1-beta2
  * rename loaded sstables to avoid conflicts with local snapshots
    (CASSANDRA-3967)
  * start hint replay as soon as FD notifies that the target is back up
