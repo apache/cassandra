@@ -161,6 +161,31 @@ public class EstimatedHistogram
     }
 
     /**
+     * @param percentile
+     * @return estimated value at given percentile
+     */
+    public long percentile(double percentile)
+    {
+        assert percentile >= 0 && percentile <= 1.0;
+        int lastBucket = buckets.length() - 1;
+        if (buckets.get(lastBucket) > 0)
+            throw new IllegalStateException("Unable to compute when histogram overflowed");
+
+        long pcount = (long) Math.floor(count() * percentile);
+        if (pcount == 0)
+            return 0;
+
+        long elements = 0;
+        for (int i = 0; i < lastBucket; i++)
+        {
+            elements += buckets.get(i);
+            if (elements >= pcount)
+                return bucketOffsets[i];
+        }
+        return 0;
+    }
+
+    /**
      * @return the mean histogram value (average of bucket offsets, weighted by count)
      * @throws IllegalStateException if any values were greater than the largest bucket threshold
      */

@@ -71,4 +71,21 @@ public class EstimatedHistogramTest
         assertEquals(2, histogram.getBuckets(false)[13]);
         assertEquals(5021848, histogram.mean());
     }
+
+    @Test
+    public void testPercentile()
+    {
+        EstimatedHistogram histogram = new EstimatedHistogram();
+        // percentile of empty histogram is 0
+        assertEquals(0, histogram.percentile(0.99));
+
+        histogram.add(1);
+        // percentile of histogram with just one value will return 0 except 100th
+        assertEquals(0, histogram.percentile(0.99));
+        assertEquals(1, histogram.percentile(1.00));
+
+        histogram.add(10);
+        assertEquals(1, histogram.percentile(0.99));
+        assertEquals(10, histogram.percentile(1.00));
+    }
 }

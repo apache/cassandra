@@ -108,14 +108,9 @@ public class CompactionsTest extends SchemaLoader
         Table table = Table.open(TABLE1);
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
         store.clearUnsafe();
-        store.metadata.gcGraceSeconds(5);
-
-        // update SizeTieredCompactionStrategy's min_sstable_size to something small
-        // to split bucket for ttl'd sstable from others
-        Map<String, String> opts = new HashMap<String, String>();
-        opts.put(SizeTieredCompactionStrategy.MIN_SSTABLE_SIZE_KEY, "512");
-        store.metadata.compactionStrategyOptions(opts);
+        store.metadata.gcGraceSeconds(1);
         store.setCompactionStrategyClass(SizeTieredCompactionStrategy.class.getCanonicalName());
+
         // disable compaction while flushing
         store.disableAutoCompaction();
 
