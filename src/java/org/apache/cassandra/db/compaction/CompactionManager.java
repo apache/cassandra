@@ -995,6 +995,8 @@ public class CompactionManager implements CompactionManagerMBean
     {
         // a synchronized identity set of running tasks to their compaction info
         private static final Set<CompactionInfo.Holder> compactions = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<CompactionInfo.Holder, Boolean>()));
+        private volatile long totalBytesCompacted = 0L;
+        private volatile long totalCompactionsCompleted = 0L;
 
         protected CompactionExecutor(int minThreads, int maxThreads, String name, BlockingQueue<Runnable> queue)
         {
@@ -1020,11 +1022,26 @@ public class CompactionManager implements CompactionManagerMBean
         public void finishCompaction(CompactionInfo.Holder ci)
         {
             compactions.remove(ci);
+            totalBytesCompacted += ci.getCompactionInfo().getTotalBytes();
+            totalCompactionsCompleted += 1;
         }
 
         public static List<CompactionInfo.Holder> getCompactions()
         {
             return new ArrayList<CompactionInfo.Holder>(compactions);
+        }
+
+        public long getTotalBytesCompacted()
+        {
+            long bytesCompletedInProgress = 0L;
+            for (CompactionInfo.Holder ci : compactions)
+                bytesCompletedInProgress += ci.getCompactionInfo().getBytesComplete();
+            return bytesCompletedInProgress + totalBytesCompacted;
+        }
+
+        public long getTotalCompactionsCompleted()
+        {
+            return totalCompactionsCompleted;
         }
 
         // modified from DebuggableThreadPoolExecutor so that CompactionInterruptedExceptions are not logged
@@ -1081,6 +1098,16 @@ public class CompactionManager implements CompactionManagerMBean
         for (CompactionInfo.Holder ci : compactionHolders)
             out.add(ci.getCompactionInfo().toString());
         return out;
+    }
+
+    public long getTotalBytesCompacted()
+    {
+        return executor.getTotalBytesCompacted() + validationExecutor.getTotalBytesCompacted();
+    }
+
+    public long getTotalCompactionsCompleted()
+    {
+        return executor.getTotalCompactionsCompleted() + validationExecutor.getTotalCompactionsCompleted();
     }
 
     public int getPendingTasks()
