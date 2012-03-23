@@ -353,7 +353,7 @@ public class ByteBufferUtil
     }
 
     /* @return An unsigned short in an integer. */
-    private static int readShortLength(DataInput in) throws IOException
+    public static int readShortLength(DataInput in) throws IOException
     {
         int length = (in.readByte() & 0xFF) << 8;
         return length | (in.readByte() & 0xFF);
@@ -381,7 +381,7 @@ public class ByteBufferUtil
         return null;
     }
 
-    private static ByteBuffer read(DataInput in, int length) throws IOException
+    public static ByteBuffer read(DataInput in, int length) throws IOException
     {
         if (in instanceof FileDataInput)
             return ((FileDataInput) in).readBytes(length);

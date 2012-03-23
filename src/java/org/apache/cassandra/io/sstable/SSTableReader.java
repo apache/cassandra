@@ -357,23 +357,28 @@ public class SSTableReader extends SSTable
                 if (indexPosition == indexSize)
                     break;
 
-                ByteBuffer key = null, skippedKey;
-                skippedKey = ByteBufferUtil.readWithShortLength(input);
+                DecoratedKey decoratedKey = null;
+                int len = ByteBufferUtil.readShortLength(input);
 
+                boolean firstKey = left == null;
+                boolean lastKey = indexPosition + DBConstants.SHORT_SIZE + len + DBConstants.LONG_SIZE == indexSize;
                 boolean shouldAddEntry = indexSummary.shouldAddEntry();
-                if (shouldAddEntry || cacheLoading || recreatebloom)
+                if (shouldAddEntry || cacheLoading || recreatebloom || firstKey || lastKey)
                 {
-                    key = skippedKey;
+                    decoratedKey = decodeKey(partitioner, descriptor, ByteBufferUtil.read(input, len));
+                    if (firstKey)
+                        left = decoratedKey;
+                    if (lastKey)
+                        right = decoratedKey;
+                }
+                else
+                {
+                    FileUtils.skipBytesFully(input, len);
                 }
 
-                if(null == left)
-                    left = decodeKey(partitioner, descriptor, skippedKey);
-                right = decodeKey(partitioner, descriptor, skippedKey);
-
                 RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(input, descriptor);
-                if (key != null)
+                if (decoratedKey != null)
                 {
-                    DecoratedKey decoratedKey = decodeKey(partitioner, descriptor, key);
                     if (recreatebloom)
                         bf.add(decoratedKey.key);
                     if (shouldAddEntry)
