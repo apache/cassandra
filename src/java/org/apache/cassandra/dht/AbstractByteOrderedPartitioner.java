@@ -88,7 +88,6 @@ public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner
     private BigInteger bigForBytes(ByteBuffer bytes, int sigbytes)
     {
         byte[] b = new byte[sigbytes];
-        Arrays.fill(b, (byte) 0); // append zeros
         ByteBufferUtil.arrayCopy(bytes, bytes.position(), b, 0, bytes.remaining());
         return new BigInteger(1, b);
     }
