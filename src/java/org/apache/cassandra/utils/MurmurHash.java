@@ -147,10 +147,11 @@ public class MurmurHash
     protected static long getblock(ByteBuffer key, int offset, int index)
     {
         int i_8 = index << 3;
-        return ((long) key.get(offset + i_8 + 0) & 0xff) + (((long) key.get(offset + i_8 + 1) & 0xff) << 8) +
-               (((long) key.get(offset + i_8 + 2) & 0xff) << 16) + (((long) key.get(offset + i_8 + 3) & 0xff) << 24) +
-               (((long) key.get(offset + i_8 + 4) & 0xff) << 32) + (((long) key.get(offset + i_8 + 5) & 0xff) << 40) +
-               (((long) key.get(offset + i_8 + 6) & 0xff) << 48) + (((long) key.get(offset + i_8 + 7) & 0xff) << 56);
+        int blockOffset = offset + i_8;
+        return ((long) key.get(blockOffset + 0) & 0xff) + (((long) key.get(blockOffset + 1) & 0xff) << 8) +
+               (((long) key.get(blockOffset + 2) & 0xff) << 16) + (((long) key.get(blockOffset + 3) & 0xff) << 24) +
+               (((long) key.get(blockOffset + 4) & 0xff) << 32) + (((long) key.get(blockOffset + 5) & 0xff) << 40) +
+               (((long) key.get(blockOffset + 6) & 0xff) << 48) + (((long) key.get(blockOffset + 7) & 0xff) << 56);
     }
 
     protected static long rotl64(long v, int n)
@@ -184,8 +185,6 @@ public class MurmurHash
 
         for(int i = 0; i < nblocks; i++)
         {
-            int i_8 = i << 4;
-
             long k1 = getblock(key, offset, i*2+0);
             long k2 = getblock(key, offset, i*2+1);
 
