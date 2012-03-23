@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
 
@@ -240,6 +242,46 @@ public class SSTableReaderTest extends SchemaLoader
 
         // check if opening and querying works
         assertIndexQueryWorks(store);
+    }
+
+    @Test
+    public void testOpeningSSTable() throws Exception
+    {
+        String ks = "Keyspace1";
+        String cf = "Standard1";
+
+        // clear and create just one sstable for this test
+        Table table = Table.open(ks);
+        ColumnFamilyStore store = table.getColumnFamilyStore(cf);
+        store.clearUnsafe();
+        store.disableAutoCompaction();
+
+        DecoratedKey firstKey = null, lastKey = null;
+        long timestamp = System.currentTimeMillis();
+        for (int i = 0; i < DatabaseDescriptor.getIndexInterval(); i++) {
+            DecoratedKey key = Util.dk(String.valueOf(i));
+            if (firstKey == null)
+                firstKey = key;
+            if (lastKey == null)
+                lastKey = key;
+            if (store.metadata.getKeyValidator().compare(lastKey.key, key.key) < 0)
+                lastKey = key;
+            RowMutation rm = new RowMutation(ks, key.key);
+            rm.add(new QueryPath(cf, null, ByteBufferUtil.bytes("col")),
+                          ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp);
+            rm.apply();
+        }
+        store.forceBlockingFlush();
+
+        SSTableReader sstable = store.getSSTables().iterator().next();
+        Descriptor desc = sstable.descriptor;
+
+        // test to see if sstable can be opened as expected
+        SSTableReader target = SSTableReader.open(desc);
+        Collection<DecoratedKey<?>> keySamples = target.getKeySamples();
+        assert keySamples.size() == 1 && keySamples.iterator().next().equals(firstKey);
+        assert target.first.equals(firstKey);
+        assert target.last.equals(lastKey);
     }
 
     private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS) throws IOException
