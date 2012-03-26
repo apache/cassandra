@@ -29,7 +29,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
  * last stage of the 3 way messaging of the Gossip protocol.
  */
 
-class GossipDigestAck2Message
+public class GossipDigestAck2Message
 {
     private static final IVersionedSerializer<GossipDigestAck2Message> serializer;
     static

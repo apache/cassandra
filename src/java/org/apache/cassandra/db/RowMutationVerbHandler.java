@@ -27,30 +27,30 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.*;
 
-public class RowMutationVerbHandler implements IVerbHandler
+public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
 {
     private static final Logger logger = LoggerFactory.getLogger(RowMutationVerbHandler.class);
 
-    public void doVerb(MessageIn message, String id)
+    public void doVerb(MessageIn<RowMutation> message, String id)
     {
         try
         {
-            RowMutation rm = RowMutation.fromBytes(message.getMessageBody(), message.getVersion());
+            RowMutation rm = message.payload;
             if (logger.isDebugEnabled())
               logger.debug("Applying " + rm);
 
             // Check if there were any forwarding headers in this message
-            InetAddress replyTo = message.getFrom();
-            byte[] from = message.getHeader(RowMutation.FORWARD_FROM);
-            if (from != null)
+            InetAddress replyTo = message.from;
+            byte[] from = message.parameters.get(RowMutation.FORWARD_FROM);
+            if (from == null)
             {
-                replyTo = InetAddress.getByAddress(from);
+                byte[] forwardBytes = message.parameters.get(RowMutation.FORWARD_TO);
+                if (forwardBytes != null && message.version >= MessagingService.VERSION_11)
+                    forwardToLocalNodes(rm, message.verb, forwardBytes, message.from);
             }
             else
             {
-                byte[] forwardBytes = message.getHeader(RowMutation.FORWARD_TO);
-                if (forwardBytes != null && message.getVersion() >= MessagingService.VERSION_11)
-                    forwardToLocalNodes(rm, message.getVerb(), forwardBytes, message.getFrom());
+                replyTo = InetAddress.getByAddress(from);
             }
 
             rm.apply();

@@ -65,7 +65,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     @Override
     public void response(MessageIn message)
     {
-        if (message == null || localdc.equals(snitch.getDatacenter(message.getFrom())))
+        if (message == null || localdc.equals(snitch.getDatacenter(message.from)))
         {
             if (responses.decrementAndGet() == 0)
                 condition.signal();

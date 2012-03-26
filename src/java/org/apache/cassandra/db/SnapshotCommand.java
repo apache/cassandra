@@ -50,13 +50,6 @@ public class SnapshotCommand
         return new MessageOut<SnapshotCommand>(MessagingService.Verb.SNAPSHOT, this, serializer);
     }
 
-    public static SnapshotCommand read(MessageIn message) throws IOException
-    {
-        byte[] bytes = message.getMessageBody();
-        FastByteArrayInputStream bis = new FastByteArrayInputStream(bytes);
-        return serializer.deserialize(new DataInputStream(bis), message.getVersion());
-    }
-
     @Override
     public String toString()
     {

@@ -67,14 +67,13 @@ public class RowRepairResolver extends AbstractRowResolver
             List<ColumnFamily> versions = new ArrayList<ColumnFamily>(replies.size());
             List<InetAddress> endpoints = new ArrayList<InetAddress>(replies.size());
 
-            for (Map.Entry<MessageIn, ReadResponse> entry : replies.entrySet())
+            for (MessageIn<ReadResponse> message : replies)
             {
-                MessageIn message = entry.getKey();
-                ReadResponse response = entry.getValue();
+                ReadResponse response = message.payload;
                 ColumnFamily cf = response.row().cf;
-                assert !response.isDigestQuery() : "Received digest response to repair read from " + entry.getKey().getFrom();
+                assert !response.isDigestQuery() : "Received digest response to repair read from " + message.from;
                 versions.add(cf);
-                endpoints.add(message.getFrom());
+                endpoints.add(message.from);
 
                 // compute maxLiveColumns to prevent short reads -- see https://issues.apache.org/jira/browse/CASSANDRA-2643
                 int liveColumns = cf == null ? 0 : cf.getLiveColumnCount();
@@ -93,7 +92,7 @@ public class RowRepairResolver extends AbstractRowResolver
         }
         else
         {
-            resolved = replies.values().iterator().next().row().cf;
+            resolved = replies.iterator().next().payload.row().cf;
         }
 
         if (logger.isDebugEnabled())

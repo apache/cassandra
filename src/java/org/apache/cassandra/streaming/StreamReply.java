@@ -25,7 +25,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 
-class StreamReply
+public class StreamReply
 {
     static enum Status
     {

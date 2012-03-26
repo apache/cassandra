@@ -23,7 +23,7 @@ package org.apache.cassandra.net;
  * for a given verb.
  */
 
-public interface IVerbHandler
+public interface IVerbHandler<T>
 {
     /**
      * This method delivers a message to the implementing class (if the implementing
@@ -34,5 +34,5 @@ public interface IVerbHandler
      * @param message - incoming message that needs handling.
      * @param id
      */
-    public void doVerb(MessageIn message, String id);
+    public void doVerb(MessageIn<T> message, String id);
 }

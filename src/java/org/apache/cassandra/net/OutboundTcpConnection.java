@@ -196,11 +196,6 @@ public class OutboundTcpConnection extends Thread
         message.serialize(out, version);
     }
 
-    public static int messageLength(Header header, String id, byte[] bytes)
-    {
-        return 2 + FBUtilities.encodedUTF8Length(id) + header.serializedSize() + 4 + bytes.length;
-    }
-
     private void disconnect()
     {
         if (socket != null)

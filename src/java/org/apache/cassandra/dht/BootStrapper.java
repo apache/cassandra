@@ -178,11 +178,11 @@ public class BootStrapper
             StorageService ss = StorageService.instance;
             String tokenString = StorageService.getPartitioner().getTokenFactory().toString(ss.getBootstrapToken());
             MessageOut<String> response = new MessageOut<String>(MessagingService.Verb.INTERNAL_RESPONSE, tokenString, StringSerializer.instance);
-            MessagingService.instance().sendReply(response, id, message.getFrom());
+            MessagingService.instance().sendReply(response, id, message.from);
         }
     }
 
-    private static class BootstrapTokenCallback implements IAsyncCallback
+    private static class BootstrapTokenCallback implements IAsyncCallback<String>
     {
         private volatile Token<?> token;
         private final Condition condition = new SimpleCondition();
@@ -202,9 +202,9 @@ public class BootStrapper
             return success ? token : null;
         }
 
-        public void response(MessageIn msg)
+        public void response(MessageIn<String> msg)
         {
-            token = StorageService.getPartitioner().getTokenFactory().fromString(new String(msg.getMessageBody(), Charsets.UTF_8));
+            token = StorageService.getPartitioner().getTokenFactory().fromString(msg.payload);
             condition.signalAll();
         }
 
@@ -214,7 +214,7 @@ public class BootStrapper
         }
     }
 
-    private static class StringSerializer implements IVersionedSerializer<String>
+    public static class StringSerializer implements IVersionedSerializer<String>
     {
         public static final StringSerializer instance = new StringSerializer();
 

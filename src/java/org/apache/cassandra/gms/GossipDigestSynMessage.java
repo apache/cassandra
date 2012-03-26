@@ -34,7 +34,7 @@ import org.apache.cassandra.net.CompactEndpointSerializationHelper;
  * round.
  */
 
-class GossipDigestSynMessage
+public class GossipDigestSynMessage
 {
     private static final IVersionedSerializer<GossipDigestSynMessage> serializer;
     static

@@ -29,30 +29,18 @@ import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 
-public class GossipDigestAck2VerbHandler implements IVerbHandler
+public class GossipDigestAck2VerbHandler implements IVerbHandler<GossipDigestAck2Message>
 {
     private static final Logger logger = LoggerFactory.getLogger(GossipDigestAck2VerbHandler.class);
 
-    public void doVerb(MessageIn message, String id)
+    public void doVerb(MessageIn<GossipDigestAck2Message> message, String id)
     {
         if (logger.isTraceEnabled())
         {
-            InetAddress from = message.getFrom();
+            InetAddress from = message.from;
             logger.trace("Received a GossipDigestAck2Message from {}", from);
         }
-
-        byte[] bytes = message.getMessageBody();
-        DataInputStream dis = new DataInputStream( new FastByteArrayInputStream(bytes) );
-        GossipDigestAck2Message gDigestAck2Message;
-        try
-        {
-            gDigestAck2Message = GossipDigestAck2Message.serializer().deserialize(dis, message.getVersion());
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        Map<InetAddress, EndpointState> remoteEpStateMap = gDigestAck2Message.getEndpointStateMap();
+        Map<InetAddress, EndpointState> remoteEpStateMap = message.payload.getEndpointStateMap();
         /* Notify the Failure Detector */
         Gossiper.instance.notifyFailureDetector(remoteEpStateMap);
         Gossiper.instance.applyStateLocally(remoteEpStateMap);

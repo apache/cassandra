@@ -73,7 +73,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
     {
         String dataCenter = message == null
                             ? localdc
-                            : snitch.getDatacenter(message.getFrom());
+                            : snitch.getDatacenter(message.from);
 
         responses.get(dataCenter).getAndDecrement();
 

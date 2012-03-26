@@ -27,21 +27,21 @@ import org.apache.cassandra.net.MessagingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SnapshotVerbHandler implements IVerbHandler
+public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
 {
     private static final Logger logger = LoggerFactory.getLogger(SnapshotVerbHandler.class);
-    public void doVerb(MessageIn message, String id)
+    public void doVerb(MessageIn<SnapshotCommand> message, String id)
     {
         try
         {
-            SnapshotCommand command = SnapshotCommand.read(message);
+            SnapshotCommand command = message.payload;
             if (command.clear_snapshot)
                 Table.open(command.keyspace).clearSnapshot(command.snapshot_name);
             else
                 Table.open(command.keyspace).getColumnFamilyStore(command.column_family).snapshot(command.snapshot_name);
             if (logger.isDebugEnabled())
-                logger.debug("Sending response to snapshot request {} to {} ", command.snapshot_name, message.getFrom());
-            MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.REQUEST_RESPONSE), id, message.getFrom());
+                logger.debug("Sending response to snapshot request {} to {} ", command.snapshot_name, message.from);
+            MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.REQUEST_RESPONSE), id, message.from);
         }
         catch (Exception ex)
         {

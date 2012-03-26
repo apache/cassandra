@@ -637,7 +637,7 @@ public class StorageProxy implements StorageProxyMBean
         do
         {
             List<ReadCommand> commands = commandsToRetry.isEmpty() ? initialCommands : commandsToRetry;
-            ReadCallback<Row>[] readCallbacks = new ReadCallback[commands.size()];
+            ReadCallback<ReadResponse, Row>[] readCallbacks = new ReadCallback[commands.size()];
 
             if (!commandsToRetry.isEmpty())
                 logger.debug("Retrying {} commands", commandsToRetry.size());
@@ -654,7 +654,7 @@ public class StorageProxy implements StorageProxyMBean
                 DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), endpoints);
 
                 RowDigestResolver resolver = new RowDigestResolver(command.table, command.key);
-                ReadCallback<Row> handler = getReadCallback(resolver, command, consistency_level, endpoints);
+                ReadCallback<ReadResponse, Row> handler = getReadCallback(resolver, command, consistency_level, endpoints);
                 handler.assureSufficientLiveNodes();
                 assert !handler.endpoints.isEmpty();
                 readCallbacks[i] = handler;
@@ -703,7 +703,7 @@ public class StorageProxy implements StorageProxyMBean
             List<RepairCallback> repairResponseHandlers = null;
             for (int i = 0; i < commands.size(); i++)
             {
-                ReadCallback<Row> handler = readCallbacks[i];
+                ReadCallback<ReadResponse, Row> handler = readCallbacks[i];
                 ReadCommand command = commands.get(i);
                 try
                 {
@@ -796,10 +796,10 @@ public class StorageProxy implements StorageProxyMBean
     static class LocalReadRunnable extends DroppableRunnable
     {
         private final ReadCommand command;
-        private final ReadCallback<Row> handler;
+        private final ReadCallback<ReadResponse, Row> handler;
         private final long start = System.currentTimeMillis();
 
-        LocalReadRunnable(ReadCommand command, ReadCallback<Row> handler)
+        LocalReadRunnable(ReadCommand command, ReadCallback<ReadResponse, Row> handler)
         {
             super(MessagingService.Verb.READ);
             this.command = command;
@@ -819,7 +819,7 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    static <T> ReadCallback<T> getReadCallback(IResponseResolver<T> resolver, IReadCommand command, ConsistencyLevel consistencyLevel, List<InetAddress> endpoints)
+    static <TMessage, TResolved> ReadCallback<TMessage, TResolved> getReadCallback(IResponseResolver<TMessage, TResolved> resolver, IReadCommand command, ConsistencyLevel consistencyLevel, List<InetAddress> endpoints)
     {
         if (consistencyLevel == ConsistencyLevel.LOCAL_QUORUM || consistencyLevel == ConsistencyLevel.EACH_QUORUM)
         {
@@ -880,7 +880,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     // collect replies and resolve according to consistency level
                     RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(nodeCmd.keyspace);
-                    ReadCallback<Iterable<Row>> handler = getReadCallback(resolver, nodeCmd, consistency_level, liveEndpoints);
+                    ReadCallback<RangeSliceReply, Iterable<Row>> handler = getReadCallback(resolver, nodeCmd, consistency_level, liveEndpoints);
                     handler.assureSufficientLiveNodes();
                     resolver.setSources(handler.endpoints);
                     MessageOut<RangeSliceCommand> message = nodeCmd.createMessage();
@@ -947,14 +947,13 @@ public class StorageProxy implements StorageProxyMBean
         final Set<InetAddress> liveHosts = Gossiper.instance.getLiveMembers();
         final CountDownLatch latch = new CountDownLatch(liveHosts.size());
 
-        IAsyncCallback cb = new IAsyncCallback()
+        IAsyncCallback<UUID> cb = new IAsyncCallback<UUID>()
         {
-            public void response(MessageIn message)
+            public void response(MessageIn<UUID> message)
             {
                 // record the response from the remote node.
-                logger.debug("Received schema check response from {}", message.getFrom().getHostAddress());
-                UUID theirVersion = UUID.fromString(new String(message.getMessageBody()));
-                versions.put(message.getFrom(), theirVersion);
+                logger.debug("Received schema check response from {}", message.from.getHostAddress());
+                versions.put(message.from, message.payload);
                 latch.countDown();
             }
 

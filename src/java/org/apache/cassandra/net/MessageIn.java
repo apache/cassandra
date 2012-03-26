@@ -17,71 +17,95 @@
  */
 package org.apache.cassandra.net;
 
+import java.io.DataInput;
+import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collections;
+import java.util.Map;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.io.IVersionedSerializer;
 
-public class MessageIn
+public class MessageIn<T>
 {
-    final Header header;
-    private final byte[] body;
-    private final transient int version;
+    public final InetAddress from;
+    public final T payload;
+    public final Map<String, byte[]> parameters;
+    public final MessagingService.Verb verb;
+    public final int version;
 
-    public MessageIn(Header header, byte[] body, int version)
+    private MessageIn(InetAddress from, T payload, Map<String, byte[]> parameters, MessagingService.Verb verb, int version)
     {
-        assert header != null;
-        assert body != null;
-
-        this.header = header;
-        this.body = body;
+        this.from = from;
+        this.payload = payload;
+        this.parameters = parameters;
+        this.verb = verb;
         this.version = version;
     }
 
-    public MessageIn(InetAddress from, MessagingService.Verb verb, byte[] body, int version)
+    public static <T> MessageIn<T> create(InetAddress from, T payload, Map<String, byte[]> parameters, MessagingService.Verb verb, int version)
     {
-        this(new Header(from, verb), body, version);
+        return new MessageIn<T>(from, payload, parameters, verb, version);
     }
 
-    public byte[] getHeader(String key)
+    public static <T2> MessageIn<T2> read(DataInput in, int version, String id) throws IOException
     {
-        return header.getDetail(key);
-    }
+        InetAddress from = CompactEndpointSerializationHelper.deserialize(in);
 
-    public byte[] getMessageBody()
-    {
-        return body;
-    }
+        MessagingService.Verb verb = MessagingService.Verb.values()[in.readInt()];
+        int parameterCount = in.readInt();
+        Map<String, byte[]> parameters;
+        if (parameterCount == 0)
+        {
+            parameters = Collections.emptyMap();
+        }
+        else
+        {
+            ImmutableMap.Builder<String, byte[]> builder = ImmutableMap.builder();
+            for (int i = 0; i < parameterCount; i++)
+            {
+                String key = in.readUTF();
+                byte[] value = new byte[in.readInt()];
+                in.readFully(value);
+                builder.put(key, value);
+            }
+            parameters = builder.build();
+        }
 
-    public int getVersion()
-    {
-        return version;
-    }
-
-    public InetAddress getFrom()
-    {
-        return header.getFrom();
+        int payloadSize = in.readInt();
+        if (payloadSize == 0)
+            return create(from, null, parameters, verb, version);
+        IVersionedSerializer<T2> serializer = (IVersionedSerializer<T2>) MessagingService.verbSerializers.get(verb);
+        if (serializer instanceof MessagingService.CallbackDeterminedSerializer)
+        {
+            CallbackInfo callback = MessagingService.instance().getRegisteredCallback(id);
+            if (callback == null)
+            {
+                // reply for expired callback.  we'll have to skip it.
+                in.skipBytes(payloadSize);
+                return null;
+            }
+            serializer = (IVersionedSerializer<T2>) callback.serializer;
+        }
+        T2 payload = serializer.deserialize(in, version);
+        return MessageIn.create(from, payload, parameters, verb, version);
     }
 
     public Stage getMessageType()
     {
-        return MessagingService.verbStages.get(getVerb());
-    }
-
-    public MessagingService.Verb getVerb()
-    {
-        return header.getVerb();
+        return MessagingService.verbStages.get(verb);
     }
 
     public String toString()
     {
         StringBuilder sbuf = new StringBuilder("");
         String separator = System.getProperty("line.separator");
-        sbuf.append("FROM:" + getFrom())
-            .append(separator)
-            .append("TYPE:" + getMessageType())
-            .append(separator)
-            .append("VERB:" + getVerb())
-            .append(separator);
+        sbuf.append("FROM:").append(from)
+            .append(separator).append("TYPE:").append(getMessageType())
+            .append(separator).append("VERB:").append(verb)
+        	.append(separator);
         return sbuf.toString();
     }
 }

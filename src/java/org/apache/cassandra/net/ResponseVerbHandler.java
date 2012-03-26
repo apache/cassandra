@@ -35,18 +35,18 @@ public class ResponseVerbHandler implements IVerbHandler
         }
 
         IMessageCallback cb = callbackInfo.callback;
-        MessagingService.instance().maybeAddLatency(cb, message.getFrom(), age);
+        MessagingService.instance().maybeAddLatency(cb, message.from, age);
 
         if (cb instanceof IAsyncCallback)
         {
             if (logger.isDebugEnabled())
-                logger.debug("Processing response on a callback from " + id + "@" + message.getFrom());
+                logger.debug("Processing response on a callback from " + id + "@" + message.from);
             ((IAsyncCallback) cb).response(message);
         }
         else
         {
             if (logger.isDebugEnabled())
-                logger.debug("Processing response on an async result from " + id + "@" + message.getFrom());
+                logger.debug("Processing response on an async result from " + id + "@" + message.from);
             ((IAsyncResult) cb).result(message);
         }
     }

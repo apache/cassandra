@@ -50,7 +50,7 @@ public class StreamingRepairTask implements Runnable
 
     // maps of tasks created on this node
     private static final ConcurrentMap<UUID, StreamingRepairTask> tasks = new ConcurrentHashMap<UUID, StreamingRepairTask>();
-    private static final StreamingRepairTaskSerializer serializer = new StreamingRepairTaskSerializer();
+    public static final StreamingRepairTaskSerializer serializer = new StreamingRepairTaskSerializer();
 
     public final UUID id;
     private final InetAddress owner; // the node where the task is created; can be == src but don't need to
@@ -186,54 +186,30 @@ public class StreamingRepairTask implements Runnable
         };
     }
 
-    public static class StreamingRepairRequest implements IVerbHandler
+    public static class StreamingRepairRequest implements IVerbHandler<StreamingRepairTask>
     {
-        public void doVerb(MessageIn message, String id)
+        public void doVerb(MessageIn<StreamingRepairTask> message, String id)
         {
-            byte[] bytes = message.getMessageBody();
-            DataInputStream dis = new DataInputStream(new ByteArrayInputStream(bytes));
-
-            StreamingRepairTask task;
-            try
-            {
-                task = StreamingRepairTask.serializer.deserialize(dis, message.getVersion());
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
-
+            StreamingRepairTask task = message.payload;
             assert task.src.equals(FBUtilities.getBroadcastAddress());
-            assert task.owner.equals(message.getFrom());
+            assert task.owner.equals(message.from);
 
-            logger.info(String.format("[streaming task #%s] Received task from %s to stream %d ranges to %s", task.id, message.getFrom(), task.ranges.size(), task.dst));
+            logger.info(String.format("[streaming task #%s] Received task from %s to stream %d ranges to %s", task.id, message.from, task.ranges.size(), task.dst));
 
             task.run();
         }
 
     }
 
-    public static class StreamingRepairResponse implements IVerbHandler
+    public static class StreamingRepairResponse implements IVerbHandler<UUID>
     {
-        public void doVerb(MessageIn message, String id)
+        public void doVerb(MessageIn<UUID> message, String id)
         {
-            byte[] bytes = message.getMessageBody();
-            DataInputStream dis = new DataInputStream(new ByteArrayInputStream(bytes));
-
-            UUID taskid;
-            try
-            {
-                taskid = UUIDGen.serializer.deserialize(dis, message.getVersion());
-            }
-            catch (IOException e)
-            {
-                throw new IOError(new IOException("Error reading stream repair response from " + message.getFrom(), e));
-            }
-
+            UUID taskid = message.payload;
             StreamingRepairTask task = tasks.get(taskid);
             if (task == null)
             {
-                logger.error(String.format("Received a stream repair response from %s for unknow taks %s (have this node been restarted recently?)", message.getFrom(), taskid));
+                logger.error(String.format("Received a stream repair response from %s for unknow taks %s (have this node been restarted recently?)", message.from, taskid));
                 return;
             }
 

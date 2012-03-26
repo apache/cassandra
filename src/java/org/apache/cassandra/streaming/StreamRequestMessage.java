@@ -44,7 +44,7 @@ import org.apache.cassandra.net.MessagingService;
 *
 * If a file is specified, ranges and table will not. vice-versa should hold as well.
 */
-class StreamRequestMessage // TODO rename to StreamRequest
+public class StreamRequestMessage // TODO rename to StreamRequest
 {
     private static final IVersionedSerializer<StreamRequestMessage> serializer;
     static
@@ -52,7 +52,7 @@ class StreamRequestMessage // TODO rename to StreamRequest
         serializer = new StreamRequestMessageSerializer();
     }
 
-    protected static IVersionedSerializer<StreamRequestMessage> serializer()
+    public static IVersionedSerializer<StreamRequestMessage> serializer()
     {
         return serializer;
     }

@@ -171,7 +171,7 @@ public class RemoveTest
     {
         public MessageIn handleMessage(MessageIn msg, String id, InetAddress to)
         {
-            if (!msg.getVerb().equals(MessagingService.Verb.STREAM_REQUEST))
+            if (!msg.verb.equals(MessagingService.Verb.STREAM_REQUEST))
                 return msg;
 
             StreamUtil.finishStreamRequest(msg, to);

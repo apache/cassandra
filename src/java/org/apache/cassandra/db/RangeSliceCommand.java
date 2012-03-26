@@ -61,7 +61,7 @@ import org.apache.thrift.TSerializer;
 
 public class RangeSliceCommand implements IReadCommand
 {
-    private static final RangeSliceCommandSerializer serializer = new RangeSliceCommandSerializer();
+    public static final RangeSliceCommandSerializer serializer = new RangeSliceCommandSerializer();
 
     public final String keyspace;
 
@@ -132,13 +132,6 @@ public class RangeSliceCommand implements IReadCommand
                ", maxResults=" + maxResults +
                ", maxIsColumns=" + maxIsColumns +
                '}';
-    }
-
-    public static RangeSliceCommand read(MessageIn message) throws IOException
-    {
-        byte[] bytes = message.getMessageBody();
-        FastByteArrayInputStream bis = new FastByteArrayInputStream(bytes);
-        return serializer.deserialize(new DataInputStream(bis), message.getVersion());
     }
 
     public String getKeyspace()

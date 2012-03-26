@@ -4,6 +4,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -12,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DefsTable;
+import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -48,12 +50,11 @@ class MigrationTask extends WrappedRunnable
                 return;
             }
 
-            IAsyncResult iar = MessagingService.instance().sendRR(message, endpoint);
-
+            IAsyncResult<Collection<RowMutation>> iar = MessagingService.instance().sendRR(message, endpoint);
             try
             {
-                byte[] reply = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-                DefsTable.mergeRemoteSchema(reply, Gossiper.instance.getVersion(endpoint));
+                Collection<RowMutation> schema = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+                DefsTable.mergeSchema(schema);
                 return;
             }
             catch(TimeoutException e)

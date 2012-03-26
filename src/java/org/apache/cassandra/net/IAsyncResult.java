@@ -21,7 +21,7 @@ import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public interface IAsyncResult extends IMessageCallback
+public interface IAsyncResult<T> extends IMessageCallback
 {
     /**
      * Same operation as the above get() but allows the calling
@@ -30,13 +30,13 @@ public interface IAsyncResult extends IMessageCallback
      * @param tu the time unit of the timeout argument
      * @return the result wrapped in an Object[]
     */
-    public byte[] get(long timeout, TimeUnit tu) throws TimeoutException;
+    public T get(long timeout, TimeUnit tu) throws TimeoutException;
 
     /**
      * Store the result obtained for the submitted task.
      * @param result the response message
      */
-    public void result(MessageIn result);
+    public void result(MessageIn<T> result);
 
     public InetAddress getFrom();
 }

@@ -49,14 +49,14 @@ import org.apache.cassandra.utils.WrappedRunnable;
 
 import com.google.common.collect.Lists;
 
-public class ReadCallback<T> implements IAsyncCallback
+public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessage>
 {
     protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
 
     protected static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
     protected static final String localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
 
-    public final IResponseResolver<T> resolver;
+    public final IResponseResolver<TMessage, TResolved> resolver;
     protected final SimpleCondition condition = new SimpleCondition();
     private final long startTime;
     protected final int blockfor;
@@ -67,7 +67,7 @@ public class ReadCallback<T> implements IAsyncCallback
     /**
      * Constructor when response count has to be calculated and blocked for.
      */
-    public ReadCallback(IResponseResolver<T> resolver, ConsistencyLevel consistencyLevel, IReadCommand command, List<InetAddress> endpoints)
+    public ReadCallback(IResponseResolver<TMessage, TResolved> resolver, ConsistencyLevel consistencyLevel, IReadCommand command, List<InetAddress> endpoints)
     {
         this.command = command;
         this.blockfor = determineBlockFor(consistencyLevel, command.getKeyspace());
@@ -126,7 +126,7 @@ public class ReadCallback<T> implements IAsyncCallback
         return ep.subList(0, Math.min(ep.size(), blockfor));
     }
 
-    public T get() throws TimeoutException, DigestMismatchException, IOException
+    public TResolved get() throws TimeoutException, DigestMismatchException, IOException
     {
         long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
         boolean success;
@@ -143,14 +143,14 @@ public class ReadCallback<T> implements IAsyncCallback
         {
             StringBuilder sb = new StringBuilder("");
             for (MessageIn message : resolver.getMessages())
-                sb.append(message.getFrom()).append(", ");
+                sb.append(message.from).append(", ");
             throw new TimeoutException("Operation timed out - received only " + received.get() + " responses from " + sb.toString() + " .");
         }
 
         return blockfor == 1 ? resolver.getData() : resolver.resolve();
     }
 
-    public void response(MessageIn message)
+    public void response(MessageIn<TMessage> message)
     {
         resolver.preprocess(message);
         int n = waitingFor(message)

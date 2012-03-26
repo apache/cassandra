@@ -32,30 +32,21 @@ import org.apache.cassandra.net.MessageIn;
  * This verb handler handles the StreamRequestMessage that is sent by
  * the node requesting range transfer.
 */
-public class StreamRequestVerbHandler implements IVerbHandler
+public class StreamRequestVerbHandler implements IVerbHandler<StreamRequestMessage>
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamRequestVerbHandler.class);
 
-    public void doVerb(MessageIn message, String id)
+    public void doVerb(MessageIn<StreamRequestMessage> message, String id)
     {
         if (logger.isDebugEnabled())
-            logger.debug("Received a StreamRequestMessage from {}", message.getFrom());
+            logger.debug("Received a StreamRequestMessage from {}", message.from);
 
-        byte[] body = message.getMessageBody();
-        FastByteArrayInputStream bufIn = new FastByteArrayInputStream(body);
-        try
-        {
-            StreamRequestMessage srm = StreamRequestMessage.serializer().deserialize(new DataInputStream(bufIn), message.getVersion());
-            if (logger.isDebugEnabled())
-                logger.debug(srm.toString());
+        StreamRequestMessage srm = message.payload;
+        if (logger.isDebugEnabled())
+            logger.debug(srm.toString());
 
-            StreamOutSession session = StreamOutSession.create(srm.table, message.getFrom(), srm.sessionId);
-            StreamOut.transferRanges(session, srm.columnFamilies, srm.ranges, srm.type);
-        }
-        catch (IOException ex)
-        {
-            throw new IOError(ex);
-        }
+        StreamOutSession session = StreamOutSession.create(srm.table, message.from, srm.sessionId);
+        StreamOut.transferRanges(session, srm.columnFamilies, srm.ranges, srm.type);
     }
 }
 

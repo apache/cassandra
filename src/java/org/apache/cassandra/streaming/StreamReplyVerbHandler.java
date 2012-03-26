@@ -29,36 +29,33 @@ import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 
-public class StreamReplyVerbHandler implements IVerbHandler
+public class StreamReplyVerbHandler implements IVerbHandler<StreamReply>
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamReplyVerbHandler.class);
 
-    public void doVerb(MessageIn message, String id)
+    public void doVerb(MessageIn<StreamReply> message, String id)
     {
-        byte[] body = message.getMessageBody();
-        FastByteArrayInputStream bufIn = new FastByteArrayInputStream(body);
-
         try
         {
-            StreamReply reply = StreamReply.serializer.deserialize(new DataInputStream(bufIn), message.getVersion());
+            StreamReply reply = message.payload;
             logger.debug("Received StreamReply {}", reply);
-            StreamOutSession session = StreamOutSession.get(message.getFrom(), reply.sessionId);
+            StreamOutSession session = StreamOutSession.get(message.from, reply.sessionId);
             if (session == null)
             {
-                logger.debug("Received stream action " + reply.action + " for an unknown session from " + message.getFrom());
+                logger.debug("Received stream action " + reply.action + " for an unknown session from " + message.from);
                 return;
             }
 
             switch (reply.action)
             {
                 case FILE_FINISHED:
-                    logger.info("Successfully sent {} to {}", reply.file, message.getFrom());
+                    logger.info("Successfully sent {} to {}", reply.file, message.from);
                     session.validateCurrentFile(reply.file);
                     session.startNext();
                     break;
                 case FILE_RETRY:
                     session.validateCurrentFile(reply.file);
-                    logger.info("Need to re-stream file {} to {}", reply.file, message.getFrom());
+                    logger.info("Need to re-stream file {} to {}", reply.file, message.from);
                     session.retry();
                     break;
                 case SESSION_FINISHED:

@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,35 +15,40 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.net;
 
 import java.net.InetAddress;
 
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.StorageProxy;
 
 /**
  * Encapsulates the callback information.
- * The ability to set the message is useful in cases for when a hint needs
+ * The ability to set the message is useful in cases for when a hint needs 
  * to be written due to a timeout in the response from a replica.
  */
-class CallbackInfo
+public class CallbackInfo
 {
     protected final InetAddress target;
     protected final IMessageCallback callback;
-    protected final MessageOut<?> message;
+    protected final MessageOut<?> sentMessage;
+    protected final IVersionedSerializer<?> serializer;
 
-    public CallbackInfo(InetAddress target, IMessageCallback callback)
+    public CallbackInfo(InetAddress target, IMessageCallback callback, IVersionedSerializer<?> serializer)
     {
         this.target = target;
         this.callback = callback;
-        this.message = null;
+        this.serializer = serializer;
+        this.sentMessage = null;
     }
 
-    public CallbackInfo(InetAddress target, IMessageCallback callback, MessageOut<?> message)
+    public CallbackInfo(InetAddress target, IMessageCallback callback, MessageOut<?> sentMessage, IVersionedSerializer<?> serializer)
     {
         this.target = target;
         this.callback = callback;
-        this.message = message;
+        this.sentMessage = sentMessage;
+        this.serializer = serializer;
     }
 
     /**
@@ -54,6 +59,6 @@ class CallbackInfo
      */
     public boolean shouldHint()
     {
-        return message != null && StorageProxy.shouldHint(target);
+        return sentMessage != null && StorageProxy.shouldHint(target);
     }
 }

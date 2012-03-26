@@ -17,23 +17,24 @@
  */
 package org.apache.cassandra.net;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
+import java.io.EOFException;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.streaming.IncomingStreamReader;
 import org.apache.cassandra.streaming.StreamHeader;
 
 public class IncomingTcpConnection extends Thread
 {
     private static final Logger logger = LoggerFactory.getLogger(IncomingTcpConnection.class);
-
-    private static final int CHUNK_SIZE = 1024 * 1024;
 
     private final Socket socket;
     public InetAddress from;
@@ -126,35 +127,25 @@ public class IncomingTcpConnection extends Thread
 
     private InetAddress receiveMessage(DataInputStream input, int version) throws IOException
     {
-        int totalSize = input.readInt();
+        if (version <= MessagingService.VERSION_11)
+            input.readInt(); // size of entire message. in 1.0+ this is just a placeholder
+
         String id = input.readUTF();
-        Header header = Header.serializer().deserialize(input, version);
-
-        int bodySize = input.readInt();
-        byte[] body = new byte[bodySize];
-        // readFully allocates a direct buffer the size of the chunk it is asked to read,
-        // so we cap that at CHUNK_SIZE.  See https://issues.apache.org/jira/browse/CASSANDRA-2654
-        int remainder = bodySize % CHUNK_SIZE;
-        for (int offset = 0; offset < bodySize - remainder; offset += CHUNK_SIZE)
-            input.readFully(body, offset, CHUNK_SIZE);
-        input.readFully(body, bodySize - remainder, remainder);
-        // earlier versions would send unnecessary bytes left over at the end of a buffer, too
-        long remaining = totalSize - OutboundTcpConnection.messageLength(header, id, body);
-        while (remaining > 0)
-            remaining -= input.skip(remaining);
-
-        // for non-streaming connections, continue to read the messages (and ignore them) until sender
-        // starts sending correct-version messages (which it can do without reconnecting -- version is per-Message)
+        MessageIn message = MessageIn.read(input, version, id);
+        if (message == null)
+        {
+            // callback expired; nothing to do
+            return null;
+        }
         if (version <= MessagingService.current_version)
         {
-            MessageIn message = new MessageIn(header, body, version);
             MessagingService.instance().receive(message, id);
         }
         else
         {
             logger.debug("Received connection from newer protocol version {}. Ignoring message", version);
         }
-        return header.getFrom();
+        return message.from;
     }
 
     private void close()

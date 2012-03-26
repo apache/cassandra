@@ -43,15 +43,13 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.net.MessageSerializer;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
-    private static MessageSerializer messageSerializer = new MessageSerializer();
-
     private void testPendingFileWrite() throws IOException
     {
         // make sure to test serializing null and a pf with no sstable.
@@ -133,7 +131,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         DataInputStream in = getInput("streaming.StreamReply.bin");
         assert StreamReply.serializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
+        assert MessageIn.read(in, getVersion(), "id") != null;
         in.close();
     }
 
@@ -176,9 +174,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         assert StreamRequestMessage.serializer().deserialize(in, getVersion()) != null;
         assert StreamRequestMessage.serializer().deserialize(in, getVersion()) != null;
         assert StreamRequestMessage.serializer().deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
-        assert messageSerializer.deserialize(in, getVersion()) != null;
+        assert MessageIn.read(in, getVersion(), "id") != null;
+        assert MessageIn.read(in, getVersion(), "id") != null;
+        assert MessageIn.read(in, getVersion(), "id") != null;
         in.close();
     }
 

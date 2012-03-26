@@ -25,10 +25,7 @@ import com.google.common.collect.AbstractIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RangeSliceReply;
-import org.apache.cassandra.db.Row;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.utils.Pair;
@@ -39,7 +36,7 @@ import org.apache.cassandra.utils.MergeIterator;
  * Turns RangeSliceReply objects into row (string -> CF) maps, resolving
  * to the most recent ColumnFamily and setting up read repairs as necessary.
  */
-public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Row>>
+public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceReply, Iterable<Row>>
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeSliceResponseResolver.class);
 
@@ -53,7 +50,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
 
     private final String table;
     private List<InetAddress> sources;
-    protected final Collection<MessageIn> responses = new LinkedBlockingQueue<MessageIn>();;
+    protected final Collection<MessageIn<RangeSliceReply>> responses = new LinkedBlockingQueue<MessageIn<RangeSliceReply>>();;
     public final List<IAsyncResult> repairResults = new ArrayList<IAsyncResult>();
 
     public RangeSliceResponseResolver(String table)
@@ -68,9 +65,8 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
 
     public List<Row> getData() throws IOException
     {
-        MessageIn response = responses.iterator().next();
-        RangeSliceReply reply = RangeSliceReply.read(response.getMessageBody(), response.getVersion());
-        return reply.rows;
+        MessageIn<RangeSliceReply> response = responses.iterator().next();
+        return response.payload.rows;
     }
 
     // Note: this would deserialize the response a 2nd time if getData was called first.
@@ -79,11 +75,11 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
     {
         ArrayList<RowIterator> iters = new ArrayList<RowIterator>(responses.size());
         int n = 0;
-        for (MessageIn response : responses)
+        for (MessageIn<RangeSliceReply> response : responses)
         {
-            RangeSliceReply reply = RangeSliceReply.read(response.getMessageBody(), response.getVersion());
+            RangeSliceReply reply = response.payload;
             n = Math.max(n, reply.rows.size());
-            iters.add(new RowIterator(reply.rows.iterator(), response.getFrom()));
+            iters.add(new RowIterator(reply.rows.iterator(), response.from));
         }
         // for each row, compute the combination of all different versions seen, and repair incomplete versions
         // TODO do we need to call close?
@@ -125,7 +121,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
         public void close() {}
     }
 
-    public Iterable<MessageIn> getMessages()
+    public Iterable<MessageIn<RangeSliceReply>> getMessages()
     {
         return responses;
     }

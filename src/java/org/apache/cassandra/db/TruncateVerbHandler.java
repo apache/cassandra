@@ -29,17 +29,15 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 
-public class TruncateVerbHandler implements IVerbHandler
+public class TruncateVerbHandler implements IVerbHandler<Truncation>
 {
     private static final Logger logger = LoggerFactory.getLogger(TruncateVerbHandler.class);
 
-    public void doVerb(MessageIn message, String id)
+    public void doVerb(MessageIn<Truncation> message, String id)
     {
-        DataInputStream in = new DataInputStream(new FastByteArrayInputStream(message.getMessageBody()));
-
         try
         {
-            Truncation t = Truncation.serializer().deserialize(in, message.getVersion());
+            Truncation t = message.payload;
             logger.debug("Applying {}", t);
 
             try
@@ -55,8 +53,8 @@ public class TruncateVerbHandler implements IVerbHandler
             logger.debug("Truncate operation succeeded at this host");
 
             TruncateResponse response = new TruncateResponse(t.keyspace, t.columnFamily, true);
-            logger.debug("{} applied.  Sending response to {}@{} ", new Object[]{ t, id, message.getFrom()});
-            MessagingService.instance().sendReply(response.createMessage(), id, message.getFrom());
+            logger.debug("{} applied.  Sending response to {}@{} ", new Object[]{ t, id, message.from });
+            MessagingService.instance().sendReply(response.createMessage(), id, message.from);
         }
         catch (IOException e)
         {
@@ -67,6 +65,6 @@ public class TruncateVerbHandler implements IVerbHandler
     private static void respondError(Truncation t, MessageIn truncateRequestMessage) throws IOException
     {
         TruncateResponse response = new TruncateResponse(t.keyspace, t.columnFamily, false);
-        MessagingService.instance().sendOneWay(response.createMessage(), truncateRequestMessage.getFrom());
+        MessagingService.instance().sendOneWay(response.createMessage(), truncateRequestMessage.from);
     }
 }

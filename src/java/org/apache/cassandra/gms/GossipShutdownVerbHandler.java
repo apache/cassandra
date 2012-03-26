@@ -31,13 +31,12 @@ public class GossipShutdownVerbHandler implements IVerbHandler
 
     public void doVerb(MessageIn message, String id)
     {
-        InetAddress from = message.getFrom();
         if (!Gossiper.instance.isEnabled())
         {
-            logger.debug("Ignoring shutdown message from {} because gossip is disabled", from);
+            logger.debug("Ignoring shutdown message from {} because gossip is disabled", message.from);
             return;
         }
-        FailureDetector.instance.forceConviction(from);
+        FailureDetector.instance.forceConviction(message.from);
     }
     
 }

@@ -238,18 +238,6 @@ public class DefsTable
      * @throws ConfigurationException If one of metadata attributes has invalid value
      * @throws IOException If data was corrupted during transportation or failed to apply fs operations
      */
-    public static void mergeRemoteSchema(byte[] data, int version) throws ConfigurationException, IOException
-    {
-        if (version < MessagingService.VERSION_11)
-        {
-            logger.error("Can't accept schema migrations from Cassandra versions previous to 1.1, please update first.");
-            return;
-        }
-
-        DataInputStream in = new DataInputStream(new FastByteArrayInputStream(data));
-        mergeSchema(MigrationManager.MigrationsSerializer.instance.deserialize(in, version));
-    }
-
     public static synchronized void mergeSchema(Collection<RowMutation> mutations) throws ConfigurationException, IOException
     {
         // current state of the schema

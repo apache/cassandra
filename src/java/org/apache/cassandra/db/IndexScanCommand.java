@@ -37,7 +37,7 @@ import org.apache.thrift.TSerializer;
 
 public class IndexScanCommand
 {
-    private static final IndexScanCommandSerializer serializer = new IndexScanCommandSerializer();
+    public static final IndexScanCommandSerializer serializer = new IndexScanCommandSerializer();
 
     public final String keyspace;
     public final String column_family;
@@ -58,13 +58,6 @@ public class IndexScanCommand
     public MessageOut<IndexScanCommand> createMessage()
     {
         return new MessageOut<IndexScanCommand>(MessagingService.Verb.INDEX_SCAN, this, serializer);
-    }
-
-    public static IndexScanCommand read(MessageIn message) throws IOException
-    {
-        byte[] bytes = message.getMessageBody();
-        FastByteArrayInputStream bis = new FastByteArrayInputStream(bytes);
-        return serializer.deserialize(new DataInputStream(bis), message.getVersion());
     }
 
     private static class IndexScanCommandSerializer implements IVersionedSerializer<IndexScanCommand>
