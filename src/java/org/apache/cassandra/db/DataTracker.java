@@ -548,6 +548,14 @@ public class DataTracker
         assert found : consumer + " not subscribed";
     }
 
+    public static IntervalTree<SSTableReader> buildIntervalTree(Iterable<SSTableReader> sstables)
+    {
+        List<Interval> intervals = new ArrayList<Interval>(Iterables.size(sstables));
+        for (SSTableReader sstable : sstables)
+            intervals.add(new Interval<SSTableReader>(sstable.first, sstable.last, sstable));
+        return new IntervalTree<SSTableReader>(intervals);
+    }
+
     /**
      * An immutable structure holding the current memtable, the memtables pending
      * flush, the sstables for a column family, and the sstables that are active
@@ -578,14 +586,6 @@ public class DataTracker
         public Sets.SetView<SSTableReader> nonCompactingSStables()
         {
             return Sets.difference(ImmutableSet.copyOf(sstables), compacting);
-        }
-
-        private IntervalTree buildIntervalTree(List<SSTableReader> sstables)
-        {
-            List<Interval> intervals = new ArrayList<Interval>(sstables.size());
-            for (SSTableReader sstable : sstables)
-                intervals.add(new Interval<SSTableReader>(sstable.first, sstable.last, sstable));
-            return new IntervalTree<SSTableReader>(intervals);
         }
 
         public View switchMemtable(Memtable newMemtable)

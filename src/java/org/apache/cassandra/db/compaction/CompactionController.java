@@ -17,18 +17,22 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataTracker;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.utils.IntervalTree.Interval;
+import org.apache.cassandra.utils.IntervalTree.IntervalTree;
 
 /**
  * Manage compaction options.
@@ -38,8 +42,7 @@ public class CompactionController
     private static final Logger logger = LoggerFactory.getLogger(CompactionController.class);
 
     private final ColumnFamilyStore cfs;
-    private final Set<SSTableReader> sstables;
-    private final boolean forceDeserialize;
+    private final IntervalTree<SSTableReader> overlappingTree;
 
     public final int gcBefore;
     public final int mergeShardBefore;
@@ -48,14 +51,14 @@ public class CompactionController
     {
         assert cfs != null;
         this.cfs = cfs;
-        this.sstables = new HashSet<SSTableReader>(sstables);
         this.gcBefore = gcBefore;
         // If we merge an old NodeId id, we must make sure that no further increment for that id are in an active memtable.
         // For that, we must make sure that this id was renewed before the creation of the oldest unflushed memtable. We
         // add 5 minutes to be sure we're on the safe side in terms of thread safety (though we should be fine in our
         // current 'stop all write during memtable switch' situation).
         this.mergeShardBefore = (int) ((cfs.oldestUnflushedMemtable() + 5 * 3600) / 1000);
-        this.forceDeserialize = forceDeserialize;
+        Set<SSTableReader> overlappingSSTables = cfs.getOverlappingSSTables(sstables);
+        overlappingTree = DataTracker.buildIntervalTree(overlappingSSTables);
     }
 
     public String getKeyspace()
@@ -74,38 +77,18 @@ public class CompactionController
      */
     public boolean shouldPurge(DecoratedKey key)
     {
-        return !cfs.isKeyInRemainingSSTables(key, sstables);
-    }
-
-    public boolean needDeserialize()
-    {
-        if (forceDeserialize)
-            return true;
-
-        for (SSTableReader sstable : sstables)
-            if (!sstable.descriptor.isLatestVersion)
-                return true;
-
-        return false;
+        List<SSTableReader> filteredSSTables = overlappingTree.search(new Interval(key, key));
+        for (SSTableReader sstable : filteredSSTables)
+        {
+            if (sstable.getBloomFilter().isPresent(key.key))
+                return false;
+        }
+        return true;
     }
 
     public void invalidateCachedRow(DecoratedKey key)
     {
         cfs.invalidateCachedRow(key);
-    }
-
-    public void removeDeletedInCache(DecoratedKey key)
-    {
-        // For the copying cache, we'd need to re-serialize the updated cachedRow, which would be racy
-        // vs other updates.  We'll just ignore it instead, since the next update to this row will invalidate it
-        // anyway, so the odds of a "tombstones consuming memory indefinitely" problem are minimal.
-        // See https://issues.apache.org/jira/browse/CASSANDRA-3921 for more discussion.
-        if (CacheService.instance.rowCache.isPutCopying())
-            return;
-
-        ColumnFamily cachedRow = cfs.getRawCachedRow(key);
-        if (cachedRow != null)
-            ColumnFamilyStore.removeDeleted(cachedRow, gcBefore);
     }
 
     /**

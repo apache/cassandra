@@ -29,10 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import javax.management.*;
 
-import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,6 +65,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.IntervalTree.Interval;
+import org.apache.cassandra.utils.IntervalTree.IntervalTree;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import static org.apache.cassandra.config.CFMetaData.Caching;
@@ -843,23 +841,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
-     * Uses bloom filters to check if key may be present in any sstable in this
-     * ColumnFamilyStore, minus a set of provided ones.
-     *
-     * Because BFs are checked, negative returns ensure that the key is not
-     * present in the checked SSTables, but positive ones doesn't ensure key
-     * presence.
+     * @param sstables
+     * @return sstables whose key range overlaps with that of the given sstables, not including itself.
+     * (The given sstables may or may not overlap with each other.)
      */
-    public boolean isKeyInRemainingSSTables(DecoratedKey key, Set<? extends SSTable> sstablesToIgnore)
+    public Set<SSTableReader> getOverlappingSSTables(Collection<SSTableReader> sstables)
     {
-        // we don't need to acquire references here, since the bloom filter is safe to use even post-compaction
-        List<SSTableReader> filteredSSTables = data.getView().intervalTree.search(new Interval(key, key));
-        for (SSTableReader sstable : filteredSSTables)
+        assert !sstables.isEmpty();
+        IntervalTree<SSTableReader> tree = data.getView().intervalTree;
+
+        Set<SSTableReader> results = null;
+        for (SSTableReader sstable : sstables)
         {
-            if (!sstablesToIgnore.contains(sstable) && sstable.getBloomFilter().isPresent(key.key))
-                return true;
+            Set<SSTableReader> overlaps = ImmutableSet.copyOf(tree.search(new Interval<SSTableReader>(sstable.first, sstable.last)));
+            assert overlaps.contains(sstable);
+            results = results == null ? overlaps : Sets.union(results, overlaps);
         }
-        return false;
+        results = Sets.difference(results, ImmutableSet.copyOf(sstables));
+
+        return results;
     }
 
     /*
