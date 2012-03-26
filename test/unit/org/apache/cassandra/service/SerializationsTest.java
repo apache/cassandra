@@ -40,6 +40,11 @@ import org.apache.cassandra.utils.MerkleTree;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
+    static
+    {
+        System.setProperty("cassandra.partitioner", "RandomPartitioner");
+    }
+
     private static MessageSerializer messageSerializer = new MessageSerializer();
 
     public static Range FULL_RANGE = new Range(StorageService.getPartitioner().getMinimumToken(), StorageService.getPartitioner().getMinimumToken());
