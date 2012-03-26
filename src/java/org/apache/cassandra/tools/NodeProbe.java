@@ -647,6 +647,11 @@ public class NodeProbe
         ssProxy.setStreamThroughputMbPerSec(value);
     }
 
+    public String getSchemaVersion()
+    {
+        return ssProxy.getSchemaVersion();
+    }
+    
     public List<String> describeRing(String keyspaceName) throws InvalidRequestException
     {
         return ssProxy.describeRingJMX(keyspaceName);
