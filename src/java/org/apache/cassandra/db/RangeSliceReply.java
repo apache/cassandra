@@ -17,20 +17,27 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.DataInput;
 import java.io.DataInputStream;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang.StringUtils;
 
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class RangeSliceReply
 {
+    public static final RangeSliceReplySerializer serializer = new RangeSliceReplySerializer();
+
     public final List<Row> rows;
 
     public RangeSliceReply(List<Row> rows)
@@ -38,19 +45,9 @@ public class RangeSliceReply
         this.rows = rows;
     }
 
-    public Message getReply(Message originalMessage) throws IOException
+    public MessageOut<RangeSliceReply> createMessage()
     {
-        int rowCount = rows.size();
-        int size = DBTypeSizes.NATIVE.sizeof(rowCount);
-        for (Row row : rows)
-            size += Row.serializer().serializedSize(row, originalMessage.getVersion());
-
-        DataOutputBuffer buffer = new DataOutputBuffer(size);
-        buffer.writeInt(rowCount);
-        for (Row row : rows)
-            Row.serializer().serialize(row, buffer, originalMessage.getVersion());
-        assert buffer.getLength() == buffer.getData().length;
-        return originalMessage.getReply(FBUtilities.getBroadcastAddress(), buffer.getData(), originalMessage.getVersion());
+        return new MessageOut<RangeSliceReply>(StorageService.Verb.REQUEST_RESPONSE, this, serializer);
     }
 
     @Override
@@ -63,14 +60,35 @@ public class RangeSliceReply
 
     public static RangeSliceReply read(byte[] body, int version) throws IOException
     {
-        FastByteArrayInputStream bufIn = new FastByteArrayInputStream(body);
-        DataInputStream dis = new DataInputStream(bufIn);
-        int rowCount = dis.readInt();
-        List<Row> rows = new ArrayList<Row>(rowCount);
-        for (int i = 0; i < rowCount; i++)
+        return serializer.deserialize(new DataInputStream(new FastByteArrayInputStream(body)), version);
+    }
+
+    private static class RangeSliceReplySerializer implements IVersionedSerializer<RangeSliceReply>
+    {
+        public void serialize(RangeSliceReply rsr, DataOutput out, int version) throws IOException
         {
-            rows.add(Row.serializer().deserialize(dis, version));
+            out.writeInt(rsr.rows.size());
+            for (Row row : rsr.rows)
+                Row.serializer().serialize(row, out, version);
         }
-        return new RangeSliceReply(rows);
+
+        public RangeSliceReply deserialize(DataInput in, int version) throws IOException
+        {
+            int rowCount = in.readInt();
+            List<Row> rows = new ArrayList<Row>(rowCount);
+            for (int i = 0; i < rowCount; i++)
+            {
+                rows.add(Row.serializer().deserialize(in, version));
+            }
+            return new RangeSliceReply(rows);
+        }
+
+        public long serializedSize(RangeSliceReply rsr, int version)
+        {
+            int size = DBTypeSizes.NATIVE.sizeof(rsr.rows.size());
+            for (Row row : rsr.rows)
+                size += Row.serializer().serializedSize(row, version);
+            return size;
+        }
     }
 }

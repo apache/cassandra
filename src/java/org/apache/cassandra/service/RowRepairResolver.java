@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
@@ -32,9 +31,9 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
@@ -120,18 +119,10 @@ public class RowRepairResolver extends AbstractRowResolver
             // create and send the row mutation message based on the diff
             RowMutation rowMutation = new RowMutation(table, key.key);
             rowMutation.add(diffCf);
-            Message repairMessage;
-            try
-            {
-                // use a separate verb here because we don't want these to be get the white glove hint-
-                // on-timeout behavior that a "real" mutation gets
-                repairMessage = rowMutation.getMessage(StorageService.Verb.READ_REPAIR,
-                                                       Gossiper.instance.getVersion(endpoints.get(i)));
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
+            MessageOut repairMessage;
+            // use a separate verb here because we don't want these to be get the white glove hint-
+            // on-timeout behavior that a "real" mutation gets
+            repairMessage = rowMutation.createMessage(StorageService.Verb.READ_REPAIR);
             results.add(MessagingService.instance().sendRR(repairMessage, endpoints.get(i)));
         }
 

@@ -27,11 +27,16 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
+import org.apache.cassandra.db.DBConstants;
+import org.apache.cassandra.io.IVersionedSerializer;
+
 /**
  * The goods are here: www.ietf.org/rfc/rfc4122.txt.
  */
 public class UUIDGen
 {
+    public static UUIDSerializer serializer = new UUIDSerializer();
+
     // A grand day! millis at 00:00:00.000 15 Oct 1582.
     private static final long START_EPOCH = -12219292800000L;
     private static final long clock = new Random(System.currentTimeMillis()).nextLong();
@@ -90,17 +95,23 @@ public class UUIDGen
         return new UUID(raw.getLong(raw.position()), raw.getLong(raw.position() + 8));
     }
 
-    /** reads a uuid from an input stream. */
-    public static UUID read(DataInput dis) throws IOException
+    public static class UUIDSerializer implements IVersionedSerializer<UUID>
     {
-        return new UUID(dis.readLong(), dis.readLong());
-    }
+        public void serialize(UUID uuid, DataOutput out, int version) throws IOException
+        {
+            out.writeLong(uuid.getMostSignificantBits());
+            out.writeLong(uuid.getLeastSignificantBits());
+        }
 
-    /** writes a uuid to an output stream. */
-    public static void write(UUID uuid, DataOutput dos) throws IOException
-    {
-        dos.writeLong(uuid.getMostSignificantBits());
-        dos.writeLong(uuid.getLeastSignificantBits());
+        public UUID deserialize(DataInput in, int version) throws IOException
+        {
+            return new UUID(in.readLong(), in.readLong());
+        }
+
+        public long serializedSize(UUID uuid, int version)
+        {
+            return DBConstants.LONG_SIZE + DBConstants.LONG_SIZE;
+        }
     }
 
     /** decomposes a uuid into raw bytes. */

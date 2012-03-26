@@ -21,6 +21,17 @@ package org.apache.cassandra.streaming;
  */
 
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
+import org.junit.Test;
+
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RowMutation;
@@ -36,13 +47,6 @@ import org.apache.cassandra.net.MessageSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.junit.Test;
-
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.util.*;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
@@ -117,7 +121,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         StreamReply rep = new StreamReply("this is a file", 123L, StreamReply.Status.FILE_FINISHED);
         DataOutputStream out = getOutput("streaming.StreamReply.bin");
         StreamReply.serializer.serialize(rep, out, getVersion());
-        messageSerializer.serialize(rep.getMessage(getVersion()), out, getVersion());
+        rep.createMessage().serialize(out, getVersion());
         out.close();
     }
 
@@ -156,9 +160,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         StreamRequestMessage.serializer().serialize(msg0, out, getVersion());
         StreamRequestMessage.serializer().serialize(msg1, out, getVersion());
         StreamRequestMessage.serializer().serialize(msg2, out, getVersion());
-        messageSerializer.serialize(msg0.getMessage(getVersion()), out, getVersion());
-        messageSerializer.serialize(msg1.getMessage(getVersion()), out, getVersion());
-        messageSerializer.serialize(msg2.getMessage(getVersion()), out, getVersion());
+        msg0.createMessage().serialize(out, getVersion());
+        msg1.createMessage().serialize(out, getVersion());
+        msg2.createMessage().serialize(out, getVersion());
         out.close();
     }
 

@@ -17,32 +17,26 @@
  */
 package org.apache.cassandra.gms;
 
-import java.io.DataOutputStream;
-import java.io.IOError;
-import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
-
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
-import org.apache.cassandra.net.MessageProducer;
-import org.apache.cassandra.utils.FBUtilities;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
  * This module is responsible for Gossiping information for the local endpoint. This abstraction
@@ -128,18 +122,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
                 if ( gDigests.size() > 0 )
                 {
-                    MessageProducer prod = new MessageProducer()
-                    {
-                        public Message getMessage(Integer version) throws IOException
-                        {
-                            return makeGossipDigestSynMessage(gDigests, version);
-                        }
-                    };
+                    GossipDigestSynMessage digestSynMessage = new GossipDigestSynMessage(DatabaseDescriptor.getClusterName(), gDigests);
+                    MessageOut<GossipDigestSynMessage> message = new MessageOut<GossipDigestSynMessage>(StorageService.Verb.GOSSIP_DIGEST_SYN,
+                                                                                                        digestSynMessage,
+                                                                                                        GossipDigestSynMessage.serializer());
                     /* Gossip to some random live member */
-                    boolean gossipedToSeed = doGossipToLiveMember(prod);
+                    boolean gossipedToSeed = doGossipToLiveMember(message);
 
                     /* Gossip to some unreachable member with some probability to check if he is back up */
-                    doGossipToUnreachableMember(prod);
+                    doGossipToUnreachableMember(message);
 
                     /* Gossip to a seed if we did not do so above, or we have seen less nodes
                        than there are seeds.  This prevents partitions where each group of nodes
@@ -158,7 +149,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
                        See CASSANDRA-150 for more exposition. */
                     if (!gossipedToSeed || liveEndpoints.size() < seeds.size())
-                        doGossipToSeed(prod);
+                        doGossipToSeed(message);
 
                     if (logger.isTraceEnabled())
                         logger.trace("Performing status check ...");
@@ -508,47 +499,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return endpointStateMap.get(endpoint).getHeartBeatState().getGeneration();
     }
 
-    Message makeGossipDigestSynMessage(List<GossipDigest> gDigests, int version) throws IOException
-    {
-        GossipDigestSynMessage gDigestMessage = new GossipDigestSynMessage(DatabaseDescriptor.getClusterName(), gDigests);
-        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream( bos );
-        GossipDigestSynMessage.serializer().serialize(gDigestMessage, dos, version);
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.GOSSIP_DIGEST_SYN, bos.toByteArray(), version);
-    }
-
-    Message makeGossipDigestAckMessage(GossipDigestAckMessage gDigestAckMessage, int version) throws IOException
-    {
-        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        GossipDigestAckMessage.serializer().serialize(gDigestAckMessage, dos, version);
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.GOSSIP_DIGEST_ACK, bos.toByteArray(), version);
-    }
-
-    Message makeGossipDigestAck2Message(GossipDigestAck2Message gDigestAck2Message, int version) throws IOException
-    {
-        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        GossipDigestAck2Message.serializer().serialize(gDigestAck2Message, dos, version);
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.GOSSIP_DIGEST_ACK2, bos.toByteArray(), version);
-    }
-    
-    Message makeGossipShutdownMessage(int version) throws IOException
-    {
-        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        GossipShutdownMessage.serializer().serialize(new GossipShutdownMessage(), dos, version);
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.GOSSIP_SHUTDOWN, bos.toByteArray(), version);
-    }
-
     /**
      * Returns true if the chosen target was also a seed. False otherwise
      *
-     *  @param prod produces a message to send
-     *  @param epSet a set of endpoint from which a random endpoint is chosen.
+     *
+     * @param message
+     * @param epSet a set of endpoint from which a random endpoint is chosen.
      *  @return true if the chosen endpoint is also a seed.
      */
-    private boolean sendGossip(MessageProducer prod, Set<InetAddress> epSet)
+    private boolean sendGossip(MessageOut<GossipDigestSynMessage> message, Set<InetAddress> epSet)
     {
         int size = epSet.size();
         if (size < 1)
@@ -559,28 +518,21 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         InetAddress to = liveEndpoints.get(index);
         if (logger.isTraceEnabled())
             logger.trace("Sending a GossipDigestSynMessage to {} ...", to);
-        try
-        {
-            MessagingService.instance().sendOneWay(prod.getMessage(getVersion(to)), to);
-        }
-        catch (IOException ex)
-        {
-            throw new IOError(ex);
-        }
+        MessagingService.instance().sendOneWay(message, to);
         return seeds.contains(to);
     }
 
     /* Sends a Gossip message to a live member and returns true if the recipient was a seed */
-    private boolean doGossipToLiveMember(MessageProducer prod)
+    private boolean doGossipToLiveMember(MessageOut<GossipDigestSynMessage> message)
     {
         int size = liveEndpoints.size();
         if ( size == 0 )
             return false;
-        return sendGossip(prod, liveEndpoints);
+        return sendGossip(message, liveEndpoints);
     }
 
     /* Sends a Gossip message to an unreachable member */
-    private void doGossipToUnreachableMember(MessageProducer prod)
+    private void doGossipToUnreachableMember(MessageOut<GossipDigestSynMessage> message)
     {
         double liveEndpointCount = liveEndpoints.size();
         double unreachableEndpointCount = unreachableEndpoints.size();
@@ -590,12 +542,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             double prob = unreachableEndpointCount / (liveEndpointCount + 1);
             double randDbl = random.nextDouble();
             if ( randDbl < prob )
-                sendGossip(prod, unreachableEndpoints.keySet());
+                sendGossip(message, unreachableEndpoints.keySet());
         }
     }
 
     /* Gossip to a seed for facilitating partition healing */
-    private void doGossipToSeed(MessageProducer prod)
+    private void doGossipToSeed(MessageOut<GossipDigestSynMessage> prod)
     {
         int size = seeds.size();
         if ( size > 0 )
@@ -1138,23 +1090,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             throw new RuntimeException(e);
         }
-        MessageProducer prod = new MessageProducer()
-        {
-            public Message getMessage(Integer version) throws IOException
-            {
-                return makeGossipShutdownMessage(version);
-            }
-        };
+        MessageOut<GossipDigestSynMessage> message = new MessageOut<GossipDigestSynMessage>(StorageService.Verb.GOSSIP_SHUTDOWN,
+                                                                                            null,
+                                                                                            GossipDigestSynMessage.serializer());
         for (InetAddress ep : liveEndpoints)
         {
-            try
-            {
-                MessagingService.instance().sendOneWay(prod.getMessage(getVersion(ep)), ep);
-            }
-            catch (IOException ex)
-            {
-                // keep going
-            }
+            MessagingService.instance().sendOneWay(message, ep);
         }
     }
 

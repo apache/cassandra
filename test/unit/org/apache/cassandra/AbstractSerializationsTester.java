@@ -32,7 +32,7 @@ import java.util.Map;
 
 public class AbstractSerializationsTester extends SchemaLoader
 {
-    protected static final String CUR_VER = System.getProperty("cassandra.version", "0.7");
+    protected static final String CUR_VER = System.getProperty("cassandra.version", "1.0");
     protected static final Map<String, Integer> VERSION_MAP = new HashMap<String, Integer> ()
     {{
             put("0.7", 1);

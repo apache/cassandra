@@ -41,6 +41,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.sink.IMessageSink;
 import org.apache.cassandra.net.sink.SinkManager;
@@ -152,7 +153,8 @@ public class RemoveTest
 
         for (InetAddress host : hosts)
         {
-            Message msg = new Message(host, StorageService.Verb.REPLICATION_FINISHED, new byte[0], MessagingService.current_version);
+            // TODO how to spoof host here?
+            MessageOut msg = new MessageOut(StorageService.Verb.REPLICATION_FINISHED);
             MessagingService.instance().sendRR(msg, FBUtilities.getBroadcastAddress());
         }
 
@@ -162,6 +164,9 @@ public class RemoveTest
         assertTrue(tmd.getLeavingEndpoints().isEmpty());
     }
 
+    /**
+     * sink that captures STREAM_REQUEST messages and calls finishStreamRequest on it
+     */
     class ReplicationSink implements IMessageSink
     {
         public Message handleMessage(Message msg, String id, InetAddress to)
@@ -172,6 +177,11 @@ public class RemoveTest
             StreamUtil.finishStreamRequest(msg, to);
 
             return null;
+        }
+
+        public MessageOut handleMessage(MessageOut msg, String id, InetAddress to)
+        {
+            return msg;
         }
     }
 }

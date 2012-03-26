@@ -25,10 +25,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
-import org.apache.cassandra.net.CompactEndpointSerializationHelper;
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.*;
+import org.apache.cassandra.service.StorageService;
 
 public class RowMutationVerbHandler implements IVerbHandler
 {
@@ -43,17 +41,24 @@ public class RowMutationVerbHandler implements IVerbHandler
               logger.debug("Applying " + rm);
 
             // Check if there were any forwarding headers in this message
-            byte[] forwardBytes = message.getHeader(RowMutation.FORWARD_HEADER);
-            if (forwardBytes != null && message.getVersion() >= MessagingService.VERSION_11)
-                forwardToLocalNodes(message, forwardBytes);
+            InetAddress replyTo = message.getFrom();
+            byte[] from = message.getHeader(RowMutation.FORWARD_FROM);
+            if (from != null)
+            {
+                replyTo = InetAddress.getByAddress(from);
+            }
+            else
+            {
+                byte[] forwardBytes = message.getHeader(RowMutation.FORWARD_TO);
+                if (forwardBytes != null && message.getVersion() >= MessagingService.VERSION_11)
+                    forwardToLocalNodes(rm, message.getVerb(), forwardBytes, message.getFrom());
+            }
 
             rm.apply();
-
             WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
-            Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
             if (logger.isDebugEnabled())
-              logger.debug(rm + " applied.  Sending response to " + id + "@" + message.getFrom());
-            MessagingService.instance().sendReply(responseMessage, id, message.getFrom());
+              logger.debug(rm + " applied.  Sending response to " + id + "@" + replyTo);
+            MessagingService.instance().sendReply(response.createMessage(), id, replyTo);
         }
         catch (IOException e)
         {
@@ -65,13 +70,13 @@ public class RowMutationVerbHandler implements IVerbHandler
      * Older version (< 1.0) will not send this message at all, hence we don't
      * need to check the version of the data.
      */
-    private void forwardToLocalNodes(Message message, byte[] forwardBytes) throws IOException
+    private void forwardToLocalNodes(RowMutation rm, StorageService.Verb verb, byte[] forwardBytes, InetAddress from) throws IOException
     {
         DataInputStream dis = new DataInputStream(new FastByteArrayInputStream(forwardBytes));
         int size = dis.readInt();
 
         // remove fwds from message to avoid infinite loop
-        Message messageCopy = message.withHeaderRemoved(RowMutation.FORWARD_HEADER);
+        MessageOut<RowMutation> message = new MessageOut<RowMutation>(verb, rm, RowMutation.serializer()).withParameter(RowMutation.FORWARD_FROM, from.getAddress());
         for (int i = 0; i < size; i++)
         {
             // Send a message to each of the addresses on our Forward List
@@ -80,7 +85,7 @@ public class RowMutationVerbHandler implements IVerbHandler
             if (logger.isDebugEnabled())
                 logger.debug("Forwarding message to " + address + " with= ID: " + id);
             // Let the response go back to the coordinator
-            MessagingService.instance().sendOneWay(messageCopy, id, address);
+            MessagingService.instance().sendOneWay(message, id, address);
         }
     }
 }

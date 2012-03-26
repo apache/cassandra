@@ -20,9 +20,9 @@ package org.apache.cassandra.streaming;
 import java.io.*;
 import java.net.InetAddress;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +32,6 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.*;
@@ -131,15 +130,11 @@ public class StreamingRepairTask implements Runnable
 
     private void forwardToSource()
     {
-        try
-        {
-            logger.info(String.format("[streaming task #%s] Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", id, ranges.size(), src, dst));
-            StreamingRepairRequest.send(this);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Error forwarding streaming task to " + src, e);
-        }
+        logger.info(String.format("[streaming task #%s] Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", id, ranges.size(), src, dst));
+        MessageOut<StreamingRepairTask> msg = new MessageOut<StreamingRepairTask>(StorageService.Verb.STREAMING_REPAIR_REQUEST,
+                                                                                  this,
+                                                                                  StreamingRepairTask.serializer);
+        MessagingService.instance().sendOneWay(msg, src);
     }
 
     private static IStreamCallback makeReplyingCallback(final InetAddress taskOwner, final UUID taskId)
@@ -217,15 +212,6 @@ public class StreamingRepairTask implements Runnable
             task.run();
         }
 
-        private static void send(StreamingRepairTask task) throws IOException
-        {
-            int version = Gossiper.instance.getVersion(task.src);
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            DataOutputStream dos = new DataOutputStream(bos);
-            StreamingRepairTask.serializer.serialize(task, dos, version);
-            Message msg = new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.STREAMING_REPAIR_REQUEST, bos.toByteArray(), version);
-            MessagingService.instance().sendOneWay(msg, task.src);
-        }
     }
 
     public static class StreamingRepairResponse implements IVerbHandler
@@ -238,7 +224,7 @@ public class StreamingRepairTask implements Runnable
             UUID taskid;
             try
             {
-                 taskid = UUIDGen.read(dis);
+                taskid = UUIDGen.serializer.deserialize(dis, message.getVersion());
             }
             catch (IOException e)
             {
@@ -262,12 +248,8 @@ public class StreamingRepairTask implements Runnable
         private static void reply(InetAddress remote, UUID taskid) throws IOException
         {
             logger.info(String.format("[streaming task #%s] task suceed, forwarding response to %s", taskid, remote));
-            int version = Gossiper.instance.getVersion(remote);
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            DataOutputStream dos = new DataOutputStream(bos);
-            UUIDGen.write(taskid, dos);
-            Message msg = new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.STREAMING_REPAIR_RESPONSE, bos.toByteArray(), version);
-            MessagingService.instance().sendOneWay(msg, remote);
+            MessageOut<UUID> message = new MessageOut<UUID>(StorageService.Verb.STREAMING_REPAIR_RESPONSE, taskid, UUIDGen.serializer);
+            MessagingService.instance().sendOneWay(message, remote);
         }
     }
 
@@ -275,7 +257,7 @@ public class StreamingRepairTask implements Runnable
     {
         public void serialize(StreamingRepairTask task, DataOutput dos, int version) throws IOException
         {
-            UUIDGen.write(task.id, dos);
+            UUIDGen.serializer.serialize(task.id, dos, version);
             CompactEndpointSerializationHelper.serialize(task.owner, dos);
             CompactEndpointSerializationHelper.serialize(task.src, dos);
             CompactEndpointSerializationHelper.serialize(task.dst, dos);
@@ -291,7 +273,7 @@ public class StreamingRepairTask implements Runnable
 
         public StreamingRepairTask deserialize(DataInput dis, int version) throws IOException
         {
-            UUID id = UUIDGen.read(dis);
+            UUID id = UUIDGen.serializer.deserialize(dis, version);
             InetAddress owner = CompactEndpointSerializationHelper.deserialize(dis);
             InetAddress src = CompactEndpointSerializationHelper.deserialize(dis);
             InetAddress dst = CompactEndpointSerializationHelper.deserialize(dis);

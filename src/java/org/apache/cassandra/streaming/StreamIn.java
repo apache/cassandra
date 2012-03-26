@@ -20,7 +20,7 @@ package org.apache.cassandra.streaming;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
-import org.apache.cassandra.gms.Gossiper;
+
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +30,6 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -65,8 +64,7 @@ public class StreamIn
                                                             columnFamilies,
                                                             session.getSessionId(),
                                                             type);
-        Message message = srm.getMessage(Gossiper.instance.getVersion(source));
-        MessagingService.instance().sendOneWay(message, source);
+        MessagingService.instance().sendOneWay(srm.createMessage(), source);
     }
 
     /** Translates remote files to local files by creating a local sstable per remote sstable. */

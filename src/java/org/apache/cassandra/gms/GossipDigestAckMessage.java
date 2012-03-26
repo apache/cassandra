@@ -31,7 +31,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
  * endpoint. This is the 2 stage of the 3 way messaging in the Gossip protocol.
  */
 
-class GossipDigestAckMessage
+class GossipDigestAckMessage // TODO rename
 {
     private static final IVersionedSerializer<GossipDigestAckMessage> serializer;
     static

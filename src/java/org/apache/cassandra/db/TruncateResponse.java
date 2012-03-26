@@ -17,12 +17,13 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.service.StorageService;
 
 
 /**
@@ -42,21 +43,15 @@ public class TruncateResponse
     public final String columnFamily;
     public final boolean success;
 
+    public TruncateResponse(String keyspace, String columnFamily, boolean success) {
+		this.keyspace = keyspace;
+		this.columnFamily = columnFamily;
+		this.success = success;
+	}
 
-    public static Message makeTruncateResponseMessage(Message original, TruncateResponse truncateResponseMessage)
-            throws IOException
+    public MessageOut<TruncateResponse> createMessage()
     {
-        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        TruncateResponse.serializer().serialize(truncateResponseMessage, dos, original.getVersion());
-        return original.getReply(FBUtilities.getBroadcastAddress(), bos.toByteArray(), original.getVersion());
-    }
-
-    public TruncateResponse(String keyspace, String columnFamily, boolean success)
-    {
-        this.keyspace = keyspace;
-        this.columnFamily = columnFamily;
-        this.success = success;
+        return new MessageOut<TruncateResponse>(StorageService.Verb.REQUEST_RESPONSE, this, serializer);
     }
 
     public static class TruncateResponseSerializer implements IVersionedSerializer<TruncateResponse>

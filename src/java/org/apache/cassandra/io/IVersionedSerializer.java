@@ -29,7 +29,7 @@ public interface IVersionedSerializer<T>
      * @param dos DataOutput into which serialization needs to happen.
      * @throws java.io.IOException
      */
-    public void serialize(T t, DataOutput dos, int version) throws IOException;
+    public void serialize(T t, DataOutput out, int version) throws IOException;
 
     /**
      * Deserialize into the specified DataInputStream instance.
@@ -37,7 +37,7 @@ public interface IVersionedSerializer<T>
      * @throws IOException
      * @return the type that was deserialized
      */
-    public T deserialize(DataInput dis, int version) throws IOException;
+    public T deserialize(DataInput in, int version) throws IOException;
 
     public long serializedSize(T t, int version);
 }

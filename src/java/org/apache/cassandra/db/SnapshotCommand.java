@@ -21,17 +21,14 @@ import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.Arrays;
 
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessageProducer;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 
-public class SnapshotCommand implements MessageProducer
+public class SnapshotCommand
 {
     private static final SnapshotCommandSerializer serializer = new SnapshotCommandSerializer();
 
@@ -48,11 +45,9 @@ public class SnapshotCommand implements MessageProducer
         this.clear_snapshot = clearSnapshot;
     }
 
-    public Message getMessage(Integer version) throws IOException
+    public MessageOut createMessage()
     {
-        DataOutputBuffer dob = new DataOutputBuffer();
-        serializer.serialize(this, dob, version);
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.SNAPSHOT, Arrays.copyOf(dob.getData(), dob.getLength()), version);
+        return new MessageOut<SnapshotCommand>(StorageService.Verb.SNAPSHOT, this, serializer);
     }
 
     public static SnapshotCommand read(Message message) throws IOException

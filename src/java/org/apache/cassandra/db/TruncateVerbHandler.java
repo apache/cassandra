@@ -35,12 +35,11 @@ public class TruncateVerbHandler implements IVerbHandler
 
     public void doVerb(Message message, String id)
     {
-        byte[] bytes = message.getMessageBody();
-        FastByteArrayInputStream buffer = new FastByteArrayInputStream(bytes);
+        DataInputStream in = new DataInputStream(new FastByteArrayInputStream(message.getMessageBody()));
 
         try
         {
-            Truncation t = Truncation.serializer().deserialize(new DataInputStream(buffer), message.getVersion());
+            Truncation t = Truncation.serializer().deserialize(in, message.getVersion());
             logger.debug("Applying {}", t);
 
             try
@@ -56,9 +55,8 @@ public class TruncateVerbHandler implements IVerbHandler
             logger.debug("Truncate operation succeeded at this host");
 
             TruncateResponse response = new TruncateResponse(t.keyspace, t.columnFamily, true);
-            Message responseMessage = TruncateResponse.makeTruncateResponseMessage(message, response);
             logger.debug("{} applied.  Sending response to {}@{} ", new Object[]{ t, id, message.getFrom()});
-            MessagingService.instance().sendReply(responseMessage, id, message.getFrom());
+            MessagingService.instance().sendReply(response.createMessage(), id, message.getFrom());
         }
         catch (IOException e)
         {
@@ -69,7 +67,6 @@ public class TruncateVerbHandler implements IVerbHandler
     private static void respondError(Truncation t, Message truncateRequestMessage) throws IOException
     {
         TruncateResponse response = new TruncateResponse(t.keyspace, t.columnFamily, false);
-        Message responseMessage = TruncateResponse.makeTruncateResponseMessage(truncateRequestMessage, response);
-        MessagingService.instance().sendOneWay(responseMessage, truncateRequestMessage.getFrom());
+        MessagingService.instance().sendOneWay(response.createMessage(), truncateRequestMessage.getFrom());
     }
 }

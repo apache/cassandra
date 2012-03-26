@@ -17,9 +17,13 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.net.InetAddress;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 import com.google.common.collect.Iterables;
 
@@ -29,13 +33,10 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessageProducer;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
 * This class encapsulates the message that needs to be sent to nodes
@@ -44,7 +45,7 @@ import org.apache.cassandra.utils.FBUtilities;
 *
 * If a file is specified, ranges and table will not. vice-versa should hold as well.
 */
-class StreamRequestMessage implements MessageProducer
+class StreamRequestMessage // TODO rename to StreamRequest
 {
     private static final IVersionedSerializer<StreamRequestMessage> serializer;
     static
@@ -91,19 +92,9 @@ class StreamRequestMessage implements MessageProducer
         columnFamilies = null;
     }
 
-    public Message getMessage(Integer version)
+    public MessageOut<StreamRequestMessage> createMessage()
     {
-        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        try
-        {
-            StreamRequestMessage.serializer().serialize(this, dos, version);
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.STREAM_REQUEST, bos.toByteArray(), version);
+        return new MessageOut<StreamRequestMessage>(StorageService.Verb.STREAM_REQUEST, this, serializer);
     }
 
     public String toString()

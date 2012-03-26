@@ -39,6 +39,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
@@ -256,8 +257,9 @@ public class ReadCallback<T> implements IAsyncCallback
                 final RowRepairResolver repairResolver = new RowRepairResolver(readCommand.table, readCommand.key);
                 IAsyncCallback repairHandler = new AsyncRepairCallback(repairResolver, endpoints.size());
 
+                MessageOut<ReadCommand> message = ((ReadCommand) command).createMessage();
                 for (InetAddress endpoint : endpoints)
-                    MessagingService.instance().sendRR(readCommand, endpoint, repairHandler);
+                    MessagingService.instance().sendRR(message, endpoint, repairHandler);
             }
         }
     }

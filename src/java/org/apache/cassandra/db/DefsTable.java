@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -39,10 +40,10 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.avro.KsDef;
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -245,7 +246,8 @@ public class DefsTable
             return;
         }
 
-        mergeSchema(MigrationManager.deserializeMigrationMessage(data, version));
+        DataInputStream in = new DataInputStream(new FastByteArrayInputStream(data));
+        mergeSchema(MigrationManager.MigrationsSerializer.instance.deserialize(in, version));
     }
 
     public static synchronized void mergeSchema(Collection<RowMutation> mutations) throws ConfigurationException, IOException

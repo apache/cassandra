@@ -56,10 +56,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.IAsyncResult;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.ResponseVerbHandler;
+import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.*;
@@ -1505,13 +1502,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /**
      * Sends a notification to a node indicating we have finished replicating data.
      *
-     * @param local the local address
      * @param remote node to send notification to
      */
-    private void sendReplicationNotification(InetAddress local, InetAddress remote)
+    private void sendReplicationNotification(InetAddress remote)
     {
         // notify the remote token
-        Message msg = new Message(local, StorageService.Verb.REPLICATION_FINISHED, new byte[0], Gossiper.instance.getVersion(remote));
+        MessageOut msg = new MessageOut(StorageService.Verb.REPLICATION_FINISHED);
         IFailureDetector failureDetector = FailureDetector.instance;
         if (logger.isDebugEnabled())
             logger.debug("Notifying " + remote.toString() + " of replication completion\n");
@@ -1578,7 +1574,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                         {
                             fetchSources.remove(source, table);
                             if (fetchSources.isEmpty())
-                                sendReplicationNotification(myAddress, notifyEndpoint);
+                                sendReplicationNotification(notifyEndpoint);
                         }
                     }
 

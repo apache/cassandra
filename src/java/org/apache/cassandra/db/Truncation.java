@@ -17,19 +17,18 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessageProducer;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A truncate operation descriptor
  */
-public class Truncation implements MessageProducer
+public class Truncation
 {
     private static final IVersionedSerializer<Truncation> serializer;
 
@@ -52,12 +51,9 @@ public class Truncation implements MessageProducer
         this.columnFamily = columnFamily;
     }
 
-    public Message getMessage(Integer version) throws IOException
+    public MessageOut<Truncation> createMessage()
     {
-        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        serializer().serialize(this, dos, version);
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.TRUNCATE, bos.toByteArray(), version);
+        return new MessageOut<Truncation>(StorageService.Verb.TRUNCATE, this, serializer);
     }
 
     public String toString()

@@ -26,10 +26,10 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class ReadVerbHandler implements IVerbHandler
 {
@@ -49,10 +49,9 @@ public class ReadVerbHandler implements IVerbHandler
             Table table = Table.open(command.table);
             Row row = command.getRow(table);
 
-            ReadResponse response = getResponse(command, row);
-            byte[] bytes = FBUtilities.serialize(response, ReadResponse.serializer(), message.getVersion());
-            Message reply = message.getReply(FBUtilities.getBroadcastAddress(), bytes, message.getVersion());
-
+            MessageOut<ReadResponse> reply = new MessageOut<ReadResponse>(StorageService.Verb.REQUEST_RESPONSE,
+                                                                          getResponse(command, row),
+                                                                          ReadResponse.serializer());
             if (logger.isDebugEnabled())
               logger.debug(String.format("Read key %s; sending response to %s@%s",
                                           ByteBufferUtil.bytesToHex(command.key), id, message.getFrom()));

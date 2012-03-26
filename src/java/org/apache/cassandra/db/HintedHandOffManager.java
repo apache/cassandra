@@ -29,8 +29,6 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.collect.ImmutableSortedSet;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,6 +45,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.*;
@@ -125,7 +125,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     private static void sendMutation(InetAddress endpoint, RowMutation mutation) throws TimeoutException
     {
         IWriteResponseHandler responseHandler = WriteResponseHandler.create(endpoint);
-        MessagingService.instance().sendRR(mutation, endpoint, responseHandler);
+        MessagingService.instance().sendRR(mutation.createMessage(), endpoint, responseHandler);
         responseHandler.get();
 
         try

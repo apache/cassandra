@@ -60,10 +60,9 @@ public class RangeSliceVerbHandler implements IVerbHandler
             }
             RangeSliceCommand command = RangeSliceCommand.read(message);
             RangeSliceReply reply = new RangeSliceReply(executeLocally(command));
-            Message response = reply.getReply(message);
             if (logger.isDebugEnabled())
                 logger.debug("Sending " + reply+ " to " + id + "@" + message.getFrom());
-            MessagingService.instance().sendReply(response, id, message.getFrom());
+            MessagingService.instance().sendReply(reply.createMessage(), id, message.getFrom());
         }
         catch (Exception ex)
         {

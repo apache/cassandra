@@ -27,15 +27,13 @@ import java.util.Map;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessageProducer;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.service.IReadCommand;
 import org.apache.cassandra.service.RepairCallback;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 
 
-public abstract class ReadCommand implements MessageProducer, IReadCommand
+public abstract class ReadCommand implements IReadCommand
 {
     public static final byte CMD_TYPE_GET_SLICE_BY_NAMES = 1;
     public static final byte CMD_TYPE_GET_SLICE = 2;
@@ -47,10 +45,9 @@ public abstract class ReadCommand implements MessageProducer, IReadCommand
         return serializer;
     }
 
-    public Message getMessage(Integer version) throws IOException
+    public MessageOut<ReadCommand> createMessage()
     {
-        byte[] bytes = FBUtilities.serialize(this, serializer, version);
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.READ, bytes, version);
+        return new MessageOut<ReadCommand>(StorageService.Verb.READ, this, serializer);
     }
 
     public final QueryPath queryPath;

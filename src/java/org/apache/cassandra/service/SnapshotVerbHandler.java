@@ -21,6 +21,7 @@ import org.apache.cassandra.db.SnapshotCommand;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
@@ -38,10 +39,9 @@ public class SnapshotVerbHandler implements IVerbHandler
                 Table.open(command.keyspace).clearSnapshot(command.snapshot_name);
             else
                 Table.open(command.keyspace).getColumnFamilyStore(command.column_family).snapshot(command.snapshot_name);
-            Message response = message.getReply(FBUtilities.getBroadcastAddress(), new byte[0], MessagingService.current_version);
             if (logger.isDebugEnabled())
                 logger.debug("Sending response to snapshot request {} to {} ", command.snapshot_name, message.getFrom());
-            MessagingService.instance().sendReply(response, id, message.getFrom());
+            MessagingService.instance().sendReply(new MessageOut(StorageService.Verb.REQUEST_RESPONSE), id, message.getFrom());
         }
         catch (Exception ex)
         {

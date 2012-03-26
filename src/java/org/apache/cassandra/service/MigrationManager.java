@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOError;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -30,8 +27,6 @@ import java.util.concurrent.Future;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,30 +35,31 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.DBConstants;
+import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.gms.*;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
-import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
-import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.commons.lang.ArrayUtils;
 
 public class MigrationManager implements IEndpointStateChangeSubscriber
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationManager.class);
 
     // try that many times to send migration request to the node before giving up
-    private static final int MIGRATION_REQUEST_RETRIES = 3;
+    static final int MIGRATION_REQUEST_RETRIES = 3;
     private static final ByteBuffer LAST_MIGRATION_KEY = ByteBufferUtil.bytes("Last Migration");
 
     public void onJoin(InetAddress endpoint, EndpointState epState)
@@ -192,15 +188,10 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     private static void pushSchemaMutation(InetAddress endpoint, Collection<RowMutation> schema)
     {
-        try
-        {
-            Message msg = makeMigrationMessage(schema, Gossiper.instance.getVersion(endpoint));
-            MessagingService.instance().sendOneWay(msg, endpoint);
-        }
-        catch (IOException ex)
-        {
-            throw new IOError(ex);
-        }
+        MessageOut<Collection<RowMutation>> msg = new MessageOut<Collection<RowMutation>>(StorageService.Verb.DEFINITIONS_UPDATE,
+                                                                                          schema,
+                                                                                          MigrationsSerializer.instance);
+        MessagingService.instance().sendOneWay(msg, endpoint);
     }
 
     // Returns a future on the local application of the schema
@@ -240,69 +231,6 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         assert Gossiper.instance.isEnabled();
         Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.migration(version));
         logger.debug("Gossiping my schema version " + version);
-    }
-
-    /**
-     * Serialize given row mutations into raw bytes and make a migration message
-     * (other half of transformation is in DefinitionsUpdateResponseVerbHandler.)
-     *
-     * @param schema The row mutations to send to remote nodes
-     * @param version The version to use for message
-     *
-     * @return Serialized migration containing schema mutations
-     *
-     * @throws IOException on failed serialization
-     */
-    private static Message makeMigrationMessage(Collection<RowMutation> schema, int version) throws IOException
-    {
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.DEFINITIONS_UPDATE, serializeSchema(schema, version), version);
-    }
-
-    /**
-     * Serialize given row mutations into raw bytes
-     *
-     * @param schema The row mutations to serialize
-     * @param version The version of the message service to use for serialization
-     *
-     * @return serialized mutations
-     *
-     * @throws IOException on failed serialization
-     */
-    public static byte[] serializeSchema(Collection<RowMutation> schema, int version) throws IOException
-    {
-        FastByteArrayOutputStream bout = new FastByteArrayOutputStream();
-        DataOutputStream dout = new DataOutputStream(bout);
-        dout.writeInt(schema.size());
-
-        for (RowMutation mutation : schema)
-            RowMutation.serializer().serialize(mutation, dout, version);
-
-        dout.close();
-
-        return bout.toByteArray();
-    }
-
-    /**
-     * Deserialize migration message considering data compatibility starting from version 1.1
-     *
-     * @param data The data of the message from coordinator which hold schema mutations to apply
-     * @param version The version of the message
-     *
-     * @return The collection of the row mutations to apply on the node (aka schema)
-     *
-     * @throws IOException if message is of incompatible version or data is corrupted
-     */
-    public static Collection<RowMutation> deserializeMigrationMessage(byte[] data, int version) throws IOException
-    {
-        Collection<RowMutation> schema = new ArrayList<RowMutation>();
-        DataInputStream in = new DataInputStream(new FastByteArrayInputStream(data));
-
-        int count = in.readInt();
-
-        for (int i = 0; i < count; i++)
-            schema.add(RowMutation.serializer().deserialize(in, version));
-
-        return schema;
     }
 
     /**
@@ -381,45 +309,35 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
             return UUIDGen.getUUID(cf.getColumn(LAST_MIGRATION_KEY).value());
     }
 
-    static class MigrationTask extends WrappedRunnable
+    public static class MigrationsSerializer implements IVersionedSerializer<Collection<RowMutation>>
     {
-        private final InetAddress endpoint;
+        public static MigrationsSerializer instance = new MigrationsSerializer();
 
-        MigrationTask(InetAddress endpoint)
+        public void serialize(Collection<RowMutation> schema, DataOutput out, int version) throws IOException
         {
-            this.endpoint = endpoint;
+            out.writeInt(schema.size());
+            for (RowMutation rm : schema)
+                RowMutation.serializer().serialize(rm, out, version);
         }
 
-        public void runMayThrow() throws Exception
+        public Collection<RowMutation> deserialize(DataInput in, int version) throws IOException
         {
-            Message message = new Message(FBUtilities.getBroadcastAddress(),
-                                          StorageService.Verb.MIGRATION_REQUEST,
-                                          ArrayUtils.EMPTY_BYTE_ARRAY,
-                                          Gossiper.instance.getVersion(endpoint));
+            int count = in.readInt();
+            Collection<RowMutation> schema = new ArrayList<RowMutation>(count);
 
-            int retries = 0;
-            while (retries < MIGRATION_REQUEST_RETRIES)
-            {
-                if (!FailureDetector.instance.isAlive(endpoint))
-                {
-                    logger.error("Can't send migration request: node {} is down.", endpoint);
-                    return;
-                }
+            for (int i = 0; i < count; i++)
+                schema.add(RowMutation.serializer().deserialize(in, version));
 
-                IAsyncResult iar = MessagingService.instance().sendRR(message, endpoint);
+            return schema;
+        }
 
-                try
-                {
-                    byte[] reply = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-
-                    DefsTable.mergeRemoteSchema(reply, message.getVersion());
-                    return;
-                }
-                catch(TimeoutException e)
-                {
-                    retries++;
-                }
-            }
+        public long serializedSize(Collection<RowMutation> schema, int version)
+        {
+            int size = DBConstants.INT_SIZE;
+            for (RowMutation rm : schema)
+                size += RowMutation.serializer().serializedSize(rm, version);
+            return size;
         }
     }
+
 }

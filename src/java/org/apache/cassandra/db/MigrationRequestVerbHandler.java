@@ -19,14 +19,17 @@ package org.apache.cassandra.db;
 
 import java.io.IOError;
 import java.io.IOException;
+import java.util.Collection;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.service.StorageService;
 
 /**
  * Sends it's current schema state in form of row mutations in reply to the remote node's request.
@@ -39,15 +42,9 @@ public class MigrationRequestVerbHandler implements IVerbHandler
     public void doVerb(Message message, String id)
     {
         logger.debug("Received migration request from {}.", message.getFrom());
-
-        try
-        {
-            Message response = message.getInternalReply(MigrationManager.serializeSchema(SystemTable.serializeSchema(), message.getVersion()), message.getVersion());
-            MessagingService.instance().sendReply(response, id, message.getFrom());
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        MessageOut<Collection<RowMutation>> response = new MessageOut<Collection<RowMutation>>(StorageService.Verb.INTERNAL_RESPONSE,
+                                                                                               SystemTable.serializeSchema(),
+                                                                                               MigrationManager.MigrationsSerializer.instance);
+        MessagingService.instance().sendReply(response, id, message.getFrom());
     }
 }

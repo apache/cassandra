@@ -30,7 +30,7 @@ class CallbackInfo
 {
     protected final InetAddress target;
     protected final IMessageCallback callback;
-    protected final Message message;
+    protected final MessageOut<?> message;
 
     public CallbackInfo(InetAddress target, IMessageCallback callback)
     {
@@ -39,7 +39,7 @@ class CallbackInfo
         this.message = null;
     }
 
-    public CallbackInfo(InetAddress target, IMessageCallback callback, Message message)
+    public CallbackInfo(InetAddress target, IMessageCallback callback, MessageOut<?> message)
     {
         this.target = target;
         this.callback = callback;

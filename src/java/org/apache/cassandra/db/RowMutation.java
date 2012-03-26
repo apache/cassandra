@@ -33,8 +33,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessageProducer;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
@@ -43,10 +42,11 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
-public class RowMutation implements IMutation, MessageProducer
+public class RowMutation implements IMutation
 {
     private static final RowMutationSerializer serializer = new RowMutationSerializer();
-    public static final String FORWARD_HEADER = "FORWARD";
+    public static final String FORWARD_TO = "FWD_TO";
+    public static final String FORWARD_FROM = "FWD_FRM";
 
     public static RowMutationSerializer serializer()
     {
@@ -296,14 +296,14 @@ public class RowMutation implements IMutation, MessageProducer
         Table.open(table).apply(this, false);
     }
 
-    public Message getMessage(Integer version) throws IOException
+    public MessageOut<RowMutation> createMessage()
     {
-        return getMessage(StorageService.Verb.MUTATION, version);
+        return createMessage(StorageService.Verb.MUTATION);
     }
 
-    public Message getMessage(StorageService.Verb verb, int version) throws IOException
+    public MessageOut<RowMutation> createMessage(StorageService.Verb verb)
     {
-        return new Message(FBUtilities.getBroadcastAddress(), verb, getSerializedBuffer(version), version);
+        return new MessageOut<RowMutation>(verb, this, serializer);
     }
 
     public synchronized byte[] getSerializedBuffer(int version) throws IOException

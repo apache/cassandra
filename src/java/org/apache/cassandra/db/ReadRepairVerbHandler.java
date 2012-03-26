@@ -30,21 +30,20 @@ public class ReadRepairVerbHandler implements IVerbHandler
 {
     public void doVerb(Message message, String id)
     {
-        byte[] body = message.getMessageBody();
-        FastByteArrayInputStream buffer = new FastByteArrayInputStream(body);
+        DataInputStream in = new DataInputStream(new FastByteArrayInputStream(message.getMessageBody()));
 
+        RowMutation rm;
         try
         {
-            RowMutation rm = RowMutation.serializer().deserialize(new DataInputStream(buffer), message.getVersion());
+            rm = RowMutation.serializer().deserialize(in, message.getVersion());
             rm.apply();
-
-            WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
-            Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
-            MessagingService.instance().sendReply(responseMessage, id, message.getFrom());
         }
         catch (IOException e)
         {
             throw new IOError(e);
         }
+
+        WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
+        MessagingService.instance().sendReply(response.createMessage(), id, message.getFrom());
     }
 }

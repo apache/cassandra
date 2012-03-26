@@ -29,7 +29,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.StorageService;
 
 public class GossipDigestSynVerbHandler implements IVerbHandler
 {
@@ -80,8 +82,9 @@ public class GossipDigestSynVerbHandler implements IVerbHandler
             Map<InetAddress, EndpointState> deltaEpStateMap = new HashMap<InetAddress, EndpointState>();
             Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
 
-            GossipDigestAckMessage gDigestAck = new GossipDigestAckMessage(deltaGossipDigestList, deltaEpStateMap);
-            Message gDigestAckMessage = Gossiper.instance.makeGossipDigestAckMessage(gDigestAck, message.getVersion());
+            MessageOut<GossipDigestAckMessage> gDigestAckMessage = new MessageOut<GossipDigestAckMessage>(StorageService.Verb.GOSSIP_DIGEST_ACK,
+                                                                                                          new GossipDigestAckMessage(deltaGossipDigestList, deltaEpStateMap),
+                                                                                                          GossipDigestAckMessage.serializer());
             if (logger.isTraceEnabled())
                 logger.trace("Sending a GossipDigestAckMessage to {}", from);
             MessagingService.instance().sendOneWay(gDigestAckMessage, from);

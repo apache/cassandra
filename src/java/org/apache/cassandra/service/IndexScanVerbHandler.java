@@ -44,10 +44,9 @@ public class IndexScanVerbHandler implements IVerbHandler
                                         command.index_clause.count,
                                         QueryFilter.getFilter(command.predicate, cfs.getComparator()));
             RangeSliceReply reply = new RangeSliceReply(rows);
-            Message response = reply.getReply(message);
             if (logger.isDebugEnabled())
                 logger.debug("Sending " + reply+ " to " + id + "@" + message.getFrom());
-            MessagingService.instance().sendReply(response, id, message.getFrom());
+            MessagingService.instance().sendReply(reply.createMessage(), id, message.getFrom());
         }
         catch (Exception ex)
         {

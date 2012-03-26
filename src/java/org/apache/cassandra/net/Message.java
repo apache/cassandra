@@ -49,16 +49,6 @@ public class Message
         return header.getDetail(key);
     }
 
-    public Message withHeaderAdded(String key, byte[] value)
-    {
-        return new Message(header.withDetailsAdded(key, value), body, version);
-    }
-
-    public Message withHeaderRemoved(String key)
-    {
-        return new Message(header.withDetailsRemoved(key), body, version);
-    }
-
     public byte[] getMessageBody()
     {
         return body;
@@ -82,20 +72,6 @@ public class Message
     public StorageService.Verb getVerb()
     {
         return header.getVerb();
-    }
-
-    // TODO should take byte[] + length so we don't have to copy to a byte[] of exactly the right len
-    // TODO make static
-    public Message getReply(InetAddress from, byte[] body, int version)
-    {
-        Header header = new Header(from, StorageService.Verb.REQUEST_RESPONSE);
-        return new Message(header, body, version);
-    }
-
-    public Message getInternalReply(byte[] body, int version)
-    {
-        Header header = new Header(FBUtilities.getBroadcastAddress(), StorageService.Verb.INTERNAL_RESPONSE);
-        return new Message(header, body, version);
     }
 
     public String toString()

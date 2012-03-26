@@ -27,6 +27,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 
 public class MessageSerializer implements IVersionedSerializer<Message>
 {
+    // TODO imitate backwards-compatibility code from OutboundTcpConnection here
     public void serialize(Message t, DataOutput dos, int version) throws IOException
     {
         Header.serializer().serialize(t.header, dos, version);

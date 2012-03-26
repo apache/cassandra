@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.streaming;
 
-import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 
@@ -33,7 +33,7 @@ public class ReplicationFinishedVerbHandler implements IVerbHandler
     public void doVerb(Message msg, String id)
     {
         StorageService.instance.confirmReplication(msg.getFrom());
-        Message response = msg.getInternalReply(ArrayUtils.EMPTY_BYTE_ARRAY, msg.getVersion());
+        MessageOut response = new MessageOut(StorageService.Verb.INTERNAL_RESPONSE);
         if (logger.isDebugEnabled())
             logger.debug("Replying to " + id + "@" + msg.getFrom());
         MessagingService.instance().sendReply(response, id, msg.getFrom());

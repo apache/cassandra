@@ -42,6 +42,19 @@ Features
     - Incremental repair by token range, exposed over JMX
 
 
+1.2
+===
+
+Upgrading
+---------
+    - 1.2 is NOT network-compatible with versions older than 1.0.  That
+      means if you want to do a rolling, zero-downtime upgrade, you'll need
+      to upgrade first to 1.0.x or 1.1.x, and then to 1.2.  1.2 retains
+      the ability to read data files from Cassandra versions at least
+      back to 0.6, so a non-rolling upgrade remains possible with just
+      one step.
+
+
 1.1
 ===
 

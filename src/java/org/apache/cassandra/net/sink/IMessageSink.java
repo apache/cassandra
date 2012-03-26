@@ -20,8 +20,11 @@ package org.apache.cassandra.net.sink;
 import java.net.InetAddress;
 
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
 
 public interface IMessageSink
 {
+    public MessageOut handleMessage(MessageOut message, String id, InetAddress to);
+
     public Message handleMessage(Message message, String id, InetAddress to);
 }

@@ -36,18 +36,17 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.net.io.SerializerType;
@@ -184,15 +183,8 @@ public final class MessagingService implements MessagingServiceMBean
                 if (expiredCallbackInfo.shouldHint())
                 {
                     assert expiredCallbackInfo.message != null;
-                    try
-                    {
-                        RowMutation rm = RowMutation.fromBytes(expiredCallbackInfo.message.getMessageBody(), expiredCallbackInfo.message.getVersion());
-                        return StorageProxy.scheduleLocalHint(rm, expiredCallbackInfo.target, null, null);
-                    }
-                    catch (IOException e)
-                    {
-                        logger.error("Unable to deserialize mutation when writting hint for: " + expiredCallbackInfo.target);
-                    }
+                    RowMutation rm = (RowMutation) expiredCallbackInfo.message.payload;
+                    return StorageProxy.scheduleLocalHint(rm, expiredCallbackInfo.target, null, null);
                 }
 
                 return null;
@@ -309,7 +301,7 @@ public final class MessagingService implements MessagingServiceMBean
         return cp;
     }
 
-    public OutboundTcpConnection getConnection(InetAddress to, Message msg)
+    public OutboundTcpConnection getConnection(InetAddress to, MessageOut msg)
     {
         return getConnectionPool(to).getConnection(msg);
     }
@@ -337,18 +329,18 @@ public final class MessagingService implements MessagingServiceMBean
         return verbHandlers.get(type);
     }
 
-    public String addCallback(IMessageCallback cb, Message message, InetAddress to)
+    public String addCallback(IMessageCallback cb, MessageOut message, InetAddress to)
     {
         return addCallback(cb, message, to, DEFAULT_CALLBACK_TIMEOUT);
     }
 
-    public String addCallback(IMessageCallback cb, Message message, InetAddress to, long timeout)
+    public String addCallback(IMessageCallback cb, MessageOut message, InetAddress to, long timeout)
     {
         String messageId = nextId();
         CallbackInfo previous;
 
         // If HH is enabled and this is a mutation message => store the message to track for potential hints.
-        if (DatabaseDescriptor.hintedHandoffEnabled() && message.getVerb() == StorageService.Verb.MUTATION)
+        if (DatabaseDescriptor.hintedHandoffEnabled() && message.verb == StorageService.Verb.MUTATION)
             previous = callbacks.put(messageId, new CallbackInfo(to, cb, message), timeout);
         else
             previous = callbacks.put(messageId, new CallbackInfo(to, cb), timeout);
@@ -367,7 +359,7 @@ public final class MessagingService implements MessagingServiceMBean
     /*
      * @see #sendRR(Message message, InetAddress to, IMessageCallback cb, long timeout)
      */
-    public String sendRR(Message message, InetAddress to, IMessageCallback cb)
+    public String sendRR(MessageOut message, InetAddress to, IMessageCallback cb)
     {
         return sendRR(message, to, cb, DEFAULT_CALLBACK_TIMEOUT);
     }
@@ -385,41 +377,21 @@ public final class MessagingService implements MessagingServiceMBean
      * @param timeout the timeout used for expiration
      * @return an reference to message id used to match with the result
      */
-    public String sendRR(Message message, InetAddress to, IMessageCallback cb, long timeout)
+    public String sendRR(MessageOut message, InetAddress to, IMessageCallback cb, long timeout)
     {
         String id = addCallback(cb, message, to, timeout);
         sendOneWay(message, id, to);
         return id;
     }
 
-    public void sendOneWay(Message message, InetAddress to)
+    public void sendOneWay(MessageOut message, InetAddress to)
     {
         sendOneWay(message, nextId(), to);
     }
 
-    public void sendReply(Message message, String id, InetAddress to)
+    public void sendReply(MessageOut message, String id, InetAddress to)
     {
         sendOneWay(message, id, to);
-    }
-
-    /**
-     * Send a message to a given endpoint. similar to sendRR(Message, InetAddress, IAsyncCallback)
-     * @param producer pro
-     * @param to endpoing to which the message needs to be sent
-     * @param cb callback that processes responses.
-     * @return a reference to the message id use to match with the result.
-     */
-    public String sendRR(MessageProducer producer, InetAddress to, IAsyncCallback cb)
-    {
-        try
-        {
-            return sendRR(producer.getMessage(Gossiper.instance.getVersion(to)), to, cb);
-        }
-        catch (IOException ex)
-        {
-            // happened during message creation.
-            throw new IOError(ex);
-        }
     }
 
     /**
@@ -428,20 +400,16 @@ public final class MessagingService implements MessagingServiceMBean
      * @param message messages to be sent.
      * @param to endpoint to which the message needs to be sent
      */
-    public void sendOneWay(Message message, String id, InetAddress to)
+    public void sendOneWay(MessageOut message, String id, InetAddress to)
     {
         if (logger.isTraceEnabled())
-            logger.trace(FBUtilities.getBroadcastAddress() + " sending " + message.getVerb() + " to " + id + "@" + to);
+            logger.trace(FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to);
 
-        // do local deliveries
-        if ( message.getFrom().equals(to) )
-        {
-            receive(message, id);
-            return;
-        }
+        if (to.equals(FBUtilities.getBroadcastAddress()))
+            logger.debug("Message-to-self {} going over MessagingService", message);
 
         // message sinks are a testing hook
-        Message processedMessage = SinkManager.processClientMessage(message, id, to);
+        MessageOut processedMessage = SinkManager.processOutboundMessage(message, id, to);
         if (processedMessage == null)
         {
             return;
@@ -454,7 +422,7 @@ public final class MessagingService implements MessagingServiceMBean
         connection.enqueue(processedMessage, id);
     }
 
-    public IAsyncResult sendRR(Message message, InetAddress to)
+    public IAsyncResult sendRR(MessageOut message, InetAddress to)
     {
         IAsyncResult iar = new AsyncResult();
         sendRR(message, to, iar);
@@ -556,7 +524,7 @@ public final class MessagingService implements MessagingServiceMBean
             logger.trace(FBUtilities.getBroadcastAddress() + " received " + message.getVerb()
                           + " from " + id + "@" + message.getFrom());
 
-        message = SinkManager.processServerMessage(message, id);
+        message = SinkManager.processInboundMessage(message, id);
         if (message == null)
             return;
 

@@ -35,18 +35,19 @@
 
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessageProducer;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.IReadCommand;
 import org.apache.cassandra.service.StorageService;
@@ -59,7 +60,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TSerializer;
 
-public class RangeSliceCommand implements MessageProducer, IReadCommand
+public class RangeSliceCommand implements IReadCommand
 {
     private static final RangeSliceCommandSerializer serializer = new RangeSliceCommandSerializer();
 
@@ -114,13 +115,9 @@ public class RangeSliceCommand implements MessageProducer, IReadCommand
         this.isPaging = isPaging;
     }
 
-    public Message getMessage(Integer version) throws IOException
+    public MessageOut<RangeSliceCommand> createMessage()
     {
-        DataOutputBuffer dob = new DataOutputBuffer();
-        serializer.serialize(this, dob, version);
-        return new Message(FBUtilities.getBroadcastAddress(),
-                           StorageService.Verb.RANGE_SLICE,
-                           Arrays.copyOf(dob.getData(), dob.getLength()), version);
+        return new MessageOut<RangeSliceCommand>(StorageService.Verb.RANGE_SLICE, this, serializer);
     }
 
     @Override

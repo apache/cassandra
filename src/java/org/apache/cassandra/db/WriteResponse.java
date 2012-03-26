@@ -24,6 +24,8 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -42,10 +44,9 @@ public class WriteResponse
         return serializer;
     }
 
-    public static Message makeWriteResponseMessage(Message original, WriteResponse respose) throws IOException
+    public MessageOut<WriteResponse> createMessage()
     {
-        byte[] bytes = FBUtilities.serialize(respose, WriteResponse.serializer(), original.getVersion());
-        return original.getReply(FBUtilities.getBroadcastAddress(), bytes, original.getVersion());
+        return new MessageOut<WriteResponse>(StorageService.Verb.REQUEST_RESPONSE, this, serializer);
     }
 
     private final String table;

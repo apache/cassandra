@@ -25,11 +25,11 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -37,10 +37,7 @@ public class OutboundTcpConnection extends Thread
 {
     private static final Logger logger = LoggerFactory.getLogger(OutboundTcpConnection.class);
 
-    private static final Message CLOSE_SENTINEL = new Message(FBUtilities.getBroadcastAddress(),
-                                                              StorageService.Verb.INTERNAL_RESPONSE,
-                                                              ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                              MessagingService.current_version);
+    private static final MessageOut CLOSE_SENTINEL = new MessageOut(StorageService.Verb.INTERNAL_RESPONSE);
 
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
 
@@ -62,7 +59,7 @@ public class OutboundTcpConnection extends Thread
         this.poolReference = pool;
     }
 
-    public void enqueue(Message message, String id)
+    public void enqueue(MessageOut<?> message, String id)
     {
         expireMessages();
         try
@@ -109,7 +106,7 @@ public class OutboundTcpConnection extends Thread
                 active = tmp;
             }
 
-            Message m = entry.message;
+            MessageOut<?> m = entry.message;
             String id = entry.id;
             if (m == CLOSE_SENTINEL)
             {
@@ -141,7 +138,7 @@ public class OutboundTcpConnection extends Thread
         return dropped.get();
     }
 
-    private void writeConnected(Message message, String id)
+    private void writeConnected(MessageOut<?> message, String id)
     {
         try
         {
@@ -163,7 +160,12 @@ public class OutboundTcpConnection extends Thread
         }
     }
 
-    public static void write(Message message, String id, DataOutputStream out) throws IOException
+    public void write(MessageOut<?> message, String id, DataOutputStream out) throws IOException
+    {
+        write(message, id, out, Gossiper.instance.getVersion(poolReference.endPoint()));
+    }
+
+    public static void write(MessageOut message, String id, DataOutputStream out, int version) throws IOException
     {
         /*
          Setting up the protocol header. This is 4 bytes long
@@ -182,18 +184,17 @@ public class OutboundTcpConnection extends Thread
         if (false)
             header |= 4;
         // Setting up the version bit
-        header |= (message.getVersion() << 8);
+        header |= (version << 8);
 
         out.writeInt(MessagingService.PROTOCOL_MAGIC);
         out.writeInt(header);
-        // compute total Message length for compatibility w/ 0.8 and earlier
-        byte[] bytes = message.getMessageBody();
-        int total = messageLength(message.header, id, bytes);
-        out.writeInt(total);
+
+        // 0.8 included a total message size int.  1.0 doesn't need it but expects it to be there.
+        if (version <= MessagingService.VERSION_11)
+            out.writeInt(-1);
+
         out.writeUTF(id);
-        Header.serializer().serialize(message.header, out, message.getVersion());
-        out.writeInt(bytes.length);
-        out.write(bytes);
+        message.serialize(out, version);
     }
 
     public static int messageLength(Header header, String id, byte[] bytes)
@@ -277,11 +278,11 @@ public class OutboundTcpConnection extends Thread
 
     private static class Entry
     {
-        final Message message;
+        final MessageOut<?> message;
         final String id;
         final long timestamp;
 
-        Entry(Message message, String id, long timestamp)
+        Entry(MessageOut<?> message, String id, long timestamp)
         {
             this.message = message;
             this.id = id;
