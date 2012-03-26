@@ -63,20 +63,18 @@ public class SerializationsTest extends AbstractSerializationsTester
         assert messageSerializer.deserialize(in, getVersion()) != null;
         in.close();
     }
-    
     private void testTreeResponseWrite() throws IOException
     {
+        // empty validation
         AntiEntropyService.Validator v0 = new AntiEntropyService.Validator(Statics.req);
-        IPartitioner part = new RandomPartitioner();
-        MerkleTree mt = new MerkleTree(part, FULL_RANGE, MerkleTree.RECOMMENDED_DEPTH, Integer.MAX_VALUE);
-        List<Token> tokens = new ArrayList<Token>();
+
+        // validation with a tree
+        IPartitioner p = new RandomPartitioner();
+        MerkleTree mt = new MerkleTree(p, FULL_RANGE, MerkleTree.RECOMMENDED_DEPTH, Integer.MAX_VALUE);
         for (int i = 0; i < 10; i++)
-        {
-            Token t = part.getRandomToken();
-            tokens.add(t);
-            mt.split(t);
-        }
+            mt.split(p.getRandomToken());
         AntiEntropyService.Validator v1 = new AntiEntropyService.Validator(Statics.req, mt);
+
         DataOutputStream out = getOutput("service.TreeResponse.bin");
         AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.serialize(v0, out, getVersion());
         AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.serialize(v1, out, getVersion());
