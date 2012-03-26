@@ -1642,6 +1642,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return FBUtilities.getReleaseVersionString();
     }
 
+    public String getSchemaVersion()
+    {
+        return Schema.instance.getVersion().toString();
+    }
+    
     public List<String> getLeavingNodes()
     {
         return stringify(tokenMetadata_.getLeavingEndpoints());
