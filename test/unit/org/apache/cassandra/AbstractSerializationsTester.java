@@ -35,10 +35,12 @@ public class AbstractSerializationsTester extends SchemaLoader
     protected static final String CUR_VER = System.getProperty("cassandra.version", "0.7");
     protected static final Map<String, Integer> VERSION_MAP = new HashMap<String, Integer> ()
     {{
-        put("0.7", 1);
+            put("0.7", 1);
+            put("1.0", 3);
     }};
 
-    protected static final boolean EXECUTE_WRITES = new Boolean(System.getProperty("cassandra.test-serialization-writes", "False")).booleanValue();
+    // TODO ant doesn't pass this -D up to the test, so it's kind of useless
+    protected static final boolean EXECUTE_WRITES = Boolean.getBoolean("cassandra.test-serialization-writes");
 
     protected final int getVersion()
     {
