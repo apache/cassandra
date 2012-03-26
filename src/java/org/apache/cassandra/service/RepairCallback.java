@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.net.IAsyncCallback;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.utils.SimpleCondition;
 
 public class RepairCallback implements IAsyncCallback
@@ -68,7 +68,7 @@ public class RepairCallback implements IAsyncCallback
         return received.get() > 1 ? resolver.resolve() : null;
     }
 
-    public void response(Message message)
+    public void response(MessageIn message)
     {
         resolver.preprocess(message);
         if (received.incrementAndGet() == endpoints.size())

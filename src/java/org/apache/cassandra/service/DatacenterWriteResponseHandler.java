@@ -25,7 +25,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
@@ -63,7 +63,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
 
 
     @Override
-    public void response(Message message)
+    public void response(MessageIn message)
     {
         if (message == null || localdc.equals(snitch.getDatacenter(message.getFrom())))
         {

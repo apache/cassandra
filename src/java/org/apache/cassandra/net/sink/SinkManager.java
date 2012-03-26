@@ -21,7 +21,7 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 
 public class SinkManager
@@ -52,7 +52,7 @@ public class SinkManager
         return message;
     }
 
-    public static Message processInboundMessage(Message message, String id)
+    public static MessageIn processInboundMessage(MessageIn message, String id)
     {
         if (sinks.isEmpty())
             return message;

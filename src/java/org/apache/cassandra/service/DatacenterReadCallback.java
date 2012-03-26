@@ -25,7 +25,7 @@ import java.util.List;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 
@@ -60,7 +60,7 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
     }
 
     @Override
-    protected boolean waitingFor(Message message)
+    protected boolean waitingFor(MessageIn message)
     {
         return localdc.equals(snitch.getDatacenter(message.getFrom()));
     }

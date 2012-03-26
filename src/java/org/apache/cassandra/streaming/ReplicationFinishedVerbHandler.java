@@ -21,7 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
@@ -30,7 +30,7 @@ public class ReplicationFinishedVerbHandler implements IVerbHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(ReplicationFinishedVerbHandler.class);
 
-    public void doVerb(Message msg, String id)
+    public void doVerb(MessageIn msg, String id)
     {
         StorageService.instance.confirmReplication(msg.getFrom());
         MessageOut response = new MessageOut(StorageService.Verb.INTERNAL_RESPONSE);

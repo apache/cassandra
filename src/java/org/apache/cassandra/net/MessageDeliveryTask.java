@@ -27,11 +27,11 @@ public class MessageDeliveryTask implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(MessageDeliveryTask.class);
 
-    private final Message message;
+    private final MessageIn message;
     private final long constructionTime = System.currentTimeMillis();
     private final String id;
 
-    public MessageDeliveryTask(Message message, String id)
+    public MessageDeliveryTask(MessageIn message, String id)
     {
         assert message != null;
         this.message = message;

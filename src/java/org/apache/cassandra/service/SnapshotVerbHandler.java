@@ -20,17 +20,17 @@ package org.apache.cassandra.service;
 import org.apache.cassandra.db.SnapshotCommand;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SnapshotVerbHandler implements IVerbHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(SnapshotVerbHandler.class);
-    public void doVerb(Message message, String id)
+    public void doVerb(MessageIn message, String id)
     {
         try
         {

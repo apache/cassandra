@@ -31,7 +31,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -39,10 +39,10 @@ public abstract class AbstractRowResolver implements IResponseResolver<Row>
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractRowResolver.class);
 
-    private static final Message FAKE_MESSAGE = new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.INTERNAL_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY, -1);
+    private static final MessageIn FAKE_MESSAGE = new MessageIn(FBUtilities.getBroadcastAddress(), StorageService.Verb.INTERNAL_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY, -1);
 
     protected final String table;
-    protected final ConcurrentMap<Message, ReadResponse> replies = new NonBlockingHashMap<Message, ReadResponse>();
+    protected final ConcurrentMap<MessageIn, ReadResponse> replies = new NonBlockingHashMap<MessageIn, ReadResponse>();
     protected final DecoratedKey key;
 
     public AbstractRowResolver(ByteBuffer key, String table)
@@ -51,7 +51,7 @@ public abstract class AbstractRowResolver implements IResponseResolver<Row>
         this.table = table;
     }
 
-    public void preprocess(Message message)
+    public void preprocess(MessageIn message)
     {
         byte[] body = message.getMessageBody();
         FastByteArrayInputStream bufIn = new FastByteArrayInputStream(body);
@@ -75,7 +75,7 @@ public abstract class AbstractRowResolver implements IResponseResolver<Row>
         replies.put(FAKE_MESSAGE, result);
     }
 
-    public Iterable<Message> getMessages()
+    public Iterable<MessageIn> getMessages()
     {
         return replies.keySet();
     }

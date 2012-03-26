@@ -32,7 +32,7 @@ import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.net.IAsyncResult;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -67,9 +67,9 @@ public class RowRepairResolver extends AbstractRowResolver
             List<ColumnFamily> versions = new ArrayList<ColumnFamily>(replies.size());
             List<InetAddress> endpoints = new ArrayList<InetAddress>(replies.size());
 
-            for (Map.Entry<Message, ReadResponse> entry : replies.entrySet())
+            for (Map.Entry<MessageIn, ReadResponse> entry : replies.entrySet())
             {
-                Message message = entry.getKey();
+                MessageIn message = entry.getKey();
                 ReadResponse response = entry.getValue();
                 ColumnFamily cf = response.row().cf;
                 assert !response.isDigestQuery() : "Received digest response to repair read from " + entry.getKey().getFrom();

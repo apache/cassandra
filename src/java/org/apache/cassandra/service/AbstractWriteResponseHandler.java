@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.SimpleCondition;
@@ -62,7 +62,7 @@ public abstract class AbstractWriteResponseHandler implements IWriteResponseHand
     }
 
     /** null message means "response from local write" */
-    public abstract void response(Message msg);
+    public abstract void response(MessageIn msg);
 
     public abstract void assureSufficientLiveNodes() throws UnavailableException;
 }

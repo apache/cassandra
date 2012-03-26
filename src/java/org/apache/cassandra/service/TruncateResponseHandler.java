@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IAsyncCallback;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.utils.SimpleCondition;
 
 public class TruncateResponseHandler implements IAsyncCallback
@@ -66,7 +66,7 @@ public class TruncateResponseHandler implements IAsyncCallback
         }
     }
 
-    public void response(Message message)
+    public void response(MessageIn message)
     {
         responses.incrementAndGet();
         if (responses.get() >= responseCount)

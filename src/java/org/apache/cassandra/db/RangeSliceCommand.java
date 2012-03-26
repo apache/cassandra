@@ -46,7 +46,7 @@ import java.util.List;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.IReadCommand;
@@ -135,7 +135,7 @@ public class RangeSliceCommand implements IReadCommand
                '}';
     }
 
-    public static RangeSliceCommand read(Message message) throws IOException
+    public static RangeSliceCommand read(MessageIn message) throws IOException
     {
         byte[] bytes = message.getMessageBody();
         FastByteArrayInputStream bis = new FastByteArrayInputStream(bytes);

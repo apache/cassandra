@@ -17,15 +17,13 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOError;
-import java.io.IOException;
 import java.util.Collection;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.MigrationManager;
@@ -39,7 +37,7 @@ public class MigrationRequestVerbHandler implements IVerbHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationRequestVerbHandler.class);
 
-    public void doVerb(Message message, String id)
+    public void doVerb(MessageIn message, String id)
     {
         logger.debug("Received migration request from {}.", message.getFrom());
         MessageOut<Collection<RowMutation>> response = new MessageOut<Collection<RowMutation>>(StorageService.Verb.INTERNAL_RESPONSE,

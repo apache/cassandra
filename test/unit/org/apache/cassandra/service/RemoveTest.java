@@ -40,7 +40,7 @@ import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.sink.IMessageSink;
@@ -169,7 +169,7 @@ public class RemoveTest
      */
     class ReplicationSink implements IMessageSink
     {
-        public Message handleMessage(Message msg, String id, InetAddress to)
+        public MessageIn handleMessage(MessageIn msg, String id, InetAddress to)
         {
             if (!msg.getVerb().equals(StorageService.Verb.STREAM_REQUEST))
                 return msg;

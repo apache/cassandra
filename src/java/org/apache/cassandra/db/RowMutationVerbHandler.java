@@ -32,7 +32,7 @@ public class RowMutationVerbHandler implements IVerbHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(RowMutationVerbHandler.class);
 
-    public void doVerb(Message message, String id)
+    public void doVerb(MessageIn message, String id)
     {
         try
         {

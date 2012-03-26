@@ -34,5 +34,5 @@ public interface IVerbHandler
      * @param message - incoming message that needs handling.
      * @param id
      */
-    public void doVerb(Message message, String id);
+    public void doVerb(MessageIn message, String id);
 }

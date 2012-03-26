@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.net.IAsyncCallback;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public class AsyncRepairCallback implements IAsyncCallback
@@ -38,7 +38,7 @@ public class AsyncRepairCallback implements IAsyncCallback
         this.blockfor = blockfor;
     }
 
-    public void response(Message message)
+    public void response(MessageIn message)
     {
         repairResolver.preprocess(message);
         if (received.incrementAndGet() == blockfor)

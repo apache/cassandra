@@ -25,10 +25,10 @@ import java.io.*;
 
 import org.apache.cassandra.io.IVersionedSerializer;
 
-public class MessageSerializer implements IVersionedSerializer<Message>
+public class MessageSerializer implements IVersionedSerializer<MessageIn>
 {
     // TODO imitate backwards-compatibility code from OutboundTcpConnection here
-    public void serialize(Message t, DataOutput dos, int version) throws IOException
+    public void serialize(MessageIn t, DataOutput dos, int version) throws IOException
     {
         Header.serializer().serialize(t.header, dos, version);
         byte[] bytes = t.getMessageBody();
@@ -36,16 +36,16 @@ public class MessageSerializer implements IVersionedSerializer<Message>
         dos.write(bytes);
     }
 
-    public Message deserialize(DataInput dis, int version) throws IOException
+    public MessageIn deserialize(DataInput dis, int version) throws IOException
     {
         Header header = Header.serializer().deserialize(dis, version);
         int size = dis.readInt();
         byte[] bytes = new byte[size];
         dis.readFully(bytes);
-        return new Message(header, bytes, version);
+        return new MessageIn(header, bytes, version);
     }
 
-    public long serializedSize(Message message, int version)
+    public long serializedSize(MessageIn message, int version)
     {
         throw new UnsupportedOperationException();
     }

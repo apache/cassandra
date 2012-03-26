@@ -36,7 +36,7 @@ public interface IAsyncResult extends IMessageCallback
      * Store the result obtained for the submitted task.
      * @param result the response message
      */
-    public void result(Message result);
+    public void result(MessageIn result);
 
     public InetAddress getFrom();
 }

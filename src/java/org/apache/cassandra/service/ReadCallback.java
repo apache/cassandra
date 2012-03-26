@@ -38,7 +38,7 @@ import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.net.IAsyncCallback;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
@@ -142,7 +142,7 @@ public class ReadCallback<T> implements IAsyncCallback
         if (!success)
         {
             StringBuilder sb = new StringBuilder("");
-            for (Message message : resolver.getMessages())
+            for (MessageIn message : resolver.getMessages())
                 sb.append(message.getFrom()).append(", ");
             throw new TimeoutException("Operation timed out - received only " + received.get() + " responses from " + sb.toString() + " .");
         }
@@ -150,7 +150,7 @@ public class ReadCallback<T> implements IAsyncCallback
         return blockfor == 1 ? resolver.getData() : resolver.resolve();
     }
 
-    public void response(Message message)
+    public void response(MessageIn message)
     {
         resolver.preprocess(message);
         int n = waitingFor(message)
@@ -167,7 +167,7 @@ public class ReadCallback<T> implements IAsyncCallback
      * @return true if the message counts towards the blockfor threshold
      * TODO turn the Message into a response so we don't need two versions of this method
      */
-    protected boolean waitingFor(Message message)
+    protected boolean waitingFor(MessageIn message)
     {
         return true;
     }

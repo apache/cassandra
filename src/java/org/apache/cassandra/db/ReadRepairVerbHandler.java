@@ -23,12 +23,12 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 
 public class ReadRepairVerbHandler implements IVerbHandler
 {
-    public void doVerb(Message message, String id)
+    public void doVerb(MessageIn message, String id)
     {
         DataInputStream in = new DataInputStream(new FastByteArrayInputStream(message.getMessageBody()));
 

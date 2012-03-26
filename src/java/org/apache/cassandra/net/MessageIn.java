@@ -21,15 +21,14 @@ import java.net.InetAddress;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 
-public class Message
+public class MessageIn
 {
     final Header header;
     private final byte[] body;
     private final transient int version;
 
-    public Message(Header header, byte[] body, int version)
+    public MessageIn(Header header, byte[] body, int version)
     {
         assert header != null;
         assert body != null;
@@ -39,7 +38,7 @@ public class Message
         this.version = version;
     }
 
-    public Message(InetAddress from, StorageService.Verb verb, byte[] body, int version)
+    public MessageIn(InetAddress from, StorageService.Verb verb, byte[] body, int version)
     {
         this(new Header(from, verb), body, version);
     }

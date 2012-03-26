@@ -77,7 +77,7 @@ class AsyncResult implements IAsyncResult
         return result;
     }
 
-    public void result(Message response)
+    public void result(MessageIn response)
     {
         try
         {

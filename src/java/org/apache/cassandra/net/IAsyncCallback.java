@@ -28,5 +28,5 @@ public interface IAsyncCallback extends IMessageCallback
     /**
      * @param msg response received.
      */
-    public void response(Message msg);
+    public void response(MessageIn msg);
 }

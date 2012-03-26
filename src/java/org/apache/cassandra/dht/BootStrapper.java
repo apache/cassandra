@@ -173,7 +173,7 @@ public class BootStrapper
 
     public static class BootstrapTokenVerbHandler implements IVerbHandler
     {
-        public void doVerb(Message message, String id)
+        public void doVerb(MessageIn message, String id)
         {
             StorageService ss = StorageService.instance;
             String tokenString = StorageService.getPartitioner().getTokenFactory().toString(ss.getBootstrapToken());
@@ -202,7 +202,7 @@ public class BootStrapper
             return success ? token : null;
         }
 
-        public void response(Message msg)
+        public void response(MessageIn msg)
         {
             token = StorageService.getPartitioner().getTokenFactory().fromString(new String(msg.getMessageBody(), Charsets.UTF_8));
             condition.signalAll();

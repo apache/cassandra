@@ -28,7 +28,7 @@ import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.Header;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -202,7 +202,7 @@ public class FileStreamTask extends WrappedRunnable
         int bodySize = input.readInt();
         byte[] body = new byte[bodySize];
         input.readFully(body);
-        Message message = new Message(header, body, version);
+        MessageIn message = new MessageIn(header, body, version);
         assert message.getVerb() == StorageService.Verb.STREAM_REPLY : "Non-reply message received on stream socket";
         handler.doVerb(message, id);
     }

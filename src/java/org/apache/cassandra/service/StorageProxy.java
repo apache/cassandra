@@ -949,7 +949,7 @@ public class StorageProxy implements StorageProxyMBean
 
         IAsyncCallback cb = new IAsyncCallback()
         {
-            public void response(Message message)
+            public void response(MessageIn message)
             {
                 // record the response from the remote node.
                 logger.debug("Received schema check response from {}", message.getFrom().getHostAddress());

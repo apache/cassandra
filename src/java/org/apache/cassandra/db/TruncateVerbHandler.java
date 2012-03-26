@@ -26,14 +26,14 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 
 public class TruncateVerbHandler implements IVerbHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(TruncateVerbHandler.class);
 
-    public void doVerb(Message message, String id)
+    public void doVerb(MessageIn message, String id)
     {
         DataInputStream in = new DataInputStream(new FastByteArrayInputStream(message.getMessageBody()));
 
@@ -64,7 +64,7 @@ public class TruncateVerbHandler implements IVerbHandler
         }
     }
 
-    private static void respondError(Truncation t, Message truncateRequestMessage) throws IOException
+    private static void respondError(Truncation t, MessageIn truncateRequestMessage) throws IOException
     {
         TruncateResponse response = new TruncateResponse(t.keyspace, t.columnFamily, false);
         MessagingService.instance().sendOneWay(response.createMessage(), truncateRequestMessage.getFrom());

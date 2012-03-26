@@ -31,7 +31,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 
 public class RangeSliceVerbHandler implements IVerbHandler
@@ -49,7 +49,7 @@ public class RangeSliceVerbHandler implements IVerbHandler
             return cfs.getRangeSlice(command.super_column, command.range, command.maxResults, columnFilter, command.row_filter, command.maxIsColumns, command.isPaging);
     }
 
-    public void doVerb(Message message, String id)
+    public void doVerb(MessageIn message, String id)
     {
         try
         {

@@ -27,13 +27,13 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 
 public class StreamReplyVerbHandler implements IVerbHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamReplyVerbHandler.class);
 
-    public void doVerb(Message message, String id)
+    public void doVerb(MessageIn message, String id)
     {
         byte[] body = message.getMessageBody();
         FastByteArrayInputStream bufIn = new FastByteArrayInputStream(body);

@@ -28,7 +28,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
@@ -69,7 +69,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         return new DatacenterSyncWriteResponseHandler(writeEndpoints, consistencyLevel, table);
     }
 
-    public void response(Message message)
+    public void response(MessageIn message)
     {
         String dataCenter = message == null
                             ? localdc

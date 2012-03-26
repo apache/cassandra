@@ -147,7 +147,7 @@ public class IncomingTcpConnection extends Thread
         // starts sending correct-version messages (which it can do without reconnecting -- version is per-Message)
         if (version <= MessagingService.current_version)
         {
-            Message message = new Message(header, body, version);
+            MessageIn message = new MessageIn(header, body, version);
             MessagingService.instance().receive(message, id);
         }
         else

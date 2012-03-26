@@ -30,7 +30,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RangeSliceReply;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.net.IAsyncResult;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.MergeIterator;
@@ -53,7 +53,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
 
     private final String table;
     private List<InetAddress> sources;
-    protected final Collection<Message> responses = new LinkedBlockingQueue<Message>();;
+    protected final Collection<MessageIn> responses = new LinkedBlockingQueue<MessageIn>();;
     public final List<IAsyncResult> repairResults = new ArrayList<IAsyncResult>();
 
     public RangeSliceResponseResolver(String table)
@@ -68,7 +68,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
 
     public List<Row> getData() throws IOException
     {
-        Message response = responses.iterator().next();
+        MessageIn response = responses.iterator().next();
         RangeSliceReply reply = RangeSliceReply.read(response.getMessageBody(), response.getVersion());
         return reply.rows;
     }
@@ -79,7 +79,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
     {
         ArrayList<RowIterator> iters = new ArrayList<RowIterator>(responses.size());
         int n = 0;
-        for (Message response : responses)
+        for (MessageIn response : responses)
         {
             RangeSliceReply reply = RangeSliceReply.read(response.getMessageBody(), response.getVersion());
             n = Math.max(n, reply.rows.size());
@@ -96,7 +96,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
         return resolvedRows;
     }
 
-    public void preprocess(Message message)
+    public void preprocess(MessageIn message)
     {
         responses.add(message);
     }
@@ -125,7 +125,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
         public void close() {}
     }
 
-    public Iterable<Message> getMessages()
+    public Iterable<MessageIn> getMessages()
     {
         return responses;
     }

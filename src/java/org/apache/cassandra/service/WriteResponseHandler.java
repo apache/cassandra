@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
@@ -63,7 +63,7 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
         return new WriteResponseHandler(endpoint);
     }
 
-    public void response(Message m)
+    public void response(MessageIn m)
     {
         if (responses.decrementAndGet() == 0)
             condition.signal();

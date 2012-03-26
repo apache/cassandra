@@ -19,7 +19,7 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageIn;
 
 public interface IResponseResolver<T> {
 
@@ -40,8 +40,8 @@ public interface IResponseResolver<T> {
      */
     public T getData() throws IOException;
 
-    public void preprocess(Message message);
-    public Iterable<Message> getMessages();
+    public void preprocess(MessageIn message);
+    public Iterable<MessageIn> getMessages();
 
     public int getMaxLiveColumns();
 }
