@@ -28,6 +28,7 @@ import java.util.List;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -36,6 +37,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
 * This class encapsulates the message that needs to be sent to nodes
@@ -138,9 +140,7 @@ public class StreamRequest
                 dos.writeUTF(srm.table);
                 dos.writeInt(srm.ranges.size());
                 for (Range<Token> range : srm.ranges)
-                {
                     AbstractBounds.serializer().serialize(range, dos, version);
-                }
 
                 if (version > MessagingService.VERSION_07)
                     dos.writeUTF(srm.type.name());
@@ -170,9 +170,7 @@ public class StreamRequest
                 int size = dis.readInt();
                 List<Range<Token>> ranges = (size == 0) ? null : new ArrayList<Range<Token>>(size);
                 for( int i = 0; i < size; ++i )
-                {
                     ranges.add((Range<Token>) AbstractBounds.serializer().deserialize(dis, version).toTokenBounds());
-                }
                 OperationType type = OperationType.RESTORE_REPLICA_COUNT;
                 if (version > MessagingService.VERSION_07)
                     type = OperationType.valueOf(dis.readUTF());
@@ -189,9 +187,27 @@ public class StreamRequest
             }
         }
 
-        public long serializedSize(StreamRequest streamRequestMessage, int version)
+        public long serializedSize(StreamRequest sr, int version)
         {
-            throw new UnsupportedOperationException();
+            long size = DBTypeSizes.NATIVE.sizeof(sr.sessionId);
+            size += CompactEndpointSerializationHelper.serializedSize(sr.target);
+            size += DBTypeSizes.NATIVE.sizeof(true);
+            if (sr.file != null)
+                return size + PendingFile.serializer().serializedSize(sr.file, version);
+
+            size += FBUtilities.serializedUTF8Size(sr.table);
+            size += DBTypeSizes.NATIVE.sizeof(sr.ranges.size());
+            for (Range<Token> range : sr.ranges)
+                size += AbstractBounds.serializer().serializedSize(range, version);
+            if (version > MessagingService.VERSION_07)
+                size += FBUtilities.serializedUTF8Size(sr.type.name());
+            if (version > MessagingService.VERSION_080)
+            {
+                size += DBTypeSizes.NATIVE.sizeof(Iterables.size(sr.columnFamilies));
+                for (ColumnFamilyStore cfs : sr.columnFamilies)
+                    size += DBTypeSizes.NATIVE.sizeof(cfs.metadata.cfId);
+            }
+            return size;
         }
     }
 }

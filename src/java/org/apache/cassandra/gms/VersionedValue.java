@@ -21,6 +21,7 @@ import java.io.*;
 import java.net.InetAddress;
 import java.util.UUID;
 
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -199,6 +200,12 @@ public class VersionedValue implements Comparable<VersionedValue>
     {
         public void serialize(VersionedValue value, DataOutput dos, int version) throws IOException
         {
+            dos.writeUTF(outValue(value, version));
+            dos.writeInt(value.version);
+        }
+
+        private String outValue(VersionedValue value, int version)
+        {
             String outValue = value.value;
 
             if (version < MessagingService.VERSION_12)
@@ -206,20 +213,17 @@ public class VersionedValue implements Comparable<VersionedValue>
                 String[] pieces = value.value.split(DELIMITER_STR, -1);
                 String type = pieces[0];
 
-                if ((type == STATUS_NORMAL) || type == STATUS_BOOTSTRAPPING)
+                if ((type.equals(STATUS_NORMAL)) || type.equals(STATUS_BOOTSTRAPPING))
                 {
                     assert pieces.length >= 3;
                     outValue = versionString(pieces[0], pieces[2]);
                 }
 
-                if ((type == REMOVAL_COORDINATOR) || (type == REMOVING_TOKEN) || (type == REMOVED_TOKEN))
+                if ((type.equals(REMOVAL_COORDINATOR)) || (type.equals(REMOVING_TOKEN)) || (type.equals(REMOVED_TOKEN)))
                     throw new RuntimeException(String.format("Unable to serialize %s(%s...) for nodes older than 1.2",
-                                                             VersionedValue.class.getName(),
-                                                             type));
+                                                             VersionedValue.class.getName(), type));
             }
-
-            dos.writeUTF(outValue);
-            dos.writeInt(value.version);
+            return outValue;
         }
 
         public VersionedValue deserialize(DataInput dis, int version) throws IOException
@@ -231,7 +235,8 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public long serializedSize(VersionedValue value, int version)
         {
-            throw new UnsupportedOperationException();
+            int outLength = FBUtilities.encodedUTF8Length(outValue(value, version));
+            return DBTypeSizes.NATIVE.sizeof(outLength) + outLength + DBTypeSizes.NATIVE.sizeof(value.version);
         }
     }
 }

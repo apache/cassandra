@@ -23,6 +23,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -150,8 +151,16 @@ class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
         return epState;
     }
 
-    public long serializedSize(EndpointState endpointState, int version)
+    public long serializedSize(EndpointState epState, int version)
     {
-        throw new UnsupportedOperationException();
+        long size = HeartBeatState.serializer().serializedSize(epState.getHeartBeatState(), version);
+        size += DBTypeSizes.NATIVE.sizeof(epState.applicationState.size());
+        for (Map.Entry<ApplicationState, VersionedValue> entry : epState.applicationState.entrySet())
+        {
+            VersionedValue value = entry.getValue();
+            size += DBTypeSizes.NATIVE.sizeof(entry.getKey().ordinal());
+            size += VersionedValue.serializer.serializedSize(value, version);
+        }
+        return size;
     }
 }

@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -37,6 +38,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
+
 
 /**
  * Task that make two nodes exchange (stream) some ranges (for a given table/cf).
@@ -265,7 +267,14 @@ public class StreamingRepairTask implements Runnable
 
         public long serializedSize(StreamingRepairTask task, int version)
         {
-            throw new UnsupportedOperationException();
+            long size = UUIDGen.serializer.serializedSize(task.id, version);
+            size += 3 * CompactEndpointSerializationHelper.serializedSize(task.owner);
+            size += FBUtilities.serializedUTF8Size(task.tableName);
+            size += FBUtilities.serializedUTF8Size(task.cfName);
+            size += DBTypeSizes.NATIVE.sizeof(task.ranges.size());
+            for (Range<Token> range : task.ranges)
+                size += AbstractBounds.serializer().serializedSize(range, version);
+            return size;
         }
     }
 }

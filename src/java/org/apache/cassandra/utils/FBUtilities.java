@@ -42,6 +42,7 @@ import org.apache.cassandra.cache.IRowCacheProvider;
 import org.apache.cassandra.concurrent.CreationTimeAwareFuture;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -583,6 +584,12 @@ public class FBUtilities
         {
             throw new AssertionError(e);
         }
+    }
+
+    public static int serializedUTF8Size(String st)
+    {
+        int length = encodedUTF8Length(st);
+        return DBTypeSizes.NATIVE.sizeof(length) + length;
     }
 
     private static final class WrappedCloseableIterator<T>

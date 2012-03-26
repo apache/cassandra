@@ -40,7 +40,6 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
@@ -328,11 +327,10 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
         public long serializedSize(Collection<RowMutation> schema, int version)
         {
-            int size = DBConstants.INT_SIZE;
+            int size = DBTypeSizes.NATIVE.sizeof(schema.size());
             for (RowMutation rm : schema)
                 size += RowMutation.serializer().serializedSize(rm, version);
             return size;
         }
     }
-
 }

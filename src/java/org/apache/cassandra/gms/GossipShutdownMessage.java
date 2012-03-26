@@ -58,6 +58,6 @@ class GossipShutdownMessageSerializer implements IVersionedSerializer<GossipShut
 
     public long serializedSize(GossipShutdownMessage gossipShutdownMessage, int version)
     {
-        throw new UnsupportedOperationException();
+        return 0;
     }
 }

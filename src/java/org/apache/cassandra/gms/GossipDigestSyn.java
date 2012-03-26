@@ -25,8 +25,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
+import org.apache.cassandra.utils.FBUtilities;
 
 
 /**
@@ -84,33 +86,13 @@ class GossipDigestSerializationHelper
         }
         return gDigests;
     }
-}
-
-class EndpointStatesSerializationHelper
-{
-    static void serialize(Map<InetAddress, EndpointState> epStateMap, DataOutput dos, int version) throws IOException
+    
+    static int serializedSize(List<GossipDigest> digests, int version)
     {
-        dos.writeInt(epStateMap.size());
-        for (Entry<InetAddress, EndpointState> entry : epStateMap.entrySet())
-        {
-            InetAddress ep = entry.getKey();
-            CompactEndpointSerializationHelper.serialize(ep, dos);
-            EndpointState.serializer().serialize(entry.getValue(), dos, version);
-        }
-    }
-
-    static Map<InetAddress, EndpointState> deserialize(DataInput dis, int version) throws IOException
-    {
-        int size = dis.readInt();
-        Map<InetAddress, EndpointState> epStateMap = new HashMap<InetAddress, EndpointState>(size);
-
-        for ( int i = 0; i < size; ++i )
-        {
-            InetAddress ep = CompactEndpointSerializationHelper.deserialize(dis);
-            EndpointState epState = EndpointState.serializer().deserialize(dis, version);
-            epStateMap.put(ep, epState);
-        }
-        return epStateMap;
+        int size = DBTypeSizes.NATIVE.sizeof(digests.size());
+        for (GossipDigest digest : digests)
+            size += GossipDigest.serializer().serializedSize(digest, version);
+        return size;
     }
 }
 
@@ -129,9 +111,9 @@ class GossipDigestSynSerializer implements IVersionedSerializer<GossipDigestSyn>
         return new GossipDigestSyn(clusterId, gDigests);
     }
 
-    public long serializedSize(GossipDigestSyn gossipDigestSynMessage, int version)
+    public long serializedSize(GossipDigestSyn syn, int version)
     {
-        throw new UnsupportedOperationException();
+        return FBUtilities.serializedUTF8Size(syn.clusterId) + GossipDigestSerializationHelper.serializedSize(syn.gDigests, version);
     }
 }
 

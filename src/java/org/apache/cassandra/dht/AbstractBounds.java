@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
 
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessagingService;
@@ -118,12 +119,8 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
              * The first int tells us if it's a range or bounds (depending on the value) _and_ if it's tokens or keys (depending on the
              * sign). We use negative kind for keys so as to preserve the serialization of token from older version.
              */
-            boolean isToken = range.left instanceof Token;
-            int kind = range instanceof Range ? Type.RANGE.ordinal() : Type.BOUNDS.ordinal();
-            if (!isToken)
-                kind = -(kind+1);
-            out.writeInt(kind);
-            if (isToken)
+            out.writeInt(kindInt(range));
+            if (range.left instanceof Token)
             {
                 Token.serializer().serialize((Token)range.left, out);
                 Token.serializer().serialize((Token)range.right, out);
@@ -133,6 +130,14 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
                 RowPosition.serializer().serialize((RowPosition)range.left, out);
                 RowPosition.serializer().serialize((RowPosition)range.right, out);
             }
+        }
+
+        private int kindInt(AbstractBounds<?> ab)
+        {
+            int kind = ab instanceof Range ? Type.RANGE.ordinal() : Type.BOUNDS.ordinal();
+            if (!(ab.left instanceof Token))
+                kind = -(kind + 1);
+            return kind;
         }
 
         public AbstractBounds<?> deserialize(DataInput in, int version) throws IOException
@@ -159,9 +164,20 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
             return new Bounds(left, right);
         }
 
-        public long serializedSize(AbstractBounds<?> abstractBounds, int version)
+        public long serializedSize(AbstractBounds<?> ab, int version)
         {
-            throw new UnsupportedOperationException();
+            int size = DBTypeSizes.NATIVE.sizeof(kindInt(ab));
+            if (ab.left instanceof Token)
+            {
+                size += Token.serializer().serializedSize((Token) ab.left, DBTypeSizes.NATIVE);
+                size += Token.serializer().serializedSize((Token) ab.right, DBTypeSizes.NATIVE);
+            }
+            else
+            {
+                size += RowPosition.serializer().serializedSize((RowPosition) ab.left, DBTypeSizes.NATIVE);
+                size += RowPosition.serializer().serializedSize((RowPosition) ab.right, DBTypeSizes.NATIVE);
+            }
+            return size;
         }
     }
 }

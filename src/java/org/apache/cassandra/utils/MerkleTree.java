@@ -26,7 +26,7 @@ import java.util.*;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.PeekingIterator;
 
-import org.apache.cassandra.db.DBConstants;
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -103,9 +103,12 @@ public class MerkleTree implements Serializable
             return mt;
         }
 
-        public long serializedSize(MerkleTree merkleTree, int version)
+        public long serializedSize(MerkleTree mt, int version)
         {
-            return 1 + DBConstants.LONG_SIZE + DBConstants.LONG_SIZE + Hashable.serializer.serializedSize(merkleTree.root, version);
+            return DBTypeSizes.NATIVE.sizeof(mt.hashdepth)
+                 + DBTypeSizes.NATIVE.sizeof(mt.maxsize)
+                 + DBTypeSizes.NATIVE.sizeof(mt.size)
+                 + Hashable.serializer.serializedSize(mt.root, version);
         }
     }
 
@@ -711,8 +714,11 @@ public class MerkleTree implements Serializable
 
             public long serializedSize(Inner inner, int version)
             {
-                int size = inner.hash == null ? DBConstants.INT_SIZE : DBConstants.INT_SIZE + inner.hash.length;
-                size += Token.serializer().serializedSize(inner.token)
+                int size = inner.hash == null
+                         ? DBTypeSizes.NATIVE.sizeof(-1)
+                         : DBTypeSizes.NATIVE.sizeof(inner.hash().length) + inner.hash().length;
+
+                size += Token.serializer().serializedSize(inner.token, DBTypeSizes.NATIVE)
                         + Hashable.serializer.serializedSize(inner.lchild, version)
                         + Hashable.serializer.serializedSize(inner.rchild, version);
                 return size;
@@ -790,7 +796,9 @@ public class MerkleTree implements Serializable
 
             public long serializedSize(Leaf leaf, int version)
             {
-                return leaf.hash == null ? DBConstants.INT_SIZE : DBConstants.INT_SIZE + leaf.hash.length;
+                return leaf.hash == null
+                     ? DBTypeSizes.NATIVE.sizeof(-1)
+                     : DBTypeSizes.NATIVE.sizeof(leaf.hash().length) + leaf.hash().length;
             }
         }
     }

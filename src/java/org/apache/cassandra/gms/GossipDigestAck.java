@@ -17,13 +17,18 @@
  */
 package org.apache.cassandra.gms;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.net.InetAddress;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
-
+import org.apache.cassandra.net.CompactEndpointSerializationHelper;
+import org.apache.cassandra.net.MessagingService;
 
 
 /**
@@ -69,20 +74,43 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
     public void serialize(GossipDigestAck gDigestAckMessage, DataOutput dos, int version) throws IOException
     {
         GossipDigestSerializationHelper.serialize(gDigestAckMessage.gDigestList, dos, version);
-        dos.writeBoolean(true); // 0.6 compatibility
-        EndpointStatesSerializationHelper.serialize(gDigestAckMessage.epStateMap, dos, version);
+        if (version <= MessagingService.VERSION_10)
+            dos.writeBoolean(true); // 0.6 compatibility
+        dos.writeInt(gDigestAckMessage.epStateMap.size());
+        for (Map.Entry<InetAddress, EndpointState> entry : gDigestAckMessage.epStateMap.entrySet())
+        {
+            InetAddress ep = entry.getKey();
+            CompactEndpointSerializationHelper.serialize(ep, dos);
+            EndpointState.serializer().serialize(entry.getValue(), dos, version);
+        }
     }
 
     public GossipDigestAck deserialize(DataInput dis, int version) throws IOException
     {
         List<GossipDigest> gDigestList = GossipDigestSerializationHelper.deserialize(dis, version);
-        dis.readBoolean(); // 0.6 compatibility
-        Map<InetAddress, EndpointState> epStateMap = EndpointStatesSerializationHelper.deserialize(dis, version);
+        if (version <= MessagingService.VERSION_10)
+            dis.readBoolean(); // 0.6 compatibility
+        int size = dis.readInt();
+        Map<InetAddress, EndpointState> epStateMap = new HashMap<InetAddress, EndpointState>(size);
+
+        for (int i = 0; i < size; ++i)
+        {
+            InetAddress ep = CompactEndpointSerializationHelper.deserialize(dis);
+            EndpointState epState = EndpointState.serializer().deserialize(dis, version);
+            epStateMap.put(ep, epState);
+        }
         return new GossipDigestAck(gDigestList, epStateMap);
     }
 
-    public long serializedSize(GossipDigestAck gossipDigestAckMessage, int version)
+    public long serializedSize(GossipDigestAck ack, int version)
     {
-        throw new UnsupportedOperationException();
+        int size = GossipDigestSerializationHelper.serializedSize(ack.gDigestList, version);
+        if (version <= MessagingService.VERSION_11)
+            size += DBTypeSizes.NATIVE.sizeof(true);
+        size += DBTypeSizes.NATIVE.sizeof(ack.epStateMap.size());
+        for (Map.Entry<InetAddress, EndpointState> entry : ack.epStateMap.entrySet())
+            size += CompactEndpointSerializationHelper.serializedSize(entry.getKey())
+                  + EndpointState.serializer().serializedSize(entry.getValue(), version);
+        return size;
     }
 }

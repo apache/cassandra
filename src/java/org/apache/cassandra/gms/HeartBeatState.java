@@ -19,6 +19,7 @@ package org.apache.cassandra.gms;
 
 import java.io.*;
 
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 
 
@@ -88,8 +89,8 @@ class HeartBeatStateSerializer implements IVersionedSerializer<HeartBeatState>
         return new HeartBeatState(dis.readInt(), dis.readInt());
     }
 
-    public long serializedSize(HeartBeatState heartBeatState, int version)
+    public long serializedSize(HeartBeatState state, int version)
     {
-        throw new UnsupportedOperationException();
+        return DBTypeSizes.NATIVE.sizeof(state.getGeneration()) + DBTypeSizes.NATIVE.sizeof(state.getHeartBeatVersion());
     }
 }
