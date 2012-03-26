@@ -72,6 +72,7 @@ public class MerkleTree implements Serializable
      */
     public transient Range<Token> fullRange;
 
+    // TODO This is broken; Token serialization assumes system partitioner, so if this doesn't match all hell breaks loose
     private transient IPartitioner partitioner;
 
     private long maxsize;

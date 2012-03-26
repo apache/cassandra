@@ -29,7 +29,6 @@ public class MessageSerializer implements IVersionedSerializer<Message>
 {
     public void serialize(Message t, DataOutput dos, int version) throws IOException
     {
-        assert t.getVersion() == version : "internode protocol version mismatch"; // indicates programmer error.
         Header.serializer().serialize(t.header, dos, version);
         byte[] bytes = t.getMessageBody();
         dos.writeInt(bytes.length);
