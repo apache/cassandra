@@ -84,6 +84,13 @@ public interface StorageServiceMBean
     public String getReleaseVersion();
 
     /**
+     * Fetch a string representation of the current Schema version.
+     * @return A string representation of the Schema version.
+     */
+    public String getSchemaVersion();
+
+    
+    /**
      * Get the list of all data file locations from conf
      * @return String array of all locations
      */

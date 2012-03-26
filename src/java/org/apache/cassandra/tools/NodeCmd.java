@@ -837,6 +837,7 @@ public class NodeCmd
 
     private void printDescribeRing(String keyspaceName, PrintStream out)
     {
+        out.println("Schema Version:" + probe.getSchemaVersion());
         out.println("TokenRange: ");
         try
         {
