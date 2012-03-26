@@ -26,7 +26,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.net.MessagingService;
 
 public class SnapshotCommand
 {
@@ -47,7 +47,7 @@ public class SnapshotCommand
 
     public MessageOut createMessage()
     {
-        return new MessageOut<SnapshotCommand>(StorageService.Verb.SNAPSHOT, this, serializer);
+        return new MessageOut<SnapshotCommand>(MessagingService.Verb.SNAPSHOT, this, serializer);
     }
 
     public static SnapshotCommand read(MessageIn message) throws IOException

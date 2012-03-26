@@ -75,11 +75,86 @@ public final class MessagingService implements MessagingServiceMBean
     /** we preface every message with this number so the recipient can validate the sender is sane */
     static final int PROTOCOL_MAGIC = 0xCA552DFA;
 
+    /* All verb handler identifiers */
+    public enum Verb
+    {
+        MUTATION,
+        BINARY, // Deprecated
+        READ_REPAIR,
+        READ,
+        REQUEST_RESPONSE, // client-initiated reads and writes
+        STREAM_INITIATE, // Deprecated
+        STREAM_INITIATE_DONE, // Deprecated
+        STREAM_REPLY,
+        STREAM_REQUEST,
+        RANGE_SLICE,
+        BOOTSTRAP_TOKEN,
+        TREE_REQUEST,
+        TREE_RESPONSE,
+        JOIN, // Deprecated
+        GOSSIP_DIGEST_SYN,
+        GOSSIP_DIGEST_ACK,
+        GOSSIP_DIGEST_ACK2,
+        DEFINITIONS_ANNOUNCE, // Deprecated
+        DEFINITIONS_UPDATE,
+        TRUNCATE,
+        SCHEMA_CHECK,
+        INDEX_SCAN, // Deprecated
+        REPLICATION_FINISHED,
+        INTERNAL_RESPONSE, // responses to internal calls
+        COUNTER_MUTATION,
+        STREAMING_REPAIR_REQUEST,
+        STREAMING_REPAIR_RESPONSE,
+        SNAPSHOT, // Similar to nt snapshot
+        MIGRATION_REQUEST,
+        GOSSIP_SHUTDOWN,
+        // use as padding for backwards compatability where a previous version needs to validate a verb from the future.
+        UNUSED_1,
+        UNUSED_2,
+        UNUSED_3,
+        ;
+        // remember to add new verbs at the end, since we serialize by ordinal
+    }
+    public static final Verb[] VERBS = Verb.values();
+
+    public static final EnumMap<MessagingService.Verb, Stage> verbStages = new EnumMap<MessagingService.Verb, Stage>(MessagingService.Verb.class)
+    {{
+        put(Verb.MUTATION, Stage.MUTATION);
+        put(Verb.BINARY, Stage.MUTATION);
+        put(Verb.READ_REPAIR, Stage.MUTATION);
+        put(Verb.TRUNCATE, Stage.MUTATION);
+        put(Verb.READ, Stage.READ);
+        put(Verb.REQUEST_RESPONSE, Stage.REQUEST_RESPONSE);
+        put(Verb.STREAM_REPLY, Stage.MISC); // TODO does this really belong on misc? I've just copied old behavior here
+        put(Verb.STREAM_REQUEST, Stage.STREAM);
+        put(Verb.RANGE_SLICE, Stage.READ);
+        put(Verb.BOOTSTRAP_TOKEN, Stage.MISC);
+        put(Verb.TREE_REQUEST, Stage.ANTI_ENTROPY);
+        put(Verb.TREE_RESPONSE, Stage.ANTI_ENTROPY);
+        put(Verb.STREAMING_REPAIR_REQUEST, Stage.ANTI_ENTROPY);
+        put(Verb.STREAMING_REPAIR_RESPONSE, Stage.ANTI_ENTROPY);
+        put(Verb.GOSSIP_DIGEST_ACK, Stage.GOSSIP);
+        put(Verb.GOSSIP_DIGEST_ACK2, Stage.GOSSIP);
+        put(Verb.GOSSIP_DIGEST_SYN, Stage.GOSSIP);
+        put(Verb.GOSSIP_SHUTDOWN, Stage.GOSSIP);
+        put(Verb.DEFINITIONS_UPDATE, Stage.MIGRATION);
+        put(Verb.SCHEMA_CHECK, Stage.MIGRATION);
+        put(Verb.MIGRATION_REQUEST, Stage.MIGRATION);
+        put(Verb.INDEX_SCAN, Stage.READ);
+        put(Verb.REPLICATION_FINISHED, Stage.MISC);
+        put(Verb.INTERNAL_RESPONSE, Stage.INTERNAL_RESPONSE);
+        put(Verb.COUNTER_MUTATION, Stage.MUTATION);
+        put(Verb.SNAPSHOT, Stage.MISC);
+        put(Verb.UNUSED_1, Stage.INTERNAL_RESPONSE);
+        put(Verb.UNUSED_2, Stage.INTERNAL_RESPONSE);
+        put(Verb.UNUSED_3, Stage.INTERNAL_RESPONSE);
+    }};
+
     /* This records all the results mapped by message Id */
     private final ExpiringMap<String, CallbackInfo> callbacks;
 
     /* Lookup table for registering message handlers based on the verb. */
-    private final Map<StorageService.Verb, IVerbHandler> verbHandlers;
+    private final Map<Verb, IVerbHandler> verbHandlers;
 
     /** One executor per destination InetAddress for streaming.
      *
@@ -109,18 +184,18 @@ public final class MessagingService implements MessagingServiceMBean
      * all correspond to client requests or something triggered by them; we don't want to
      * drop internal messages like bootstrap or repair notifications.
      */
-    public static final EnumSet<StorageService.Verb> DROPPABLE_VERBS = EnumSet.of(StorageService.Verb.BINARY,
-                                                                                  StorageService.Verb.MUTATION,
-                                                                                  StorageService.Verb.READ_REPAIR,
-                                                                                  StorageService.Verb.READ,
-                                                                                  StorageService.Verb.RANGE_SLICE,
-                                                                                  StorageService.Verb.REQUEST_RESPONSE);
+    public static final EnumSet<Verb> DROPPABLE_VERBS = EnumSet.of(Verb.BINARY,
+                                                                                  Verb.MUTATION,
+                                                                                  Verb.READ_REPAIR,
+                                                                                  Verb.READ,
+                                                                                  Verb.RANGE_SLICE,
+                                                                                  Verb.REQUEST_RESPONSE);
 
     // total dropped message counts for server lifetime
-    private final Map<StorageService.Verb, AtomicInteger> droppedMessages = new EnumMap<StorageService.Verb, AtomicInteger>(StorageService.Verb.class);
+    private final Map<Verb, AtomicInteger> droppedMessages = new EnumMap<Verb, AtomicInteger>(Verb.class);
     // dropped count when last requested for the Recent api.  high concurrency isn't necessary here.
-    private final Map<StorageService.Verb, Integer> lastDropped = Collections.synchronizedMap(new EnumMap<StorageService.Verb, Integer>(StorageService.Verb.class));
-    private final Map<StorageService.Verb, Integer> lastDroppedInternal = new EnumMap<StorageService.Verb, Integer>(StorageService.Verb.class);
+    private final Map<Verb, Integer> lastDropped = Collections.synchronizedMap(new EnumMap<Verb, Integer>(Verb.class));
+    private final Map<Verb, Integer> lastDroppedInternal = new EnumMap<Verb, Integer>(Verb.class);
 
     private long totalTimeouts = 0;
     private long recentTotalTimeouts = 0;
@@ -140,7 +215,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     private MessagingService()
     {
-        for (StorageService.Verb verb : DROPPABLE_VERBS)
+        for (Verb verb : DROPPABLE_VERBS)
         {
             droppedMessages.put(verb, new AtomicInteger());
             lastDropped.put(verb, 0);
@@ -148,7 +223,7 @@ public final class MessagingService implements MessagingServiceMBean
         }
 
         listenGate = new SimpleCondition();
-        verbHandlers = new EnumMap<StorageService.Verb, IVerbHandler>(StorageService.Verb.class);
+        verbHandlers = new EnumMap<Verb, IVerbHandler>(Verb.class);
         Runnable logDropped = new Runnable()
         {
             public void run()
@@ -310,7 +385,7 @@ public final class MessagingService implements MessagingServiceMBean
      * @param verb
      * @param verbHandler handler for the specified verb
      */
-    public void registerVerbHandlers(StorageService.Verb verb, IVerbHandler verbHandler)
+    public void registerVerbHandlers(Verb verb, IVerbHandler verbHandler)
     {
         assert !verbHandlers.containsKey(verb);
         verbHandlers.put(verb, verbHandler);
@@ -322,7 +397,7 @@ public final class MessagingService implements MessagingServiceMBean
      * @param type for which the verb handler is sought
      * @return a reference to IVerbHandler which is the handler for the specified verb
      */
-    public IVerbHandler getVerbHandler(StorageService.Verb type)
+    public IVerbHandler getVerbHandler(Verb type)
     {
         return verbHandlers.get(type);
     }
@@ -338,7 +413,7 @@ public final class MessagingService implements MessagingServiceMBean
         CallbackInfo previous;
 
         // If HH is enabled and this is a mutation message => store the message to track for potential hints.
-        if (DatabaseDescriptor.hintedHandoffEnabled() && message.verb == StorageService.Verb.MUTATION)
+        if (DatabaseDescriptor.hintedHandoffEnabled() && message.verb == Verb.MUTATION)
             previous = callbacks.put(messageId, new CallbackInfo(to, cb, message), timeout);
         else
             previous = callbacks.put(messageId, new CallbackInfo(to, cb), timeout);
@@ -604,7 +679,7 @@ public final class MessagingService implements MessagingServiceMBean
         return buffer;
     }
 
-    public void incrementDroppedMessages(StorageService.Verb verb)
+    public void incrementDroppedMessages(Verb verb)
     {
         assert DROPPABLE_VERBS.contains(verb) : "Verb " + verb + " should not legally be dropped";
         droppedMessages.get(verb).incrementAndGet();
@@ -613,10 +688,10 @@ public final class MessagingService implements MessagingServiceMBean
     private void logDroppedMessages()
     {
         boolean logTpstats = false;
-        for (Map.Entry<StorageService.Verb, AtomicInteger> entry : droppedMessages.entrySet())
+        for (Map.Entry<Verb, AtomicInteger> entry : droppedMessages.entrySet())
         {
             AtomicInteger dropped = entry.getValue();
-            StorageService.Verb verb = entry.getKey();
+            Verb verb = entry.getKey();
             int recent = dropped.get() - lastDroppedInternal.get(verb);
             if (recent > 0)
             {
@@ -723,7 +798,7 @@ public final class MessagingService implements MessagingServiceMBean
     public Map<String, Integer> getDroppedMessages()
     {
         Map<String, Integer> map = new HashMap<String, Integer>();
-        for (Map.Entry<StorageService.Verb, AtomicInteger> entry : droppedMessages.entrySet())
+        for (Map.Entry<Verb, AtomicInteger> entry : droppedMessages.entrySet())
             map.put(entry.getKey().toString(), entry.getValue().get());
         return map;
     }
@@ -731,9 +806,9 @@ public final class MessagingService implements MessagingServiceMBean
     public Map<String, Integer> getRecentlyDroppedMessages()
     {
         Map<String, Integer> map = new HashMap<String, Integer>();
-        for (Map.Entry<StorageService.Verb, AtomicInteger> entry : droppedMessages.entrySet())
+        for (Map.Entry<Verb, AtomicInteger> entry : droppedMessages.entrySet())
         {
-            StorageService.Verb verb = entry.getKey();
+            Verb verb = entry.getKey();
             Integer dropped = entry.getValue().get();
             Integer recentlyDropped = dropped - lastDropped.get(verb);
             map.put(verb.toString(), recentlyDropped);
@@ -776,5 +851,4 @@ public final class MessagingService implements MessagingServiceMBean
         }
         return result;
     }
-
 }

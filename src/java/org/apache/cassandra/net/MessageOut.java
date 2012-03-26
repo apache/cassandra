@@ -27,28 +27,27 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class MessageOut<T>
 {
-    public final StorageService.Verb verb;
+    public final MessagingService.Verb verb;
     public final T payload;
     public final IVersionedSerializer<T> serializer;
     public final Map<String, byte[]> parameters;
 
     // we do support messages that just consist of a verb
-    public MessageOut(StorageService.Verb verb)
+    public MessageOut(MessagingService.Verb verb)
     {
         this(verb, null, null);
     }
 
-    public MessageOut(StorageService.Verb verb, T payload, IVersionedSerializer<T> serializer)
+    public MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer)
     {
         this(verb, payload, serializer, Collections.<String, byte[]>emptyMap());
     }
 
-    public MessageOut(StorageService.Verb verb, T payload, IVersionedSerializer<T> serializer, Map<String, byte[]> parameters)
+    public MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, Map<String, byte[]> parameters)
     {
         this.verb = verb;
         this.payload = payload;
@@ -76,7 +75,7 @@ public class MessageOut<T>
 
     public Stage getStage()
     {
-        return StorageService.verbStages.get(verb);
+        return MessagingService.verbStages.get(verb);
     }
 
     public String toString()

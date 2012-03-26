@@ -30,7 +30,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.Header;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throttle;
@@ -203,7 +202,7 @@ public class FileStreamTask extends WrappedRunnable
         byte[] body = new byte[bodySize];
         input.readFully(body);
         MessageIn message = new MessageIn(header, body, version);
-        assert message.getVerb() == StorageService.Verb.STREAM_REPLY : "Non-reply message received on stream socket";
+        assert message.getVerb() == MessagingService.Verb.STREAM_REPLY : "Non-reply message received on stream socket";
         handler.doVerb(message, id);
     }
 

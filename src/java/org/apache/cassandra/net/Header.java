@@ -24,7 +24,6 @@ import java.util.Hashtable;
 import java.util.Map;
 
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import com.google.common.collect.ImmutableMap;
@@ -48,15 +47,15 @@ public class Header
     // is not necessarily the same as the node that forwards us the request (see StorageProxy.sendMessages
     // and RowMutationVerbHandler.forwardToLocalNodes)
     private final InetAddress from;
-    private final StorageService.Verb verb;
+    private final MessagingService.Verb verb;
     protected final Map<String, byte[]> details;
 
-    Header(InetAddress from, StorageService.Verb verb)
+    Header(InetAddress from, MessagingService.Verb verb)
     {
         this(from, verb, Collections.<String, byte[]>emptyMap());
     }
 
-    Header(InetAddress from, StorageService.Verb verb, Map<String, byte[]> details)
+    Header(InetAddress from, MessagingService.Verb verb, Map<String, byte[]> details)
     {
         assert from != null;
         assert verb != null;
@@ -71,7 +70,7 @@ public class Header
         return from;
     }
 
-    StorageService.Verb getVerb()
+    MessagingService.Verb getVerb()
     {
         return verb;
     }
@@ -143,7 +142,7 @@ class HeaderSerializer implements IVersionedSerializer<Header>
             dis.readFully(bytes);
             details.put(key, bytes);
         }
-        return new Header(from, StorageService.VERBS[verbOrdinal], details);
+        return new Header(from, MessagingService.VERBS[verbOrdinal], details);
     }
 
     public long serializedSize(Header header, int version)

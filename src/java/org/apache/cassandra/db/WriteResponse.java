@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -45,7 +45,7 @@ public class WriteResponse
 
     public MessageOut<WriteResponse> createMessage()
     {
-        return new MessageOut<WriteResponse>(StorageService.Verb.REQUEST_RESPONSE, this, serializer);
+        return new MessageOut<WriteResponse>(MessagingService.Verb.REQUEST_RESPONSE, this, serializer);
     }
 
     private final String table;

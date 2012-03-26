@@ -27,7 +27,6 @@ import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.service.StorageService;
 
 /**
  * Sends it's current schema state in form of row mutations in reply to the remote node's request.
@@ -40,7 +39,7 @@ public class MigrationRequestVerbHandler implements IVerbHandler
     public void doVerb(MessageIn message, String id)
     {
         logger.debug("Received migration request from {}.", message.getFrom());
-        MessageOut<Collection<RowMutation>> response = new MessageOut<Collection<RowMutation>>(StorageService.Verb.INTERNAL_RESPONSE,
+        MessageOut<Collection<RowMutation>> response = new MessageOut<Collection<RowMutation>>(MessagingService.Verb.INTERNAL_RESPONSE,
                                                                                                SystemTable.serializeSchema(),
                                                                                                MigrationManager.MigrationsSerializer.instance);
         MessagingService.instance().sendReply(response, id, message.getFrom());

@@ -23,7 +23,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.net.MessagingService;
 
 /**
  * A truncate operation descriptor
@@ -53,7 +53,7 @@ public class Truncation
 
     public MessageOut<Truncation> createMessage()
     {
-        return new MessageOut<Truncation>(StorageService.Verb.TRUNCATE, this, serializer);
+        return new MessageOut<Truncation>(MessagingService.Verb.TRUNCATE, this, serializer);
     }
 
     public String toString()

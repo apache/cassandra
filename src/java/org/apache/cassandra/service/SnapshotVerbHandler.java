@@ -41,7 +41,7 @@ public class SnapshotVerbHandler implements IVerbHandler
                 Table.open(command.keyspace).getColumnFamilyStore(command.column_family).snapshot(command.snapshot_name);
             if (logger.isDebugEnabled())
                 logger.debug("Sending response to snapshot request {} to {} ", command.snapshot_name, message.getFrom());
-            MessagingService.instance().sendReply(new MessageOut(StorageService.Verb.REQUEST_RESPONSE), id, message.getFrom());
+            MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.REQUEST_RESPONSE), id, message.getFrom());
         }
         catch (Exception ex)
         {

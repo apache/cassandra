@@ -27,7 +27,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.TBinaryProtocol;
@@ -57,7 +57,7 @@ public class IndexScanCommand
 
     public MessageOut<IndexScanCommand> createMessage()
     {
-        return new MessageOut<IndexScanCommand>(StorageService.Verb.INDEX_SCAN, this, serializer);
+        return new MessageOut<IndexScanCommand>(MessagingService.Verb.INDEX_SCAN, this, serializer);
     }
 
     public static IndexScanCommand read(MessageIn message) throws IOException

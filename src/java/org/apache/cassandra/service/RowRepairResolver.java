@@ -122,7 +122,7 @@ public class RowRepairResolver extends AbstractRowResolver
             MessageOut repairMessage;
             // use a separate verb here because we don't want these to be get the white glove hint-
             // on-timeout behavior that a "real" mutation gets
-            repairMessage = rowMutation.createMessage(StorageService.Verb.READ_REPAIR);
+            repairMessage = rowMutation.createMessage(MessagingService.Verb.READ_REPAIR);
             results.add(MessagingService.instance().sendRR(repairMessage, endpoints.get(i)));
         }
 

@@ -32,6 +32,7 @@ import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -39,7 +40,7 @@ public abstract class AbstractRowResolver implements IResponseResolver<Row>
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractRowResolver.class);
 
-    private static final MessageIn FAKE_MESSAGE = new MessageIn(FBUtilities.getBroadcastAddress(), StorageService.Verb.INTERNAL_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY, -1);
+    private static final MessageIn FAKE_MESSAGE = new MessageIn(FBUtilities.getBroadcastAddress(), MessagingService.Verb.INTERNAL_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY, -1);
 
     protected final String table;
     protected final ConcurrentMap<MessageIn, ReadResponse> replies = new NonBlockingHashMap<MessageIn, ReadResponse>();

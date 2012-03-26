@@ -154,7 +154,7 @@ public class RemoveTest
         for (InetAddress host : hosts)
         {
             // TODO how to spoof host here?
-            MessageOut msg = new MessageOut(StorageService.Verb.REPLICATION_FINISHED);
+            MessageOut msg = new MessageOut(MessagingService.Verb.REPLICATION_FINISHED);
             MessagingService.instance().sendRR(msg, FBUtilities.getBroadcastAddress());
         }
 
@@ -171,7 +171,7 @@ public class RemoveTest
     {
         public MessageIn handleMessage(MessageIn msg, String id, InetAddress to)
         {
-            if (!msg.getVerb().equals(StorageService.Verb.STREAM_REQUEST))
+            if (!msg.getVerb().equals(MessagingService.Verb.STREAM_REQUEST))
                 return msg;
 
             StreamUtil.finishStreamRequest(msg, to);

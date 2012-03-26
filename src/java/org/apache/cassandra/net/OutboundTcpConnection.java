@@ -30,14 +30,13 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class OutboundTcpConnection extends Thread
 {
     private static final Logger logger = LoggerFactory.getLogger(OutboundTcpConnection.class);
 
-    private static final MessageOut CLOSE_SENTINEL = new MessageOut(StorageService.Verb.INTERNAL_RESPONSE);
+    private static final MessageOut CLOSE_SENTINEL = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE);
 
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
 

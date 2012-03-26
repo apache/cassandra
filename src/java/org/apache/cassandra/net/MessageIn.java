@@ -20,7 +20,6 @@ package org.apache.cassandra.net;
 import java.net.InetAddress;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.service.StorageService;
 
 public class MessageIn
 {
@@ -38,7 +37,7 @@ public class MessageIn
         this.version = version;
     }
 
-    public MessageIn(InetAddress from, StorageService.Verb verb, byte[] body, int version)
+    public MessageIn(InetAddress from, MessagingService.Verb verb, byte[] body, int version)
     {
         this(new Header(from, verb), body, version);
     }
@@ -65,10 +64,10 @@ public class MessageIn
 
     public Stage getMessageType()
     {
-        return StorageService.verbStages.get(getVerb());
+        return MessagingService.verbStages.get(getVerb());
     }
 
-    public StorageService.Verb getVerb()
+    public MessagingService.Verb getVerb()
     {
         return header.getVerb();
     }

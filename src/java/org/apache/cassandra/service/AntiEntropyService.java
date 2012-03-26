@@ -418,7 +418,7 @@ public class AntiEntropyService
 
         public MessageOut<Validator> createMessage()
         {
-            return new MessageOut<Validator>(StorageService.Verb.TREE_RESPONSE, this, Validator.serializer);
+            return new MessageOut<Validator>(MessagingService.Verb.TREE_RESPONSE, this, Validator.serializer);
         }
 
         public static class ValidatorSerializer implements IVersionedSerializer<Validator>
@@ -563,7 +563,7 @@ public class AntiEntropyService
 
         public MessageOut<TreeRequest> createMessage()
         {
-            return new MessageOut<TreeRequest>(StorageService.Verb.TREE_REQUEST, this, TreeRequest.serializer);
+            return new MessageOut<TreeRequest>(MessagingService.Verb.TREE_REQUEST, this, TreeRequest.serializer);
         }
 
         public static class TreeRequestSerializer implements IVersionedSerializer<TreeRequest>

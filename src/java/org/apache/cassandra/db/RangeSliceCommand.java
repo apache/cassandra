@@ -50,7 +50,6 @@ import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.IReadCommand;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.SlicePredicate;
@@ -117,7 +116,7 @@ public class RangeSliceCommand implements IReadCommand
 
     public MessageOut<RangeSliceCommand> createMessage()
     {
-        return new MessageOut<RangeSliceCommand>(StorageService.Verb.RANGE_SLICE, this, serializer);
+        return new MessageOut<RangeSliceCommand>(MessagingService.Verb.RANGE_SLICE, this, serializer);
     }
 
     @Override

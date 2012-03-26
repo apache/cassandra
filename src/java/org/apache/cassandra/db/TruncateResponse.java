@@ -23,7 +23,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.net.MessagingService;
 
 
 /**
@@ -51,7 +51,7 @@ public class TruncateResponse
 
     public MessageOut<TruncateResponse> createMessage()
     {
-        return new MessageOut<TruncateResponse>(StorageService.Verb.REQUEST_RESPONSE, this, serializer);
+        return new MessageOut<TruncateResponse>(MessagingService.Verb.REQUEST_RESPONSE, this, serializer);
     }
 
     public static class TruncateResponseSerializer implements IVersionedSerializer<TruncateResponse>

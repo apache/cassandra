@@ -49,7 +49,7 @@ public class ReadVerbHandler implements IVerbHandler
             Table table = Table.open(command.table);
             Row row = command.getRow(table);
 
-            MessageOut<ReadResponse> reply = new MessageOut<ReadResponse>(StorageService.Verb.REQUEST_RESPONSE,
+            MessageOut<ReadResponse> reply = new MessageOut<ReadResponse>(MessagingService.Verb.REQUEST_RESPONSE,
                                                                           getResponse(command, row),
                                                                           ReadResponse.serializer());
             if (logger.isDebugEnabled())

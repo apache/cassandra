@@ -26,7 +26,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.*;
-import org.apache.cassandra.service.StorageService;
 
 public class RowMutationVerbHandler implements IVerbHandler
 {
@@ -70,7 +69,7 @@ public class RowMutationVerbHandler implements IVerbHandler
      * Older version (< 1.0) will not send this message at all, hence we don't
      * need to check the version of the data.
      */
-    private void forwardToLocalNodes(RowMutation rm, StorageService.Verb verb, byte[] forwardBytes, InetAddress from) throws IOException
+    private void forwardToLocalNodes(RowMutation rm, MessagingService.Verb verb, byte[] forwardBytes, InetAddress from) throws IOException
     {
         DataInputStream dis = new DataInputStream(new FastByteArrayInputStream(forwardBytes));
         int size = dis.readInt();

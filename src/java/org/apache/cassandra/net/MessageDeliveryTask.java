@@ -21,7 +21,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.StorageService;
 
 public class MessageDeliveryTask implements Runnable
 {
@@ -40,7 +39,7 @@ public class MessageDeliveryTask implements Runnable
 
     public void run()
     {
-        StorageService.Verb verb = message.getVerb();
+        MessagingService.Verb verb = message.getVerb();
         if (MessagingService.DROPPABLE_VERBS.contains(verb)
             && System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getRpcTimeout())
         {

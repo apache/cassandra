@@ -444,7 +444,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         if (logger.isDebugEnabled())
             logger.debug("insert writing local " + rm.toString(true));
-        Runnable runnable = new DroppableRunnable(StorageService.Verb.MUTATION)
+        Runnable runnable = new DroppableRunnable(MessagingService.Verb.MUTATION)
         {
             public void runMayThrow() throws IOException
             {
@@ -553,7 +553,7 @@ public class StorageProxy implements StorageProxyMBean
                                              final String localDataCenter,
                                              final ConsistencyLevel consistency_level)
     {
-        return new DroppableRunnable(StorageService.Verb.MUTATION)
+        return new DroppableRunnable(MessagingService.Verb.MUTATION)
         {
             public void runMayThrow() throws IOException
             {
@@ -570,7 +570,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     // We do the replication on another stage because it involves a read (see CM.makeReplicationMutation)
                     // and we want to avoid blocking too much the MUTATION stage
-                    StageManager.getStage(Stage.REPLICATE_ON_WRITE).execute(new DroppableRunnable(StorageService.Verb.READ)
+                    StageManager.getStage(Stage.REPLICATE_ON_WRITE).execute(new DroppableRunnable(MessagingService.Verb.READ)
                     {
                         public void runMayThrow() throws IOException, TimeoutException
                         {
@@ -801,7 +801,7 @@ public class StorageProxy implements StorageProxyMBean
 
         LocalReadRunnable(ReadCommand command, ReadCallback<Row> handler)
         {
-            super(StorageService.Verb.READ);
+            super(MessagingService.Verb.READ);
             this.command = command;
             this.handler = handler;
         }
@@ -964,7 +964,7 @@ public class StorageProxy implements StorageProxyMBean
             }
         };
         // an empty message acts as a request to the SchemaCheckVerbHandler.
-        MessageOut message = new MessageOut(StorageService.Verb.SCHEMA_CHECK);
+        MessageOut message = new MessageOut(MessagingService.Verb.SCHEMA_CHECK);
         for (InetAddress endpoint : liveHosts)
             MessagingService.instance().sendRR(message, endpoint, cb);
 
@@ -1225,9 +1225,9 @@ public class StorageProxy implements StorageProxyMBean
     private static abstract class DroppableRunnable implements Runnable
     {
         private final long constructionTime = System.currentTimeMillis();
-        private final StorageService.Verb verb;
+        private final MessagingService.Verb verb;
 
-        public DroppableRunnable(StorageService.Verb verb)
+        public DroppableRunnable(MessagingService.Verb verb)
         {
             this.verb = verb;
         }

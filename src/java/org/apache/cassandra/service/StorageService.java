@@ -77,81 +77,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public static final int RING_DELAY = getRingDelay(); // delay after which we assume ring has stablized
 
-    /* All verb handler identifiers */
-    public enum Verb
-    {
-        MUTATION,
-        BINARY, // Deprecated
-        READ_REPAIR,
-        READ,
-        REQUEST_RESPONSE, // client-initiated reads and writes
-        STREAM_INITIATE, // Deprecated
-        STREAM_INITIATE_DONE, // Deprecated
-        STREAM_REPLY,
-        STREAM_REQUEST,
-        RANGE_SLICE,
-        BOOTSTRAP_TOKEN,
-        TREE_REQUEST,
-        TREE_RESPONSE,
-        JOIN, // Deprecated
-        GOSSIP_DIGEST_SYN,
-        GOSSIP_DIGEST_ACK,
-        GOSSIP_DIGEST_ACK2,
-        DEFINITIONS_ANNOUNCE, // Deprecated
-        DEFINITIONS_UPDATE,
-        TRUNCATE,
-        SCHEMA_CHECK,
-        INDEX_SCAN, // Deprecated
-        REPLICATION_FINISHED,
-        INTERNAL_RESPONSE, // responses to internal calls
-        COUNTER_MUTATION,
-        STREAMING_REPAIR_REQUEST,
-        STREAMING_REPAIR_RESPONSE,
-        SNAPSHOT, // Similar to nt snapshot
-        MIGRATION_REQUEST,
-        GOSSIP_SHUTDOWN,
-        // use as padding for backwards compatability where a previous version needs to validate a verb from the future.
-        UNUSED_1,
-        UNUSED_2,
-        UNUSED_3,
-        ;
-        // remember to add new verbs at the end, since we serialize by ordinal
-    }
-    public static final Verb[] VERBS = Verb.values();
-
-    public static final EnumMap<StorageService.Verb, Stage> verbStages = new EnumMap<StorageService.Verb, Stage>(StorageService.Verb.class)
-    {{
-        put(Verb.MUTATION, Stage.MUTATION);
-        put(Verb.BINARY, Stage.MUTATION);
-        put(Verb.READ_REPAIR, Stage.MUTATION);
-        put(Verb.TRUNCATE, Stage.MUTATION);
-        put(Verb.READ, Stage.READ);
-        put(Verb.REQUEST_RESPONSE, Stage.REQUEST_RESPONSE);
-        put(Verb.STREAM_REPLY, Stage.MISC); // TODO does this really belong on misc? I've just copied old behavior here
-        put(Verb.STREAM_REQUEST, Stage.STREAM);
-        put(Verb.RANGE_SLICE, Stage.READ);
-        put(Verb.BOOTSTRAP_TOKEN, Stage.MISC);
-        put(Verb.TREE_REQUEST, Stage.ANTI_ENTROPY);
-        put(Verb.TREE_RESPONSE, Stage.ANTI_ENTROPY);
-        put(Verb.STREAMING_REPAIR_REQUEST, Stage.ANTI_ENTROPY);
-        put(Verb.STREAMING_REPAIR_RESPONSE, Stage.ANTI_ENTROPY);
-        put(Verb.GOSSIP_DIGEST_ACK, Stage.GOSSIP);
-        put(Verb.GOSSIP_DIGEST_ACK2, Stage.GOSSIP);
-        put(Verb.GOSSIP_DIGEST_SYN, Stage.GOSSIP);
-        put(Verb.GOSSIP_SHUTDOWN, Stage.GOSSIP);
-        put(Verb.DEFINITIONS_UPDATE, Stage.MIGRATION);
-        put(Verb.SCHEMA_CHECK, Stage.MIGRATION);
-        put(Verb.MIGRATION_REQUEST, Stage.MIGRATION);
-        put(Verb.INDEX_SCAN, Stage.READ);
-        put(Verb.REPLICATION_FINISHED, Stage.MISC);
-        put(Verb.INTERNAL_RESPONSE, Stage.INTERNAL_RESPONSE);
-        put(Verb.COUNTER_MUTATION, Stage.MUTATION);
-        put(Verb.SNAPSHOT, Stage.MISC);
-        put(Verb.UNUSED_1, Stage.INTERNAL_RESPONSE);
-        put(Verb.UNUSED_2, Stage.INTERNAL_RESPONSE);
-        put(Verb.UNUSED_3, Stage.INTERNAL_RESPONSE);
-    }};
-
     private static int getRingDelay()
     {
         String newdelay = System.getProperty("cassandra.ring_delay_ms");
@@ -267,36 +192,36 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
 
         /* register the verb handlers */
-        MessagingService.instance().registerVerbHandlers(Verb.MUTATION, new RowMutationVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.READ_REPAIR, new ReadRepairVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.READ, new ReadVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.RANGE_SLICE, new RangeSliceVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.INDEX_SCAN, new IndexScanVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.COUNTER_MUTATION, new CounterMutationVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.TRUNCATE, new TruncateVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.MUTATION, new RowMutationVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.READ_REPAIR, new ReadRepairVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.READ, new ReadVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.RANGE_SLICE, new RangeSliceVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.INDEX_SCAN, new IndexScanVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.COUNTER_MUTATION, new CounterMutationVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.TRUNCATE, new TruncateVerbHandler());
 
         // see BootStrapper for a summary of how the bootstrap verbs interact
-        MessagingService.instance().registerVerbHandlers(Verb.BOOTSTRAP_TOKEN, new BootStrapper.BootstrapTokenVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.STREAM_REQUEST, new StreamRequestVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.STREAM_REPLY, new StreamReplyVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.REPLICATION_FINISHED, new ReplicationFinishedVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.REQUEST_RESPONSE, new ResponseVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.INTERNAL_RESPONSE, new ResponseVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.TREE_REQUEST, new TreeRequestVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.TREE_RESPONSE, new AntiEntropyService.TreeResponseVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.STREAMING_REPAIR_REQUEST, new StreamingRepairTask.StreamingRepairRequest());
-        MessagingService.instance().registerVerbHandlers(Verb.STREAMING_REPAIR_RESPONSE, new StreamingRepairTask.StreamingRepairResponse());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.BOOTSTRAP_TOKEN, new BootStrapper.BootstrapTokenVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.STREAM_REQUEST, new StreamRequestVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.STREAM_REPLY, new StreamReplyVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.REPLICATION_FINISHED, new ReplicationFinishedVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.REQUEST_RESPONSE, new ResponseVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.INTERNAL_RESPONSE, new ResponseVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.TREE_REQUEST, new TreeRequestVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.TREE_RESPONSE, new AntiEntropyService.TreeResponseVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.STREAMING_REPAIR_REQUEST, new StreamingRepairTask.StreamingRepairRequest());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.STREAMING_REPAIR_RESPONSE, new StreamingRepairTask.StreamingRepairResponse());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.GOSSIP_SHUTDOWN, new GossipShutdownVerbHandler());
 
-        MessagingService.instance().registerVerbHandlers(Verb.GOSSIP_DIGEST_SYN, new GossipDigestSynVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK, new GossipDigestAckVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK2, new GossipDigestAck2VerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.GOSSIP_SHUTDOWN, new GossipShutdownVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.GOSSIP_DIGEST_SYN, new GossipDigestSynVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.GOSSIP_DIGEST_ACK, new GossipDigestAckVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.GOSSIP_DIGEST_ACK2, new GossipDigestAck2VerbHandler());
 
-        MessagingService.instance().registerVerbHandlers(Verb.DEFINITIONS_UPDATE, new DefinitionsUpdateVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.SCHEMA_CHECK, new SchemaCheckVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.MIGRATION_REQUEST, new MigrationRequestVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.DEFINITIONS_UPDATE, new DefinitionsUpdateVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.SCHEMA_CHECK, new SchemaCheckVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.MIGRATION_REQUEST, new MigrationRequestVerbHandler());
 
-        MessagingService.instance().registerVerbHandlers(Verb.SNAPSHOT, new SnapshotVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.SNAPSHOT, new SnapshotVerbHandler());
 
         // spin up the streaming service so it is available for jmx tools.
         if (StreamingService.instance == null)
@@ -1507,7 +1432,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private void sendReplicationNotification(InetAddress remote)
     {
         // notify the remote token
-        MessageOut msg = new MessageOut(StorageService.Verb.REPLICATION_FINISHED);
+        MessageOut msg = new MessageOut(MessagingService.Verb.REPLICATION_FINISHED);
         IFailureDetector failureDetector = FailureDetector.instance;
         if (logger.isDebugEnabled())
             logger.debug("Notifying " + remote.toString() + " of replication completion\n");

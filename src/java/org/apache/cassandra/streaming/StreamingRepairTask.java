@@ -35,7 +35,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.*;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -131,7 +130,7 @@ public class StreamingRepairTask implements Runnable
     private void forwardToSource()
     {
         logger.info(String.format("[streaming task #%s] Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", id, ranges.size(), src, dst));
-        MessageOut<StreamingRepairTask> msg = new MessageOut<StreamingRepairTask>(StorageService.Verb.STREAMING_REPAIR_REQUEST,
+        MessageOut<StreamingRepairTask> msg = new MessageOut<StreamingRepairTask>(MessagingService.Verb.STREAMING_REPAIR_REQUEST,
                                                                                   this,
                                                                                   StreamingRepairTask.serializer);
         MessagingService.instance().sendOneWay(msg, src);
@@ -248,7 +247,7 @@ public class StreamingRepairTask implements Runnable
         private static void reply(InetAddress remote, UUID taskid) throws IOException
         {
             logger.info(String.format("[streaming task #%s] task suceed, forwarding response to %s", taskid, remote));
-            MessageOut<UUID> message = new MessageOut<UUID>(StorageService.Verb.STREAMING_REPAIR_RESPONSE, taskid, UUIDGen.serializer);
+            MessageOut<UUID> message = new MessageOut<UUID>(MessagingService.Verb.STREAMING_REPAIR_RESPONSE, taskid, UUIDGen.serializer);
             MessagingService.instance().sendOneWay(message, remote);
         }
     }

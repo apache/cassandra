@@ -154,7 +154,7 @@ public class BootStrapper
 
     static Token<?> getBootstrapTokenFrom(InetAddress maxEndpoint)
     {
-        MessageOut message = new MessageOut(StorageService.Verb.BOOTSTRAP_TOKEN);
+        MessageOut message = new MessageOut(MessagingService.Verb.BOOTSTRAP_TOKEN);
         int retries = 5;
         long timeout = Math.max(MessagingService.getDefaultCallbackTimeout(), BOOTSTRAP_TIMEOUT);
 
@@ -177,7 +177,7 @@ public class BootStrapper
         {
             StorageService ss = StorageService.instance;
             String tokenString = StorageService.getPartitioner().getTokenFactory().toString(ss.getBootstrapToken());
-            MessageOut<String> response = new MessageOut<String>(StorageService.Verb.INTERNAL_RESPONSE, tokenString, StringSerializer.instance);
+            MessageOut<String> response = new MessageOut<String>(MessagingService.Verb.INTERNAL_RESPONSE, tokenString, StringSerializer.instance);
             MessagingService.instance().sendReply(response, id, message.getFrom());
         }
     }

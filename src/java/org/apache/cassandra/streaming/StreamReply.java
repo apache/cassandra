@@ -23,7 +23,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.net.MessagingService;
 
 class StreamReply
 {
@@ -50,7 +50,7 @@ class StreamReply
 
     public MessageOut<StreamReply> createMessage()
     {
-        return new MessageOut<StreamReply>(StorageService.Verb.STREAM_REPLY, this, serializer);
+        return new MessageOut<StreamReply>(MessagingService.Verb.STREAM_REPLY, this, serializer);
     }
 
     @Override

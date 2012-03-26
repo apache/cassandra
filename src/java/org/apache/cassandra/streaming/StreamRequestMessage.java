@@ -36,7 +36,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 
 /**
 * This class encapsulates the message that needs to be sent to nodes
@@ -94,7 +93,7 @@ class StreamRequestMessage // TODO rename to StreamRequest
 
     public MessageOut<StreamRequestMessage> createMessage()
     {
-        return new MessageOut<StreamRequestMessage>(StorageService.Verb.STREAM_REQUEST, this, serializer);
+        return new MessageOut<StreamRequestMessage>(MessagingService.Verb.STREAM_REQUEST, this, serializer);
     }
 
     public String toString()

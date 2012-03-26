@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -116,7 +116,7 @@ public class CounterMutation implements IMutation
 
     public MessageOut<CounterMutation> makeMutationMessage() throws IOException
     {
-        return new MessageOut<CounterMutation>(StorageService.Verb.COUNTER_MUTATION, this, serializer);
+        return new MessageOut<CounterMutation>(MessagingService.Verb.COUNTER_MUTATION, this, serializer);
     }
 
     public boolean shouldReplicateOnWrite()

@@ -183,7 +183,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     private static void pushSchemaMutation(InetAddress endpoint, Collection<RowMutation> schema)
     {
-        MessageOut<Collection<RowMutation>> msg = new MessageOut<Collection<RowMutation>>(StorageService.Verb.DEFINITIONS_UPDATE,
+        MessageOut<Collection<RowMutation>> msg = new MessageOut<Collection<RowMutation>>(MessagingService.Verb.DEFINITIONS_UPDATE,
                                                                                           schema,
                                                                                           MigrationsSerializer.instance);
         MessagingService.instance().sendOneWay(msg, endpoint);

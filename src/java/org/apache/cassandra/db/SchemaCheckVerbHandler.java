@@ -24,7 +24,6 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 
 
 public class SchemaCheckVerbHandler implements IVerbHandler
@@ -34,7 +33,7 @@ public class SchemaCheckVerbHandler implements IVerbHandler
     public void doVerb(MessageIn message, String id)
     {
         logger.debug("Received schema check request.");
-        MessageOut response = new MessageOut(StorageService.Verb.INTERNAL_RESPONSE);
+        MessageOut response = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE);
         MessagingService.instance().sendReply(response, id, message.getFrom());
     }
 }

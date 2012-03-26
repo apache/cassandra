@@ -29,7 +29,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.net.MessagingService;
 
 public class RangeSliceReply
 {
@@ -44,7 +44,7 @@ public class RangeSliceReply
 
     public MessageOut<RangeSliceReply> createMessage()
     {
-        return new MessageOut<RangeSliceReply>(StorageService.Verb.REQUEST_RESPONSE, this, serializer);
+        return new MessageOut<RangeSliceReply>(MessagingService.Verb.REQUEST_RESPONSE, this, serializer);
     }
 
     @Override

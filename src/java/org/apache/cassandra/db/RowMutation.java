@@ -35,7 +35,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.thrift.Deletion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -298,10 +297,10 @@ public class RowMutation implements IMutation
 
     public MessageOut<RowMutation> createMessage()
     {
-        return createMessage(StorageService.Verb.MUTATION);
+        return createMessage(MessagingService.Verb.MUTATION);
     }
 
-    public MessageOut<RowMutation> createMessage(StorageService.Verb verb)
+    public MessageOut<RowMutation> createMessage(MessagingService.Verb verb)
     {
         return new MessageOut<RowMutation>(verb, this, serializer);
     }

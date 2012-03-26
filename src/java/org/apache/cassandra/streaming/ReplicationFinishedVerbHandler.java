@@ -33,7 +33,7 @@ public class ReplicationFinishedVerbHandler implements IVerbHandler
     public void doVerb(MessageIn msg, String id)
     {
         StorageService.instance.confirmReplication(msg.getFrom());
-        MessageOut response = new MessageOut(StorageService.Verb.INTERNAL_RESPONSE);
+        MessageOut response = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE);
         if (logger.isDebugEnabled())
             logger.debug("Replying to " + id + "@" + msg.getFrom());
         MessagingService.instance().sendReply(response, id, msg.getFrom());

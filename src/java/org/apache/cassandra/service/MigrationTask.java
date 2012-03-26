@@ -35,7 +35,7 @@ class MigrationTask extends WrappedRunnable
 
     public void runMayThrow() throws Exception
     {
-        MessageOut<MigrationTask> message = new MessageOut<MigrationTask>(StorageService.Verb.MIGRATION_REQUEST,
+        MessageOut<MigrationTask> message = new MessageOut<MigrationTask>(MessagingService.Verb.MIGRATION_REQUEST,
                                                                           this,
                                                                           serializer);
 

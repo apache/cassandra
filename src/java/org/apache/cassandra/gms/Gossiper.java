@@ -123,7 +123,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 if ( gDigests.size() > 0 )
                 {
                     GossipDigestSynMessage digestSynMessage = new GossipDigestSynMessage(DatabaseDescriptor.getClusterName(), gDigests);
-                    MessageOut<GossipDigestSynMessage> message = new MessageOut<GossipDigestSynMessage>(StorageService.Verb.GOSSIP_DIGEST_SYN,
+                    MessageOut<GossipDigestSynMessage> message = new MessageOut<GossipDigestSynMessage>(MessagingService.Verb.GOSSIP_DIGEST_SYN,
                                                                                                         digestSynMessage,
                                                                                                         GossipDigestSynMessage.serializer());
                     /* Gossip to some random live member */
@@ -1090,7 +1090,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             throw new RuntimeException(e);
         }
-        MessageOut<GossipDigestSynMessage> message = new MessageOut<GossipDigestSynMessage>(StorageService.Verb.GOSSIP_SHUTDOWN,
+        MessageOut<GossipDigestSynMessage> message = new MessageOut<GossipDigestSynMessage>(MessagingService.Verb.GOSSIP_SHUTDOWN,
                                                                                             null,
                                                                                             GossipDigestSynMessage.serializer());
         for (InetAddress ep : liveEndpoints)
