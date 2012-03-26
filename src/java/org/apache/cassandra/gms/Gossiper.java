@@ -122,10 +122,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
                 if ( gDigests.size() > 0 )
                 {
-                    GossipDigestSynMessage digestSynMessage = new GossipDigestSynMessage(DatabaseDescriptor.getClusterName(), gDigests);
-                    MessageOut<GossipDigestSynMessage> message = new MessageOut<GossipDigestSynMessage>(MessagingService.Verb.GOSSIP_DIGEST_SYN,
+                    GossipDigestSyn digestSynMessage = new GossipDigestSyn(DatabaseDescriptor.getClusterName(), gDigests);
+                    MessageOut<GossipDigestSyn> message = new MessageOut<GossipDigestSyn>(MessagingService.Verb.GOSSIP_DIGEST_SYN,
                                                                                                         digestSynMessage,
-                                                                                                        GossipDigestSynMessage.serializer());
+                                                                                                        GossipDigestSyn.serializer());
                     /* Gossip to some random live member */
                     boolean gossipedToSeed = doGossipToLiveMember(message);
 
@@ -507,7 +507,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * @param epSet a set of endpoint from which a random endpoint is chosen.
      *  @return true if the chosen endpoint is also a seed.
      */
-    private boolean sendGossip(MessageOut<GossipDigestSynMessage> message, Set<InetAddress> epSet)
+    private boolean sendGossip(MessageOut<GossipDigestSyn> message, Set<InetAddress> epSet)
     {
         int size = epSet.size();
         if (size < 1)
@@ -517,13 +517,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         int index = (size == 1) ? 0 : random.nextInt(size);
         InetAddress to = liveEndpoints.get(index);
         if (logger.isTraceEnabled())
-            logger.trace("Sending a GossipDigestSynMessage to {} ...", to);
+            logger.trace("Sending a GossipDigestSyn to {} ...", to);
         MessagingService.instance().sendOneWay(message, to);
         return seeds.contains(to);
     }
 
     /* Sends a Gossip message to a live member and returns true if the recipient was a seed */
-    private boolean doGossipToLiveMember(MessageOut<GossipDigestSynMessage> message)
+    private boolean doGossipToLiveMember(MessageOut<GossipDigestSyn> message)
     {
         int size = liveEndpoints.size();
         if ( size == 0 )
@@ -532,7 +532,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     }
 
     /* Sends a Gossip message to an unreachable member */
-    private void doGossipToUnreachableMember(MessageOut<GossipDigestSynMessage> message)
+    private void doGossipToUnreachableMember(MessageOut<GossipDigestSyn> message)
     {
         double liveEndpointCount = liveEndpoints.size();
         double unreachableEndpointCount = unreachableEndpoints.size();
@@ -547,7 +547,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     }
 
     /* Gossip to a seed for facilitating partition healing */
-    private void doGossipToSeed(MessageOut<GossipDigestSynMessage> prod)
+    private void doGossipToSeed(MessageOut<GossipDigestSyn> prod)
     {
         int size = seeds.size();
         if ( size > 0 )
@@ -1090,9 +1090,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             throw new RuntimeException(e);
         }
-        MessageOut<GossipDigestSynMessage> message = new MessageOut<GossipDigestSynMessage>(MessagingService.Verb.GOSSIP_SHUTDOWN,
-                                                                                            null,
-                                                                                            GossipDigestSynMessage.serializer());
+        MessageOut<GossipDigestSyn> message = new MessageOut<GossipDigestSyn>(MessagingService.Verb.GOSSIP_SHUTDOWN,
+                                                                              null,
+                                                                              GossipDigestSyn.serializer());
         for (InetAddress ep : liveEndpoints)
         {
             MessagingService.instance().sendOneWay(message, ep);

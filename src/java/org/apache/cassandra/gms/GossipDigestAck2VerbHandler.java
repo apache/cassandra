@@ -17,23 +17,20 @@
  */
 package org.apache.cassandra.gms;
 
-import java.io.DataInputStream;
-import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 
-public class GossipDigestAck2VerbHandler implements IVerbHandler<GossipDigestAck2Message>
+public class GossipDigestAck2VerbHandler implements IVerbHandler<GossipDigestAck2>
 {
     private static final Logger logger = LoggerFactory.getLogger(GossipDigestAck2VerbHandler.class);
 
-    public void doVerb(MessageIn<GossipDigestAck2Message> message, String id)
+    public void doVerb(MessageIn<GossipDigestAck2> message, String id)
     {
         if (logger.isTraceEnabled())
         {

@@ -44,15 +44,15 @@ import org.apache.cassandra.net.MessagingService;
 *
 * If a file is specified, ranges and table will not. vice-versa should hold as well.
 */
-public class StreamRequestMessage // TODO rename to StreamRequest
+public class StreamRequest
 {
-    private static final IVersionedSerializer<StreamRequestMessage> serializer;
+    private static final IVersionedSerializer<StreamRequest> serializer;
     static
     {
-        serializer = new StreamRequestMessageSerializer();
+        serializer = new StreamRequestSerializer();
     }
 
-    public static IVersionedSerializer<StreamRequestMessage> serializer()
+    public static IVersionedSerializer<StreamRequest> serializer()
     {
         return serializer;
     }
@@ -69,7 +69,7 @@ public class StreamRequestMessage // TODO rename to StreamRequest
     protected final Iterable<ColumnFamilyStore> columnFamilies;
     protected final OperationType type;
 
-    StreamRequestMessage(InetAddress target, Collection<Range<Token>> ranges, String table, Iterable<ColumnFamilyStore> columnFamilies, long sessionId, OperationType type)
+    StreamRequest(InetAddress target, Collection<Range<Token>> ranges, String table, Iterable<ColumnFamilyStore> columnFamilies, long sessionId, OperationType type)
     {
         this.target = target;
         this.ranges = ranges;
@@ -80,7 +80,7 @@ public class StreamRequestMessage // TODO rename to StreamRequest
         file = null;
     }
 
-    StreamRequestMessage(InetAddress target, PendingFile file, long sessionId)
+    StreamRequest(InetAddress target, PendingFile file, long sessionId)
     {
         this.target = target;
         this.file = file;
@@ -91,9 +91,9 @@ public class StreamRequestMessage // TODO rename to StreamRequest
         columnFamilies = null;
     }
 
-    public MessageOut<StreamRequestMessage> createMessage()
+    public MessageOut<StreamRequest> createMessage()
     {
-        return new MessageOut<StreamRequestMessage>(MessagingService.Verb.STREAM_REQUEST, this, serializer);
+        return new MessageOut<StreamRequest>(MessagingService.Verb.STREAM_REQUEST, this, serializer);
     }
 
     public String toString()
@@ -121,9 +121,9 @@ public class StreamRequestMessage // TODO rename to StreamRequest
         return sb.toString();
     }
 
-    private static class StreamRequestMessageSerializer implements IVersionedSerializer<StreamRequestMessage>
+    private static class StreamRequestSerializer implements IVersionedSerializer<StreamRequest>
     {
-        public void serialize(StreamRequestMessage srm, DataOutput dos, int version) throws IOException
+        public void serialize(StreamRequest srm, DataOutput dos, int version) throws IOException
         {
             dos.writeLong(srm.sessionId);
             CompactEndpointSerializationHelper.serialize(srm.target, dos);
@@ -154,7 +154,7 @@ public class StreamRequestMessage // TODO rename to StreamRequest
             }
         }
 
-        public StreamRequestMessage deserialize(DataInput dis, int version) throws IOException
+        public StreamRequest deserialize(DataInput dis, int version) throws IOException
         {
             long sessionId = dis.readLong();
             InetAddress target = CompactEndpointSerializationHelper.deserialize(dis);
@@ -162,7 +162,7 @@ public class StreamRequestMessage // TODO rename to StreamRequest
             if (singleFile)
             {
                 PendingFile file = PendingFile.serializer().deserialize(dis, version);
-                return new StreamRequestMessage(target, file, sessionId);
+                return new StreamRequest(target, file, sessionId);
             }
             else
             {
@@ -185,11 +185,11 @@ public class StreamRequestMessage // TODO rename to StreamRequest
                         stores.add(Table.open(table).getColumnFamilyStore(dis.readInt()));
                 }
 
-                return new StreamRequestMessage(target, ranges, table, stores, sessionId, type);
+                return new StreamRequest(target, ranges, table, stores, sessionId, type);
             }
         }
 
-        public long serializedSize(StreamRequestMessage streamRequestMessage, int version)
+        public long serializedSize(StreamRequest streamRequestMessage, int version)
         {
             throw new UnsupportedOperationException();
         }

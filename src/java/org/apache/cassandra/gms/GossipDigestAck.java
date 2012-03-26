@@ -27,27 +27,27 @@ import org.apache.cassandra.io.IVersionedSerializer;
 
 
 /**
- * This message gets sent out as a result of the receipt of a GossipDigestSynMessage by an
+ * This ack gets sent out as a result of the receipt of a GossipDigestSynMessage by an
  * endpoint. This is the 2 stage of the 3 way messaging in the Gossip protocol.
  */
 
-public class GossipDigestAckMessage // TODO rename
+public class GossipDigestAck
 {
-    private static final IVersionedSerializer<GossipDigestAckMessage> serializer;
+    private static final IVersionedSerializer<GossipDigestAck> serializer;
     static
     {
-        serializer = new GossipDigestAckMessageSerializer();
+        serializer = new GossipDigestAckSerializer();
     }
 
     final List<GossipDigest> gDigestList;
     final Map<InetAddress, EndpointState> epStateMap;
 
-    public static IVersionedSerializer<GossipDigestAckMessage> serializer()
+    public static IVersionedSerializer<GossipDigestAck> serializer()
     {
         return serializer;
     }
 
-    GossipDigestAckMessage(List<GossipDigest> gDigestList, Map<InetAddress, EndpointState> epStateMap)
+    GossipDigestAck(List<GossipDigest> gDigestList, Map<InetAddress, EndpointState> epStateMap)
     {
         this.gDigestList = gDigestList;
         this.epStateMap = epStateMap;
@@ -64,24 +64,24 @@ public class GossipDigestAckMessage // TODO rename
     }
 }
 
-class GossipDigestAckMessageSerializer implements IVersionedSerializer<GossipDigestAckMessage>
+class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
 {
-    public void serialize(GossipDigestAckMessage gDigestAckMessage, DataOutput dos, int version) throws IOException
+    public void serialize(GossipDigestAck gDigestAckMessage, DataOutput dos, int version) throws IOException
     {
         GossipDigestSerializationHelper.serialize(gDigestAckMessage.gDigestList, dos, version);
         dos.writeBoolean(true); // 0.6 compatibility
         EndpointStatesSerializationHelper.serialize(gDigestAckMessage.epStateMap, dos, version);
     }
 
-    public GossipDigestAckMessage deserialize(DataInput dis, int version) throws IOException
+    public GossipDigestAck deserialize(DataInput dis, int version) throws IOException
     {
         List<GossipDigest> gDigestList = GossipDigestSerializationHelper.deserialize(dis, version);
         dis.readBoolean(); // 0.6 compatibility
         Map<InetAddress, EndpointState> epStateMap = EndpointStatesSerializationHelper.deserialize(dis, version);
-        return new GossipDigestAckMessage(gDigestList, epStateMap);
+        return new GossipDigestAck(gDigestList, epStateMap);
     }
 
-    public long serializedSize(GossipDigestAckMessage gossipDigestAckMessage, int version)
+    public long serializedSize(GossipDigestAck gossipDigestAckMessage, int version)
     {
         throw new UnsupportedOperationException();
     }

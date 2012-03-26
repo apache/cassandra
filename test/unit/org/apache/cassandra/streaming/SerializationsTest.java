@@ -150,14 +150,14 @@ public class SerializationsTest extends AbstractSerializationsTester
         for (int i = 0; i < 5; i++)
             ranges.add(new Range<Token>(new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i))), new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i+5)))));
         List<ColumnFamilyStore> stores = Collections.singletonList(Table.open("Keyspace1").getColumnFamilyStore("Standard1"));
-        StreamRequestMessage msg0 = new StreamRequestMessage(FBUtilities.getBroadcastAddress(), ranges, "Keyspace1", stores, 123L, OperationType.RESTORE_REPLICA_COUNT);
-        StreamRequestMessage msg1 = new StreamRequestMessage(FBUtilities.getBroadcastAddress(), makePendingFile(true, 100, OperationType.BOOTSTRAP), 124L);
-        StreamRequestMessage msg2 = new StreamRequestMessage(FBUtilities.getBroadcastAddress(), makePendingFile(false, 100, OperationType.BOOTSTRAP), 124L);
+        StreamRequest msg0 = new StreamRequest(FBUtilities.getBroadcastAddress(), ranges, "Keyspace1", stores, 123L, OperationType.RESTORE_REPLICA_COUNT);
+        StreamRequest msg1 = new StreamRequest(FBUtilities.getBroadcastAddress(), makePendingFile(true, 100, OperationType.BOOTSTRAP), 124L);
+        StreamRequest msg2 = new StreamRequest(FBUtilities.getBroadcastAddress(), makePendingFile(false, 100, OperationType.BOOTSTRAP), 124L);
 
         DataOutputStream out = getOutput("streaming.StreamRequestMessage.bin");
-        StreamRequestMessage.serializer().serialize(msg0, out, getVersion());
-        StreamRequestMessage.serializer().serialize(msg1, out, getVersion());
-        StreamRequestMessage.serializer().serialize(msg2, out, getVersion());
+        StreamRequest.serializer().serialize(msg0, out, getVersion());
+        StreamRequest.serializer().serialize(msg1, out, getVersion());
+        StreamRequest.serializer().serialize(msg2, out, getVersion());
         msg0.createMessage().serialize(out, getVersion());
         msg1.createMessage().serialize(out, getVersion());
         msg2.createMessage().serialize(out, getVersion());
@@ -171,9 +171,9 @@ public class SerializationsTest extends AbstractSerializationsTester
             testStreamRequestMessageWrite();
 
         DataInputStream in = getInput("streaming.StreamRequestMessage.bin");
-        assert StreamRequestMessage.serializer().deserialize(in, getVersion()) != null;
-        assert StreamRequestMessage.serializer().deserialize(in, getVersion()) != null;
-        assert StreamRequestMessage.serializer().deserialize(in, getVersion()) != null;
+        assert StreamRequest.serializer().deserialize(in, getVersion()) != null;
+        assert StreamRequest.serializer().deserialize(in, getVersion()) != null;
+        assert StreamRequest.serializer().deserialize(in, getVersion()) != null;
         assert MessageIn.read(in, getVersion(), "id") != null;
         assert MessageIn.read(in, getVersion(), "id") != null;
         assert MessageIn.read(in, getVersion(), "id") != null;

@@ -34,23 +34,23 @@ import org.apache.cassandra.net.CompactEndpointSerializationHelper;
  * round.
  */
 
-public class GossipDigestSynMessage
+public class GossipDigestSyn
 {
-    private static final IVersionedSerializer<GossipDigestSynMessage> serializer;
+    private static final IVersionedSerializer<GossipDigestSyn> serializer;
     static
     {
-        serializer = new GossipDigestSynMessageSerializer();
+        serializer = new GossipDigestSynSerializer();
     }
 
     final String clusterId;
     final List<GossipDigest> gDigests;
 
-    public static IVersionedSerializer<GossipDigestSynMessage> serializer()
+    public static IVersionedSerializer<GossipDigestSyn> serializer()
     {
         return serializer;
     }
 
-    public GossipDigestSynMessage(String clusterId, List<GossipDigest> gDigests)
+    public GossipDigestSyn(String clusterId, List<GossipDigest> gDigests)
     {
         this.clusterId = clusterId;
         this.gDigests = gDigests;
@@ -114,22 +114,22 @@ class EndpointStatesSerializationHelper
     }
 }
 
-class GossipDigestSynMessageSerializer implements IVersionedSerializer<GossipDigestSynMessage>
+class GossipDigestSynSerializer implements IVersionedSerializer<GossipDigestSyn>
 {
-    public void serialize(GossipDigestSynMessage gDigestSynMessage, DataOutput dos, int version) throws IOException
+    public void serialize(GossipDigestSyn gDigestSynMessage, DataOutput dos, int version) throws IOException
     {
         dos.writeUTF(gDigestSynMessage.clusterId);
         GossipDigestSerializationHelper.serialize(gDigestSynMessage.gDigests, dos, version);
     }
 
-    public GossipDigestSynMessage deserialize(DataInput dis, int version) throws IOException
+    public GossipDigestSyn deserialize(DataInput dis, int version) throws IOException
     {
         String clusterId = dis.readUTF();
         List<GossipDigest> gDigests = GossipDigestSerializationHelper.deserialize(dis, version);
-        return new GossipDigestSynMessage(clusterId, gDigests);
+        return new GossipDigestSyn(clusterId, gDigests);
     }
 
-    public long serializedSize(GossipDigestSynMessage gossipDigestSynMessage, int version)
+    public long serializedSize(GossipDigestSyn gossipDigestSynMessage, int version)
     {
         throw new UnsupportedOperationException();
     }

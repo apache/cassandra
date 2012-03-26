@@ -67,16 +67,16 @@ public class SerializationsTest extends AbstractSerializationsTester
         Map<InetAddress, EndpointState> states = new HashMap<InetAddress, EndpointState>();
         states.put(InetAddress.getByName("127.0.0.1"), Statics.EndpointSt);
         states.put(InetAddress.getByName("127.0.0.2"), Statics.EndpointSt);
-        GossipDigestAckMessage ack = new GossipDigestAckMessage(Statics.Digests, states);
-        GossipDigestAck2Message ack2 = new GossipDigestAck2Message(states);
-        GossipDigestSynMessage syn = new GossipDigestSynMessage("Not a real cluster name", Statics.Digests);
+        GossipDigestAck ack = new GossipDigestAck(Statics.Digests, states);
+        GossipDigestAck2 ack2 = new GossipDigestAck2(states);
+        GossipDigestSyn syn = new GossipDigestSyn("Not a real cluster name", Statics.Digests);
 
         DataOutputStream out = getOutput("gms.Gossip.bin");
         for (GossipDigest gd : Statics.Digests)
             GossipDigest.serializer().serialize(gd, out, getVersion());
-        GossipDigestAckMessage.serializer().serialize(ack, out, getVersion());
-        GossipDigestAck2Message.serializer().serialize(ack2, out, getVersion());
-        GossipDigestSynMessage.serializer().serialize(syn, out, getVersion());
+        GossipDigestAck.serializer().serialize(ack, out, getVersion());
+        GossipDigestAck2.serializer().serialize(ack2, out, getVersion());
+        GossipDigestSyn.serializer().serialize(syn, out, getVersion());
         out.close();
     }
 
@@ -89,10 +89,10 @@ public class SerializationsTest extends AbstractSerializationsTester
         int count = 0;
         DataInputStream in = getInput("gms.Gossip.bin");
         while (count < Statics.Digests.size())
-            assert GossipDigestAck2Message.serializer().deserialize(in, getVersion()) != null;
-        assert GossipDigestAckMessage.serializer().deserialize(in, getVersion()) != null;
-        assert GossipDigestAck2Message.serializer().deserialize(in, getVersion()) != null;
-        assert GossipDigestSynMessage.serializer().deserialize(in, getVersion()) != null;
+            assert GossipDigestAck2.serializer().deserialize(in, getVersion()) != null;
+        assert GossipDigestAck.serializer().deserialize(in, getVersion()) != null;
+        assert GossipDigestAck2.serializer().deserialize(in, getVersion()) != null;
+        assert GossipDigestSyn.serializer().deserialize(in, getVersion()) != null;
         in.close();
     }
 

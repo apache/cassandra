@@ -19,14 +19,11 @@
 
 package org.apache.cassandra.streaming;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
 
 import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessagingService;
 
 public class StreamUtil
 {
@@ -34,7 +31,7 @@ public class StreamUtil
      * Takes an stream request message and creates an empty status response. Exists here because StreamRequestMessage
      * is package protected.
      */
-    static public void finishStreamRequest(MessageIn<StreamRequestMessage> msg, InetAddress to)
+    static public void finishStreamRequest(MessageIn<StreamRequest> msg, InetAddress to)
     {
         StreamInSession session = StreamInSession.get(to, msg.payload.sessionId);
         try

@@ -25,26 +25,26 @@ import org.apache.cassandra.io.IVersionedSerializer;
 
 
 /**
- * This message gets sent out as a result of the receipt of a GossipDigestAckMessage. This the
+ * This ack gets sent out as a result of the receipt of a GossipDigestAckMessage. This the
  * last stage of the 3 way messaging of the Gossip protocol.
  */
 
-public class GossipDigestAck2Message
+public class GossipDigestAck2
 {
-    private static final IVersionedSerializer<GossipDigestAck2Message> serializer;
+    private static final IVersionedSerializer<GossipDigestAck2> serializer;
     static
     {
-        serializer = new GossipDigestAck2MessageSerializer();
+        serializer = new GossipDigestAck2Serializer();
     }
 
     final Map<InetAddress, EndpointState> epStateMap;
 
-    public static IVersionedSerializer<GossipDigestAck2Message> serializer()
+    public static IVersionedSerializer<GossipDigestAck2> serializer()
     {
         return serializer;
     }
 
-    GossipDigestAck2Message(Map<InetAddress, EndpointState> epStateMap)
+    GossipDigestAck2(Map<InetAddress, EndpointState> epStateMap)
     {
         this.epStateMap = epStateMap;
     }
@@ -55,21 +55,21 @@ public class GossipDigestAck2Message
     }
 }
 
-class GossipDigestAck2MessageSerializer implements IVersionedSerializer<GossipDigestAck2Message>
+class GossipDigestAck2Serializer implements IVersionedSerializer<GossipDigestAck2>
 {
-    public void serialize(GossipDigestAck2Message gDigestAck2Message, DataOutput dos, int version) throws IOException
+    public void serialize(GossipDigestAck2 gDigestAck2Message, DataOutput dos, int version) throws IOException
     {
         /* Use the EndpointState */
         EndpointStatesSerializationHelper.serialize(gDigestAck2Message.epStateMap, dos, version);
     }
 
-    public GossipDigestAck2Message deserialize(DataInput dis, int version) throws IOException
+    public GossipDigestAck2 deserialize(DataInput dis, int version) throws IOException
     {
         Map<InetAddress, EndpointState> epStateMap = EndpointStatesSerializationHelper.deserialize(dis, version);
-        return new GossipDigestAck2Message(epStateMap);
+        return new GossipDigestAck2(epStateMap);
     }
 
-    public long serializedSize(GossipDigestAck2Message gossipDigestAck2Message, int version)
+    public long serializedSize(GossipDigestAck2 gossipDigestAck2Message, int version)
     {
         throw new UnsupportedOperationException();
     }
