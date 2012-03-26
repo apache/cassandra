@@ -208,7 +208,7 @@ public class DatabaseDescriptor
             }
             try
             {
-                partitioner = FBUtilities.newPartitioner(conf.partitioner);
+                partitioner = FBUtilities.newPartitioner(System.getProperty("cassandra.partitioner", conf.partitioner));
             }
             catch (Exception e)
             {

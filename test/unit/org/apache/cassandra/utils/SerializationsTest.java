@@ -73,9 +73,10 @@ public class SerializationsTest extends AbstractSerializationsTester
     @Test
     public void testLegacyBloomFilterRead() throws IOException
     {
-        if (EXECUTE_WRITES)
-            testLegacyBloomFilterWrite();
-
+        // We never write out a new LBF.  Copy the data file from 0.7 instead.
+        // if (EXECUTE_WRITES)
+        //      testLegacyBloomFilterWrite();
+        
         DataInputStream in = getInput("utils.LegacyBloomFilter.bin");
         assert LegacyBloomFilter.serializer().deserialize(in) != null;
         in.close();
