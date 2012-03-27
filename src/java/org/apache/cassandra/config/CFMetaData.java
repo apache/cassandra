@@ -67,6 +67,8 @@ public final class CFMetaData
     public final static int DEFAULT_MAX_COMPACTION_THRESHOLD = 32;
     public final static String DEFAULT_COMPACTION_STRATEGY_CLASS = "SizeTieredCompactionStrategy";
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
+    public final static Caching DEFAULT_CACHING_STRATEGY = Caching.KEYS_ONLY;
+    public final static Double DEFAULT_BF_FP_CHANCE = null;
 
     public static final CFMetaData StatusCf = newSystemMetadata(SystemTable.STATUS_CF, 0, "persistent metadata for the local node", BytesType.instance, null);
     public static final CFMetaData HintsCf = newSystemMetadata(HintedHandOffManager.HINTS_CF, 1, "hinted handoff data", BytesType.instance, BytesType.instance);
@@ -248,7 +250,8 @@ public final class CFMetaData
         // System cfs have specific ids, and copies of old CFMDs need
         //  to copy over the old id.
         cfId = id;
-        caching = Caching.KEYS_ONLY;
+        caching = DEFAULT_CACHING_STRATEGY;
+        bloomFilterFpChance = DEFAULT_BF_FP_CHANCE;
 
         this.init();
     }

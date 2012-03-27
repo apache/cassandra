@@ -150,6 +150,8 @@ public class AlterTableStatement extends SchemaAlteringStatement
         cfDef.replicate_on_write = cfProps.getBoolean(CFPropDefs.KW_REPLICATEONWRITE, cfDef.replicate_on_write);
         cfDef.min_compaction_threshold = cfProps.getInt(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, cfDef.min_compaction_threshold);
         cfDef.max_compaction_threshold = cfProps.getInt(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, cfDef.max_compaction_threshold);
+        cfDef.caching = cfProps.getString(CFPropDefs.KW_CACHING, cfDef.caching);
+        cfDef.bloom_filter_fp_chance = cfProps.getDouble(CFPropDefs.KW_BF_FP_CHANCE, cfDef.bloom_filter_fp_chance);
 
         if (!cfProps.compactionStrategyOptions.isEmpty())
         {

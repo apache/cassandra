@@ -187,6 +187,8 @@ public class AlterTableStatement
         cfDef.replicate_on_write = cfProps.getPropertyBoolean(CFPropDefs.KW_REPLICATEONWRITE, cfDef.replicate_on_write);
         cfDef.min_compaction_threshold = cfProps.getPropertyInt(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, cfDef.min_compaction_threshold);
         cfDef.max_compaction_threshold = cfProps.getPropertyInt(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, cfDef.max_compaction_threshold);
+        cfDef.caching = cfProps.getPropertyString(CFPropDefs.KW_CACHING, cfDef.caching);
+        cfDef.bloom_filter_fp_chance = cfProps.getPropertyDouble(CFPropDefs.KW_BF_FP_CHANCE, cfDef.bloom_filter_fp_chance);
 
         if (!cfProps.compactionStrategyOptions.isEmpty())
         {

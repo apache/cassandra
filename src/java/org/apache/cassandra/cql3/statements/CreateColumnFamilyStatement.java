@@ -117,6 +117,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                    .valueAlias(valueAlias)
                    .compactionStrategyOptions(properties.compactionStrategyOptions)
                    .compressionParameters(CompressionParameters.create(properties.compressionParameters))
+                   .caching(CFMetaData.Caching.fromString(properties.getString(CFPropDefs.KW_CACHING, CFMetaData.DEFAULT_CACHING_STRATEGY.toString())))
+                   .bloomFilterFpChance(properties.getDouble(CFPropDefs.KW_BF_FP_CHANCE, CFMetaData.DEFAULT_BF_FP_CHANCE))
                    .validate();
         }
         catch (ConfigurationException e)

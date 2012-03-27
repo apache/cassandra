@@ -1,3 +1,6 @@
+1.1-dev
+ * Adds caching and bloomFilterFpChange to CQL options (CASSANDRA-4042)
+
 1.1-beta2
  * rename loaded sstables to avoid conflicts with local snapshots
    (CASSANDRA-3967)
