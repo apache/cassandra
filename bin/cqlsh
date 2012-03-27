@@ -135,6 +135,7 @@ BLUE = '\033[0;1;34m'
 MAGENTA = '\033[0;1;35m'
 CYAN = '\033[0;1;36m'
 WHITE = '\033[0;1;37m'
+DARK_MAGENTA = '\033[0;35m'
 ANSI_RESET = '\033[0m'
 
 CQL_ERRORS = (cql.Error,)
@@ -356,55 +357,83 @@ def _show_control_chars(match):
 
 bits_to_turn_red_re = re.compile(r'\\([^uUx]|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|U[0-9a-fA-F]{8})')
 
-def _turn_bits_red(match):
-    txt = match.group(0)
-    if txt == '\\\\':
-        return '\\'
-    return RED + txt + YELLOW
+def _make_turn_bits_red_f(color1, color2):
+    def _turn_bits_red(match):
+        txt = match.group(0)
+        if txt == '\\\\':
+            return '\\'
+        return color1 + txt + color2
+    return _turn_bits_red
 
-def format_value(val, casstype, output_encoding, addcolor=False, time_format='', float_precision=3):
-    color = YELLOW
+DEFAULT_VALUE_COLORS = dict(
+    default=YELLOW,
+    text=YELLOW,
+    error=RED,
+    hex=DARK_MAGENTA,
+    timestamp=GREEN,
+    int=GREEN,
+    float=GREEN,
+    decimal=GREEN,
+    boolean=GREEN,
+    uuid=GREEN,
+)
+
+COLUMN_NAME_COLORS = defaultdict(lambda: MAGENTA,
+    error=RED,
+    hex=DARK_MAGENTA,
+)
+
+def unix_time_from_uuid1(u):
+    return (u.get_time() - 0x01B21DD213814000) / 10000000.0
+
+def format_value(val, casstype, output_encoding, addcolor=False, time_format='',
+                 float_precision=3, colormap=DEFAULT_VALUE_COLORS):
+    color = colormap['default']
     coloredval = None
     displaywidth = None
 
     if val is None:
         bval = 'null'
-        color = RED
+        color = colormap['error']
     elif isinstance(val, DecodeError):
         casstype = 'BytesType'
         bval = repr(val.thebytes)
-        color = RED
+        color = colormap['hex']
     elif casstype == 'UTF8Type':
         escapedval = val.replace(u'\\', u'\\\\')
         escapedval = unicode_controlchars_re.sub(_show_control_chars, escapedval)
         bval = escapedval.encode(output_encoding, 'backslashreplace')
         displaywidth = wcwidth.wcswidth(bval.decode(output_encoding))
         if addcolor:
-            coloredval = YELLOW + bits_to_turn_red_re.sub(_turn_bits_red, bval) + ANSI_RESET
-    elif casstype == 'DateType':
+            tbr = _make_turn_bits_red_f(colormap['hex'], colormap['text'])
+            coloredval = colormap['text'] + bits_to_turn_red_re.sub(tbr, bval) + ANSI_RESET
+    elif casstype in ('DateType', 'TimeUUIDType'):
+        if casstype == 'TimeUUIDType':
+            val = unix_time_from_uuid1(val)
         timestamp = time.localtime(val)
         bval = time.strftime(time_format, timestamp)
-        color = GREEN
-    elif casstype in ('LongType', 'Int32Type', 'IntegerType'):
+        color = colormap['timestamp']
+    elif casstype in ('LongType', 'Int32Type', 'IntegerType', 'CounterColumnType'):
         # base-10 only for now; support others?
         bval = str(val)
-        color = GREEN
+        color = colormap['int']
     elif casstype in ('FloatType', 'DoubleType'):
         bval = '%.*g' % (float_precision, val)
-        color = GREEN
+        color = colormap['float']
     elif casstype in ('DecimalType', 'UUIDType', 'BooleanType'):
         # let python do these for us
         bval = str(val)
-        color = GREEN
+        color = colormap[cql_typename(casstype)]
     elif casstype == 'BytesType':
         bval = ''.join('%02x' % ord(c) for c in val)
-        color = RED
+        color = colormap['hex']
     else:
         # AsciiType is the only other one known right now, but handle others
         escapedval = val.replace('\\', '\\\\')
         bval = controlchars_re.sub(_show_control_chars, escapedval)
         if addcolor:
-            coloredval = YELLOW + bits_to_turn_red_re.sub(_turn_bits_red, bval) + ANSI_RESET
+            tbr = _make_turn_bits_red_f(colormap['hex'], colormap['text'])
+            coloredval = colormap['text'] + bits_to_turn_red_re.sub(tbr, bval) + ANSI_RESET
 
     if displaywidth is None:
         displaywidth = len(bval)
@@ -466,22 +495,15 @@ class Shell(cmd.Cmd):
         self.stdin = stdin
         self.query_out = sys.stdout
 
-    def myformat_value(self, val, casstype):
+    def myformat_value(self, val, casstype, **kwargs):
         if isinstance(val, DecodeError):
             self.decoding_errors.append(val)
         return format_value(val, casstype, self.output_codec.name,
                             addcolor=self.color, time_format=self.display_time_format,
-                            float_precision=self.display_float_precision)
+                            float_precision=self.display_float_precision, **kwargs)
 
-    def myformat_colname(self, name):
-        if isinstance(name, DecodeError):
-            self.decoding_errors.append(name)
-            name = str(name)
-            color = RED
-        else:
-            color = MAGENTA
-        return FormattedValue(name, self.applycolor(name, color),
-                              wcwidth.wcswidth(name.decode(self.output_codec.name)))
+    def myformat_colname(self, name, nametype):
+        return self.myformat_value(name, nametype, colormap=COLUMN_NAME_COLORS)
 
     def report_connection(self):
         self.show_host()
@@ -830,6 +852,25 @@ class Shell(cmd.Cmd):
             decoder = partial(decoder, overrides=overrides)
         return decoder
 
+    def get_nametype(self, cursor, num):
+        """
+        Determine the Cassandra type of a column name from the current row of
+        query results on the given cursor. The column in question is given by
+        its zero-based ordinal number within the row.
+
+        This is necessary to differentiate some things like ascii vs. blob hex.
+        """
+
+        if getattr(cursor, 'supports_name_info', False):
+            return cursor.name_info[num][1]
+
+        # This is a pretty big hack, but necessary until we can rely on
+        # python-cql 1.0.10 being around.
+        row = cursor.result[cursor.rs_idx - 1]
+        col = row.columns[num]
+        schema = cursor.decoder.schema
+        return schema.name_types.get(col.name, schema.default_name_type)
+
     def print_count_result(self, cursor):
         if not cursor.result:
             return
@@ -867,14 +908,15 @@ class Shell(cmd.Cmd):
 
     def print_static_result(self, cursor):
         colnames, coltypes = zip(*cursor.description)[:2]
-        formatted_names = map(self.myformat_colname, colnames)
+        colnames_t = [(name, self.get_nametype(cursor, n)) for (n, name) in enumerate(colnames)]
+        formatted_names = [self.myformat_colname(name, nametype) for (name, nametype) in colnames_t]
         formatted_data = [map(self.myformat_value, row, coltypes) for row in cursor]
 
         # determine column widths
-        widths = map(len, formatted_names)
+        widths = [n.displaywidth for n in formatted_names]
         for fmtrow in formatted_data:
             for num, col in enumerate(fmtrow):
-                widths[num] = max(widths[num], len(col))
+                widths[num] = max(widths[num], col.displaywidth)
 
         # print header
         header = ' | '.join(hdr.color_ljust(w) for (hdr, w) in zip(formatted_names, widths))
@@ -889,7 +931,8 @@ class Shell(cmd.Cmd):
     def print_dynamic_result(self, cursor):
         for row in cursor:
             colnames, coltypes = zip(*cursor.description)[:2]
-            colnames = [self.myformat_colname(name) for name in colnames]
+            colnames_t = [(name, self.get_nametype(cursor, n)) for (n, name) in enumerate(colnames)]
+            colnames = [self.myformat_colname(name, nametype) for (name, nametype) in colnames_t]
             colvals = [self.myformat_value(val, casstype) for (val, casstype) in zip(row, coltypes)]
             line = ' | '.join('%s,%s' % (n.coloredval, v.coloredval) for (n, v) in zip(colnames, colvals))
             self.writeresult(' ' + line)
