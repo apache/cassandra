@@ -847,7 +847,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public Set<SSTableReader> getOverlappingSSTables(Collection<SSTableReader> sstables)
     {
-        assert !sstables.isEmpty();
+        // a normal compaction won't ever have an empty sstables list, but we create a skeleton
+        // compaction controller for streaming, and that passes an empty list.
+        if (sstables.isEmpty())
+            return ImmutableSet.of();
+
         IntervalTree<SSTableReader> tree = data.getView().intervalTree;
 
         Set<SSTableReader> results = null;
