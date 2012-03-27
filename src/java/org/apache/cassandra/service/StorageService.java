@@ -2122,6 +2122,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             public void run()
             {
+                stopRPCServer();
                 Gossiper.instance.stop();
                 MessagingService.instance().shutdown();
                 StageManager.shutdownNow();
