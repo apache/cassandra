@@ -128,7 +128,7 @@ public class Config
     public boolean trickle_fsync = false;
     public int trickle_fsync_interval_in_kb = 10240;
 
-    public int key_cache_size_in_mb = 2;
+    public String key_cache_size_in_mb = "auto";
     public int key_cache_save_period = 14400;
     public int key_cache_keys_to_save = Integer.MAX_VALUE;
 
