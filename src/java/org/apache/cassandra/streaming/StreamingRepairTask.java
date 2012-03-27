@@ -62,9 +62,9 @@ public class StreamingRepairTask implements Runnable
     private final String tableName;
     private final String cfName;
     private final Collection<Range<Token>> ranges;
-    private final Runnable callback;
+    private final IStreamCallback callback;
 
-    private StreamingRepairTask(UUID id, InetAddress owner, InetAddress src, InetAddress dst, String tableName, String cfName, Collection<Range<Token>> ranges, Runnable callback)
+    private StreamingRepairTask(UUID id, InetAddress owner, InetAddress src, InetAddress dst, String tableName, String cfName, Collection<Range<Token>> ranges, IStreamCallback callback)
     {
         this.id = id;
         this.owner = owner;
@@ -142,14 +142,14 @@ public class StreamingRepairTask implements Runnable
         }
     }
 
-    private static Runnable makeReplyingCallback(final InetAddress taskOwner, final UUID taskId)
+    private static IStreamCallback makeReplyingCallback(final InetAddress taskOwner, final UUID taskId)
     {
-        return new Runnable()
+        return new IStreamCallback()
         {
             // we expect one callback for the receive, and one for the send
             private final AtomicInteger outstanding = new AtomicInteger(2);
 
-            public void run()
+            public void onSuccess()
             {
                 if (outstanding.decrementAndGet() > 0)
                     // waiting on more calls
@@ -164,18 +164,20 @@ public class StreamingRepairTask implements Runnable
                     throw new IOError(e);
                 }
             }
+
+            public void onFailure() {}
         };
     }
 
     // wrap a given callback so as to unregister the streaming repair task on completion
-    private static Runnable wrapCallback(final Runnable callback, final UUID taskid, final boolean isLocalTask)
+    private static IStreamCallback wrapCallback(final Runnable callback, final UUID taskid, final boolean isLocalTask)
     {
-        return new Runnable()
+        return new IStreamCallback()
         {
             // we expect one callback for the receive, and one for the send
             private final AtomicInteger outstanding = new AtomicInteger(isLocalTask ? 2 : 1);
 
-            public void run()
+            public void onSuccess()
             {
                 if (outstanding.decrementAndGet() > 0)
                     // waiting on more calls
@@ -185,6 +187,8 @@ public class StreamingRepairTask implements Runnable
                 if (callback != null)
                     callback.run();
             }
+
+            public void onFailure() {}
         };
     }
 
@@ -252,7 +256,7 @@ public class StreamingRepairTask implements Runnable
 
             logger.info(String.format("[streaming task #%s] task succeeded", task.id));
             if (task.callback != null)
-                task.callback.run();
+                task.callback.onSuccess();
         }
 
         private static void reply(InetAddress remote, UUID taskid) throws IOException

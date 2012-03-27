@@ -44,7 +44,7 @@ public class StreamIn
     private static final Logger logger = LoggerFactory.getLogger(StreamIn.class);
 
     /** Request ranges for all column families in the given keyspace. */
-    public static void requestRanges(InetAddress source, String tableName, Collection<Range<Token>> ranges, Runnable callback, OperationType type)
+    public static void requestRanges(InetAddress source, String tableName, Collection<Range<Token>> ranges, IStreamCallback callback, OperationType type)
     {
         requestRanges(source, tableName, Table.open(tableName).getColumnFamilyStores(), ranges, callback, type);
     }
@@ -52,7 +52,7 @@ public class StreamIn
     /**
      * Request ranges to be transferred from specific CFs
      */
-    public static void requestRanges(InetAddress source, String tableName, Collection<ColumnFamilyStore> columnFamilies, Collection<Range<Token>> ranges, Runnable callback, OperationType type)
+    public static void requestRanges(InetAddress source, String tableName, Collection<ColumnFamilyStore> columnFamilies, Collection<Range<Token>> ranges, IStreamCallback callback, OperationType type)
     {
         assert ranges.size() > 0;
 
