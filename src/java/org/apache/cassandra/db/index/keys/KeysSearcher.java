@@ -159,14 +159,12 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         {
                             // skip the row we already saw w/ the last page of results
                             indexColumns.next();
-                            columnsRead--;
                             logger.debug("Skipping {}", baseCfs.metadata.getKeyValidator().getString(firstColumn.name()));
                         }
                         else if (range instanceof Range && indexColumns.hasNext() && firstColumn.name().equals(startKey))
                         {
                             // skip key excluded by range
                             indexColumns.next();
-                            columnsRead--;
                             logger.debug("Skipping first key as range excludes it");
                         }
                     }

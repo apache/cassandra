@@ -34,6 +34,7 @@ import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -897,6 +898,36 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assert rows.size() == 5;
         assert rows.get(0).key.equals(idk(2));
         assert rows.get(rows.size() - 1).key.equals(idk(6));
+    }
+
+    @Test
+    public void testKeysSearcher() throws Exception
+    {
+        // Create secondary index and flush to disk
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Indexed1");
+
+        store.truncate();
+
+        for (int i = 0; i < 10; i++)
+        {
+            ByteBuffer key = ByteBufferUtil.bytes(String.valueOf("k" + i));
+            RowMutation rm = new RowMutation("Keyspace1", key);
+
+            rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")),
+                   LongType.instance.decompose(1L),
+                   System.currentTimeMillis());
+
+            rm.apply();
+        }
+
+        store.forceBlockingFlush();
+
+        IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, LongType.instance.decompose(1L));
+        // explicitly tell to the KeysSearcher to use column limiting for rowsPerQuery to trigger bogus columnsRead--; (CASSANDRA-3996)
+        List<Row> rows = store.search(Arrays.asList(expr), Util.range("", ""), 10, new IdentityQueryFilter(), true);
+
+        assert rows.size() == 10;
     }
 
     private static String keys(List<Row> rows) throws Throwable
