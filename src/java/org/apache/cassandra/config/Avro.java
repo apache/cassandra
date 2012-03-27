@@ -155,7 +155,7 @@ public class Avro
 
         try
         {
-            caching = cf.caching == null ? CFMetaData.Caching.KEYS_ONLY : CFMetaData.Caching.fromString(cf.caching.toString());
+            caching = cf.caching == null ? CFMetaData.DEFAULT_CACHING_STRATEGY : CFMetaData.Caching.fromString(cf.caching.toString());
         }
         catch (ConfigurationException e)
         {
