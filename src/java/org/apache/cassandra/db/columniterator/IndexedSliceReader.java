@@ -31,11 +31,11 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -222,11 +222,12 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
             if (file == null)
                 file = originalInput == null ? sstable.getFileDataInput(positionToSeek) : originalInput;
 
+            IColumnSerializer columnSerializer = emptyColumnFamily.getColumnSerializer();
             file.seek(positionToSeek);
             FileMark mark = file.mark();
             while (file.bytesPastMark(mark) < curColPosition.width && !outOfBounds)
             {
-                IColumn column = emptyColumnFamily.getColumnSerializer().deserialize(file);
+                IColumn column = columnSerializer.deserialize(file);
                 if (reversed)
                     blockColumns.addFirst(column);
                 else
@@ -251,10 +252,11 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
     {
         private SimpleBlockFetcher() throws IOException
         {
+            IColumnSerializer columnSerializer = emptyColumnFamily.getColumnSerializer();
             int columns = file.readInt();
             for (int i = 0; i < columns; i++)
             {
-                IColumn column = emptyColumnFamily.getColumnSerializer().deserialize(file);
+                IColumn column = columnSerializer.deserialize(file);
                 if (reversed)
                     blockColumns.addFirst(column);
                 else

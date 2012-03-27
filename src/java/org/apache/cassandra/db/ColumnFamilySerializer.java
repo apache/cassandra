@@ -80,8 +80,10 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
             Collection<IColumn> columns = columnFamily.getSortedColumns();
             int count = columns.size();
             dos.writeInt(count);
+
+            IColumnSerializer columnSerializer = columnFamily.getColumnSerializer();
             for (IColumn column : columns)
-                columnFamily.getColumnSerializer().serialize(column, dos);
+                columnSerializer.serialize(column, dos);
         }
         catch (IOException e)
         {
@@ -124,9 +126,10 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
     /* column count is already read from DataInput */
     public void deserializeColumns(DataInput dis, ColumnFamily cf, int size, IColumnSerializer.Flag flag) throws IOException
     {
+        IColumnSerializer columnSerializer = cf.getColumnSerializer();
         for (int i = 0; i < size; ++i)
         {
-            IColumn column = cf.getColumnSerializer().deserialize(dis, flag, (int) (System.currentTimeMillis() / 1000));
+            IColumn column = columnSerializer.deserialize(dis, flag, (int) (System.currentTimeMillis() / 1000));
             cf.addColumn(column);
         }
     }

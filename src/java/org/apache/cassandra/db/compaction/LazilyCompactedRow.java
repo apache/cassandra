@@ -36,6 +36,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.ICountableColumnIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.MergeIterator;
@@ -107,11 +108,12 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         out.write(clockOut.getData(), 0, clockOut.getLength());
         out.writeInt(columnStats.columnCount);
 
+        IColumnSerializer columnSerializer = emptyColumnFamily.getColumnSerializer();
         Iterator<IColumn> iter = iterator();
         while (iter.hasNext())
         {
             IColumn column = iter.next();
-            emptyColumnFamily.getColumnSerializer().serialize(column, out);
+            columnSerializer.serialize(column, out);
         }
         long secondPassColumnSize = reducer == null ? 0 : reducer.serializedSize;
         assert secondPassColumnSize == columnSerializedSize

@@ -22,26 +22,24 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.ColumnFamilySerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilySerializer;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Filter;
-import org.apache.cassandra.utils.Pair;
 
 public class SSTableNamesIterator extends SimpleAbstractColumnIterator implements IColumnIterator
 {
@@ -195,11 +193,12 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
 
     private void readSimpleColumns(FileDataInput file, SortedSet<ByteBuffer> columnNames, List<ByteBuffer> filteredColumnNames) throws IOException
     {
+        IColumnSerializer columnSerializer = cf.getColumnSerializer();
         int columns = file.readInt();
         int n = 0;
         for (int i = 0; i < columns; i++)
         {
-            IColumn column = cf.getColumnSerializer().deserialize(file);
+            IColumn column = columnSerializer.deserialize(file);
             if (columnNames.contains(column.name()))
             {
                 cf.addColumn(column);
@@ -237,12 +236,13 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             if (file == null)
                 file = createFileDataInput(positionToSeek);
 
+            IColumnSerializer columnSerializer = cf.getColumnSerializer();
             file.seek(positionToSeek);
             FileMark mark = file.mark();
             // TODO only completely deserialize columns we are interested in
             while (file.bytesPastMark(mark) < indexInfo.width)
             {
-                IColumn column = cf.getColumnSerializer().deserialize(file);
+                IColumn column = columnSerializer.deserialize(file);
                 // we check vs the original Set, not the filtered List, for efficiency
                 if (columnNames.contains(column.name()))
                 {
