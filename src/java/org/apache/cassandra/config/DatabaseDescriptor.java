@@ -418,9 +418,9 @@ public class DatabaseDescriptor
             try
             {
                 // if key_cache_size_in_mb option was set to "auto" then size of the cache should be "min(5% of Heap (in MB), 100MB)
-                keyCacheSizeInMB = "auto".equalsIgnoreCase(conf.key_cache_size_in_mb)
+                keyCacheSizeInMB = (conf.key_cache_size_in_mb == null)
                                     ? Math.min((int) (Runtime.getRuntime().totalMemory() * 0.05 / 1024 / 1024), 100)
-                                    : Integer.valueOf(conf.key_cache_size_in_mb);
+                                    : conf.key_cache_size_in_mb;
 
                 if (keyCacheSizeInMB < 0)
                     throw new NumberFormatException(); // to escape duplicating error message
@@ -428,7 +428,7 @@ public class DatabaseDescriptor
             catch (NumberFormatException e)
             {
                 throw new ConfigurationException("key_cache_size_in_mb option was set incorrectly to '"
-                                                 + conf.key_cache_size_in_mb + "', supported values are 'auto' and <integer> >= 0.");
+                                                 + conf.key_cache_size_in_mb + "', supported values are <integer> >= 0.");
             }
 
             rowCacheProvider = FBUtilities.newCacheProvider(conf.row_cache_provider);
