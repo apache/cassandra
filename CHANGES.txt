@@ -8,6 +8,7 @@
 1.1-dev
  * Adds caching and bloomFilterFpChange to CQL options (CASSANDRA-4042)
  * Adds posibility to autoconfigure size of the KeyCache (CASSANDRA-4087)
+ * fix KEYS index from skipping results (CASSANDRA-3996)
 
 
 1.1-beta2
