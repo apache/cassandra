@@ -77,8 +77,8 @@ commitlog_directory: /var/lib/cassandra/commitlog
 #
 # NOTE: if you reduce the size, you may not get you hottest keys loaded on startup.
 #
-# Default value is 2 (call hold > 200000 keys). Set to 0 to disable key cache.
-key_cache_size_in_mb: 2
+# Default value is empty to make it "auto" (min(5% of Heap (in MB), 100MB)). Set to 0 to disable key cache.
+key_cache_size_in_mb:
 
 # Duration in seconds after which Cassandra should
 # safe the keys cache. Caches are saved to saved_caches_directory as

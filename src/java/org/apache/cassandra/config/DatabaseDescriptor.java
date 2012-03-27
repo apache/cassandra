@@ -82,6 +82,7 @@ public class DatabaseDescriptor
     private static RequestSchedulerId requestSchedulerId;
     private static RequestSchedulerOptions requestSchedulerOptions;
 
+    private static int keyCacheSizeInMB;
     private static IRowCacheProvider rowCacheProvider;
 
     /**
@@ -412,6 +413,22 @@ public class DatabaseDescriptor
 
             if (conf.initial_token != null)
                 partitioner.getTokenFactory().validate(conf.initial_token);
+
+            try
+            {
+                // if key_cache_size_in_mb option was set to "auto" then size of the cache should be "min(5% of Heap (in MB), 100MB)
+                keyCacheSizeInMB = (conf.key_cache_size_in_mb == null)
+                                    ? Math.min((int) (Runtime.getRuntime().totalMemory() * 0.05 / 1024 / 1024), 100)
+                                    : conf.key_cache_size_in_mb;
+
+                if (keyCacheSizeInMB < 0)
+                    throw new NumberFormatException(); // to escape duplicating error message
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ConfigurationException("key_cache_size_in_mb option was set incorrectly to '"
+                                                 + conf.key_cache_size_in_mb + "', supported values are <integer> >= 0.");
+            }
 
             rowCacheProvider = FBUtilities.newCacheProvider(conf.row_cache_provider);
 
@@ -997,7 +1014,7 @@ public class DatabaseDescriptor
 
     public static int getKeyCacheSizeInMB()
     {
-        return conf.key_cache_size_in_mb;
+        return keyCacheSizeInMB;
     }
 
     public static int getKeyCacheSavePeriod()
