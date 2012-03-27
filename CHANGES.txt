@@ -6,6 +6,8 @@
 
 
 1.1.1-dev
+ * clean up and optimize DataOutputBuffer, used by CQL compression and
+   CompositeType (CASSANDRA-4072)
  * optimize commitlog checksumming (CASSANDRA-3610)
  * identify and blacklist corrupted SSTables from future compactions (CASSANDRA-2261)
  * Move CfDef and KsDef validation out of thrift (CASSANDRA-4037)
@@ -53,7 +55,8 @@ Merged from 1.0:
  * don't change manifest level for cleanup, scrub, and upgradesstables
    operations under LeveledCompactionStrategy (CASSANDRA-3989)
  * fix race leading to super columns assertion failure (CASSANDRA-3957)
- * ensure that directory is selected for compaction (CASSANDRA-3985)
+ * ensure that directory is selected for compaction for user-defined
+   tasks and upgradesstables (CASSANDRA-3985)
 
 
 1.1-beta1

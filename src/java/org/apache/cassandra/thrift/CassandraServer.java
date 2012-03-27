@@ -23,7 +23,6 @@ import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
@@ -39,18 +38,14 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.cql.QueryProcessor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
-import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
-import org.apache.cassandra.locator.*;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.scheduler.IRequestScheduler;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.service.SocketSessionManagementService;
-import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.TException;
 
@@ -1169,7 +1164,7 @@ public class CassandraServer implements Cassandra.Iface
             switch (compression)
             {
                 case GZIP:
-                    FastByteArrayOutputStream byteArray = new FastByteArrayOutputStream();
+                    DataOutputBuffer decompressed = new DataOutputBuffer();
                     byte[] outBuffer = new byte[1024], inBuffer = new byte[1024];
 
                     Inflater decompressor = new Inflater();
@@ -1184,7 +1179,7 @@ public class CassandraServer implements Cassandra.Iface
 
                         int lenWrite = 0;
                         while ((lenWrite = decompressor.inflate(outBuffer)) !=0)
-                            byteArray.write(outBuffer, 0, lenWrite);
+                            decompressed.write(outBuffer, 0, lenWrite);
 
                         if (decompressor.finished())
                             break;
@@ -1192,7 +1187,7 @@ public class CassandraServer implements Cassandra.Iface
 
                     decompressor.end();
 
-                    queryString = new String(byteArray.toByteArray(), 0, byteArray.size(), "UTF-8");
+                    queryString = new String(decompressed.getData(), 0, decompressed.size(), "UTF-8");
                     break;
                 case NONE:
                     try
