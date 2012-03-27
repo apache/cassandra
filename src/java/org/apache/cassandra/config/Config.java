@@ -88,6 +88,8 @@ public class Config
     public Integer compaction_throughput_mb_per_sec = 16;
     public Boolean multithreaded_compaction = false;
 
+    public Integer max_streaming_retries = 3;
+
     public Integer stream_throughput_outbound_megabits_per_sec;
 
     public String[] data_file_directories;

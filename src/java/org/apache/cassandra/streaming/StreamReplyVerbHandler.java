@@ -65,7 +65,10 @@ public class StreamReplyVerbHandler implements IVerbHandler
                     session.retry();
                     break;
                 case SESSION_FINISHED:
-                    session.close();
+                    session.close(true);
+                    break;
+                case SESSION_FAILURE:
+                    session.close(false);
                     break;
                 default:
                     throw new RuntimeException("Cannot handle FileStatus.Action: " + reply.action);
