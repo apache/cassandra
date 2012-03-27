@@ -666,7 +666,7 @@ commands:
           It is also valid to specify the fully-qualified class name to a class that
           extends org.apache.Cassandra.db.marshal.AbstractType.
 
-        - key_valiation_class: Validator to use for keys.
+        - key_validation_class: Validator to use for keys.
           Default is BytesType which applies no validation.
 
           Supported values are:
