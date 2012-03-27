@@ -1,4 +1,5 @@
 1.1.1-dev
+ * optimize cleanup to drop entire sstables where possible (CASSANDRA-4079)
  * optimize truncate when autosnapshot is disabled (CASSANDRA-4153)
  * add support for commitlog archiving and point-in-time recovery
    (CASSANDRA-3647)

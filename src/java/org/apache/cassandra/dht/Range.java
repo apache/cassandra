@@ -121,6 +121,25 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         return intersectionWith(that).size() > 0;
     }
 
+    public boolean intersects(AbstractBounds<T> that)
+    {
+        // implemented for cleanup compaction membership test, so only Range + Bounds are supported for now
+        if (that instanceof Range)
+            return intersects((Range) that);
+        if (that instanceof Bounds)
+            return intersects((Bounds) that);
+        throw new UnsupportedOperationException("Intersection is only supported for Bounds and Range objects; found " + that.getClass());
+    }
+
+    /**
+     * @param that range to check for intersection
+     * @return true if the given range intersects with this range.
+     */
+    public boolean intersects(Bounds<T> that)
+    {
+        return intersects(new Range<T>(that.left, that.right)) || contains(that.right);
+    }
+
     public static <T extends RingPosition> Set<Range<T>> rangeSet(Range<T> ... ranges)
     {
         return Collections.unmodifiableSet(new HashSet<Range<T>>(Arrays.asList(ranges)));
