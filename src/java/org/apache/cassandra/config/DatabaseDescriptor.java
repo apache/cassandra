@@ -648,9 +648,14 @@ public class DatabaseDescriptor
         return System.getProperty("cassandra.replace_token", null);
     }
 
-   public static String getClusterName()
+    public static String getClusterName()
     {
         return conf.cluster_name;
+    }
+
+    public static int getMaxStreamingRetries()
+    {
+        return conf.max_streaming_retries;
     }
 
     public static String getJobJarLocation()

@@ -37,6 +37,7 @@ class StreamReply implements MessageProducer
         FILE_FINISHED,
         FILE_RETRY,
         SESSION_FINISHED,
+        SESSION_FAILURE,
     }
 
     public static final IVersionedSerializer<StreamReply> serializer = new FileStatusSerializer();

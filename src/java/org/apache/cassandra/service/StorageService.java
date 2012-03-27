@@ -1493,9 +1493,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 final InetAddress source = entry.getKey();
                 Collection<Range<Token>> ranges = entry.getValue();
-                final Runnable callback = new Runnable()
+                final IStreamCallback callback = new IStreamCallback()
                 {
-                    public void run()
+                    public void onSuccess()
                     {
                         synchronized (fetchSources)
                         {
@@ -1504,6 +1504,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                                 sendReplicationNotification(myAddress, notifyEndpoint);
                         }
                     }
+
+                    public void onFailure() {}
                 };
                 if (logger_.isDebugEnabled())
                     logger_.debug("Requesting from " + source + " ranges " + StringUtils.join(ranges, ", "));
@@ -2802,9 +2804,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 final Range<Token> range = endPointEntry.getKey();
                 final InetAddress newEndpoint = endPointEntry.getValue();
 
-                final Runnable callback = new Runnable()
+                final IStreamCallback callback = new IStreamCallback()
                 {
-                    public void run()
+                    public void onSuccess()
                     {
                         synchronized (pending)
                         {
@@ -2814,6 +2816,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                                 latch.countDown();
                         }
                     }
+                    public void onFailure() {}
                 };
 
                 StageManager.getStage(Stage.STREAM).execute(new Runnable()
@@ -2855,15 +2858,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 Collection<Range<Token>> toFetch = endpointWithRanges.get(source);
 
-                final Runnable callback = new Runnable()
+                final IStreamCallback callback = new IStreamCallback()
                 {
-                    public void run()
+                    public void onSuccess()
                     {
                         pending.remove(source);
 
                         if (pending.isEmpty())
                             latch.countDown();
                     }
+
+                    public void onFailure() {}
                 };
 
                 if (logger_.isDebugEnabled())

@@ -22,29 +22,27 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.lang.StringUtils;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.gms.*;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Pair;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
  * This class manages the streaming of multiple files one after the other.
-*/
-public class StreamOutSession implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener
+ */
+public class StreamOutSession extends AbstractStreamSession
 {
-    private static final Logger logger = LoggerFactory.getLogger( StreamOutSession.class );
+    private static final Logger logger = LoggerFactory.getLogger(StreamOutSession.class);
 
     // one host may have multiple stream sessions.
     private static final ConcurrentMap<Pair<InetAddress, Long>, StreamOutSession> streams = new NonBlockingHashMap<Pair<InetAddress, Long>, StreamOutSession>();
 
-    public static StreamOutSession create(String table, InetAddress host, Runnable callback)
+    public static StreamOutSession create(String table, InetAddress host, IStreamCallback callback)
     {
         return create(table, host, System.nanoTime(), callback);
     }
@@ -54,7 +52,7 @@ public class StreamOutSession implements IEndpointStateChangeSubscriber, IFailur
         return create(table, host, sessionId, null);
     }
 
-    public static StreamOutSession create(String table, InetAddress host, long sessionId, Runnable callback)
+    public static StreamOutSession create(String table, InetAddress host, long sessionId, IStreamCallback callback)
     {
         Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, sessionId);
         StreamOutSession session = new StreamOutSession(table, context, callback);
@@ -69,29 +67,11 @@ public class StreamOutSession implements IEndpointStateChangeSubscriber, IFailur
 
     private final Map<String, PendingFile> files = new NonBlockingHashMap<String, PendingFile>();
 
-    public final String table;
-    private final Pair<InetAddress, Long> context;
-    private final Runnable callback;
     private volatile String currentFile;
-    private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
-    private StreamOutSession(String table, Pair<InetAddress, Long> context, Runnable callback)
+    private StreamOutSession(String table, Pair<InetAddress, Long> context, IStreamCallback callback)
     {
-        this.table = table;
-        this.context = context;
-        this.callback = callback;
-        Gossiper.instance.register(this);
-        FailureDetector.instance.registerFailureDetectionEventListener(this);
-    }
-
-    public InetAddress getHost()
-    {
-        return context.left;
-    }
-
-    public long getSessionId()
-    {
-        return context.right;
+        super(table, context, callback);
     }
 
     public void addFilesToStream(List<PendingFile> pendingFiles)
@@ -127,33 +107,12 @@ public class StreamOutSession implements IEndpointStateChangeSubscriber, IFailur
             streamFile(iter.next());
     }
 
-    public void close()
+    protected void closeInternal(boolean success)
     {
-        close(true);
-    }
-
-    private void close(boolean success)
-    {
-        // Though unlikely, it is possible for close to be called multiple
-        // time, if the endpoint die at the exact wrong time for instance.
-        if (!isClosed.compareAndSet(false, true))
-        {
-            logger.debug("StreamOutSession {} already closed", getSessionId());
-            return;
-        }
-
-        Gossiper.instance.unregister(this);
-        FailureDetector.instance.unregisterFailureDetectionEventListener(this);
-
         // Release reference on last file (or any uncompleted ones)
         for (PendingFile file : files.values())
             file.sstable.releaseReference();
         streams.remove(context);
-        // Instead of just not calling the callback on failure, we could have
-        // allow to register a specific callback for failures, but we leave
-        // that to a future ticket (likely CASSANDRA-3112)
-        if (callback != null && success)
-            callback.run();
     }
 
     /** convenience method for use when testing */
@@ -203,34 +162,5 @@ public class StreamOutSession implements IEndpointStateChangeSubscriber, IFailur
         logger.info("Streaming to {}", getHost());
         logger.debug("Files are {}", StringUtils.join(files.values(), ","));
         MessagingService.instance().stream(header, getHost());
-    }
-
-    public void onJoin(InetAddress endpoint, EndpointState epState) {}
-    public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value) {}
-    public void onAlive(InetAddress endpoint, EndpointState state) {}
-    public void onDead(InetAddress endpoint, EndpointState state) {}
-
-    public void onRemove(InetAddress endpoint)
-    {
-        convict(endpoint, Double.MAX_VALUE);
-    }
-
-    public void onRestart(InetAddress endpoint, EndpointState epState)
-    {
-        convict(endpoint, Double.MAX_VALUE);
-    }
-
-    public void convict(InetAddress endpoint, double phi)
-    {
-        if (!endpoint.equals(getHost()))
-            return;
-
-        // We want a higher confidence in the failure detection than usual because failing a streaming wrongly has a high cost.
-        if (phi < 2 * DatabaseDescriptor.getPhiConvictThreshold())
-            return;
-
-        logger.error("StreamOutSession {} failed because {} died or was restarted/removed (streams may still be active "
-                + "in background, but further streams won't be started)", endpoint);
-        close(false);
     }
 }
