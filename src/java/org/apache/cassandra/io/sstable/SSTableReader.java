@@ -360,23 +360,24 @@ public class SSTableReader extends SSTable
                 DecoratedKey decoratedKey = null;
                 int len = ByteBufferUtil.readShortLength(input);
 
+                // when primary index file contains info other than data position, there is noway to determine
+                // the last key without deserializing index entry
                 boolean firstKey = left == null;
-                boolean lastKey = indexPosition + DBConstants.SHORT_SIZE + len + DBConstants.LONG_SIZE == indexSize;
+                boolean lastKeyForUnpromoted = indexPosition + DBConstants.SHORT_SIZE + len + DBConstants.LONG_SIZE == indexSize;
                 boolean shouldAddEntry = indexSummary.shouldAddEntry();
-                if (shouldAddEntry || cacheLoading || recreatebloom || firstKey || lastKey)
+                if (shouldAddEntry || cacheLoading || recreatebloom || firstKey || lastKeyForUnpromoted || descriptor.hasPromotedIndexes)
                 {
                     decoratedKey = decodeKey(partitioner, descriptor, ByteBufferUtil.read(input, len));
                     if (firstKey)
                         left = decoratedKey;
-                    if (lastKey)
-                        right = decoratedKey;
+                    right = decoratedKey;
                 }
                 else
                 {
                     FileUtils.skipBytesFully(input, len);
                 }
 
-                RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(input, descriptor);
+                RowIndexEntry indexEntry = null;
                 if (decoratedKey != null)
                 {
                     if (recreatebloom)
@@ -385,8 +386,13 @@ public class SSTableReader extends SSTable
                         indexSummary.addEntry(decoratedKey, indexPosition);
                     // if key cache could be used and we have key already pre-loaded
                     if (cacheLoading && keysToLoadInCache.contains(decoratedKey))
+                    {
+                        indexEntry = RowIndexEntry.serializer.deserialize(input, descriptor);
                         cacheKey(decoratedKey, indexEntry);
+                    }
                 }
+                if (indexEntry == null)
+                    indexEntry = RowIndexEntry.serializer.deserializePositionOnly(input, descriptor);
 
                 indexSummary.incrementRowid();
                 ibuilder.addPotentialBoundary(indexPosition);

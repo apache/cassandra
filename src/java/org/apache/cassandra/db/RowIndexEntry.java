@@ -90,6 +90,18 @@ public class RowIndexEntry
             }
         }
 
+        public RowIndexEntry deserializePositionOnly(DataInput dis, Descriptor descriptor) throws IOException
+        {
+            long position = dis.readLong();
+            if (descriptor.hasPromotedIndexes)
+            {
+                int size = dis.readInt();
+                if (size > 0)
+                    FileUtils.skipBytesFully(dis, size);
+            }
+            return new RowIndexEntry(position);
+        }
+
         public RowIndexEntry deserialize(DataInput dis, Descriptor descriptor) throws IOException
         {
             long position = dis.readLong();
