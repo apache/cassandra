@@ -742,10 +742,10 @@ class Shell(cmd.Cmd):
         formatted_data = [map(self.myformat_value, row, coltypes) for row in cursor]
 
         # determine column widths
-        widths = map(len, formatted_names)
+        widths = [n.displaywidth for n in formatted_names]
         for fmtrow in formatted_data:
             for num, col in enumerate(fmtrow):
-                widths[num] = max(widths[num], len(col))
+                widths[num] = max(widths[num], col.displaywidth)
 
         # print header
         header = ' | '.join(hdr.color_ljust(w) for (hdr, w) in zip(formatted_names, widths))
