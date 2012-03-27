@@ -24,6 +24,7 @@ import java.util.concurrent.CountDownLatch;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import org.apache.cassandra.streaming.IStreamCallback;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -219,15 +220,17 @@ public class RangeStreamer
             final InetAddress source = entry.getValue().getKey();
             Collection<Range<Token>> ranges = entry.getValue().getValue();
             /* Send messages to respective folks to stream data over to me */
-            Runnable callback = new Runnable()
+            IStreamCallback callback = new IStreamCallback()
             {
-                public void run()
+                public void onSuccess()
                 {
                     latch.countDown();
                     if (logger.isDebugEnabled())
                         logger.debug(String.format("Removed %s/%s as a %s source; remaining is %s",
                                      source, table, opType, latch.getCount()));
                 }
+
+                public void onFailure() {}
             };
             if (logger.isDebugEnabled())
                 logger.debug("" + opType + "ing from " + source + " ranges " + StringUtils.join(ranges, ", "));

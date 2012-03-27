@@ -206,7 +206,7 @@ public class SSTableLoader
         return builder.toString();
     }
 
-    private class CountDownCallback implements Runnable
+    private class CountDownCallback implements IStreamCallback
     {
         private final InetAddress endpoint;
         private final CountDownLatch latch;
@@ -217,7 +217,7 @@ public class SSTableLoader
             this.endpoint = endpoint;
         }
 
-        public void run()
+        public void onSuccess()
         {
             latch.countDown();
             outputHandler.debug(String.format("Streaming session to %s completed (waiting on %d outstanding sessions)", endpoint, latch.getCount()));
@@ -226,6 +226,8 @@ public class SSTableLoader
             if (latch.getCount() == 0)
                 client.stop();
         }
+
+        public void onFailure() {}
     }
 
     public interface OutputHandler
