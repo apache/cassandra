@@ -55,7 +55,7 @@ public class UpdateStatement extends ModificationStatement
      * Creates a new UpdateStatement from a column family name, columns map, consistency
      * level, and key term.
      *
-     * @param name column family name
+     * @param name column family being operated on
      * @param columns a map of column name/values pairs
      * @param whereClause the where clause
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
@@ -78,7 +78,7 @@ public class UpdateStatement extends ModificationStatement
      * key, and lists of column names and values.  It is intended for use with the
      * alternate update format, <code>INSERT</code>.
      *
-     * @param name column family name
+     * @param name column family being operated on
      * @param columnNames list of column names
      * @param columnValues list of column values (corresponds to names)
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
@@ -141,6 +141,12 @@ public class UpdateStatement extends ModificationStatement
     /**
      * Compute a row mutation for a single key
      *
+     * @param cfDef column family being operated on
+     * @param clientState user/session state
+     * @param key key to change
+     * @param builder ongoing column name accumulator for the current statement
+     * @param variables positional values
+     *
      * @return row mutation
      *
      * @throws InvalidRequestException on the wrong request
@@ -151,6 +157,8 @@ public class UpdateStatement extends ModificationStatement
         validateKey(key);
         // if true we need to wrap RowMutation into CounterMutation
         boolean hasCounterColumn = false;
+
+        QueryProcessor.validateKey(key);
         RowMutation rm = new RowMutation(cfDef.cfm.ksName, key);
         ColumnFamily cf = rm.addOrGet(cfDef.cfm.cfName);
 

@@ -99,6 +99,7 @@ public class DeleteStatement extends ModificationStatement
     public RowMutation mutationForKey(CFDefinition cfDef, ClientState clientState, ByteBuffer key, ColumnNameBuilder builder, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
+        QueryProcessor.validateKey(key);
         RowMutation rm = new RowMutation(cfDef.cfm.ksName, key);
 
         if (columns.isEmpty() && builder.componentCount() == 0)

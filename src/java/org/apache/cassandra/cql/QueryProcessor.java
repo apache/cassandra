@@ -252,6 +252,11 @@ public class QueryProcessor
             rowMutations.addAll(update.prepareRowMutations(keyspace, clientState, variables));
         }
 
+        for (IMutation mutation : rowMutations)
+        {
+            validateKey(mutation.key());
+        }
+
         try
         {
             StorageProxy.mutate(rowMutations, consistency);
@@ -605,9 +610,15 @@ public class QueryProcessor
                                 "Timestamp must be set either on BATCH or individual statements");
                 }
 
+                List<IMutation> mutations = batch.getMutations(keyspace, clientState);
+                for (IMutation mutation : mutations)
+                {
+                    validateKey(mutation.key());
+                }
+
                 try
                 {
-                    StorageProxy.mutate(batch.getMutations(keyspace, clientState, variables), batch.getConsistencyLevel());
+                    StorageProxy.mutate(mutations, batch.getConsistencyLevel());
                 }
                 catch (org.apache.cassandra.thrift.UnavailableException e)
                 {
@@ -654,10 +665,15 @@ public class QueryProcessor
                 DeleteStatement delete = (DeleteStatement)statement.statement;
 
                 keyspace = delete.keyspace == null ? clientState.getKeyspace() : delete.keyspace;
+                List<IMutation> deletions = delete.prepareRowMutations(keyspace, clientState);
+                for (IMutation deletion : deletions)
+                {
+                    validateKey(deletion.key());
+                }
 
                 try
                 {
-                    StorageProxy.mutate(delete.prepareRowMutations(keyspace, clientState, variables), delete.getConsistencyLevel());
+                    StorageProxy.mutate(deletions, delete.getConsistencyLevel());
                 }
                 catch (TimeoutException e)
                 {
