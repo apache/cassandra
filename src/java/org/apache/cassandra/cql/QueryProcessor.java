@@ -610,7 +610,7 @@ public class QueryProcessor
                                 "Timestamp must be set either on BATCH or individual statements");
                 }
 
-                List<IMutation> mutations = batch.getMutations(keyspace, clientState);
+                List<IMutation> mutations = batch.getMutations(keyspace, clientState, variables);
                 for (IMutation mutation : mutations)
                 {
                     validateKey(mutation.key());
@@ -665,7 +665,7 @@ public class QueryProcessor
                 DeleteStatement delete = (DeleteStatement)statement.statement;
 
                 keyspace = delete.keyspace == null ? clientState.getKeyspace() : delete.keyspace;
-                List<IMutation> deletions = delete.prepareRowMutations(keyspace, clientState);
+                List<IMutation> deletions = delete.prepareRowMutations(keyspace, clientState, variables);
                 for (IMutation deletion : deletions)
                 {
                     validateKey(deletion.key());
