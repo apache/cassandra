@@ -62,6 +62,7 @@ Merged from 1.0:
  * fix race leading to super columns assertion failure (CASSANDRA-3957)
  * ensure that directory is selected for compaction for user-defined
    tasks and upgradesstables (CASSANDRA-3985)
+ * fix NPE on invalid CQL delete command (CASSANDRA-3755)
 
 
 1.1-beta1

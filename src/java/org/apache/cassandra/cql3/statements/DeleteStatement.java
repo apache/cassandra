@@ -56,7 +56,6 @@ public class DeleteStatement extends ModificationStatement
 
     public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables) throws InvalidRequestException
     {
-
         // Check key
         List<Term> keys = processedKeys.get(cfDef.key.name);
         if (keys == null || keys.isEmpty())
