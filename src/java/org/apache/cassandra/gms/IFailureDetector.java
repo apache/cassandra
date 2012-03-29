@@ -67,6 +67,11 @@ public interface IFailureDetector
     public void remove(InetAddress ep);
 
     /**
+     * force conviction of endpoint in the failure detector
+     */
+    public void forceConviction(InetAddress ep);
+
+    /**
      * Register interest for Failure Detector events.
      * @param listener implementation of an application provided IFailureDetectionEventListener
      */

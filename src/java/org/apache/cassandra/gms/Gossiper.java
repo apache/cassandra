@@ -53,6 +53,8 @@ import org.apache.cassandra.service.StorageService;
  * sends node A a GossipDigestAckMessage. On receipt of this message node A sends node B a
  * GossipDigestAck2Message which completes a round of Gossip. This module as and when it hears one
  * of the three above mentioned messages updates the Failure Detector with the liveness information.
+ * Upon hearing a GossipShutdownMessage, this module will instantly mark the remote node as down in
+ * the Failure Detector.
  */
 
 public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
@@ -293,7 +295,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         unreachableEndpoints.remove(endpoint);
         endpointStateMap.remove(endpoint);
         expireTimeEndpointMap.remove(endpoint);
-        justRemovedEndpoints.put(endpoint, System.currentTimeMillis());
+        quarantineEndpoint(endpoint);
         if (logger.isDebugEnabled())
             logger.debug("evicting " + endpoint + " from gossip");
     }
@@ -312,9 +314,18 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // do not remove endpointState until the quarantine expires
         FailureDetector.instance.remove(endpoint);
         versions.remove(endpoint);
-        justRemovedEndpoints.put(endpoint, System.currentTimeMillis());
+        quarantineEndpoint(endpoint);
         if (logger.isDebugEnabled())
             logger.debug("removing endpoint " + endpoint);
+    }
+
+    /**
+     * Quarantines the endpoint for QUARANTINE_DELAY
+     * @param endpoint
+     */
+    private void quarantineEndpoint(InetAddress endpoint)
+    {
+        justRemovedEndpoints.put(endpoint, System.currentTimeMillis());
     }
 
     /**
@@ -520,6 +531,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         DataOutputStream dos = new DataOutputStream(bos);
         GossipDigestAck2Message.serializer().serialize(gDigestAck2Message, dos, version);
         return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.GOSSIP_DIGEST_ACK2, bos.toByteArray(), version);
+    }
+    
+    Message makeGossipShutdownMessage(int version) throws IOException
+    {
+        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        GossipShutdownMessage.serializer().serialize(new GossipShutdownMessage(), dos, version);
+        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.GOSSIP_SHUTDOWN, bos.toByteArray(), version);
     }
 
     /**
@@ -1110,6 +1129,33 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public void stop()
     {
         scheduledGossipTask.cancel(false);
+        logger.info("Announcing shutdown");
+        try
+        {
+            Thread.sleep(intervalInMillis);
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        MessageProducer prod = new MessageProducer()
+        {
+            public Message getMessage(Integer version) throws IOException
+            {
+                return makeGossipShutdownMessage(version);
+            }
+        };
+        for (InetAddress ep : liveEndpoints)
+        {
+            try
+            {
+                MessagingService.instance().sendOneWay(prod.getMessage(getVersion(ep)), ep);
+            }
+            catch (IOException ex)
+            {
+                // keep going
+            }
+        }
     }
 
     public boolean isEnabled()
