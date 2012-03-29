@@ -197,10 +197,10 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public void forceConviction(InetAddress ep)
     {
-        logger.debug("Forcing conviction of {}", ep);
-        for ( IFailureDetectionEventListener listener : fdEvntListeners )
+        logger_.debug("Forcing conviction of {}", ep);
+        for ( IFailureDetectionEventListener listener : fdEvntListeners_ )
         {
-            listener.convict(ep, phiConvictThreshold);
+            listener.convict(ep, phiConvictThreshold_);
         }
     }
 
