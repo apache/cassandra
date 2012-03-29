@@ -36,13 +36,12 @@ public class IncomingTcpConnection extends Thread
     private static final int CHUNK_SIZE = 1024 * 1024;
 
     private final Socket socket;
-    public final InetAddress from;
+    public InetAddress from;
 
     public IncomingTcpConnection(Socket socket)
     {
         assert socket != null;
         this.socket = socket;
-        this.from = socket.getInetAddress(); // maximize chance of this not being nulled by disconnect
     }
 
     /**
@@ -88,6 +87,7 @@ public class IncomingTcpConnection extends Thread
             input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
             // Receive the first message to set the version.
             Message msg = receiveMessage(input, version);
+            from = msg.getFrom(); // why? see => CASSANDRA-4099
             if (version > MessagingService.current_version)
             {
                 // save the endpoint so gossip will reconnect to it
@@ -96,7 +96,7 @@ public class IncomingTcpConnection extends Thread
             }
             else if (msg != null)
             {
-                Gossiper.instance.setVersion(msg.getFrom(), version);
+                Gossiper.instance.setVersion(from, version);
                 logger.debug("set version for {} to {}", from, version);
             }
 
