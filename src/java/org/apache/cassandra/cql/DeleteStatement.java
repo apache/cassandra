@@ -71,6 +71,8 @@ public class DeleteStatement extends AbstractModification
 
     public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp, List<ByteBuffer> variables) throws InvalidRequestException
     {
+        CFMetaData metadata = validateColumnFamily(keyspace, columnFamily);
+
         clientState.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
         AbstractType<?> keyType = Schema.instance.getCFMetaData(keyspace, columnFamily).getKeyValidator();
 
@@ -78,18 +80,17 @@ public class DeleteStatement extends AbstractModification
 
         for (Term key : keys)
         {
-            rowMutations.add(mutationForKey(key.getByteBuffer(keyType, variables), keyspace, timestamp, clientState,variables));
+            rowMutations.add(mutationForKey(key.getByteBuffer(keyType, variables), keyspace, timestamp, clientState, variables, metadata));
         }
 
         return rowMutations;
     }
 
-    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp, ClientState clientState, List<ByteBuffer> variables)
+    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp, ClientState clientState, List<ByteBuffer> variables, CFMetaData metadata)
     throws InvalidRequestException
     {
         RowMutation rm = new RowMutation(keyspace, key);
 
-        CFMetaData metadata = validateColumnFamily(keyspace, columnFamily);
         QueryProcessor.validateKeyAlias(metadata, keyName);
 
         AbstractType<?> comparator = metadata.getComparatorFor(null);
