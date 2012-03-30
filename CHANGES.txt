@@ -18,6 +18,7 @@
  * fix KEYS index from skipping results (CASSANDRA-3996)
  * Remove sliced_buffer_size_in_kb dead option (CASSANDRA-4076)
  * make loadNewSStable preserve sstable version (CASSANDRA-4077)
+ * Respect 1.0 cache settings as much as possible when upgrading (CASSANDRA-4088)
 
 
 1.1-beta2
