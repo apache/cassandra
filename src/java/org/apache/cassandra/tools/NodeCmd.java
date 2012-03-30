@@ -28,6 +28,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.service.CacheServiceMBean;
+import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
@@ -96,6 +97,7 @@ public class NodeCmd
         JOIN,
         MOVE,
         NETSTATS,
+        PROXYHISTOGRAMS,
         REBUILD,
         REFRESH,
         REMOVETOKEN,
@@ -134,6 +136,7 @@ public class NodeCmd
         addCmdHelp(header, "cfstats", "Print statistics on column families");
         addCmdHelp(header, "version", "Print cassandra version");
         addCmdHelp(header, "tpstats", "Print usage statistics of thread pools");
+        addCmdHelp(header, "proxyhistograms", "Print statistic histograms for network operations");
         addCmdHelp(header, "drain", "Drain the node (stop accepting writes and flush all column families)");
         addCmdHelp(header, "decommission", "Decommission the node");
         addCmdHelp(header, "compactionstats", "Print statistics on compactions");
@@ -582,6 +585,27 @@ public class NodeCmd
                                          (i < ecch.length ? ecch[i] : "")));
         }
     }
+    
+    private void printProxyHistograms(PrintStream output)
+    {
+        StorageProxyMBean sp = this.probe.getSpProxy();
+        long[] offsets = new EstimatedHistogram().getBucketOffsets();
+        long[] rrlh = sp.getRecentReadLatencyHistogramMicros();
+        long[] rwlh = sp.getRecentWriteLatencyHistogramMicros();
+        long[] rrnglh = sp.getRecentRangeLatencyHistogramMicros();
+
+        output.println("proxy histograms");
+        output.println(String.format("%-10s%18s%18s%18s",
+                                    "Offset", "Read Latency", "Write Latency", "Range Latency"));
+        for (int i = 0; i < offsets.length; i++)
+        {
+            output.println(String.format("%-10d%18s%18s%18s",
+                                        offsets[i],
+                                        (i < rrlh.length ? rrlh[i] : ""),
+                                        (i < rwlh.length ? rwlh[i] : ""),
+                                        (i < rrnglh.length ? rrnglh[i] : "")));
+        }
+    }
 
     private void printEndPoints(String keySpace, String cf, String key, PrintStream output)
     {
@@ -778,6 +802,11 @@ public class NodeCmd
                 case GETENDPOINTS :
                     if (arguments.length != 3) { badUse("getendpoints requires ks, cf and key args"); }
                     nodeCmd.printEndPoints(arguments[0], arguments[1], arguments[2], System.out);
+                    break;
+
+                case PROXYHISTOGRAMS :
+                    if (arguments.length != 0) { badUse("proxyhistograms does not take arguments"); }
+                    nodeCmd.printProxyHistograms(System.out);
                     break;
 
                 case REFRESH:

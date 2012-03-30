@@ -46,9 +46,7 @@ import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
-import org.apache.cassandra.service.CacheService;
-import org.apache.cassandra.service.CacheServiceMBean;
-import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.service.*;
 import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.streaming.StreamingServiceMBean;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -77,6 +75,7 @@ public class NodeProbe
     public MessagingServiceMBean msProxy;
     private FailureDetectorMBean fdProxy;
     private CacheServiceMBean cacheService;
+    private StorageProxyMBean spProxy;
 
     /**
      * Creates a NodeProbe using the specified JMX host, port, username, and password.
@@ -155,6 +154,8 @@ public class NodeProbe
             fdProxy = JMX.newMBeanProxy(mbeanServerConn, name, FailureDetectorMBean.class);
             name = new ObjectName(CacheService.MBEAN_NAME);
             cacheService = JMX.newMBeanProxy(mbeanServerConn, name, CacheServiceMBean.class);
+            name = new ObjectName(StorageProxy.MBEAN_NAME);
+            spProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageProxyMBean.class);
         } catch (MalformedObjectNameException e)
         {
             throw new RuntimeException(
@@ -528,6 +529,11 @@ public class NodeProbe
         }
 
         return cfsProxy;
+    }
+
+    public StorageProxyMBean getSpProxy()
+    {
+        return spProxy;
     }
 
     public String getEndpoint()
