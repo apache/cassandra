@@ -39,6 +39,7 @@ from itertools import groupby
 from contextlib import contextmanager
 from glob import glob
 from functools import partial
+from collections import defaultdict
 
 import cmd
 import sys
