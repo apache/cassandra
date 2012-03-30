@@ -49,6 +49,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     private boolean registered = false;
 
     private final ConcurrentHashMap<InetAddress, Double> scores = new ConcurrentHashMap<InetAddress, Double>();
+    private final ConcurrentHashMap<InetAddress, Long> lastReceived = new ConcurrentHashMap<InetAddress, Long>();
     private final ConcurrentHashMap<InetAddress, BoundedStatsDeque> windows = new ConcurrentHashMap<InetAddress, BoundedStatsDeque>();
     private final AtomicInteger intervalupdates = new AtomicInteger(0);
 
@@ -56,7 +57,13 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 
     public DynamicEndpointSnitch(IEndpointSnitch snitch)
     {
-        mbeanName = "org.apache.cassandra.db:type=DynamicEndpointSnitch,instance="+hashCode();
+        this(snitch, null);
+    }
+    public DynamicEndpointSnitch(IEndpointSnitch snitch, String instance)
+    {
+        mbeanName = "org.apache.cassandra.db:type=DynamicEndpointSnitch";
+        if (instance != null)
+            mbeanName += ",instance=" + instance;
         subsnitch = snitch;
         Runnable update = new Runnable()
         {
@@ -195,12 +202,13 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 
     public void receiveTiming(InetAddress host, Double latency) // this is cheap
     {
+        lastReceived.put(host, System.currentTimeMillis());
         if (intervalupdates.intValue() >= UPDATES_PER_INTERVAL)
             return;
         BoundedStatsDeque deque = windows.get(host);
         if (deque == null)
         {
-            BoundedStatsDeque maybeNewDeque  = new BoundedStatsDeque(WINDOW_SIZE);
+            BoundedStatsDeque maybeNewDeque = new BoundedStatsDeque(WINDOW_SIZE);
             deque = windows.putIfAbsent(host, maybeNewDeque);
             if (deque == null)
                 deque = maybeNewDeque;
@@ -222,12 +230,31 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             }
 
         }
+        double maxLatency = 1;
+        long maxPenalty = 1;
+        HashMap<InetAddress, Long> penalties = new HashMap<InetAddress, Long>();
+        for (Map.Entry<InetAddress, BoundedStatsDeque> entry : windows.entrySet())
+        {
+            double mean = entry.getValue().mean();
+            if (mean > maxLatency)
+                maxLatency = mean;
+            long timePenalty = lastReceived.containsKey(entry.getKey()) ? lastReceived.get(entry.getKey()) : System.currentTimeMillis();
+            timePenalty = System.currentTimeMillis() - timePenalty;
+            timePenalty = timePenalty > UPDATE_INTERVAL_IN_MS ? UPDATE_INTERVAL_IN_MS : timePenalty;
+            penalties.put(entry.getKey(), timePenalty);
+            if (timePenalty > maxPenalty)
+                maxPenalty = timePenalty;
+        }
         for (Map.Entry<InetAddress, BoundedStatsDeque> entry: windows.entrySet())
         {
-            scores.put(entry.getKey(), entry.getValue().mean());
+            double score = entry.getValue().mean() / maxLatency;
+            score += penalties.get(entry.getKey()) / maxPenalty;
+            score += StorageService.instance.getSeverity(entry.getKey());
+            scores.put(entry.getKey(), score);            
         }
         intervalupdates.set(0);
     }
+
 
     private void reset()
     {
@@ -272,6 +299,16 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             }
         }
         return timings;
+    }
+
+    public void setSeverity(double severity)
+    {
+        StorageService.instance.reportSeverity(severity);
+    }
+
+    public double getSeverity()
+    {
+        return StorageService.instance.getSeverity(FBUtilities.getBroadcastAddress());
     }
 
 }

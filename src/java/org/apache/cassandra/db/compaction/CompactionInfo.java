@@ -21,6 +21,8 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.service.StorageService;
+
 /** Implements serializable to allow structured info to be returned via JMX. */
 public final class CompactionInfo implements Serializable
 {
@@ -103,6 +105,8 @@ public final class CompactionInfo implements Serializable
     {
         private volatile boolean isStopped = false;
         public abstract CompactionInfo getCompactionInfo();
+        double load = StorageService.instance.getLoad();
+        boolean reportedSeverity = false;
 
         public void stop()
         {
@@ -112,6 +116,23 @@ public final class CompactionInfo implements Serializable
         public boolean isStopped()
         {
             return isStopped;
+        }
+        /**
+         * report event on the size of the compaction.
+         */
+        public void started()
+        {
+            reportedSeverity = StorageService.instance.reportSeverity(getCompactionInfo().getTotalBytes()/load);
+        }
+
+        /**
+         * remove the event complete
+         */
+        public void finished()
+        {
+            if (reportedSeverity)
+                StorageService.instance.reportSeverity(-(getCompactionInfo().getTotalBytes()/load));            
+            reportedSeverity = false;
         }
     }
 }

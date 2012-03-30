@@ -715,6 +715,12 @@ public final class MessagingService implements MessagingServiceMBean
         return pendingTasks;
     }
 
+    public int getCommandPendingTasks(InetAddress address)
+    {
+        OutboundTcpConnectionPool connection = connectionManagers.get(address);
+        return connection == null ? 0 : connection.cmdCon.getPendingMessages();
+    }
+    
     public Map<String, Long> getCommandCompletedTasks()
     {
         Map<String, Long> completedTasks = new HashMap<String, Long>();

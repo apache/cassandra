@@ -48,7 +48,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -782,6 +781,28 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public TokenMetadata getTokenMetadata()
     {
         return tokenMetadata;
+    }
+
+    /**
+     * Gossip about the known severity of the events in this node
+     */
+    public synchronized boolean reportSeverity(double incr)
+    {
+        if (!Gossiper.instance.isEnabled())
+            return false;
+        double update = getSeverity(FBUtilities.getBroadcastAddress()) + incr;
+        VersionedValue updated = StorageService.instance.valueFactory.severity(update);
+        Gossiper.instance.addLocalApplicationState(ApplicationState.SEVERITY, updated);
+        return true;
+    }
+    
+    public double getSeverity(InetAddress endpoint)
+    {
+        VersionedValue event;
+        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+        if (state != null && (event = state.getApplicationState(ApplicationState.SEVERITY)) != null)
+            return Double.parseDouble(event.value);
+        return 0.0;
     }
 
     /**

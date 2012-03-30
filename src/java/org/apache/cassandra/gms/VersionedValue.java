@@ -178,6 +178,11 @@ public class VersionedValue implements Comparable<VersionedValue>
         {
             return new VersionedValue(private_ip);
         }
+        
+        public VersionedValue severity(double value)
+        {
+            return new VersionedValue(String.valueOf(value));
+        }
     }
 
     private static class VersionedValueSerializer implements IVersionedSerializer<VersionedValue>

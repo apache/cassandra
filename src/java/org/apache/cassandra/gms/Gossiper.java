@@ -1160,7 +1160,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public boolean isEnabled()
     {
-        return !scheduledGossipTask.isCancelled();
+        return (scheduledGossipTask != null) && (!scheduledGossipTask.isCancelled());
     }
 
     /**

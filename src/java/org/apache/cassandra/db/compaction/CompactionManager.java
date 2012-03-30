@@ -1017,11 +1017,15 @@ public class CompactionManager implements CompactionManagerMBean
 
         public void beginCompaction(CompactionInfo.Holder ci)
         {
+            // notify
+            ci.started();
             compactions.add(ci);
         }
 
         public void finishCompaction(CompactionInfo.Holder ci)
         {
+            // notify
+            ci.finished();
             compactions.remove(ci);
             totalBytesCompacted += ci.getCompactionInfo().getTotalBytes();
             totalCompactionsCompleted += 1;
