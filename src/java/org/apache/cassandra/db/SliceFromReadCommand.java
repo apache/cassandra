@@ -73,7 +73,7 @@ public class SliceFromReadCommand extends ReadCommand
     public ReadCommand maybeGenerateRetryCommand(RepairCallback handler, Row row)
     {
         int maxLiveColumns = handler.getMaxLiveColumns();
-        int liveColumnsInRow = row != null ? row.cf.getLiveColumnCount() : 0;
+        int liveColumnsInRow = row != null ? row.getLiveColumnCount() : 0;
 
         assert maxLiveColumns <= count;
         // We generate a retry if at least one node reply with count live columns but after merge we have less
