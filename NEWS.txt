@@ -48,7 +48,8 @@ Upgrading
       + Prior to 1.1, you could use KEY as the primary key name in some
         select statements, even if the PK was actually given a different
         name.  In 1.1+ you must use the defined PK name.
-        
+    - The sliced_buffer_size_in_kb option has been removed from the
+      cassandra.yaml config file (this option was a no-op since 1.0).
 
 Features
 --------

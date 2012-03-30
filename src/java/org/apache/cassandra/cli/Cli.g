@@ -303,8 +303,8 @@ truncateStatement
     ;
 
 assumeStatement
-    : ASSUME columnFamily assumptionElement=Identifier 'AS' defaultType=Identifier
-        -> ^(NODE_ASSUME columnFamily $assumptionElement $defaultType)
+    : ASSUME columnFamily assumptionElement=Identifier 'AS' entityName
+        -> ^(NODE_ASSUME columnFamily $assumptionElement entityName)
     ;
 
 consistencyLevelStatement

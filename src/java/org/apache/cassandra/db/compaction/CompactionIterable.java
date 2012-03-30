@@ -37,7 +37,6 @@ public class CompactionIterable extends AbstractCompactionIterable
     private static final Logger logger = LoggerFactory.getLogger(CompactionIterable.class);
 
     private long row;
-    private final List<SSTableScanner> scanners;
 
     private static final Comparator<IColumnIterator> comparator = new Comparator<IColumnIterator>()
     {
@@ -54,12 +53,8 @@ public class CompactionIterable extends AbstractCompactionIterable
 
     protected CompactionIterable(OperationType type, List<SSTableScanner> scanners, CompactionController controller)
     {
-        super(controller, type);
-        this.scanners = scanners;
+        super(controller, type, scanners);
         row = 0;
-        totalBytes = bytesRead = 0;
-        for (SSTableScanner scanner : scanners)
-            totalBytes += scanner.getFileLength();
     }
 
     protected static List<SSTableScanner> getScanners(Iterable<SSTableReader> sstables) throws IOException

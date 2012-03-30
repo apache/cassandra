@@ -863,16 +863,6 @@ public class DatabaseDescriptor
         return indexAccessMode;
     }
 
-    public static int getIndexedReadBufferSizeInKB()
-    {
-        return conf.column_index_size_in_kb;
-    }
-
-    public static int getSlicedReadBufferSizeInKB()
-    {
-        return conf.sliced_buffer_size_in_kb;
-    }
-
     public static boolean isSnapshotBeforeCompaction()
     {
         return conf.snapshot_before_compaction;

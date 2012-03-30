@@ -56,7 +56,6 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 {
     private static final Logger logger = LoggerFactory.getLogger(ParallelCompactionIterable.class);
 
-    private final List<SSTableScanner> scanners;
     private final int maxInMemorySize;
 
     public ParallelCompactionIterable(OperationType type, Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
@@ -71,8 +70,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
     protected ParallelCompactionIterable(OperationType type, List<SSTableScanner> scanners, CompactionController controller, int maxInMemorySize)
     {
-        super(controller, type);
-        this.scanners = scanners;
+        super(controller, type, scanners);
         this.maxInMemorySize = maxInMemorySize;
     }
 
