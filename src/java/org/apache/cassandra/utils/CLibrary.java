@@ -105,8 +105,7 @@ public final class CLibrary
     {
         try
         {
-            int result = mlockall(MCL_CURRENT);
-            assert result == 0; // mlockall should always be zero on success
+            mlockall(MCL_CURRENT);
             logger.info("JNA mlockall successful");
         }
         catch (UnsatisfiedLinkError e)
@@ -143,8 +142,7 @@ public final class CLibrary
     {
         try
         {
-            int result = link(sourceFile.getAbsolutePath(), destinationFile.getAbsolutePath());
-            assert result == 0; // success is always zero
+            link(sourceFile.getAbsolutePath(), destinationFile.getAbsolutePath());
         }
         catch (UnsatisfiedLinkError e)
         {
@@ -242,12 +240,12 @@ public final class CLibrary
 
     public static int tryFcntl(int fd, int command, int flags)
     {
+        // fcntl return value may or may not be useful, depending on the command
         int result = -1;
 
         try
         {
             result = CLibrary.fcntl(fd, command, flags);
-            assert result >= 0; // on error a value of -1 is returned and errno is set to indicate the error.
         }
         catch (RuntimeException e)
         {
