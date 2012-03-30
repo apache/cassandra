@@ -70,6 +70,8 @@ protocol InterNode {
         union { null, array<bytes> } column_aliases = null;
         union { null, bytes } value_alias = null;
         union { double, null } dclocal_read_repair_chance = 0.0;
+        union { double, null } row_cache_size;
+        union { double, null } key_cache_size;
     }
 
     @aliases(["org.apache.cassandra.config.avro.KsDef"])

@@ -32,6 +32,8 @@ import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.config.CFMetaData.Caching;
+
 /**
  * methods to load schema definitions from old-style Avro serialization
  */
@@ -71,9 +73,23 @@ public class Avro
 
         int cfsz = ks.cf_defs.size();
         List<CFMetaData> cfMetaData = new ArrayList<CFMetaData>(cfsz);
-        Iterator<CfDef> cfiter = ks.cf_defs.iterator();
+
         for (CfDef cf_def : ks.cf_defs)
-            cfMetaData.add(cfFromAvro(cfiter.next()));
+        {
+            double keysCached = cf_def.key_cache_size == null ? -1 : cf_def.key_cache_size;
+            double rowsCached = cf_def.row_cache_size == null ? -1 : cf_def.row_cache_size;
+
+            if (keysCached > 0 && rowsCached > 0)
+                cf_def.caching = Caching.ALL.name();
+            else if (keysCached <= 0 && rowsCached <= 0)
+                cf_def.caching = Caching.NONE.name();
+            else if (keysCached > 0 && rowsCached <= 0)
+                cf_def.caching = Caching.KEYS_ONLY.name();
+            else
+                cf_def.caching = Caching.ROWS_ONLY.name();
+
+            cfMetaData.add(cfFromAvro(cf_def));
+        }
 
         return new KSMetaData(ks.name.toString(), repStratClass, strategyOptions, ks.durable_writes, cfMetaData);
     }
