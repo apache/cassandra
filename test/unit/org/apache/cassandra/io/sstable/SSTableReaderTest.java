@@ -125,7 +125,7 @@ public class SSTableReaderTest extends SchemaLoader
         for (int j = 0; j < 100; j += 2)
         {
             DecoratedKey dk = Util.dk(String.valueOf(j));
-            FileDataInput file = sstable.getFileDataInput(dk, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
+            FileDataInput file = sstable.getFileDataInput(dk);
             DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.partitioner,
                                                              sstable.descriptor,
                                                              ByteBufferUtil.readWithShortLength(file));

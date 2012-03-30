@@ -150,10 +150,6 @@ concurrent_writes: 32
 # By default this will be set to the amount of data directories defined.
 #memtable_flush_writers: 1
 
-# Buffer size to use when performing contiguous column slices. 
-# Increase this to the size of the column slices you typically perform
-sliced_buffer_size_in_kb: 64
-
 # TCP port, for commands and data
 storage_port: 7000
 

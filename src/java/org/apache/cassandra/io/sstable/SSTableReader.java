@@ -834,7 +834,7 @@ public class SSTableReader extends SSTable
         return new SSTableBoundedScanner(this, true, range);
     }
 
-    public FileDataInput getFileDataInput(DecoratedKey decoratedKey, int bufferSize)
+    public FileDataInput getFileDataInput(DecoratedKey decoratedKey)
     {
         long position = getPosition(decoratedKey, Operator.EQ);
         if (position < 0)

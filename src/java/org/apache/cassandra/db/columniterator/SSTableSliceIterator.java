@@ -45,7 +45,7 @@ public class SSTableSliceIterator implements IColumnIterator
     public SSTableSliceIterator(SSTableReader sstable, DecoratedKey key, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
     {
         this.key = key;
-        fileToClose = sstable.getFileDataInput(this.key, DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
+        fileToClose = sstable.getFileDataInput(this.key);
         if (fileToClose == null)
             return;
 
