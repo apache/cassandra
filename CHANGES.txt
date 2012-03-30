@@ -9,6 +9,7 @@
  * Adds caching and bloomFilterFpChange to CQL options (CASSANDRA-4042)
  * Adds posibility to autoconfigure size of the KeyCache (CASSANDRA-4087)
  * fix KEYS index from skipping results (CASSANDRA-3996)
+ * Remove sliced_buffer_size_in_kb dead option (CASSANDRA-4076)
 
 
 1.1-beta2
@@ -56,6 +57,8 @@ Merged from 1.0:
  * ensure that directory is selected for compaction for user-defined
    tasks and upgradesstables (CASSANDRA-3985)
  * fix NPE on invalid CQL delete command (CASSANDRA-3755)
+ * allow custom types in CLI's assume command (CASSANDRA-4081)
+ * Fix totalBytes count for parallel compactions (CASSANDRA-3758)
 
 
 1.1-beta1

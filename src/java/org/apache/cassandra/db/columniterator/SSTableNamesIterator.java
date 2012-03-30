@@ -58,7 +58,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         this.columns = columns;
         this.key = key;
 
-        FileDataInput file = sstable.getFileDataInput(key, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
+        FileDataInput file = sstable.getFileDataInput(key);
         if (file == null)
             return;
 
