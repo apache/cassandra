@@ -15,6 +15,7 @@
    tasks and upgradesstables (CASSANDRA-3985)
  * fix NPE on invalid CQL delete command (CASSANDRA-3755)
  * allow custom types in CLI's assume command (CASSANDRA-4081)
+ * Fix totalBytes count for parallel compactions (CASSANDRA-3758)
 
 
 1.0.8
