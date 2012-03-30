@@ -14,6 +14,7 @@
  * ensure that directory is selected for compaction for user-defined
    tasks and upgradesstables (CASSANDRA-3985)
  * fix NPE on invalid CQL delete command (CASSANDRA-3755)
+ * allow custom types in CLI's assume command (CASSANDRA-4081)
 
 
 1.0.8
