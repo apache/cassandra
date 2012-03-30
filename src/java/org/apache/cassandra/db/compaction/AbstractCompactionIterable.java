@@ -41,15 +41,24 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
 
     protected final OperationType type;
     protected final CompactionController controller;
-    protected long totalBytes;
+    protected final long totalBytes;
     protected volatile long bytesRead;
+    protected final List<SSTableScanner> scanners;
 
     protected final Throttle throttle;
 
-    public AbstractCompactionIterable(CompactionController controller, OperationType type)
+    public AbstractCompactionIterable(CompactionController controller, OperationType type, List<SSTableScanner> scanners)
     {
         this.controller = controller;
         this.type = type;
+        this.scanners = scanners;
+        this.bytesRead = 0;
+
+        long bytes = 0;
+        for (SSTableScanner scanner : scanners)
+            bytes += scanner.getFileLength();
+        this.totalBytes = bytes;
+
         this.throttle = new Throttle(toString(), new Throttle.ThroughputFunction()
         {
             /** @return Instantaneous throughput target in bytes per millisecond. */

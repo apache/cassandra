@@ -1474,17 +1474,25 @@ public class CliClient
         AbstractType<?> comparator;
 
         // Could be UTF8Type, IntegerType, LexicalUUIDType etc.
-        String defaultType = statement.getChild(2).getText();
+        String defaultType = CliUtils.unescapeSQLString(statement.getChild(2).getText());
 
         try
         {
-            comparator = Function.valueOf(defaultType.toUpperCase()).getValidator();
+            comparator = TypeParser.parse(defaultType);
         }
-        catch (Exception e)
+        catch (ConfigurationException e)
         {
-            String functions = Function.getFunctionNames();
-            sessionState.out.println("Type '" + defaultType + "' was not found. Available: " + functions);
-            return;
+            try
+            {
+                comparator = Function.valueOf(defaultType.toUpperCase()).getValidator();
+            }
+            catch (Exception ne)
+            {
+                String functions = Function.getFunctionNames();
+                sessionState.out.println("Type '" + defaultType + "' was not found. Available: " + functions
+                                         + " Or any class which extends o.a.c.db.marshal.AbstractType.");
+                return;
+            }
         }
 
         // making string representation look property e.g. o.a.c.db.marshal.UTF8Type
