@@ -469,7 +469,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                          Descriptor.CURRENT_VERSION,
                                                          descriptor));
 
-            Descriptor newDescriptor = new Descriptor(descriptor.directory,
+            Descriptor newDescriptor = new Descriptor(descriptor.version,
+                                                      descriptor.directory,
                                                       descriptor.ksname,
                                                       descriptor.cfname,
                                                       fileIndexGenerator.incrementAndGet(),
