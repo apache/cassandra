@@ -53,6 +53,7 @@ Merged from 1.0:
  * allow custom types in CLI's assume command (CASSANDRA-4081)
  * fix totalBytes count for parallel compactions (CASSANDRA-3758)
  * fix intermittent NPE in get_slice (CASSANDRA-4095)
+ * remove unnecessary asserts in native code interfaces (CASSANDRA-4096)
 
 
 1.1-beta1
