@@ -828,7 +828,7 @@ public class MerkleTree implements Serializable
     /**
      * Abstract class containing hashing logic, and containing a single hash field.
      */
-    static abstract class Hashable
+    static abstract class Hashable implements Serializable
     {
         private static final long serialVersionUID = 1L;
         private static final IVersionedSerializer<Hashable> serializer = new HashableSerializer();

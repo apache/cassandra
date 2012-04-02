@@ -1118,6 +1118,12 @@
     </testmacro>
   </target>
 
+  <target name="msg-ser-test-10" depends="build-test" description="Tests message serializations on 1.0 messages">
+    <testmacro suitename="unit" inputdir="${test.unit.src}" 
+               timeout="60000" filter="**/SerializationsTest.java">
+      <jvmarg value="-Dcassandra.version=1.0"/>
+    </testmacro>
+  </target>
 
   <target name="long-test" depends="build-test" description="Execute functional tests">
     <testmacro suitename="long" inputdir="${test.long.src}"

@@ -1,6 +1,4 @@
-package org.apache.cassandra;
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -19,7 +17,12 @@ package org.apache.cassandra;
  * under the License.
  *
  */
+package org.apache.cassandra;
 
+import com.google.common.io.ByteArrayDataOutput;
+import com.google.common.io.ByteStreams;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.net.MessagingService;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -32,11 +35,12 @@ import java.util.Map;
 
 public class AbstractSerializationsTester extends SchemaLoader
 {
-    protected static final String CUR_VER = System.getProperty("cassandra.version", "1.0");
+    protected static final String CUR_VER = System.getProperty("cassandra.version", "1.2");
     protected static final Map<String, Integer> VERSION_MAP = new HashMap<String, Integer> ()
     {{
-            put("0.7", 1);
-            put("1.0", 3);
+        put("0.7", 1);
+        put("1.0", 3);
+        put("1.2", MessagingService.VERSION_12);
     }};
 
     // TODO ant doesn't pass this -D up to the test, so it's kind of useless
@@ -45,6 +49,13 @@ public class AbstractSerializationsTester extends SchemaLoader
     protected final int getVersion()
     {
         return VERSION_MAP.get(CUR_VER);
+    }
+
+    protected <T> void testSerializedSize(T obj, IVersionedSerializer<T> serializer) throws IOException
+    {
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        serializer.serialize(obj, out, getVersion());
+        assert out.toByteArray().length == serializer.serializedSize(obj, getVersion());
     }
 
     protected static DataInputStream getInput(String name) throws IOException

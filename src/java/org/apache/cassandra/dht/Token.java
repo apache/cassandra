@@ -105,7 +105,9 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
 
         public long serializedSize(Token object, DBTypeSizes typeSizes)
         {
-            throw new UnsupportedOperationException();
+            IPartitioner p = StorageService.getPartitioner();
+            ByteBuffer b = p.getTokenFactory().toByteArray(object);
+            return DBTypeSizes.NATIVE.sizeof(b.remaining()) + b.remaining();
         }
     }
 

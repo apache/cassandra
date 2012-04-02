@@ -22,6 +22,7 @@ package org.apache.cassandra.service;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -153,8 +154,7 @@ public class RemoveTest
 
         for (InetAddress host : hosts)
         {
-            // TODO how to spoof host here?
-            MessageOut msg = new MessageOut(MessagingService.Verb.REPLICATION_FINISHED);
+            MessageOut msg = new MessageOut(host, MessagingService.Verb.REPLICATION_FINISHED, null, null, Collections.<String, byte[]>emptyMap());
             MessagingService.instance().sendRR(msg, FBUtilities.getBroadcastAddress());
         }
 

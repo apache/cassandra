@@ -1,6 +1,4 @@
-package org.apache.cassandra.service;
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,13 +15,14 @@ package org.apache.cassandra.service;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
  */
-
+package org.apache.cassandra.service;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.junit.Test;
 
@@ -51,6 +50,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         AntiEntropyService.TreeRequest.serializer.serialize(Statics.req, out, getVersion());
         Statics.req.createMessage().serialize(out, getVersion());
         out.close();
+
+        // test serializedSize
+        testSerializedSize(Statics.req, AntiEntropyService.TreeRequest.serializer);
     }
 
     @Test
@@ -83,6 +85,10 @@ public class SerializationsTest extends AbstractSerializationsTester
         v0.createMessage().serialize(out, getVersion());
         v1.createMessage().serialize(out, getVersion());
         out.close();
+
+        // test serializedSize
+        testSerializedSize(v0, AntiEntropyService.Validator.serializer);
+        testSerializedSize(v1, AntiEntropyService.Validator.serializer);
     }
 
     @Test

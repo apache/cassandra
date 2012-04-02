@@ -27,10 +27,13 @@ import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.utils.FBUtilities.serializedUTF8Size;
 
 public class SnapshotCommand
 {
-    private static final SnapshotCommandSerializer serializer = new SnapshotCommandSerializer();
+    public static final SnapshotCommandSerializer serializer = new SnapshotCommandSerializer();
 
     public final String keyspace;
     public final String column_family;
@@ -79,8 +82,11 @@ class SnapshotCommandSerializer implements IVersionedSerializer<SnapshotCommand>
         return new SnapshotCommand(keyspace, column_family, snapshot_name, clear_snapshot);
     }
 
-    public long serializedSize(SnapshotCommand snapshot_command, int version)
+    public long serializedSize(SnapshotCommand sc, int version)
     {
-        throw new UnsupportedOperationException();
+        return serializedUTF8Size(sc.keyspace)
+             + serializedUTF8Size(sc.column_family)
+             + serializedUTF8Size(sc.snapshot_name)
+             + DBTypeSizes.NATIVE.sizeof(sc.clear_snapshot);
     }
 }

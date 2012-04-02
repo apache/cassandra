@@ -1,6 +1,4 @@
-package org.apache.cassandra.utils;
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,9 +15,8 @@ package org.apache.cassandra.utils;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
  */
-
+package org.apache.cassandra.utils;
 
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.service.StorageService;
@@ -36,7 +33,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testBloomFilterWrite(Type murmur) throws IOException
     {
-        Filter bf = FilterFactory.getFilter(1000000, 0.0001);
+        Filter bf = FilterFactory.getFilter(1000000, 0.0001, murmur);
         for (int i = 0; i < 100; i++)
             bf.add(StorageService.getPartitioner().getTokenFactory().toByteArray(StorageService.getPartitioner().getRandomToken()));
         DataOutputStream out = getOutput("utils.BloomFilter.bin");

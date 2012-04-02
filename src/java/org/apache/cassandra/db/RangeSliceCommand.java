@@ -57,6 +57,7 @@ import org.apache.cassandra.thrift.TBinaryProtocol;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TDeserializer;
+import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
 
 public class RangeSliceCommand implements IReadCommand
@@ -221,6 +222,65 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
 
     public long serializedSize(RangeSliceCommand rangeSliceCommand, int version)
     {
-        throw new UnsupportedOperationException();
+        int ksLength = FBUtilities.encodedUTF8Length(rangeSliceCommand.keyspace);
+        long size = DBTypeSizes.NATIVE.sizeof(ksLength) + ksLength;
+        int cfLength = FBUtilities.encodedUTF8Length(rangeSliceCommand.column_family);
+        size += DBTypeSizes.NATIVE.sizeof(cfLength) + cfLength;
+
+        ByteBuffer sc = rangeSliceCommand.super_column;
+        if (sc != null)
+        {
+            size += DBTypeSizes.NATIVE.sizeof(sc.remaining());
+            size += sc.remaining();
+        }
+        else
+        {
+            size += DBTypeSizes.NATIVE.sizeof(0);
+        }
+
+        TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
+        try
+        {
+            int predicateLength = ser.serialize(rangeSliceCommand.predicate).length;
+            size += DBTypeSizes.NATIVE.sizeof(predicateLength);
+            size += predicateLength;
+        }
+        catch (TException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        if (version >= MessagingService.VERSION_11)
+        {
+            if (rangeSliceCommand.row_filter == null)
+            {
+                size += DBTypeSizes.NATIVE.sizeof(0);
+            }
+            else
+            {
+                size += DBTypeSizes.NATIVE.sizeof(rangeSliceCommand.row_filter.size());
+                for (IndexExpression expr : rangeSliceCommand.row_filter)
+                {
+                    try
+                    {
+                        int filterLength = ser.serialize(expr).length;
+                        size += DBTypeSizes.NATIVE.sizeof(filterLength);
+                        size += filterLength;
+                    }
+                    catch (TException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }
+        size += AbstractBounds.serializer().serializedSize(rangeSliceCommand.range, version);
+        size += DBTypeSizes.NATIVE.sizeof(rangeSliceCommand.maxResults);
+        if (version >= MessagingService.VERSION_11)
+        {
+            size += DBTypeSizes.NATIVE.sizeof(rangeSliceCommand.maxIsColumns);
+            size += DBTypeSizes.NATIVE.sizeof(rangeSliceCommand.isPaging);
+        }
+        return size;
     }
 }

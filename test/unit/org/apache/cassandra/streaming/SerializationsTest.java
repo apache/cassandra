@@ -1,6 +1,4 @@
-package org.apache.cassandra.streaming;
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,9 +15,8 @@ package org.apache.cassandra.streaming;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
  */
-
+package org.apache.cassandra.streaming;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -63,6 +60,12 @@ public class SerializationsTest extends AbstractSerializationsTester
         PendingFile.serializer().serialize(noSST, out, getVersion());
         PendingFile.serializer().serialize(null, out, getVersion());
         out.close();
+
+        // test serializedSize
+        testSerializedSize(normal, PendingFile.serializer());
+        testSerializedSize(noSections, PendingFile.serializer());
+        testSerializedSize(noSST, PendingFile.serializer());
+        testSerializedSize(null, PendingFile.serializer());
     }
 
     @Test
@@ -97,6 +100,13 @@ public class SerializationsTest extends AbstractSerializationsTester
         StreamHeader.serializer().serialize(sh3, out, getVersion());
         StreamHeader.serializer().serialize(sh4, out, getVersion());
         out.close();
+
+        // test serializedSize
+        testSerializedSize(sh0, StreamHeader.serializer());
+        testSerializedSize(sh1, StreamHeader.serializer());
+        testSerializedSize(sh2, StreamHeader.serializer());
+        testSerializedSize(sh3, StreamHeader.serializer());
+        testSerializedSize(sh4, StreamHeader.serializer());
     }
 
     @Test
@@ -121,6 +131,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         StreamReply.serializer.serialize(rep, out, getVersion());
         rep.createMessage().serialize(out, getVersion());
         out.close();
+
+        // test serializedSize
+        testSerializedSize(rep, StreamReply.serializer);
     }
 
     @Test
@@ -162,6 +175,11 @@ public class SerializationsTest extends AbstractSerializationsTester
         msg1.createMessage().serialize(out, getVersion());
         msg2.createMessage().serialize(out, getVersion());
         out.close();
+
+        // test serializedSize
+        testSerializedSize(msg0, StreamRequest.serializer());
+        testSerializedSize(msg1, StreamRequest.serializer());
+        testSerializedSize(msg2, StreamRequest.serializer());
     }
 
     @Test

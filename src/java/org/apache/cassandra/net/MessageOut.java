@@ -20,6 +20,7 @@ package org.apache.cassandra.net;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Map;
 
@@ -31,6 +32,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class MessageOut<T>
 {
+    public final InetAddress from;
     public final MessagingService.Verb verb;
     public final T payload;
     public final IVersionedSerializer<T> serializer;
@@ -49,6 +51,12 @@ public class MessageOut<T>
 
     public MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, Map<String, byte[]> parameters)
     {
+        this(FBUtilities.getBroadcastAddress(), verb, payload, serializer, parameters);
+    }
+
+    public MessageOut(InetAddress from, MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, Map<String, byte[]> parameters)
+    {
+        this.from = from;
         this.verb = verb;
         this.payload = payload;
         this.serializer = serializer;
@@ -81,16 +89,13 @@ public class MessageOut<T>
     public String toString()
     {
         StringBuilder sbuf = new StringBuilder("");
-        String separator = System.getProperty("line.separator");
-        sbuf.append("TYPE:").append(getStage())
-            .append(separator).append("VERB:").append(verb)
-        	.append(separator);
+        sbuf.append("TYPE:").append(getStage()).append(" VERB:").append(verb);
         return sbuf.toString();
     }
 
     public void serialize(DataOutputStream out, int version) throws IOException
     {
-        CompactEndpointSerializationHelper.serialize(FBUtilities.getBroadcastAddress(), out);
+        CompactEndpointSerializationHelper.serialize(from, out);
 
         out.writeInt(verb.ordinal());
         out.writeInt(parameters.size());

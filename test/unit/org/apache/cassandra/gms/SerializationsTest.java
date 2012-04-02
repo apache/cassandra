@@ -1,6 +1,4 @@
-package org.apache.cassandra.gms;
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,9 +15,8 @@ package org.apache.cassandra.gms;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
  */
-
+package org.apache.cassandra.gms;
 
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.service.StorageService;
@@ -46,6 +43,12 @@ public class SerializationsTest extends AbstractSerializationsTester
         VersionedValue.serializer.serialize(Statics.vv0, out, getVersion());
         VersionedValue.serializer.serialize(Statics.vv1, out, getVersion());
         out.close();
+
+        // test serializedSize
+        testSerializedSize(Statics.HeartbeatSt, HeartBeatState.serializer());
+        testSerializedSize(Statics.EndpointSt, EndpointState.serializer());
+        testSerializedSize(Statics.vv0, VersionedValue.serializer);
+        testSerializedSize(Statics.vv1, VersionedValue.serializer);
     }
 
     @Test
@@ -78,6 +81,13 @@ public class SerializationsTest extends AbstractSerializationsTester
         GossipDigestAck2.serializer().serialize(ack2, out, getVersion());
         GossipDigestSyn.serializer().serialize(syn, out, getVersion());
         out.close();
+
+        // test serializedSize
+        for (GossipDigest gd : Statics.Digests)
+            testSerializedSize(gd, GossipDigest.serializer());
+        testSerializedSize(ack, GossipDigestAck.serializer());
+        testSerializedSize(ack2, GossipDigestAck2.serializer());
+        testSerializedSize(syn, GossipDigestSyn.serializer());
     }
 
     @Test

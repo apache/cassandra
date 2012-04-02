@@ -25,7 +25,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 
-import com.google.common.base.Charsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +42,7 @@ import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SimpleCondition;
 
+import static org.apache.cassandra.utils.FBUtilities.serializedUTF8Size;
 
 public class BootStrapper
 {
@@ -230,7 +230,7 @@ public class BootStrapper
 
         public long serializedSize(String s, int version)
         {
-            return 2 + FBUtilities.encodedUTF8Length(s);
+            return serializedUTF8Size(s);
         }
     }
 }

@@ -75,8 +75,6 @@ public class MessageIn<T>
         }
 
         int payloadSize = in.readInt();
-        if (payloadSize == 0)
-            return create(from, null, parameters, verb, version);
         IVersionedSerializer<T2> serializer = (IVersionedSerializer<T2>) MessagingService.verbSerializers.get(verb);
         if (serializer instanceof MessagingService.CallbackDeterminedSerializer)
         {
@@ -89,6 +87,8 @@ public class MessageIn<T>
             }
             serializer = (IVersionedSerializer<T2>) callback.serializer;
         }
+        if (payloadSize == 0 || serializer == null)
+            return create(from, null, parameters, verb, version);
         T2 payload = serializer.deserialize(in, version);
         return MessageIn.create(from, payload, parameters, verb, version);
     }
@@ -101,11 +101,7 @@ public class MessageIn<T>
     public String toString()
     {
         StringBuilder sbuf = new StringBuilder("");
-        String separator = System.getProperty("line.separator");
-        sbuf.append("FROM:").append(from)
-            .append(separator).append("TYPE:").append(getMessageType())
-            .append(separator).append("VERB:").append(verb)
-        	.append(separator);
+        sbuf.append("FROM:").append(from).append(" TYPE:").append(getMessageType()).append(" VERB:").append(verb);
         return sbuf.toString();
     }
 }

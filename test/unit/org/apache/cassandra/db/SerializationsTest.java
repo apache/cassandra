@@ -1,6 +1,4 @@
-package org.apache.cassandra.db;
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,9 +15,8 @@ package org.apache.cassandra.db;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
  */
-
+package org.apache.cassandra.db;
 
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.Util;
@@ -37,6 +34,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import org.junit.Test;
 
@@ -67,21 +65,35 @@ public class SerializationsTest extends AbstractSerializationsTester
         IPartitioner part = StorageService.getPartitioner();
         AbstractBounds<RowPosition> bounds = new Range<Token>(part.getRandomToken(), part.getRandomToken()).toRowBounds();
 
-        MessageOut<RangeSliceCommand> namesCmd = new RangeSliceCommand(Statics.KS, "Standard1", null, namesPred, bounds, 100).createMessage();
-        MessageOut<RangeSliceCommand> emptyRangeCmd = new RangeSliceCommand(Statics.KS, "Standard1", null, emptyRangePred, bounds, 100).createMessage();
-        MessageOut<RangeSliceCommand> regRangeCmd = new RangeSliceCommand(Statics.KS, "Standard1", null,  nonEmptyRangePred, bounds, 100).createMessage();
-        MessageOut<RangeSliceCommand> namesCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC, namesPred, bounds, 100).createMessage();
-        MessageOut<RangeSliceCommand> emptyRangeCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC, emptyRangePred, bounds, 100).createMessage();
-        MessageOut<RangeSliceCommand> regRangeCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC,  nonEmptyRangePred, bounds, 100).createMessage();
+        RangeSliceCommand namesCmd = new RangeSliceCommand(Statics.KS, "Standard1", null, namesPred, bounds, 100);
+        MessageOut<RangeSliceCommand> namesCmdMsg = namesCmd.createMessage();
+        RangeSliceCommand emptyRangeCmd = new RangeSliceCommand(Statics.KS, "Standard1", null, emptyRangePred, bounds, 100);
+        MessageOut<RangeSliceCommand> emptyRangeCmdMsg = emptyRangeCmd.createMessage();
+        RangeSliceCommand regRangeCmd = new RangeSliceCommand(Statics.KS, "Standard1", null,  nonEmptyRangePred, bounds, 100);
+        MessageOut<RangeSliceCommand> regRangeCmdMsg = regRangeCmd.createMessage();
+        RangeSliceCommand namesCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC, namesPred, bounds, 100);
+        MessageOut<RangeSliceCommand> namesCmdSupMsg = namesCmdSup.createMessage();
+        RangeSliceCommand emptyRangeCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC, emptyRangePred, bounds, 100);
+        MessageOut<RangeSliceCommand> emptyRangeCmdSupMsg = emptyRangeCmdSup.createMessage();
+        RangeSliceCommand regRangeCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC,  nonEmptyRangePred, bounds, 100);
+        MessageOut<RangeSliceCommand> regRangeCmdSupMsg = regRangeCmdSup.createMessage();
         
         DataOutputStream out = getOutput("db.RangeSliceCommand.bin");
-        namesCmd.serialize(out, getVersion());
-        emptyRangeCmd.serialize(out, getVersion());
-        regRangeCmd.serialize(out, getVersion());
-        namesCmdSup.serialize(out, getVersion());
-        emptyRangeCmdSup.serialize(out, getVersion());
-        regRangeCmdSup.serialize(out, getVersion());
+        namesCmdMsg.serialize(out, getVersion());
+        emptyRangeCmdMsg.serialize(out, getVersion());
+        regRangeCmdMsg.serialize(out, getVersion());
+        namesCmdSupMsg.serialize(out, getVersion());
+        emptyRangeCmdSupMsg.serialize(out, getVersion());
+        regRangeCmdSupMsg.serialize(out, getVersion());
         out.close();
+
+        // test serializedSize
+        testSerializedSize(namesCmd, RangeSliceCommand.serializer);
+        testSerializedSize(emptyRangeCmd, RangeSliceCommand.serializer);
+        testSerializedSize(regRangeCmd, RangeSliceCommand.serializer);
+        testSerializedSize(namesCmdSup, RangeSliceCommand.serializer);
+        testSerializedSize(emptyRangeCmdSup, RangeSliceCommand.serializer);
+        testSerializedSize(regRangeCmdSup, RangeSliceCommand.serializer);
     }
 
     @Test
@@ -109,6 +121,10 @@ public class SerializationsTest extends AbstractSerializationsTester
         standardCmd.createMessage().serialize(out, getVersion());
         superCmd.createMessage().serialize(out, getVersion());
         out.close();
+
+        // test serializedSize
+        testSerializedSize(standardCmd, SliceByNamesReadCommand.serializer());
+        testSerializedSize(superCmd, SliceByNamesReadCommand.serializer());
     }
 
     @Test
@@ -139,6 +155,10 @@ public class SerializationsTest extends AbstractSerializationsTester
         standardCmd.createMessage().serialize(out, getVersion());
         superCmd.createMessage().serialize(out, getVersion());
         out.close();
+
+        // test serializedSize
+        testSerializedSize(standardCmd, SliceFromReadCommand.serializer());
+        testSerializedSize(superCmd, SliceFromReadCommand.serializer());
     }
 
     @Test
@@ -164,6 +184,11 @@ public class SerializationsTest extends AbstractSerializationsTester
         Row.serializer().serialize(Statics.SuperRow, out, getVersion());
         Row.serializer().serialize(Statics.NullRow, out, getVersion());
         out.close();
+
+        // test serializedSize
+        testSerializedSize(Statics.StandardRow, Row.serializer());
+        testSerializedSize(Statics.SuperRow, Row.serializer());
+        testSerializedSize(Statics.NullRow, Row.serializer());
     }
 
     @Test
@@ -179,7 +204,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         in.close();
     }
 
-    private void restRowMutationWrite() throws IOException
+    private void testRowMutationWrite() throws IOException
     {
         RowMutation emptyRm = new RowMutation(Statics.KS, Statics.Key);
         RowMutation standardRowRm = new RowMutation(Statics.KS, Statics.StandardRow);
@@ -209,13 +234,21 @@ public class SerializationsTest extends AbstractSerializationsTester
         mixedRm.createMessage().serialize(out, getVersion());
 
         out.close();
+
+        // test serializedSize
+        testSerializedSize(emptyRm, RowMutation.serializer());
+        testSerializedSize(standardRowRm, RowMutation.serializer());
+        testSerializedSize(superRowRm, RowMutation.serializer());
+        testSerializedSize(standardRm, RowMutation.serializer());
+        testSerializedSize(superRm, RowMutation.serializer());
+        testSerializedSize(mixedRm, RowMutation.serializer());
     }
 
     @Test
     public void testRowMutationRead() throws IOException
     {
         if (EXECUTE_WRITES)
-            restRowMutationWrite();
+            testRowMutationWrite();
 
         DataInputStream in = getInput("db.RowMutation.bin");
         assert RowMutation.serializer().deserialize(in, getVersion()) != null;
@@ -233,7 +266,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         in.close();
     }
 
-    public void testTruncateWrite() throws IOException
+    private void testTruncateWrite() throws IOException
     {
         Truncation tr = new Truncation(Statics.KS, "Doesn't Really Matter");
         TruncateResponse aff = new TruncateResponse(Statics.KS, "Doesn't Matter Either", true);
@@ -248,6 +281,11 @@ public class SerializationsTest extends AbstractSerializationsTester
         neg.createMessage().serialize(out, getVersion());
         // todo: notice how CF names weren't validated.
         out.close();
+
+        // test serializedSize
+        testSerializedSize(tr, Truncation.serializer());
+        testSerializedSize(aff, TruncateResponse.serializer());
+        testSerializedSize(neg, TruncateResponse.serializer());
     }
 
     @Test
@@ -279,6 +317,10 @@ public class SerializationsTest extends AbstractSerializationsTester
         WriteResponse.serializer().serialize(aff, out, getVersion());
         WriteResponse.serializer().serialize(neg, out, getVersion());
         out.close();
+
+        // test serializedSize
+        testSerializedSize(aff, WriteResponse.serializer());
+        testSerializedSize(neg, WriteResponse.serializer());
     }
 
     @Test

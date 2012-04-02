@@ -24,6 +24,9 @@ import java.io.IOException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.utils.FBUtilities.serializedUTF8Size;
 
 
 /**
@@ -43,11 +46,12 @@ public class TruncateResponse
     public final String columnFamily;
     public final boolean success;
 
-    public TruncateResponse(String keyspace, String columnFamily, boolean success) {
-		this.keyspace = keyspace;
-		this.columnFamily = columnFamily;
-		this.success = success;
-	}
+    public TruncateResponse(String keyspace, String columnFamily, boolean success)
+    {
+        this.keyspace = keyspace;
+        this.columnFamily = columnFamily;
+        this.success = success;
+    }
 
     public MessageOut<TruncateResponse> createMessage()
     {
@@ -71,9 +75,11 @@ public class TruncateResponse
             return new TruncateResponse(keyspace, columnFamily, success);
         }
 
-        public long serializedSize(TruncateResponse truncateResponse, int version)
+        public long serializedSize(TruncateResponse tr, int version)
         {
-            throw new UnsupportedOperationException();
+            return serializedUTF8Size(tr.keyspace)
+                 + serializedUTF8Size(tr.columnFamily)
+                 + DBTypeSizes.NATIVE.sizeof(tr.success);
         }
     }
 }

@@ -64,7 +64,6 @@ public class IncomingTcpConnection extends Thread
             int header = input.readInt();
             isStream = MessagingService.getBits(header, 3, 1) == 1;
             version = MessagingService.getBits(header, 15, 8);
-            logger.debug("Version for {} is {}", from, version);
             if (isStream)
             {
                 if (version == MessagingService.current_version)
@@ -88,6 +87,7 @@ public class IncomingTcpConnection extends Thread
             input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
             // Receive the first message to set the version.
             from = receiveMessage(input, version); // why? see => CASSANDRA-4099
+            logger.debug("Version for {} is {}", from, version);
             if (version > MessagingService.current_version)
             {
                 // save the endpoint so gossip will reconnect to it
