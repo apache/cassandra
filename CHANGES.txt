@@ -1,3 +1,7 @@
+0.8.11-dev
+ * make boundedstatsdeque threadsafe (CASSANDRA-4019)
+
+
 0.8.10
  * fix thread safety issues in commitlog replay, primarily affecting
    systems with many (100s) of CF definitions (CASSANDRA-3751)
