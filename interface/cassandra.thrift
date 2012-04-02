@@ -46,6 +46,15 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
+#
+# Note that this backwards compatibility is from the perspective of the server,
+# not the client. Cassandra should always be able to talk to older client
+# software, but client software may not be able to talk to older Cassandra
+# instances.
+#
+# An effort should be made not to break forward-client-compatibility either
+# (e.g. one should avoid removing obsolete fields from the IDL), but no
+# guarantees in this respect are made by the Cassandra project.
 const string VERSION = "19.29.0"
 
 
