@@ -1,8 +1,10 @@
 1.1.1-dev
+ * add column limit to cli (CASSANDRA-3012, 4098)
  * clean up and optimize DataOutputBuffer, used by CQL compression and
    CompositeType (CASSANDRA-4072)
  * optimize commitlog checksumming (CASSANDRA-3610)
- * identify and blacklist corrupted SSTables from future compactions (CASSANDRA-2261)
+ * identify and blacklist corrupted SSTables from future compactions 
+   (CASSANDRA-2261)
  * Move CfDef and KsDef validation out of thrift (CASSANDRA-4037)
 
 1.1-dev
