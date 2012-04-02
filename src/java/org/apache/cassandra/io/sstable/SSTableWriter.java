@@ -121,19 +121,14 @@ public class SSTableWriter extends SSTable
         }
     }
 
+    /**
+     * Perform sanity checks on @param decoratedKey and @return the position in the data file before any data is written
+     */
     private long beforeAppend(DecoratedKey decoratedKey) throws IOException
     {
-        if (decoratedKey == null)
-        {
-            throw new IOException("Keys must not be null.");
-        }
-        if (lastWrittenKey != null && lastWrittenKey.compareTo(decoratedKey) > 0)
-        {
-            logger.info("Last written key : " + lastWrittenKey);
-            logger.info("Current key : " + decoratedKey);
-            logger.info("Writing into file " + getFilename());
-            throw new IOException("Keys must be written in ascending order.");
-        }
+        assert decoratedKey != null : "Keys must not be null";
+        assert lastWrittenKey == null || lastWrittenKey.compareTo(decoratedKey) < 0
+               : "Last written key " + lastWrittenKey + " >= current key " + decoratedKey + " writing into " + getFilename();
         return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
     }
 

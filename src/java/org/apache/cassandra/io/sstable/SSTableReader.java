@@ -406,6 +406,7 @@ public class SSTableReader extends SSTable
         }
         this.first = getMinimalKey(left);
         this.last = getMinimalKey(right);
+        assert this.first.compareTo(this.last) <= 0: String.format("SSTable first key %s > last key %s", this.first, this.last);
 
         // finalize the state of the reader
         ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
