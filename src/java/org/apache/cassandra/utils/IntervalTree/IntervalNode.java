@@ -53,6 +53,11 @@ public class IntervalNode
             //if i.max < v_pt then it goes to the left subtree
             List<Interval> leftSegment = getLeftIntervals(toBisect);
             List<Interval> rightSegment = getRightIntervals(toBisect);
+            assert (intersects.size() + leftSegment.size() + rightSegment.size()) == toBisect.size() :
+                    "intersects (" + String.valueOf(intersects.size()) +
+                    ") + leftSegment (" + String.valueOf(leftSegment.size()) +
+                    ") + rightSegment (" + String.valueOf(rightSegment.size()) +
+                    ") != toBisect (" + String.valueOf(toBisect.size()) + ")";
             if (leftSegment.size() > 0)
                 this.left = new IntervalNode(leftSegment);
             if (rightSegment.size() > 0)
@@ -102,6 +107,7 @@ public class IntervalNode
 
             for (Interval interval : intervals)
             {
+                assert interval.min.compareTo(interval.max) <= 0 : "Interval min > max";
                 allEndpoints.add(interval.min);
                 allEndpoints.add(interval.max);
             }
