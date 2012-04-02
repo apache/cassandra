@@ -95,7 +95,8 @@ public class IncomingTcpConnection extends Thread
                 return;
             }
             Gossiper.instance.setVersion(from, version);
-            logger.debug("set version for {} to {}", from, version);            
+            logger.debug("set version for {} to {}", from, version);
+
             // loop to get the next message.
             while (true)
             {

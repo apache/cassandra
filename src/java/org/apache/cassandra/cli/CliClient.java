@@ -1320,7 +1320,7 @@ public class CliClient
         String rawStartKey = "";
         String rawEndKey = "";
         int limitCount = Integer.MAX_VALUE; // will reset to default later if it's not specified
-        int columnCount = Integer.MAX_VALUE;
+        int columnCount = Integer.MAX_VALUE; // will reset to default later if it's not specified
         boolean reversed = false;
 
         // optional arguments: key range and limit
@@ -1386,6 +1386,12 @@ public class CliClient
             limitCount = 100;
             sessionState.out.println("Using default limit of 100");
         }
+        if (columnCount == Integer.MAX_VALUE)
+        {
+            columnCount = 100;
+            sessionState.out.println("Using default column limit of 100");
+        }
+
 
         CfDef columnFamilyDef = getCfDef(columnFamily);
 
