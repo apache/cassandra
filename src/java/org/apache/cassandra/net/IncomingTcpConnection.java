@@ -90,19 +90,16 @@ public class IncomingTcpConnection extends Thread
             // we should buffer
             input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
             // Receive the first message to set the version.
-            Message msg = receiveMessage(input, version);
-            from = msg.getFrom(); // why? see => CASSANDRA-4099
+            from = receiveMessage(input, version); // why? see => CASSANDRA-4099
             if (version > MessagingService.version_)
             {
                 // save the endpoint so gossip will reconnect to it
                 Gossiper.instance.addSavedEndpoint(from);
                 logger.info("Received " + (isStream ? "streaming " : "") + "connection from newer protocol version. Ignoring");
+                return;
             }
-            else if (msg != null)
-            {
-                Gossiper.instance.setVersion(from, version);
-                logger.debug("set version for {} to {}", from, version);
-            }
+            Gossiper.instance.setVersion(from, version);
+            logger.debug("set version for {} to {}", from, version);
 
             // loop to get the next message.
             while (true)
@@ -131,7 +128,7 @@ public class IncomingTcpConnection extends Thread
         }
     }
 
-    private Message receiveMessage(DataInputStream input, int version) throws IOException
+    private InetAddress receiveMessage(DataInputStream input, int version) throws IOException
     {
         int totalSize = input.readInt();
         String id = input.readUTF();
@@ -156,10 +153,12 @@ public class IncomingTcpConnection extends Thread
         {
             Message message = new Message(header, body, version);
             MessagingService.instance().receive(message, id);
-            return message;
         }
-        logger.debug("Received connection from newer protocol version {}. Ignoring message", version);
-        return null;
+        else
+        {
+            logger.debug("Received connection from newer protocol version {}. Ignoring message", version);
+        }
+        return header.getFrom();
     }
 
     private void close()
