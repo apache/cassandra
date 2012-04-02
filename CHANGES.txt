@@ -21,10 +21,11 @@
  * Validate blank keys in CQL to avoid assertion errors (CASSANDRA-3612)
  * cqlsh: fix bad decoding of some column names (CASSANDRA-4003)
  * cqlsh: fix incorrect padding with unicode chars (CASSANDRA-4033)
- * Fix ConcurrentModificationException in gossiper (CASSANDRA-4019)
  * Fix EC2 snitch incorrectly reporting region (CASSANDRA-4026)
  * Shut down thrift during decommission (CASSANDRA-4086)
  * Expose nodetool cfhistograms for 2ndary indexes (CASSANDRA-4063)
+Merged from 0.8:
+ * Fix ConcurrentModificationException in gossiper (CASSANDRA-4019)
 
 
 1.0.8

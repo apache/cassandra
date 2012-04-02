@@ -186,7 +186,7 @@ JVM_OPTS="$JVM_OPTS -Djava.net.preferIPv4Stack=true"
 # JVM_OPTS="$JVM_OPTS -Djava.rmi.server.hostname=<public name>"
 # 
 # see 
-# http://blogs.sun.com/jmxetc/entry/troubleshooting_connection_problems_in_jconsole
+# https://blogs.oracle.com/jmxetc/entry/troubleshooting_connection_problems_in_jconsole
 # for more on configuring JMX through firewalls, etc. (Short version:
 # get it working with no firewall first.)
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT" 
