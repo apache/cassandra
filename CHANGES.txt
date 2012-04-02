@@ -50,7 +50,7 @@ Merged from 1.0:
    erroring out (CASSANDRA-3975)
  * add CompositeType ref to the CLI doc for create/update column family (CASSANDRA-3980)
  * Pig: support Counter ColumnFamilies (CASSANDRA-3973)
- * Pig: Composite column support (CASSANDRA-384)
+ * Pig: Composite column support (CASSANDRA-3684)
  * Avoid NPE during repair when a keyspace has no CFs (CASSANDRA-3988)
  * Fix division-by-zero error on get_slice (CASSANDRA-4000)
  * don't change manifest level for cleanup, scrub, and upgradesstables
@@ -63,6 +63,14 @@ Merged from 1.0:
  * fix totalBytes count for parallel compactions (CASSANDRA-3758)
  * fix intermittent NPE in get_slice (CASSANDRA-4095)
  * remove unnecessary asserts in native code interfaces (CASSANDRA-4096)
+ * Validate blank keys in CQL to avoid assertion errors (CASSANDRA-3612)
+ * cqlsh: fix bad decoding of some column names (CASSANDRA-4003)
+ * cqlsh: fix incorrect padding with unicode chars (CASSANDRA-4033)
+ * Fix EC2 snitch incorrectly reporting region (CASSANDRA-4026)
+ * Shut down thrift during decommission (CASSANDRA-4086)
+ * Expose nodetool cfhistograms for 2ndary indexes (CASSANDRA-4063)
+Merged from 0.8:
+ * Fix ConcurrentModificationException in gossiper (CASSANDRA-4019)
 
 
 1.1-beta1
