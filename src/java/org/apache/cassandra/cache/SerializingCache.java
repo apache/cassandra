@@ -201,11 +201,23 @@ public class SerializingCache<K, V> implements ICache<K, V>
         FreeableMemory mem = serialize(value);
         if (mem == null)
             return false; // out of memory.  never mind.
-        V oldValue = deserialize(old);
+
+        V oldValue;
+        // reference old guy before de-serializing
+        if (!old.reference())
+            return false; // we have already freed hence noop.
+        try
+        {
+             oldValue = deserialize(old);
+        }
+        finally
+        {
+            old.unreference();
+        }
         boolean success = oldValue.equals(oldToReplace) && map.replace(key, old, mem);
 
         if (success)
-            old.unreference();
+            old.unreference(); // so it will be eventually be cleaned
         else
             mem.unreference();
         return success;
