@@ -209,6 +209,7 @@ syntax_rules = r'''
 JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <stringLiteral> ::= /'([^']|'')*'/ ;
+<dquoteLiteral> ::= /"([^"]|"")*"/ ;
 <float> ::=         /-?[0-9]+\.[0-9]+/ ;
 <integer> ::=       /-?[0-9]+/ ;
 <uuid> ::=          /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ ;
@@ -230,6 +231,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
            ;
 <name> ::= <identifier>
          | <stringLiteral>
+         | <dquoteLiteral>
          | <integer>
          ;
 <term> ::= <stringLiteral>
