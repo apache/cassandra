@@ -431,7 +431,7 @@ public class Directories
             // This is a brand new node.
             return false;
 
-        // Check whether the migration migth create too long a filename
+        // Check whether the migration might create too long a filename
         int longestLocation = -1;
         try
         {
@@ -443,18 +443,32 @@ public class Directories
             throw new IOError(e);
         }
 
+        // Check that migration won't error out halfway through from too-long paths.  For Windows, we need to check
+        // total path length <= 255 (see http://msdn.microsoft.com/en-us/library/aa365247.aspx and discussion on CASSANDRA-2749);
+        // elsewhere, we just need to make sure filename is <= 255.
         for (KSMetaData ksm : Schema.instance.getTableDefinitions())
         {
             String ksname = ksm.name;
             for (Map.Entry<String, CFMetaData> entry : ksm.cfMetaData().entrySet())
             {
                 String cfname = entry.getKey();
-                // max path is roughly (guess-estimate) <location>/ksname/cfname/snapshots/1324314347102-somename/ksname-cfname-tmp-hb-1024-Statistics.db
-                if (longestLocation + (ksname.length() + cfname.length()) * 2 + 62 > 256)
+
+                // max path is roughly (guess-estimate) <location>/ksname/cfname/snapshots/1324314347102-somename/ksname-cfname-tmp-hb-65536-Statistics.db
+                if (System.getProperty("os.name").startsWith("Windows")
+                    && longestLocation + (ksname.length() + cfname.length()) * 2 + 63 > 255)
+                {
                     throw new RuntimeException("Starting with 1.1, keyspace names and column family names must be less than 32 characters long. "
                         + ksname + "/" + cfname + " doesn't respect that restriction. Please rename your keyspace/column families to respect that restriction before updating.");
+                }
+
+                if (ksm.name.length() + cfname.length() + 28 > 255)
+                {
+                    throw new RuntimeException("Starting with 1.1, the keyspace name is included in data filenames.  For "
+                                               + ksm.name + "/" + cfname + ", this puts you over the largest possible filename of 255 characters");
+                }
             }
         }
+
         return true;
     }
 
