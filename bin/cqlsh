@@ -32,7 +32,7 @@ exit 1
 from __future__ import with_statement
 
 description = "CQL Shell for Apache Cassandra"
-version = "2.1.0"
+version = "2.2.0"
 
 from StringIO import StringIO
 from itertools import groupby
@@ -110,6 +110,7 @@ CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
 HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
 DEFAULT_HOST = 'localhost'
 DEFAULT_PORT = 9160
+DEFAULT_CQLVER = '2'
 
 epilog = """Connects to %(DEFAULT_HOST)s:%(DEFAULT_PORT)d by default. These
 defaults can be changed by setting $CQLSH_HOST and/or $CQLSH_PORT. When a
@@ -127,6 +128,13 @@ parser.add_option("-f", "--file",
                   help="Execute commands from FILE, then exit")
 parser.add_option('--debug', action='store_true',
                   help='Show additional debugging information')
+parser.add_option('--cqlversion', default=DEFAULT_CQLVER,
+                  help='Specify a particular CQL version (default: %default).'
+                       ' Examples: "2", "3.0.0-beta1"')
+parser.add_option("-2", "--cql2", action="store_const", dest='cqlversion', const='2',
+                  help="Shortcut notation for --cqlversion=2")
+parser.add_option("-3", "--cql3", action="store_const", dest='cqlversion', const='3',
+                  help="Shortcut notation for --cqlversion=3")
 
 
 RED = '\033[0;1;31m'
@@ -272,6 +280,9 @@ class NoKeyspaceError(Exception):
     pass
 
 class KeyspaceNotFound(Exception):
+    pass
+
+class VersionNotSupported(Exception):
     pass
 
 class DecodeError(Exception):
@@ -460,14 +471,17 @@ class Shell(cmd.Cmd):
 
     def __init__(self, hostname, port, color=False, username=None,
                  password=None, encoding=None, stdin=None, tty=True,
-                 completekey='tab', use_conn=None):
+                 completekey='tab', use_conn=None, cqlver=None):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
+        self.username = username
+        self.password = password
         if use_conn is not None:
             self.conn = use_conn
         else:
             self.conn = cql.connect(hostname, port, user=username, password=password)
+            self.set_expanded_cql_version(cqlver)
         self.cursor = self.conn.cursor()
 
         self.current_keyspace = None
@@ -496,6 +510,17 @@ class Shell(cmd.Cmd):
         self.stdin = stdin
         self.query_out = sys.stdout
 
+    def set_expanded_cql_version(self, ver):
+        while ver.count('.') < 2:
+            ver += '.0'
+        self.set_cql_version(ver)
+        self.cql_version = ver
+        ver_parts = ver.split('-', 1) + ['']
+        self.cql_ver_tuple = tuple(map(int, ver_parts[0].split('.')) + [ver_parts[1]])
+
+    def cqlver_atleast(self, major, minor=0, patch=0):
+        return self.cql_ver_tuple[:3] >= (major, minor, patch)
+
     def myformat_value(self, val, casstype, **kwargs):
         if isinstance(val, DecodeError):
             self.decoding_errors.append(val)
@@ -519,6 +544,9 @@ class Shell(cmd.Cmd):
     def show_version(self):
         vers = self.get_cluster_versions()
         vers['shver'] = version
+        # system.Versions['cql'] apparently does not reflect changes with
+        # set_cql_version.
+        vers['cql'] = self.cql_version
         print "[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Thrift protocol %(thrift)s]" % vers
 
     def show_assumptions(self):
@@ -548,8 +576,12 @@ class Shell(cmd.Cmd):
         print
 
     def get_cluster_versions(self):
+        if self.cqlver_atleast(3):
+            query = 'select component, version from system."Versions"'
+        else:
+            query = 'select component, version from system.Versions'
         try:
-            self.cursor.execute('select component, version from system.Versions')
+            self.cursor.execute(query)
             vers = dict(self.cursor)
         except cql.ProgrammingError:
             # older Cassandra; doesn't have system.Versions
@@ -619,7 +651,10 @@ class Shell(cmd.Cmd):
         return self.make_hacktastic_thrift_call('describe_ring', self.current_keyspace)
 
     def get_keyspace(self, ksname):
-        return self.make_hacktastic_thrift_call('describe_keyspace', ksname)
+        try:
+            return self.make_hacktastic_thrift_call('describe_keyspace', ksname)
+        except cql.cassandra.ttypes.NotFoundException, e:
+            raise KeyspaceNotFound('Keyspace %s not found.' % e)
 
     def get_keyspaces(self):
         return self.make_hacktastic_thrift_call('describe_keyspaces')
@@ -627,8 +662,14 @@ class Shell(cmd.Cmd):
     def get_schema_versions(self):
         return self.make_hacktastic_thrift_call('describe_schema_versions')
 
+    def set_cql_version(self, ver):
+        try:
+            return self.make_hacktastic_thrift_call('set_cql_version', ver)
+        except cql.cassandra.ttypes.InvalidRequestException, e:
+            raise VersionNotSupported(e.why)
+
     def make_hacktastic_thrift_call(self, call, *args):
-        client = self.cursor._connection.client
+        client = self.conn.client
         return getattr(client, call)(*args)
 
     # ===== end thrift-dependent parts =====
@@ -1053,10 +1094,7 @@ class Shell(cmd.Cmd):
                 cmd.Cmd.columnize(self, [c.name for c in k.cf_defs])
                 print
         else:
-            try:
-                names = self.get_columnfamily_names(ksname)
-            except cql.cassandra.ttypes.NotFoundException:
-                raise KeyspaceNotFound('Keyspace %s not found.' % (ksname,))
+            names = self.get_columnfamily_names(ksname)
             print
             cmd.Cmd.columnize(self, names)
             print
@@ -1271,7 +1309,7 @@ class Shell(cmd.Cmd):
             return
         subshell = Shell(self.hostname, self.port, color=self.color,
                          encoding=self.encoding, stdin=f, tty=False,
-                         use_conn=self.conn)
+                         use_conn=self.conn, cqlver=self.cql_version)
         subshell.cmdloop()
         f.close()
 
@@ -2089,6 +2127,7 @@ def read_options(cmdlineargs, environment):
     optvalues.debug = False
     optvalues.file = None
     optvalues.tty = sys.stdin.isatty()
+    optvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', DEFAULT_CQLVER)
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
 
@@ -2130,6 +2169,11 @@ def main(options, hostname, port):
         except IOError, e:
             sys.exit("Can't open %r: %s" % (options.file, e))
 
+    if options.debug:
+        import thrift
+        sys.stderr.write("Using CQL driver: %s\n" % (cql,))
+        sys.stderr.write("Using thrift lib: %s\n" % (thrift,))
+
     try:
         shell = Shell(hostname,
                       port,
@@ -2138,11 +2182,14 @@ def main(options, hostname, port):
                       password=options.password,
                       stdin=stdin,
                       tty=options.tty,
-                      completekey=options.completekey)
+                      completekey=options.completekey,
+                      cqlver=options.cqlversion)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS, e:
         sys.exit('Connection error: %s' % (e,))
+    except VersionNotSupported, e:
+        sys.exit('Unsupported CQL version: %s' % (e,))
     if options.debug:
         shell.debug = True
 
