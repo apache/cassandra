@@ -403,6 +403,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift" version="${version}" />
           <dependency groupId="com.yammer.metrics" artifactId="metrics-core" version="2.0.3" />
+          <dependency groupId="edu.stanford.ppl" artifactId="snaptree" version="0.1" />
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="antelder" name="Anthony Elder"/>
@@ -483,6 +484,8 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <dependency groupId="com.googlecode.json-simple" artifactId="json-simple"/>
         <dependency groupId="com.github.stephenc.high-scale-lib" artifactId="high-scale-lib"/>
         <dependency groupId="org.yaml" artifactId="snakeyaml"/>
+        <dependency groupId="edu.stanford.ppl" artifactId="snaptree"/>
+        <dependency groupId="com.yammer.metrics" artifactId="metrics-core"/>
         
         <dependency groupId="log4j" artifactId="log4j"/>
         <!-- cassandra has a hard dependency on log4j, so force slf4j's log4j provider at runtime -->
