@@ -20,7 +20,10 @@
  * fix KEYS index from skipping results (CASSANDRA-3996)
  * Remove sliced_buffer_size_in_kb dead option (CASSANDRA-4076)
  * make loadNewSStable preserve sstable version (CASSANDRA-4077)
- * Respect 1.0 cache settings as much as possible when upgrading (CASSANDRA-4088)
+ * Respect 1.0 cache settings as much as possible when upgrading 
+   (CASSANDRA-4088)
+ * relax path length requirement for sstable files when upgrading on 
+   non-Windows platforms (CASSANDRA-4110)
 
 
 1.1-beta2
@@ -63,7 +66,7 @@ Merged from 1.0:
  * Avoid NPE during repair when a keyspace has no CFs (CASSANDRA-3988)
  * Fix division-by-zero error on get_slice (CASSANDRA-4000)
  * don't change manifest level for cleanup, scrub, and upgradesstables
-   operations under LeveledCompactionStrategy (CASSANDRA-3989)
+   operations under LeveledCompactionStrategy (CASSANDRA-3989, 4112)
  * fix race leading to super columns assertion failure (CASSANDRA-3957)
  * ensure that directory is selected for compaction for user-defined
    tasks and upgradesstables (CASSANDRA-3985)

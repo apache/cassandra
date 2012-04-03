@@ -24,12 +24,11 @@
     <property file="build.properties.default" />
     <property name="debuglevel" value="source,lines,vars"/>
 
-    <!-- default version and SCM information (we need the default SCM info as people may checkout with git-svn) -->
+    <!-- default version and SCM information -->
     <property name="base.version" value="1.1.0-beta2"/>
-    <property name="scm.default.path" value="cassandra/branches/cassandra-1.1"/>
-    <property name="scm.default.connection" value="scm:svn:http://svn.apache.org/repos/asf/${scm.default.path}"/>
-    <property name="scm.default.developerConnection" value="scm:svn:https://svn.apache.org/repos/asf/${scm.default.path}"/>
-    <property name="scm.default.url" value="http://svn.apache.org/viewvc/${scm.default.path}"/>
+    <property name="scm.connection" value="scm:git://git.apache.org/cassandra.git"/>
+    <property name="scm.developerConnection" value="scm:git://git.apache.org/cassandra.git"/>
+    <property name="scm.url" value="http://git-wip-us.apache.org/repos/asf?p=cassandra.git;a=tree"/>
 
     <!-- directory details -->
     <property name="basedir" value="."/>
@@ -104,14 +103,6 @@
 
     <condition property="is.source.artifact">
       <available file="${build.src.java}" type="dir" />
-    </condition>
-
-    <condition property="scm.provider.git-svn">
-      <available file="${basedir}/.git" type="dir"/>
-    </condition>
-
-    <condition property="scm.provider.svn">
-      <available file="${basedir}/.svn" type="dir"/>
     </condition>
 
     <tstamp>
@@ -240,31 +231,6 @@
 		</wikitext-to-html>
 	</target>
 
-    <target name="scm-svn-info" description="Determines the current Subversion URL with peg revision"
-            if="scm.provider.svn">
-      <exec executable="svn" dir="${basedir}" output="${build.dir}/svn-info.xml">
-        <arg line="info --xml"/>
-      </exec>
-      <xmlproperty file="${build.dir}/svn-info.xml" collapseAttributes="true" prefix="svn" keepRoot="false"/>
-      <echo file="${build.dir}/scm.properties">
-connection=scm:svn:${svn.entry.url}@${svn.entry.commit.revision}
-developerConnection=scm:svn:${svn.entry.url}@${svn.entry.commit.revision}
-url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
-      </echo>
-      <replace file="${build.dir}/scm.properties">
-        <replacefilter token="connection=scm:svn:https:" value="connection=scm:svn:http:"/>
-        <replacefilter token="Connection=scm:svn:http:" value="Connection=scm:svn:https:"/>
-        <replacefilter token="url=${svn.entry.repository.root}" value="url=http://svn.apache.org/viewvc"/>
-      </replace>
-      <property file="${build.dir}/scm.properties" prefix="scm"/>
-    </target>
-
-    <target name="scm-info" description="Determines the SCM details"
-            unless="scm.connection" depends="scm-svn-info">
-      <property name="scm.connection" value="${scm.default.connection}"/>
-      <property name="scm.developerConnection" value="${scm.default.developerConnection}"/>
-      <property name="scm.url" value="${scm.default.url}"/>
-    </target>
     <!--
        Fetch Maven Ant Tasks and Cassandra's dependencies
        These targets are intentionally free of dependencies so that they
@@ -339,7 +305,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     <!-- this task defines the dependencies that will be fetched by Maven ANT Tasks
          the dependencies are re-used for publishing artifacts to Maven Central
          in order to keep everything consistent -->
-    <target name="maven-declare-dependencies" depends="maven-ant-tasks-init, scm-info"
+    <target name="maven-declare-dependencies" depends="maven-ant-tasks-init"
             description="Define dependencies and dependency versions">
       <!-- The parent pom defines the versions of all dependencies -->
       <artifact:pom id="parent-pom"
@@ -403,6 +369,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift" version="${version}" />
           <dependency groupId="com.yammer.metrics" artifactId="metrics-core" version="2.0.3" />
+          <dependency groupId="edu.stanford.ppl" artifactId="snaptree" version="0.1" />
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="antelder" name="Anthony Elder"/>
@@ -483,6 +450,8 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <dependency groupId="com.googlecode.json-simple" artifactId="json-simple"/>
         <dependency groupId="com.github.stephenc.high-scale-lib" artifactId="high-scale-lib"/>
         <dependency groupId="org.yaml" artifactId="snakeyaml"/>
+        <dependency groupId="edu.stanford.ppl" artifactId="snaptree"/>
+        <dependency groupId="com.yammer.metrics" artifactId="metrics-core"/>
         
         <dependency groupId="log4j" artifactId="log4j"/>
         <!-- cassandra has a hard dependency on log4j, so force slf4j's log4j provider at runtime -->
