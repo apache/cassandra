@@ -1,3 +1,7 @@
+1.0.10
+ * cqlsh: guess correct version of Python for Arch Linux (CASSANDRA-4090)
+
+
 1.0.9
  * improve index sampling performance (CASSANDRA-4023)
  * always compact away deleted hints immediately after handoff (CASSANDRA-3955)
