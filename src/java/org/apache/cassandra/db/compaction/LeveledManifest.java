@@ -191,17 +191,17 @@ public class LeveledManifest
 
     public synchronized void replace(Iterable<SSTableReader> removed, Iterable<SSTableReader> added)
     {
-        // replace is for compaction operation that don't really change the
-        // content of a sstable (cleanup, scrub) and much replace one sstable by another
-        assert Iterables.size(removed) == 1;
-        assert Iterables.size(added) == 1;
-        SSTableReader toRemove = removed.iterator().next();
-        SSTableReader toAdd = added.iterator().next();
+        // replace is for compaction operation that operate on exactly one sstable, with no merging.
+        // Thus, removed will be exactly one sstable, and added will be 0 or 1.
+        assert Iterables.size(removed) == 1 : Iterables.size(removed);
+        assert Iterables.size(added) <= 1 : Iterables.size(added);
         logDistribution();
-        if (logger.isDebugEnabled())
-            logger.debug("Replacing " + removed + " by " + toAdd);
+        logger.debug("Replacing {} with {}", removed, added);
 
-        add(toAdd, remove(toRemove));
+        int level = remove(removed.iterator().next());
+        if (!Iterables.isEmpty(added))
+            add(added.iterator().next(), level);
+
         serialize();
     }
 
