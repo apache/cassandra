@@ -72,7 +72,7 @@ public class RowIterationTest extends SchemaLoader
         RowMutation rm = new RowMutation(TABLE1, key.key);
         rm.delete(new QueryPath(CF_NAME, null, null), 0);
         rm.add(new QueryPath(CF_NAME, null, ByteBufferUtil.bytes("c")), ByteBufferUtil.bytes("values"), 0L);
-        int tstamp1 = rm.getColumnFamilies().iterator().next().getLocalDeletionTime();
+        DeletionInfo delInfo1 = rm.getColumnFamilies().iterator().next().deletionInfo();
         rm.apply();
         store.forceBlockingFlush();
 
@@ -80,13 +80,13 @@ public class RowIterationTest extends SchemaLoader
         rm = new RowMutation(TABLE1, key.key);
         rm.delete(new QueryPath(CF_NAME, null, null), 1);
         rm.add(new QueryPath(CF_NAME, null, ByteBufferUtil.bytes("c")), ByteBufferUtil.bytes("values"), 1L);
-        int tstamp2 = rm.getColumnFamilies().iterator().next().getLocalDeletionTime();
+        DeletionInfo delInfo2 = rm.getColumnFamilies().iterator().next().deletionInfo();
+        assert delInfo2.getTopLevelDeletion().markedForDeleteAt == 1L;
         rm.apply();
         store.forceBlockingFlush();
 
         ColumnFamily cf = Util.getRangeSlice(store).iterator().next().cf;
-        assert cf.getMarkedForDeleteAt() == 1L;
-        assert cf.getLocalDeletionTime() == tstamp2;
+        assert cf.deletionInfo().equals(delInfo2);
     }
 
     @Test

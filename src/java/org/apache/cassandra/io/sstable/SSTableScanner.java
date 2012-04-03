@@ -29,7 +29,7 @@ import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -42,9 +42,9 @@ public class SSTableScanner implements ICompactionScanner
     protected final RandomAccessReader dfile;
     protected final RandomAccessReader ifile;
     public final SSTableReader sstable;
-    private IColumnIterator row;
+    private OnDiskAtomIterator row;
     protected boolean exhausted = false;
-    protected Iterator<IColumnIterator> iterator;
+    protected Iterator<OnDiskAtomIterator> iterator;
     private final QueryFilter filter;
 
     /**
@@ -118,7 +118,7 @@ public class SSTableScanner implements ICompactionScanner
                 }
                 else
                 {
-                    RowIndexEntry.serializer.skip(ifile, sstable.descriptor);
+                    RowIndexEntry.serializer.skip(ifile, sstable.descriptor.version);
                 }
             }
             exhausted = true;
@@ -155,14 +155,14 @@ public class SSTableScanner implements ICompactionScanner
     public boolean hasNext()
     {
         if (iterator == null)
-            iterator = exhausted ? Arrays.asList(new IColumnIterator[0]).iterator() : createIterator();
+            iterator = exhausted ? Arrays.asList(new OnDiskAtomIterator[0]).iterator() : createIterator();
         return iterator.hasNext();
     }
 
-    public IColumnIterator next()
+    public OnDiskAtomIterator next()
     {
         if (iterator == null)
-            iterator = exhausted ? Arrays.asList(new IColumnIterator[0]).iterator() : createIterator();
+            iterator = exhausted ? Arrays.asList(new OnDiskAtomIterator[0]).iterator() : createIterator();
         return iterator.next();
     }
 
@@ -171,12 +171,12 @@ public class SSTableScanner implements ICompactionScanner
         throw new UnsupportedOperationException();
     }
 
-    private Iterator<IColumnIterator> createIterator()
+    private Iterator<OnDiskAtomIterator> createIterator()
     {
         return filter == null ? new KeyScanningIterator() : new FilteredKeyScanningIterator();
     }
 
-    protected class KeyScanningIterator implements Iterator<IColumnIterator>
+    protected class KeyScanningIterator implements Iterator<OnDiskAtomIterator>
     {
         protected long finishedAt;
 
@@ -195,7 +195,7 @@ public class SSTableScanner implements ICompactionScanner
             }
         }
 
-        public IColumnIterator next()
+        public OnDiskAtomIterator next()
         {
             try
             {
@@ -231,7 +231,7 @@ public class SSTableScanner implements ICompactionScanner
         }
     }
 
-    protected class FilteredKeyScanningIterator implements Iterator<IColumnIterator>
+    protected class FilteredKeyScanningIterator implements Iterator<OnDiskAtomIterator>
     {
         protected DecoratedKey nextKey;
         protected RowIndexEntry nextEntry;
@@ -251,7 +251,7 @@ public class SSTableScanner implements ICompactionScanner
             }
         }
 
-        public IColumnIterator next()
+        public OnDiskAtomIterator next()
         {
             try
             {
@@ -261,7 +261,7 @@ public class SSTableScanner implements ICompactionScanner
                 if (row == null)
                 {
                     currentKey = sstable.decodeKey(ByteBufferUtil.readWithShortLength(ifile));
-                    currentEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor);
+                    currentEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor.version);
                 }
                 else
                 {
@@ -277,7 +277,7 @@ public class SSTableScanner implements ICompactionScanner
                 else
                 {
                     nextKey = sstable.decodeKey(ByteBufferUtil.readWithShortLength(ifile));
-                    nextEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor);
+                    nextEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor.version);
                 }
 
                 assert !dfile.isEOF();

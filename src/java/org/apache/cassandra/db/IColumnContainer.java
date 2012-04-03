@@ -40,7 +40,7 @@ public interface IColumnContainer
     public boolean replace(IColumn oldColumn, IColumn newColumn);
 
     public boolean isMarkedForDelete();
-    public long getMarkedForDeleteAt();
+    public DeletionInfo deletionInfo();
     public boolean hasExpiredTombstones(int gcBefore);
 
     public AbstractType<?> getComparator();

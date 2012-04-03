@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.SuperColumn;
 
 import static junit.framework.Assert.*;
@@ -104,25 +105,25 @@ public class RowResolverTest extends SchemaLoader
         cf1.addColumn(column("one", "A", 0));
 
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf2.delete((int) (System.currentTimeMillis() / 1000), 1);
+        cf2.delete(new DeletionInfo(1L, (int) (System.currentTimeMillis() / 1000)));
 
         ColumnFamily resolved = RowRepairResolver.resolveSuperset(Arrays.asList(cf1, cf2));
         // no columns in the cf
         assertColumns(resolved);
         assertTrue(resolved.isMarkedForDelete());
-        assertEquals(1, resolved.getMarkedForDeleteAt());
+        assertEquals(1, resolved.deletionInfo().getTopLevelDeletion().markedForDeleteAt);
 
         ColumnFamily scf1 = ColumnFamily.create("Keyspace1", "Super1");
         scf1.addColumn(superColumn(scf1, "super-foo", column("one", "A", 0)));
 
         ColumnFamily scf2 = ColumnFamily.create("Keyspace1", "Super1");
-        scf2.delete((int) (System.currentTimeMillis() / 1000), 1);
+        scf2.delete(new DeletionInfo(1L, (int) (System.currentTimeMillis() / 1000)));
 
         ColumnFamily superResolved = RowRepairResolver.resolveSuperset(Arrays.asList(scf1, scf2));
         // no columns in the cf
         assertColumns(superResolved);
         assertTrue(superResolved.isMarkedForDelete());
-        assertEquals(1, superResolved.getMarkedForDeleteAt());
+        assertEquals(1, superResolved.deletionInfo().getTopLevelDeletion().markedForDeleteAt);
     }
 
     @Test
@@ -131,17 +132,17 @@ public class RowResolverTest extends SchemaLoader
         // subcolumn is newer than a tombstone on its parent, but not newer than the row deletion
         ColumnFamily scf1 = ColumnFamily.create("Keyspace1", "Super1");
         SuperColumn sc = superColumn(scf1, "super-foo", column("one", "A", 1));
-        sc.delete((int) (System.currentTimeMillis() / 1000), 0);
+        sc.delete(new DeletionInfo(0L, (int) (System.currentTimeMillis() / 1000)));
         scf1.addColumn(sc);
 
         ColumnFamily scf2 = ColumnFamily.create("Keyspace1", "Super1");
-        scf2.delete((int) (System.currentTimeMillis() / 1000), 2);
+        scf2.delete(new DeletionInfo(2L, (int) (System.currentTimeMillis() / 1000)));
 
         ColumnFamily superResolved = RowRepairResolver.resolveSuperset(Arrays.asList(scf1, scf2));
         // no columns in the cf
         assertColumns(superResolved);
         assertTrue(superResolved.isMarkedForDelete());
-        assertEquals(2, superResolved.getMarkedForDeleteAt());
+        assertEquals(2, superResolved.deletionInfo().getTopLevelDeletion().markedForDeleteAt);
     }
 
     @Test
@@ -150,7 +151,7 @@ public class RowResolverTest extends SchemaLoader
         // deletes and columns with interleaved timestamp, with out of order return sequence
 
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf1.delete((int) (System.currentTimeMillis() / 1000), 0);
+        cf1.delete(new DeletionInfo(0L, (int) (System.currentTimeMillis() / 1000)));
 
         // these columns created after the previous deletion
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
@@ -162,18 +163,18 @@ public class RowResolverTest extends SchemaLoader
         cf3.addColumn(column("two", "B", 3));
 
         ColumnFamily cf4 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf4.delete((int) (System.currentTimeMillis() / 1000), 2);
+        cf4.delete(new DeletionInfo(2L, (int) (System.currentTimeMillis() / 1000)));
 
         ColumnFamily resolved = RowRepairResolver.resolveSuperset(Arrays.asList(cf1, cf2, cf3, cf4));
         // will have deleted marker and one column
         assertColumns(resolved, "two");
         assertColumn(resolved, "two", "B", 3);
         assertTrue(resolved.isMarkedForDelete());
-        assertEquals(2, resolved.getMarkedForDeleteAt());
+        assertEquals(2, resolved.deletionInfo().getTopLevelDeletion().markedForDeleteAt);
 
 
         ColumnFamily scf1 = ColumnFamily.create("Keyspace1", "Super1");
-        scf1.delete((int) (System.currentTimeMillis() / 1000), 0);
+        scf1.delete(new DeletionInfo(0L, (int) (System.currentTimeMillis() / 1000)));
 
         // these columns created after the previous deletion
         ColumnFamily scf2 = ColumnFamily.create("Keyspace1", "Super1");
@@ -185,7 +186,7 @@ public class RowResolverTest extends SchemaLoader
         scf3.addColumn(superColumn(scf3, "super2", column("three", "A", 3), column("four", "A", 3)));
 
         ColumnFamily scf4 = ColumnFamily.create("Keyspace1", "Super1");
-        scf4.delete((int) (System.currentTimeMillis() / 1000), 2);
+        scf4.delete(new DeletionInfo(2L, (int) (System.currentTimeMillis() / 1000)));
 
         ColumnFamily superResolved = RowRepairResolver.resolveSuperset(Arrays.asList(scf1, scf2, scf3, scf4));
         // will have deleted marker and two super cols
@@ -199,6 +200,6 @@ public class RowResolverTest extends SchemaLoader
         assertSubColumn(superResolved, "super2", "four", "A", 3);
 
         assertTrue(superResolved.isMarkedForDelete());
-        assertEquals(2, superResolved.getMarkedForDeleteAt());
+        assertEquals(2, superResolved.deletionInfo().getTopLevelDeletion().markedForDeleteAt);
     }
 }

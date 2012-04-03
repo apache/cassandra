@@ -94,7 +94,7 @@ public class SSTableExport
      * @param comparator columns comparator
      * @param cfMetaData Column Family metadata (to get validator)
      */
-    private static void serializeColumns(Iterator<IColumn> columns, PrintStream out, AbstractType<?> comparator, CFMetaData cfMetaData)
+    private static void serializeColumns(Iterator<OnDiskAtom> columns, PrintStream out, AbstractType<?> comparator, CFMetaData cfMetaData)
     {
         while (columns.hasNext())
         {
@@ -102,6 +102,37 @@ public class SSTableExport
 
             if (columns.hasNext())
                 out.print(", ");
+        }
+    }
+
+    private static void serializeIColumns(Iterator<IColumn> columns, PrintStream out, AbstractType<?> comparator, CFMetaData cfMetaData)
+    {
+        while (columns.hasNext())
+        {
+            writeJSON(out, serializeColumn(columns.next(), comparator, cfMetaData));
+
+            if (columns.hasNext())
+                out.print(", ");
+        }
+    }
+
+    private static List<Object> serializeColumn(OnDiskAtom column, AbstractType<?> comparator, CFMetaData cfMetaData)
+    {
+        if (column instanceof IColumn)
+        {
+            return serializeColumn((IColumn)column, comparator, cfMetaData);
+        }
+        else
+        {
+            assert column instanceof RangeTombstone;
+            RangeTombstone rt = (RangeTombstone)column;
+            ArrayList<Object> serializedColumn = new ArrayList<Object>();
+            serializedColumn.add(comparator.getString(rt.min));
+            serializedColumn.add(comparator.getString(rt.max));
+            serializedColumn.add(rt.data.markedForDeleteAt);
+            serializedColumn.add("t");
+            serializedColumn.add(rt.data.localDeletionTime);
+            return serializedColumn;
         }
     }
 
@@ -172,8 +203,9 @@ public class SSTableExport
         {
             while (row.hasNext())
             {
-                IColumn column = row.next();
-
+                OnDiskAtom scol = row.next();
+                assert scol instanceof IColumn;
+                IColumn column = (IColumn)scol;
                 writeKey(out, comparator.getString(column.name()));
                 out.print("{");
                 writeKey(out, "deletedAt");
@@ -181,7 +213,7 @@ public class SSTableExport
                 out.print(", ");
                 writeKey(out, "subColumns");
                 out.print("[");
-                serializeColumns(column.getSubColumns().iterator(), out, columnFamily.getSubComparator(), cfMetaData);
+                serializeIColumns(column.getSubColumns().iterator(), out, columnFamily.getSubComparator(), cfMetaData);
                 out.print("]");
                 out.print("}");
 

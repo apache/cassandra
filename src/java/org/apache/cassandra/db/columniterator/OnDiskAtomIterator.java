@@ -20,10 +20,10 @@ package org.apache.cassandra.db.columniterator;
 import java.io.IOException;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.utils.CloseableIterator;
 
-public interface IColumnIterator extends CloseableIterator<IColumn>
+public interface OnDiskAtomIterator extends CloseableIterator<OnDiskAtom>
 {
     /**
      * @return A ColumnFamily holding metadata for the row being iterated.

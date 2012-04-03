@@ -6,6 +6,7 @@
  * (CLI) jline version is bumped to 1.0 to properly  support
    'delete' key function (CASSANDRA-4132)
  * Save IndexSummary into new SSTable 'Summary' component (CASSANDRA-2392)
+ * Add support for range tombstones (CASSANDRA-3708)
 
 
 1.1.1-dev

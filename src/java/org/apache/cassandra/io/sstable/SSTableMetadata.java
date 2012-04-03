@@ -250,17 +250,17 @@ public class SSTableMetadata
         {
             EstimatedHistogram rowSizes = EstimatedHistogram.serializer.deserialize(dis);
             EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(dis);
-            ReplayPosition replayPosition = desc.metadataIncludesReplayPosition
+            ReplayPosition replayPosition = desc.version.metadataIncludesReplayPosition
                                           ? ReplayPosition.serializer.deserialize(dis)
                                           : ReplayPosition.NONE;
-            long maxTimestamp = desc.containsTimestamp() ? dis.readLong() : Long.MIN_VALUE;
-            if (!desc.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
+            long maxTimestamp = desc.version.containsTimestamp() ? dis.readLong() : Long.MIN_VALUE;
+            if (!desc.version.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
                 maxTimestamp = Long.MIN_VALUE;
-            double compressionRatio = desc.hasCompressionRatio
+            double compressionRatio = desc.version.hasCompressionRatio
                                     ? dis.readDouble()
                                               : Double.MIN_VALUE;
-            String partitioner = desc.hasPartitioner ? dis.readUTF() : null;
-            StreamingHistogram tombstoneHistogram = desc.tracksTombstones
+            String partitioner = desc.version.hasPartitioner ? dis.readUTF() : null;
+            StreamingHistogram tombstoneHistogram = desc.version.tracksTombstones
                                                    ? StreamingHistogram.serializer.deserialize(dis)
                                                    : defaultTombstoneDropTimeHistogram();
             return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp, compressionRatio, partitioner, tombstoneHistogram);

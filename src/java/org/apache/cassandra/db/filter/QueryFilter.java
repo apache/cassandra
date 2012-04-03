@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.filter;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -24,7 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -51,7 +52,7 @@ public class QueryFilter
         superFilter = path.superColumnName == null ? null : new NamesQueryFilter(path.superColumnName);
     }
 
-    public IColumnIterator getMemtableColumnIterator(Memtable memtable)
+    public OnDiskAtomIterator getMemtableColumnIterator(Memtable memtable)
     {
         ColumnFamily cf = memtable.getColumnFamily(key);
         if (cf == null)
@@ -59,7 +60,7 @@ public class QueryFilter
         return getMemtableColumnIterator(cf, key);
     }
 
-    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key)
+    public OnDiskAtomIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key)
     {
         assert cf != null;
         if (path.superColumnName == null)
@@ -68,24 +69,33 @@ public class QueryFilter
     }
 
     // TODO move gcBefore into a field
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable)
+    public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable)
     {
         if (path.superColumnName == null)
             return filter.getSSTableColumnIterator(sstable, key);
         return superFilter.getSSTableColumnIterator(sstable, key);
     }
 
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry)
+    public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry)
     {
         if (path.superColumnName == null)
             return filter.getSSTableColumnIterator(sstable, file, key, indexEntry);
         return superFilter.getSSTableColumnIterator(sstable, file, key, indexEntry);
     }
 
+    public void collateOnDiskAtom(final ColumnFamily returnCF, List<? extends CloseableIterator<OnDiskAtom>> toCollate, final int gcBefore)
+    {
+        List<CloseableIterator<IColumn>> filteredIterators = new ArrayList<CloseableIterator<IColumn>>(toCollate.size());
+        for (CloseableIterator<OnDiskAtom> iter : toCollate)
+            filteredIterators.add(gatherTombstones(returnCF, iter));
+        collateColumns(returnCF, filteredIterators, gcBefore);
+    }
+
     // TODO move gcBefore into a field
     public void collateColumns(final ColumnFamily returnCF, List<? extends CloseableIterator<IColumn>> toCollate, final int gcBefore)
     {
         IFilter topLevelFilter = (superFilter == null ? filter : superFilter);
+
         Comparator<IColumn> fcomp = topLevelFilter.getColumnComparator(returnCF.getComparator());
         // define a 'reduced' iterator that merges columns w/ the same name, which
         // greatly simplifies computing liveColumns in the presence of tombstones.
@@ -118,12 +128,10 @@ public class QueryFilter
                     // filterSuperColumn only looks at immediate parent (the supercolumn) when determining if a subcolumn
                     // is still live, i.e., not shadowed by the parent's tombstone.  so, bump it up temporarily to the tombstone
                     // time of the cf, if that is greater.
-                    long deletedAt = c.getMarkedForDeleteAt();
-                    if (returnCF.getMarkedForDeleteAt() > deletedAt)
-                        ((SuperColumn) c).delete(c.getLocalDeletionTime(), returnCF.getMarkedForDeleteAt());
-
+                    DeletionInfo delInfo = ((SuperColumn) c).deletionInfo();
+                    ((SuperColumn) c).delete(returnCF.deletionInfo());
                     c = filter.filterSuperColumn((SuperColumn) c, gcBefore);
-                    ((SuperColumn) c).delete(c.getLocalDeletionTime(), deletedAt); // reset sc tombstone time to what it should be
+                    ((SuperColumn) c).setDeletionInfo(delInfo); // reset sc tombstone time to what it should be
                 }
                 curCF.clear();
 
@@ -133,6 +141,66 @@ public class QueryFilter
         Iterator<IColumn> reduced = MergeIterator.get(toCollate, fcomp, reducer);
 
         topLevelFilter.collectReducedColumns(returnCF, reduced, gcBefore);
+    }
+
+    /**
+     * Given an iterator of on disk atom, returns an iterator that filters the tombstone range
+     * markers adding them to {@code returnCF} and returns the normal column.
+     */
+    public static CloseableIterator<IColumn> gatherTombstones(final ColumnFamily returnCF, final CloseableIterator<OnDiskAtom> iter)
+    {
+        return new CloseableIterator<IColumn>()
+        {
+            private IColumn next;
+
+            public boolean hasNext()
+            {
+                if (next != null)
+                    return true;
+
+                getNext();
+                return next != null;
+            }
+
+            public IColumn next()
+            {
+                if (next == null)
+                    getNext();
+
+                assert next != null;
+                IColumn toReturn = next;
+                next = null;
+                return toReturn;
+            }
+
+            private void getNext()
+            {
+                while (iter.hasNext())
+                {
+                    OnDiskAtom atom = iter.next();
+
+                    if (atom instanceof IColumn)
+                    {
+                        next = (IColumn)atom;
+                        break;
+                    }
+                    else
+                    {
+                        returnCF.addAtom(atom);
+                    }
+                }
+            }
+
+            public void remove()
+            {
+                throw new UnsupportedOperationException();
+            }
+
+            public void close() throws IOException
+            {
+                iter.close();
+            }
+        };
     }
 
     public String getColumnFamilyName()
@@ -147,7 +215,7 @@ public class QueryFilter
         // (since otherwise, the only thing repair cares about is the container tombstone)
         long maxChange = column.mostRecentNonGCableChangeAt(gcBefore);
         return (column.getLocalDeletionTime() >= gcBefore || maxChange > column.getMarkedForDeleteAt()) // (1)
-               && (!container.isMarkedForDelete() || maxChange > container.getMarkedForDeleteAt()); // (2)
+               && (!container.deletionInfo().isDeleted(column.name(), maxChange)); // (2)
     }
 
     /**

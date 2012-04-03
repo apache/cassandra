@@ -477,7 +477,7 @@ public class Table
                 // row is marked for delete, but column was also updated.  if column is timestamped less than
                 // the row tombstone, treat it as if it didn't exist.  Otherwise we don't care about row
                 // tombstone for the purpose of the index update and we can proceed as usual.
-                if (newColumn.timestamp() <= cf.getMarkedForDeleteAt())
+                if (cf.deletionInfo().isDeleted(newColumn))
                 {
                     // don't remove from the cf object; that can race w/ CommitLog write.  Leaving it is harmless.
                     newColumn = null;
@@ -490,9 +490,10 @@ public class Table
             boolean bothDeleted = (newColumn == null || newColumn.isMarkedForDelete())
                                   && (oldColumn == null || oldColumn.isMarkedForDelete());
             // obsolete means either the row or the column timestamp we're applying is older than existing data
-            boolean obsoleteRowTombstone = newColumn == null && oldColumn != null && cf.getMarkedForDeleteAt() < oldColumn.timestamp();
-            boolean obsoleteColumn = newColumn != null && (newColumn.timestamp() <= oldIndexedColumns.getMarkedForDeleteAt()
+            boolean obsoleteRowTombstone = newColumn == null && oldColumn != null && !cf.deletionInfo().isDeleted(oldColumn);
+            boolean obsoleteColumn = newColumn != null && (oldIndexedColumns.deletionInfo().isDeleted(newColumn)
                                                            || (oldColumn != null && oldColumn.reconcile(newColumn) == oldColumn));
+
             if (bothDeleted || obsoleteRowTombstone || obsoleteColumn)
             {
                 if (logger.isDebugEnabled())

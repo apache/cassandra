@@ -59,7 +59,7 @@ public class SSTableMetadataSerializerTest
 
         ByteArrayInputStream byteInput = new ByteArrayInputStream(byteOutput.toByteArray());
         DataInputStream dis = new DataInputStream(byteInput);
-        Descriptor desc = new Descriptor(Descriptor.CURRENT_VERSION, new File("."), "", "", 0, false);
+        Descriptor desc = new Descriptor(Descriptor.Version.CURRENT, new File("."), "", "", 0, false);
         SSTableMetadata stats = SSTableMetadata.serializer.deserialize(dis, desc);
 
         assert stats.estimatedRowSize.equals(originalMetadata.estimatedRowSize);

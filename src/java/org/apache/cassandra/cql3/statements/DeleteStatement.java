@@ -27,6 +27,8 @@ import java.util.Map;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -69,9 +71,6 @@ public class DeleteStatement extends ModificationStatement
             if (values == null || values.isEmpty())
             {
                 firstEmpty = name;
-                // For sparse, we must either have all component or none
-                if (cfDef.isComposite && !cfDef.isCompact && builder.componentCount() != 0)
-                    throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", name));
             }
             else if (firstEmpty != null)
             {
@@ -89,54 +88,75 @@ public class DeleteStatement extends ModificationStatement
         for (Term key : keys)
         {
             ByteBuffer rawKey = key.getByteBuffer(cfDef.key.type, variables);
-            rowMutations.add(mutationForKey(cfDef, clientState, rawKey, builder, variables));
+            rowMutations.add(mutationForKey(cfDef, clientState, rawKey, builder, firstEmpty, variables));
         }
 
         return rowMutations;
     }
 
-    public RowMutation mutationForKey(CFDefinition cfDef, ClientState clientState, ByteBuffer key, ColumnNameBuilder builder, List<ByteBuffer> variables)
+    public RowMutation mutationForKey(CFDefinition cfDef, ClientState clientState, ByteBuffer key, ColumnNameBuilder builder, CFDefinition.Name firstEmpty, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
         QueryProcessor.validateKey(key);
         RowMutation rm = new RowMutation(cfDef.cfm.ksName, key);
+        ColumnFamily cf = rm.addOrGet(columnFamily());
+        int localDeleteTime = (int) (System.currentTimeMillis() / 1000);
 
         if (columns.isEmpty() && builder.componentCount() == 0)
         {
             // No columns, delete the row
-            rm.delete(new QueryPath(columnFamily()), getTimestamp(clientState));
+            cf.delete(new DeletionInfo(getTimestamp(clientState), localDeleteTime));
         }
         else
         {
-            for (ColumnIdentifier column : columns)
-            {
-                CFDefinition.Name name = cfDef.get(column);
-                if (name == null)
-                    throw new InvalidRequestException(String.format("Unknown identifier %s", column));
+            boolean fullKey = builder.componentCount() == cfDef.columns.size();
+            boolean isRange = cfDef.isCompact ? !fullKey : (!fullKey || columns.isEmpty());
 
-                // For compact, we only have one value except the key, so the only form of DELETE that make sense is without a column
-                // list. However, we support having the value name for coherence with the static/sparse case
-                if (name.kind != CFDefinition.Name.Kind.COLUMN_METADATA && name.kind != CFDefinition.Name.Kind.VALUE_ALIAS)
-                    throw new InvalidRequestException(String.format("Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", column));
+            if (!columns.isEmpty())
+            {
+                if (isRange)
+                    throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s since %s specified", firstEmpty, columns.iterator().next()));
+
+                for (ColumnIdentifier column : columns)
+                {
+                    CFDefinition.Name name = cfDef.get(column);
+                    if (name == null)
+                        throw new InvalidRequestException(String.format("Unknown identifier %s", column));
+
+                    // For compact, we only have one value except the key, so the only form of DELETE that make sense is without a column
+                    // list. However, we support having the value name for coherence with the static/sparse case
+                    if (name.kind != CFDefinition.Name.Kind.COLUMN_METADATA && name.kind != CFDefinition.Name.Kind.VALUE_ALIAS)
+                        throw new InvalidRequestException(String.format("Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", column));
+                }
             }
 
-            if (cfDef.isCompact)
+            if (isRange)
             {
-                    ByteBuffer columnName = builder.build();
-                    QueryProcessor.validateColumnName(columnName);
-                    rm.delete(new QueryPath(columnFamily(), null, columnName), getTimestamp(clientState));
+                ByteBuffer start = builder.copy().build();
+                ByteBuffer end = builder.buildAsEndOfRange();
+                QueryProcessor.validateColumnName(start); // If start is good, end is too
+                cf.delete(new DeletionInfo(start, end, cfDef.cfm.comparator, getTimestamp(clientState), localDeleteTime));
             }
             else
             {
                 // Delete specific columns
-                Iterator<ColumnIdentifier> iter = columns.iterator();
-                while (iter.hasNext())
+                if (cfDef.isCompact)
                 {
-                    ColumnIdentifier column = iter.next();
-                    ColumnNameBuilder b = iter.hasNext() ? builder.copy() : builder;
-                    ByteBuffer columnName = b.add(column.key).build();
-                    QueryProcessor.validateColumnName(columnName);
-                    rm.delete(new QueryPath(columnFamily(), null, columnName), getTimestamp(clientState));
+                        ByteBuffer columnName = builder.build();
+                        QueryProcessor.validateColumnName(columnName);
+                        cf.addTombstone(columnName, localDeleteTime, getTimestamp(clientState));
+                }
+                else
+                {
+                    Iterator<ColumnIdentifier> iter = columns.iterator();
+                    while (iter.hasNext())
+                    {
+                        ColumnIdentifier column = iter.next();
+                        ColumnNameBuilder b = iter.hasNext() ? builder.copy() : builder;
+                        ByteBuffer columnName = b.add(column.key).build();
+                        QueryProcessor.validateColumnName(columnName);
+                        cf.addTombstone(columnName, localDeleteTime, getTimestamp(clientState));
+                    }
                 }
             }
         }

@@ -43,12 +43,6 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         this.columns = columns;
     }
 
-    @Deprecated // TODO this is a hack to set initial value outside constructor
-    public void delete(int localtime, long timestamp)
-    {
-        columns.delete(new DeletionInfo(timestamp, localtime));
-    }
-
     public void delete(AbstractColumnContainer cc2)
     {
         delete(cc2.columns.getDeletionInfo());
@@ -59,19 +53,17 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         columns.delete(delInfo);
     }
 
+    // Contrarily to delete(), this will use the provided info even if those
+    // are older that the current ones. Used for SuperColumn in QueryFilter.
+    // delete() is probably the right method in all other cases.
+    public void setDeletionInfo(DeletionInfo delInfo)
+    {
+        columns.setDeletionInfo(delInfo);
+    }
+
     public boolean isMarkedForDelete()
     {
-        return getMarkedForDeleteAt() > Long.MIN_VALUE;
-    }
-
-    public long getMarkedForDeleteAt()
-    {
-        return columns.getDeletionInfo().markedForDeleteAt;
-    }
-
-    public int getLocalDeletionTime()
-    {
-        return columns.getDeletionInfo().localDeletionTime;
+        return !deletionInfo().isLive();
     }
 
     public DeletionInfo deletionInfo()
@@ -207,7 +199,7 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
 
     public boolean hasExpiredTombstones(int gcBefore)
     {
-        if (getLocalDeletionTime() < gcBefore)
+        if (deletionInfo().purge(gcBefore) == DeletionInfo.LIVE)
             return true;
 
         for (IColumn column : columns)

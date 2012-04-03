@@ -105,27 +105,29 @@ public class AtomicSortedColumns implements ISortedColumns
     public void delete(DeletionInfo info)
     {
         // Keeping deletion info for max markedForDeleteAt value
-        Holder current;
-        do
+        while (true)
         {
-            current = ref.get();
-            if (current.deletionInfo.markedForDeleteAt >= info.markedForDeleteAt)
+            Holder current = ref.get();
+            DeletionInfo newDelInfo = current.deletionInfo.add(info);
+            if (newDelInfo == current.deletionInfo || ref.compareAndSet(current, current.with(newDelInfo)))
                 break;
         }
-        while (!ref.compareAndSet(current, current.with(info)));
+    }
+
+    public void setDeletionInfo(DeletionInfo newInfo)
+    {
+        ref.set(ref.get().with(newInfo));
     }
 
     public void maybeResetDeletionTimes(int gcBefore)
     {
-        Holder current;
-        do
+        while (true)
         {
-            current = ref.get();
-            // Stop if we don't need to change the deletion info (not expired yet)
-            if (current.deletionInfo.localDeletionTime > gcBefore)
+            Holder current = ref.get();
+            DeletionInfo purgedInfo = current.deletionInfo.purge(gcBefore);
+            if (purgedInfo == current.deletionInfo || ref.compareAndSet(current, current.with(DeletionInfo.LIVE)))
                 break;
         }
-        while (!ref.compareAndSet(current, current.with(DeletionInfo.LIVE)));
     }
 
     public void retainAll(ISortedColumns columns)
@@ -170,9 +172,7 @@ public class AtomicSortedColumns implements ISortedColumns
         do
         {
             current = ref.get();
-            DeletionInfo newDelInfo = current.deletionInfo;
-            if (newDelInfo.markedForDeleteAt < cm.getDeletionInfo().markedForDeleteAt)
-                newDelInfo = cm.getDeletionInfo();
+            DeletionInfo newDelInfo = current.deletionInfo.add(cm.getDeletionInfo());
             modified = new Holder(current.map.clone(), newDelInfo);
 
             for (IColumn column : cm.getSortedColumns())

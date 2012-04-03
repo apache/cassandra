@@ -132,6 +132,10 @@ public class SSTableImport
                         {
                             timestampOfLastDelete = (long) ((Integer) fields.get(4));
                         }
+                        else if (isRangeTombstone())
+                        {
+                            localExpirationTime = (Integer) fields.get(4);
+                        }
                     }
                 }
 
@@ -153,6 +157,11 @@ public class SSTableImport
         public boolean isCounter()
         {
             return kind.equals("c");
+        }
+
+        public boolean isRangeTombstone()
+        {
+            return kind.equals("t");
         }
 
         public ByteBuffer getName()
@@ -199,6 +208,10 @@ public class SSTableImport
             else if (col.isDeleted())
             {
                 cfamily.addTombstone(path, col.getValue(), col.timestamp);
+            }
+            else if (col.isRangeTombstone())
+            {
+                cfamily.addAtom(new RangeTombstone(col.getName(), col.getValue(), col.timestamp, col.localExpirationTime));
             }
             else
             {

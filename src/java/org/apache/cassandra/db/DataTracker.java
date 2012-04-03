@@ -36,8 +36,8 @@ import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.IntervalTree.Interval;
-import org.apache.cassandra.utils.IntervalTree.IntervalTree;
+import org.apache.cassandra.utils.Interval;
+import org.apache.cassandra.utils.IntervalTree;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public class DataTracker
@@ -298,7 +298,7 @@ public class DataTracker
                           Collections.<Memtable>emptySet(),
                           Collections.<SSTableReader>emptyList(),
                           Collections.<SSTableReader>emptySet(),
-                          new IntervalTree()));
+                          SSTableIntervalTree.empty()));
     }
 
     private void replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
@@ -548,13 +548,28 @@ public class DataTracker
         assert found : consumer + " not subscribed";
     }
 
-    public static IntervalTree<SSTableReader> buildIntervalTree(Iterable<SSTableReader> sstables)
+    public static SSTableIntervalTree buildIntervalTree(Iterable<SSTableReader> sstables)
     {
-        List<Interval> intervals = new ArrayList<Interval>(Iterables.size(sstables));
+        List<Interval<RowPosition, SSTableReader>> intervals = new ArrayList<Interval<RowPosition, SSTableReader>>(Iterables.size(sstables));
         for (SSTableReader sstable : sstables)
-            intervals.add(new Interval<SSTableReader>(sstable.first, sstable.last, sstable));
-        return new IntervalTree<SSTableReader>(intervals);
+            intervals.add(Interval.<RowPosition, SSTableReader>create(sstable.first, sstable.last, sstable));
+        return new SSTableIntervalTree(intervals);
     }
+
+    public static class SSTableIntervalTree extends IntervalTree<RowPosition, SSTableReader, Interval<RowPosition, SSTableReader>>
+    {
+        private static final SSTableIntervalTree EMPTY = new SSTableIntervalTree(null);
+
+        private SSTableIntervalTree(Collection<Interval<RowPosition, SSTableReader>> intervals)
+        {
+            super(intervals, null);
+        }
+
+        public static SSTableIntervalTree empty()
+        {
+            return EMPTY;
+        }
+    };
 
     /**
      * An immutable structure holding the current memtable, the memtables pending
@@ -572,9 +587,9 @@ public class DataTracker
         // Obviously, dropping sstables whose max column timestamp happens to be equal to another's
         // is not acceptable for us.  So, we use a List instead.
         public final List<SSTableReader> sstables;
-        public final IntervalTree<SSTableReader> intervalTree;
+        public final SSTableIntervalTree intervalTree;
 
-        View(Memtable memtable, Set<Memtable> pendingFlush, List<SSTableReader> sstables, Set<SSTableReader> compacting, IntervalTree<SSTableReader> intervalTree)
+        View(Memtable memtable, Set<Memtable> pendingFlush, List<SSTableReader> sstables, Set<SSTableReader> compacting, SSTableIntervalTree intervalTree)
         {
             this.memtable = memtable;
             this.memtablesPendingFlush = pendingFlush;
@@ -603,14 +618,14 @@ public class DataTracker
         {
             Set<Memtable> newPending = ImmutableSet.copyOf(Sets.difference(memtablesPendingFlush, Collections.singleton(flushedMemtable)));
             List<SSTableReader> newSSTables = newSSTables(newSSTable);
-            IntervalTree intervalTree = buildIntervalTree(newSSTables);
+            SSTableIntervalTree intervalTree = buildIntervalTree(newSSTables);
             return new View(memtable, newPending, Collections.unmodifiableList(newSSTables), compacting, intervalTree);
         }
 
         public View replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
         {
             List<SSTableReader> newSSTables = newSSTables(oldSSTables, replacements);
-            IntervalTree intervalTree = buildIntervalTree(newSSTables);
+            SSTableIntervalTree intervalTree = buildIntervalTree(newSSTables);
             return new View(memtable, memtablesPendingFlush, Collections.unmodifiableList(newSSTables), compacting, intervalTree);
         }
 

@@ -21,9 +21,9 @@ import java.io.IOException;
 
 import com.google.common.collect.AbstractIterator;
 
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.OnDiskAtom;
 
-public abstract class SimpleAbstractColumnIterator extends AbstractIterator<IColumn> implements IColumnIterator
+public abstract class SimpleAbstractColumnIterator extends AbstractIterator<OnDiskAtom> implements OnDiskAtomIterator
 {
     public void close() throws IOException {}
 }

@@ -25,7 +25,8 @@ import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.IndexHelper;
@@ -34,8 +35,9 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIterator
+class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAtomIterator
 {
+    private final SSTableReader sstable;
     private final FileDataInput file;
     private final boolean needsClosing;
     private final ByteBuffer finishColumn;
@@ -44,9 +46,11 @@ class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIter
     private final int columns;
     private int i;
     private FileMark mark;
+    private final OnDiskAtom.Serializer atomSerializer;
 
     public SimpleSliceReader(SSTableReader sstable, RowIndexEntry indexEntry, FileDataInput input, ByteBuffer finishColumn)
     {
+        this.sstable = sstable;
         this.finishColumn = finishColumn;
         this.comparator = sstable.metadata.comparator;
         try
@@ -67,13 +71,15 @@ class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIter
             ByteBufferUtil.skipShortLength(file);
             SSTableReader.readRowSize(file, sstable.descriptor);
 
-            if (!sstable.descriptor.hasPromotedIndexes)
+            if (!sstable.descriptor.version.hasPromotedIndexes)
             {
                 IndexHelper.skipBloomFilter(file);
                 IndexHelper.skipIndex(file);
             }
 
-            emptyColumnFamily = ColumnFamily.serializer.deserializeFromSSTableNoColumns(ColumnFamily.create(sstable.metadata), file);
+            emptyColumnFamily = ColumnFamily.create(sstable.metadata);
+            emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, sstable.descriptor.version));
+            atomSerializer = emptyColumnFamily.getOnDiskSerializer();
             columns = file.readInt();
             mark = file.mark();
         }
@@ -84,16 +90,16 @@ class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIter
         }
     }
 
-    protected IColumn computeNext()
+    protected OnDiskAtom computeNext()
     {
         if (i++ >= columns)
             return endOfData();
 
-        IColumn column;
+        OnDiskAtom column;
         try
         {
             file.reset(mark);
-            column = emptyColumnFamily.getColumnSerializer().deserialize(file);
+            column = atomSerializer.deserializeFromSSTable(file, sstable.descriptor.version);
         }
         catch (IOException e)
         {

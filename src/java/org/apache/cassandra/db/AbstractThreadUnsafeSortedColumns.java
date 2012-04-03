@@ -40,16 +40,17 @@ public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumn
 
     public void delete(DeletionInfo newInfo)
     {
-        if (deletionInfo.markedForDeleteAt < newInfo.markedForDeleteAt)
-            // since deletion info is immutable, aliasing it is fine
-            deletionInfo = newInfo;
+        deletionInfo = deletionInfo.add(newInfo);
+    }
+
+    public void setDeletionInfo(DeletionInfo newInfo)
+    {
+        deletionInfo = newInfo;
     }
 
     public void maybeResetDeletionTimes(int gcBefore)
     {
-        // Update if it's not MIN_VALUE anymore and it has expired
-        if (deletionInfo.localDeletionTime <= gcBefore)
-            deletionInfo = DeletionInfo.LIVE;
+        deletionInfo = deletionInfo.purge(gcBefore);
     }
 
     public void retainAll(ISortedColumns columns)

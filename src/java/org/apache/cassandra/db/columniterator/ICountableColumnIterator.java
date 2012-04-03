@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.columniterator;
 
-public interface ICountableColumnIterator extends IColumnIterator
+public interface ICountableColumnIterator extends OnDiskAtomIterator
 {
     public int getColumnCount();
 

@@ -20,8 +20,10 @@ package org.apache.cassandra.db;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -77,8 +79,7 @@ public class RowIndexEntry
             if (rie.isIndexed())
             {
                 dos.writeInt(((IndexedEntry)rie).serializedSize());
-                dos.writeInt(rie.deletionInfo().localDeletionTime);
-                dos.writeLong(rie.deletionInfo().markedForDeleteAt);
+                DeletionInfo.serializer().serializeForSSTable(rie.deletionInfo(), dos);
                 dos.writeInt(rie.columnsIndex().size());
                 for (IndexHelper.IndexInfo info : rie.columnsIndex())
                     info.serialize(dos);
@@ -90,10 +91,10 @@ public class RowIndexEntry
             }
         }
 
-        public RowIndexEntry deserializePositionOnly(DataInput dis, Descriptor descriptor) throws IOException
+        public RowIndexEntry deserializePositionOnly(DataInput dis, Descriptor.Version version) throws IOException
         {
             long position = dis.readLong();
-            if (descriptor.hasPromotedIndexes)
+            if (version.hasPromotedIndexes)
             {
                 int size = dis.readInt();
                 if (size > 0)
@@ -102,22 +103,21 @@ public class RowIndexEntry
             return new RowIndexEntry(position);
         }
 
-        public RowIndexEntry deserialize(DataInput dis, Descriptor descriptor) throws IOException
+        public RowIndexEntry deserialize(DataInput dis, Descriptor.Version version) throws IOException
         {
             long position = dis.readLong();
-            if (descriptor.hasPromotedIndexes)
+            if (version.hasPromotedIndexes)
             {
                 int size = dis.readInt();
                 if (size > 0)
                 {
-                    int ldt = dis.readInt();
-                    long mfda = dis.readLong();
+                    DeletionInfo delInfo = DeletionInfo.serializer().deserializeFromSSTable(dis, version);
                     int entries = dis.readInt();
                     List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
                     for (int i = 0; i < entries; i++)
                         columnsIndex.add(IndexHelper.IndexInfo.deserialize(dis));
-                    Filter bf = FilterFactory.deserialize(dis, descriptor.filterType);
-                    return new IndexedEntry(position, new DeletionInfo(mfda, ldt), columnsIndex, bf);
+                    Filter bf = FilterFactory.deserialize(dis, version.filterType);
+                    return new IndexedEntry(position, delInfo, columnsIndex, bf);
                 }
                 else
                 {
@@ -130,10 +130,10 @@ public class RowIndexEntry
             }
         }
 
-        public void skip(DataInput dis, Descriptor descriptor) throws IOException
+        public void skip(DataInput dis, Descriptor.Version version) throws IOException
         {
             dis.readLong();
-            if (!descriptor.hasPromotedIndexes)
+            if (!version.hasPromotedIndexes)
                 return;
 
             int size = dis.readInt();
@@ -184,12 +184,14 @@ public class RowIndexEntry
         public int serializedSize()
         {
             TypeSizes typeSizes = TypeSizes.NATIVE;
-            int size = typeSizes.sizeof(deletionInfo.localDeletionTime) + typeSizes.sizeof(deletionInfo.markedForDeleteAt); // deletion info
+            long size = DeletionTime.serializer.serializedSize(deletionInfo.getTopLevelDeletion(), typeSizes);
             size += typeSizes.sizeof(columnsIndex.size()); // number of entries
             for (IndexHelper.IndexInfo info : columnsIndex)
                 size += info.serializedSize(typeSizes);
 
-            return size + (int) FilterFactory.serializedSize(bloomFilter);
+            size += FilterFactory.serializedSize(bloomFilter);
+            assert size <= Integer.MAX_VALUE;
+            return (int)size;
         }
     }
 }

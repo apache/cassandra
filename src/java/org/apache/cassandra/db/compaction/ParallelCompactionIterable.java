@@ -257,7 +257,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                 return iter.hasNext();
             }
 
-            public IColumn next()
+            public OnDiskAtom next()
             {
                 return iter.next();
             }
@@ -377,7 +377,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
             return wrapped.hasNext();
         }
 
-        public IColumn next()
+        public OnDiskAtom next()
         {
             return wrapped.next();
         }

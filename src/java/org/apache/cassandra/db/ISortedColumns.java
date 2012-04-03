@@ -49,6 +49,8 @@ public interface ISortedColumns extends IIterableColumns
     public Factory getFactory();
 
     public DeletionInfo getDeletionInfo();
+    public void setDeletionInfo(DeletionInfo info);
+
     public void delete(DeletionInfo info);
     public void maybeResetDeletionTimes(int gcBefore);
     public void retainAll(ISortedColumns columns);

@@ -136,7 +136,7 @@ public class ScrubTest extends SchemaLoader
         RowMutation rm;
         rm = new RowMutation(TABLE, ByteBufferUtil.bytes(1));
         ColumnFamily cf = ColumnFamily.create(TABLE, CF3);
-        cf.delete(0, 1); // expired tombstone
+        cf.delete(new DeletionInfo(0, 1)); // expired tombstone
         rm.add(cf);
         rm.applyUnsafe();
         cfs.forceBlockingFlush();

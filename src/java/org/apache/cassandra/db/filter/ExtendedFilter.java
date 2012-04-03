@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -250,8 +250,8 @@ public abstract class ExtendedFilter
             if (initialFilter == originalFilter)
                 return data;
             ColumnFamily pruned = data.cloneMeShallow();
-            IColumnIterator iter = originalFilter.getMemtableColumnIterator(data, null);
-            originalFilter.collectReducedColumns(pruned, iter, cfs.gcBefore());
+            OnDiskAtomIterator iter = originalFilter.getMemtableColumnIterator(data, null);
+            originalFilter.collectReducedColumns(pruned, QueryFilter.gatherTombstones(pruned, iter), cfs.gcBefore());
             return pruned;
         }
 

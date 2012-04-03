@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.io.DataInput;
 import java.io.DataOutput;
+import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -33,10 +34,11 @@ public class ColumnSerializer implements IColumnSerializer
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnSerializer.class);
 
-    public final static int DELETION_MASK       = 0x01;
-    public final static int EXPIRATION_MASK     = 0x02;
-    public final static int COUNTER_MASK        = 0x04;
-    public final static int COUNTER_UPDATE_MASK = 0x08;
+    public final static int DELETION_MASK        = 0x01;
+    public final static int EXPIRATION_MASK      = 0x02;
+    public final static int COUNTER_MASK         = 0x04;
+    public final static int COUNTER_UPDATE_MASK  = 0x08;
+    public final static int RANGE_TOMBSTONE_MASK = 0x10;
 
     public void serialize(IColumn column, DataOutput dos)
     {
@@ -82,26 +84,22 @@ public class ColumnSerializer implements IColumnSerializer
     {
         ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
         if (name.remaining() <= 0)
-        {
-            String format = "invalid column name length %d%s";
-            String details = "";
-            if (dis instanceof FileDataInput)
-            {
-                FileDataInput fdis = (FileDataInput)dis;
-                details = String.format(" (%s, %d bytes remaining)", fdis.getPath(), fdis.bytesRemaining());
-            }
-            throw new CorruptColumnException(String.format(format, name.remaining(), details));
-        }
+            throw CorruptColumnException.create(dis, name);
 
         int b = dis.readUnsignedByte();
-        if ((b & COUNTER_MASK) != 0)
+        return deserializeColumnBody(dis, name, b, flag, expireBefore);
+    }
+
+    Column deserializeColumnBody(DataInput dis, ByteBuffer name, int mask, IColumnSerializer.Flag flag, int expireBefore) throws IOException
+    {
+        if ((mask & COUNTER_MASK) != 0)
         {
             long timestampOfLastDelete = dis.readLong();
             long ts = dis.readLong();
             ByteBuffer value = ByteBufferUtil.readWithLength(dis);
             return CounterColumn.create(name, value, ts, timestampOfLastDelete, flag);
         }
-        else if ((b & EXPIRATION_MASK) != 0)
+        else if ((mask & EXPIRATION_MASK) != 0)
         {
             int ttl = dis.readInt();
             int expiration = dis.readInt();
@@ -113,24 +111,44 @@ public class ColumnSerializer implements IColumnSerializer
         {
             long ts = dis.readLong();
             ByteBuffer value = ByteBufferUtil.readWithLength(dis);
-            return (b & COUNTER_UPDATE_MASK) != 0
+            return (mask & COUNTER_UPDATE_MASK) != 0
                    ? new CounterUpdateColumn(name, value, ts)
-                   : ((b & DELETION_MASK) == 0
+                   : ((mask & DELETION_MASK) == 0
                       ? new Column(name, value, ts)
                       : new DeletedColumn(name, value, ts));
         }
     }
 
-    public long serializedSize(IColumn object, TypeSizes type)
+    public long serializedSize(IColumn column, TypeSizes type)
     {
-        return object.serializedSize(type);
+        return column.serializedSize(type);
     }
 
-    private static class CorruptColumnException extends IOException
+    public static class CorruptColumnException extends IOException
     {
         public CorruptColumnException(String s)
         {
             super(s);
+        }
+
+        public static CorruptColumnException create(DataInput dis, ByteBuffer name)
+        {
+            assert name.remaining() <= 0;
+            String format = "invalid column name length %d%s";
+            String details = "";
+            if (dis instanceof FileDataInput)
+            {
+                try
+                {
+                    FileDataInput fdis = (FileDataInput)dis;
+                    details = String.format(" (%s, %d bytes remaining)", fdis.getPath(), fdis.bytesRemaining());
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
+            }
+            return new CorruptColumnException(String.format(format, name.remaining(), details));
         }
     }
 }

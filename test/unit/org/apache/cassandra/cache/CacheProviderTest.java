@@ -42,7 +42,7 @@ public class CacheProviderTest extends SchemaLoader
     private String tableName = "Keyspace1";
     private String cfName = "Standard1";
 
-    private void simpleCase(ColumnFamily cf, ICache<String, ColumnFamily> cache)
+    private void simpleCase(ColumnFamily cf, ICache<String, IRowCacheEntry> cache)
     {
         cache.put(key1, cf);
         assert cache.get(key1) != null;
@@ -56,14 +56,15 @@ public class CacheProviderTest extends SchemaLoader
         assertEquals(CAPACITY, cache.size());
     }
 
-    private void assertDigests(ColumnFamily one, ColumnFamily two)
+    private void assertDigests(IRowCacheEntry one, ColumnFamily two)
     {
         // CF does not implement .equals
-        assert ColumnFamily.digest(one).equals(ColumnFamily.digest(two));
+        assert one instanceof ColumnFamily;
+        assert ColumnFamily.digest((ColumnFamily)one).equals(ColumnFamily.digest(two));
     }
 
     // TODO this isn't terribly useful
-    private void concurrentCase(final ColumnFamily cf, final ICache<String, ColumnFamily> cache) throws InterruptedException
+    private void concurrentCase(final ColumnFamily cf, final ICache<String, IRowCacheEntry> cache) throws InterruptedException
     {
         Runnable runable = new Runnable()
         {
@@ -102,7 +103,7 @@ public class CacheProviderTest extends SchemaLoader
     @Test
     public void testHeapCache() throws InterruptedException
     {
-        ICache<String, ColumnFamily> cache = ConcurrentLinkedHashCache.create(CAPACITY);
+        ICache<String, IRowCacheEntry> cache = ConcurrentLinkedHashCache.create(CAPACITY);
         ColumnFamily cf = createCF();
         simpleCase(cf, cache);
         concurrentCase(cf, cache);
@@ -111,7 +112,7 @@ public class CacheProviderTest extends SchemaLoader
     @Test
     public void testSerializingCache() throws InterruptedException
     {
-        ICache<String, ColumnFamily> cache = new SerializingCache<String, ColumnFamily>(CAPACITY, false, ColumnFamily.serializer);
+        ICache<String, IRowCacheEntry> cache = new SerializingCache<String, IRowCacheEntry>(CAPACITY, false, new SerializingCacheProvider.RowCacheSerializer());
         ColumnFamily cf = createCF();
         simpleCase(cf, cache);
         concurrentCase(cf, cache);

@@ -32,8 +32,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.IntervalTree.Interval;
-import org.apache.cassandra.utils.IntervalTree.IntervalTree;
 import org.apache.cassandra.utils.Throttle;
 
 /**
@@ -44,7 +42,7 @@ public class CompactionController
     private static final Logger logger = LoggerFactory.getLogger(CompactionController.class);
 
     private final ColumnFamilyStore cfs;
-    private final IntervalTree<SSTableReader> overlappingTree;
+    private final DataTracker.SSTableIntervalTree overlappingTree;
 
     public final int gcBefore;
     public final int mergeShardBefore;
@@ -93,7 +91,7 @@ public class CompactionController
      */
     public boolean shouldPurge(DecoratedKey key)
     {
-        List<SSTableReader> filteredSSTables = overlappingTree.search(new Interval(key, key));
+        List<SSTableReader> filteredSSTables = overlappingTree.search(key);
         for (SSTableReader sstable : filteredSSTables)
         {
             if (sstable.getBloomFilter().isPresent(key.key))

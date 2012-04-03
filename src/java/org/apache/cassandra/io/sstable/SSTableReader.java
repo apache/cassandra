@@ -176,7 +176,7 @@ public class SSTableReader extends SSTable
         sstable.setTrackedBy(tracker);
 
         // versions before 'c' encoded keys as utf-16 before hashing to the filter
-        if (descriptor.hasStringsInBloomFilter)
+        if (descriptor.version.hasStringsInBloomFilter)
         {
             sstable.load(true, savedKeys);
         }
@@ -317,7 +317,7 @@ public class SSTableReader extends SSTable
         try
         {
             stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER))));
-            bf = FilterFactory.deserialize(stream, descriptor.filterType);
+            bf = FilterFactory.deserialize(stream, descriptor.version.filterType);
         }
         finally
         {
@@ -361,7 +361,7 @@ public class SSTableReader extends SSTable
             while (readIndex && (indexPosition = primaryIndex.getFilePointer()) != indexSize)
             {
                 ByteBuffer key = ByteBufferUtil.readWithShortLength(primaryIndex);
-                RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(primaryIndex, descriptor);
+                RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(primaryIndex, descriptor.version);
                 DecoratedKey decoratedKey = decodeKey(partitioner, descriptor, key);
                 if(null == first)
                     first = decoratedKey;
@@ -506,7 +506,7 @@ public class SSTableReader extends SSTable
 
     public long getBloomFilterSerializedSize()
     {
-        return FilterFactory.serializedSize(bf, descriptor.filterType);
+        return FilterFactory.serializedSize(bf, descriptor.version.filterType);
     }
 
     /**
@@ -743,7 +743,7 @@ public class SSTableReader extends SSTable
                     int v = op.apply(comparison);
                     if (v == 0)
                     {
-                        RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(input, descriptor);
+                        RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(input, descriptor.version);
                         if (comparison == 0 && keyCache != null && keyCache.getCapacity() > 0)
                         {
                             assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
@@ -761,7 +761,7 @@ public class SSTableReader extends SSTable
                             bloomFilterTracker.addFalsePositive();
                         return null;
                     }
-                    RowIndexEntry.serializer.skip(input, descriptor);
+                    RowIndexEntry.serializer.skip(input, descriptor.version);
                 }
             }
             catch (IOException e)
@@ -916,7 +916,7 @@ public class SSTableReader extends SSTable
 
     public static long readRowSize(DataInput in, Descriptor d) throws IOException
     {
-        if (d.hasIntRowSize)
+        if (d.version.hasIntRowSize)
             return in.readInt();
         return in.readLong();
     }
@@ -936,7 +936,7 @@ public class SSTableReader extends SSTable
      */
     public static DecoratedKey decodeKey(IPartitioner p, Descriptor d, ByteBuffer bytes)
     {
-        if (d.hasEncodedKeys)
+        if (d.version.hasEncodedKeys)
             return p.convertFromDiskFormat(bytes);
         return p.decorateKey(bytes);
     }

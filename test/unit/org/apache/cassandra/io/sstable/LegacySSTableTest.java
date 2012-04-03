@@ -89,7 +89,7 @@ public class LegacySSTableTest extends SchemaLoader
     public void testVersions() throws Throwable
     {
         for (File version : LEGACY_SSTABLE_ROOT.listFiles())
-            if (Descriptor.versionValidate(version.getName()))
+            if (Descriptor.Version.validate(version.getName()))
                 testVersion(version.getName());
     }
 

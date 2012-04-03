@@ -18,28 +18,29 @@
 package org.apache.cassandra.io;
 
 import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.io.sstable.Descriptor;
 
-public interface IColumnSerializer extends ISerializer<IColumn>
+public interface ISSTableSerializer<T>
 {
     /**
-     * Flag affecting deserialization behavior.
-     *  - LOCAL: for deserialization of local data (Expired columns are
-     *      converted to tombstones (to gain disk space)).
-     *  - FROM_REMOTE: for deserialization of data received from remote hosts
-     *      (Expired columns are converted to tombstone and counters have
-     *      their delta cleared)
-     *  - PRESERVE_SIZE: used when no transformation must be performed, i.e,
-     *      when we must ensure that deserializing and reserializing the
-     *      result yield the exact same bytes. Streaming uses this.
+     * Serialize the specified type into the specified DataOutputStream
+     * instance in the format suited for SSTables.
+     * @param t type that needs to be serialized
+     * @param dos DataOutput into which serialization needs to happen.
+     * @throws java.io.IOException
      */
-    public static enum Flag
-    {
-        LOCAL, FROM_REMOTE, PRESERVE_SIZE;
-    }
+    public void serializeForSSTable(T t, DataOutput dos) throws IOException;
 
-    public IColumn deserialize(DataInput in, Flag flag, int expireBefore) throws IOException;
+    /**
+     * Deserialize into the specified DataInputStream instance in the format
+     * suited for SSTables.
+     * @param dis DataInput from which deserialization needs to happen.
+     * @param sstableVersion the version for the sstable we're reading from
+     * @throws IOException
+     * @return the type that was deserialized
+     */
+    public T deserializeFromSSTable(DataInput dis, Descriptor.Version version) throws IOException;
 }
-

@@ -17,14 +17,9 @@
  */
 package org.apache.cassandra.cache;
 
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Objects;
-
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.ArrayBackedSortedColumns;
-import org.apache.cassandra.db.ColumnFamily;
 
 /**
  * A sentinel object for row caches.  See comments to getThroughCache and CASSANDRA-3862.

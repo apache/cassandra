@@ -103,9 +103,9 @@ public class CounterColumn extends Column
     }
 
     @Override
-    public int serializedSize(TypeSizes sizes)
+    public int serializedSize(TypeSizes typeSizes)
     {
-        return super.serializedSize(sizes) + sizes.sizeof(timestampOfLastDelete);
+        return super.serializedSize(typeSizes) + typeSizes.sizeof(timestampOfLastDelete);
     }
 
     @Override

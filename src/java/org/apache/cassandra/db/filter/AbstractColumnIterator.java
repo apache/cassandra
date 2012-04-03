@@ -19,9 +19,9 @@ package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
 
-import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 
-public abstract class AbstractColumnIterator implements IColumnIterator
+public abstract class AbstractColumnIterator implements OnDiskAtomIterator
 {
     public void close() throws IOException
     {}

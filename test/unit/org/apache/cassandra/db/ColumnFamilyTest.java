@@ -30,6 +30,7 @@ import org.junit.Test;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.net.MessagingService;
 import static org.apache.cassandra.Util.column;
 import static org.junit.Assert.assertEquals;
 
@@ -39,6 +40,8 @@ import org.apache.cassandra.utils.HeapAllocator;
 
 public class ColumnFamilyTest extends SchemaLoader
 {
+    static int version = MessagingService.current_version;
+
     // TODO test SuperColumns more
 
     @Test
@@ -49,10 +52,10 @@ public class ColumnFamilyTest extends SchemaLoader
         cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("C", "v", 1));
         DataOutputBuffer bufOut = new DataOutputBuffer();
-        ColumnFamily.serializer.serialize(cf, bufOut);
+        ColumnFamily.serializer.serialize(cf, bufOut, version);
 
         ByteArrayInputStream bufIn = new ByteArrayInputStream(bufOut.getData(), 0, bufOut.getLength());
-        cf = ColumnFamily.serializer.deserialize(new DataInputStream(bufIn));
+        cf = ColumnFamily.serializer.deserialize(new DataInputStream(bufIn), version);
         assert cf != null;
         assert cf.metadata().cfName.equals("Standard1");
         assert cf.getSortedColumns().size() == 1;
@@ -76,11 +79,11 @@ public class ColumnFamilyTest extends SchemaLoader
         {
             cf.addColumn(column(cName, map.get(cName), 314));
         }
-        ColumnFamily.serializer.serialize(cf, bufOut);
+        ColumnFamily.serializer.serialize(cf, bufOut, version);
 
         // verify
         ByteArrayInputStream bufIn = new ByteArrayInputStream(bufOut.getData(), 0, bufOut.getLength());
-        cf = ColumnFamily.serializer.deserialize(new DataInputStream(bufIn));
+        cf = ColumnFamily.serializer.deserialize(new DataInputStream(bufIn), version);
         for (String cName : map.navigableKeySet())
         {
             ByteBuffer val = cf.getColumn(ByteBufferUtil.bytes(cName)).value();

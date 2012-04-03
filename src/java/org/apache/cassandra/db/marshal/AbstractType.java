@@ -24,6 +24,8 @@ import java.util.Map;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.OnDiskAtom;
+import org.apache.cassandra.db.RangeTombstone;
 import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
 
 /**
@@ -40,6 +42,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     public final Comparator<IndexInfo> indexReverseComparator;
     public final Comparator<IColumn> columnComparator;
     public final Comparator<IColumn> columnReverseComparator;
+    public final Comparator<OnDiskAtom> onDiskAtomComparator;
     public final Comparator<ByteBuffer> reverseComparator;
 
     protected AbstractType()
@@ -70,6 +73,41 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
             public int compare(IColumn c1, IColumn c2)
             {
                 return AbstractType.this.compare(c2.name(), c1.name());
+            }
+        };
+        onDiskAtomComparator = new Comparator<OnDiskAtom>()
+        {
+            public int compare(OnDiskAtom c1, OnDiskAtom c2)
+            {
+                int comp = AbstractType.this.compare(c1.name(), c2.name());
+                if (comp != 0)
+                    return comp;
+
+                if (c1 instanceof RangeTombstone)
+                {
+                    if (c2 instanceof RangeTombstone)
+                    {
+                        RangeTombstone t1 = (RangeTombstone)c1;
+                        RangeTombstone t2 = (RangeTombstone)c2;
+                        int comp2 = AbstractType.this.compare(t1.max, t1.max);
+                        if (comp2 == 0)
+                            return t1.data.compareTo(t2.data);
+                        else
+                            return comp2;
+                    }
+                    else
+                    {
+                        return -1;
+                    }
+                }
+                else if (c2 instanceof RangeTombstone)
+                {
+                    return 1;
+                }
+                else
+                {
+                    return 0;
+                }
             }
         };
         reverseComparator = new Comparator<ByteBuffer>()

@@ -31,8 +31,8 @@ public class DescriptorTest
     {
         Descriptor descriptor = Descriptor.fromFilename("Keyspace1-userActionUtilsKey-9-Data.db");
 
-        assert descriptor.version.equals(Descriptor.LEGACY_VERSION);
-        assert descriptor.filterType == FilterFactory.Type.SHA;
+        assert descriptor.version.equals(Descriptor.Version.LEGACY);
+        assert descriptor.version.filterType == FilterFactory.Type.SHA;
     }
 
     @Test
@@ -40,27 +40,27 @@ public class DescriptorTest
     {
         // letter only
         Descriptor desc = Descriptor.fromFilename("Keyspace1-Standard1-h-1-Data.db");
-        assert "h".equals(desc.version);
+        assert "h".equals(desc.version.toString());
 
         // multiple letters
         desc = Descriptor.fromFilename("Keyspace1-Standard1-ha-1-Data.db");
-        assert "ha".equals(desc.version);
+        assert "ha".equals(desc.version.toString());
 
         // hypothetical two-letter g version
         desc = Descriptor.fromFilename("Keyspace1-Standard1-gz-1-Data.db");
-        assert "gz".equals(desc.version);
-        assert !desc.tracksMaxTimestamp;
+        assert "gz".equals(desc.version.toString());
+        assert !desc.version.tracksMaxTimestamp;
     }
 
     @Test
     public void testMurmurBloomFilter()
     {
         Descriptor desc = Descriptor.fromFilename("Keyspace1-Standard1-hz-1-Data.db");
-        assertEquals("hz", desc.version);
-        assertEquals(desc.filterType, FilterFactory.Type.MURMUR2);
+        assertEquals("hz", desc.version.toString());
+        assertEquals(desc.version.filterType, FilterFactory.Type.MURMUR2);
 
         desc = Descriptor.fromFilename("Keyspace1-Standard1-ia-1-Data.db");
-        assertEquals("ia", desc.version);
-        assertEquals(desc.filterType, FilterFactory.Type.MURMUR3);
+        assertEquals("ia", desc.version.toString());
+        assertEquals(desc.version.filterType, FilterFactory.Type.MURMUR3);
     }
 }
