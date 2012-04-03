@@ -145,15 +145,29 @@ public class AntiEntropyService
     }
 
     /**
-     * Return all of the neighbors with whom we share data.
+     * Return all of the neighbors with whom we share the provided range.
      */
-    static Set<InetAddress> getNeighbors(String table, Range<Token> range)
+    static Set<InetAddress> getNeighbors(String table, Range<Token> toRepair)
     {
         StorageService ss = StorageService.instance;
         Map<Range<Token>, List<InetAddress>> replicaSets = ss.getRangeToAddressMap(table);
-        if (!replicaSets.containsKey(range))
+        Range<Token> rangeSuperSet = null;
+        for (Range<Token> range : ss.getLocalRanges(table))
+        {
+            if (range.contains(toRepair))
+            {
+                rangeSuperSet = range;
+                break;
+            }
+            else if (range.intersects(toRepair))
+            {
+                throw new IllegalArgumentException("Requested range intersects a local range but is not fully contained in one; this would lead to imprecise repair");
+            }
+        }
+        if (rangeSuperSet == null || !replicaSets.containsKey(toRepair))
             return Collections.emptySet();
-        Set<InetAddress> neighbors = new HashSet<InetAddress>(replicaSets.get(range));
+
+        Set<InetAddress> neighbors = new HashSet<InetAddress>(replicaSets.get(rangeSuperSet));
         neighbors.remove(FBUtilities.getBroadcastAddress());
         // Excluding all node with version <= 0.7 since they don't know how to
         // create a correct merkle tree (they build it over the full range)

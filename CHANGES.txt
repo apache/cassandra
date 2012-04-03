@@ -11,6 +11,8 @@
  * identify and blacklist corrupted SSTables from future compactions 
    (CASSANDRA-2261)
  * Move CfDef and KsDef validation out of thrift (CASSANDRA-4037)
+ * Expose repairing by a user provided range (CASSANDRA-3912)
+
 
 1.1-dev
  * Allow KS and CF names up to 48 characters (CASSANDRA-4157)

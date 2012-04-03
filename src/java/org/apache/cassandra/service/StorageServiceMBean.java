@@ -136,6 +136,11 @@ public interface StorageServiceMBean
     public List <String> describeRingJMX(String keyspace) throws InvalidRequestException;
 
     /**
+     * Returns the local node's primary range.
+     */
+    public List<String> getPrimaryRange();
+
+    /**
      * Retrieve a map of pending ranges to endpoints that describe the ring topology
      * @param keyspace the keyspace to get the pending range map for.
      * @return a map of pending ranges to endpoints
@@ -240,6 +245,14 @@ public interface StorageServiceMBean
      * Triggers proactive repair but only for the node primary range.
      */
     public void forceTableRepairPrimaryRange(String tableName, boolean isSequential, String... columnFamilies) throws IOException;
+
+    /**
+     * Perform repair of a specific range.
+     *
+     * This allows incremental repair to be performed by having an external controller submitting repair jobs.
+     * Note that the provided range much be a subset of one of the node local range.
+     */
+    public void forceTableRepairRange(String beginToken, String endToken, String tableName, boolean isSequential, String... columnFamilies) throws IOException;
 
     public void forceTerminateAllRepairSessions();
 

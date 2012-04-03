@@ -210,6 +210,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return getPrimaryRangeForEndpoint(FBUtilities.getBroadcastAddress());
     }
 
+    // For JMX's sake. Use getLocalPrimaryRange for internal uses
+    public List<String> getPrimaryRange()
+    {
+        return getLocalPrimaryRange().asList();
+    }
+
     private final Set<InetAddress> replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddress>());
     private CassandraDaemon daemon;
 
@@ -1948,6 +1954,29 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             logger_.error("Repair session " + future.session.getName() + " failed.", e);
             throw new IOException("Some repair session(s) failed (see log for details).");
+        }
+    }
+
+    public void forceTableRepairRange(String beginToken, String endToken, final String tableName, boolean isSequential, final String... columnFamilies) throws IOException
+    {
+        if (Table.SYSTEM_TABLE.equals(tableName))
+            return;
+
+        Token parsedBeginToken = getPartitioner().getTokenFactory().fromString(beginToken);
+        Token parsedEndToken = getPartitioner().getTokenFactory().fromString(endToken);
+
+        logger_.info("starting user-requested repair of range ({}, {}] for keyspace {} and column families {}",
+                     new Object[] {parsedBeginToken, parsedEndToken, tableName, columnFamilies});
+        AntiEntropyService.RepairFuture future = forceTableRepair(new Range<Token>(parsedBeginToken, parsedEndToken), tableName, isSequential, columnFamilies);
+        if (future == null)
+            return;
+        try
+        {
+            future.get();
+        }
+        catch (Exception e)
+        {
+            logger_.error("Repair session " + future.session.getName() + " failed.", e);
         }
     }
 
