@@ -1,4 +1,5 @@
 1.1.1-dev
+ * update caches to use byte[] keys to reduce memory overhead (CASSANDRA-3966)
  * add column limit to cli (CASSANDRA-3012, 4098)
  * clean up and optimize DataOutputBuffer, used by CQL compression and
    CompositeType (CASSANDRA-4072)

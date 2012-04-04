@@ -19,40 +19,75 @@
  */
 package org.apache.cassandra.cache;
 
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.util.Arrays;
 
+import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
-public class KeyCacheKey extends Pair<Descriptor, ByteBuffer> implements CacheKey
+import com.google.common.base.Objects;
+
+public class KeyCacheKey implements CacheKey
 {
+    private final Descriptor desc;
+    private final byte[] key;
+
     public KeyCacheKey(Descriptor desc, ByteBuffer key)
     {
-        super(desc, key);
+        this.desc = desc;
+        this.key = ByteBufferUtil.getArray(key);
+        assert this.key != null;
     }
 
-    public ByteBuffer serializeForStorage()
+    public void write(DataOutputStream out) throws IOException
     {
-        ByteBuffer bytes = ByteBuffer.allocate(serializedSize());
-
-        bytes.put(right.slice());
-        bytes.rewind();
-
-        return bytes;
+        ByteBufferUtil.writeWithLength(key, out);
     }
 
     public Pair<String, String> getPathInfo()
     {
-        return new Pair<String, String>(left.ksname, left.cfname);
+        return new Pair<String, String>(desc.ksname, desc.cfname);
     }
 
     public int serializedSize()
     {
-        return right.remaining();
+        return key.length + DBConstants.intSize;
     }
 
     public String toString()
     {
-        return String.format("KeyCacheKey(descriptor:%s, key:%s)", left, right);
+        try
+        {
+            return String.format("KeyCacheKey(descriptor:%s, key:%s)", desc, ByteBufferUtil.string(ByteBuffer.wrap(key)));
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new AssertionError(e);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        KeyCacheKey that = (KeyCacheKey) o;
+
+        if (desc != null ? !desc.equals(that.desc) : that.desc != null) return false;
+        return Arrays.equals(key, that.key);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        int result = desc != null ? desc.hashCode() : 0;
+        result = 31 * result + (key != null ? Arrays.hashCode(key) : 0);
+        return result;
     }
 }
