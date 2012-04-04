@@ -438,8 +438,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
 
     this.comparator_type = "BytesType";
 
-    this.read_repair_chance = 1;
-
     this.caching = "keys_only";
 
     this.dclocal_read_repair_chance = 0;
@@ -581,8 +579,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
 
     this.subcomparator_type = null;
     this.comment = null;
-    this.read_repair_chance = 1;
-
+    setRead_repair_chanceIsSet(false);
+    this.read_repair_chance = 0.0;
     this.column_metadata = null;
     setGc_grace_secondsIsSet(false);
     this.gc_grace_seconds = 0;

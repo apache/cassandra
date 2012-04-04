@@ -8,6 +8,7 @@
  * Move CfDef and KsDef validation out of thrift (CASSANDRA-4037)
 
 1.1-dev
+ * fix read_repair_chance to really default to 0.1 in the cli (CASSANDRA-4114)
  * Adds caching and bloomFilterFpChange to CQL options (CASSANDRA-4042)
  * Adds posibility to autoconfigure size of the KeyCache (CASSANDRA-4087)
  * fix KEYS index from skipping results (CASSANDRA-3996)

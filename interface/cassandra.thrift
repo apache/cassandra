@@ -55,7 +55,7 @@ namespace rb CassandraThrift
 # An effort should be made not to break forward-client-compatibility either
 # (e.g. one should avoid removing obsolete fields from the IDL), but no
 # guarantees in this respect are made by the Cassandra project.
-const string VERSION = "19.29.0"
+const string VERSION = "19.30.0"
 
 
 #
@@ -408,7 +408,7 @@ struct CfDef {
     5: optional string comparator_type="BytesType",
     6: optional string subcomparator_type,
     8: optional string comment,
-    12: optional double read_repair_chance=1.0,
+    12: optional double read_repair_chance,
     13: optional list<ColumnDef> column_metadata,
     14: optional i32 gc_grace_seconds,
     15: optional string default_validation_class,
