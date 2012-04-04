@@ -38,7 +38,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.Pair;
 
@@ -236,9 +235,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                         writers.put(path, writer);
                     }
 
-                    ByteBuffer bytes = key.serializeForStorage();
-                    ByteBufferUtil.writeWithLength(bytes, writer.stream);
-                    bytesWritten += bytes.remaining();
+                    key.write(writer.stream);
+                    bytesWritten += key.serializedSize();
                 }
             }
             finally

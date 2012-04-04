@@ -17,7 +17,8 @@
  */
 package org.apache.cassandra.cache;
 
-import java.nio.ByteBuffer;
+import java.io.DataOutputStream;
+import java.io.IOException;
 
 import org.apache.cassandra.utils.Pair;
 
@@ -26,7 +27,7 @@ public interface CacheKey
     /**
      * @return Serialized part of the key which should be persisted
      */
-    public ByteBuffer serializeForStorage();
+    public void write(DataOutputStream out) throws IOException;
 
     /**
      * @return The size of the serialized key

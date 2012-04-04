@@ -310,6 +310,12 @@ public class ByteBufferUtil
         write(bytes, out); // writing data bytes to output source
     }
 
+    public static void writeWithLength(byte[] bytes, DataOutput out) throws IOException
+    {
+        out.writeInt(bytes.length);
+        out.write(bytes);
+    }
+
     public static void write(ByteBuffer buffer, DataOutput out) throws IOException
     {
         if (buffer.hasArray())
