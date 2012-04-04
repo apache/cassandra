@@ -28,8 +28,6 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
-import com.google.common.base.Objects;
-
 public class KeyCacheKey implements CacheKey
 {
     private final Descriptor desc;
@@ -54,7 +52,7 @@ public class KeyCacheKey implements CacheKey
 
     public int serializedSize()
     {
-        return key.length + DBConstants.intSize;
+        return key.length + DBConstants.INT_SIZE;
     }
 
     public String toString()
