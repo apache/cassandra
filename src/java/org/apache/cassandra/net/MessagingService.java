@@ -87,27 +87,27 @@ public final class MessagingService implements MessagingServiceMBean
     public enum Verb
     {
         MUTATION,
-        BINARY, // Deprecated
+        @Deprecated BINARY,
         READ_REPAIR,
         READ,
         REQUEST_RESPONSE, // client-initiated reads and writes
-        STREAM_INITIATE, // Deprecated
-        STREAM_INITIATE_DONE, // Deprecated
+        @Deprecated STREAM_INITIATE,
+        @Deprecated STREAM_INITIATE_DONE,
         STREAM_REPLY,
         STREAM_REQUEST,
         RANGE_SLICE,
         BOOTSTRAP_TOKEN,
         TREE_REQUEST,
         TREE_RESPONSE,
-        JOIN, // Deprecated
+        @Deprecated JOIN,
         GOSSIP_DIGEST_SYN,
         GOSSIP_DIGEST_ACK,
         GOSSIP_DIGEST_ACK2,
-        DEFINITIONS_ANNOUNCE, // Deprecated
+        @Deprecated DEFINITIONS_ANNOUNCE,
         DEFINITIONS_UPDATE,
         TRUNCATE,
         SCHEMA_CHECK,
-        INDEX_SCAN, // Deprecated
+        @Deprecated INDEX_SCAN,
         REPLICATION_FINISHED,
         INTERNAL_RESPONSE, // responses to internal calls
         COUNTER_MUTATION,

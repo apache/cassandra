@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.net;
 
 import java.net.InetAddress;
@@ -35,12 +34,16 @@ public class CallbackInfo
     protected final MessageOut<?> sentMessage;
     protected final IVersionedSerializer<?> serializer;
 
+    /**
+     * Create CallbackInfo without sent message
+     *
+     * @param target target to send message
+     * @param callback
+     * @param serializer serializer to deserialize response message
+     */
     public CallbackInfo(InetAddress target, IMessageCallback callback, IVersionedSerializer<?> serializer)
     {
-        this.target = target;
-        this.callback = callback;
-        this.serializer = serializer;
-        this.sentMessage = null;
+        this(target, callback, null, serializer);
     }
 
     public CallbackInfo(InetAddress target, IMessageCallback callback, MessageOut<?> sentMessage, IVersionedSerializer<?> serializer)
