@@ -625,13 +625,14 @@ public final class CFMetaData
             newCFMD.bloomFilterFpChance(cf_def.bloom_filter_fp_chance);
         if (cf_def.isSetCaching())
             newCFMD.caching(Caching.fromString(cf_def.caching));
+        if (cf_def.isSetRead_repair_chance())
+            newCFMD.readRepairChance(cf_def.read_repair_chance);
         if (cf_def.isSetDclocal_read_repair_chance())
             newCFMD.dcLocalReadRepairChance(cf_def.dclocal_read_repair_chance);
 
         CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
 
         return newCFMD.comment(cf_def.comment)
-                      .readRepairChance(cf_def.read_repair_chance)
                       .replicateOnWrite(cf_def.replicate_on_write)
                       .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
                       .keyValidator(TypeParser.parse(cf_def.key_validation_class))
