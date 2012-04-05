@@ -79,7 +79,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 {
     private static Logger logger_ = LoggerFactory.getLogger(StorageService.class);     
 
-    public static final int RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
+    public static final int RING_DELAY = getRingDelay(); // delay after which we assume ring has stablized
 
     /* All verb handler identifiers */
     public enum Verb
@@ -146,6 +146,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         put(Verb.UNUSED_3, Stage.INTERNAL_RESPONSE);
     }};
 
+    private static int getRingDelay()
+    {
+        String newdelay = System.getProperty("cassandra.ring_delay_ms");
+        if (newdelay != null)
+        {
+            logger_.warn("Overriding RING_DELAY to {}ms", newdelay);
+            return Integer.parseInt(newdelay);
+        }
+        else
+            return 30 * 1000;
+    }
 
     /**
      * This pool is used for periodic short (sub-second) tasks.
