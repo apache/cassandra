@@ -65,6 +65,11 @@ public class OutboundTcpConnectionPool
             con.closeSocket();
     }
 
+    /**
+     * reconnect to @param remoteEP (after the current message backlog is exhausted).
+     * Used by Ec2MultiRegionSnitch to force nodes in the same region to communicate over their private IPs.
+     * @param remoteEP
+     */
     public void reset(InetAddress remoteEP)
     {
         resetedEndpoint = remoteEP;

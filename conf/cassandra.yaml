@@ -397,20 +397,50 @@ rpc_timeout_in_ms: 10000
 # phi_convict_threshold: 8
 
 # endpoint_snitch -- Set this to a class that implements
-# IEndpointSnitch, which will let Cassandra know enough
-# about your network topology to route requests efficiently.
+# IEndpointSnitch.  The snitch has two functions:
+# - it teaches Cassandra enough about your network topology to route
+#   requests efficiently
+# - it allows Cassandra to spread replicas around your cluster to avoid
+#   correlated failures. It does this by grouping machines into
+#   "datacenters" and "racks."  Cassandra will do its best not to have
+#   more than one replica on the same "rack" (which may not actually
+#   be a physical location)
+#
+# IF YOU CHANGE THE SNITCH AFTER DATA IS INSERTED INTO THE CLUSTER,
+# YOU MUST RUN A FULL REPAIR, SINCE THE SNITCH AFFECTS WHERE REPLICAS
+# ARE PLACED.
+#
 # Out of the box, Cassandra provides
-#  - org.apache.cassandra.locator.SimpleSnitch:
+#  - SimpleSnitch:
 #    Treats Strategy order as proximity. This improves cache locality
 #    when disabling read repair, which can further improve throughput.
-#  - org.apache.cassandra.locator.RackInferringSnitch:
+#    Only appropriate for single-datacenter deployments.
+#  - PropertyFileSnitch:
+#    Proximity is determined by rack and data center, which are
+#    explicitly configured in cassandra-topology.properties.
+#  - RackInferringSnitch:
 #    Proximity is determined by rack and data center, which are
 #    assumed to correspond to the 3rd and 2nd octet of each node's
-#    IP address, respectively
-# org.apache.cassandra.locator.PropertyFileSnitch:
-#  - Proximity is determined by rack and data center, which are
-#    explicitly configured in cassandra-topology.properties.
-endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
+#    IP address, respectively.  Unless this happens to match your
+#    deployment conventions (as it did Facebook's), this is best used
+#    as an example of writing a custom Snitch class.
+#  - Ec2Snitch:
+#    Appropriate for EC2 deployments in a single Region.  Loads Region
+#    and Availability Zone information from the EC2 API. The Region is
+#    treated as the Datacenter, and the Availability Zone as the rack.
+#    Only private IPs are used, so this will not work across multiple
+#    Regions.
+#  - Ec2MultiRegionSnitch:
+#    Uses public IPs as broadcast_address to allow cross-region
+#    connectivity.  (Thus, you should set seed addresses to the public
+#    IP as well.) You will need to open the storage_port or
+#    ssl_storage_port on the public IP firewall.  (For intra-Region
+#    traffic, Cassandra will switch to the private IP after
+#    establishing a connection.)
+#
+# You can use a custom Snitch by setting this to the full class name
+# of the snitch, which will be assumed to be on your classpath.
+endpoint_snitch: SimpleSnitch
 
 # controls how often to perform the more expensive part of host score
 # calculation

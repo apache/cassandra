@@ -124,7 +124,7 @@ public class CliCompiler
 
     public static String getKeySpace(Tree statement, List<KsDef> keyspaces)
     {
-        return getKeySpace(statement.getChild(0).getText(), keyspaces);
+        return getKeySpace(CliUtils.unescapeSQLString(statement.getChild(0).getText()), keyspaces);
     }
 
     public static String getKeySpace(String ksName, List<KsDef> keyspaces)

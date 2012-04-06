@@ -987,7 +987,7 @@ public class CliClient
             return;
 
         // first value is the keyspace name, after that it is all key=value
-        String keyspaceName = statement.getChild(0).getText();
+        String keyspaceName = CliUtils.unescapeSQLString(statement.getChild(0).getText());
         KsDef ksDef = new KsDef(keyspaceName, DEFAULT_PLACEMENT_STRATEGY, new LinkedList<CfDef>());
 
         try
