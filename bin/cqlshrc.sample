@@ -29,4 +29,7 @@ completekey = tab
 hostname = 127.0.0.1
 port = 9160
 
+[cql]
+version = 2.0
+
 ; vim: set ft=dosini :
