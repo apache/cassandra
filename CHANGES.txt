@@ -1,5 +1,6 @@
 1.0.10
  * cqlsh: guess correct version of Python for Arch Linux (CASSANDRA-4090)
+ * (CLI) properly handle quotes in create/update keyspace commands (CASSANDRA-4129)
 
 
 1.0.9
