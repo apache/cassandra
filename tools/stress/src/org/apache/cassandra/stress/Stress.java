@@ -88,7 +88,7 @@ public final class Stress
         }
         else
         {
-            new StressAction(session, outStream).run();
+            new StressAction(session, outStream).start();
         }
     }
 

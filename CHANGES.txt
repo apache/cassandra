@@ -9,6 +9,8 @@
    (CASSANDRA-4088)
  * relax path length requirement for sstable files when upgrading on 
    non-Windows platforms (CASSANDRA-4110)
+ * fix terminination of the stress.java when errors were encountered
+   (CASSANDRA-4128)
 
 
 1.1-beta2
