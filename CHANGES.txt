@@ -1,4 +1,5 @@
 1.0.10
+ * allow short snitch names (CASSANDRA-4130)
  * cqlsh: guess correct version of Python for Arch Linux (CASSANDRA-4090)
  * (CLI) properly handle quotes in create/update keyspace commands (CASSANDRA-4129)
 
