@@ -248,7 +248,10 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         for (Map.Entry<InetAddress, BoundedStatsDeque> entry: windows.entrySet())
         {
             double score = entry.getValue().mean() / maxLatency;
-            score += penalties.get(entry.getKey()) / maxPenalty;
+            if (penalties.containsKey(entry.getKey()))
+                score += penalties.get(entry.getKey()) / maxPenalty;
+            else
+                score += 1; // maxPenalty / maxPenalty
             score += StorageService.instance.getSeverity(entry.getKey());
             scores.put(entry.getKey(), score);            
         }
