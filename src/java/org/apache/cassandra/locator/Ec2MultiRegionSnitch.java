@@ -66,40 +66,34 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch implements IEndpointStateCha
         DatabaseDescriptor.setBroadcastAddress(public_ip);
     }
 
-    @Override
     public void onJoin(InetAddress endpoint, EndpointState epState)
     {
         if (epState.getApplicationState(ApplicationState.INTERNAL_IP) != null)
             reConnect(endpoint, epState.getApplicationState(ApplicationState.INTERNAL_IP));
     }
 
-    @Override
     public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
     {
         if (state == ApplicationState.INTERNAL_IP)
             reConnect(endpoint, value);
     }
 
-    @Override
     public void onAlive(InetAddress endpoint, EndpointState state)
     {
         if (state.getApplicationState(ApplicationState.INTERNAL_IP) != null)
             reConnect(endpoint, state.getApplicationState(ApplicationState.INTERNAL_IP));
     }
 
-    @Override
     public void onDead(InetAddress endpoint, EndpointState state)
     {
         // do nothing
     }
 
-    @Override
     public void onRestart(InetAddress endpoint, EndpointState state)
     {
         // do nothing
     }
 
-    @Override
     public void onRemove(InetAddress endpoint)
     {
         // do nothing.
@@ -121,6 +115,7 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch implements IEndpointStateCha
         }
     }
 
+    @Override
     public void gossiperStarting()
     {
         super.gossiperStarting();
