@@ -137,6 +137,9 @@ public class StressAction extends Thread
             }
         }
 
+        if (producer.isAlive())
+            producer.interrupt(); // if producer is still alive it means that we had errors in the consumers
+
         // marking an end of the output to the client
         output.println("END");
     }
@@ -161,7 +164,8 @@ public class StressAction extends Thread
                 }
                 catch (InterruptedException e)
                 {
-                    System.err.println("Producer error - " + e.getMessage());
+                    if (e.getMessage() != null)
+                        System.err.println("Producer error - " + e.getMessage());
                     return;
                 }
             }
