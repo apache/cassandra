@@ -39,7 +39,7 @@ public class BoundedStatsDequeTest
         //check the values for an empty result
         assertEquals(0, bsd.size());
         assertEquals(0, bsd.sum(), 0.001d);
-        assertEquals(0, bsd.mean(), 0.001d)
+        assertEquals(0, bsd.mean(), 0.001d);
 
         bsd.add(1d); //this one falls out, over limit
         bsd.add(2d);
