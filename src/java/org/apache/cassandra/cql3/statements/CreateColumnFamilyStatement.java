@@ -66,12 +66,13 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     private Map<ByteBuffer, ColumnDefinition> getColumns() throws InvalidRequestException
     {
         Map<ByteBuffer, ColumnDefinition> columnDefs = new HashMap<ByteBuffer, ColumnDefinition>();
+        Integer componentIndex = comparator instanceof CompositeType ? ((CompositeType)comparator).types.size() - 1 : null;
 
         for (Map.Entry<ColumnIdentifier, String> col : columns.entrySet())
         {
             AbstractType<?> validator = CFPropDefs.parseType(col.getValue());
 
-            columnDefs.put(col.getKey().key, new ColumnDefinition(col.getKey().key, validator, null, null, null));
+            columnDefs.put(col.getKey().key, new ColumnDefinition(col.getKey().key, validator, null, null, null, componentIndex));
         }
 
         return columnDefs;

@@ -199,7 +199,7 @@ public class Avro
         try
         {
             AbstractType<?> validatorType = TypeParser.parse(cd.validation_class);
-            return new ColumnDefinition(ByteBufferUtil.clone(cd.name), validatorType, index_type, ColumnDefinition.getStringMap(cd.index_options), index_name);
+            return new ColumnDefinition(ByteBufferUtil.clone(cd.name), validatorType, index_type, ColumnDefinition.getStringMap(cd.index_options), index_name, null);
         }
         catch (ConfigurationException e)
         {

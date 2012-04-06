@@ -66,8 +66,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField COMPRESSION_OPTIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("compression_options", org.apache.thrift.protocol.TType.MAP, (short)32);
   private static final org.apache.thrift.protocol.TField BLOOM_FILTER_FP_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("bloom_filter_fp_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)33);
   private static final org.apache.thrift.protocol.TField CACHING_FIELD_DESC = new org.apache.thrift.protocol.TField("caching", org.apache.thrift.protocol.TType.STRING, (short)34);
-  private static final org.apache.thrift.protocol.TField COLUMN_ALIASES_FIELD_DESC = new org.apache.thrift.protocol.TField("column_aliases", org.apache.thrift.protocol.TType.LIST, (short)35);
-  private static final org.apache.thrift.protocol.TField VALUE_ALIAS_FIELD_DESC = new org.apache.thrift.protocol.TField("value_alias", org.apache.thrift.protocol.TType.STRING, (short)36);
   private static final org.apache.thrift.protocol.TField DCLOCAL_READ_REPAIR_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("dclocal_read_repair_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)37);
   private static final org.apache.thrift.protocol.TField ROW_CACHE_SIZE_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_size", org.apache.thrift.protocol.TType.DOUBLE, (short)9);
   private static final org.apache.thrift.protocol.TField KEY_CACHE_SIZE_FIELD_DESC = new org.apache.thrift.protocol.TField("key_cache_size", org.apache.thrift.protocol.TType.DOUBLE, (short)11);
@@ -101,8 +99,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   public Map<String,String> compression_options; // required
   public double bloom_filter_fp_chance; // required
   public String caching; // required
-  public List<ByteBuffer> column_aliases; // required
-  public ByteBuffer value_alias; // required
   public double dclocal_read_repair_chance; // required
   /**
    * @deprecated
@@ -168,8 +164,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     COMPRESSION_OPTIONS((short)32, "compression_options"),
     BLOOM_FILTER_FP_CHANCE((short)33, "bloom_filter_fp_chance"),
     CACHING((short)34, "caching"),
-    COLUMN_ALIASES((short)35, "column_aliases"),
-    VALUE_ALIAS((short)36, "value_alias"),
     DCLOCAL_READ_REPAIR_CHANCE((short)37, "dclocal_read_repair_chance"),
     /**
      * @deprecated
@@ -267,10 +261,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return BLOOM_FILTER_FP_CHANCE;
         case 34: // CACHING
           return CACHING;
-        case 35: // COLUMN_ALIASES
-          return COLUMN_ALIASES;
-        case 36: // VALUE_ALIAS
-          return VALUE_ALIAS;
         case 37: // DCLOCAL_READ_REPAIR_CHANCE
           return DCLOCAL_READ_REPAIR_CHANCE;
         case 9: // ROW_CACHE_SIZE
@@ -402,11 +392,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
     tmpMap.put(_Fields.CACHING, new org.apache.thrift.meta_data.FieldMetaData("caching", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-    tmpMap.put(_Fields.COLUMN_ALIASES, new org.apache.thrift.meta_data.FieldMetaData("column_aliases", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
-        new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
-            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING            , true))));
-    tmpMap.put(_Fields.VALUE_ALIAS, new org.apache.thrift.meta_data.FieldMetaData("value_alias", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
     tmpMap.put(_Fields.DCLOCAL_READ_REPAIR_CHANCE, new org.apache.thrift.meta_data.FieldMetaData("dclocal_read_repair_chance", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
     tmpMap.put(_Fields.ROW_CACHE_SIZE, new org.apache.thrift.meta_data.FieldMetaData("row_cache_size", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
@@ -537,19 +522,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     if (other.isSetCaching()) {
       this.caching = other.caching;
     }
-    if (other.isSetColumn_aliases()) {
-      List<ByteBuffer> __this__column_aliases = new ArrayList<ByteBuffer>();
-      for (ByteBuffer other_element : other.column_aliases) {
-        ByteBuffer temp_binary_element = org.apache.thrift.TBaseHelper.copyBinary(other_element);
-;
-        __this__column_aliases.add(temp_binary_element);
-      }
-      this.column_aliases = __this__column_aliases;
-    }
-    if (other.isSetValue_alias()) {
-      this.value_alias = org.apache.thrift.TBaseHelper.copyBinary(other.value_alias);
-;
-    }
     this.dclocal_read_repair_chance = other.dclocal_read_repair_chance;
     this.row_cache_size = other.row_cache_size;
     this.key_cache_size = other.key_cache_size;
@@ -602,8 +574,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.bloom_filter_fp_chance = 0.0;
     this.caching = "keys_only";
 
-    this.column_aliases = null;
-    this.value_alias = null;
     this.dclocal_read_repair_chance = 0;
 
     setRow_cache_sizeIsSet(false);
@@ -1171,79 +1141,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
   }
 
-  public int getColumn_aliasesSize() {
-    return (this.column_aliases == null) ? 0 : this.column_aliases.size();
-  }
-
-  public java.util.Iterator<ByteBuffer> getColumn_aliasesIterator() {
-    return (this.column_aliases == null) ? null : this.column_aliases.iterator();
-  }
-
-  public void addToColumn_aliases(ByteBuffer elem) {
-    if (this.column_aliases == null) {
-      this.column_aliases = new ArrayList<ByteBuffer>();
-    }
-    this.column_aliases.add(elem);
-  }
-
-  public List<ByteBuffer> getColumn_aliases() {
-    return this.column_aliases;
-  }
-
-  public CfDef setColumn_aliases(List<ByteBuffer> column_aliases) {
-    this.column_aliases = column_aliases;
-    return this;
-  }
-
-  public void unsetColumn_aliases() {
-    this.column_aliases = null;
-  }
-
-  /** Returns true if field column_aliases is set (has been assigned a value) and false otherwise */
-  public boolean isSetColumn_aliases() {
-    return this.column_aliases != null;
-  }
-
-  public void setColumn_aliasesIsSet(boolean value) {
-    if (!value) {
-      this.column_aliases = null;
-    }
-  }
-
-  public byte[] getValue_alias() {
-    setValue_alias(org.apache.thrift.TBaseHelper.rightSize(value_alias));
-    return value_alias == null ? null : value_alias.array();
-  }
-
-  public ByteBuffer bufferForValue_alias() {
-    return value_alias;
-  }
-
-  public CfDef setValue_alias(byte[] value_alias) {
-    setValue_alias(value_alias == null ? (ByteBuffer)null : ByteBuffer.wrap(value_alias));
-    return this;
-  }
-
-  public CfDef setValue_alias(ByteBuffer value_alias) {
-    this.value_alias = value_alias;
-    return this;
-  }
-
-  public void unsetValue_alias() {
-    this.value_alias = null;
-  }
-
-  /** Returns true if field value_alias is set (has been assigned a value) and false otherwise */
-  public boolean isSetValue_alias() {
-    return this.value_alias != null;
-  }
-
-  public void setValue_aliasIsSet(boolean value) {
-    if (!value) {
-      this.value_alias = null;
-    }
-  }
-
   public double getDclocal_read_repair_chance() {
     return this.dclocal_read_repair_chance;
   }
@@ -1728,22 +1625,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       break;
 
-    case COLUMN_ALIASES:
-      if (value == null) {
-        unsetColumn_aliases();
-      } else {
-        setColumn_aliases((List<ByteBuffer>)value);
-      }
-      break;
-
-    case VALUE_ALIAS:
-      if (value == null) {
-        unsetValue_alias();
-      } else {
-        setValue_alias((ByteBuffer)value);
-      }
-      break;
-
     case DCLOCAL_READ_REPAIR_CHANCE:
       if (value == null) {
         unsetDclocal_read_repair_chance();
@@ -1900,12 +1781,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     case CACHING:
       return getCaching();
 
-    case COLUMN_ALIASES:
-      return getColumn_aliases();
-
-    case VALUE_ALIAS:
-      return getValue_alias();
-
     case DCLOCAL_READ_REPAIR_CHANCE:
       return Double.valueOf(getDclocal_read_repair_chance());
 
@@ -1992,10 +1867,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetBloom_filter_fp_chance();
     case CACHING:
       return isSetCaching();
-    case COLUMN_ALIASES:
-      return isSetColumn_aliases();
-    case VALUE_ALIAS:
-      return isSetValue_alias();
     case DCLOCAL_READ_REPAIR_CHANCE:
       return isSetDclocal_read_repair_chance();
     case ROW_CACHE_SIZE:
@@ -2224,24 +2095,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return false;
     }
 
-    boolean this_present_column_aliases = true && this.isSetColumn_aliases();
-    boolean that_present_column_aliases = true && that.isSetColumn_aliases();
-    if (this_present_column_aliases || that_present_column_aliases) {
-      if (!(this_present_column_aliases && that_present_column_aliases))
-        return false;
-      if (!this.column_aliases.equals(that.column_aliases))
-        return false;
-    }
-
-    boolean this_present_value_alias = true && this.isSetValue_alias();
-    boolean that_present_value_alias = true && that.isSetValue_alias();
-    if (this_present_value_alias || that_present_value_alias) {
-      if (!(this_present_value_alias && that_present_value_alias))
-        return false;
-      if (!this.value_alias.equals(that.value_alias))
-        return false;
-    }
-
     boolean this_present_dclocal_read_repair_chance = true && this.isSetDclocal_read_repair_chance();
     boolean that_present_dclocal_read_repair_chance = true && that.isSetDclocal_read_repair_chance();
     if (this_present_dclocal_read_repair_chance || that_present_dclocal_read_repair_chance) {
@@ -2452,16 +2305,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     builder.append(present_caching);
     if (present_caching)
       builder.append(caching);
-
-    boolean present_column_aliases = true && (isSetColumn_aliases());
-    builder.append(present_column_aliases);
-    if (present_column_aliases)
-      builder.append(column_aliases);
-
-    boolean present_value_alias = true && (isSetValue_alias());
-    builder.append(present_value_alias);
-    if (present_value_alias)
-      builder.append(value_alias);
 
     boolean present_dclocal_read_repair_chance = true && (isSetDclocal_read_repair_chance());
     builder.append(present_dclocal_read_repair_chance);
@@ -2735,26 +2578,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
     if (isSetCaching()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.caching, typedOther.caching);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = Boolean.valueOf(isSetColumn_aliases()).compareTo(typedOther.isSetColumn_aliases());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetColumn_aliases()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.column_aliases, typedOther.column_aliases);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = Boolean.valueOf(isSetValue_alias()).compareTo(typedOther.isSetValue_alias());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetValue_alias()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.value_alias, typedOther.value_alias);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -3075,30 +2898,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 35: // COLUMN_ALIASES
-          if (field.type == org.apache.thrift.protocol.TType.LIST) {
-            {
-              org.apache.thrift.protocol.TList _list57 = iprot.readListBegin();
-              this.column_aliases = new ArrayList<ByteBuffer>(_list57.size);
-              for (int _i58 = 0; _i58 < _list57.size; ++_i58)
-              {
-                ByteBuffer _elem59; // required
-                _elem59 = iprot.readBinary();
-                this.column_aliases.add(_elem59);
-              }
-              iprot.readListEnd();
-            }
-          } else { 
-            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        case 36: // VALUE_ALIAS
-          if (field.type == org.apache.thrift.protocol.TType.STRING) {
-            this.value_alias = iprot.readBinary();
-          } else { 
-            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
         case 37: // DCLOCAL_READ_REPAIR_CHANCE
           if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
             this.dclocal_read_repair_chance = iprot.readDouble();
@@ -3259,9 +3058,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         oprot.writeFieldBegin(COLUMN_METADATA_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.column_metadata.size()));
-          for (ColumnDef _iter60 : this.column_metadata)
+          for (ColumnDef _iter57 : this.column_metadata)
           {
-            _iter60.write(oprot);
+            _iter57.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -3363,10 +3162,10 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         oprot.writeFieldBegin(COMPACTION_STRATEGY_OPTIONS_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, this.compaction_strategy_options.size()));
-          for (Map.Entry<String, String> _iter61 : this.compaction_strategy_options.entrySet())
+          for (Map.Entry<String, String> _iter58 : this.compaction_strategy_options.entrySet())
           {
-            oprot.writeString(_iter61.getKey());
-            oprot.writeString(_iter61.getValue());
+            oprot.writeString(_iter58.getKey());
+            oprot.writeString(_iter58.getValue());
           }
           oprot.writeMapEnd();
         }
@@ -3383,10 +3182,10 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         oprot.writeFieldBegin(COMPRESSION_OPTIONS_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, this.compression_options.size()));
-          for (Map.Entry<String, String> _iter62 : this.compression_options.entrySet())
+          for (Map.Entry<String, String> _iter59 : this.compression_options.entrySet())
           {
-            oprot.writeString(_iter62.getKey());
-            oprot.writeString(_iter62.getValue());
+            oprot.writeString(_iter59.getKey());
+            oprot.writeString(_iter59.getValue());
           }
           oprot.writeMapEnd();
         }
@@ -3402,27 +3201,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (isSetCaching()) {
         oprot.writeFieldBegin(CACHING_FIELD_DESC);
         oprot.writeString(this.caching);
-        oprot.writeFieldEnd();
-      }
-    }
-    if (this.column_aliases != null) {
-      if (isSetColumn_aliases()) {
-        oprot.writeFieldBegin(COLUMN_ALIASES_FIELD_DESC);
-        {
-          oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.column_aliases.size()));
-          for (ByteBuffer _iter63 : this.column_aliases)
-          {
-            oprot.writeBinary(_iter63);
-          }
-          oprot.writeListEnd();
-        }
-        oprot.writeFieldEnd();
-      }
-    }
-    if (this.value_alias != null) {
-      if (isSetValue_alias()) {
-        oprot.writeFieldBegin(VALUE_ALIAS_FIELD_DESC);
-        oprot.writeBinary(this.value_alias);
         oprot.writeFieldEnd();
       }
     }
@@ -3614,26 +3392,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         sb.append("null");
       } else {
         sb.append(this.caching);
-      }
-      first = false;
-    }
-    if (isSetColumn_aliases()) {
-      if (!first) sb.append(", ");
-      sb.append("column_aliases:");
-      if (this.column_aliases == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.column_aliases);
-      }
-      first = false;
-    }
-    if (isSetValue_alias()) {
-      if (!first) sb.append(", ");
-      sb.append("value_alias:");
-      if (this.value_alias == null) {
-        sb.append("null");
-      } else {
-        org.apache.thrift.TBaseHelper.toString(this.value_alias, sb);
       }
       first = false;
     }
