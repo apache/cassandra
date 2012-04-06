@@ -88,6 +88,7 @@ public class AlterTableStatement
                                                              TypeParser.parse(validator),
                                                              null,
                                                              null,
+                                                             null,
                                                              null));
                 break;
 

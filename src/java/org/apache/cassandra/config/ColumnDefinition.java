@@ -48,39 +48,51 @@ public class ColumnDefinition
     private Map<String,String> index_options;
     private String index_name;
 
-    public ColumnDefinition(ByteBuffer name, AbstractType<?> validator, IndexType index_type, Map<String, String> index_options, String index_name)
+    /*
+     * If the column comparator is a composite type, indicates to which
+     * component this definition refers to. If null, the definition refers to
+     * the full column name.
+     */
+    public final Integer componentIndex;
+
+    public ColumnDefinition(ByteBuffer name, AbstractType<?> validator, IndexType index_type, Map<String, String> index_options, String index_name, Integer componentIndex)
     {
         assert name != null && validator != null;
         this.name = name;
         this.index_name = index_name;
         this.validator = validator;
-
+        this.componentIndex = componentIndex;
         this.setIndexType(index_type, index_options);
     }
 
-    public static ColumnDefinition ascii(String name)
+    public static ColumnDefinition ascii(String name, Integer cidx)
     {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), AsciiType.instance, null, null, null);
+        return new ColumnDefinition(ByteBufferUtil.bytes(name), AsciiType.instance, null, null, null, cidx);
     }
 
-    public static ColumnDefinition bool(String name)
+    public static ColumnDefinition bool(String name, Integer cidx)
     {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), BooleanType.instance, null, null, null);
+        return new ColumnDefinition(ByteBufferUtil.bytes(name), BooleanType.instance, null, null, null, cidx);
     }
 
-    public static ColumnDefinition utf8(String name)
+    public static ColumnDefinition utf8(String name, Integer cidx)
     {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), UTF8Type.instance, null, null, null);
+        return new ColumnDefinition(ByteBufferUtil.bytes(name), UTF8Type.instance, null, null, null, cidx);
     }
 
-    public static ColumnDefinition int32(String name)
+    public static ColumnDefinition int32(String name, Integer cidx)
     {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), Int32Type.instance, null, null, null);
+        return new ColumnDefinition(ByteBufferUtil.bytes(name), Int32Type.instance, null, null, null, cidx);
     }
 
-    public static ColumnDefinition double_(String name)
+    public static ColumnDefinition double_(String name, Integer cidx)
     {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), DoubleType.instance, null, null, null);
+        return new ColumnDefinition(ByteBufferUtil.bytes(name), DoubleType.instance, null, null, null, cidx);
+    }
+
+    public ColumnDefinition clone()
+    {
+        return new ColumnDefinition(name, validator, index_type, index_options, index_name, componentIndex);
     }
 
     @Override
@@ -100,6 +112,8 @@ public class ColumnDefinition
             return false;
         if (!name.equals(that.name))
             return false;
+        if (componentIndex != null ? !componentIndex.equals(that.componentIndex) : that.componentIndex != null)
+            return false;
         return !(validator != null ? !validator.equals(that.validator) : that.validator != null);
     }
 
@@ -111,6 +125,7 @@ public class ColumnDefinition
         result = 31 * result + (index_type != null ? index_type.hashCode() : 0);
         result = 31 * result + (index_options != null ? index_options.hashCode() : 0);
         result = 31 * result + (index_name != null ? index_name.hashCode() : 0);
+        result = 31 * result + (componentIndex != null ? componentIndex.hashCode() : 0);
         return result;
     }
 
@@ -136,7 +151,8 @@ public class ColumnDefinition
                                     TypeParser.parse(thriftColumnDef.validation_class),
                                     thriftColumnDef.index_type,
                                     thriftColumnDef.index_options,
-                                    thriftColumnDef.index_name);
+                                    thriftColumnDef.index_name,
+                                    null);
     }
 
     public static Map<ByteBuffer, ColumnDefinition> fromThrift(List<ColumnDef> thriftDefs) throws ConfigurationException
@@ -181,6 +197,8 @@ public class ColumnDefinition
                                            : Column.create(json(index_options), timestamp, cfName, comparator.getString(name), "index_options"));
         cf.addColumn(index_name == null ? DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "index_name")
                                         : Column.create(index_name, timestamp, cfName, comparator.getString(name), "index_name"));
+        cf.addColumn(componentIndex == null ? DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "component_index")
+                                            : Column.create(componentIndex, timestamp, cfName, comparator.getString(name), "component_index"));
     }
 
     public void apply(ColumnDefinition def, AbstractType<?> comparator)  throws ConfigurationException
@@ -196,6 +214,10 @@ public class ColumnDefinition
                 throw new ConfigurationException("Cannot modify index name");
         }
 
+        if ((componentIndex != null && !componentIndex.equals(def.componentIndex))
+         || (componentIndex == null && def.componentIndex != null))
+            throw new ConfigurationException(String.format("Cannot modify component index for column %s", comparator.getString(name)));
+
         setValidator(def.getValidator());
         setIndexType(def.getIndexType(), def.getIndexOptions());
         setIndexName(def.getIndexName());
@@ -207,7 +229,7 @@ public class ColumnDefinition
      * @return Thrift-based deserialized representation of the column
      * @param row
      */
-    public static List<ColumnDefinition> fromSchema(Row row, AbstractType<?> comparator)
+    public static List<ColumnDefinition> fromSchema(Row row, CFMetaData cfm)
     {
         if (row.cf == null)
             return Collections.emptyList();
@@ -220,6 +242,7 @@ public class ColumnDefinition
                 IndexType index_type = null;
                 Map<String,String> index_options = null;
                 String index_name = null;
+                Integer componentIndex = null;
 
                 if (result.has("index_type"))
                     index_type = IndexType.valueOf(result.getString("index_type"));
@@ -227,12 +250,15 @@ public class ColumnDefinition
                     index_options = FBUtilities.fromJsonMap(result.getString("index_options"));
                 if (result.has("index_name"))
                     index_name = result.getString("index_name");
+                if (result.has("component_index"))
+                    componentIndex = result.getInt("component_index");
 
-                cds.add(new ColumnDefinition(comparator.fromString(result.getString("column")),
+                cds.add(new ColumnDefinition(cfm.getColumnDefinitionComparator(componentIndex).fromString(result.getString("column")),
                                              TypeParser.parse(result.getString("validator")),
                                              index_type,
                                              index_options,
-                                             index_name));
+                                             index_name,
+                                             componentIndex));
             }
             catch (ConfigurationException e)
             {
@@ -264,6 +290,7 @@ public class ColumnDefinition
                ", validator=" + validator +
                ", index_type=" + index_type +
                ", index_name='" + index_name + '\'' +
+               (componentIndex != null ? ", component_index=" + componentIndex : "") +
                '}';
     }
 

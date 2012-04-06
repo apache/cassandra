@@ -124,7 +124,7 @@ public class ThriftValidationTest extends SchemaLoader
         assert !gotException : "got unexpected ConfigurationException";
 
         // add a column with name = "id"
-        newMetadata.addColumnDefinition(ColumnDefinition.utf8("id"));
+        newMetadata.addColumnDefinition(ColumnDefinition.utf8("id", null));
 
         gotException = false;
 

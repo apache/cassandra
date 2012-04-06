@@ -24,6 +24,7 @@ import java.util.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
@@ -78,7 +79,8 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                                              CFPropDefs.parseType(validator),
                                                              null,
                                                              null,
-                                                             null));
+                                                             null,
+                                                             cfDef.isComposite ? ((CompositeType)meta.comparator).types.size() - 1 : null));
                 break;
 
             case ALTER:
