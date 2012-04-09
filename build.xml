@@ -332,7 +332,7 @@
           <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" version="1.6.1"/>
           <dependency groupId="org.codehaus.jackson" artifactId="jackson-core-asl" version="1.4.0"/>
           <dependency groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl" version="1.4.0"/>
-          <dependency groupId="jline" artifactId="jline" version="0.9.94">
+          <dependency groupId="jline" artifactId="jline" version="1.0">
             <exclusion groupId="junit" artifactId="junit"/>
           </dependency>
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
