@@ -91,11 +91,6 @@ public class ColumnDefinition
         return new ColumnDefinition(name, validator, index_type, index_options, index_name, componentIndex);
     }
 
-    public ColumnDefinition clone()
-    {
-        return new ColumnDefinition(name, validator, index_type, index_options, index_name);
-    }
-
     @Override
     public boolean equals(Object o)
     {
