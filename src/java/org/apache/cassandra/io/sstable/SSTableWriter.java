@@ -175,8 +175,8 @@ public class SSTableWriter extends SSTable
         ColumnIndex index = new ColumnIndex.Builder(cf.getComparator(), decoratedKey.key, cf.getColumnCount()).build(cf);
 
         // write out row size + data
-        dataFile.stream.writeLong(ColumnFamily.serializer().serializedSizeForSSTable(cf, typeSizes));
-        ColumnFamily.serializer().serializeForSSTable(cf, dataFile.stream);
+        dataFile.stream.writeLong(ColumnFamily.serializer.serializedSizeForSSTable(cf, typeSizes));
+        ColumnFamily.serializer.serializeForSSTable(cf, dataFile.stream);
 
         afterAppend(decoratedKey, startPosition, cf.deletionInfo(), index);
 

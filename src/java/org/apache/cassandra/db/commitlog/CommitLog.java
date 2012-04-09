@@ -200,7 +200,7 @@ public class CommitLog implements CommitLogMBean
      */
     public void add(RowMutation rm) throws IOException
     {
-        long totalSize = RowMutation.serializer().serializedSize(rm, MessagingService.current_version) + CommitLogSegment.ENTRY_OVERHEAD_SIZE;
+        long totalSize = RowMutation.serializer.serializedSize(rm, MessagingService.current_version) + CommitLogSegment.ENTRY_OVERHEAD_SIZE;
         if (totalSize > DatabaseDescriptor.getCommitLogSegmentSize())
         {
             logger.warn("Skipping commitlog append of extremely large mutation ({} bytes)", totalSize);

@@ -17,13 +17,11 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
@@ -50,7 +48,7 @@ public class ReadVerbHandler implements IVerbHandler<ReadCommand>
 
             MessageOut<ReadResponse> reply = new MessageOut<ReadResponse>(MessagingService.Verb.REQUEST_RESPONSE,
                                                                           getResponse(command, row),
-                                                                          ReadResponse.serializer());
+                                                                          ReadResponse.serializer);
             if (logger.isDebugEnabled())
                 logger.debug(String.format("Read key %s; sending response to %s@%s",
                                             ByteBufferUtil.bytesToHex(command.key), id, message.from));

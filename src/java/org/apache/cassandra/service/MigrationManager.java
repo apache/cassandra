@@ -311,7 +311,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         {
             out.writeInt(schema.size());
             for (RowMutation rm : schema)
-                RowMutation.serializer().serialize(rm, out, version);
+                RowMutation.serializer.serialize(rm, out, version);
         }
 
         public Collection<RowMutation> deserialize(DataInput in, int version) throws IOException
@@ -320,7 +320,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
             Collection<RowMutation> schema = new ArrayList<RowMutation>(count);
 
             for (int i = 0; i < count; i++)
-                schema.add(RowMutation.serializer().deserialize(in, version));
+                schema.add(RowMutation.serializer.deserialize(in, version));
 
             return schema;
         }
@@ -329,7 +329,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         {
             int size = DBTypeSizes.NATIVE.sizeof(schema.size());
             for (RowMutation rm : schema)
-                size += RowMutation.serializer().serializedSize(rm, version);
+                size += RowMutation.serializer.serializedSize(rm, version);
             return size;
         }
     }

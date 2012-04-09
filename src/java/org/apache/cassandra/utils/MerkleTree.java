@@ -695,7 +695,7 @@ public class MerkleTree implements Serializable
                     dos.writeInt(inner.hash.length);
                     dos.write(inner.hash);
                 }
-                Token.serializer().serialize(inner.token, dos);
+                Token.serializer.serialize(inner.token, dos);
                 Hashable.serializer.serialize(inner.lchild, dos, version);
                 Hashable.serializer.serialize(inner.rchild, dos, version);
             }
@@ -706,7 +706,7 @@ public class MerkleTree implements Serializable
                 byte[] hash = hashLen >= 0 ? new byte[hashLen] : null;
                 if (hash != null)
                     dis.readFully(hash);
-                Token token = Token.serializer().deserialize(dis);
+                Token token = Token.serializer.deserialize(dis);
                 Hashable lchild = Hashable.serializer.deserialize(dis, version);
                 Hashable rchild = Hashable.serializer.deserialize(dis, version);
                 return new Inner(token, lchild, rchild);
@@ -718,7 +718,7 @@ public class MerkleTree implements Serializable
                          ? DBTypeSizes.NATIVE.sizeof(-1)
                          : DBTypeSizes.NATIVE.sizeof(inner.hash().length) + inner.hash().length;
 
-                size += Token.serializer().serializedSize(inner.token, DBTypeSizes.NATIVE)
+                size += Token.serializer.serializedSize(inner.token, DBTypeSizes.NATIVE)
                         + Hashable.serializer.serializedSize(inner.lchild, version)
                         + Hashable.serializer.serializedSize(inner.rchild, version);
                 return size;

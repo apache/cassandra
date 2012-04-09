@@ -38,12 +38,7 @@ public abstract class ReadCommand implements IReadCommand
     public static final byte CMD_TYPE_GET_SLICE_BY_NAMES = 1;
     public static final byte CMD_TYPE_GET_SLICE = 2;
 
-    private static final ReadCommandSerializer serializer = new ReadCommandSerializer();
-
-    public static ReadCommandSerializer serializer()
-    {
-        return serializer;
-    }
+    public static final ReadCommandSerializer serializer = new ReadCommandSerializer();
 
     public MessageOut<ReadCommand> createMessage()
     {

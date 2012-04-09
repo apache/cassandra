@@ -1,6 +1,4 @@
-package org.apache.cassandra.io;
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,9 +15,8 @@ package org.apache.cassandra.io;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
  */
-
+package org.apache.cassandra.io;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -123,8 +120,8 @@ public class LazilyCompactedRowTest extends SchemaLoader
             // cf metadata
             ColumnFamily cf1 = ColumnFamily.create(cfs.metadata);
             ColumnFamily cf2 = ColumnFamily.create(cfs.metadata);
-            ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf1, in1);
-            ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf2, in2);
+            ColumnFamily.serializer.deserializeFromSSTableNoColumns(cf1, in1);
+            ColumnFamily.serializer.deserializeFromSSTableNoColumns(cf2, in2);
             assert cf1.getLocalDeletionTime() == cf2.getLocalDeletionTime();
             assert cf1.getMarkedForDeleteAt() == cf2.getMarkedForDeleteAt();
             // columns
@@ -222,7 +219,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
             rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
         DataOutputBuffer out = new DataOutputBuffer();
-        RowMutation.serializer().serialize(rm, out, MessagingService.current_version);
+        RowMutation.serializer.serialize(rm, out, MessagingService.current_version);
         assert out.getLength() > DatabaseDescriptor.getColumnIndexSize();
         cfs.forceBlockingFlush();
 

@@ -37,7 +37,7 @@ public class EndpointState
 {
     protected static final Logger logger = LoggerFactory.getLogger(EndpointState.class);
 
-    private final static IVersionedSerializer<EndpointState> serializer = new EndpointStateSerializer();
+    public final static IVersionedSerializer<EndpointState> serializer = new EndpointStateSerializer();
 
     private volatile HeartBeatState hbState;
     final Map<ApplicationState, VersionedValue> applicationState = new NonBlockingHashMap<ApplicationState, VersionedValue>();
@@ -45,11 +45,6 @@ public class EndpointState
     /* fields below do not get serialized */
     private volatile long updateTimestamp;
     private volatile boolean isAlive;
-
-    public static IVersionedSerializer<EndpointState> serializer()
-    {
-        return serializer;
-    }
 
     EndpointState(HeartBeatState initialHbState)
     {
@@ -123,7 +118,7 @@ class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
     {
         /* serialize the HeartBeatState */
         HeartBeatState hbState = epState.getHeartBeatState();
-        HeartBeatState.serializer().serialize(hbState, dos, version);
+        HeartBeatState.serializer.serialize(hbState, dos, version);
 
         /* serialize the map of ApplicationState objects */
         int size = epState.applicationState.size();
@@ -138,7 +133,7 @@ class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
 
     public EndpointState deserialize(DataInput dis, int version) throws IOException
     {
-        HeartBeatState hbState = HeartBeatState.serializer().deserialize(dis, version);
+        HeartBeatState hbState = HeartBeatState.serializer.deserialize(dis, version);
         EndpointState epState = new EndpointState(hbState);
 
         int appStateSize = dis.readInt();
@@ -153,7 +148,7 @@ class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
 
     public long serializedSize(EndpointState epState, int version)
     {
-        long size = HeartBeatState.serializer().serializedSize(epState.getHeartBeatState(), version);
+        long size = HeartBeatState.serializer.serializedSize(epState.getHeartBeatState(), version);
         size += DBTypeSizes.NATIVE.sizeof(epState.applicationState.size());
         for (Map.Entry<ApplicationState, VersionedValue> entry : epState.applicationState.entrySet())
         {

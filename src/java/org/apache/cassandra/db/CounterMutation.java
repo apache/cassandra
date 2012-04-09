@@ -40,7 +40,7 @@ import org.apache.cassandra.utils.HeapAllocator;
 public class CounterMutation implements IMutation
 {
     private static final Logger logger = LoggerFactory.getLogger(CounterMutation.class);
-    private static final CounterMutationSerializer serializer = new CounterMutationSerializer();
+    public static final CounterMutationSerializer serializer = new CounterMutationSerializer();
 
     private final RowMutation rowMutation;
     private final ConsistencyLevel consistency;
@@ -74,11 +74,6 @@ public class CounterMutation implements IMutation
     public ConsistencyLevel consistency()
     {
         return consistency;
-    }
-
-    public static CounterMutationSerializer serializer()
-    {
-        return serializer;
     }
 
     public RowMutation makeReplicationMutation() throws IOException
@@ -174,13 +169,13 @@ class CounterMutationSerializer implements IVersionedSerializer<CounterMutation>
 {
     public void serialize(CounterMutation cm, DataOutput dos, int version) throws IOException
     {
-        RowMutation.serializer().serialize(cm.rowMutation(), dos, version);
+        RowMutation.serializer.serialize(cm.rowMutation(), dos, version);
         dos.writeUTF(cm.consistency().name());
     }
 
     public CounterMutation deserialize(DataInput dis, int version) throws IOException
     {
-        RowMutation rm = RowMutation.serializer().deserialize(dis, version);
+        RowMutation rm = RowMutation.serializer.deserialize(dis, version);
         ConsistencyLevel consistency = Enum.valueOf(ConsistencyLevel.class, dis.readUTF());
         return new CounterMutation(rm, consistency);
     }
@@ -188,7 +183,7 @@ class CounterMutationSerializer implements IVersionedSerializer<CounterMutation>
     public long serializedSize(CounterMutation cm, int version)
     {
         int tableSize = FBUtilities.encodedUTF8Length(cm.consistency().name());
-        return RowMutation.serializer().serializedSize(cm.rowMutation(), version)
-               + DBTypeSizes.NATIVE.sizeof((short) tableSize) + tableSize;
+        return RowMutation.serializer.serializedSize(cm.rowMutation(), version)
+             + DBTypeSizes.NATIVE.sizeof((short) tableSize) + tableSize;
     }
 }

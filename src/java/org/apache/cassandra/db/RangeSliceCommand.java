@@ -168,7 +168,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                     FBUtilities.serialize(ser, expr, dos);
             }
         }
-        AbstractBounds.serializer().serialize(sliceCommand.range, dos, version);
+        AbstractBounds.serializer.serialize(sliceCommand.range, dos, version);
         dos.writeInt(sliceCommand.maxResults);
         if (version >= MessagingService.VERSION_11)
         {
@@ -207,7 +207,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                 rowFilter.add(expr);
             }
         }
-        AbstractBounds<RowPosition> range = AbstractBounds.serializer().deserialize(dis, version).toRowBounds();
+        AbstractBounds<RowPosition> range = AbstractBounds.serializer.deserialize(dis, version).toRowBounds();
 
         int maxResults = dis.readInt();
         boolean maxIsColumns = false;
@@ -274,7 +274,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                 }
             }
         }
-        size += AbstractBounds.serializer().serializedSize(rangeSliceCommand.range, version);
+        size += AbstractBounds.serializer.serializedSize(rangeSliceCommand.range, version);
         size += DBTypeSizes.NATIVE.sizeof(rangeSliceCommand.maxResults);
         if (version >= MessagingService.VERSION_11)
         {

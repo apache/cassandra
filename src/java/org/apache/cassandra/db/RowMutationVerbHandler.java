@@ -75,7 +75,7 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
         int size = dis.readInt();
 
         // remove fwds from message to avoid infinite loop
-        MessageOut<RowMutation> message = new MessageOut<RowMutation>(verb, rm, RowMutation.serializer()).withParameter(RowMutation.FORWARD_FROM, from.getAddress());
+        MessageOut<RowMutation> message = new MessageOut<RowMutation>(verb, rm, RowMutation.serializer).withParameter(RowMutation.FORWARD_FROM, from.getAddress());
         for (int i = 0; i < size; i++)
         {
             // Send a message to each of the addresses on our Forward List

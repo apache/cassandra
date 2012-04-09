@@ -242,9 +242,7 @@ public class StreamingRepairTask implements Runnable
             dos.writeUTF(task.cfName);
             dos.writeInt(task.ranges.size());
             for (Range<Token> range : task.ranges)
-            {
-                AbstractBounds.serializer().serialize(range, dos, version);
-            }
+                AbstractBounds.serializer.serialize(range, dos, version);
             // We don't serialize the callback on purpose
         }
 
@@ -259,9 +257,7 @@ public class StreamingRepairTask implements Runnable
             int rangesCount = dis.readInt();
             List<Range<Token>> ranges = new ArrayList<Range<Token>>(rangesCount);
             for (int i = 0; i < rangesCount; ++i)
-            {
-                ranges.add((Range<Token>) AbstractBounds.serializer().deserialize(dis, version).toTokenBounds());
-            }
+                ranges.add((Range<Token>) AbstractBounds.serializer.deserialize(dis, version).toTokenBounds());
             return new StreamingRepairTask(id, owner, src, dst, tableName, cfName, ranges, makeReplyingCallback(owner, id));
         }
 
@@ -273,7 +269,7 @@ public class StreamingRepairTask implements Runnable
             size += FBUtilities.serializedUTF8Size(task.cfName);
             size += DBTypeSizes.NATIVE.sizeof(task.ranges.size());
             for (Range<Token> range : task.ranges)
-                size += AbstractBounds.serializer().serializedSize(range, version);
+                size += AbstractBounds.serializer.serializedSize(range, version);
             return size;
         }
     }

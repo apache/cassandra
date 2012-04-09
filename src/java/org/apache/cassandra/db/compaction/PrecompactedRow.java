@@ -132,7 +132,7 @@ public class PrecompactedRow extends AbstractCompactedRow
     {
         assert compactedCf != null;
         DataOutputBuffer buffer = new DataOutputBuffer();
-        ColumnFamily.serializer().serializeForSSTable(compactedCf, buffer);
+        ColumnFamily.serializer.serializeForSSTable(compactedCf, buffer);
         int dataSize = buffer.getLength();
         out.writeLong(buffer.getLength());
         out.write(buffer.getData(), 0, buffer.getLength());
@@ -145,7 +145,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
         {
-            ColumnFamily.serializer().serializeCFInfo(compactedCf, buffer);
+            ColumnFamily.serializer.serializeCFInfo(compactedCf, buffer);
             buffer.writeInt(compactedCf.getColumnCount());
             digest.update(buffer.getData(), 0, buffer.getLength());
         }

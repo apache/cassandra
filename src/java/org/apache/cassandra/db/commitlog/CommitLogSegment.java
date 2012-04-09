@@ -206,7 +206,7 @@ public class CommitLogSegment
      */
     public boolean hasCapacityFor(RowMutation mutation)
     {
-        long totalSize = RowMutation.serializer().serializedSize(mutation, MessagingService.current_version) + ENTRY_OVERHEAD_SIZE;
+        long totalSize = RowMutation.serializer.serializedSize(mutation, MessagingService.current_version) + ENTRY_OVERHEAD_SIZE;
         return totalSize <= buffer.remaining();
     }
 

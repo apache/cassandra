@@ -24,7 +24,6 @@ import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-
 /*
  * The read response message is sent by the server when reading data
  * this encapsulates the tablename and the row that has been read.
@@ -32,17 +31,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class ReadResponse
 {
-private static final IVersionedSerializer<ReadResponse> serializer;
-
-    static
-    {
-        serializer = new ReadResponseSerializer();
-    }
-
-    public static IVersionedSerializer<ReadResponse> serializer()
-    {
-        return serializer;
-    }
+    public static final IVersionedSerializer<ReadResponse> serializer = new ReadResponseSerializer();
 
     private final Row row;
     private final ByteBuffer digest;
@@ -86,7 +75,7 @@ class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
         ByteBufferUtil.write(buffer, dos);
         dos.writeBoolean(response.isDigestQuery());
         if (!response.isDigestQuery())
-            Row.serializer().serialize(response.row(), dos, version);
+            Row.serializer.serialize(response.row(), dos, version);
     }
 
     public ReadResponse deserialize(DataInput dis, int version) throws IOException
@@ -105,7 +94,7 @@ class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
         if (!isDigest)
         {
             // This is coming from a remote host
-            row = Row.serializer().deserialize(dis, version, IColumnSerializer.Flag.FROM_REMOTE, ArrayBackedSortedColumns.factory());
+            row = Row.serializer.deserialize(dis, version, IColumnSerializer.Flag.FROM_REMOTE, ArrayBackedSortedColumns.factory());
         }
 
         return isDigest ? new ReadResponse(ByteBuffer.wrap(digest)) : new ReadResponse(row);
@@ -118,7 +107,7 @@ class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
         int size = typeSizes.sizeof(buffer.remaining());
         size += typeSizes.sizeof(response.isDigestQuery());
         if (!response.isDigestQuery())
-            size += Row.serializer().serializedSize(response.row(), version);
+            size += Row.serializer.serializedSize(response.row(), version);
         return size;
     }
 }

@@ -55,17 +55,17 @@ public class SerializationsTest extends AbstractSerializationsTester
         PendingFile noSST = makePendingFile(false, 100, OperationType.RESTORE_REPLICA_COUNT);
 
         DataOutputStream out = getOutput("streaming.PendingFile.bin");
-        PendingFile.serializer().serialize(normal, out, getVersion());
-        PendingFile.serializer().serialize(noSections, out, getVersion());
-        PendingFile.serializer().serialize(noSST, out, getVersion());
-        PendingFile.serializer().serialize(null, out, getVersion());
+        PendingFile.serializer.serialize(normal, out, getVersion());
+        PendingFile.serializer.serialize(noSections, out, getVersion());
+        PendingFile.serializer.serialize(noSST, out, getVersion());
+        PendingFile.serializer.serialize(null, out, getVersion());
         out.close();
 
         // test serializedSize
-        testSerializedSize(normal, PendingFile.serializer());
-        testSerializedSize(noSections, PendingFile.serializer());
-        testSerializedSize(noSST, PendingFile.serializer());
-        testSerializedSize(null, PendingFile.serializer());
+        testSerializedSize(normal, PendingFile.serializer);
+        testSerializedSize(noSections, PendingFile.serializer);
+        testSerializedSize(noSST, PendingFile.serializer);
+        testSerializedSize(null, PendingFile.serializer);
     }
 
     @Test
@@ -75,10 +75,10 @@ public class SerializationsTest extends AbstractSerializationsTester
             testPendingFileWrite();
 
         DataInputStream in = getInput("streaming.PendingFile.bin");
-        assert PendingFile.serializer().deserialize(in, getVersion()) != null;
-        assert PendingFile.serializer().deserialize(in, getVersion()) != null;
-        assert PendingFile.serializer().deserialize(in, getVersion()) != null;
-        assert PendingFile.serializer().deserialize(in, getVersion()) == null;
+        assert PendingFile.serializer.deserialize(in, getVersion()) != null;
+        assert PendingFile.serializer.deserialize(in, getVersion()) != null;
+        assert PendingFile.serializer.deserialize(in, getVersion()) != null;
+        assert PendingFile.serializer.deserialize(in, getVersion()) == null;
         in.close();
     }
 
@@ -94,19 +94,19 @@ public class SerializationsTest extends AbstractSerializationsTester
         StreamHeader sh4 = new StreamHeader("Keyspace1", 125L, makePendingFile(true, 100, OperationType.BOOTSTRAP), new ArrayList<PendingFile>());
 
         DataOutputStream out = getOutput("streaming.StreamHeader.bin");
-        StreamHeader.serializer().serialize(sh0, out, getVersion());
-        StreamHeader.serializer().serialize(sh1, out, getVersion());
-        StreamHeader.serializer().serialize(sh2, out, getVersion());
-        StreamHeader.serializer().serialize(sh3, out, getVersion());
-        StreamHeader.serializer().serialize(sh4, out, getVersion());
+        StreamHeader.serializer.serialize(sh0, out, getVersion());
+        StreamHeader.serializer.serialize(sh1, out, getVersion());
+        StreamHeader.serializer.serialize(sh2, out, getVersion());
+        StreamHeader.serializer.serialize(sh3, out, getVersion());
+        StreamHeader.serializer.serialize(sh4, out, getVersion());
         out.close();
 
         // test serializedSize
-        testSerializedSize(sh0, StreamHeader.serializer());
-        testSerializedSize(sh1, StreamHeader.serializer());
-        testSerializedSize(sh2, StreamHeader.serializer());
-        testSerializedSize(sh3, StreamHeader.serializer());
-        testSerializedSize(sh4, StreamHeader.serializer());
+        testSerializedSize(sh0, StreamHeader.serializer);
+        testSerializedSize(sh1, StreamHeader.serializer);
+        testSerializedSize(sh2, StreamHeader.serializer);
+        testSerializedSize(sh3, StreamHeader.serializer);
+        testSerializedSize(sh4, StreamHeader.serializer);
     }
 
     @Test
@@ -116,11 +116,11 @@ public class SerializationsTest extends AbstractSerializationsTester
             testStreamHeaderWrite();
 
         DataInputStream in = getInput("streaming.StreamHeader.bin");
-        assert StreamHeader.serializer().deserialize(in, getVersion()) != null;
-        assert StreamHeader.serializer().deserialize(in, getVersion()) != null;
-        assert StreamHeader.serializer().deserialize(in, getVersion()) != null;
-        assert StreamHeader.serializer().deserialize(in, getVersion()) != null;
-        assert StreamHeader.serializer().deserialize(in, getVersion()) != null;
+        assert StreamHeader.serializer.deserialize(in, getVersion()) != null;
+        assert StreamHeader.serializer.deserialize(in, getVersion()) != null;
+        assert StreamHeader.serializer.deserialize(in, getVersion()) != null;
+        assert StreamHeader.serializer.deserialize(in, getVersion()) != null;
+        assert StreamHeader.serializer.deserialize(in, getVersion()) != null;
         in.close();
     }
 
@@ -168,18 +168,18 @@ public class SerializationsTest extends AbstractSerializationsTester
         StreamRequest msg2 = new StreamRequest(FBUtilities.getBroadcastAddress(), makePendingFile(false, 100, OperationType.BOOTSTRAP), 124L);
 
         DataOutputStream out = getOutput("streaming.StreamRequestMessage.bin");
-        StreamRequest.serializer().serialize(msg0, out, getVersion());
-        StreamRequest.serializer().serialize(msg1, out, getVersion());
-        StreamRequest.serializer().serialize(msg2, out, getVersion());
+        StreamRequest.serializer.serialize(msg0, out, getVersion());
+        StreamRequest.serializer.serialize(msg1, out, getVersion());
+        StreamRequest.serializer.serialize(msg2, out, getVersion());
         msg0.createMessage().serialize(out, getVersion());
         msg1.createMessage().serialize(out, getVersion());
         msg2.createMessage().serialize(out, getVersion());
         out.close();
 
         // test serializedSize
-        testSerializedSize(msg0, StreamRequest.serializer());
-        testSerializedSize(msg1, StreamRequest.serializer());
-        testSerializedSize(msg2, StreamRequest.serializer());
+        testSerializedSize(msg0, StreamRequest.serializer);
+        testSerializedSize(msg1, StreamRequest.serializer);
+        testSerializedSize(msg2, StreamRequest.serializer);
     }
 
     @Test
@@ -189,9 +189,9 @@ public class SerializationsTest extends AbstractSerializationsTester
             testStreamRequestMessageWrite();
 
         DataInputStream in = getInput("streaming.StreamRequestMessage.bin");
-        assert StreamRequest.serializer().deserialize(in, getVersion()) != null;
-        assert StreamRequest.serializer().deserialize(in, getVersion()) != null;
-        assert StreamRequest.serializer().deserialize(in, getVersion()) != null;
+        assert StreamRequest.serializer.deserialize(in, getVersion()) != null;
+        assert StreamRequest.serializer.deserialize(in, getVersion()) != null;
+        assert StreamRequest.serializer.deserialize(in, getVersion()) != null;
         assert MessageIn.read(in, getVersion(), "id") != null;
         assert MessageIn.read(in, getVersion(), "id") != null;
         assert MessageIn.read(in, getVersion(), "id") != null;

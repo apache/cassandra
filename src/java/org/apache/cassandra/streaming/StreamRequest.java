@@ -48,16 +48,7 @@ import org.apache.cassandra.utils.FBUtilities;
 */
 public class StreamRequest
 {
-    private static final IVersionedSerializer<StreamRequest> serializer;
-    static
-    {
-        serializer = new StreamRequestSerializer();
-    }
-
-    public static IVersionedSerializer<StreamRequest> serializer()
-    {
-        return serializer;
-    }
+    public static final IVersionedSerializer<StreamRequest> serializer = new StreamRequestSerializer();
 
     protected final long sessionId;
     protected final InetAddress target;
@@ -132,7 +123,7 @@ public class StreamRequest
             if (srm.file != null)
             {
                 dos.writeBoolean(true);
-                PendingFile.serializer().serialize(srm.file, dos, version);
+                PendingFile.serializer.serialize(srm.file, dos, version);
             }
             else
             {
@@ -140,7 +131,7 @@ public class StreamRequest
                 dos.writeUTF(srm.table);
                 dos.writeInt(srm.ranges.size());
                 for (Range<Token> range : srm.ranges)
-                    AbstractBounds.serializer().serialize(range, dos, version);
+                    AbstractBounds.serializer.serialize(range, dos, version);
 
                 if (version > MessagingService.VERSION_07)
                     dos.writeUTF(srm.type.name());
@@ -161,7 +152,7 @@ public class StreamRequest
             boolean singleFile = dis.readBoolean();
             if (singleFile)
             {
-                PendingFile file = PendingFile.serializer().deserialize(dis, version);
+                PendingFile file = PendingFile.serializer.deserialize(dis, version);
                 return new StreamRequest(target, file, sessionId);
             }
             else
@@ -170,7 +161,7 @@ public class StreamRequest
                 int size = dis.readInt();
                 List<Range<Token>> ranges = (size == 0) ? null : new ArrayList<Range<Token>>(size);
                 for( int i = 0; i < size; ++i )
-                    ranges.add((Range<Token>) AbstractBounds.serializer().deserialize(dis, version).toTokenBounds());
+                    ranges.add((Range<Token>) AbstractBounds.serializer.deserialize(dis, version).toTokenBounds());
                 OperationType type = OperationType.RESTORE_REPLICA_COUNT;
                 if (version > MessagingService.VERSION_07)
                     type = OperationType.valueOf(dis.readUTF());
@@ -193,12 +184,12 @@ public class StreamRequest
             size += CompactEndpointSerializationHelper.serializedSize(sr.target);
             size += DBTypeSizes.NATIVE.sizeof(true);
             if (sr.file != null)
-                return size + PendingFile.serializer().serializedSize(sr.file, version);
+                return size + PendingFile.serializer.serializedSize(sr.file, version);
 
             size += FBUtilities.serializedUTF8Size(sr.table);
             size += DBTypeSizes.NATIVE.sizeof(sr.ranges.size());
             for (Range<Token> range : sr.ranges)
-                size += AbstractBounds.serializer().serializedSize(range, version);
+                size += AbstractBounds.serializer.serializedSize(range, version);
             if (version > MessagingService.VERSION_07)
                 size += FBUtilities.serializedUTF8Size(sr.type.name());
             if (version > MessagingService.VERSION_080)

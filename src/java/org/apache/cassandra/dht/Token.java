@@ -34,11 +34,7 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
 {
     private static final long serialVersionUID = 1L;
 
-    private static final TokenSerializer serializer = new TokenSerializer();
-    public static TokenSerializer serializer()
-    {
-        return serializer;
-    }
+    public static final TokenSerializer serializer = new TokenSerializer();
 
     public final T token;
 

@@ -36,12 +36,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class WriteResponse
 {
-    private static final WriteResponseSerializer serializer = new WriteResponseSerializer();
-
-    public static WriteResponseSerializer serializer()
-    {
-        return serializer;
-    }
+    public static final WriteResponseSerializer serializer = new WriteResponseSerializer();
 
     public MessageOut<WriteResponse> createMessage()
     {

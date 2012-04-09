@@ -29,23 +29,13 @@ import org.apache.cassandra.utils.FBUtilities;
  * Contains information about a specified list of Endpoints and the largest version
  * of the state they have generated as known by the local endpoint.
  */
-
 public class GossipDigest implements Comparable<GossipDigest>
 {
-    private static final IVersionedSerializer<GossipDigest> serializer;
-    static
-    {
-        serializer = new GossipDigestSerializer();
-    }
+    public static final IVersionedSerializer<GossipDigest> serializer = new GossipDigestSerializer();
 
     final InetAddress endpoint;
     final int generation;
     final int maxVersion;
-
-    public static IVersionedSerializer<GossipDigest> serializer()
-    {
-        return serializer;
-    }
 
     GossipDigest(InetAddress ep, int gen, int version)
     {

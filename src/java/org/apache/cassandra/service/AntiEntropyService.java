@@ -541,7 +541,7 @@ public class AntiEntropyService
                 CompactEndpointSerializationHelper.serialize(request.endpoint, dos);
                 dos.writeUTF(request.cf.left);
                 dos.writeUTF(request.cf.right);
-                AbstractBounds.serializer().serialize(request.range, dos, version);
+                AbstractBounds.serializer.serialize(request.range, dos, version);
             }
 
             public TreeRequest deserialize(DataInput dis, int version) throws IOException
@@ -550,7 +550,7 @@ public class AntiEntropyService
                 InetAddress endpoint = CompactEndpointSerializationHelper.deserialize(dis);
                 CFPair cfpair = new CFPair(dis.readUTF(), dis.readUTF());
                 Range<Token> range;
-                range = (Range<Token>) AbstractBounds.serializer().deserialize(dis, version);
+                range = (Range<Token>) AbstractBounds.serializer.deserialize(dis, version);
 
                 return new TreeRequest(sessId, endpoint, range, cfpair);
             }
@@ -561,7 +561,7 @@ public class AntiEntropyService
                      + CompactEndpointSerializationHelper.serializedSize(request.endpoint)
                      + 2 + FBUtilities.encodedUTF8Length(request.cf.left)
                      + 2 + FBUtilities.encodedUTF8Length(request.cf.right)
-                     + AbstractBounds.serializer().serializedSize(request.range, version);
+                     + AbstractBounds.serializer.serializedSize(request.range, version);
             }
         }
     }

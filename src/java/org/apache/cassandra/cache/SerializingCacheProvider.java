@@ -66,7 +66,7 @@ public class SerializingCacheProvider implements IRowCacheProvider
             if (cf instanceof RowCacheSentinel)
                 size += typeSizes.sizeof(((RowCacheSentinel) cf).sentinelId);
             else
-                size += ColumnFamily.serializer().serializedSize((ColumnFamily) cf, typeSizes);
+                size += ColumnFamily.serializer.serializedSize((ColumnFamily) cf, typeSizes);
             return size;
         }
     }

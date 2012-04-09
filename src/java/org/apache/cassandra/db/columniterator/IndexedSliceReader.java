@@ -76,7 +76,7 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
                 if (indexes.isEmpty())
                 {
                     setToRowStart(sstable, indexEntry, input);
-                    this.emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(sstable.metadata), file);
+                    this.emptyColumnFamily = ColumnFamily.serializer.deserializeFromSSTableNoColumns(ColumnFamily.create(sstable.metadata), file);
                     fetcher = new SimpleBlockFetcher();
                 }
                 else
@@ -91,7 +91,7 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
                 setToRowStart(sstable, indexEntry, input);
                 IndexHelper.skipBloomFilter(file);
                 this.indexes = IndexHelper.deserializeIndex(file);
-                this.emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(sstable.metadata), file);
+                this.emptyColumnFamily = ColumnFamily.serializer.deserializeFromSSTableNoColumns(ColumnFamily.create(sstable.metadata), file);
                 fetcher = indexes.isEmpty() ? new SimpleBlockFetcher() : new IndexedBlockFetcher();
             }
         }

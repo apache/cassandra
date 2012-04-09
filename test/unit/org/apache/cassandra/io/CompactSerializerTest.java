@@ -71,7 +71,6 @@ public class CompactSerializerTest extends SchemaLoader
         expectedClassNames.add("SnapshotCommandSerializer");
         expectedClassNames.add("RangeSliceReplySerializer");
         expectedClassNames.add("StringSerializer");
-        expectedClassNames.add("GossipShutdownMessageSerializer");
         expectedClassNames.add("CallbackDeterminedSerializer");
         expectedClassNames.add("TreeRequestSerializer");
         expectedClassNames.add("ValidatorSerializer");

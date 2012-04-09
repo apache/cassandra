@@ -18,39 +18,23 @@
 package org.apache.cassandra.gms;
 
 import java.io.*;
-import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 
 import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.utils.FBUtilities;
-
 
 /**
  * This is the first message that gets sent out as a start of the Gossip protocol in a
  * round.
  */
-
 public class GossipDigestSyn
 {
-    private static final IVersionedSerializer<GossipDigestSyn> serializer;
-    static
-    {
-        serializer = new GossipDigestSynSerializer();
-    }
+    public static final IVersionedSerializer<GossipDigestSyn> serializer = new GossipDigestSynSerializer();
 
     final String clusterId;
     final List<GossipDigest> gDigests;
-
-    public static IVersionedSerializer<GossipDigestSyn> serializer()
-    {
-        return serializer;
-    }
 
     public GossipDigestSyn(String clusterId, List<GossipDigest> gDigests)
     {
@@ -69,21 +53,16 @@ class GossipDigestSerializationHelper
     static void serialize(List<GossipDigest> gDigestList, DataOutput dos, int version) throws IOException
     {
         dos.writeInt(gDigestList.size());
-        for ( GossipDigest gDigest : gDigestList )
-        {
-            GossipDigest.serializer().serialize( gDigest, dos, version);
-        }
+        for (GossipDigest gDigest : gDigestList)
+            GossipDigest.serializer.serialize(gDigest, dos, version);
     }
 
     static List<GossipDigest> deserialize(DataInput dis, int version) throws IOException
     {
         int size = dis.readInt();
         List<GossipDigest> gDigests = new ArrayList<GossipDigest>(size);
-
-        for ( int i = 0; i < size; ++i )
-        {
-            gDigests.add(GossipDigest.serializer().deserialize(dis, version));
-        }
+        for (int i = 0; i < size; ++i)
+            gDigests.add(GossipDigest.serializer.deserialize(dis, version));
         return gDigests;
     }
     
@@ -91,7 +70,7 @@ class GossipDigestSerializationHelper
     {
         int size = DBTypeSizes.NATIVE.sizeof(digests.size());
         for (GossipDigest digest : digests)
-            size += GossipDigest.serializer().serializedSize(digest, version);
+            size += GossipDigest.serializer.serializedSize(digest, version);
         return size;
     }
 }

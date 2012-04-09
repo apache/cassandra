@@ -22,19 +22,12 @@ import java.io.*;
 import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 
-
 /**
  * HeartBeat State associated with any given endpoint.
  */
-
 class HeartBeatState
 {
-    private static final IVersionedSerializer<HeartBeatState> serializer;
-
-    static
-    {
-        serializer = new HeartBeatStateSerializer();
-    }
+    public static final IVersionedSerializer<HeartBeatState> serializer = new HeartBeatStateSerializer();
 
     private int generation;
     private int version;
@@ -48,11 +41,6 @@ class HeartBeatState
     {
         generation = gen;
         version = ver;
-    }
-
-    public static IVersionedSerializer<HeartBeatState> serializer()
-    {
-        return serializer;
     }
 
     int getGeneration()

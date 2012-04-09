@@ -49,10 +49,10 @@ public class ColumnFamilyTest extends SchemaLoader
         cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("C", "v", 1));
         DataOutputBuffer bufOut = new DataOutputBuffer();
-        ColumnFamily.serializer().serialize(cf, bufOut);
+        ColumnFamily.serializer.serialize(cf, bufOut);
 
         ByteArrayInputStream bufIn = new ByteArrayInputStream(bufOut.getData(), 0, bufOut.getLength());
-        cf = ColumnFamily.serializer().deserialize(new DataInputStream(bufIn));
+        cf = ColumnFamily.serializer.deserialize(new DataInputStream(bufIn));
         assert cf != null;
         assert cf.metadata().cfName.equals("Standard1");
         assert cf.getSortedColumns().size() == 1;
@@ -76,11 +76,11 @@ public class ColumnFamilyTest extends SchemaLoader
         {
             cf.addColumn(column(cName, map.get(cName), 314));
         }
-        ColumnFamily.serializer().serialize(cf, bufOut);
+        ColumnFamily.serializer.serialize(cf, bufOut);
 
         // verify
         ByteArrayInputStream bufIn = new ByteArrayInputStream(bufOut.getData(), 0, bufOut.getLength());
-        cf = ColumnFamily.serializer().deserialize(new DataInputStream(bufIn));
+        cf = ColumnFamily.serializer.deserialize(new DataInputStream(bufIn));
         for (String cName : map.navigableKeySet())
         {
             ByteBuffer val = cf.getColumn(ByteBufferUtil.bytes(cName)).value();

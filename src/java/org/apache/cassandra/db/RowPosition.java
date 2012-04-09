@@ -43,11 +43,7 @@ public abstract class RowPosition implements RingPosition<RowPosition>
         }
     }
 
-    private static final RowPositionSerializer serializer = new RowPositionSerializer();
-    public static RowPositionSerializer serializer()
-    {
-        return serializer;
-    }
+    public static final RowPositionSerializer serializer = new RowPositionSerializer();
 
     public static RowPosition forKey(ByteBuffer key, IPartitioner p)
     {
@@ -82,7 +78,7 @@ public abstract class RowPosition implements RingPosition<RowPosition>
             if (kind == Kind.ROW_KEY)
                 ByteBufferUtil.writeWithShortLength(((DecoratedKey)pos).key, dos);
             else
-                Token.serializer().serialize(pos.getToken(), dos);
+                Token.serializer.serialize(pos.getToken(), dos);
         }
 
         public RowPosition deserialize(DataInput dis) throws IOException
@@ -95,7 +91,7 @@ public abstract class RowPosition implements RingPosition<RowPosition>
             }
             else
             {
-                Token t = Token.serializer().deserialize(dis);
+                Token t = Token.serializer.deserialize(dis);
                 return kind == Kind.MIN_BOUND ? t.minKeyBound() : t.maxKeyBound();
             }
         }
@@ -111,7 +107,7 @@ public abstract class RowPosition implements RingPosition<RowPosition>
             }
             else
             {
-                Token.serializer().serializedSize(pos.getToken(), typeSizes);
+                Token.serializer.serializedSize(pos.getToken(), typeSizes);
             }
             return size;
         }

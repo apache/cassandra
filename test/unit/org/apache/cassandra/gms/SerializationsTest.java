@@ -38,15 +38,15 @@ public class SerializationsTest extends AbstractSerializationsTester
     private void testEndpointStateWrite() throws IOException
     {
         DataOutputStream out = getOutput("gms.EndpointState.bin");
-        HeartBeatState.serializer().serialize(Statics.HeartbeatSt, out, getVersion());
-        EndpointState.serializer().serialize(Statics.EndpointSt, out, getVersion());
+        HeartBeatState.serializer.serialize(Statics.HeartbeatSt, out, getVersion());
+        EndpointState.serializer.serialize(Statics.EndpointSt, out, getVersion());
         VersionedValue.serializer.serialize(Statics.vv0, out, getVersion());
         VersionedValue.serializer.serialize(Statics.vv1, out, getVersion());
         out.close();
 
         // test serializedSize
-        testSerializedSize(Statics.HeartbeatSt, HeartBeatState.serializer());
-        testSerializedSize(Statics.EndpointSt, EndpointState.serializer());
+        testSerializedSize(Statics.HeartbeatSt, HeartBeatState.serializer);
+        testSerializedSize(Statics.EndpointSt, EndpointState.serializer);
         testSerializedSize(Statics.vv0, VersionedValue.serializer);
         testSerializedSize(Statics.vv1, VersionedValue.serializer);
     }
@@ -58,8 +58,8 @@ public class SerializationsTest extends AbstractSerializationsTester
             testEndpointStateWrite();
 
         DataInputStream in = getInput("gms.EndpointState.bin");
-        assert HeartBeatState.serializer().deserialize(in, getVersion()) != null;
-        assert EndpointState.serializer().deserialize(in, getVersion()) != null;
+        assert HeartBeatState.serializer.deserialize(in, getVersion()) != null;
+        assert EndpointState.serializer.deserialize(in, getVersion()) != null;
         assert VersionedValue.serializer.deserialize(in, getVersion()) != null;
         assert VersionedValue.serializer.deserialize(in, getVersion()) != null;
         in.close();
@@ -76,18 +76,18 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         DataOutputStream out = getOutput("gms.Gossip.bin");
         for (GossipDigest gd : Statics.Digests)
-            GossipDigest.serializer().serialize(gd, out, getVersion());
-        GossipDigestAck.serializer().serialize(ack, out, getVersion());
-        GossipDigestAck2.serializer().serialize(ack2, out, getVersion());
-        GossipDigestSyn.serializer().serialize(syn, out, getVersion());
+            GossipDigest.serializer.serialize(gd, out, getVersion());
+        GossipDigestAck.serializer.serialize(ack, out, getVersion());
+        GossipDigestAck2.serializer.serialize(ack2, out, getVersion());
+        GossipDigestSyn.serializer.serialize(syn, out, getVersion());
         out.close();
 
         // test serializedSize
         for (GossipDigest gd : Statics.Digests)
-            testSerializedSize(gd, GossipDigest.serializer());
-        testSerializedSize(ack, GossipDigestAck.serializer());
-        testSerializedSize(ack2, GossipDigestAck2.serializer());
-        testSerializedSize(syn, GossipDigestSyn.serializer());
+            testSerializedSize(gd, GossipDigest.serializer);
+        testSerializedSize(ack, GossipDigestAck.serializer);
+        testSerializedSize(ack2, GossipDigestAck2.serializer);
+        testSerializedSize(syn, GossipDigestSyn.serializer);
     }
 
     @Test
@@ -99,10 +99,10 @@ public class SerializationsTest extends AbstractSerializationsTester
         int count = 0;
         DataInputStream in = getInput("gms.Gossip.bin");
         while (count < Statics.Digests.size())
-            assert GossipDigestAck2.serializer().deserialize(in, getVersion()) != null;
-        assert GossipDigestAck.serializer().deserialize(in, getVersion()) != null;
-        assert GossipDigestAck2.serializer().deserialize(in, getVersion()) != null;
-        assert GossipDigestSyn.serializer().deserialize(in, getVersion()) != null;
+            assert GossipDigestAck2.serializer.deserialize(in, getVersion()) != null;
+        assert GossipDigestAck.serializer.deserialize(in, getVersion()) != null;
+        assert GossipDigestAck2.serializer.deserialize(in, getVersion()) != null;
+        assert GossipDigestSyn.serializer.deserialize(in, getVersion()) != null;
         in.close();
     }
 

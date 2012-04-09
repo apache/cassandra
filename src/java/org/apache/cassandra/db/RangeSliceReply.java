@@ -66,7 +66,7 @@ public class RangeSliceReply
         {
             out.writeInt(rsr.rows.size());
             for (Row row : rsr.rows)
-                Row.serializer().serialize(row, out, version);
+                Row.serializer.serialize(row, out, version);
         }
 
         public RangeSliceReply deserialize(DataInput in, int version) throws IOException
@@ -74,9 +74,7 @@ public class RangeSliceReply
             int rowCount = in.readInt();
             List<Row> rows = new ArrayList<Row>(rowCount);
             for (int i = 0; i < rowCount; i++)
-            {
-                rows.add(Row.serializer().deserialize(in, version));
-            }
+                rows.add(Row.serializer.deserialize(in, version));
             return new RangeSliceReply(rows);
         }
 
@@ -84,7 +82,7 @@ public class RangeSliceReply
         {
             int size = DBTypeSizes.NATIVE.sizeof(rsr.rows.size());
             for (Row row : rsr.rows)
-                size += Row.serializer().serializedSize(row, version);
+                size += Row.serializer.serializedSize(row, version);
             return size;
         }
     }

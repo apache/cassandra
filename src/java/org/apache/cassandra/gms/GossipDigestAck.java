@@ -30,27 +30,16 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
 
-
 /**
  * This ack gets sent out as a result of the receipt of a GossipDigestSynMessage by an
  * endpoint. This is the 2 stage of the 3 way messaging in the Gossip protocol.
  */
-
 public class GossipDigestAck
 {
-    private static final IVersionedSerializer<GossipDigestAck> serializer;
-    static
-    {
-        serializer = new GossipDigestAckSerializer();
-    }
+    public static final IVersionedSerializer<GossipDigestAck> serializer = new GossipDigestAckSerializer();
 
     final List<GossipDigest> gDigestList;
     final Map<InetAddress, EndpointState> epStateMap;
-
-    public static IVersionedSerializer<GossipDigestAck> serializer()
-    {
-        return serializer;
-    }
 
     GossipDigestAck(List<GossipDigest> gDigestList, Map<InetAddress, EndpointState> epStateMap)
     {
@@ -81,7 +70,7 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
         {
             InetAddress ep = entry.getKey();
             CompactEndpointSerializationHelper.serialize(ep, dos);
-            EndpointState.serializer().serialize(entry.getValue(), dos, version);
+            EndpointState.serializer.serialize(entry.getValue(), dos, version);
         }
     }
 
@@ -96,7 +85,7 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
         for (int i = 0; i < size; ++i)
         {
             InetAddress ep = CompactEndpointSerializationHelper.deserialize(dis);
-            EndpointState epState = EndpointState.serializer().deserialize(dis, version);
+            EndpointState epState = EndpointState.serializer.deserialize(dis, version);
             epStateMap.put(ep, epState);
         }
         return new GossipDigestAck(gDigestList, epStateMap);
@@ -110,7 +99,7 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
         size += DBTypeSizes.NATIVE.sizeof(ack.epStateMap.size());
         for (Map.Entry<InetAddress, EndpointState> entry : ack.epStateMap.entrySet())
             size += CompactEndpointSerializationHelper.serializedSize(entry.getKey())
-                  + EndpointState.serializer().serializedSize(entry.getValue(), version);
+                  + EndpointState.serializer.serializedSize(entry.getValue(), version);
         return size;
     }
 }

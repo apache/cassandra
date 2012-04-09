@@ -71,7 +71,7 @@ public class ReadMessageTest extends SchemaLoader
 
     private ReadCommand serializeAndDeserializeReadMessage(ReadCommand rm) throws IOException
     {
-        ReadCommandSerializer rms = ReadCommand.serializer();
+        ReadCommandSerializer rms = ReadCommand.serializer;
         DataOutputBuffer dos = new DataOutputBuffer();
         ByteArrayInputStream bis;
 

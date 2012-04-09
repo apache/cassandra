@@ -69,7 +69,7 @@ public class IndexScanCommand
             TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
             FBUtilities.serialize(ser, o.index_clause, out);
             FBUtilities.serialize(ser, o.predicate, out);
-            AbstractBounds.serializer().serialize(o.range, out, version);
+            AbstractBounds.serializer.serialize(o.range, out, version);
         }
 
         public IndexScanCommand deserialize(DataInput in, int version) throws IOException
@@ -82,7 +82,7 @@ public class IndexScanCommand
             FBUtilities.deserialize(dser, indexClause, in);
             SlicePredicate predicate = new SlicePredicate();
             FBUtilities.deserialize(dser, predicate, in);
-            AbstractBounds<RowPosition> range = AbstractBounds.serializer().deserialize(in, version).toRowBounds();
+            AbstractBounds<RowPosition> range = AbstractBounds.serializer.deserialize(in, version).toRowBounds();
             return new IndexScanCommand(keyspace, columnFamily, indexClause, predicate, range);
         }
 

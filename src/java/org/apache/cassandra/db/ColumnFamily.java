@@ -39,11 +39,6 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
     public static final ColumnFamilySerializer serializer = new ColumnFamilySerializer();
     private final CFMetaData cfm;
 
-    public static ColumnFamilySerializer serializer()
-    {
-        return serializer;
-    }
-
     public static ColumnFamily create(Integer cfId)
     {
         return create(Schema.instance.getCFMetaData(cfId));

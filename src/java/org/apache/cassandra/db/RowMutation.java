@@ -43,14 +43,9 @@ import org.apache.cassandra.utils.UUIDGen;
 
 public class RowMutation implements IMutation
 {
-    private static final RowMutationSerializer serializer = new RowMutationSerializer();
+    public static final RowMutationSerializer serializer = new RowMutationSerializer();
     public static final String FORWARD_TO = "FWD_TO";
     public static final String FORWARD_FROM = "FWD_FRM";
-
-    public static RowMutationSerializer serializer()
-    {
-        return serializer;
-    }
 
     private final String table;
     private final ByteBuffer key;
@@ -310,7 +305,7 @@ public class RowMutation implements IMutation
         byte[] bytes = preserializedBuffers.get(version);
         if (bytes == null)
         {
-            bytes = FBUtilities.serialize(this, serializer(), version);
+            bytes = FBUtilities.serialize(this, serializer, version);
             preserializedBuffers.put(version, bytes);
         }
         return bytes;
@@ -419,7 +414,7 @@ public class RowMutation implements IMutation
             for (Map.Entry<Integer,ColumnFamily> entry : rm.modifications.entrySet())
             {
                 dos.writeInt(entry.getKey());
-                ColumnFamily.serializer().serialize(entry.getValue(), dos);
+                ColumnFamily.serializer.serialize(entry.getValue(), dos);
             }
         }
 
@@ -432,7 +427,7 @@ public class RowMutation implements IMutation
             for (int i = 0; i < size; ++i)
             {
                 Integer cfid = Integer.valueOf(dis.readInt());
-                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, flag, TreeMapBackedSortedColumns.factory());
+                ColumnFamily cf = ColumnFamily.serializer.deserialize(dis, flag, TreeMapBackedSortedColumns.factory());
                 modifications.put(cfid, cf);
             }
             return new RowMutation(table, key, modifications);

@@ -278,7 +278,7 @@ public class Util
     {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
-        cf.serializer().serializeForSSTable(cf, dos);
+        cf.serializer.serializeForSSTable(cf, dos);
         return ByteBuffer.wrap(baos.toByteArray());
     }
 }

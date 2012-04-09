@@ -24,10 +24,8 @@ import java.io.IOException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.FBUtilities.serializedUTF8Size;
-
 
 /**
  * This message is sent back the truncate operation and basically specifies if
@@ -35,12 +33,7 @@ import static org.apache.cassandra.utils.FBUtilities.serializedUTF8Size;
  */
 public class TruncateResponse
 {
-    private static final TruncateResponseSerializer serializer = new TruncateResponseSerializer();
-
-    public static TruncateResponseSerializer serializer()
-    {
-        return serializer;
-    }
+    public static final TruncateResponseSerializer serializer = new TruncateResponseSerializer();
 
     public final String keyspace;
     public final String columnFamily;

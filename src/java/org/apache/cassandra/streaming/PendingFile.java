@@ -34,12 +34,7 @@ import org.apache.cassandra.utils.Pair;
  */
 public class PendingFile
 {
-    private static final PendingFileSerializer serializer = new PendingFileSerializer();
-
-    public static PendingFileSerializer serializer()
-    {
-        return serializer;
-    }
+    public static final PendingFileSerializer serializer = new PendingFileSerializer();
 
     // NB: this reference is used to be able to release the acquired reference upon completion
     public final SSTableReader sstable;

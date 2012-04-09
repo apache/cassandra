@@ -98,7 +98,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         assert !closed;
 
         DataOutputBuffer clockOut = new DataOutputBuffer();
-        ColumnFamily.serializer().serializeCFInfo(emptyColumnFamily, clockOut);
+        ColumnFamily.serializer.serializeCFInfo(emptyColumnFamily, clockOut);
 
         long dataSize = clockOut.getLength() + columnSerializedSize;
         if (logger.isDebugEnabled())
@@ -133,7 +133,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
 
         try
         {
-            ColumnFamily.serializer().serializeCFInfo(emptyColumnFamily, out);
+            ColumnFamily.serializer.serializeCFInfo(emptyColumnFamily, out);
             out.writeInt(columnStats.columnCount);
             digest.update(out.getData(), 0, out.getLength());
         }

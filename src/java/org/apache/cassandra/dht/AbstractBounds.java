@@ -32,12 +32,7 @@ import org.apache.cassandra.utils.Pair;
 public abstract class AbstractBounds<T extends RingPosition> implements Serializable
 {
     private static final long serialVersionUID = 1L;
-    private static final AbstractBoundsSerializer serializer = new AbstractBoundsSerializer();
-
-    public static AbstractBoundsSerializer serializer()
-    {
-        return serializer;
-    }
+    public static final AbstractBoundsSerializer serializer = new AbstractBoundsSerializer();
 
     private enum Type
     {
@@ -122,13 +117,13 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
             out.writeInt(kindInt(range));
             if (range.left instanceof Token)
             {
-                Token.serializer().serialize((Token)range.left, out);
-                Token.serializer().serialize((Token)range.right, out);
+                Token.serializer.serialize((Token)range.left, out);
+                Token.serializer.serialize((Token)range.right, out);
             }
             else
             {
-                RowPosition.serializer().serialize((RowPosition)range.left, out);
-                RowPosition.serializer().serialize((RowPosition)range.right, out);
+                RowPosition.serializer.serialize((RowPosition)range.left, out);
+                RowPosition.serializer.serialize((RowPosition)range.right, out);
             }
         }
 
@@ -150,13 +145,13 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
             RingPosition left, right;
             if (isToken)
             {
-                left = Token.serializer().deserialize(in);
-                right = Token.serializer().deserialize(in);
+                left = Token.serializer.deserialize(in);
+                right = Token.serializer.deserialize(in);
             }
             else
             {
-                left = RowPosition.serializer().deserialize(in);
-                right = RowPosition.serializer().deserialize(in);
+                left = RowPosition.serializer.deserialize(in);
+                right = RowPosition.serializer.deserialize(in);
             }
 
             if (kind == Type.RANGE.ordinal())
@@ -169,13 +164,13 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
             int size = DBTypeSizes.NATIVE.sizeof(kindInt(ab));
             if (ab.left instanceof Token)
             {
-                size += Token.serializer().serializedSize((Token) ab.left, DBTypeSizes.NATIVE);
-                size += Token.serializer().serializedSize((Token) ab.right, DBTypeSizes.NATIVE);
+                size += Token.serializer.serializedSize((Token) ab.left, DBTypeSizes.NATIVE);
+                size += Token.serializer.serializedSize((Token) ab.right, DBTypeSizes.NATIVE);
             }
             else
             {
-                size += RowPosition.serializer().serializedSize((RowPosition) ab.left, DBTypeSizes.NATIVE);
-                size += RowPosition.serializer().serializedSize((RowPosition) ab.right, DBTypeSizes.NATIVE);
+                size += RowPosition.serializer.serializedSize((RowPosition) ab.left, DBTypeSizes.NATIVE);
+                size += RowPosition.serializer.serializedSize((RowPosition) ab.right, DBTypeSizes.NATIVE);
             }
             return size;
         }

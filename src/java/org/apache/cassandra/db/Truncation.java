@@ -33,20 +33,10 @@ import static org.apache.cassandra.utils.FBUtilities.serializedUTF8Size;
  */
 public class Truncation
 {
-    private static final IVersionedSerializer<Truncation> serializer;
+    public static final IVersionedSerializer<Truncation> serializer = new TruncationSerializer();
 
     public final String keyspace;
     public final String columnFamily;
-
-    static
-    {
-        serializer = new TruncationSerializer();
-    }
-
-    public static IVersionedSerializer<Truncation> serializer()
-    {
-        return serializer;
-    }
 
     public Truncation(String keyspace, String columnFamily)
     {

@@ -343,7 +343,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 RowMutation rm;
                 try
                 {
-                    rm = RowMutation.serializer().deserialize(in, ByteBufferUtil.toInt(versionColumn.value()));
+                    rm = RowMutation.serializer.deserialize(in, ByteBufferUtil.toInt(versionColumn.value()));
                 }
                 catch (UnknownColumnFamilyException e)
                 {

@@ -140,7 +140,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         {
             // we can stop early if bloom filter says none of the columns actually exist -- but,
             // we can't stop before initializing the cf above, in case there's a relevant tombstone
-            ColumnFamilySerializer serializer = ColumnFamily.serializer();
+            ColumnFamilySerializer serializer = ColumnFamily.serializer;
             try
             {
                 cf = serializer.deserializeFromSSTableNoColumns(ColumnFamily.create(sstable.metadata), file);

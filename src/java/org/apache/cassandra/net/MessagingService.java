@@ -48,8 +48,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.BootStrapper;
-import org.apache.cassandra.gms.GossipDigestAck2;
 import org.apache.cassandra.gms.GossipDigestAck;
+import org.apache.cassandra.gms.GossipDigestAck2;
 import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -172,26 +172,25 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.REQUEST_RESPONSE, CallbackDeterminedSerializer.instance);
         put(Verb.INTERNAL_RESPONSE, CallbackDeterminedSerializer.instance);
 
-        put(Verb.MUTATION, RowMutation.serializer());
-        put(Verb.READ_REPAIR, RowMutation.serializer());
-        put(Verb.READ, ReadCommand.serializer());
+        put(Verb.MUTATION, RowMutation.serializer);
+        put(Verb.READ_REPAIR, RowMutation.serializer);
+        put(Verb.READ, ReadCommand.serializer);
         put(Verb.STREAM_REPLY, StreamReply.serializer);
-        put(Verb.STREAM_REQUEST, StreamRequest.serializer());
+        put(Verb.STREAM_REQUEST, StreamRequest.serializer);
         put(Verb.RANGE_SLICE, RangeSliceCommand.serializer);
         put(Verb.BOOTSTRAP_TOKEN, BootStrapper.StringSerializer.instance);
         put(Verb.TREE_REQUEST, AntiEntropyService.TreeRequest.serializer);
         put(Verb.TREE_RESPONSE, AntiEntropyService.Validator.serializer);
         put(Verb.STREAMING_REPAIR_REQUEST, StreamingRepairTask.serializer);
         put(Verb.STREAMING_REPAIR_RESPONSE, UUIDGen.serializer);
-        put(Verb.GOSSIP_DIGEST_ACK, GossipDigestAck.serializer());
-        put(Verb.GOSSIP_DIGEST_ACK2, GossipDigestAck2.serializer());
-        put(Verb.GOSSIP_DIGEST_SYN, GossipDigestSyn.serializer());
+        put(Verb.GOSSIP_DIGEST_ACK, GossipDigestAck.serializer);
+        put(Verb.GOSSIP_DIGEST_ACK2, GossipDigestAck2.serializer);
+        put(Verb.GOSSIP_DIGEST_SYN, GossipDigestSyn.serializer);
         put(Verb.DEFINITIONS_UPDATE, MigrationManager.MigrationsSerializer.instance);
-        put(Verb.TRUNCATE, Truncation.serializer());
-        put(Verb.SCHEMA_CHECK, null);
+        put(Verb.TRUNCATE, Truncation.serializer);
         put(Verb.INDEX_SCAN, IndexScanCommand.serializer);
         put(Verb.REPLICATION_FINISHED, null);
-        put(Verb.COUNTER_MUTATION, CounterMutation.serializer());
+        put(Verb.COUNTER_MUTATION, CounterMutation.serializer);
     }};
 
     /**
@@ -199,12 +198,12 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public static final EnumMap<Verb, IVersionedSerializer<?>> callbackDeserializers = new EnumMap<Verb, IVersionedSerializer<?>>(Verb.class)
     {{
-        put(Verb.MUTATION, WriteResponse.serializer());
-        put(Verb.READ_REPAIR, WriteResponse.serializer());
-        put(Verb.COUNTER_MUTATION, WriteResponse.serializer());
+        put(Verb.MUTATION, WriteResponse.serializer);
+        put(Verb.READ_REPAIR, WriteResponse.serializer);
+        put(Verb.COUNTER_MUTATION, WriteResponse.serializer);
         put(Verb.RANGE_SLICE, RangeSliceReply.serializer);
-        put(Verb.READ, ReadResponse.serializer());
-        put(Verb.TRUNCATE, TruncateResponse.serializer());
+        put(Verb.READ, ReadResponse.serializer);
+        put(Verb.TRUNCATE, TruncateResponse.serializer);
         put(Verb.SNAPSHOT, null);
 
         put(Verb.MIGRATION_REQUEST, MigrationManager.MigrationsSerializer.instance);
@@ -758,7 +757,7 @@ public final class MessagingService implements MessagingServiceMBean
         try
         {
             DataOutputBuffer buffer = new DataOutputBuffer();
-            StreamHeader.serializer().serialize(streamHeader, buffer, version);
+            StreamHeader.serializer.serialize(streamHeader, buffer, version);
             bytes = buffer.getData();
         }
         catch (IOException e)
