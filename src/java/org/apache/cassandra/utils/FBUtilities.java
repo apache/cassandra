@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import com.google.common.base.Joiner;
 import com.google.common.collect.AbstractIterator;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -319,7 +320,7 @@ public class FBUtilities
 
     public static String resourceToFile(String filename) throws ConfigurationException
     {
-        ClassLoader loader = PropertyFileSnitch.class.getClassLoader();
+        ClassLoader loader = FBUtilities.class.getClassLoader();
         URL scpurl = loader.getResource(filename);
         if (scpurl == null)
             throw new ConfigurationException("unable to locate " + filename);
@@ -545,6 +546,37 @@ public class FBUtilities
         catch (IOException e)
         {
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Starts and waits for the given @param pb to finish.
+     * @throws java.io.IOException on non-zero exit code
+     */
+    public static void exec(ProcessBuilder pb) throws IOException
+    {
+        Process p = pb.start();
+        try
+        {
+            int errCode = p.waitFor();
+            if (errCode != 0)
+            {
+                BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                BufferedReader err = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+                StringBuilder sb = new StringBuilder();
+                String str;
+                while ((str = in.readLine()) != null)
+                    sb.append(str).append(System.getProperty("line.separator"));
+                while ((str = err.readLine()) != null)
+                    sb.append(str).append(System.getProperty("line.separator"));
+                throw new IOException("Exception while executing the command: "+ StringUtils.join(pb.command(), " ") +
+                                      ", command error Code: " + errCode +
+                                      ", command output: "+ sb.toString());
+            }
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
         }
     }
 

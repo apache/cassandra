@@ -144,13 +144,17 @@ public class CommitLogAllocator
     public void recycleSegment(final CommitLogSegment segment)
     {
         activeSegments.remove(segment);
-
-        if (isCapExceeded())
+        if (!CommitLog.instance.archiver.maybeWaitForArchiving(segment.getName()))
         {
-            discardSegment(segment);
+            // if archiving (command) was not successful then leave the file alone. don't delete or recycle.
+            discardSegment(segment, false);
             return;
         }
-
+        if (isCapExceeded())
+        {
+            discardSegment(segment, true);
+            return;
+        }
         queue.add(new Runnable()
         {
             public void run()
@@ -170,7 +174,7 @@ public class CommitLogAllocator
     public void recycleSegment(final File file)
     {
         // check against SEGMENT_SIZE avoids recycling odd-sized or empty segments from old C* versions and unit tests
-        if (isCapExceeded() || file.length() != CommitLog.SEGMENT_SIZE)
+        if (isCapExceeded() || file.length() != DatabaseDescriptor.getCommitLogSegmentSize())
         {
             try
             {
@@ -198,15 +202,15 @@ public class CommitLogAllocator
      *
      * @param segment segment to be discarded
      */
-    private void discardSegment(final CommitLogSegment segment)
+    private void discardSegment(final CommitLogSegment segment, final boolean deleteFile)
     {
-        size.addAndGet(-CommitLog.SEGMENT_SIZE);
+        size.addAndGet(-DatabaseDescriptor.getCommitLogSegmentSize());
 
         queue.add(new Runnable()
         {
             public void run()
             {
-                segment.discard();
+                segment.discard(deleteFile);
             }
         });
     }
@@ -239,7 +243,7 @@ public class CommitLogAllocator
      */
     private CommitLogSegment createFreshSegment()
     {
-        size.addAndGet(CommitLog.SEGMENT_SIZE);
+        size.addAndGet(DatabaseDescriptor.getCommitLogSegmentSize());
         return internalAddReadySegment(CommitLogSegment.freshSegment());
     }
 

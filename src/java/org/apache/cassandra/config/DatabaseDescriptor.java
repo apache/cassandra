@@ -781,6 +781,14 @@ public class DatabaseDescriptor
         return conf.commitlog_directory;
     }
 
+    /**
+     * size of commitlog segments to allocate 
+     */
+    public static int getCommitLogSegmentSize()
+    {
+        return conf.commitlog_segment_size_in_mb * 1024 * 1024;
+    }
+
     public static String getSavedCachesLocation()
     {
         return conf.saved_caches_directory;
