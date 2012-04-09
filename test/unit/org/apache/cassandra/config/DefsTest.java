@@ -64,7 +64,7 @@ public class DefsTest extends SchemaLoader
         for (int i = 0; i < 5; i++)
         {
             ByteBuffer name = ByteBuffer.wrap(new byte[] { (byte)i });
-            indexes.put(name, new ColumnDefinition(name, BytesType.instance, IndexType.KEYS, null, Integer.toString(i)));
+            indexes.put(name, new ColumnDefinition(name, BytesType.instance, IndexType.KEYS, null, Integer.toString(i), null));
         }
         CFMetaData cfm = new CFMetaData("Keyspace1",
                                         "TestApplyCFM_CF",
@@ -91,7 +91,8 @@ public class DefsTest extends SchemaLoader
                                                             BytesType.instance,
                                                             IndexType.KEYS,
                                                             null,
-                                                            "5");
+                                                            "5",
+                                                            null);
         cfNew.addColumnDefinition(addIndexDef);
 
         // remove one.
@@ -99,7 +100,8 @@ public class DefsTest extends SchemaLoader
                                                                BytesType.instance,
                                                                IndexType.KEYS,
                                                                null,
-                                                               "0");
+                                                               "0",
+                                                               null);
         assert cfNew.removeColumnDefinition(removeIndexDef);
 
         cfm.apply(cfNew);
@@ -531,7 +533,7 @@ public class DefsTest extends SchemaLoader
         // drop the index
         CFMetaData meta = cfs.metadata.clone();
         ColumnDefinition cdOld = meta.getColumn_metadata().values().iterator().next();
-        ColumnDefinition cdNew = new ColumnDefinition(cdOld.name, cdOld.getValidator(), null, null, null);
+        ColumnDefinition cdNew = new ColumnDefinition(cdOld.name, cdOld.getValidator(), null, null, null, null);
         meta.columnMetadata(Collections.singletonMap(cdOld.name, cdNew));
         MigrationManager.announceColumnFamilyUpdate(meta);
 

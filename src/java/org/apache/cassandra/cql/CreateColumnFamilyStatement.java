@@ -130,7 +130,7 @@ public class CreateColumnFamilyStatement
                                           ? CFPropDefs.comparators.get(col.getValue())
                                           : col.getValue();
                 AbstractType<?> validator = TypeParser.parse(validatorClassName);
-                columnDefs.put(columnName, new ColumnDefinition(columnName, validator, null, null, null));
+                columnDefs.put(columnName, new ColumnDefinition(columnName, validator, null, null, null, null));
             }
             catch (ConfigurationException e)
             {

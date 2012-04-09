@@ -423,8 +423,6 @@ struct CfDef {
     32: optional map<string,string> compression_options,
     33: optional double bloom_filter_fp_chance,
     34: optional string caching="keys_only",
-    35: optional list<binary> column_aliases,
-    36: optional binary value_alias,
     37: optional double dclocal_read_repair_chance = 0.0,
 
     /* All of the following are now ignored and unsupplied. */
