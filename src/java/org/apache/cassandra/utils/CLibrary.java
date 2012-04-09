@@ -18,17 +18,13 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import org.apache.commons.lang.StringUtils;
 
 import com.sun.jna.LastErrorException;
 import com.sun.jna.Native;
@@ -188,39 +184,12 @@ public final class CLibrary
         }
         try
         {
-            exec(pb);
+            FBUtilities.exec(pb);
         }
         catch (IOException ex)
         {
             logger.error("Unable to create hard link", ex);
             throw ex;
-        }
-    }
-
-    private static void exec(ProcessBuilder pb) throws IOException
-    {
-        Process p = pb.start();
-        try
-        {
-            int errCode = p.waitFor();
-            if (errCode != 0)
-            {
-                BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
-                BufferedReader err = new BufferedReader(new InputStreamReader(p.getErrorStream()));
-                StringBuffer buff = new StringBuffer();
-                String str;
-                while ((str = in.readLine()) != null)
-                    buff.append(str).append(System.getProperty("line.separator"));
-                while ((str = err.readLine()) != null)
-                    buff.append(str).append(System.getProperty("line.separator"));
-                throw new IOException("Exception while executing the command: "+ StringUtils.join(pb.command(), " ") +
-                                      ", command error Code: " + errCode +
-                                      ", command output: "+ buff.toString());
-            }
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
         }
     }
 

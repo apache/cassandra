@@ -1,4 +1,6 @@
 1.1.1-dev
+ * add support for commitlog archiving and point-in-time recovery
+   (CASSANDRA-3647)
  * update caches to use byte[] keys to reduce memory overhead (CASSANDRA-3966)
  * add column limit to cli (CASSANDRA-3012, 4098)
  * clean up and optimize DataOutputBuffer, used by CQL compression and

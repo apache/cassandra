@@ -53,9 +53,9 @@ public class CommitLogSegment
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLogSegment.class);
 
-    private static final String FILENAME_PREFIX = "CommitLog-";
-    private static final String FILENAME_EXTENSION = ".log";
-    private static Pattern COMMIT_LOG_FILE_PATTERN = Pattern.compile(FILENAME_PREFIX + "(\\d+)" + FILENAME_EXTENSION);
+    static final String FILENAME_PREFIX = "CommitLog-";
+    static final String FILENAME_EXTENSION = ".log";
+    private static final Pattern COMMIT_LOG_FILE_PATTERN = Pattern.compile(FILENAME_PREFIX + "(\\d+)" + FILENAME_EXTENSION);
 
     // The commit log entry overhead in bytes (int: length + long: head checksum + long: tail checksum)
     static final int ENTRY_OVERHEAD_SIZE = 4 + 8 + 8;
@@ -115,9 +115,9 @@ public class CommitLogSegment
             }
 
             // Map the segment, extending or truncating it to the standard segment size
-            logFileAccessor.setLength(CommitLog.SEGMENT_SIZE);
+            logFileAccessor.setLength(DatabaseDescriptor.getCommitLogSegmentSize());
 
-            buffer = logFileAccessor.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, CommitLog.SEGMENT_SIZE);
+            buffer = logFileAccessor.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, DatabaseDescriptor.getCommitLogSegmentSize());
             buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
             buffer.position(0);
 
@@ -163,12 +163,14 @@ public class CommitLogSegment
     /**
      * Completely discards a segment file by deleting it. (Potentially blocking operation)
      */
-    public void discard()
+    public void discard(boolean deleteFile)
     {
+        // TODO shouldn't we close the file when we're done writing to it, which comes (potentially) much earlier than it's eligible for recyling?
         close();
         try
         {
-            FileUtils.deleteWithConfirm(logFile);
+            if (deleteFile)
+                FileUtils.deleteWithConfirm(logFile);
         }
         catch (IOException e)
         {

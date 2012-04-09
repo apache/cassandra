@@ -150,6 +150,14 @@ saved_caches_directory: /var/lib/cassandra/saved_caches
 commitlog_sync: periodic
 commitlog_sync_period_in_ms: 10000
 
+# Configure  the Size of the individual Commitlog file. The 
+# default is 128 MB, which is almost always fine, but if you are
+# archiving commitlog segments (see commitlog_archiving.properties),
+# then you probably want a finer granularity of archiving; 16 MB
+# is reasonable.
+#
+# commitlog_segment_size_in_mb: 128
+
 # any class that implements the SeedProvider interface and has a
 # constructor that takes a Map<String, String> of parameters will do.
 seed_provider:
