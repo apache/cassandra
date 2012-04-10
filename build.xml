@@ -641,7 +641,7 @@
         The build target builds all the .class files
     -->
     <target name="build"
-        depends="maven-ant-tasks-retrieve-build,avro-generate,build-subprojects,build-project" description="Compile Cassandra classes"/>
+        depends="maven-ant-tasks-retrieve-build,avro-generate,build-subprojects,build-project,stress-build" description="Compile Cassandra classes"/>
     <target name="build-subprojects" description="Compile Cassandra contrib projects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report" description="Create code coverage report"/>
 
@@ -670,12 +670,34 @@
         <antcall target="createVersionPropFile"/>
     </target>
 
+    <!-- Stress build file -->
+    <property name="stress.build.src" value="${basedir}/tools/stress/src" />
+    <property name="stress.build.classes" value="${build.classes}/stress" />
+	<property name="stress.manifest" value="${basedir}/tools/stress/MANIFEST.MF" />
+    <path id="cassandra.classes">
+        <pathelement location="${basedir}/build/classes/main" />
+        <pathelement location="${basedir}/build/classes/thrift" />
+    </path>
+    <target name="stress-build">
+    	<mkdir dir="${stress.build.classes}" />
+        <javac destdir="${stress.build.classes}" includeantruntime="true">
+            <src path="${stress.build.src}" />
+            <classpath>
+                <path refid="cassandra.classes" />
+                <path>
+                    <fileset dir="${build.lib}">
+                        <include name="**/*.jar" />
+                    </fileset>
+                </path>
+            </classpath>
+        </javac>
+    </target>
 
     <!--
         The jar target makes cassandra.jar output.
     -->
     <target name="jar"
-            depends="maven-declare-dependencies,build, build-test"
+            depends="maven-declare-dependencies,build, build-test, stress-build"
             description="Assemble Cassandra JAR files">
       <mkdir dir="${build.classes.main}/META-INF" />
       <mkdir dir="${build.classes.thrift}/META-INF" />
@@ -736,6 +758,20 @@
           <attribute name="Implementation-Version" value="${version}"/>
           <attribute name="Implementation-Vendor" value="Apache"/>
         </manifest>
+      </jar>
+
+      <!-- Stress jar -->
+      <manifest file="${stress.manifest}">
+        <attribute name="Built-By" value="Pavel Yaskevich"/>
+        <attribute name="Main-Class" value="org.apache.cassandra.stress.Stress"/>
+      </manifest>
+      <mkdir dir="${stress.build.classes}/META-INF" />
+      <mkdir dir="${build.dir}/tools/stress" />
+      <jar destfile="${build.dir}/tools/stress/stress.jar" manifest="${stress.manifest}">
+        <fileset dir="${stress.build.classes}"/>
+        <fileset dir="${basedir}/build/classes/main" />
+        <fileset dir="${basedir}/build/classes/thrift" />
+        <zipgroupfileset dir="${build.lib}" includes="*.jar" />
       </jar>
     </target>
 
@@ -848,7 +884,14 @@
           <include name="*.txt" />
         </fileset>
       </copy>
-
+      <copy todir="${dist.dir}/tools/stress">
+        <fileset dir="${basedir}/tools/stress">
+            <include name="bin/**" />
+        </fileset>
+      	<fileset dir="${build.dir}/tools/stress/">
+      	    <include name="*.jar" />
+      	</fileset>
+      </copy>
       <artifact:writepom pomRefId="dist-pom" 
             file="${build.dir}/${final.name}-dist.pom"/>
       <tar compression="gzip" longfile="gnu"
