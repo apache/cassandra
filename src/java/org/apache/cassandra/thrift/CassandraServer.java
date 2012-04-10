@@ -854,6 +854,11 @@ public class CassandraServer implements Cassandra.Iface
     {
         return StorageService.instance.describeRing(keyspace);
     }
+    
+    public Map<String, String> describe_token_map() throws InvalidRequestException
+    {
+        return StorageService.instance.getTokenToEndpointMap();
+    }
 
     public String describe_partitioner() throws TException
     {

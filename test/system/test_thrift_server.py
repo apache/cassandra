@@ -17,7 +17,7 @@
 # to run a single test, run from trunk/:
 # PYTHONPATH=test nosetests --tests=system.test_thrift_server:TestMutations.test_empty_range
 
-import os, sys, time, struct, uuid
+import os, sys, time, struct, uuid, re
 
 from . import root, ThriftTester
 from . import thrift_client as client
@@ -1214,6 +1214,16 @@ class TestMutations(ThriftTester):
 
     def test_describe_ring(self):
         assert list(client.describe_ring('Keyspace1'))[0].endpoints == ['127.0.0.1']
+
+    def test_describe_token_map(self):
+        # test/conf/cassandra.yaml specifies org.apache.cassandra.dht.CollatingOrderPreservingPartitioner
+        # which uses BytesToken, so this just tests that the string representation of the token	
+        # matches a regex pattern for BytesToken.toString().
+        ring = client.describe_token_map().items()
+        assert len(ring) == 1
+        token, node = ring[0]
+        assert re.match("^Token\(bytes\[[0-9A-Fa-f]{32}\]\)", token) 
+        assert node == '127.0.0.1'
 
     def test_describe_partitioner(self):
         # Make sure this just reads back the values from the config.

@@ -55,7 +55,7 @@ namespace rb CassandraThrift
 # An effort should be made not to break forward-client-compatibility either
 # (e.g. one should avoid removing obsolete fields from the IDL), but no
 # guarantees in this respect are made by the Cassandra project.
-const string VERSION = "19.30.0"
+const string VERSION = "19.31.0"
 
 
 #
@@ -681,6 +681,12 @@ service Cassandra {
   list<TokenRange> describe_ring(1:required string keyspace)
                    throws (1:InvalidRequestException ire),
 
+  /** get the mapping between token->node ip
+      without taking replication into consideration
+      https://issues.apache.org/jira/browse/CASSANDRA-4092 */
+  map<string, string> describe_token_map()
+                    throws (1:InvalidRequestException ire),
+  
   /** returns the partitioner used by this cluster */
   string describe_partitioner(),
 
