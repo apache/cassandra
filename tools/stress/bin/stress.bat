@@ -18,9 +18,7 @@
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%\..\..
 if NOT DEFINED STRESS_HOME set STRESS_HOME=%CD%
 
-set CLASSPATH="%STRESS_HOME%\build\classes"
-set CLASSPATH=%CLASSPATH%;"%CASSANDRA_HOME%\build\classes\main"
-set CLASSPATH=%CLASSPATH%;"%CASSANDRA_HOME%\build\classes\thrift"
+set CLASSPATH="%STRESS_HOME%\..\*.jar"
 for %%i in ("%CASSANDRA_HOME%\lib\*.jar") do call :append "%%i"
     set CLASSPATH=%CLASSPATH%;"%%i"
 goto start
