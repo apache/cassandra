@@ -479,20 +479,17 @@ public class ThriftValidation
 
     public static void validateKeyRange(CFMetaData metadata, ByteBuffer superColumn, KeyRange range) throws InvalidRequestException
     {
-        if ((range.start_key == null) != (range.end_key == null))
-        {
-            throw new InvalidRequestException("start key and end key must either both be non-null, or both be null");
-        }
-        if ((range.start_token == null) != (range.end_token == null))
-        {
-            throw new InvalidRequestException("start token and end token must either both be non-null, or both be null");
-        }
-        if ((range.start_key == null) == (range.start_token == null))
+        if ((range.start_key == null) == (range.start_token == null)
+            || (range.end_key == null) == (range.end_token == null))
         {
             throw new InvalidRequestException("exactly one of {start key, end key} or {start token, end token} must be specified");
         }
 
-        if (range.start_key != null)
+        // (key, token) is supported (for wide-row CFRR) but not (token, key)
+        if (range.start_token != null && range.end_key != null)
+            throw new InvalidRequestException("start token + end key is not a supported key range");
+
+        if (range.start_key != null && range.end_key != null)
         {
             IPartitioner p = StorageService.getPartitioner();
             Token startToken = p.getToken(range.start_key);
@@ -510,7 +507,7 @@ public class ThriftValidation
 
         if (!isEmpty(range.row_filter) && superColumn != null)
         {
-            throw new InvalidRequestException("super columns are not yet supported for indexing");
+            throw new InvalidRequestException("super columns are not supported for indexing");
         }
 
         if (range.count <= 0)
