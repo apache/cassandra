@@ -71,7 +71,6 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     private ConsistencyLevel consistencyLevel;
     private int keyBufferSize = 8192;
     private List<IndexExpression> filter;
-    private boolean widerows;
 
     public ColumnFamilyRecordReader()
     {
@@ -140,7 +139,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         KeyRange jobRange = ConfigHelper.getInputKeyRange(conf);
         filter = jobRange == null ? null : jobRange.row_filter;
         predicate = ConfigHelper.getInputSlicePredicate(conf);
-        widerows = ConfigHelper.getInputIsWide(conf);
+        boolean widerows = ConfigHelper.getInputIsWide(conf);
         isEmptyPredicate = isEmptyPredicate(predicate);
         totalRowCount = ConfigHelper.getInputSplitSize(conf);
         batchSize = ConfigHelper.getRangeBatchSize(conf);
