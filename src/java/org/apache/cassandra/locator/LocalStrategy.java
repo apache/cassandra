@@ -18,11 +18,13 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -33,9 +35,22 @@ public class LocalStrategy extends AbstractReplicationStrategy
         super(table, tokenMetadata, snitch, configOptions);
     }
 
+    /**
+     * We need to override this even if we override calculateNaturalEndpoints,
+     * because the default implementation depends on token calculations but
+     * LocalStrategy may be used before tokens are set up.
+     */
+    @Override
+    public ArrayList<InetAddress> getNaturalEndpoints(RingPosition searchPosition)
+    {
+        ArrayList<InetAddress> l = new ArrayList<InetAddress>(1);
+        l.add(FBUtilities.getBroadcastAddress());
+        return l;
+    }
+
     public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
     {
-        return Arrays.asList(FBUtilities.getBroadcastAddress());
+        return Collections.singletonList(FBUtilities.getBroadcastAddress());
     }
 
     public int getReplicationFactor()
@@ -46,6 +61,6 @@ public class LocalStrategy extends AbstractReplicationStrategy
     public void validateOptions() throws ConfigurationException
     {
         // LocalStrategy doesn't expect any options.
-        warnOnUnexpectedOptions(Arrays.<String>asList());
+        warnOnUnexpectedOptions(Collections.<String>emptySet());
     }
 }

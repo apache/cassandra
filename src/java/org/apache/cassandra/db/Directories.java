@@ -395,8 +395,9 @@ public class Directories
 
     /**
      * To check if sstables needs migration, we look at the System directory.
-     * If it contains a directory for the status cf, we'll attempt a sstable
+     * If it does not contain a directory for the schema cfs, we'll attempt a sstable
      * migration.
+     *
      * Note that it is mostly harmless to try a migration uselessly, except
      * maybe for some wasted cpu cycles.
      */
@@ -410,7 +411,7 @@ public class Directories
         {
             File systemDir = new File(location, Table.SYSTEM_TABLE);
             hasSystemKeyspace |= (systemDir.exists() && systemDir.isDirectory());
-            File statusCFDir = new File(systemDir, SystemTable.STATUS_CF);
+            File statusCFDir = new File(systemDir, SystemTable.SCHEMA_KEYSPACES_CF);
             if (statusCFDir.exists())
                 return false;
         }

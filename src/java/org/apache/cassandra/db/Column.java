@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -319,6 +320,11 @@ public class Column implements IColumn
     public static Column create(ByteBuffer value, long timestamp, String... names)
     {
         return new Column(decomposeName(names), value, timestamp);
+    }
+
+    public static IColumn create(InetAddress value, long timestamp, String... names)
+    {
+        return new Column(decomposeName(names), InetAddressType.instance.decompose(value), timestamp);
     }
 
     static ByteBuffer decomposeName(String... names)

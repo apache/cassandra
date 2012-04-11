@@ -67,6 +67,7 @@ public class CFPropDefs
         comparators.put("decimal", "DecimalType");
         comparators.put("double", "DoubleType");
         comparators.put("float", "FloatType");
+        comparators.put("inet", "InetAddressType");
         comparators.put("int", "Int32Type");
         comparators.put("text", "UTF8Type");
         comparators.put("timestamp", "DateType");

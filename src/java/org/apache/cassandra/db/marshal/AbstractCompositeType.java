@@ -261,6 +261,8 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         }
     }
 
+    public abstract ByteBuffer decompose(Object... objects);
+
     public ByteBuffer compose(ByteBuffer bytes)
     {
         return bytes;

@@ -199,6 +199,11 @@ public class DynamicCompositeType extends AbstractCompositeType
             return comparator;
     }
 
+    public ByteBuffer decompose(Object... objects)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {

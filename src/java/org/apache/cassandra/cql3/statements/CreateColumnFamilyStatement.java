@@ -46,7 +46,7 @@ import org.apache.cassandra.utils.Pair;
 /** A <code>CREATE COLUMNFAMILY</code> parsed from a CQL query statement. */
 public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 {
-    private AbstractType<?> comparator;
+    public AbstractType<?> comparator;
     private AbstractType<?> defaultValidator;
     private AbstractType<?> keyValidator;
 
@@ -99,21 +99,25 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                                      ColumnFamilyType.Standard,
                                      comparator,
                                      null);
-
-            newCFMD.defaultValidator(defaultValidator)
-                   .columnMetadata(getColumns())
-                   .keyValidator(keyValidator)
-                   .keyAlias(keyAlias)
-                   .columnAliases(columnAliases)
-                   .valueAlias(valueAlias);
-
-            properties.applyToCFMetadata(newCFMD);
+            applyPropertiesTo(newCFMD);
         }
         catch (ConfigurationException e)
         {
             throw new InvalidRequestException(e.getMessage());
         }
         return newCFMD;
+    }
+
+    public void applyPropertiesTo(CFMetaData cfmd) throws InvalidRequestException, ConfigurationException
+    {
+        cfmd.defaultValidator(defaultValidator)
+            .columnMetadata(getColumns())
+            .keyValidator(keyValidator)
+            .keyAlias(keyAlias)
+            .columnAliases(columnAliases)
+            .valueAlias(valueAlias);
+
+        properties.applyToCFMetadata(cfmd);
     }
 
     public static class RawStatement extends CFStatement

@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,6 +106,29 @@ public class CompositeType extends AbstractCompositeType
         if (i >= types.size())
             throw new MarshalException("Too many bytes for comparator");
         return types.get(i);
+    }
+
+    public ByteBuffer decompose(Object... objects)
+    {
+        assert objects.length == types.size();
+
+        List<ByteBuffer> serialized = new ArrayList<ByteBuffer>(objects.length);
+        int totalLength = 0;
+        for (int i = 0; i < objects.length; i++)
+        {
+            ByteBuffer buffer = ((AbstractType) types.get(i)).decompose(objects[i]);
+            serialized.add(buffer);
+            totalLength += 2 + buffer.remaining() + 1;
+        }
+        ByteBuffer out = ByteBuffer.allocate(totalLength);
+        for (ByteBuffer bb : serialized)
+        {
+            putShortLength(out, bb.remaining());
+            out.put(bb);
+            out.put((byte) 0);
+        }
+        out.flip();
+        return out;
     }
 
     @Override

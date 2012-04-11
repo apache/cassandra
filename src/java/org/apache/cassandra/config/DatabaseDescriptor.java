@@ -433,17 +433,8 @@ public class DatabaseDescriptor
 
             // Hardcoded system tables
             KSMetaData systemMeta = KSMetaData.systemKeyspace();
-            Schema.instance.load(CFMetaData.StatusCf);
-            Schema.instance.load(CFMetaData.HintsCf);
-            Schema.instance.load(CFMetaData.MigrationsCf);
-            Schema.instance.load(CFMetaData.SchemaCf);
-            Schema.instance.load(CFMetaData.IndexCf);
-            Schema.instance.load(CFMetaData.NodeIdCf);
-            Schema.instance.load(CFMetaData.VersionCf);
-            Schema.instance.load(CFMetaData.SchemaKeyspacesCf);
-            Schema.instance.load(CFMetaData.SchemaColumnFamiliesCf);
-            Schema.instance.load(CFMetaData.SchemaColumnsCf);
-            Schema.instance.load(CFMetaData.HostIdCf);
+            for (CFMetaData cfm : systemMeta.cfMetaData().values())
+                Schema.instance.load(cfm);
 
             Schema.instance.addSystemTable(systemMeta);
 

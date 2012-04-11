@@ -533,6 +533,7 @@ native_type returns [String str]
         | K_DECIMAL
         | K_DOUBLE
         | K_FLOAT
+        | K_INET
         | K_INT
         | K_TEXT
         | K_TIMESTAMP
@@ -623,6 +624,7 @@ K_COUNTER:     C O U N T E R;
 K_DECIMAL:     D E C I M A L;
 K_DOUBLE:      D O U B L E;
 K_FLOAT:       F L O A T;
+K_INET:        I N E T;
 K_INT:         I N T;
 K_TEXT:        T E X T;
 K_UUID:        U U I D;

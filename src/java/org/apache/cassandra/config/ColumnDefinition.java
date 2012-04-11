@@ -61,31 +61,6 @@ public class ColumnDefinition
         this.setIndexType(index_type, index_options);
     }
 
-    public static ColumnDefinition ascii(String name, Integer cidx)
-    {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), AsciiType.instance, null, null, null, cidx);
-    }
-
-    public static ColumnDefinition bool(String name, Integer cidx)
-    {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), BooleanType.instance, null, null, null, cidx);
-    }
-
-    public static ColumnDefinition utf8(String name, Integer cidx)
-    {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), UTF8Type.instance, null, null, null, cidx);
-    }
-
-    public static ColumnDefinition int32(String name, Integer cidx)
-    {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), Int32Type.instance, null, null, null, cidx);
-    }
-
-    public static ColumnDefinition double_(String name, Integer cidx)
-    {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), DoubleType.instance, null, null, null, cidx);
-    }
-
     public ColumnDefinition clone()
     {
         return new ColumnDefinition(name, validator, index_type, index_options, index_name, componentIndex);
@@ -179,6 +154,7 @@ public class ColumnDefinition
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "index_type"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "index_options"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "index_name"));
+        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "component_index"));
     }
 
     public void toSchema(RowMutation rm, String cfName, AbstractType<?> comparator, long timestamp)
@@ -249,7 +225,7 @@ public class ColumnDefinition
                 if (result.has("component_index"))
                     componentIndex = result.getInt("component_index");
 
-                cds.add(new ColumnDefinition(cfm.getColumnDefinitionComparator(componentIndex).fromString(result.getString("column")),
+                cds.add(new ColumnDefinition(cfm.getColumnDefinitionComparator(componentIndex).fromString(result.getString("column_name")),
                                              TypeParser.parse(result.getString("validator")),
                                              index_type,
                                              index_options,

@@ -18,6 +18,7 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -26,10 +27,7 @@ import java.util.Map;
 
 import com.google.common.collect.AbstractIterator;
 
-import org.apache.cassandra.db.marshal.BooleanType;
-import org.apache.cassandra.db.marshal.DoubleType;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.CqlRow;
 import org.apache.hadoop.io.UTF8;
@@ -105,6 +103,17 @@ public class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         public ByteBuffer getBytes(String column)
         {
             return data.get(column);
+        }
+
+        public InetAddress getInetAddress(String column)
+        {
+            return InetAddressType.instance.compose(data.get(column));
+        }
+
+        @Override
+        public String toString()
+        {
+            return data.toString();
         }
     }
 }

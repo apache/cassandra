@@ -34,9 +34,11 @@ import org.apache.commons.lang.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.statements.CreateColumnFamilyStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.index.SecondaryIndex;
@@ -44,7 +46,6 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.SnappyCompressor;
-import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -76,92 +77,99 @@ public final class CFMetaData
     // Note that this is the default only for user created tables
     public final static String DEFAULT_COMPRESSOR = SnappyCompressor.isAvailable() ? SnappyCompressor.class.getCanonicalName() : null;
 
-    public static final CFMetaData StatusCf = newSystemMetadata(SystemTable.STATUS_CF, 0, "persistent metadata for the local node", BytesType.instance, null);
-    public static final CFMetaData HintsCf = newSystemMetadata(HintedHandOffManager.HINTS_CF, 1, "hinted handoff data", BytesType.instance, BytesType.instance);
     @Deprecated
-    public static final CFMetaData MigrationsCf = newSystemMetadata(DefsTable.OLD_MIGRATIONS_CF, 2, "individual schema mutations", TimeUUIDType.instance, null);
+    public static final CFMetaData OldStatusCf = newSystemMetadata(SystemTable.OLD_STATUS_CF, 0, "unused", BytesType.instance, null);
     @Deprecated
-    public static final CFMetaData SchemaCf = newSystemMetadata(DefsTable.OLD_SCHEMA_CF, 3, "current state of the schema", UTF8Type.instance, null);
-    public static final CFMetaData IndexCf = newSystemMetadata(SystemTable.INDEX_CF, 5, "indexes that have been completed", UTF8Type.instance, null);
-    public static final CFMetaData NodeIdCf = newSystemMetadata(SystemTable.NODE_ID_CF, 6, "nodeId and their metadata", TimeUUIDType.instance, null);
-    public static final CFMetaData VersionCf =
-            newSystemMetadata(SystemTable.VERSION_CF, 7, "server version information", UTF8Type.instance, null)
-            .keyAlias(ByteBufferUtil.bytes("component"))
-            .keyValidator(UTF8Type.instance)
-            .columnMetadata(Collections.singletonMap(ByteBufferUtil.bytes("version"),
-                                                     new ColumnDefinition(ByteBufferUtil.bytes("version"),
-                                                                          UTF8Type.instance,
-                                                                          null,
-                                                                          null,
-                                                                          null,
-                                                                          null)));
+    public static final CFMetaData OldHintsCf = newSystemMetadata(SystemTable.OLD_HINTS_CF, 1, "unused", BytesType.instance, BytesType.instance);
+    @Deprecated
+    public static final CFMetaData MigrationsCf = newSystemMetadata(DefsTable.OLD_MIGRATIONS_CF, 2, "unused", TimeUUIDType.instance, null);
+    @Deprecated
+    public static final CFMetaData SchemaCf = newSystemMetadata(DefsTable.OLD_SCHEMA_CF, 3, "unused", UTF8Type.instance, null);
+
+    public static final CFMetaData IndexCf = compile(5, "CREATE TABLE \"" + SystemTable.INDEX_CF + "\" ("
+                                                        + "table_name text,"
+                                                        + "index_name text,"
+                                                        + "blank blob," // TODO r/m when CASSANDRA-4212 is done
+                                                        + "PRIMARY KEY (table_name, index_name)"
+                                                        + ") WITH COMPACT STORAGE AND COMMENT='indexes that have been completed'");
+
+    public static final CFMetaData NodeIdCf = compile(6, "CREATE TABLE \"" + SystemTable.NODE_ID_CF + "\" ("
+                                                         + "key text,"
+                                                         + "id timeuuid,"
+                                                         + "blank blob," // TODO r/m when CASSANDRA-4212 is done
+                                                         + "PRIMARY KEY (key, id)"
+                                                         + ") WITH COMPACT STORAGE AND COMMENT='counter node IDs'");
 
     // new-style schema
-    public static final CFMetaData SchemaKeyspacesCf;
-    public static final CFMetaData SchemaColumnFamiliesCf;
-    public static final CFMetaData SchemaColumnsCf;
-    static
-    {
-        SchemaKeyspacesCf = newSchemaMetadata(SystemTable.SCHEMA_KEYSPACES_CF,
-                                              8,
-                                              "Keyspace definitions",
-                                              AsciiType.instance,
-                                              null)
-                            .keyValidator(AsciiType.instance)
-                            .keyAlias("keyspace")
-                            .columnMetadata(ColumnDefinition.utf8("name", null),
-                                            ColumnDefinition.bool("durable_writes", null),
-                                            ColumnDefinition.ascii("strategy_class", null),
-                                            ColumnDefinition.ascii("strategy_options", null));
+    public static final CFMetaData SchemaKeyspacesCf = compile(8, "CREATE TABLE " + SystemTable.SCHEMA_KEYSPACES_CF + "("
+                                                                 + "keyspace_name text PRIMARY KEY,"
+                                                                 + "name text," // TODO
+                                                                 + "durable_writes boolean,"
+                                                                 + "strategy_class text,"
+                                                                 + "strategy_options text"
+                                                                 + ") WITH COMMENT='keyspace definitions' AND gc_grace_seconds=8640");
+    public static final CFMetaData SchemaColumnFamiliesCf = compile(9, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNFAMILIES_CF + "("
+                                                                     + "keyspace_name text,"
+                                                                     + "columnfamily_name text,"
+                                                                     + "id int,"
+                                                                     + "type text,"
+                                                                     + "comparator text,"
+                                                                     + "subcomparator text,"
+                                                                     + "comment text,"
+                                                                     + "read_repair_chance double,"
+                                                                     + "local_read_repair_chance double,"
+                                                                     + "replicate_on_write boolean,"
+                                                                     + "gc_grace_seconds int,"
+                                                                     + "default_validator text,"
+                                                                     + "key_validator text,"
+                                                                     + "min_compaction_threshold int,"
+                                                                     + "max_compaction_threshold int,"
+                                                                     + "key_alias text,"
+                                                                     + "bloom_filter_fp_chance double,"
+                                                                     + "caching text,"
+                                                                     + "compaction_strategy_class text,"
+                                                                     + "compression_parameters text,"
+                                                                     + "value_aliases text,"
+                                                                     + "column_aliases text,"
+                                                                     + "compaction_strategy_options text,"
+                                                                     + "PRIMARY KEY (keyspace_name, columnfamily_name)"
+                                                                     + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
+    public static final CFMetaData SchemaColumnsCf = compile(10, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNS_CF + "("
+                                                               + "keyspace_name text,"
+                                                               + "columnfamily_name text,"
+                                                               + "column_name text,"
+                                                               + "validator text,"
+                                                               + "index_type text,"
+                                                               + "index_options text,"
+                                                               + "index_name text,"
+                                                               + "component_index int,"
+                                                               + "PRIMARY KEY(keyspace_name, columnfamily_name, column_name)"
+                                                               + ") WITH COMMENT='ColumnFamily column attributes' AND gc_grace_seconds=8640");
 
-        SchemaColumnFamiliesCf = newSchemaMetadata(SystemTable.SCHEMA_COLUMNFAMILIES_CF,
-                                                   9,
-                                                   "ColumnFamily definitions",
-                                                   CompositeType.getInstance(Arrays.<AbstractType<?>>asList(AsciiType.instance, AsciiType.instance)),
-                                                   null)
-                                 .keyValidator(AsciiType.instance)
-                                 .keyAlias("keyspace")
-                                 .columnAliases(Arrays.asList(ByteBufferUtil.bytes("columnfamily")))
-                                 .columnMetadata(ColumnDefinition.int32("id", 1),
-                                                 ColumnDefinition.ascii("type", 1),
-                                                 ColumnDefinition.ascii("comparator", 1),
-                                                 ColumnDefinition.ascii("subcomparator", 1),
-                                                 ColumnDefinition.utf8("comment", 1),
-                                                 ColumnDefinition.double_("read_repair_chance", 1),
-                                                 ColumnDefinition.double_("local_read_repair_chance", 1),
-                                                 ColumnDefinition.bool("replicate_on_write", 1),
-                                                 ColumnDefinition.int32("gc_grace_seconds", 1),
-                                                 ColumnDefinition.ascii("default_validator", 1),
-                                                 ColumnDefinition.ascii("key_validator", 1),
-                                                 ColumnDefinition.int32("min_compaction_threshold", 1),
-                                                 ColumnDefinition.int32("max_compaction_threshold", 1),
-                                                 ColumnDefinition.ascii("key_alias", 1),
-                                                 ColumnDefinition.double_("bloom_filter_fp_chance", 1),
-                                                 ColumnDefinition.ascii("caching", 1),
-                                                 ColumnDefinition.ascii("compaction_strategy_class", 1),
-                                                 ColumnDefinition.ascii("compression_parameters", 1),
-                                                 ColumnDefinition.utf8("value_alias", 1),
-                                                 ColumnDefinition.utf8("column_aliases", 1),
-                                                 ColumnDefinition.ascii("compaction_strategy_options", 1));
+    public static final CFMetaData HintsCf = compile(11, "CREATE TABLE " + SystemTable.HINTS_CF + " ("
+                                                         + "target_id uuid,"
+                                                         + "hint_id timeuuid,"
+                                                         + "message_version int,"
+                                                         + "mutation blob,"
+                                                         + "PRIMARY KEY (target_id, hint_id, message_version)"
+                                                         + ") WITH COMPACT STORAGE AND COMMENT='hints awaiting delivery'");
 
-        SchemaColumnsCf = newSchemaMetadata(SystemTable.SCHEMA_COLUMNS_CF,
-                                            10,
-                                            "ColumnFamily column attributes",
-                                            CompositeType.getInstance(Arrays.<AbstractType<?>>asList(AsciiType.instance,
-                                                                                                     AsciiType.instance,
-                                                                                                     AsciiType.instance)),
-                                            null)
-                          .keyValidator(AsciiType.instance)
-                          .keyAlias("keyspace")
-                          .columnAliases(Arrays.asList(ByteBufferUtil.bytes("columnfamily"), ByteBufferUtil.bytes("column")))
-                          .columnMetadata(ColumnDefinition.ascii("validator", 2),
-                                          ColumnDefinition.ascii("index_type", 2),
-                                          ColumnDefinition.ascii("index_options", 2),
-                                          ColumnDefinition.ascii("index_name", 2),
-                                          ColumnDefinition.ascii("component_index", 2));
-    }
+    public static final CFMetaData PeersCf = compile(12, "CREATE TABLE " + SystemTable.PEERS_CF + " ("
+                                                         + "token_bytes blob PRIMARY KEY,"
+                                                         + "peer inet"
+                                                         + ") WITH COMMENT='known peers in the cluster'");
 
-    public static final CFMetaData HostIdCf = newSystemMetadata(SystemTable.HOST_ID_CF, 11, "Host Identifier", UUIDType.instance, null);
+    public static final CFMetaData LocalCf = compile(13, "CREATE TABLE " + SystemTable.LOCAL_CF + " ("
+                                                         + "key text PRIMARY KEY,"
+                                                         + "token_bytes blob,"
+                                                         + "cluster_name text,"
+                                                         + "gossip_generation int,"
+                                                         + "bootstrapped boolean,"
+                                                         + "ring_id uuid,"
+                                                         + "release_version text,"
+                                                         + "thrift_version text,"
+                                                         + "cql_version text"
+                                                         + ") WITH COMMENT='information about the local node'");
 
     public enum Caching
     {
@@ -261,6 +269,29 @@ public final class CFMetaData
         this.init();
     }
 
+    private static CFMetaData compile(int id, String cql)
+    {
+        try
+        {
+            CreateColumnFamilyStatement statement = (CreateColumnFamilyStatement) QueryProcessor.parseStatement(cql).prepare().statement;
+            CFMetaData cfmd = newSystemMetadata(statement.columnFamily(), id, "", statement.comparator, null);
+            statement.applyPropertiesTo(cfmd);
+            return cfmd;
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (RecognitionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     private AbstractType<?> enforceSubccDefault(ColumnFamilyType cftype, AbstractType<?> subcc)
     {
         return (subcc == null) && (cftype == ColumnFamilyType.Super) ? BytesType.instance : subcc;
@@ -319,20 +350,9 @@ public final class CFMetaData
         Schema.instance.addOldCfIdMapping(oldCfId, newCFMD.cfId);
 
         return newCFMD.comment(comment)
-                      .readRepairChance(0)
-                      .dcLocalReadRepairChance(0)
-                      .gcGraceSeconds(0);
-    }
-
-    private static CFMetaData newSchemaMetadata(String cfName, int oldCfId, String comment, AbstractType<?> comparator, AbstractType<?> subcc)
-    {
-        /*
-         * Schema column families needs a gc_grace (since they are replicated
-         * on every node). That gc_grace should be high enough that no node
-         * could be dead for that long a time.
-         */
-        int gcGrace = 120 * 24 * 3600; // 3 months
-        return newSystemMetadata(cfName, oldCfId, comment, comparator, subcc).gcGraceSeconds(gcGrace);
+                .readRepairChance(0)
+                .dcLocalReadRepairChance(0)
+                .gcGraceSeconds(0);
     }
 
     public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType<?> columnComparator)
@@ -1184,8 +1204,8 @@ public final class CFMetaData
     {
         try
         {
-            CFMetaData cfm = new CFMetaData(result.getString("keyspace"),
-                                            result.getString("columnfamily"),
+            CFMetaData cfm = new CFMetaData(result.getString("keyspace_name"),
+                                            result.getString("columnfamily_name"),
                                             ColumnFamilyType.valueOf(result.getString("type")),
                                             TypeParser.parse(result.getString("comparator")),
                                             result.has("subcomparator") ? TypeParser.parse(result.getString("subcomparator")) : null);

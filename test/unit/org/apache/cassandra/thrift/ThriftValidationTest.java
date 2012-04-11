@@ -35,6 +35,7 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ThriftValidationTest extends SchemaLoader
@@ -124,7 +125,7 @@ public class ThriftValidationTest extends SchemaLoader
         assert !gotException : "got unexpected ConfigurationException";
 
         // add a column with name = "id"
-        newMetadata.addColumnDefinition(ColumnDefinition.utf8("id", null));
+        newMetadata.addColumnDefinition(new ColumnDefinition(ByteBufferUtil.bytes("id"), UTF8Type.instance, null, null, null, null));
 
         gotException = false;
 

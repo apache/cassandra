@@ -121,33 +121,53 @@ public class QueryProcessor
         return processStatement(getStatement(queryString, clientState).statement, clientState, Collections.<ByteBuffer>emptyList());
     }
 
-    public static UntypedResultSet resultify(String queryString, Row row)
+    public static UntypedResultSet processInternal(String query)
+    {
+        try
+        {
+            ClientState state = new ClientState();
+            CqlResult result = processStatement(getStatement(query, state).statement, state, Collections.<ByteBuffer>emptyList());
+            return new UntypedResultSet(result.rows);
+        }
+        catch (UnavailableException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new AssertionError(e);
+        }
+        catch (RecognitionException e)
+        {
+            throw new AssertionError(e);
+        }
+        catch (TimedOutException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (SchemaDisagreementException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static UntypedResultSet resultify(String query, Row row)
     {
         SelectStatement ss;
         try
         {
-            ss = (SelectStatement) getStatement(queryString, null).statement;
+            ss = (SelectStatement) getStatement(query, null).statement;
+            List<CqlRow> cqlRows = ss.process(Collections.singletonList(row));
+            return new UntypedResultSet(cqlRows);
         }
         catch (InvalidRequestException e)
         {
-            throw new RuntimeException(e);
+            throw new AssertionError(e);
         }
         catch (RecognitionException e)
         {
-            throw new RuntimeException(e);
+            throw new AssertionError(e);
         }
-
-        List<CqlRow> cqlRows;
-        try
-        {
-            cqlRows = ss.process(Collections.singletonList(row));
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        return new UntypedResultSet(cqlRows);
     }
 
     public static CqlPreparedResult prepare(String queryString, ClientState clientState)
@@ -215,7 +235,7 @@ public class QueryProcessor
         return statement.prepare();
     }
 
-    private static ParsedStatement parseStatement(String queryStr) throws InvalidRequestException, RecognitionException
+    public static ParsedStatement parseStatement(String queryStr) throws InvalidRequestException, RecognitionException
     {
         try
         {
@@ -242,5 +262,4 @@ public class QueryProcessor
             throw ire;
         }
     }
-
 }
