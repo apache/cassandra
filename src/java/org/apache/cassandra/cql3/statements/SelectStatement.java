@@ -285,7 +285,8 @@ public class SelectStatement implements CQLStatement
                                                                     bounds,
                                                                     expressions,
                                                                     getLimit(),
-                                                                    true), // limit by columns, not keys
+                                                                    true, // limit by columns, not keys
+                                                                    false),
                                               parameters.consistencyLevel);
         }
         catch (IOException e)
