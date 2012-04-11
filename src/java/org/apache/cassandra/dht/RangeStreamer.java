@@ -239,7 +239,11 @@ public class RangeStreamer implements IEndpointStateChangeSubscriber, IFailureDe
                                      source, table, opType, latch.getCount()));
                 }
 
-                public void onFailure() {}
+                public void onFailure()
+                {
+                    logger.warn("Streaming from " + source + " failed");
+                    onSuccess(); // calling onSuccess for latch countdown
+                }
             };
             if (logger.isDebugEnabled())
                 logger.debug("" + opType + "ing from " + source + " ranges " + StringUtils.join(ranges, ", "));

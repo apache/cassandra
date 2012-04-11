@@ -126,12 +126,20 @@ public class StreamInSession extends AbstractStreamSession
         {
             logger.error(String.format("Failed streaming session %d from %s while receiving %s", getSessionId(), getHost().toString(), current),
                          new IllegalStateException("Too many retries for " + remoteFile));
-            closeInternal(false);
+            close(false);
             return;
         }
         StreamReply reply = new StreamReply(remoteFile.getFilename(), getSessionId(), StreamReply.Status.FILE_RETRY);
         logger.info("Streaming of file {} for {} failed: requesting a retry.", remoteFile, this);
-        sendMessage(reply.getMessage(Gossiper.instance.getVersion(getHost())));
+        try
+        {
+            sendMessage(reply.getMessage(Gossiper.instance.getVersion(getHost())));
+        }
+        catch (IOException e)
+        {
+            logger.error("Sending retry message failed, closing session.", e);
+            close(false);
+        }
     }
 
     public void sendMessage(Message message) throws IOException
