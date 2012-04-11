@@ -32,9 +32,9 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.Throttle;
 import org.apache.cassandra.utils.IntervalTree.Interval;
 import org.apache.cassandra.utils.IntervalTree.IntervalTree;
+import org.apache.cassandra.utils.Throttle;
 
 /**
  * Manage compaction options.

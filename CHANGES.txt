@@ -34,7 +34,10 @@
    (CASSANDRA-4128)
  * Move CfDef and KsDef validation out of thrift (CASSANDRA-4037)
 Merged from 1.0:
+ * add auto_snapshot option allowing disabling snapshot before drop/truncate
+   (CASSANDRA-3710)
  * allow short snitch names (CASSANDRA-4130)
+
 
 1.1-beta2
  * rename loaded sstables to avoid conflicts with local snapshots
