@@ -119,7 +119,7 @@ public class CompactionIterable extends AbstractCompactionIterable
                     for (SSTableScanner scanner : scanners)
                         n += scanner.getFilePointer();
                     bytesRead = n;
-                    throttle.throttle(bytesRead);
+                    controller.mayThrottle(bytesRead);
                 }
             }
         }

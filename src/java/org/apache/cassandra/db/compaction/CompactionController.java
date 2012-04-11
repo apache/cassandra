@@ -30,6 +30,8 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Throttle;
 import org.apache.cassandra.utils.IntervalTree.Interval;
 import org.apache.cassandra.utils.IntervalTree.IntervalTree;
 
@@ -47,6 +49,20 @@ public class CompactionController
     public final int gcBefore;
     public boolean keyExistenceIsExpensive;
     public final int mergeShardBefore;
+    private final Throttle throttle = new Throttle("Cassandra_Throttle", new Throttle.ThroughputFunction()
+    {
+        /** @return Instantaneous throughput target in bytes per millisecond. */
+        public int targetThroughput()
+        {
+            if (DatabaseDescriptor.getCompactionThroughputMbPerSec() < 1 || StorageService.instance.isBootstrapMode())
+                // throttling disabled
+                return 0;
+            // total throughput
+            int totalBytesPerMS = DatabaseDescriptor.getCompactionThroughputMbPerSec() * 1024 * 1024 / 1000;
+            // per stream throughput (target bytes per MS)
+            return totalBytesPerMS / Math.max(1, CompactionManager.instance.getActiveCompactions());
+        }
+    });
 
     public CompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
     {
@@ -152,5 +168,10 @@ public class CompactionController
     public AbstractCompactedRow getCompactedRow(SSTableIdentityIterator row)
     {
         return getCompactedRow(Collections.singletonList(row));
+    }
+    
+    public void mayThrottle(long currentBytes)
+    {
+        throttle.throttle(currentBytes);
     }
 }
