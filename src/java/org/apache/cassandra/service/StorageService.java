@@ -1530,7 +1530,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
                     public void onFailure()
                     {
-                        logger_.warn("Streaming from " + source + " failed");
+                        logger.warn("Streaming from " + source + " failed");
                         onSuccess(); // calling onSuccess to send notification
                     }
                 };
@@ -2846,7 +2846,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
                     public void onFailure()
                     {
-                        logger_.warn("Streaming to " + endPointEntry + " failed");
+                        logger.warn("Streaming to " + endPointEntry + " failed");
                         onSuccess(); // calling onSuccess for latch countdown
                     }
                 };
@@ -2902,7 +2902,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
                     public void onFailure()
                     {
-                        logger_.warn("Streaming from " + source + " failed");
+                        logger.warn("Streaming from " + source + " failed");
                         onSuccess(); // calling onSuccess for latch countdown
                     }
                 };
