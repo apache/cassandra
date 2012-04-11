@@ -900,6 +900,10 @@ public class DatabaseDescriptor
         return conf.snapshot_before_compaction;
     }
 
+    public static boolean isAutoSnapshot() {
+        return conf.auto_snapshot;
+    }
+
     public static boolean isAutoBootstrap()
     {
         return conf.auto_bootstrap;

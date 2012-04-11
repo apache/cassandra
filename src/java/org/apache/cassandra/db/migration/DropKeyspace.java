@@ -60,7 +60,9 @@ public class DropKeyspace extends Migration
                 schema.purge(cfm);
                 if (!StorageService.instance.isClientMode())
                 {
-                    cfs.snapshot(snapshotName);
+                    if (DatabaseDescriptor.isAutoSnapshot())
+                        cfs.snapshot(snapshotName);
+
                     cfs.flushLock.lock();
                     try
                     {
