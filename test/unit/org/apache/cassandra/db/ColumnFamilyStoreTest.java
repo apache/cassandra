@@ -820,11 +820,11 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         sp.getSlice_range().setStart(ArrayUtils.EMPTY_BYTE_ARRAY);
         sp.getSlice_range().setFinish(ArrayUtils.EMPTY_BYTE_ARRAY);
 
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 3, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 3);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 5, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 5);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 8, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 8);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 10, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 10);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 11);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 3, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 3);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 5, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 5);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 8, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 8);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 10, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 10);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 11);
 
         // Check that when querying by name, we always include all names for a
         // gien row even if it means returning more columns than requested (this is necesseray for CQL)
@@ -835,11 +835,83 @@ public class ColumnFamilyStoreTest extends SchemaLoader
             ByteBufferUtil.bytes("c2")
         ));
 
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 1, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 3);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 4, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 5);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 5, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 5);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 6, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 8);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 8);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 1, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 3);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 4, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 5);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 5, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 5);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 6, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 8);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 8);
+    }
+
+    @Test
+    public void testRangeSlicePaging() throws Throwable
+    {
+        String tableName = "Keyspace1";
+        String cfName = "Standard1";
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        cfs.clearUnsafe();
+
+        Column[] cols = new Column[4];
+        for (int i = 0; i < 4; i++)
+            cols[i] = column("c" + i, "value", 1);
+
+        putColsStandard(cfs, Util.dk("a"), cols[0], cols[1], cols[2], cols[3]);
+        putColsStandard(cfs, Util.dk("b"), cols[0], cols[1], cols[2]);
+        putColsStandard(cfs, Util.dk("c"), cols[0], cols[1], cols[2], cols[3]);
+        cfs.forceBlockingFlush();
+
+        SlicePredicate sp = new SlicePredicate();
+        sp.setSlice_range(new SliceRange());
+        sp.getSlice_range().setCount(1);
+        sp.getSlice_range().setStart(ArrayUtils.EMPTY_BYTE_ARRAY);
+        sp.getSlice_range().setFinish(ArrayUtils.EMPTY_BYTE_ARRAY);
+
+        Collection<Row> rows = cfs.getRangeSlice(null, Util.range("", ""), 3, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, true);
+        assert rows.size() == 1 : "Expected 1 row, got " + rows;
+        Row row = rows.iterator().next();
+        assertColumnNames(row, "c0", "c1", "c2");
+
+        sp.getSlice_range().setStart(ByteBufferUtil.getArray(ByteBufferUtil.bytes("c2")));
+        rows = cfs.getRangeSlice(null, Util.range("", ""), 3, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, true);
+        assert rows.size() == 2 : "Expected 2 rows, got " + rows;
+        Iterator<Row> iter = rows.iterator();
+        Row row1 = iter.next();
+        Row row2 = iter.next();
+        assertColumnNames(row1, "c2", "c3");
+        assertColumnNames(row2, "c0");
+
+        sp.getSlice_range().setStart(ByteBufferUtil.getArray(ByteBufferUtil.bytes("c0")));
+        rows = cfs.getRangeSlice(null, new Bounds<RowPosition>(row2.key, Util.rp("")), 3, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, true);
+        assert rows.size() == 1 : "Expected 1 row, got " + rows;
+        row = rows.iterator().next();
+        assertColumnNames(row, "c0", "c1", "c2");
+
+        sp.getSlice_range().setStart(ByteBufferUtil.getArray(ByteBufferUtil.bytes("c2")));
+        rows = cfs.getRangeSlice(null, new Bounds<RowPosition>(row.key, Util.rp("")), 3, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, true);
+        assert rows.size() == 2 : "Expected 2 rows, got " + rows;
+        iter = rows.iterator();
+        row1 = iter.next();
+        row2 = iter.next();
+        assertColumnNames(row1, "c2");
+        assertColumnNames(row2, "c0", "c1");
+    }
+
+    private static void assertColumnNames(Row row, String ... columnNames) throws Exception
+    {
+        if (row == null || row.cf == null)
+            throw new AssertionError("The row should not be empty");
+
+        Iterator<IColumn> columns = row.cf.getSortedColumns().iterator();
+        Iterator<String> names = Arrays.asList(columnNames).iterator();
+
+        while (columns.hasNext())
+        {
+            IColumn c = columns.next();
+            assert names.hasNext() : "Got more columns that expected (first unexpected column: " + ByteBufferUtil.string(c.name()) + ")";
+            String n = names.next();
+            assert c.name().equals(ByteBufferUtil.bytes(n)) : "Expected " + n + ", got " + ByteBufferUtil.string(c.name());
+        }
+        assert !names.hasNext() : "Missing expected column " + names.next();
     }
 
     private static DecoratedKey idk(int i)

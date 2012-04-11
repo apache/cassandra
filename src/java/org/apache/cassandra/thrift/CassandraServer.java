@@ -727,6 +727,7 @@ public class CassandraServer implements Cassandra.Iface
         AbstractBounds<RowPosition> bounds;
         if (range.start_key == null)
         {
+            // (token, key) is unsupported, assume (token, token)
             Token.TokenFactory tokenFactory = p.getTokenFactory();
             Token left = tokenFactory.fromString(range.start_token);
             Token right = tokenFactory.fromString(range.end_token);
@@ -734,7 +735,9 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            bounds = new Bounds<RowPosition>(RowPosition.forKey(range.start_key, p), RowPosition.forKey(range.end_key, p));
+            RowPosition end = range.end_key == null ? p.getTokenFactory().fromString(range.end_token).maxKeyBound(p)
+                                                    : RowPosition.forKey(range.end_key, p);
+            bounds = new Bounds<RowPosition>(RowPosition.forKey(range.start_key, p), end);
         }
 
         List<Row> rows;
@@ -743,7 +746,7 @@ public class CassandraServer implements Cassandra.Iface
             schedule(DatabaseDescriptor.getRpcTimeout());
             try
             {
-                rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_family, null, predicate, bounds, range.row_filter, range.count, true), consistency_level);
+                rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_family, null, predicate, bounds, range.row_filter, range.count, true, true), consistency_level);
             }
             finally
             {

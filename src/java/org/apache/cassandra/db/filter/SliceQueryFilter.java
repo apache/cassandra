@@ -39,7 +39,8 @@ public class SliceQueryFilter implements IFilter
 {
     private static final Logger logger = LoggerFactory.getLogger(SliceQueryFilter.class);
 
-    public final ByteBuffer start; public final ByteBuffer finish;
+    public volatile ByteBuffer start;
+    public volatile ByteBuffer finish;
     public final boolean reversed;
     public volatile int count;
 

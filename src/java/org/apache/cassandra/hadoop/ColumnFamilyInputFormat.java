@@ -30,6 +30,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -83,6 +85,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
 
     private String keyspace;
     private String cfName;
+    private IPartitioner partitioner;
 
     private static void validateConfiguration(Configuration conf)
     {
@@ -96,8 +99,8 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         }
         if (ConfigHelper.getInputInitialAddress(conf) == null)
             throw new UnsupportedOperationException("You must set the initial output address to a Cassandra node");
-
-        // input partitioner is optional -- used only if requesting an ordered key scan
+        if (ConfigHelper.getInputPartitioner(conf) == null)
+            throw new UnsupportedOperationException("You must set the Cassandra partitioner class");
     }
 
     public List<InputSplit> getSplits(JobContext context) throws IOException
@@ -111,6 +114,8 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
 
         keyspace = ConfigHelper.getInputKeyspace(context.getConfiguration());
         cfName = ConfigHelper.getInputColumnFamily(context.getConfiguration());
+        partitioner = ConfigHelper.getInputPartitioner(context.getConfiguration());
+        logger.debug("partitioner is " + partitioner);
 
         // cannonical ranges, split into pieces, fetching the splits in parallel
         ExecutorService executor = Executors.newCachedThreadPool();
@@ -120,11 +125,9 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         {
             List<Future<List<InputSplit>>> splitfutures = new ArrayList<Future<List<InputSplit>>>();
             KeyRange jobKeyRange = ConfigHelper.getInputKeyRange(conf);
-            IPartitioner partitioner = null;
             Range<Token> jobRange = null;
             if (jobKeyRange != null && jobKeyRange.start_token != null)
             {
-                partitioner = ConfigHelper.getInputPartitioner(context.getConfiguration());
                 assert partitioner.preservesOrder() : "ConfigHelper.setInputKeyRange(..) can only be used with a order preserving paritioner";
                 assert jobKeyRange.start_key == null : "only start_token supported";
                 assert jobKeyRange.end_key == null : "only end_token supported";
@@ -215,11 +218,19 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
                 endpoints[endpointIndex++] = InetAddress.getByName(endpoint_address).getHostName();
             }
 
+            Token.TokenFactory factory = partitioner.getTokenFactory();
             for (int i = 1; i < tokens.size(); i++)
             {
-                ColumnFamilySplit split = new ColumnFamilySplit(tokens.get(i - 1), tokens.get(i), endpoints);
-                logger.debug("adding " + split);
-                splits.add(split);
+                Token left = factory.fromString(tokens.get(i - 1));
+                Token right = factory.fromString(tokens.get(i));
+                Range<Token> range = new Range<Token>(left, right, partitioner);
+                List<Range<Token>> ranges = range.isWrapAround() ? range.unwrap() : ImmutableList.of(range);
+                for (Range<Token> subrange : ranges)
+                {
+                    ColumnFamilySplit split = new ColumnFamilySplit(factory.toString(subrange.left), factory.toString(subrange.right), endpoints);
+                    logger.debug("adding " + split);
+                    splits.add(split);
+                }
             }
             return splits;
         }

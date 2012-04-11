@@ -46,7 +46,7 @@ public class RangeSliceVerbHandler implements IVerbHandler
         if (cfs.indexManager.hasIndexFor(command.row_filter))
             return cfs.search(command.row_filter, command.range, command.maxResults, columnFilter, command.maxIsColumns);
         else
-            return cfs.getRangeSlice(command.super_column, command.range, command.maxResults, columnFilter, command.row_filter, command.maxIsColumns);
+            return cfs.getRangeSlice(command.super_column, command.range, command.maxResults, columnFilter, command.row_filter, command.maxIsColumns, command.isPaging);
     }
 
     public void doVerb(Message message, String id)
