@@ -100,11 +100,10 @@ public class ColumnFamilySplit extends InputSplit implements Writable, org.apach
     @Override
     public String toString()
     {
-        return "ColumnFamilySplit{" +
-               "startToken='" + startToken + '\'' +
-               ", endToken='" + endToken + '\'' +
-               ", dataNodes=" + (dataNodes == null ? null : Arrays.asList(dataNodes)) +
-               '}';
+        return "ColumnFamilySplit(" +
+               "(" + startToken
+               + ", '" + endToken + ']'
+               + " @" + (dataNodes == null ? null : Arrays.asList(dataNodes)) + ')';
     }
 
     public static ColumnFamilySplit read(DataInput in) throws IOException
