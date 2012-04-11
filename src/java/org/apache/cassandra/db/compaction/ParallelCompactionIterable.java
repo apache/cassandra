@@ -164,7 +164,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                 for (SSTableScanner scanner : scanners)
                     n += scanner.getFilePointer();
                 bytesRead = n;
-                throttle.throttle(bytesRead);
+                controller.mayThrottle(bytesRead);
             }
             return compacted;
         }

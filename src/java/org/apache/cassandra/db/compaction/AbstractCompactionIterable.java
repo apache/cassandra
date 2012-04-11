@@ -24,12 +24,9 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CloseableIterator;
-import org.apache.cassandra.utils.Throttle;
 
 public abstract class AbstractCompactionIterable extends CompactionInfo.Holder implements Iterable<AbstractCompactedRow>
 {
@@ -40,8 +37,6 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
     protected final long totalBytes;
     protected volatile long bytesRead;
     protected final List<SSTableScanner> scanners;
-
-    protected final Throttle throttle;
 
     public AbstractCompactionIterable(CompactionController controller, OperationType type, List<SSTableScanner> scanners)
     {
@@ -54,21 +49,6 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
         for (SSTableScanner scanner : scanners)
             bytes += scanner.getFileLength();
         this.totalBytes = bytes;
-
-        this.throttle = new Throttle(toString(), new Throttle.ThroughputFunction()
-        {
-            /** @return Instantaneous throughput target in bytes per millisecond. */
-            public int targetThroughput()
-            {
-                if (DatabaseDescriptor.getCompactionThroughputMbPerSec() < 1 || StorageService.instance.isBootstrapMode())
-                    // throttling disabled
-                    return 0;
-                // total throughput
-                int totalBytesPerMS = DatabaseDescriptor.getCompactionThroughputMbPerSec() * 1024 * 1024 / 1000;
-                // per stream throughput (target bytes per MS)
-                return totalBytesPerMS / Math.max(1, CompactionManager.instance.getActiveCompactions());
-            }
-        });
     }
 
     protected static List<SSTableScanner> getScanners(Iterable<SSTableReader> sstables) throws IOException
