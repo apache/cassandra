@@ -227,7 +227,11 @@ public class SSTableLoader
                 client.stop();
         }
 
-        public void onFailure() {}
+        public void onFailure()
+        {
+            outputHandler.output(String.format("Streaming session to %s failed", endpoint));
+            onSuccess(); // call onSuccess for latch countdown
+        }
     }
 
     public interface OutputHandler

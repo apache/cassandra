@@ -1508,7 +1508,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                         }
                     }
 
-                    public void onFailure() {}
+                    public void onFailure()
+                    {
+                        logger_.warn("Streaming from " + source + " failed");
+                        onSuccess(); // calling onSuccess to send notification
+                    }
                 };
                 if (logger_.isDebugEnabled())
                     logger_.debug("Requesting from " + source + " ranges " + StringUtils.join(ranges, ", "));
@@ -2819,7 +2823,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                                 latch.countDown();
                         }
                     }
-                    public void onFailure() {}
+
+                    public void onFailure()
+                    {
+                        logger_.warn("Streaming to " + endPointEntry + " failed");
+                        onSuccess(); // calling onSuccess for latch countdown
+                    }
                 };
 
                 StageManager.getStage(Stage.STREAM).execute(new Runnable()
@@ -2871,7 +2880,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                             latch.countDown();
                     }
 
-                    public void onFailure() {}
+                    public void onFailure()
+                    {
+                        logger_.warn("Streaming from " + source + " failed");
+                        onSuccess(); // calling onSuccess for latch countdown
+                    }
                 };
 
                 if (logger_.isDebugEnabled())

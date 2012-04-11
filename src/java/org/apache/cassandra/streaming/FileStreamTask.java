@@ -106,6 +106,13 @@ public class FileStreamTask extends WrappedRunnable
                 logger.info("Finished streaming session to {}", to);
             }
         }
+        catch (IOException e)
+        {
+            StreamOutSession session = StreamOutSession.get(to, header.sessionId);
+            if (session != null)
+                session.close(false);
+            throw e;
+        }
         finally
         {
             try
