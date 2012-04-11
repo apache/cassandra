@@ -75,33 +75,34 @@ public class RangeSliceCommand implements MessageProducer, IReadCommand
     public final AbstractBounds<RowPosition> range;
     public final int maxResults;
     public final boolean maxIsColumns;
+    public final boolean isPaging;
 
     public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds<RowPosition> range, int maxResults)
     {
-        this(keyspace, column_family, super_column, predicate, range, null, maxResults, false);
+        this(keyspace, column_family, super_column, predicate, range, null, maxResults, false, false);
     }
 
-    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds<RowPosition> range, int maxResults, boolean maxIsColumns)
+    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds<RowPosition> range, int maxResults, boolean maxIsColumns, boolean isPaging)
     {
-        this(keyspace, column_family, super_column, predicate, range, null, maxResults, maxIsColumns);
+        this(keyspace, column_family, super_column, predicate, range, null, maxResults, maxIsColumns, false);
     }
 
     public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults)
     {
-        this(keyspace, column_parent.getColumn_family(), column_parent.super_column, predicate, range, row_filter, maxResults, false);
+        this(keyspace, column_parent.getColumn_family(), column_parent.super_column, predicate, range, row_filter, maxResults, false, false);
     }
 
-    public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults, boolean maxIsColumns)
+    public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults, boolean maxIsColumns, boolean isPaging)
     {
-        this(keyspace, column_parent.getColumn_family(), column_parent.super_column, predicate, range, row_filter, maxResults, maxIsColumns);
+        this(keyspace, column_parent.getColumn_family(), column_parent.super_column, predicate, range, row_filter, maxResults, maxIsColumns, isPaging);
     }
 
     public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults)
     {
-        this(keyspace, column_family, super_column, predicate, range, row_filter, maxResults, false);
+        this(keyspace, column_family, super_column, predicate, range, row_filter, maxResults, false, false);
     }
 
-    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults, boolean maxIsColumns)
+    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults, boolean maxIsColumns, boolean isPaging)
     {
         this.keyspace = keyspace;
         this.column_family = column_family;
@@ -111,6 +112,7 @@ public class RangeSliceCommand implements MessageProducer, IReadCommand
         this.row_filter = row_filter;
         this.maxResults = maxResults;
         this.maxIsColumns = maxIsColumns;
+        this.isPaging = isPaging;
     }
 
     public Message getMessage(Integer version) throws IOException
@@ -182,6 +184,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         if (version >= MessagingService.VERSION_11)
         {
             dos.writeBoolean(sliceCommand.maxIsColumns);
+            dos.writeBoolean(sliceCommand.isPaging);
         }
     }
 
@@ -219,11 +222,13 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
 
         int maxResults = dis.readInt();
         boolean maxIsColumns = false;
+        boolean isPaging = false;
         if (version >= MessagingService.VERSION_11)
         {
             maxIsColumns = dis.readBoolean();
+            isPaging = dis.readBoolean();
         }
-        return new RangeSliceCommand(keyspace, columnFamily, superColumn, pred, range, rowFilter, maxResults, maxIsColumns);
+        return new RangeSliceCommand(keyspace, columnFamily, superColumn, pred, range, rowFilter, maxResults, maxIsColumns, isPaging);
     }
 
     public long serializedSize(RangeSliceCommand rangeSliceCommand, int version)
