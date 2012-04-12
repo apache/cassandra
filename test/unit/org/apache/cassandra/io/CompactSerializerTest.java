@@ -58,6 +58,7 @@ public class CompactSerializerTest extends SchemaLoader
         expectedClassNames.add("GossipDigestAck2MessageSerializer");
         expectedClassNames.add("GossipDigestAckMessageSerializer");
         expectedClassNames.add("GossipDigestSynMessageSerializer");
+        expectedClassNames.add("GossipShutdownMessageSerializer");
         expectedClassNames.add("HeartBeatStateSerializer");
         expectedClassNames.add("VersionedValueSerializer");
         expectedClassNames.add("HeaderSerializer");
