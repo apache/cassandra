@@ -65,7 +65,6 @@ public class SerializingCache<K, V> implements ICache<K, V>
                    .weigher(useMemoryWeigher
                                 ? createMemoryWeigher()
                                 : Weighers.<FreeableMemory>singleton())
-                   .initialCapacity(capacity)
                    .maximumWeightedCapacity(capacity)
                    .concurrencyLevel(DEFAULT_CONCURENCY_LEVEL)
                    .listener(listener)
