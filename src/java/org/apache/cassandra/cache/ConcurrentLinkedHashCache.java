@@ -66,7 +66,6 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
     {
         ConcurrentLinkedHashMap<K, V> map = new ConcurrentLinkedHashMap.Builder<K, V>()
                                             .weigher(weigher)
-                                            .initialCapacity(0)
                                             .maximumWeightedCapacity(weightedCapacity)
                                             .concurrencyLevel(DEFAULT_CONCURENCY_LEVEL)
                                             .build();
