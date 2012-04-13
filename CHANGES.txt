@@ -1,4 +1,5 @@
 1.0.10
+ * support PropertyFileSnitch in bulk loader (CASSANDRA-4145)
  * add auto_snapshot option allowing disabling snapshot before drop/truncate
    (CASSANDRA-3710)
  * allow short snitch names (CASSANDRA-4130)
