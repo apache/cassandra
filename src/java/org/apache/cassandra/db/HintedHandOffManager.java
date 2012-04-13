@@ -289,7 +289,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         if (!FailureDetector.instance.isAlive(endpoint))
         {
-            logger_.info("Endpoint {} died before hint delivery, aborting", endpoint);
+            logger_.debug("Endpoint {} died before hint delivery, aborting", endpoint);
             return;
         }
 
