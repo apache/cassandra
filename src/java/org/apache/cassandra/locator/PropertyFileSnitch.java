@@ -167,6 +167,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
 
         logger.debug("loaded network topology {}", FBUtilities.toString(reloadedMap));
         endpointMap = reloadedMap;
-        StorageService.instance.getTokenMetadata().invalidateCaches();
+        if (StorageService.instance != null) // null check tolerates circular dependency; see CASSANDRA-4145
+            StorageService.instance.getTokenMetadata().invalidateCaches();
     }
 }
