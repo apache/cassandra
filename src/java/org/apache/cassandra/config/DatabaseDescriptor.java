@@ -193,6 +193,8 @@ public class DatabaseDescriptor
             if (conf.disk_access_mode == Config.DiskAccessMode.mmap)
                 MmappedSegmentedFile.initCleaner();
 
+	        logger.debug("page_cache_hinting is " + conf.populate_io_cache_on_flush);
+
             /* Authentication and authorization backend, implementing IAuthenticator and IAuthority */
             if (conf.authenticator != null)
                 authenticator = FBUtilities.<IAuthenticator>construct(conf.authenticator, "authenticator");
@@ -1054,5 +1056,10 @@ public class DatabaseDescriptor
     public static int getStreamingSocketTimeout()
     {
         return conf.streaming_socket_timeout_in_ms;
+    }
+
+    public static boolean populateIOCacheOnFlush()
+    {
+        return conf.populate_io_cache_on_flush;
     }
 }

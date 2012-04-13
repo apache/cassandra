@@ -29,6 +29,11 @@ max_hint_window_in_ms: 3600000 # one hour
 # Sleep this long after delivering each hint
 hinted_handoff_throttle_delay_in_ms: 1
 
+# The following setting populates the page cache on memtable flush and compaction
+# WARNING: Enable this setting only when the whole node's data fits in memory.
+# Defaults to: false
+# populate_buffer_cache_on_flush: false
+
 # authentication backend, implementing IAuthenticator; used to identify users
 authenticator: org.apache.cassandra.auth.AllowAllAuthenticator
 
