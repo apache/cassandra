@@ -24,6 +24,7 @@
  * Add way to force the cassandra-cli to refresh it's schema (CASSANDRA-4052)
  * Avoids having replicate on write tasks stacking up at CL.ONE (CASSANDRA-2889)
  * (cql) Fix order by for reversed queries (CASSANDRA-4160)
+ * (cql) Add ReversedType support (CASSANDRA-4004)
 Merged from 1.0:
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)

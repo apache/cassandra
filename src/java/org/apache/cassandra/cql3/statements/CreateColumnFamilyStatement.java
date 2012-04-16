@@ -35,11 +35,13 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.utils.Pair;
 
 /** A <code>CREATE COLUMNFAMILY</code> parsed from a CQL query statement. */
 public class CreateColumnFamilyStatement extends SchemaAlteringStatement
@@ -131,7 +133,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         private final CFPropDefs properties = new CFPropDefs();
 
         private final List<ColumnIdentifier> keyAliases = new ArrayList<ColumnIdentifier>();
-        private List<ColumnIdentifier> columnAliases = new ArrayList<ColumnIdentifier>();
+        private final List<ColumnIdentifier> columnAliases = new ArrayList<ColumnIdentifier>();
+        private final Map<ColumnIdentifier, Boolean> definedOrdering = new HashMap<ColumnIdentifier, Boolean>();
 
         private boolean useCompactStorage;
         private Multiset<ColumnIdentifier> definedNames = HashMultiset.create(1);
@@ -236,13 +239,15 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
             }
         }
 
-        private static AbstractType<?> getTypeAndRemove(Map<ColumnIdentifier, String> columns, ColumnIdentifier t) throws InvalidRequestException, ConfigurationException
+        private AbstractType<?> getTypeAndRemove(Map<ColumnIdentifier, String> columns, ColumnIdentifier t) throws InvalidRequestException, ConfigurationException
         {
             String typeStr = columns.get(t);
             if (typeStr == null)
                 throw new InvalidRequestException(String.format("Unkown definition %s referenced in PRIMARY KEY", t));
             columns.remove(t);
-            return CFPropDefs.parseType(typeStr);
+            AbstractType<?> type = CFPropDefs.parseType(typeStr);
+            Boolean isReversed = definedOrdering.get(t);
+            return isReversed != null && isReversed ? ReversedType.getInstance(type) : type;
         }
 
         public void addDefinition(ColumnIdentifier def, String type)
@@ -264,6 +269,11 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         public void addProperty(String name, String value)
         {
             properties.addProperty(name, value);
+        }
+
+        public void setOrdering(ColumnIdentifier alias, boolean reversed)
+        {
+            definedOrdering.put(alias, reversed);
         }
 
         public void setCompactStorage()
