@@ -1674,22 +1674,55 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // time.  So to guarantee that all segments can be cleaned out, we need to
         // "waitForActiveFlushes" after the new segment has been created.
         logger.debug("truncating {}", columnFamily);
-        // flush the CF being truncated before forcing the new segment
-        forceBlockingFlush();
-        CommitLog.instance.forceNewSegment();
-        ReplayPosition position = CommitLog.instance.getContext();
-        // now flush everyone else.  re-flushing ourselves is not necessary, but harmless
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-            cfs.forceFlush();
-        waitForActiveFlushes();
-        // if everything was clean, flush won't have called discard
-        CommitLog.instance.discardCompletedSegments(metadata.cfId, position);
+
+        if (DatabaseDescriptor.isAutoSnapshot())
+        {
+            // flush the CF being truncated before forcing the new segment
+            forceBlockingFlush();
+        }
+        else
+        {
+            // just nuke the memtable data w/o writing to disk first
+            Table.switchLock.writeLock().lock();
+            try
+            {
+                for (ColumnFamilyStore cfs : concatWithIndexes())
+                {
+                    Memtable mt = cfs.getMemtableThreadSafe();
+                    if (!mt.isClean() && !mt.isFrozen())
+                    {
+                        mt.cfs.data.renewMemtable();
+                    }
+                }
+            }
+            finally
+            {
+                Table.switchLock.writeLock().unlock();
+            }
+        }
+
+        KSMetaData ksm = Schema.instance.getKSMetaData(this.table.name);
+        if (ksm.durableWrites)
+        {
+            CommitLog.instance.forceNewSegment();
+            ReplayPosition position = CommitLog.instance.getContext();
+            // now flush everyone else.  re-flushing ourselves is not necessary, but harmless
+            for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+                cfs.forceFlush();
+            waitForActiveFlushes();
+            // if everything was clean, flush won't have called discard
+            CommitLog.instance.discardCompletedSegments(metadata.cfId, position);
+        }
 
         // sleep a little to make sure that our truncatedAt comes after any sstable
         // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
         try
         {
-            Thread.sleep(100);
+            long starttime = System.currentTimeMillis();
+            while ((System.currentTimeMillis() - starttime) < 1)
+            {
+                Thread.sleep(1);
+            }
         }
         catch (InterruptedException e)
         {
