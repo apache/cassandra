@@ -19,8 +19,19 @@
 DESC="Stress Test Daemon"
 
 if [ "x$CLASSPATH" = "x" ]; then
-    CLASSPATH=`dirname $0`/../stress.jar
-    for jar in `dirname $0`/../../../lib/*.jar; do
+    
+    # execute from the build dir.
+    if [ -d `dirname $0`/../../build/classes ]; then
+        for directory in `dirname $0`/../../build/classes/*; do
+            CLASSPATH=$CLASSPATH:$directory
+        done
+    else
+        if [ -f `dirname $0`/../lib/stress.jar ]; then
+            CLASSPATH=`dirname $0`/../lib/stress.jar
+        fi
+    fi
+
+    for jar in `dirname $0`/../../lib/*.jar; do
         CLASSPATH=$CLASSPATH:$jar
     done
 fi
