@@ -47,7 +47,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         super(left, right, partitioner);
     }
 
-    public static <T extends RingPosition> boolean contains(T left, T right, T bi)
+    public static <T extends RingPosition> boolean contains(T left, T right, T point)
     {
         if (isWrapAround(left, right))
         {
@@ -58,17 +58,17 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
              * (2) k <= b -- return true
              * (3) b < k <= a -- return false
              */
-            if (bi.compareTo(left) > 0)
+            if (point.compareTo(left) > 0)
                 return true;
             else
-                return right.compareTo(bi) >= 0;
+                return right.compareTo(point) >= 0;
         }
         else
         {
             /*
              * This is the range (a, b] where a < b.
              */
-            return bi.compareTo(left) > 0 && right.compareTo(bi) >= 0;
+            return point.compareTo(left) > 0 && right.compareTo(point) >= 0;
         }
     }
 
@@ -103,12 +103,12 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
     /**
      * Helps determine if a given point on the DHT ring is contained
      * in the range in question.
-     * @param bi point in question
+     * @param point point in question
      * @return true if the point contains within the range else false.
      */
-    public boolean contains(T bi)
+    public boolean contains(T point)
     {
-        return contains(left, right, bi);
+        return contains(left, right, point);
     }
 
     /**
@@ -118,6 +118,25 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
     public boolean intersects(Range<T> that)
     {
         return intersectionWith(that).size() > 0;
+    }
+
+    public boolean intersects(AbstractBounds<T> that)
+    {
+        // implemented for cleanup compaction membership test, so only Range + Bounds are supported for now
+        if (that instanceof Range)
+            return intersects((Range) that);
+        if (that instanceof Bounds)
+            return intersects((Bounds) that);
+        throw new UnsupportedOperationException("Intersection is only supported for Bounds and Range objects; found " + that.getClass());
+    }
+
+    /**
+     * @param that range to check for intersection
+     * @return true if the given range intersects with this range.
+     */
+    public boolean intersects(Bounds<T> that)
+    {
+        return intersects(new Range<T>(that.left, that.right)) || contains(that.right);
     }
 
     public static <T extends RingPosition> Set<Range<T>> rangeSet(Range<T> ... ranges)

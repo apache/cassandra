@@ -39,6 +39,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionInfo.Holder;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexBuilder;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
@@ -672,6 +673,12 @@ public class CompactionManager implements CompactionManagerMBean
 
         for (SSTableReader sstable : sstables)
         {
+            if (!new Bounds<Token>(sstable.first.token, sstable.last.token).intersects(ranges))
+            {
+                cfs.replaceCompactedSSTables(Arrays.asList(sstable), Collections.<SSTableReader>emptyList(), OperationType.CLEANUP);
+                continue;
+            }
+
             CompactionController controller = new CompactionController(cfs, Collections.singletonList(sstable), getDefaultGcBefore(cfs), false);
             long startTime = System.currentTimeMillis();
 

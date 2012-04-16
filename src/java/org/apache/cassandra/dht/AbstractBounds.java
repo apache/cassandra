@@ -78,6 +78,17 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
         return 31 * left.hashCode() + right.hashCode();
     }
 
+    /** return true if @param range intersects any of the given @param ranges */
+    public boolean intersects(Iterable<Range<T>> ranges)
+    {
+        for (Range<T> range2 : ranges)
+        {
+            if (range2.intersects(this))
+                return true;
+        }
+        return false;
+    }
+
     public abstract boolean contains(T start);
 
     public abstract List<? extends AbstractBounds<T>> unwrap();
