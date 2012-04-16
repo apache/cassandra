@@ -409,6 +409,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     private class WideRowIterator extends RowIterator
     {
         private PeekingIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>>> wideColumns;
+        private ByteBuffer lastColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
         private void maybeInit()
         {
@@ -424,7 +425,6 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                           .setStart_token(startToken)
                           .setEnd_token(split.getEndToken())
                           .setRow_filter(filter);
-                startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
             }
             else
             {
@@ -434,20 +434,19 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                           .setStart_key(lastRow.key)
                           .setEnd_token(split.getEndToken())
                           .setRow_filter(filter);
-                startColumn = Iterables.getLast(lastRow.columns).column.name;
             }
 
             try
             {
-                rows = client.get_paged_slice(cfName, keyRange, startColumn, consistencyLevel);
+                rows = client.get_paged_slice(cfName, keyRange, lastColumn, consistencyLevel);
                 int n = 0;
                 for (KeySlice row : rows)
                     n += row.columns.size();
                 logger.debug("read {} columns in {} rows for {} starting with {}",
-                             new Object[]{ n, rows.size(), keyRange, startColumn });
+                             new Object[]{ n, rows.size(), keyRange, lastColumn });
 
                 wideColumns = Iterators.peekingIterator(new WideColumnIterator(rows));
-                if (wideColumns.hasNext() && wideColumns.peek().right.keySet().iterator().next().equals(startColumn))
+                if (wideColumns.hasNext() && wideColumns.peek().right.keySet().iterator().next().equals(lastColumn))
                     wideColumns.next();
                 if (!wideColumns.hasNext())
                     rows = null;
@@ -465,7 +464,9 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 return endOfData();
 
             totalRead++;
-            return wideColumns.next();
+            Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> next = wideColumns.next();
+            lastColumn = next.right.values().iterator().next().name();
+            return next;
         }
 
         private class WideColumnIterator extends AbstractIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>>>
