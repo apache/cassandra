@@ -655,7 +655,7 @@
         The build target builds all the .class files
     -->
     <target name="build"
-        depends="maven-ant-tasks-retrieve-build,avro-generate,build-subprojects,build-project,stress-build" description="Compile Cassandra classes"/>
+        depends="maven-ant-tasks-retrieve-build,avro-generate,build-subprojects,build-project" description="Compile Cassandra classes"/>
     <target name="build-subprojects" description="Compile Cassandra contrib projects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report" description="Create code coverage report"/>
 
@@ -687,12 +687,12 @@
     <!-- Stress build file -->
     <property name="stress.build.src" value="${basedir}/tools/stress/src" />
     <property name="stress.build.classes" value="${build.classes}/stress" />
-	<property name="stress.manifest" value="${basedir}/tools/stress/MANIFEST.MF" />
+	<property name="stress.manifest" value="${stress.build.classes}/MANIFEST.MF" />
     <path id="cassandra.classes">
         <pathelement location="${basedir}/build/classes/main" />
         <pathelement location="${basedir}/build/classes/thrift" />
     </path>
-    <target name="stress-build">
+    <target name="stress-build" depends="build">
     	<mkdir dir="${stress.build.classes}" />
         <javac destdir="${stress.build.classes}" includeantruntime="true">
             <src path="${stress.build.src}" />
@@ -780,8 +780,8 @@
         <attribute name="Main-Class" value="org.apache.cassandra.stress.Stress"/>
       </manifest>
       <mkdir dir="${stress.build.classes}/META-INF" />
-      <mkdir dir="${build.dir}/tools/stress" />
-      <jar destfile="${build.dir}/tools/stress/stress.jar" manifest="${stress.manifest}">
+      <mkdir dir="${build.dir}/tools/lib/" />
+      <jar destfile="${build.dir}/tools/lib/stress.jar" manifest="${stress.manifest}">
         <fileset dir="${stress.build.classes}"/>
         <fileset dir="${basedir}/build/classes/main" />
         <fileset dir="${basedir}/build/classes/thrift" />
@@ -898,13 +898,13 @@
           <include name="*.txt" />
         </fileset>
       </copy>
-      <copy todir="${dist.dir}/tools/stress">
-        <fileset dir="${basedir}/tools/stress">
-            <include name="bin/**" />
+      <copy todir="${dist.dir}/tools/bin">
+        <fileset dir="${basedir}/tools/bin"/>
+      </copy>
+      <copy todir="${dist.dir}/tools/lib">
+        <fileset dir="${build.dir}/tools/lib/">
+            <include name="*.jar" />
         </fileset>
-      	<fileset dir="${build.dir}/tools/stress/">
-      	    <include name="*.jar" />
-      	</fileset>
       </copy>
       <artifact:writepom pomRefId="dist-pom" 
             file="${build.dir}/${final.name}-dist.pom"/>
@@ -923,6 +923,7 @@
         <!-- Executable scripts in bin/ -->
         <tarfileset dir="${dist.dir}" prefix="${final.name}" mode="755">
           <include name="bin/*"/>
+          <include name="tools/bin/*"/>
           <not>
                 <filename name="bin/*.in.sh" />
           </not>
