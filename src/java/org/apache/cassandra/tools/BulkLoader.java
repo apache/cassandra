@@ -85,6 +85,12 @@ public class BulkLoader
                 }
                 if (!printEnd)
                     indicator.printProgress();
+                if (future.hadFailures())
+                {
+                    System.err.println("Streaming to the following hosts failed:");
+                    System.err.println(future.getFailedHosts());
+                    System.exit(1);
+                }
             }
 
             System.exit(0); // We need that to stop non daemonized threads

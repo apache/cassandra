@@ -136,7 +136,7 @@ public class SSTableLoader
                 continue;
             }
             Collection<Range<Token>> ranges = entry.getValue();
-            StreamOutSession session = StreamOutSession.create(keyspace, remote, new CountDownCallback(future.latch, remote));
+            StreamOutSession session = StreamOutSession.create(keyspace, remote, new CountDownCallback(future, remote));
             // transferSSTables assumes references have been acquired
             SSTableReader.acquireReferences(sstables);
             StreamOut.transferSSTables(session, sstables, ranges, OperationType.BULK_LOAD);
@@ -149,6 +149,7 @@ public class SSTableLoader
     {
         final CountDownLatch latch;
         final Map<InetAddress, Collection<PendingFile>> pendingFiles;
+        private List<InetAddress> failedHosts = new ArrayList<InetAddress>();
 
         private LoaderFuture(int request)
         {
@@ -159,6 +160,16 @@ public class SSTableLoader
         private void setPendings(InetAddress remote, Collection<PendingFile> files)
         {
             pendingFiles.put(remote, new ArrayList(files));
+        }
+
+        private void setFailed(InetAddress addr)
+        {
+            failedHosts.add(addr);
+        }
+
+        public List<InetAddress> getFailedHosts()
+        {
+            return failedHosts;
         }
 
         public boolean cancel(boolean mayInterruptIfRunning)
@@ -191,6 +202,11 @@ public class SSTableLoader
             return latch.getCount() == 0;
         }
 
+        public boolean hadFailures()
+        {
+            return failedHosts.size() > 0;
+        }
+
         public Map<InetAddress, Collection<PendingFile>> getPendingFiles()
         {
             return pendingFiles;
@@ -208,28 +224,30 @@ public class SSTableLoader
     private class CountDownCallback implements IStreamCallback
     {
         private final InetAddress endpoint;
-        private final CountDownLatch latch;
+        private final LoaderFuture future;
 
-        CountDownCallback(CountDownLatch latch, InetAddress endpoint)
+        CountDownCallback(LoaderFuture future, InetAddress endpoint)
         {
-            this.latch = latch;
+            this.future = future;
             this.endpoint = endpoint;
         }
 
         public void onSuccess()
         {
-            latch.countDown();
-            outputHandler.debug(String.format("Streaming session to %s completed (waiting on %d outstanding sessions)", endpoint, latch.getCount()));
+            future.latch.countDown();
+            outputHandler.debug(String.format("Streaming session to %s completed (waiting on %d outstanding sessions)", endpoint, future.latch.getCount()));
 
             // There could be race with stop being called twice but it should be ok
-            if (latch.getCount() == 0)
+            if (future.latch.getCount() == 0)
                 client.stop();
         }
 
         public void onFailure()
         {
             outputHandler.output(String.format("Streaming session to %s failed", endpoint));
-            onSuccess(); // call onSuccess for latch countdown
+            future.setFailed(endpoint);
+            future.latch.countDown();
+            client.stop();
         }
     }
 
