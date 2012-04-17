@@ -13,6 +13,11 @@
  * Move CfDef and KsDef validation out of thrift (CASSANDRA-4037)
 
 1.1-dev
+ * Allow KS and CF names up to 48 characters (CASSANDRA-4157)
+ * Add support for CL.TWO and CL.THREE in CQL (CASSANDRA-4156)
+
+
+1.1-rc1
  * (Hadoop) fix wide row iteration when last row read was deleted
    (CASSANDRA-4154)
  * fix read_repair_chance to really default to 0.1 in the cli (CASSANDRA-4114)

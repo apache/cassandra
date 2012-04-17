@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,6 +27,7 @@ import org.apache.commons.lang.StringUtils;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
 
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -39,7 +39,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.io.compress.CompressionParameters;
 
 /** A <code>CREATE COLUMNFAMILY</code> parsed from a CQL query statement. */
@@ -152,8 +151,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                 // Column family name
                 if (!columnFamily().matches("\\w+"))
                     throw new InvalidRequestException(String.format("\"%s\" is not a valid column family name (must be alphanumeric character only: [0-9A-Za-z]+)", columnFamily()));
-                if (columnFamily().length() > 32)
-                    throw new InvalidRequestException(String.format("Column family names shouldn't be more than 32 character long (got \"%s\")", columnFamily()));
+                if (columnFamily().length() > Schema.NAME_LENGTH)
+                    throw new InvalidRequestException(String.format("Column family names shouldn't be more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, columnFamily()));
 
                 for (Multiset.Entry<ColumnIdentifier> entry : definedNames.entrySet())
                     if (entry.getCount() > 1)
