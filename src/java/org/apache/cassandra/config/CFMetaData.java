@@ -863,7 +863,7 @@ public final class CFMetaData
 
     public static boolean isNameValid(String name)
     {
-        return name != null && !name.isEmpty() && name.length() <= 32 && name.matches("\\w+");
+        return name != null && !name.isEmpty() && name.length() <= Schema.NAME_LENGTH && name.matches("\\w+");
     }
 
     public static boolean isIndexNameValid(String name)
@@ -874,9 +874,9 @@ public final class CFMetaData
     public CFMetaData validate() throws ConfigurationException
     {
         if (!isNameValid(ksName))
-            throw new ConfigurationException(String.format("Invalid keyspace name: shouldn't be empty nor more than 32 character long (got \"%s\")", ksName));
+            throw new ConfigurationException(String.format("Invalid keyspace name: shouldn't be empty nor more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, ksName));
         if (!isNameValid(cfName))
-            throw new ConfigurationException(String.format("Invalid keyspace name: shouldn't be empty nor more than 32 character long (got \"%s\")", cfName));
+            throw new ConfigurationException(String.format("Invalid keyspace name: shouldn't be empty nor more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, cfName));
 
         if (cfType == null)
             throw new ConfigurationException(String.format("Invalid column family type for %s", cfName));

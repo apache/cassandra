@@ -208,6 +208,11 @@ public class NodeProbe
         ssProxy.forceTableRepairPrimaryRange(tableName, isSequential, columnFamilies);
     }
 
+    public void forceTableRepairRange(String beginToken, String endToken, String tableName, boolean isSequential, String... columnFamilies) throws IOException
+    {
+        ssProxy.forceTableRepairRange(beginToken, endToken, tableName, isSequential, columnFamilies);
+    }
+
     public void invalidateKeyCache() throws IOException
     {
         cacheService.invalidateKeyCache();

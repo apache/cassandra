@@ -47,6 +47,14 @@ public class Schema
 
     public static final Schema instance = new Schema();
 
+    /**
+     * longest permissible KS or CF name.  Our main concern is that filename not be more than 255 characters;
+     * the filename will contain both the KS and CF names. Since non-schema-name components only take up
+     * ~64 characters, we could allow longer names than this, but on Windows, the entire path should be not greater than
+     * 255 characters, so a lower limit here helps avoid problems.  See CASSANDRA-4110.
+     */
+    public static final int NAME_LENGTH = 48;
+
     private static final int MIN_CF_ID = 1000;
     private final AtomicInteger cfIdGen = new AtomicInteger(MIN_CF_ID);
 
