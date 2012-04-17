@@ -1,6 +1,9 @@
 1.1-dev
  * Allow KS and CF names up to 48 characters (CASSANDRA-4157)
  * Add support for CL.TWO and CL.THREE in CQL (CASSANDRA-4156)
+Merged from 1.0:
+ * avoid streaming empty files with bulk loader if sstablewriter errors out
+   (CASSANDRA-3946)
 
 
 1.1-rc1
@@ -21,6 +24,7 @@
  * Move CfDef and KsDef validation out of thrift (CASSANDRA-4037)
  * Fix get_paged_slice (CASSANDRA-4136)
  * CQL3: Support slice with exclusive start and stop (CASSANDRA-3785)
+Merged from 1.0:
  * support PropertyFileSnitch in bulk loader (CASSANDRA-4145)
  * add auto_snapshot option allowing disabling snapshot before drop/truncate
    (CASSANDRA-3710)
