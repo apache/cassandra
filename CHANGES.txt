@@ -1,4 +1,6 @@
 1.0.10
+ * avoid streaming empty files with bulk loader if sstablewriter errors out
+   (CASSANDRA-3946)
  * support PropertyFileSnitch in bulk loader (CASSANDRA-4145)
  * add auto_snapshot option allowing disabling snapshot before drop/truncate
    (CASSANDRA-3710)

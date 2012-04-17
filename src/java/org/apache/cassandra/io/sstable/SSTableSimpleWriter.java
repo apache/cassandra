@@ -67,9 +67,17 @@ public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
 
     public void close() throws IOException
     {
-        if (currentKey != null)
-            writeRow(currentKey, columnFamily);
-        writer.closeAndOpenReader();
+        try
+        {
+            if (currentKey != null)
+                writeRow(currentKey, columnFamily);
+            writer.closeAndOpenReader();
+        }
+        catch (IOException e)
+        {
+            writer.abort();
+            throw e;
+        }
     }
 
     protected void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException

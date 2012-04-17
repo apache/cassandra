@@ -105,12 +105,22 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         if (keys.isEmpty())
             return;
 
-        SSTableWriter writer = getWriter();
-        for (Map.Entry<DecoratedKey, ColumnFamily> entry : keys.entrySet())
+        SSTableWriter writer = null;
+        try
         {
-            writer.append(entry.getKey(), entry.getValue());
+            writer = getWriter();
+            for (Map.Entry<DecoratedKey, ColumnFamily> entry : keys.entrySet())
+            {
+                writer.append(entry.getKey(), entry.getValue());
+            }
+            writer.closeAndOpenReader();
         }
-        writer.closeAndOpenReader();
+        catch (IOException e)
+        {
+            if (writer != null)
+                writer.abort();
+            throw e;
+        }
         currentSize = 0;
         keys.clear();
     }
