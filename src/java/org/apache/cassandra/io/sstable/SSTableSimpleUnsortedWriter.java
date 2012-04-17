@@ -168,6 +168,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
         public void run()
         {
+            SSTableWriter writer = null;
             try
             {
                 while (true)
@@ -176,7 +177,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                     if (b == SENTINEL)
                         return;
 
-                    SSTableWriter writer = getWriter();
+                    writer = getWriter();
                     for (Map.Entry<DecoratedKey, ColumnFamily> entry : b.entrySet())
                         writer.append(entry.getKey(), entry.getValue());
                     writer.closeAndOpenReader();
@@ -184,6 +185,8 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
             }
             catch (Exception e)
             {
+                if (writer != null)
+                    writer.abort();
                 exception = e;
             }
         }
