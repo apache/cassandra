@@ -124,7 +124,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     public static boolean isReadyForBootstrap()
     {
-        return highestKnown.compareTo(Schema.instance.getVersion()) == 0;
+        return highestKnown.timestamp() == Schema.instance.getVersion().timestamp();
     }
 
     private static void pushMigrations(InetAddress endpoint, Collection<IColumn> migrations)
