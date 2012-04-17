@@ -518,6 +518,8 @@ K_LEVEL:       ( O N E
                | A N Y
                | L O C A L '_' Q U O R U M
                | E A C H '_' Q U O R U M
+               | T W O
+               | T H R E E
                )
                ;
 K_USE:         U S E;
