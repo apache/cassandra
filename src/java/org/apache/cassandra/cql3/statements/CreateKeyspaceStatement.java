@@ -18,21 +18,18 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.KsDef;
 import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.thrift.ThriftValidation;
 
@@ -74,8 +71,8 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
         // keyspace name
         if (!name.matches("\\w+"))
             throw new InvalidRequestException(String.format("\"%s\" is not a valid keyspace name", name));
-        if (name.length() > 32)
-            throw new InvalidRequestException(String.format("Keyspace names shouldn't be more than 32 character long (got \"%s\")", name));
+        if (name.length() > Schema.NAME_LENGTH)
+            throw new InvalidRequestException(String.format("Keyspace names shouldn't be more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, name));
 
         // required
         if (!attrs.containsKey("strategy_class"))

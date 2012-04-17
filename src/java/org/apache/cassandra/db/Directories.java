@@ -442,8 +442,11 @@ public class Directories
                 if (System.getProperty("os.name").startsWith("Windows")
                     && longestLocation + (ksname.length() + cfname.length()) * 2 + 63 > 255)
                 {
-                    throw new RuntimeException("Starting with 1.1, keyspace names and column family names must be less than 32 characters long. "
-                        + ksname + "/" + cfname + " doesn't respect that restriction. Please rename your keyspace/column families to respect that restriction before updating.");
+                    throw new RuntimeException(String.format("Starting with 1.1, keyspace names and column family " +
+                                                             "names must be less than %s characters long. %s/%s doesn't" +
+                                                             " respect that restriction. Please rename your " +
+                                                             "keyspace/column families to respect that restriction " +
+                                                             "before updating.", Schema.NAME_LENGTH, ksname, cfname));
                 }
 
                 if (ksm.name.length() + cfname.length() + 28 > 255)
