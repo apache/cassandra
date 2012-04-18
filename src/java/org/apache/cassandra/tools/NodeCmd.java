@@ -451,7 +451,7 @@ public class NodeCmd
 
     public void printCompactionStats(PrintStream outs)
     {
-	int compactionThroughput = probe.getCompactionThroughput();
+        int compactionThroughput = probe.getCompactionThroughput();
         CompactionManagerMBean cm = probe.getCompactionManagerProxy();
         outs.println("pending tasks: " + cm.getPendingTasks());
         if (cm.getCompactions().size() > 0)
