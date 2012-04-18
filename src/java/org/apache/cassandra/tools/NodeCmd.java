@@ -38,6 +38,7 @@ import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.EstimatedHistogram;
@@ -446,17 +447,29 @@ public class NodeCmd
 
     public void printCompactionStats(PrintStream outs)
     {
+	int compactionThroughput = probe.getCompactionThroughput();
         CompactionManagerMBean cm = probe.getCompactionManagerProxy();
         outs.println("pending tasks: " + cm.getPendingTasks());
         if (cm.getCompactions().size() > 0)
             outs.printf("%25s%16s%16s%16s%16s%10s%n", "compaction type", "keyspace", "column family", "bytes compacted", "bytes total", "progress");
+        long remainingBytes = 0;
         for (Map<String, String> c : cm.getCompactions())
         {
             String percentComplete = new Long(c.get("totalBytes")) == 0
                                    ? "n/a"
                                    : new DecimalFormat("0.00").format((double) new Long(c.get("bytesComplete")) / new Long(c.get("totalBytes")) * 100) + "%";
             outs.printf("%25s%16s%16s%16s%16s%10s%n", c.get("taskType"), c.get("keyspace"), c.get("columnfamily"), c.get("bytesComplete"), c.get("totalBytes"), percentComplete);
+            if (c.get("taskType").equals(OperationType.COMPACTION.toString()))
+                remainingBytes += (new Long(c.get("totalBytes")) - new Long(c.get("bytesComplete")));
         }
+        long remainingTimeInSecs = compactionThroughput == 0 || remainingBytes == 0
+                        ? -1 
+                        : (remainingBytes) / (long) (1024L * 1024L * compactionThroughput);
+        String remainingTime = remainingTimeInSecs < 0 
+                        ? "n/a"
+                        : String.format("%dh%02dm%02ds", remainingTimeInSecs / 3600, (remainingTimeInSecs % 3600) / 60, (remainingTimeInSecs % 60)); 
+
+        outs.printf("%25s%10s%n", "Active compaction remaining time : ", remainingTime);
     }
 
     public void printColumnFamilyStats(PrintStream outs)
