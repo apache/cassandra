@@ -88,7 +88,7 @@ public interface StorageServiceMBean
      */
     public String getSchemaVersion();
 
-    
+
     /**
      * Get the list of all data file locations from conf
      * @return String array of all locations
@@ -191,6 +191,15 @@ public interface StorageServiceMBean
      * @param tableNames the name of the tables to snapshot; empty means "all."
      */
     public void takeSnapshot(String tag, String... tableNames) throws IOException;
+
+    /**
+     * Takes the snapshot of a specific column family. A snapshot name must be specified.
+     *
+     * @param tableName the keyspace which holds the specified column family
+     * @param columnFamilyName the column family to snapshot
+     * @param tag the tag given to the snapshot; may not be null or empty
+     */
+    public void takeColumnFamilySnapshot(String tableName, String columnFamilyName, String tag) throws IOException;
 
     /**
      * Remove the snapshot with the given name from the given tables.

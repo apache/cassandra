@@ -1681,7 +1681,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         return Schema.instance.getVersion().toString();
     }
-    
+
     public List<String> getLeavingNodes()
     {
         return stringify(tokenMetadata.getLeavingEndpoints());
@@ -1822,14 +1822,39 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
 
         for (Table table : tables)
-            table.snapshot(tag);
+            table.snapshot(tag, null);
+    }
+
+    /**
+     * Takes the snapshot of a specific column family. A snapshot name must be specified.
+     *
+     * @param tableName the keyspace which holds the specified column family
+     * @param columnFamilyName the column family to snapshot
+     * @param tag the tag given to the snapshot; may not be null or empty
+     */
+    public void takeColumnFamilySnapshot(String tableName, String columnFamilyName, String tag) throws IOException
+    {
+        if (tableName == null)
+            throw new IOException("You must supply a table name");
+
+        if (columnFamilyName == null)
+            throw new IOException("You mus supply a column family name");
+
+        if (tag == null || tag.equals(""))
+            throw new IOException("You must supply a snapshot name.");
+
+        Table table = getValidTable(tableName);
+        if (table.snapshotExists(tag))
+            throw new IOException("Snapshot " + tag + " already exists.");
+
+        table.snapshot(tag, columnFamilyName);
     }
 
     private Table getValidTable(String tableName) throws IOException
     {
         if (!Schema.instance.getTables().contains(tableName))
         {
-            throw new IOException("Table " + tableName + "does not exist");
+            throw new IOException("Table " + tableName + " does not exist");
         }
         return Table.open(tableName);
     }

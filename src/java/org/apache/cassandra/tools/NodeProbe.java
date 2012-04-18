@@ -339,13 +339,24 @@ public class NodeProbe
     }
 
     /**
-     * Take a snapshot of all the tables.
+     * Take a snapshot of all the tables, optionally specifying only a specific column family.
      *
      * @param snapshotName the name of the snapshot.
+     * @param columnFamily the column family to snapshot or all on null
+     * @param keyspaces the keyspaces to snapshot
      */
-    public void takeSnapshot(String snapshotName, String... keyspaces) throws IOException
+    public void takeSnapshot(String snapshotName, String columnFamily, String... keyspaces) throws IOException
     {
-        ssProxy.takeSnapshot(snapshotName, keyspaces);
+        if (columnFamily != null)
+        {
+            if (keyspaces.length != 1)
+            {
+                throw new IOException("When specifying the column family for a snapshot, you must specify one and only one keyspace");
+            }
+            ssProxy.takeColumnFamilySnapshot(keyspaces[0], columnFamily, snapshotName);
+        }
+        else
+            ssProxy.takeSnapshot(snapshotName, keyspaces);
     }
 
     /**
@@ -662,7 +673,7 @@ public class NodeProbe
     {
         return ssProxy.getSchemaVersion();
     }
-    
+
     public List<String> describeRing(String keyspaceName) throws InvalidRequestException
     {
         return ssProxy.describeRingJMX(keyspaceName);
