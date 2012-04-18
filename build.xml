@@ -684,34 +684,12 @@
         <antcall target="createVersionPropFile"/>
     </target>
 
-    <!-- Stress build file -->
-    <property name="stress.build.src" value="${basedir}/tools/stress/src" />
-    <property name="stress.build.classes" value="${build.classes}/stress" />
-	<property name="stress.manifest" value="${stress.build.classes}/MANIFEST.MF" />
-    <path id="cassandra.classes">
-        <pathelement location="${basedir}/build/classes/main" />
-        <pathelement location="${basedir}/build/classes/thrift" />
-    </path>
-    <target name="stress-build" depends="build">
-    	<mkdir dir="${stress.build.classes}" />
-        <javac destdir="${stress.build.classes}" includeantruntime="true">
-            <src path="${stress.build.src}" />
-            <classpath>
-                <path refid="cassandra.classes" />
-                <path>
-                    <fileset dir="${build.lib}">
-                        <include name="**/*.jar" />
-                    </fileset>
-                </path>
-            </classpath>
-        </javac>
-    </target>
 
     <!--
         The jar target makes cassandra.jar output.
     -->
     <target name="jar"
-            depends="maven-declare-dependencies,build, build-test, stress-build"
+            depends="maven-declare-dependencies,build, build-test"
             description="Assemble Cassandra JAR files">
       <mkdir dir="${build.classes.main}/META-INF" />
       <mkdir dir="${build.classes.thrift}/META-INF" />
@@ -772,20 +750,6 @@
           <attribute name="Implementation-Version" value="${version}"/>
           <attribute name="Implementation-Vendor" value="Apache"/>
         </manifest>
-      </jar>
-
-      <!-- Stress jar -->
-      <manifest file="${stress.manifest}">
-        <attribute name="Built-By" value="Pavel Yaskevich"/>
-        <attribute name="Main-Class" value="org.apache.cassandra.stress.Stress"/>
-      </manifest>
-      <mkdir dir="${stress.build.classes}/META-INF" />
-      <mkdir dir="${build.dir}/tools/lib/" />
-      <jar destfile="${build.dir}/tools/lib/stress.jar" manifest="${stress.manifest}">
-        <fileset dir="${stress.build.classes}"/>
-        <fileset dir="${basedir}/build/classes/main" />
-        <fileset dir="${basedir}/build/classes/thrift" />
-        <zipgroupfileset dir="${build.lib}" includes="*.jar" />
       </jar>
     </target>
 
@@ -898,14 +862,7 @@
           <include name="*.txt" />
         </fileset>
       </copy>
-      <copy todir="${dist.dir}/tools/bin">
-        <fileset dir="${basedir}/tools/bin"/>
-      </copy>
-      <copy todir="${dist.dir}/tools/lib">
-        <fileset dir="${build.dir}/tools/lib/">
-            <include name="*.jar" />
-        </fileset>
-      </copy>
+
       <artifact:writepom pomRefId="dist-pom" 
             file="${build.dir}/${final.name}-dist.pom"/>
       <tar compression="gzip" longfile="gnu"
@@ -923,7 +880,6 @@
         <!-- Executable scripts in bin/ -->
         <tarfileset dir="${dist.dir}" prefix="${final.name}" mode="755">
           <include name="bin/*"/>
-          <include name="tools/bin/*"/>
           <not>
                 <filename name="bin/*.in.sh" />
           </not>
