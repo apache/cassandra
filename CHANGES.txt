@@ -23,6 +23,7 @@ Merged from 1.0:
  * avoid streaming empty files with bulk loader if sstablewriter errors out
    (CASSANDRA-3946)
  * fix stress build (CASSANDRA-4140)
+ * add time remaining estimate to nodetool compactionstats (CASSANDRA-4167)
 
 
 1.1-rc1

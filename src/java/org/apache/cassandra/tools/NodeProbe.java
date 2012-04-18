@@ -629,6 +629,11 @@ public class NodeProbe
         ssProxy.setCompactionThroughputMbPerSec(value);
     }
 
+    public int getCompactionThroughput()
+    {
+        return ssProxy.getCompactionThroughputMbPerSec();
+    }
+
     public int getExceptionCount()
     {
         return ssProxy.getExceptionCount();
