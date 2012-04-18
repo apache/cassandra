@@ -76,6 +76,9 @@ Features
       threshold.
     - Off-heap caches no longer require JNA.
     - Streaming is now multithreaded.
+    - Compactions may now be aborted via JMX or nodetool.
+    - The stress tool is not new in 1.1, but it is newly included in
+      binary builds as well as the source tree
 
 
 1.0.8
