@@ -67,4 +67,12 @@ public class StorageServiceServerTest
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
         StorageService.instance.takeSnapshot("snapshot", new String[0]);
     }
+
+    @Test
+    public void testColumnFamilySnapshot() throws IOException
+    {
+        // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
+        StorageService.instance.takeColumnFamilySnapshot("system", "Schema", "cf_snapshot");
+    }
+
 }

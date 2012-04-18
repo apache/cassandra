@@ -45,6 +45,7 @@ import org.apache.cassandra.utils.Pair;
 
 public class NodeCmd
 {
+    private static final Pair<String, String> SNAPSHOT_COLUMNFAMILY_OPT = new Pair<String, String>("cf", "column-family");
     private static final Pair<String, String> HOST_OPT = new Pair<String, String>("h", "host");
     private static final Pair<String, String> PORT_OPT = new Pair<String, String>("p", "port");
     private static final Pair<String, String> USERNAME_OPT = new Pair<String, String>("u",  "username");
@@ -64,6 +65,7 @@ public class NodeCmd
     {
         options = new ToolOptions();
 
+        options.addOption(SNAPSHOT_COLUMNFAMILY_OPT, true, "only take a snapshot of the specified column family");
         options.addOption(HOST_OPT,     true, "node hostname or ip address");
         options.addOption(PORT_OPT,     true, "remote jmx agent port number");
         options.addOption(USERNAME_OPT, true, "remote jmx agent username");
@@ -164,7 +166,7 @@ public class NodeCmd
         addCmdHelp(header, "rebuild [src-dc-name]", "Rebuild data by streaming from other nodes (similarly to bootstrap)");
 
         // Two args
-        addCmdHelp(header, "snapshot [keyspaces...] -t [snapshotName]", "Take a snapshot of the specified keyspaces using optional name snapshotName");
+        addCmdHelp(header, "snapshot [keyspaces...] -cf [columnfamilyName] -t [snapshotName]", "Take a snapshot of the optionally specified column family of the specified keyspaces using optional name snapshotName");
         addCmdHelp(header, "clearsnapshot [keyspaces...] -t [snapshotName]", "Remove snapshots for the specified keyspaces. Either remove all snapshots or remove the snapshots with the given name.");
         addCmdHelp(header, "flush [keyspace] [cfnames]", "Flush one or more column family");
         addCmdHelp(header, "repair [keyspace] [cfnames]", "Repair one or more column family (use -pr to repair only the first range returned by the partitioner)");
@@ -665,6 +667,8 @@ public class NodeCmd
 
             // Execute the requested command.
             String[] arguments = cmd.getCommandArguments();
+            String tag;
+            String columnFamilyName = null;
 
             switch (command)
             {
@@ -697,9 +701,11 @@ public class NodeCmd
                     break;
 
                 case SNAPSHOT :
+                    columnFamilyName = cmd.getOptionValue(SNAPSHOT_COLUMNFAMILY_OPT.left);
+                    /* FALL THRU */
                 case CLEARSNAPSHOT :
-                    String tag = cmd.getOptionValue(TAG_OPT.left);
-                    handleSnapshots(command, tag, arguments, probe);
+                    tag = cmd.getOptionValue(TAG_OPT.left);
+                    handleSnapshots(command, tag, arguments, columnFamilyName, probe);
                     break;
 
                 case MOVE :
@@ -891,7 +897,7 @@ public class NodeCmd
         }
     }
 
-    private static void handleSnapshots(NodeCommand nc, String tag, String[] cmdArgs, NodeProbe probe) throws InterruptedException, IOException
+    private static void handleSnapshots(NodeCommand nc, String tag, String[] cmdArgs, String columnFamily, NodeProbe probe) throws InterruptedException, IOException
     {
         String[] keyspaces = Arrays.copyOfRange(cmdArgs, 0, cmdArgs.length);
         System.out.print("Requested snapshot for: ");
@@ -902,7 +908,12 @@ public class NodeCmd
         }
         else
         {
-            System.out.print("all keyspaces");
+            System.out.print("all keyspaces ");
+        }
+
+        if (columnFamily != null)
+        {
+            System.out.print("and column family: " + columnFamily);
         }
         System.out.println();
 
@@ -911,7 +922,7 @@ public class NodeCmd
             case SNAPSHOT :
                 if (tag == null || tag.equals(""))
                     tag = new Long(System.currentTimeMillis()).toString();
-                probe.takeSnapshot(tag, keyspaces);
+                probe.takeSnapshot(tag, columnFamily, keyspaces);
                 System.out.println("Snapshot directory: " + tag);
                 break;
             case CLEARSNAPSHOT :
