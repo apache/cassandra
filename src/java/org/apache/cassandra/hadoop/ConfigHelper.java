@@ -299,9 +299,19 @@ public class ConfigHelper
         return conf.get(INPUT_KEYSPACE_PASSWD_CONFIG);
     }
 
+    public static void setOutputKeyspaceUserName(Configuration conf, String username)
+    {
+        conf.set(OUTPUT_KEYSPACE_USERNAME_CONFIG, username);
+    }
+
     public static String getOutputKeyspaceUserName(Configuration conf)
     {
         return conf.get(OUTPUT_KEYSPACE_USERNAME_CONFIG);
+    }
+
+    public static void setOutputKeyspacePassword(Configuration conf, String password)
+    {
+        conf.set(OUTPUT_KEYSPACE_PASSWD_CONFIG, password);
     }
 
     public static String getOutputKeyspacePassword(Configuration conf)
