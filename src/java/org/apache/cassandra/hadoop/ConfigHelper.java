@@ -304,6 +304,11 @@ public class ConfigHelper
         return conf.get(OUTPUT_KEYSPACE_USERNAME_CONFIG);
     }
 
+    public static String getOutputKeyspacePassword(Configuration conf)
+    {
+        return conf.get(OUTPUT_KEYSPACE_PASSWD_CONFIG);
+    }
+
     public static String getInputColumnFamily(Configuration conf)
     {
         return conf.get(INPUT_COLUMNFAMILY_CONFIG);
