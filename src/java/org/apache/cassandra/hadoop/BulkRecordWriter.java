@@ -30,6 +30,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -134,8 +135,13 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
         if (writer == null)
         {
             AbstractType<?> subcomparator = null;
+            ExternalClient externalClient = null;
+            String username = ConfigHelper.getOutputKeyspaceUserName(conf);
+            String password = ConfigHelper.getOutputKeyspacePassword(conf);
+
             if (cfType == CFType.SUPER)
                 subcomparator = BytesType.instance;
+            
             this.writer = new SSTableSimpleUnsortedWriter(
                     outputdir,
                     ConfigHelper.getOutputPartitioner(conf),
@@ -145,7 +151,13 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                     subcomparator,
                     Integer.valueOf(conf.get(BUFFER_SIZE_IN_MB, "64")),
                     ConfigHelper.getOutputCompressionParamaters(conf));
-            this.loader = new SSTableLoader(outputdir, new ExternalClient(ConfigHelper.getOutputInitialAddress(conf), ConfigHelper.getOutputRpcPort(conf)), new NullOutputHandler());
+
+            externalClient = new ExternalClient(ConfigHelper.getOutputInitialAddress(conf), 
+                                                ConfigHelper.getOutputRpcPort(conf),
+                                                username,
+                                                password);
+
+            this.loader = new SSTableLoader(outputdir, externalClient, new NullOutputHandler());
         }
     }
 
@@ -239,12 +251,16 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
         private final Map<String, Set<String>> knownCfs = new HashMap<String, Set<String>>();
         private String hostlist;
         private int rpcPort;
+        private final String username;
+        private final String password;
 
-        public ExternalClient(String hostlist, int port)
+        public ExternalClient(String hostlist, int port, String username, String password)
         {
             super();
             this.hostlist = hostlist;
             this.rpcPort = port;
+            this.username = username;
+            this.password = password;
         }
 
         public void init(String keyspace)
@@ -269,6 +285,18 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                 {
                     InetAddress host = hostiter.next();
                     Cassandra.Client client = createThriftClient(host.getHostAddress(), rpcPort);
+
+                    // log in
+                    client.set_keyspace(keyspace);
+                    if (username != null)
+                    {
+                        Map<String, String> creds = new HashMap<String, String>();
+                        creds.put(IAuthenticator.USERNAME_KEY, username);
+                        creds.put(IAuthenticator.PASSWORD_KEY, password);
+                        AuthenticationRequest authRequest = new AuthenticationRequest(creds);
+                        client.login(authRequest);
+                    }
+
                     List<TokenRange> tokenRanges = client.describe_ring(keyspace);
                     List<KsDef> ksDefs = client.describe_keyspaces();
 
