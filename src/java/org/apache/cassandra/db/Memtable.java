@@ -193,15 +193,21 @@ public class Memtable
 
                     if (newRatio < MIN_SANE_LIVE_RATIO)
                     {
-                        logger.warn("setting live ratio to minimum of 1.0 instead of {}", newRatio);
+                        logger.warn("setting live ratio to minimum of {} instead of {}", MIN_SANE_LIVE_RATIO, newRatio);
                         newRatio = MIN_SANE_LIVE_RATIO;
                     }
                     if (newRatio > MAX_SANE_LIVE_RATIO)
                     {
-                        logger.warn("setting live ratio to maximum of 64 instead of {}", newRatio);
+                        logger.warn("setting live ratio to maximum of {} instead of {}", MAX_SANE_LIVE_RATIO, newRatio);
                         newRatio = MAX_SANE_LIVE_RATIO;
                     }
-                    cfs.liveRatio = Math.max(cfs.liveRatio, newRatio);
+
+                    // we want to be very conservative about our estimate, since the penalty for guessing low is OOM
+                    // death.  thus, higher estimates are believed immediately; lower ones are averaged w/ the old
+                    if (newRatio > cfs.liveRatio)
+                        cfs.liveRatio = newRatio;
+                    else
+                        cfs.liveRatio = (cfs.liveRatio + newRatio) / 2.0;
 
                     logger.info("{} liveRatio is {} (just-counted was {}).  calculation took {}ms for {} columns",
                                 new Object[]{ cfs, cfs.liveRatio, newRatio, System.currentTimeMillis() - start, objects });
