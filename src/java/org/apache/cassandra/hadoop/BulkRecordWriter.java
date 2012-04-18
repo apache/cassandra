@@ -100,7 +100,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
         Config.setOutboundBindAny(true);
         this.conf = conf;
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(Integer.valueOf(conf.get(STREAM_THROTTLE_MBITS, "0")));
-        maxFailures = Integer.valueOf(conf.get(MAX_FAILED_HOSTS, "O"));
+        maxFailures = Integer.valueOf(conf.get(MAX_FAILED_HOSTS, "0"));
         String keyspace = ConfigHelper.getOutputKeyspace(conf);
         outputdir = new File(getOutputLocation() + File.separator + keyspace + File.separator + ConfigHelper.getOutputColumnFamily(conf)); //dir must be named by ks/cf for the loader
         outputdir.mkdirs();
