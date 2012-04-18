@@ -70,7 +70,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 
         while (bb1.remaining() > 0 && bb2.remaining() > 0)
         {
-            AbstractType<?> comparator = getNextComparator(i, bb1, bb2);
+            AbstractType<?> comparator = getComparator(i, bb1, bb2);
 
             ByteBuffer value1 = getWithShortLength(bb1);
             ByteBuffer value2 = getWithShortLength(bb2);
@@ -117,7 +117,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         int i = 0;
         while (bb.remaining() > 0)
         {
-            getNextComparator(i++, bb);
+            getComparator(i++, bb);
             l.add(getWithShortLength(bb));
             bb.get(); // skip end-of-component
         }
@@ -135,7 +135,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
             if (bb.remaining() != bytes.remaining())
                 sb.append(":");
 
-            AbstractType<?> comparator = getAndAppendNextComparator(i, bb, sb);
+            AbstractType<?> comparator = getAndAppendComparator(i, bb, sb);
             ByteBuffer value = getWithShortLength(bb);
 
             sb.append(comparator.getString(value));
@@ -172,7 +172,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 
         while (bb.remaining() > 0)
         {
-            AbstractType comparator = getNextComparator(i, bb);
+            AbstractType comparator = getComparator(i, bb);
             ByteBuffer value = getWithShortLength(bb);
 
             list.add( new CompositeComponent(comparator,value) );
@@ -205,7 +205,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
                 break;
             }
 
-            ParsedComparator p = parseNextComparator(i, part);
+            ParsedComparator p = parseComparator(i, part);
             AbstractType<?> type = p.getAbstractType();
             part = p.getRemainingPart();
 
@@ -240,7 +240,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         int i = 0;
         while (bb.remaining() > 0)
         {
-            AbstractType<?> comparator = validateNextComparator(i, bb);
+            AbstractType<?> comparator = validateComparator(i, bb);
 
             if (bb.remaining() < 2)
                 throw new MarshalException("Not enough bytes to read value size of component " + i);
@@ -271,11 +271,32 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         return value;
     }
 
-    abstract protected AbstractType<?> getNextComparator(int i, ByteBuffer bb);
-    abstract protected AbstractType<?> getNextComparator(int i, ByteBuffer bb1, ByteBuffer bb2);
-    abstract protected AbstractType<?> getAndAppendNextComparator(int i, ByteBuffer bb, StringBuilder sb);
-    abstract protected ParsedComparator parseNextComparator(int i, String part);
-    abstract protected AbstractType<?> validateNextComparator(int i, ByteBuffer bb) throws MarshalException;
+    /**
+     * @return the comparator for the given component. static CompositeType will consult
+     * @param i; DynamicCompositeType will read the type information from @param bb
+     */
+    abstract protected AbstractType<?> getComparator(int i, ByteBuffer bb);
+
+    /**
+     * Adds DynamicCompositeType type information from @param bb1 to @param bb2.
+     * @param i is ignored.
+     */
+    abstract protected AbstractType<?> getComparator(int i, ByteBuffer bb1, ByteBuffer bb2);
+
+    /**
+     * Adds type information from @param bb to @param sb.  @param i is ignored.
+     */
+    abstract protected AbstractType<?> getAndAppendComparator(int i, ByteBuffer bb, StringBuilder sb);
+
+    /**
+     * Like getComparator, but validates that @param i does not exceed the defined range
+     */
+    abstract protected AbstractType<?> validateComparator(int i, ByteBuffer bb) throws MarshalException;
+
+    /**
+     * Used by fromString
+     */
+    abstract protected ParsedComparator parseComparator(int i, String part);
 
     protected static interface ParsedComparator
     {

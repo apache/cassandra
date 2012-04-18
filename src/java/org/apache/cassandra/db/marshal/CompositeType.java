@@ -80,27 +80,27 @@ public class CompositeType extends AbstractCompositeType
         this.types = types;
     }
 
-    protected AbstractType<?> getNextComparator(int i, ByteBuffer bb)
+    protected AbstractType<?> getComparator(int i, ByteBuffer bb)
     {
         return types.get(i);
     }
 
-    protected AbstractType<?> getNextComparator(int i, ByteBuffer bb1, ByteBuffer bb2)
+    protected AbstractType<?> getComparator(int i, ByteBuffer bb1, ByteBuffer bb2)
     {
         return types.get(i);
     }
 
-    protected AbstractType<?> getAndAppendNextComparator(int i, ByteBuffer bb, StringBuilder sb)
+    protected AbstractType<?> getAndAppendComparator(int i, ByteBuffer bb, StringBuilder sb)
     {
         return types.get(i);
     }
 
-    protected ParsedComparator parseNextComparator(int i, String part)
+    protected ParsedComparator parseComparator(int i, String part)
     {
         return new StaticParsedComparator(types.get(i), part);
     }
 
-    protected AbstractType<?> validateNextComparator(int i, ByteBuffer bb) throws MarshalException
+    protected AbstractType<?> validateComparator(int i, ByteBuffer bb) throws MarshalException
     {
         if (i >= types.size())
             throw new MarshalException("Too many bytes for comparator");

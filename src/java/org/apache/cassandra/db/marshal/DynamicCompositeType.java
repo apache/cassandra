@@ -102,12 +102,12 @@ public class DynamicCompositeType extends AbstractCompositeType
         }
     }
 
-    protected AbstractType<?> getNextComparator(int i, ByteBuffer bb)
+    protected AbstractType<?> getComparator(int i, ByteBuffer bb)
     {
         return getComparator(bb);
     }
 
-    protected AbstractType<?> getNextComparator(int i, ByteBuffer bb1, ByteBuffer bb2)
+    protected AbstractType<?> getComparator(int i, ByteBuffer bb1, ByteBuffer bb2)
     {
         AbstractType<?> comp1 = getComparator(bb1);
         AbstractType<?> comp2 = getComparator(bb2);
@@ -135,7 +135,7 @@ public class DynamicCompositeType extends AbstractCompositeType
         return comp1;
     }
 
-    protected AbstractType<?> getAndAppendNextComparator(int i, ByteBuffer bb, StringBuilder sb)
+    protected AbstractType<?> getAndAppendComparator(int i, ByteBuffer bb, StringBuilder sb)
     {
         try
         {
@@ -162,12 +162,12 @@ public class DynamicCompositeType extends AbstractCompositeType
         }
     }
 
-    protected ParsedComparator parseNextComparator(int i, String part)
+    protected ParsedComparator parseComparator(int i, String part)
     {
         return new DynamicParsedComparator(part);
     }
 
-    protected AbstractType<?> validateNextComparator(int i, ByteBuffer bb) throws MarshalException
+    protected AbstractType<?> validateComparator(int i, ByteBuffer bb) throws MarshalException
     {
         AbstractType<?> comparator = null;
         if (bb.remaining() < 2)
