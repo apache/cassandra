@@ -8,8 +8,7 @@ cluster.  It is significantly faster than the older py_stress tool.
 
 Setup
 -----
-Run `ant` from the Cassandra source directory, then Run `ant` from the
-contrib/stress directory.
+Run `ant` from the Cassandra source directory, then stress can be invoke from tools/bin/stress
 
 Usage
 -----
