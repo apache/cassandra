@@ -804,7 +804,7 @@ class Shell(cmd.Cmd):
         return self.perform_statement(cqlhandling.cql_extract_orig(tokens, srcstr))
 
     def handle_parse_error(self, cmdword, tokens, parsed, srcstr):
-        if cmdword == 'select':
+        if cmdword.lower() == 'select':
             # hey, maybe they know about some new syntax we don't. type
             # assumptions won't work, but maybe the query will.
             return self.perform_statement(cqlhandling.cql_extract_orig(tokens, srcstr))

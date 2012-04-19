@@ -190,16 +190,14 @@
        This generates the CQL grammar files from Cql.g
     -->
     <target name="check-gen-cql-grammar">
-      <uptodate property="cqlcurrent" 
-                srcfile="${build.src.java}/org/apache/cassandra/cql/Cql.g" 
-                targetfile="${build.src.gen-java}/org/apache/cassandra/cql/Cql.tokens"/>
-      <uptodate property="cqlcurrent"
-                srcfile="${build.src.java}/org/apache/cassandra/cql3/Cql.g"
-                targetfile="${build.src.gen-java}/org/apache/cassandra/cql3/Cql.tokens"/>
+      <uptodate property="cqlcurrent">
+        <srcfiles dir="${build.src.java}" includes="org/apache/cassandra/cql*/Cql.g"/>
+        <mapper type="glob" from="*.g" to="*.tokens"/>
+      </uptodate>
     </target>
  
     <target name="gen-cql-grammar" depends="check-gen-cql-grammar" unless="cqlcurrent">
-      <echo>Building Grammar ${build.src.java}/org/apache/cassandra/cql/Cql.g  ...</echo>
+      <echo>Building Grammar ${build.src.java}/org/apache/cassandra/cql*/Cql.g  ...</echo>
       <java classname="org.antlr.Tool"
             classpath="${build.lib}/antlr-3.2.jar"
             fork="true"
