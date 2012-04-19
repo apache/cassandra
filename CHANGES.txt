@@ -1,4 +1,5 @@
 1.1-dev
+ * (cqlsh) fix recognizing uppercase SELECT keyword (CASSANDRA-4161)
  * average a reduced liveRatio estimate with the previous one (CASSANDRA-4065)
  * Allow KS and CF names up to 48 characters (CASSANDRA-4157)
  * Add support for CL.TWO and CL.THREE in CQL (CASSANDRA-4156)
