@@ -46,7 +46,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
     {
         super(name);
         this.oType = type;
-        this.columnName = null;
+        this.columnName = columnName;
         this.validator = validator; // used only for ADD/ALTER commands
         this.cfProps.addAll(propertyMap);
     }
