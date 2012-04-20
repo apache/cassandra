@@ -100,6 +100,8 @@ Features
     - Hadoop: ColumnFamilyRecordReader has a wide-row mode, enabled via
       a boolean parameter to setInputColumnFamily, that pages through
       data column-at-a-time instead of row-at-a-time.
+    - Pig: can use the wide-row Hadoop support, by setting PIG_WIDEROW_INPUT
+      to true.  This will produce each row's columns in a bag.
 
 
 
