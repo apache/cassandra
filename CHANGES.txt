@@ -17,7 +17,7 @@
  * Add way to force the cassandra-cli to refresh it's schema (CASSANDRA-4052)
 
 
-1.1-dev
+1.1.0-final
  * fix NPE in cql3 ALTER TABLE (CASSANDRA-4163)
  * (cqlsh) fix recognizing uppercase SELECT keyword (CASSANDRA-4161)
  * average a reduced liveRatio estimate with the previous one (CASSANDRA-4065)
