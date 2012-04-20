@@ -80,12 +80,14 @@ Features
       the cluster.  This is useful for cases such as testing different
       compaction strategies with live traffic without affecting the cluster.
     - Key and row caches are now global, similar to the global memtable
-      threshold.
-    - Off-heap caches no longer require JNA.
+      threshold. Manual tuning of cache sizes per-columnfamily is no longer
+      required.
+    - Off-heap caches no longer require JNA, and will work out of the box
+      on Windows as well as Unix platforms.
     - Streaming is now multithreaded.
     - Compactions may now be aborted via JMX or nodetool.
     - The stress tool is not new in 1.1, but it is newly included in
-      binary builds as well as the source tree
+      binary builds now, as well as the source tree.
     - Hadoop: a new BulkOutputFormat is included which will directly write
       SSTables locally and then stream them into the cluster.
       YOU SHOULD USE BulkOutputFormat BY DEFAULT.  ColumnFamilyOutputFormat
@@ -94,10 +96,10 @@ Features
       more efficient.
     - Hadoop: KeyRange.filter is now supported with ColumnFamilyInputFormat,
       allowing index expressions to be evaluated server-side to reduce
-      the amount of data sent to Hadoop
+      the amount of data sent to Hadoop.
     - Hadoop: ColumnFamilyRecordReader has a wide-row mode, enabled via
       a boolean parameter to setInputColumnFamily, that pages through
-      data column-at-a-time instead of row-at-a-time
+      data column-at-a-time instead of row-at-a-time.
 
 
 
