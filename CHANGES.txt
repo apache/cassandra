@@ -25,11 +25,11 @@
  * Add support for CL.TWO and CL.THREE in CQL (CASSANDRA-4156)
  * Fix type in CQL3 ALTER TABLE preventing update (CASSANDRA-4170)
  * Throw invalid exception from CQL3 on obsolete options (CASSANDRA-4171)
+ * fix stress build (CASSANDRA-4140)
+ * add time remaining estimate to nodetool compactionstats (CASSANDRA-4167)
 Merged from 1.0:
  * avoid streaming empty files with bulk loader if sstablewriter errors out
    (CASSANDRA-3946)
- * fix stress build (CASSANDRA-4140)
- * add time remaining estimate to nodetool compactionstats (CASSANDRA-4167)
 
 
 1.1-rc1
