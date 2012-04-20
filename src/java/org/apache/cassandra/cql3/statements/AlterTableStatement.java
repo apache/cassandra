@@ -98,7 +98,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         cfm.defaultValidator(CFPropDefs.parseType(validator));
                         break;
                     case COLUMN_METADATA:
-                        ColumnDefinition column = meta.getColumnDefinition(columnName.key);
+                        ColumnDefinition column = cfm.getColumnDefinition(columnName.key);
                         column.setValidator(CFPropDefs.parseType(validator));
                         cfm.addColumnDefinition(column);
                         break;
