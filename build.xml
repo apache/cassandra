@@ -216,18 +216,21 @@
       </java>
     </target>
 
-	<target name="generate-cql-html" depends="maven-ant-tasks-init" description="Generate HTML from textile source">
-	  <artifact:dependencies pathId="wikitext.classpath">
-	    <dependency groupId="com.datastax.wikitext" artifactId="wikitext-core-ant" version="1.3"/>	    	  
-	    <dependency groupId="org.fusesource.wikitext" artifactId="textile-core" version="1.3"/>		          
-	  </artifact:dependencies>
-      <taskdef classpathref="wikitext.classpath" resource="wikitexttasks.properties" />
-	    <wikitext-to-html markupLanguage="Textile">
-		  <fileset dir="${basedir}">
-    		<include name="doc/cql/*.textile"/>
-		  </fileset>
-		</wikitext-to-html>
-	</target>
+    <target name="generate-cql-html" depends="maven-ant-tasks-init" description="Generate HTML from textile source">
+        <artifact:dependencies pathId="wikitext.classpath">
+            <dependency groupId="com.datastax.wikitext" artifactId="wikitext-core-ant" version="1.3"/>
+            <dependency groupId="org.fusesource.wikitext" artifactId="textile-core" version="1.3"/>
+        </artifact:dependencies>
+        <taskdef classpathref="wikitext.classpath" resource="wikitexttasks.properties" />
+        <wikitext-to-html markupLanguage="Textile">
+            <fileset dir="${basedir}">
+                <include name="doc/cql/*.textile"/>
+            </fileset>
+            <fileset dir="${basedir}">
+                <include name="doc/cql3/*.textile"/>
+            </fileset>
+        </wikitext-to-html>
+    </target>
 
     <!--
        Fetch Maven Ant Tasks and Cassandra's dependencies
