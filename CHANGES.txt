@@ -8,6 +8,7 @@
  * (cql) Fix type in CQL3 ALTER TABLE preventing update (CASSANDRA-4170)
  * (cql) Throw invalid exception from CQL3 on obsolete options (CASSANDRA-4171)
  * (cqlsh) fix recognizing uppercase SELECT keyword (CASSANDRA-4161)
+ * Pig: wide row support (CASSANDRA-3909)
 Merged from 1.0:
  * avoid streaming empty files with bulk loader if sstablewriter errors out
    (CASSANDRA-3946)
