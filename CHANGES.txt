@@ -1,13 +1,13 @@
 1.1.0-final
- * fix NPE in cql3 ALTER TABLE (CASSANDRA-4163)
- * (cqlsh) fix recognizing uppercase SELECT keyword (CASSANDRA-4161)
  * average a reduced liveRatio estimate with the previous one (CASSANDRA-4065)
  * Allow KS and CF names up to 48 characters (CASSANDRA-4157)
- * Add support for CL.TWO and CL.THREE in CQL (CASSANDRA-4156)
- * Fix type in CQL3 ALTER TABLE preventing update (CASSANDRA-4170)
- * Throw invalid exception from CQL3 on obsolete options (CASSANDRA-4171)
  * fix stress build (CASSANDRA-4140)
  * add time remaining estimate to nodetool compactionstats (CASSANDRA-4167)
+ * (cql) fix NPE in cql3 ALTER TABLE (CASSANDRA-4163)
+ * (cql) Add support for CL.TWO and CL.THREE in CQL (CASSANDRA-4156)
+ * (cql) Fix type in CQL3 ALTER TABLE preventing update (CASSANDRA-4170)
+ * (cql) Throw invalid exception from CQL3 on obsolete options (CASSANDRA-4171)
+ * (cqlsh) fix recognizing uppercase SELECT keyword (CASSANDRA-4161)
 Merged from 1.0:
  * avoid streaming empty files with bulk loader if sstablewriter errors out
    (CASSANDRA-3946)
