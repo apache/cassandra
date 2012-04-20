@@ -56,20 +56,23 @@ Upgrading
 
 Features
 --------
-    - Cassandra 1.1 adds row-level isolation.  Multi-column updates to
-      a single row have always been *atomic* (either all will be applied,
-      or none) thanks to the CommitLog, but until 1.1 they were not *isolated*
-      -- a reader may see mixed old and new values while the update happens.
+    - Concurrent schema updates are now supported, with any conflicts
+      automatically resolved.  This makes temporary columnfamilies and
+      other uses of dynamic schema appropriate to use in applications.
+    - The CQL language has undergone a major revision, CQL3, the
+      highlights of which are covered at [1].  CQL3 is not
+      backwards-compatibile with CQL2, so we've introduced a
+      set_cql_version Thrift method to specify which version you want.
+      (The default remains CQL2 at least until Cassandra 1.2.)  cqlsh
+      adds a --cql3 flag to enable this.
+      [1] http://www.datastax.com/dev/blog/schema-in-cassandra-1-1
+    - Row-level isolation: multi-column updates to a single row have
+      always been *atomic* (either all will be applied, or none)
+      thanks to the CommitLog, but until 1.1 they were not *isolated*
+      -- a reader may see mixed old and new values while the update
+      happens.
     - Finer-grained control over data directories, allowing a ColumnFamily to
-      be pinned to specfic media.
-    - Hadoop: a new BulkOutputFormat is included which will directly write
-      SSTables locally and then stream them into the cluster.
-      YOU SHOULD USE BulkOutputFormat BY DEFAULT.  ColumnFamilyOutputFormat
-      is still around in case for some strange reason you want results
-      trickling out over Thrift, but BulkOutputFormat is significantly
-      more efficient.
-    - Hadoop: KeyRange.filter is now supported with ColumnFamilyInputFormat
-    - Hadoop wide row mode added to ColumnFamilyInputFormat
+      be pinned to specfic volume, e.g. one backed by SSD.
     - The bulk loader is not longer a fat client; it can be run from an
       existing machine in a cluster.
     - A new write survey mode has been added, similar to bootstrap (enabled via
@@ -83,6 +86,19 @@ Features
     - Compactions may now be aborted via JMX or nodetool.
     - The stress tool is not new in 1.1, but it is newly included in
       binary builds as well as the source tree
+    - Hadoop: a new BulkOutputFormat is included which will directly write
+      SSTables locally and then stream them into the cluster.
+      YOU SHOULD USE BulkOutputFormat BY DEFAULT.  ColumnFamilyOutputFormat
+      is still around in case for some strange reason you want results
+      trickling out over Thrift, but BulkOutputFormat is significantly
+      more efficient.
+    - Hadoop: KeyRange.filter is now supported with ColumnFamilyInputFormat,
+      allowing index expressions to be evaluated server-side to reduce
+      the amount of data sent to Hadoop
+    - Hadoop: ColumnFamilyRecordReader has a wide-row mode, enabled via
+      a boolean parameter to setInputColumnFamily, that pages through
+      data column-at-a-time instead of row-at-a-time
+
 
 
 1.0.8
