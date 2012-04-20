@@ -19,6 +19,9 @@ Upgrading
     - The KsDef.replication_factor field (deprecated since 0.8) has
       been removed.  Older clients will need to be updated to be able
       to continue to created and update keyspaces.
+    - The KsDef.replication_factor field (deprecated since 0.8) has
+      been removed.  Older clients will need to be updated to be able
+      to continue to created and update keyspaces.
     - If you are running a multi datacenter setup, you should upgrade to
       the latest 1.0.x (or 0.8.x) release before upgrading.  Versions
       0.8.8 and 1.0.3-1.0.5 generate cross-dc forwarding that is incompatible
