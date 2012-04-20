@@ -81,7 +81,7 @@ Features
     - Streaming is now multithreaded.
     - Compactions may now be aborted via JMX or nodetool.
     - The stress tool is not new in 1.1, but it is newly included in
-      binary builds now, as well as the source tree.
+      binary builds as well as the source tree
     - Hadoop: a new BulkOutputFormat is included which will directly write
       SSTables locally and then stream them into the cluster.
       YOU SHOULD USE BulkOutputFormat BY DEFAULT.  ColumnFamilyOutputFormat
