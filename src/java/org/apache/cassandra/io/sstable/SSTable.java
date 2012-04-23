@@ -59,6 +59,7 @@ public abstract class SSTable
     public static final String COMPONENT_FILTER = Component.Type.FILTER.repr;
     public static final String COMPONENT_STATS = Component.Type.STATS.repr;
     public static final String COMPONENT_DIGEST = Component.Type.DIGEST.repr;
+    public static final String COMPONENT_SUMMARY = Component.Type.SUMMARY.repr;
 
     public static final String TEMPFILE_MARKER = "tmp";
 
@@ -135,13 +136,14 @@ public abstract class SSTable
             FileUtils.deleteWithConfirm(desc.filenameFor(Component.DATA));
         for (Component component : components)
         {
-            if (component.equals(Component.DATA) || component.equals(Component.COMPACTED_MARKER))
+            if (component.equals(Component.DATA) || component.equals(Component.COMPACTED_MARKER) || component.equals(Component.SUMMARY))
                 continue;
 
             FileUtils.deleteWithConfirm(desc.filenameFor(component));
         }
         // remove the COMPACTED_MARKER component last if it exists
         FileUtils.delete(desc.filenameFor(Component.COMPACTED_MARKER));
+        FileUtils.delete(desc.filenameFor(Component.SUMMARY));
 
         logger.debug("Deleted {}", desc);
         return true;

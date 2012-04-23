@@ -17,11 +17,17 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Two approaches to building an IndexSummary:
@@ -30,6 +36,7 @@ import org.apache.cassandra.db.DecoratedKey;
  */
 public class IndexSummary
 {
+    public static final IndexSummarySerializer serializer = new IndexSummarySerializer();
     private final ArrayList<Long> positions;
     private final ArrayList<DecoratedKey> keys;
     private long keysWritten = 0;
@@ -42,6 +49,12 @@ public class IndexSummary
             throw new RuntimeException("Cannot use index_interval of " + DatabaseDescriptor.getIndexInterval() + " with " + expectedKeys + " (expected) keys.");
         positions = new ArrayList<Long>((int)expectedEntries);
         keys = new ArrayList<DecoratedKey>((int)expectedEntries);
+    }
+
+    private IndexSummary()
+    {
+        positions = new ArrayList<Long>();
+        keys = new ArrayList<DecoratedKey>();
     }
 
     public void incrementRowid()
@@ -81,5 +94,36 @@ public class IndexSummary
     {
         keys.trimToSize();
         positions.trimToSize();
+    }
+
+    public static class IndexSummarySerializer
+    {
+        public void serialize(IndexSummary t, DataOutput dos) throws IOException
+        {
+            assert t.keys.size() == t.positions.size() : "keysize and the position sizes are not same.";
+            dos.writeInt(DatabaseDescriptor.getIndexInterval());
+            dos.writeInt(t.keys.size());
+            for (int i = 0; i < t.keys.size(); i++)
+            {
+                dos.writeLong(t.positions.get(i));
+                ByteBufferUtil.writeWithLength(t.keys.get(i).key, dos);
+            }
+        }
+
+        public IndexSummary deserialize(DataInput dis) throws IOException
+        {
+            IndexSummary summary = new IndexSummary();
+            if (dis.readInt() != DatabaseDescriptor.getIndexInterval())
+                throw new IOException("Cannot read the saved summary because Index Interval changed.");
+
+            int size = dis.readInt();
+            for (int i = 0; i < size; i++)
+            {
+                long location = dis.readLong();
+                ByteBuffer key = ByteBufferUtil.readWithLength(dis);
+                summary.addEntry(StorageService.getPartitioner().decorateKey(key), location);
+            }
+            return summary;
+        }
     }
 }

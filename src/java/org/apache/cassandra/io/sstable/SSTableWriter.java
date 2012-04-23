@@ -61,7 +61,12 @@ public class SSTableWriter extends SSTable
 
     private static Set<Component> components(CFMetaData metadata)
     {
-        Set<Component> components = new HashSet<Component>(Arrays.asList(Component.DATA, Component.FILTER, Component.PRIMARY_INDEX, Component.STATS));
+        Set<Component> components = new HashSet<Component>(Arrays.asList(Component.DATA,
+                                                                         Component.FILTER,
+                                                                         Component.PRIMARY_INDEX,
+                                                                         Component.STATS,
+                                                                         Component.SUMMARY));
+
         if (metadata.compressionParameters().sstableCompressor != null)
             components.add(Component.COMPRESSION_INFO);
         else
@@ -303,6 +308,8 @@ public class SSTableWriter extends SSTable
                                                            sstableMetadata);
         sstable.first = getMinimalKey(first);
         sstable.last = getMinimalKey(last);
+        // try to save the summaries to disk
+        SSTableReader.saveSummary(sstable, iwriter.builder, dbuilder);
         iwriter = null;
         dbuilder = null;
         return sstable;
@@ -342,7 +349,8 @@ public class SSTableWriter extends SSTable
         try
         {
             // do -Data last because -Data present should mean the sstable was completely renamed before crash
-            for (Component component : Sets.difference(components, Collections.singleton(Component.DATA)))
+            // don't rename -Summary component as it is not created yet and created when SSTable is loaded.
+            for (Component component : Sets.difference(components, Sets.newHashSet(Component.DATA, Component.SUMMARY)))
                 FBUtilities.renameWithConfirm(tmpdesc.filenameFor(component), newdesc.filenameFor(component));
             FBUtilities.renameWithConfirm(tmpdesc.filenameFor(Component.DATA), newdesc.filenameFor(Component.DATA));
         }

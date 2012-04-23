@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.io.util;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
@@ -147,7 +149,7 @@ public class MmappedSegmentedFile extends SegmentedFile
     static class Builder extends SegmentedFile.Builder
     {
         // planned segment boundaries
-        private final List<Long> boundaries;
+        private List<Long> boundaries;
 
         // offset of the open segment (first segment begins at 0).
         private long currentStart = 0;
@@ -193,7 +195,8 @@ public class MmappedSegmentedFile extends SegmentedFile
         {
             long length = new File(path).length();
             // add a sentinel value == length
-            boundaries.add(Long.valueOf(length));
+            if (length != boundaries.get(boundaries.size() - 1))
+                boundaries.add(length);
             // create the segments
             return new MmappedSegmentedFile(path, length, createSegments(path));
         }
@@ -225,6 +228,28 @@ public class MmappedSegmentedFile extends SegmentedFile
                 FileUtils.closeQuietly(raf);
             }
             return segments;
+        }
+
+        @Override
+        public void serializeBounds(DataOutput dos) throws IOException
+        {
+            super.serializeBounds(dos);
+            dos.writeInt(boundaries.size());
+            for (long position: boundaries)
+                dos.writeLong(position);
+        }
+
+        @Override
+        public void deserializeBounds(DataInput dis) throws IOException
+        {
+            super.deserializeBounds(dis);
+            List<Long> temp = new ArrayList<Long>();
+
+            int size = dis.readInt();
+            for (int i = 0; i < size; i++)
+                temp.add(dis.readLong());
+
+            boundaries = temp;
         }
     }
 }

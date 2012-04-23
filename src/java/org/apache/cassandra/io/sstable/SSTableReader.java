@@ -338,79 +338,125 @@ public class SSTableReader extends SSTable
                                           : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
 
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
-        RandomAccessReader input = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), true);
-        DecoratedKey left = null, right = null;
+        RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), true);
+
+        // try to load summaries from the disk and check if we need
+        // to read primary index because we should re-create a BloomFilter or pre-load KeyCache
+        final boolean summaryLoaded = loadSummary(this, ibuilder, dbuilder);
+        final boolean readIndex = recreatebloom || cacheLoading || !summaryLoaded;
         try
         {
-            long indexSize = input.length();
+            long indexSize = primaryIndex.length();
             long histogramCount = sstableMetadata.estimatedRowSize.count();
             long estimatedKeys = histogramCount > 0 && !sstableMetadata.estimatedRowSize.isOverflowed()
                                ? histogramCount
-                               : estimateRowsFromIndex(input); // statistics is supposed to be optional
-            indexSummary = new IndexSummary(estimatedKeys);
+                               : estimateRowsFromIndex(primaryIndex); // statistics is supposed to be optional
             if (recreatebloom)
                 bf = LegacyBloomFilter.getFilter(estimatedKeys, 15);
 
-            while (true)
+            if (!summaryLoaded)
+                indexSummary = new IndexSummary(estimatedKeys);
+
+            long indexPosition;
+            while (readIndex && (indexPosition = primaryIndex.getFilePointer()) != indexSize)
             {
-                long indexPosition = input.getFilePointer();
-                if (indexPosition == indexSize)
-                    break;
+                ByteBuffer key = ByteBufferUtil.readWithShortLength(primaryIndex);
+                RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(primaryIndex, descriptor);
+                DecoratedKey decoratedKey = decodeKey(partitioner, descriptor, key);
+                if(null == first)
+                    first = decoratedKey;
+                last = decoratedKey;
 
-                DecoratedKey decoratedKey = null;
-                int len = ByteBufferUtil.readShortLength(input);
+                if (recreatebloom)
+                    bf.add(decoratedKey.key);
+                if (cacheLoading && keysToLoadInCache.contains(decoratedKey))
+                    cacheKey(decoratedKey, indexEntry);
 
-                // when primary index file contains info other than data position, there is noway to determine
-                // the last key without deserializing index entry
-                boolean firstKey = left == null;
-                boolean lastKeyForUnpromoted = indexPosition + DBConstants.SHORT_SIZE + len + DBConstants.LONG_SIZE == indexSize;
-                boolean shouldAddEntry = indexSummary.shouldAddEntry();
-                if (shouldAddEntry || cacheLoading || recreatebloom || firstKey || lastKeyForUnpromoted || descriptor.hasPromotedIndexes)
+                // if summary was already read from disk we don't want to re-populate it using primary index
+                if (!summaryLoaded)
                 {
-                    decoratedKey = decodeKey(partitioner, descriptor, ByteBufferUtil.read(input, len));
-                    if (firstKey)
-                        left = decoratedKey;
-                    right = decoratedKey;
+                    indexSummary.maybeAddEntry(decoratedKey, indexPosition);
+                    ibuilder.addPotentialBoundary(indexPosition);
+                    dbuilder.addPotentialBoundary(indexEntry.position);
                 }
-                else
-                {
-                    FileUtils.skipBytesFully(input, len);
-                }
-
-                RowIndexEntry indexEntry = null;
-                if (decoratedKey != null)
-                {
-                    if (recreatebloom)
-                        bf.add(decoratedKey.key);
-                    if (shouldAddEntry)
-                        indexSummary.addEntry(decoratedKey, indexPosition);
-                    // if key cache could be used and we have key already pre-loaded
-                    if (cacheLoading && keysToLoadInCache.contains(decoratedKey))
-                    {
-                        indexEntry = RowIndexEntry.serializer.deserialize(input, descriptor);
-                        cacheKey(decoratedKey, indexEntry);
-                    }
-                }
-                if (indexEntry == null)
-                    indexEntry = RowIndexEntry.serializer.deserializePositionOnly(input, descriptor);
-
-                indexSummary.incrementRowid();
-                ibuilder.addPotentialBoundary(indexPosition);
-                dbuilder.addPotentialBoundary(indexEntry.position);
             }
-            indexSummary.complete();
         }
         finally
         {
-            FileUtils.closeQuietly(input);
+            FileUtils.closeQuietly(primaryIndex);
         }
-        this.first = getMinimalKey(left);
-        this.last = getMinimalKey(right);
-        assert this.first.compareTo(this.last) <= 0: String.format("SSTable first key %s > last key %s", this.first, this.last);
-
+        first = getMinimalKey(first);
+        last = getMinimalKey(last);
+        // finalize the load.
+        indexSummary.complete();
         // finalize the state of the reader
         ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
         dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
+        if (readIndex) // save summary information to disk
+            saveSummary(this, ibuilder, dbuilder);
+    }
+
+    public static boolean loadSummary(SSTableReader reader, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder)
+    {
+        File summariesFile = new File(reader.descriptor.filenameFor(Component.SUMMARY));
+        if (!summariesFile.exists())
+            return false;
+
+        DataInputStream iStream = null;
+        try
+        {
+            iStream = new DataInputStream(new FileInputStream(summariesFile));
+            reader.indexSummary = IndexSummary.serializer.deserialize(iStream);
+            reader.first = decodeKey(StorageService.getPartitioner(), reader.descriptor, ByteBufferUtil.readWithLength(iStream));
+            reader.last = decodeKey(StorageService.getPartitioner(), reader.descriptor, ByteBufferUtil.readWithLength(iStream));
+            ibuilder.deserializeBounds(iStream);
+            dbuilder.deserializeBounds(iStream);
+        }
+        catch (IOException e)
+        {
+            logger.debug("Cannot deserialize SSTable Summary: ", e);
+            // corrupted hence delete it and let it load it now.
+            if (summariesFile.exists())
+                summariesFile.delete();
+
+            return false;
+        }
+        finally
+        {
+            FileUtils.closeQuietly(iStream);
+        }
+
+        return true;
+    }
+
+    public static void saveSummary(SSTableReader reader, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder)
+    {
+        File summariesFile = new File(reader.descriptor.filenameFor(Component.SUMMARY));
+        if (summariesFile.exists())
+            summariesFile.delete();
+
+        DataOutputStream oStream = null;
+        try
+        {
+            oStream = new DataOutputStream(new FileOutputStream(summariesFile));
+            IndexSummary.serializer.serialize(reader.indexSummary, oStream);
+            ByteBufferUtil.writeWithLength(reader.first.key, oStream);
+            ByteBufferUtil.writeWithLength(reader.last.key, oStream);
+            ibuilder.serializeBounds(oStream);
+            dbuilder.serializeBounds(oStream);
+        }
+        catch (IOException e)
+        {
+            logger.debug("Cannot save SSTable Summary: ", e);
+
+            // corrupted hence delete it and let it load it now.
+            if (summariesFile.exists())
+                summariesFile.delete();
+        }
+        finally
+        {
+            FileUtils.closeQuietly(oStream);
+        }
     }
 
     /** get the position in the index file to start scanning to find the given key (at most indexInterval keys away) */

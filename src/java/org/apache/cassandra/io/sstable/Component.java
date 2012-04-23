@@ -50,7 +50,9 @@ public class Component
         // statistical metadata about the content of the sstable
         STATS("Statistics.db"),
         // holds sha1 sum of the data file (to be checked by sha1sum)
-        DIGEST("Digest.sha1");
+        DIGEST("Digest.sha1"),
+        // holds SSTable Index Summary and Boundaries
+        SUMMARY("Summary.db");
 
         final String repr;
         Type(String repr)
@@ -75,6 +77,7 @@ public class Component
     public final static Component COMPRESSION_INFO = new Component(Type.COMPRESSION_INFO, -1);
     public final static Component STATS = new Component(Type.STATS, -1);
     public final static Component DIGEST = new Component(Type.DIGEST, -1);
+    public final static Component SUMMARY = new Component(Type.SUMMARY, -1);
 
     public final Type type;
     public final int id;
@@ -122,6 +125,7 @@ public class Component
             case COMPRESSION_INFO:  component = Component.COMPRESSION_INFO; break;
             case STATS:             component = Component.STATS;            break;
             case DIGEST:            component = Component.DIGEST;           break;
+            case SUMMARY:           component = Component.SUMMARY;          break;
             default:
                  throw new IllegalStateException();
         }
