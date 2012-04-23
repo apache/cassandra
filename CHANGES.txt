@@ -14,6 +14,7 @@
    (CASSANDRA-2261)
  * Move CfDef and KsDef validation out of thrift (CASSANDRA-4037)
  * Expose repairing by a user provided range (CASSANDRA-3912)
+ * Add way to force the cassandra-cli to refresh it's schema (CASSANDRA-4052)
 
 
 1.1-dev
