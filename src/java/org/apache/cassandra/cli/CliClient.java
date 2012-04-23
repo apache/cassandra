@@ -1535,7 +1535,17 @@ public class CliClient
     
     private boolean applyAssumption(String cfName, String assumptionElement, String defaultType)
     {
-        CfDef columnFamily = getCfDef(cfName);
+        CfDef columnFamily;
+
+        try
+        {
+            columnFamily = getCfDef(cfName);
+        }
+        catch (RuntimeException e)
+        {
+            return false; // just fail if CF does not exist
+        }
+
         // used to store in this.cfKeysComparator
         AbstractType<?> comparator;
         
