@@ -85,17 +85,6 @@ public class CFPropDefs
         keywords.add(KW_CACHING);
         keywords.add(KW_BF_FP_CHANCE);
 
-        obsoleteKeywords.add("row_cache_size");
-        obsoleteKeywords.add("key_cache_size");
-        obsoleteKeywords.add("row_cache_save_period_in_seconds");
-        obsoleteKeywords.add("key_cache_save_period_in_seconds");
-        obsoleteKeywords.add("memtable_throughput_in_mb");
-        obsoleteKeywords.add("memtable_operations_in_millions");
-        obsoleteKeywords.add("memtable_flush_after_mins");
-        obsoleteKeywords.add("row_cache_provider");
-        obsoleteKeywords.add("comparator");
-        obsoleteKeywords.add("default_validation");
-
         allowedKeywords.addAll(keywords);
         allowedKeywords.addAll(obsoleteKeywords);
     }

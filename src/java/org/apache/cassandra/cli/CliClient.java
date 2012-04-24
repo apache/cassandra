@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cli;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
@@ -49,6 +50,12 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.TBaseHelper;
 import org.apache.thrift.TException;
+import org.codehaus.jackson.JsonEncoding;
+import org.codehaus.jackson.JsonFactory;
+import org.codehaus.jackson.JsonGenerator;
+import org.codehaus.jackson.JsonParser;
+import org.codehaus.jackson.JsonToken;
+import org.codehaus.jackson.type.TypeReference;
 import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.Loader;
 import org.yaml.snakeyaml.TypeDescription;
@@ -149,12 +156,14 @@ public class CliClient
     private final Map<String, KsDef> keyspacesMap = new HashMap<String, KsDef>();
     private final Map<String, AbstractType<?>> cfKeysComparators;
     private ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
+    private final CfAssumptions assumptions = new CfAssumptions();
     private CliUserHelp help;
     public CliClient(CliSessionState cliSessionState, Cassandra.Client thriftClient)
     {
         this.sessionState = cliSessionState;
         this.thriftClient = thriftClient;
         this.cfKeysComparators = new HashMap<String, AbstractType<?>>();
+        assumptions.readAssumptions();
     }
 
     private CliUserHelp getHelp()
@@ -301,6 +310,7 @@ public class CliClient
     private void cleanupAndExit()
     {
         CliMain.disconnect();
+        assumptions.writeAssumptions();
         System.exit(0);
     }
 
@@ -309,7 +319,10 @@ public class CliClient
     {
         // Lazily lookup keyspace meta-data.
         if (!(keyspacesMap.containsKey(keyspace)))
+        {
             keyspacesMap.put(keyspace, thriftClient.describe_keyspace(keyspace));
+            assumptions.replayAssumptions(keyspace);
+        }
 
         return keyspacesMap.get(keyspace);
     }
@@ -1057,7 +1070,8 @@ public class CliClient
             String mySchemaVersion = thriftClient.system_update_keyspace(updatedKsDef);
             sessionState.out.println(mySchemaVersion);
             validateSchemaIsSettled(mySchemaVersion);
-            keyspacesMap.put(keyspaceName, thriftClient.describe_keyspace(keyspaceName));
+            keyspacesMap.remove(keyspaceName);
+            getKSMetaData(keySpace);
         }
         catch (InvalidRequestException e)
         {
@@ -1507,16 +1521,37 @@ public class CliClient
             return;
 
         String cfName = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
-        CfDef columnFamily = getCfDef(cfName);
 
         // VALIDATOR | COMPARATOR | KEYS | SUB_COMPARATOR
         String assumptionElement = statement.getChild(1).getText().toUpperCase();
-        // used to store in this.cfKeysComparator
-        AbstractType<?> comparator;
+
 
         // Could be UTF8Type, IntegerType, LexicalUUIDType etc.
         String defaultType = CliUtils.unescapeSQLString(statement.getChild(2).getText());
+        
+        if (applyAssumption(cfName, assumptionElement, defaultType))
+        {
+            assumptions.addAssumption(keySpace, cfName, assumptionElement, defaultType);
+            sessionState.out.println(String.format("Assumption for column family '%s' added successfully.", cfName));
+        }
+    }
+    
+    private boolean applyAssumption(String cfName, String assumptionElement, String defaultType)
+    {
+        CfDef columnFamily;
 
+        try
+        {
+            columnFamily = getCfDef(cfName);
+        }
+        catch (RuntimeException e)
+        {
+            return false; // just fail if CF does not exist
+        }
+
+        // used to store in this.cfKeysComparator
+        AbstractType<?> comparator;
+        
         try
         {
             comparator = TypeParser.parse(defaultType);
@@ -1532,7 +1567,7 @@ public class CliClient
                 String functions = Function.getFunctionNames();
                 sessionState.out.println("Type '" + defaultType + "' was not found. Available: " + functions
                                          + " Or any class which extends o.a.c.db.marshal.AbstractType.");
-                return;
+                return false;
             }
         }
 
@@ -1559,10 +1594,10 @@ public class CliClient
         {
             String elements = "VALIDATOR, COMPARATOR, KEYS, SUB_COMPARATOR.";
             sessionState.out.println(String.format("'%s' is invalid. Available: %s", assumptionElement, elements));
-            return;
+            return false;
         }
 
-        sessionState.out.println(String.format("Assumption for column family '%s' added successfully.", columnFamily.getName()));
+        return true;
     }
 
     // SHOW API VERSION
@@ -1926,6 +1961,7 @@ public class CliClient
             keySpace = keySpaceName;
             this.username = username != null ? username : "default";
 
+            keyspacesMap.remove(keySpace);
             CliMain.updateCompletor(CliUtils.getCfNamesByKeySpace(getKSMetaData(keySpace)));
             sessionState.out.println("Authenticated to keyspace: " + keySpace);
         }
@@ -2103,14 +2139,15 @@ public class CliClient
     }
 
     // DESCRIBE KEYSPACE (<keyspace> | <column_family>)?
-    private void executeDescribe(Tree statement) throws TException, InvalidRequestException
+    private void executeDescribe(Tree statement) throws TException, InvalidRequestException, NotFoundException
     {
         if (!CliMain.isConnected())
             return;
 
         int argCount = statement.getChildCount();
-
-        KsDef currentKeySpace = keyspacesMap.get(keySpace);
+        
+        keyspacesMap.remove(keySpace);
+        KsDef currentKeySpace = getKSMetaData(keySpace);
 
         if (argCount > 1) // in case somebody changes Cli grammar
             throw new RuntimeException("`describe` command take maximum one argument. See `help describe;`");
@@ -2923,5 +2960,167 @@ public class CliClient
     private void elapsedTime(long startTime)
     {
         sessionState.out.println("Elapsed time: " + (System.currentTimeMillis() - startTime) + " msec(s).");
+    }
+    
+    class CfAssumptions
+    {
+        //Map<KeySpace, Map<ColumnFamily, Map<Property, Value>>>
+        private Map<String, Map<String, Map<String, String>>> assumptions;
+        private boolean assumptionsChanged;
+        private File assumptionDirectory;
+        
+        public CfAssumptions()
+        {
+            assumptions = new HashMap<String, Map<String, Map<String, String>>>();
+            assumptionsChanged = false;
+            assumptionDirectory = new File(System.getProperty("user.home"), ".cassandra-cli");
+            assumptionDirectory.mkdirs();
+        }
+        
+        public void addAssumption(String keyspace, String columnFamily, String property, String value)
+        {
+            Map<String, Map<String, String>> ksAssumes = assumptions.get(keyspace);
+            if (ksAssumes == null)
+            {
+                ksAssumes = new HashMap<String, Map<String, String>>();
+                assumptions.put(keyspace, ksAssumes);
+            }
+            
+            Map<String, String> cfAssumes = ksAssumes.get(columnFamily);
+            if (cfAssumes == null)
+            {
+                cfAssumes = new HashMap<String, String>();
+                ksAssumes.put(columnFamily, cfAssumes);
+            }
+            
+            cfAssumes.put(property, value);
+            assumptionsChanged = true;
+        }
+        
+        public void replayAssumptions(String keyspace)
+        {
+            if (!CliMain.isConnected() || !hasKeySpace())
+                return;
+            
+            Map<String, Map<String, String>> cfAssumes = assumptions.get(keyspace);
+            if (cfAssumes != null)
+            {
+                for (Map.Entry<String, Map<String, String>> cfEntry : cfAssumes.entrySet())
+                {
+                    String columnFamily = cfEntry.getKey();
+                    Map<String, String> props = cfEntry.getValue();
+                    
+                    for (Map.Entry<String, String> propEntry : props.entrySet())
+                    {
+                        applyAssumption(columnFamily, propEntry.getKey(), propEntry.getValue());
+                    }
+                }
+            }
+        }
+        
+        private void readAssumptions()
+        {
+            File assumptionFile = new File(assumptionDirectory, "assumptions.json");
+            if (assumptionFile.isFile())
+            {
+                try
+                {
+                    JsonFactory f = new JsonFactory();
+                    JsonParser p = f.createJsonParser(assumptionFile);
+                    JsonToken token = p.nextToken();
+                    while (token != JsonToken.END_OBJECT)
+                    {
+                        if (token == JsonToken.FIELD_NAME)
+                        {
+                            String keyspace = p.getText();
+                            Map<String, Map<String, String>> ksAssumes = assumptions.get(keyspace);
+                            if (ksAssumes == null)
+                            {
+                                ksAssumes = new HashMap<String, Map<String, String>>();
+                                assumptions.put(keyspace,  ksAssumes);
+                            }
+                            token = p.nextToken();
+                            while (token != JsonToken.END_ARRAY)
+                            {
+                                if (token == JsonToken.FIELD_NAME)
+                                {
+                                    String columnFamily = p.getText();
+                                    Map<String, String> cfAssumes = ksAssumes.get(columnFamily);
+                                    if (cfAssumes == null)
+                                    {
+                                        cfAssumes = new HashMap<String, String>();
+                                        ksAssumes.put(columnFamily, cfAssumes);
+                                    }
+                                    
+                                    token = p.nextToken();
+                                    while (token != JsonToken.END_ARRAY)
+                                    {
+                                        if (token == JsonToken.FIELD_NAME)
+                                        {
+                                            String prop = p.getText();
+                                            p.nextToken();
+                                            String value = p.getText();
+                                            cfAssumes.put(prop, value);
+                                        }
+                                        
+                                        token = p.nextToken();
+                                    }
+                                }
+                                token = p.nextToken();
+                            }
+                        }
+                        token = p.nextToken();
+                    }
+                    sessionState.out.println("Column Family assumptions read from " + assumptionFile);
+                }
+                catch (Exception e)
+                {
+                    sessionState.err.println("Failed reading " + assumptionFile + " file");
+                }
+            }
+        }
+        
+        private void writeAssumptions()
+        {
+            if (assumptionsChanged)
+            {
+                File assumptionFile = new File(assumptionDirectory, "assumptions.json");
+                try
+                {
+                    JsonFactory f = new JsonFactory();
+                    JsonGenerator g = f.createJsonGenerator(assumptionFile, JsonEncoding.UTF8);
+                    g.useDefaultPrettyPrinter();
+                    g.writeStartObject();
+                    for (Map.Entry<String, Map<String, Map<String, String>>> ksEntry : assumptions.entrySet())
+                    {
+                        g.writeFieldName(ksEntry.getKey());
+                        g.writeStartArray();
+                        for (Map.Entry<String, Map<String, String>> cfEntry : ksEntry.getValue().entrySet())
+                        {
+                            g.writeStartObject();
+                            g.writeFieldName(cfEntry.getKey());
+                            g.writeStartArray();
+                            for (Map.Entry<String, String> asEntry : cfEntry.getValue().entrySet())
+                            {
+                                g.writeStartObject();
+                                g.writeStringField(asEntry.getKey(), asEntry.getValue());
+                                g.writeEndObject();
+                            }
+                            g.writeEndArray();
+                            g.writeEndObject();
+                        }
+                        g.writeEndArray();
+                    }
+                    g.writeEndObject();
+                    g.close();
+                    sessionState.out.println("Column Family assumptions written to " + assumptionFile);
+                    assumptionsChanged = false;
+                }
+                catch (Exception e)
+                {
+                    sessionState.err.println("Failed writing " + assumptionFile + " file");
+                }
+            }
+        }
     }
 }

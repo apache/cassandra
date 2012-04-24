@@ -879,7 +879,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void addSSTable(SSTableReader sstable)
     {
         assert sstable.getColumnFamilyName().equals(columnFamily);
-        data.addSSTables(Arrays.asList(sstable));
+        addSSTables(Arrays.asList(sstable));
+    }
+
+    public void addSSTables(Collection<SSTableReader> sstables)
+    {
+        data.addSSTables(sstables);
         CompactionManager.instance.submitBackground(this);
     }
 
