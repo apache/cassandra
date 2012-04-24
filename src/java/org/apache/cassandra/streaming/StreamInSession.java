@@ -165,17 +165,19 @@ public class StreamInSession extends AbstractStreamSession
                         throw new AssertionError("We shouldn't fail acquiring a reference on a sstable that has just been transferred");
 
                     ColumnFamilyStore cfs = Table.open(sstable.getTableName()).getColumnFamilyStore(sstable.getColumnFamilyName());
-                    cfs.addSSTable(sstable);
                     if (!cfstores.containsKey(cfs))
                         cfstores.put(cfs, new ArrayList<SSTableReader>());
                     cfstores.get(cfs).add(sstable);
                 }
 
-                // build secondary indexes
+                // add sstables and build secondary indexes
                 for (Map.Entry<ColumnFamilyStore, List<SSTableReader>> entry : cfstores.entrySet())
                 {
                     if (entry.getKey() != null)
+                    {
+                        entry.getKey().addSSTables(entry.getValue());
                         entry.getKey().indexManager.maybeBuildSecondaryIndexes(entry.getValue(), entry.getKey().indexManager.getIndexedColumns());
+                    }
                 }
             }
             finally

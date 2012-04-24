@@ -1,4 +1,6 @@
 1.1.1-dev
+ * avoid generating redundant compaction tasks during streaming
+   (CASSANDRA-4174)
  * add -cf option to nodetool snapshot, and takeColumnFamilySnapshot to
    StorageService mbean (CASSANDRA-556)
  * optimize cleanup to drop entire sstables where possible (CASSANDRA-4079)
