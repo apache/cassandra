@@ -55,7 +55,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     private List<ByteBuffer> columnAliases = new ArrayList<ByteBuffer>();
     private ByteBuffer valueAlias;
 
-    private final Map<ColumnIdentifier, String> columns = new HashMap<ColumnIdentifier, String>();
+    private final Map<ColumnIdentifier, AbstractType> columns = new HashMap<ColumnIdentifier, AbstractType>();
     private final CFPropDefs properties;
 
     public CreateColumnFamilyStatement(CFName name, CFPropDefs properties)
@@ -70,11 +70,9 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         Map<ByteBuffer, ColumnDefinition> columnDefs = new HashMap<ByteBuffer, ColumnDefinition>();
         Integer componentIndex = comparator instanceof CompositeType ? ((CompositeType)comparator).types.size() - 1 : null;
 
-        for (Map.Entry<ColumnIdentifier, String> col : columns.entrySet())
+        for (Map.Entry<ColumnIdentifier, AbstractType> col : columns.entrySet())
         {
-            AbstractType<?> validator = CFPropDefs.parseType(col.getValue());
-
-            columnDefs.put(col.getKey().key, new ColumnDefinition(col.getKey().key, validator, null, null, null, componentIndex));
+            columnDefs.put(col.getKey().key, new ColumnDefinition(col.getKey().key, col.getValue(), null, null, null, componentIndex));
         }
 
         return columnDefs;
@@ -166,7 +164,11 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
                 CreateColumnFamilyStatement stmt = new CreateColumnFamilyStatement(cfName, properties);
                 stmt.setBoundTerms(getBoundsTerms());
-                stmt.columns.putAll(definitions); // we'll remove what is not a column below
+                for (Map.Entry<ColumnIdentifier, String> entry : definitions.entrySet())
+                {
+                    AbstractType<?> type = CFPropDefs.parseType(entry.getValue());
+                    stmt.columns.put(entry.getKey(), type); // we'll remove what is not a column below
+                }
 
                 // Ensure that exactly one key has been specified.
                 if (keyAliases.size() == 0)
@@ -228,8 +230,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                     if (stmt.columns.size() > 1)
                         throw new InvalidRequestException(String.format("COMPACT STORAGE allows only one column not part of the PRIMARY KEY (got: %s)", StringUtils.join(stmt.columns.keySet(), ", ")));
 
-                    Map.Entry<ColumnIdentifier, String> lastEntry = stmt.columns.entrySet().iterator().next();
-                    stmt.defaultValidator = CFPropDefs.parseType(lastEntry.getValue());
+                    Map.Entry<ColumnIdentifier, AbstractType> lastEntry = stmt.columns.entrySet().iterator().next();
+                    stmt.defaultValidator = lastEntry.getValue();
                     stmt.valueAlias = lastEntry.getKey().key;
                     stmt.columns.remove(lastEntry.getKey());
                 }
@@ -239,8 +241,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                         throw new InvalidRequestException("No definition found that is not part of the PRIMARY KEY");
 
                     // There is no way to insert/access a column that is not defined for non-compact
-                    // storage, so the actual validator don't matter much.
-                    stmt.defaultValidator = CFDefinition.definitionType;
+                    // storage, so the actual validator don't matter much (except that we want to recognize counter CF as limitation apply to them).
+                    stmt.defaultValidator = (stmt.columns.values().iterator().next() instanceof CounterColumnType) ? CounterColumnType.instance : CFDefinition.definitionType;
                 }
 
                 return new ParsedStatement.Prepared(stmt);
@@ -251,13 +253,12 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
             }
         }
 
-        private AbstractType<?> getTypeAndRemove(Map<ColumnIdentifier, String> columns, ColumnIdentifier t) throws InvalidRequestException, ConfigurationException
+        private AbstractType<?> getTypeAndRemove(Map<ColumnIdentifier, AbstractType> columns, ColumnIdentifier t) throws InvalidRequestException, ConfigurationException
         {
-            String typeStr = columns.get(t);
-            if (typeStr == null)
+            AbstractType type = columns.get(t);
+            if (type == null)
                 throw new InvalidRequestException(String.format("Unkown definition %s referenced in PRIMARY KEY", t));
             columns.remove(t);
-            AbstractType<?> type = CFPropDefs.parseType(typeStr);
             Boolean isReversed = definedOrdering.get(t);
             return isReversed != null && isReversed ? ReversedType.getInstance(type) : type;
         }
