@@ -8,6 +8,7 @@
  * cqlsh: guess correct version of Python for Arch Linux (CASSANDRA-4090)
  * (CLI) properly handle quotes in create/update keyspace commands (CASSANDRA-4129)
  * Avoids possible deadlock during bootstrap (CASSANDRA-4159)
+ * fix stress tool that hangs forever on timeout or error (CASSANDRA-4128)
 
 
 1.0.9
