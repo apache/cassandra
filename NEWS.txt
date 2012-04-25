@@ -9,6 +9,15 @@ upgrade, just in case you need to roll back to the previous version.
 by version X, but the inverse is not necessarily the case.)
 
 
+1.1.1
+=====
+
+Features
+--------
+    - Continuous commitlog archiving and point-in-time recovery.
+      See conf/commitlog_archiving.properties
+
+
 1.1
 ===
 
