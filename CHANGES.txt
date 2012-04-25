@@ -9,6 +9,7 @@
 
 
 1.1.1-dev
+ * incremental repair by token range (CASSANDRA-3912)
  * streaming commitlog backup + pitr (CASSANDRA-3690)
  * avoid generating redundant compaction tasks during streaming
    (CASSANDRA-4174)
