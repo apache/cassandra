@@ -9,6 +9,7 @@
 
 
 1.1.1-dev
+ * streaming commitlog backup + pitr (CASSANDRA-3690)
  * avoid generating redundant compaction tasks during streaming
    (CASSANDRA-4174)
  * add -cf option to nodetool snapshot, and takeColumnFamilySnapshot to
