@@ -16,6 +16,7 @@ Features
 --------
     - Continuous commitlog archiving and point-in-time recovery.
       See conf/commitlog_archiving.properties
+    - Incremental repair by token range, exposed over JMX
 
 
 1.1
