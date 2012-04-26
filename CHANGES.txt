@@ -9,6 +9,7 @@
  * (CLI) properly handle quotes in create/update keyspace commands (CASSANDRA-4129)
  * Avoids possible deadlock during bootstrap (CASSANDRA-4159)
  * fix stress tool that hangs forever on timeout or error (CASSANDRA-4128)
+ * Fix super columns bug where cache is not updated (CASSANDRA-4190)
 
 
 1.0.9
