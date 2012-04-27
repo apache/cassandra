@@ -760,7 +760,7 @@ public class CompactionManager implements CompactionManagerMBean
                         }
                     }
                     if ((rowsRead++ % 1000) == 0)
-                        controller.mayThrottle(scanner.getFilePointer());
+                        controller.mayThrottle(scanner.getCurrentPosition());
                 }
                 if (writer != null)
                     newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
@@ -986,16 +986,8 @@ public class CompactionManager implements CompactionManagerMBean
         public ValidationCompactionIterable(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Range<Token> range) throws IOException
         {
             super(OperationType.VALIDATION,
-                  getScanners(sstables, range),
+                  cfs.getCompactionStrategy().getScanners(sstables, range),
                   new CompactionController(cfs, sstables, getDefaultGcBefore(cfs), true));
-        }
-
-        protected static List<SSTableScanner> getScanners(Iterable<SSTableReader> sstables, Range<Token> range) throws IOException
-        {
-            ArrayList<SSTableScanner> scanners = new ArrayList<SSTableScanner>();
-            for (SSTableReader sstable : sstables)
-                scanners.add(sstable.getDirectScanner(range));
-            return scanners;
         }
     }
 
@@ -1196,8 +1188,8 @@ public class CompactionManager implements CompactionManagerMBean
                                           sstable.descriptor.ksname,
                                           sstable.descriptor.cfname,
                                           OperationType.CLEANUP,
-                                          scanner.getFilePointer(),
-                                          scanner.getFileLength());
+                                          scanner.getCurrentPosition(),
+                                          scanner.getLengthInBytes());
             }
             catch (Exception e)
             {

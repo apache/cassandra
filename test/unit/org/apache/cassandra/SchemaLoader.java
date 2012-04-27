@@ -28,6 +28,7 @@ import com.google.common.base.Charsets;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.gms.Gossiper;
@@ -140,6 +141,10 @@ public class SchemaLoader
             null,
             null));
 
+        // Make it easy to test leveled compaction
+        Map<String, String> leveledOptions = new HashMap<String, String>();
+        leveledOptions.put("sstable_size_in_mb", "1");
+
         // Keyspace 1
         schema.add(KSMetaData.testMetadata(ks1,
                                            simple,
@@ -198,7 +203,9 @@ public class SchemaLoader
                                                           "StandardDynamicComposite",
                                                           st,
                                                           dynamicComposite,
-                                                          null)));
+                                                          null),
+                                           standardCFMD(ks1, "StandardLeveled").compactionStrategyClass(LeveledCompactionStrategy.class)
+                                                                               .compactionStrategyOptions(leveledOptions)));
 
         // Keyspace 2
         schema.add(KSMetaData.testMetadata(ks2,

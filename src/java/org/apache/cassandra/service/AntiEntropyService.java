@@ -266,7 +266,7 @@ public class AntiEntropyService
 
         public final static MerkleTree.RowHash EMPTY_ROW = new MerkleTree.RowHash(null, new byte[0]);
 
-        Validator(TreeRequest request)
+        public Validator(TreeRequest request)
         {
             this(request,
                  // TODO: memory usage (maxsize) should either be tunable per
@@ -546,7 +546,7 @@ public class AntiEntropyService
     /**
      * A tuple of table and cf.
      */
-    static class CFPair extends Pair<String,String>
+    public static class CFPair extends Pair<String,String>
     {
         public CFPair(String table, String cf)
         {

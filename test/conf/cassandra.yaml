@@ -33,3 +33,4 @@ encryption_options:
     truststore_password: cassandra
 incremental_backups: true
 flush_largest_memtables_at: 1.0
+compaction_throughput_mb_per_sec: 0
