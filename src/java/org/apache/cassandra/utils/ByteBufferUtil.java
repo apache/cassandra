@@ -17,6 +17,12 @@
  */
 package org.apache.cassandra.utils;
 
+/*
+ * BE ADVISED: New imports added here might introduce new dependencies for
+ * the clientutil jar.  If in doubt, run the `ant test-clientutil-jar' target
+ * afterward, and ensure the tests still pass.
+ */
+
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -27,8 +33,6 @@ import static com.google.common.base.Charsets.UTF_8;
 
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
-
-import org.apache.commons.lang.ArrayUtils;
 
 /**
  * Utility methods to make ByteBuffers less painful
@@ -70,7 +74,7 @@ import org.apache.commons.lang.ArrayUtils;
  */
 public class ByteBufferUtil
 {
-    public static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(ArrayUtils.EMPTY_BYTE_ARRAY);
+    public static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
 
     public static int compareUnsigned(ByteBuffer o1, ByteBuffer o2)
     {
