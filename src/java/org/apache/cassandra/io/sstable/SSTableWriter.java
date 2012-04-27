@@ -349,10 +349,11 @@ public class SSTableWriter extends SSTable
         try
         {
             // do -Data last because -Data present should mean the sstable was completely renamed before crash
-            // don't rename -Summary component as it is not created yet and created when SSTable is loaded.
             for (Component component : Sets.difference(components, Sets.newHashSet(Component.DATA, Component.SUMMARY)))
                 FBUtilities.renameWithConfirm(tmpdesc.filenameFor(component), newdesc.filenameFor(component));
             FBUtilities.renameWithConfirm(tmpdesc.filenameFor(Component.DATA), newdesc.filenameFor(Component.DATA));
+            // rename it without confirmation because summary can be available for loadNewSSTables but not for closeAndOpenReader
+            FBUtilities.renameWithOutConfirm(tmpdesc.filenameFor(Component.SUMMARY), newdesc.filenameFor(Component.SUMMARY));
         }
         catch (IOException e)
         {

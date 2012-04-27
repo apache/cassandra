@@ -236,6 +236,11 @@ public class FBUtilities
         }
     }
 
+    public static void renameWithOutConfirm(String tmpFilename, String filename) throws IOException
+    {
+        new File(tmpFilename).renameTo(new File(filename));
+    }
+
     public static void serialize(TSerializer serializer, TBase struct, DataOutput out)
     throws IOException
     {
