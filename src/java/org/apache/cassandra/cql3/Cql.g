@@ -410,8 +410,8 @@ truncateStatement returns [TruncateStatement stmt]
 
 // Column Identifiers
 cident returns [ColumnIdentifier id]
-    : t=( IDENT | UUID | INTEGER ) { $id = new ColumnIdentifier($t.text, false); }
-    | t=QUOTED_NAME                { $id = new ColumnIdentifier($t.text, true); }
+    : t=IDENT       { $id = new ColumnIdentifier($t.text, false); }
+    | t=QUOTED_NAME { $id = new ColumnIdentifier($t.text, true); }
     ;
 
 // Keyspace & Column family names
@@ -437,8 +437,8 @@ cidentList returns [List<ColumnIdentifier> items]
 
 // Values (includes prepared statement markers)
 term returns [Term term]
-    : t=(STRING_LITERAL | UUID | IDENT | INTEGER | FLOAT ) { $term = new Term($t.text, $t.type); }
-    | t=QMARK                                              { $term = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
+    : t=(STRING_LITERAL | UUID | INTEGER | FLOAT ) { $term = new Term($t.text, $t.type); }
+    | t=QMARK                                      { $term = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
     ;
 
 intTerm returns [Term integer]
