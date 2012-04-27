@@ -50,6 +50,7 @@ import ConfigParser
 import codecs
 import re
 import platform
+import warnings
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
 # out of an unpacked Cassandra tarball, and after a proper package install.
@@ -57,9 +58,11 @@ cqlshlibdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'p
 if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
-from cqlshlib import cqlhandling, pylexotron, wcwidth
+from cqlshlib import cqlhandling, cql3handling, pylexotron, wcwidth
 from cqlshlib.cqlhandling import (token_dequote, cql_dequote, cql_escape,
                                   maybe_cql_escape, cql_typename)
+from cqlshlib.cql3handling import (CqlTableDef, maybe_cql3_escape_name,
+                                   cql3_escape_value)
 
 try:
     import readline
@@ -167,6 +170,7 @@ cqlhandling.commands_end_with_newline.update((
     'assume',
     'source',
     'capture',
+    'debug',
     'exit',
     'quit'
 ))
@@ -180,6 +184,7 @@ cqlhandling.CqlRuleSet.append_rules(r'''
                    | <assumeCommand>
                    | <sourceCommand>
                    | <captureCommand>
+                   | <debugCommand>
                    | <helpCommand>
                    | <exitCommand>
                    ;
@@ -208,6 +213,9 @@ cqlhandling.CqlRuleSet.append_rules(r'''
 
 <captureCommand> ::= "CAPTURE" ( fname=( <stringLiteral> | "OFF" ) )?
                    ;
+
+<debugCommand> ::= "DEBUG"
+                 ;
 
 <helpCommand> ::= ( "HELP" | "?" ) [topic]=( <identifier> | <stringLiteral> )*
                 ;
@@ -456,6 +464,16 @@ def format_value(val, casstype, output_encoding, addcolor=False, time_format='',
 
     return FormattedValue(bval, coloredval, displaywidth)
 
+def show_warning_without_quoting_line(message, category, filename, lineno, file=None, line=None):
+    if file is None:
+        file = sys.stderr
+    try:
+        file.write(warnings.formatwarning(message, category, filename, lineno, line=''))
+    except IOError:
+        pass
+warnings.showwarning = show_warning_without_quoting_line
+warnings.filterwarnings('always', category=cql3handling.UnexpectedTableStructure)
+
 class Shell(cmd.Cmd):
     default_prompt  = "cqlsh> "
     continue_prompt = "   ... "
@@ -589,6 +607,18 @@ class Shell(cmd.Cmd):
             return {'build': 'unknown', 'cql': 'unknown', 'thrift': thrift_ver}
         return vers
 
+    def fetchdict(self):
+        row = self.cursor.fetchone()
+        desc = self.cursor.description
+        return dict(zip([d[0] for d in desc], row))
+
+    def fetchdict_all(self):
+        dicts = []
+        for row in self.cursor:
+            desc = self.cursor.description
+            dicts.append(dict(zip([d[0] for d in desc], row)))
+        return dicts
+
     def get_keyspace_names(self):
         return [k.name for k in self.get_keyspaces()]
 
@@ -673,6 +703,21 @@ class Shell(cmd.Cmd):
         return getattr(client, call)(*args)
 
     # ===== end thrift-dependent parts =====
+
+    # ===== cql3-dependent parts =====
+
+    def get_columnfamily_layout(self, ksname, cfname):
+        self.cursor.execute("""select * from system.schema_columnfamilies
+                                where "keyspace"=:ks and "columnfamily"=:cf""",
+                            {'ks': ksname, 'cf': cfname})
+        layout = self.fetchdict()
+        self.cursor.execute("""select * from system.schema_columns
+                                where "keyspace"=:ks and "columnfamily"=:cf""",
+                            {'ks': ksname, 'cf': cfname})
+        cols = self.fetchdict_all()
+        return CqlTableDef.from_layout(layout, cols)
+
+    # ===== end cql3-dependent parts =====
 
     def reset_statement(self):
         self.reset_prompt()
@@ -1030,12 +1075,45 @@ class Shell(cmd.Cmd):
             out.write('\nUSE %s;\n' % ksname)
             for cf in ksdef.cf_defs:
                 out.write('\n')
-                self.print_recreate_columnfamily(cf, out)
+                # yes, cf might be looked up again. oh well.
+                self.print_recreate_columnfamily(ksname, cf.name, out)
 
-    def print_recreate_columnfamily(self, cfdef, out):
+    def print_recreate_columnfamily(self, ksname, cfname, out):
+        """
+        Output CQL commands which should be pasteable back into a CQL session
+        to recreate the given table. Can change based on CQL version in use;
+        CQL 3 syntax will not be output when in CQL 2 mode, and properties
+        which are deprecated with CQL 3 use (like default_validation) will not
+        be output when in CQL 3 mode.
+
+        Writes output to the given out stream.
+        """
+
+        # no metainfo available from system.schema_* for system CFs, so we have
+        # to use cfdef-based description for those.  also, use cfdef-based
+        # description when the CF doesn't have a composite key.  that seems like
+        # an ok compromise between hiding "comparator",
+        # "default_validation_class", etc for cql3, and still allowing users
+        # to work with old cql2-style wide tables.
+
+        if cfname != 'system' \
+        and self.cqlver_atleast(3):
+            try:
+                layout = self.get_columnfamily_layout(ksname, cfname)
+            except CQL_ERRORS:
+                # most likely a 1.1 beta where cql3 is supported, but not system.schema_*
+                pass
+            else:
+                if len(layout.key_components) > 1:
+                    return self.print_recreate_columnfamily_from_layout(layout, out)
+
+        cfdef = self.get_columnfamily(cfname, ksname=ksname)
+        return self.print_recreate_columnfamily_from_cfdef(cfdef, out)
+
+    def print_recreate_columnfamily_from_cfdef(self, cfdef, out):
         cfname = maybe_cql_escape(cfdef.name)
         out.write("CREATE COLUMNFAMILY %s (\n" % cfname)
-        alias = cfdef.key_alias if cfdef.key_alias else 'KEY'
+        alias = maybe_cql_escape(cfdef.key_alias) if cfdef.key_alias else 'KEY'
         keytype = cql_typename(cfdef.key_validation_class)
         out.write("  %s %s PRIMARY KEY" % (alias, keytype))
         indexed_columns = []
@@ -1061,6 +1139,8 @@ class Shell(cmd.Cmd):
         for option, thriftname, _ in cqlhandling.columnfamily_map_options:
             optmap = getattr(cfdef, thriftname or option, {})
             for k, v in optmap.items():
+                if option == 'compression_parameters' and k == 'sstable_compression':
+                    v = trim_if_present(v, 'org.apache.cassandra.io.compress.')
                 notable_columns.append(('%s:%s' % (option, k), cql_escape(v)))
         out.write('\n)')
         if notable_columns:
@@ -1076,6 +1156,58 @@ class Shell(cmd.Cmd):
             out.write('CREATE INDEX %s ON %s (%s);\n'
                          % (col.index_name, cfname, maybe_cql_escape(col.name)))
 
+    def print_recreate_columnfamily_from_layout(self, layout, out):
+        cfname = maybe_cql3_escape_name(layout.name)
+        out.write("CREATE COLUMNFAMILY %s (\n" % cfname)
+        keycol = layout.columns[0]
+        out.write("  %s %s" % (maybe_cql3_escape_name(keycol.name), keycol.cqltype))
+        if len(layout.key_components) == 1:
+            out.write(" PRIMARY KEY")
+
+        indexed_columns = []
+        for col in layout.columns[1:]:
+            colname = maybe_cql3_escape_name(col.name)
+            out.write(",\n  %s %s" % (colname, col.cqltype))
+            if col.index_name is not None:
+                indexed_columns.append(col)
+
+        if len(layout.key_components) > 1:
+            out.write(",\n  PRIMARY KEY (%s)" % ', '.join(map(maybe_cql3_escape_name, layout.key_components)))
+        out.write("\n)")
+        joiner = 'WITH'
+
+        if layout.compact_storage:
+            out.write(' WITH COMPACT STORAGE')
+            joiner = 'AND'
+
+        cf_opts = []
+        for option in cql3handling.columnfamily_options:
+            optval = getattr(layout, option, None)
+            if optval is None:
+                continue
+            if option == 'row_cache_provider':
+                optval = trim_if_present(optval, 'org.apache.cassandra.cache.')
+            elif option == 'compaction_strategy_class':
+                optval = trim_if_present(optval, 'org.apache.cassandra.db.compaction.')
+            cf_opts.append((option, cql3_escape_value(optval)))
+        for option, _ in cql3handling.columnfamily_map_options:
+            optmap = getattr(layout, option, {})
+            for k, v in optmap.items():
+                if option == 'compression_parameters' and k == 'sstable_compression':
+                    v = trim_if_present(v, 'org.apache.cassandra.io.compress.')
+                cf_opts.append(('%s:%s' % (option, k.encode('ascii')), cql3_escape_value(v)))
+        if cf_opts:
+            for optname, optval in cf_opts:
+                out.write(" %s\n  %s=%s" % (joiner, optname, optval))
+                joiner = 'AND'
+        out.write(";\n")
+
+        for col in indexed_columns:
+            out.write('\n')
+            # guess CQL can't represent index_type or index_options
+            out.write('CREATE INDEX %s ON %s (%s);\n'
+                         % (col.index_name, cfname, maybe_cql3_escape_name(col.name)))
+
     def describe_keyspace(self, ksname):
         print
         self.print_recreate_keyspace(self.get_keyspace(ksname), sys.stdout)
@@ -1083,7 +1215,7 @@ class Shell(cmd.Cmd):
 
     def describe_columnfamily(self, cfname):
         print
-        self.print_recreate_columnfamily(self.get_columnfamily(cfname), sys.stdout)
+        self.print_recreate_columnfamily(ksname, cfname, sys.stdout)
         print
 
     def describe_columnfamilies(self, ksname):
@@ -1385,6 +1517,10 @@ class Shell(cmd.Cmd):
         """
         self.stop = True
     do_quit = do_exit
+
+    def do_debug(self, parsed):
+        import pdb
+        pdb.set_trace()
 
     def get_names(self):
         names = cmd.Cmd.get_names(self)

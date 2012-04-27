@@ -23,6 +23,16 @@ from itertools import izip
 
 Hint = pylexotron.Hint
 
+keywords = set((
+    'select', 'from', 'where', 'and', 'key', 'insert', 'update', 'with',
+    'limit', 'using', 'consistency', 'one', 'quorum', 'all', 'any',
+    'local_quorum', 'each_quorum', 'two', 'three', 'use', 'count', 'set',
+    'begin', 'apply', 'batch', 'truncate', 'delete', 'in', 'create',
+    'keyspace', 'schema', 'columnfamily', 'table', 'index', 'on', 'drop',
+    'primary', 'into', 'values', 'timestamp', 'ttl', 'alter', 'add', 'type',
+    'first', 'reversed'
+))
+
 columnfamily_options = (
     # (CQL option name, Thrift option name (or None if same))
     ('comment', None),
@@ -109,7 +119,7 @@ consistency_levels = (
 valid_cql_word_re = re.compile(r"^(?:[a-z][a-z0-9_]*|-?[0-9][0-9.]*)$", re.I)
 
 def is_valid_cql_word(s):
-    return valid_cql_word_re.match(s) is not None
+    return valid_cql_word_re.match(s) is not None and s not in keywords
 
 def tokenize_cql(cql_text):
     return CqlLexotron.scan(cql_text)[0]
@@ -146,9 +156,11 @@ def token_is_word(tok):
 def cql_escape(value):
     if value is None:
         return 'NULL' # this totally won't work
-    if isinstance(value, float):
+    if isinstance(value, bool):
+        value = str(value).lower()
+    elif isinstance(value, float):
         return '%f' % value
-    if isinstance(value, int):
+    elif isinstance(value, int):
         return str(value)
     return "'%s'" % value.replace("'", "''")
 
