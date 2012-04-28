@@ -28,7 +28,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.ISerializer;
-import org.apache.cassandra.io.sstable.ColumnStats;
 
 public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
 {
@@ -140,8 +139,27 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
         return cf;
     }
 
-    public long serializedSize(ColumnFamily cf)
+    public long serializedSize(ColumnFamily cf, DBTypeSizes type)
     {
-        return cf == null ? DBConstants.BOOL_SIZE : cf.serializedSize();
+        if (cf == null)
+        {
+            return type.sizeof(false);
+        }
+        else
+        {
+            return type.sizeof(true) +      /* nullness bool */
+                   type.sizeof(cf.id()) +   /* id */
+                   serializedSizeForSSTable(cf, type);
+        }
+    }
+
+    public long serializedSizeForSSTable(ColumnFamily cf, DBTypeSizes typeSizes)
+    {
+        int size = typeSizes.sizeof(cf.getLocalDeletionTime()) // local deletion time
+                 + typeSizes.sizeof(cf.getMarkedForDeleteAt()) // client deletion time
+                 + typeSizes.sizeof(cf.getColumnCount()); // column count
+        for (IColumn column : cf.columns)
+            size += column.serializedSize(typeSizes);
+        return size;
     }
 }

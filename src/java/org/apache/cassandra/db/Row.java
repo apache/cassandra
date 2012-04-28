@@ -79,7 +79,8 @@ public class Row
 
         public long serializedSize(Row row, int version)
         {
-            return DBConstants.SHORT_SIZE + row.key.key.remaining() + ColumnFamily.serializer().serializedSize(row.cf);
+            int keySize = row.key.key.remaining();
+            return DBTypeSizes.NATIVE.sizeof((short) keySize) + keySize + ColumnFamily.serializer().serializedSize(row.cf, DBTypeSizes.NATIVE);
         }
     }
 }

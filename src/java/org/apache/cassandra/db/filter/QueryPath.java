@@ -20,7 +20,7 @@ package org.apache.cassandra.db.filter;
 import java.io.*;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.DBConstants;
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -94,11 +94,43 @@ public class QueryPath
                              cName.remaining() == 0 ? null : cName);
     }
 
-    public int serializedSize()
+    public int serializedSize(DBTypeSizes typeSizes)
     {
-        int size = DBConstants.SHORT_SIZE + (columnFamilyName == null ? 0 : FBUtilities.encodedUTF8Length(columnFamilyName));
-        size += DBConstants.SHORT_SIZE + (superColumnName == null ? 0 : superColumnName.remaining());
-        size += DBConstants.SHORT_SIZE + (columnName == null ? 0 : columnName.remaining());
+        int size = 0;
+
+        if (columnFamilyName == null)
+        {
+            size += typeSizes.sizeof((short) 0);
+        }
+        else
+        {
+            int cfNameSize = FBUtilities.encodedUTF8Length(columnFamilyName);
+            size += typeSizes.sizeof((short) cfNameSize);
+            size += cfNameSize;
+        }
+
+        if (superColumnName == null)
+        {
+            size += typeSizes.sizeof((short) 0);
+        }
+        else
+        {
+            int scNameSize = superColumnName.remaining();
+            size += typeSizes.sizeof((short) scNameSize);
+            size += scNameSize;
+        }
+
+        if (columnName == null)
+        {
+            size += typeSizes.sizeof((short) 0);
+        }
+        else
+        {
+            int cNameSize = columnName.remaining();
+            size += typeSizes.sizeof((short) cNameSize);
+            size += cNameSize;
+        }
+
         return size;
     }
 }

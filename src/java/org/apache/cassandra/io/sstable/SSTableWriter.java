@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -49,6 +48,7 @@ public class SSTableWriter extends SSTable
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
     private final SSTableMetadata.Collector sstableMetadataCollector;
+    private final DBTypeSizes typeSizes = DBTypeSizes.NATIVE;
 
     public SSTableWriter(String filename, long keyCount) throws IOException
     {
@@ -175,7 +175,7 @@ public class SSTableWriter extends SSTable
         ColumnIndex index = new ColumnIndex.Builder(cf.getComparator(), decoratedKey.key, cf.getColumnCount()).build(cf);
 
         // write out row size + data
-        dataFile.stream.writeLong(cf.serializedSizeForSSTable());
+        dataFile.stream.writeLong(ColumnFamily.serializer().serializedSizeForSSTable(cf, typeSizes));
         ColumnFamily.serializer().serializeForSSTable(cf, dataFile.stream);
 
         afterAppend(decoratedKey, startPosition, cf.deletionInfo(), index);

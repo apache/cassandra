@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.DBConstants;
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -58,7 +58,7 @@ public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
 
     public int serializedSize()
     {
-        return key.length + DBConstants.INT_SIZE;
+        return key.length + DBTypeSizes.NATIVE.sizeof(key.length);
     }
 
     @Override

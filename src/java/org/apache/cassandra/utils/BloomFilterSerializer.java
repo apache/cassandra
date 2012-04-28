@@ -21,7 +21,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
-import org.apache.cassandra.db.DBConstants;
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.utils.obs.OpenBitSet;
 
@@ -72,10 +72,22 @@ abstract class BloomFilterSerializer implements ISerializer<BloomFilter>
      *
      * @return serialized size of the given bloom filter
      */
-    public long serializedSize(BloomFilter bf)
+    public long serializedSize(BloomFilter bf, DBTypeSizes typeSizes)
     {
-        return DBConstants.INT_SIZE // hash count
-               + DBConstants.INT_SIZE // length
-               + bf.bitset.getNumWords() * DBConstants.LONG_SIZE; // buckets
+        int bitLength = bf.bitset.getNumWords();
+        int pageSize = bf.bitset.getPageSize();
+        int pageCount = bf.bitset.getPageCount();
+
+        int size = 0;
+        size += typeSizes.sizeof(bf.getHashCount()); // hash count
+        size += typeSizes.sizeof(bitLength); // length
+
+        for (int p = 0; p < pageCount; p++)
+        {
+            long[] bits = bf.bitset.getPage(p);
+            for (int i = 0; i < pageSize && bitLength-- > 0; i++)
+                size += typeSizes.sizeof(bits[i]); // bucket
+        }
+        return size;
     }
 }

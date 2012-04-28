@@ -75,6 +75,11 @@ public class Util
         return new Column(ByteBufferUtil.bytes(name), ByteBufferUtil.bytes(value), timestamp);
     }
 
+    public static Column counterColumn(String name, long value, long timestamp)
+    {
+        return new CounterUpdateColumn(ByteBufferUtil.bytes(name), value, timestamp);
+    }
+
     public static SuperColumn superColumn(ColumnFamily cf, String name, Column... columns)
     {
         SuperColumn sc = new SuperColumn(ByteBufferUtil.bytes(name), cf.metadata().comparator);

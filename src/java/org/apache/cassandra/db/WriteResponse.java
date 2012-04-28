@@ -93,9 +93,12 @@ public class WriteResponse
 
         public long serializedSize(WriteResponse response, int version)
         {
-            int size = DBConstants.SHORT_SIZE + FBUtilities.encodedUTF8Length(response.table());
-            size += DBConstants.SHORT_SIZE + response.key().remaining();
-            size += DBConstants.BOOL_SIZE;
+            DBTypeSizes typeSizes = DBTypeSizes.NATIVE;
+            int utfSize = FBUtilities.encodedUTF8Length(response.table());
+            int keySize = response.key().remaining();
+            int size = typeSizes.sizeof((short) utfSize) + utfSize;
+            size += typeSizes.sizeof((short) keySize) + keySize;
+            size += typeSizes.sizeof(response.isSuccess());
             return size;
         }
     }

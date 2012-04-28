@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
@@ -199,9 +200,13 @@ public class IndexHelper
             dos.writeLong(width);
         }
 
-        public int serializedSize()
+        public int serializedSize(DBTypeSizes typeSizes)
         {
-            return 2 + firstName.remaining() + 2 + lastName.remaining() + 8 + 8;
+            int firstNameSize = firstName.remaining();
+            int lastNameSize = lastName.remaining();
+            return typeSizes.sizeof((short) firstNameSize) + firstNameSize +
+                   typeSizes.sizeof((short) lastNameSize) + lastNameSize +
+                   typeSizes.sizeof(offset) + typeSizes.sizeof(width);
         }
 
         public static IndexInfo deserialize(DataInput dis) throws IOException

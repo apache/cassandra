@@ -225,7 +225,7 @@ public class Memtable
 
     private void resolve(DecoratedKey key, ColumnFamily cf)
     {
-        currentThroughput.addAndGet(cf.size());
+        currentThroughput.addAndGet(cf.size(DBTypeSizes.NATIVE));
         currentOperations.addAndGet((cf.getColumnCount() == 0)
                                     ? cf.isMarkedForDelete() ? 1 : 0
                                     : cf.getColumnCount());

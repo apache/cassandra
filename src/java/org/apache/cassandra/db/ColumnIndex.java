@@ -73,10 +73,13 @@ public class ColumnIndex
          */
         private static long rowHeaderSize(ByteBuffer key)
         {
-            return DBConstants.SHORT_SIZE + key.remaining()     // Row key
-                 + DBConstants.LONG_SIZE                        // Row data size
-                 + DBConstants.INT_SIZE + DBConstants.LONG_SIZE // Deletion info
-                 + DBConstants.INT_SIZE;                        // Column count
+            DBTypeSizes typeSizes = DBTypeSizes.NATIVE;
+            // TODO fix constantSize when changing the nativeconststs.
+            int keysize = key.remaining();
+            return typeSizes.sizeof((short) keysize) + keysize + // Row key
+                 + typeSizes.sizeof(0L)                        // Row data size
+                 + typeSizes.sizeof(0) + typeSizes.sizeof(0L) // Deletion info
+                 + typeSizes.sizeof(0);                        // Column count
         }
 
         /**
@@ -110,7 +113,7 @@ public class ColumnIndex
                 startPosition = endPosition;
             }
 
-            endPosition += column.serializedSize();
+            endPosition += column.serializedSize(DBTypeSizes.NATIVE);
 
             // if we hit the column index size that we have to index after, go ahead and index it.
             if (endPosition - startPosition >= DatabaseDescriptor.getColumnIndexSize())

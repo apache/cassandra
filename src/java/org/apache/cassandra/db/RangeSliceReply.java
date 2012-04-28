@@ -40,12 +40,13 @@ public class RangeSliceReply
 
     public Message getReply(Message originalMessage) throws IOException
     {
-        int size = DBConstants.INT_SIZE;
+        int rowCount = rows.size();
+        int size = DBTypeSizes.NATIVE.sizeof(rowCount);
         for (Row row : rows)
             size += Row.serializer().serializedSize(row, originalMessage.getVersion());
 
         DataOutputBuffer buffer = new DataOutputBuffer(size);
-        buffer.writeInt(rows.size());
+        buffer.writeInt(rowCount);
         for (Row row : rows)
             Row.serializer().serialize(row, buffer, originalMessage.getVersion());
         assert buffer.getLength() == buffer.getData().length;

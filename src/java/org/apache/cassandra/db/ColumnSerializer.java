@@ -121,9 +121,9 @@ public class ColumnSerializer implements IColumnSerializer
         }
     }
 
-    public long serializedSize(IColumn object)
+    public long serializedSize(IColumn object, DBTypeSizes type)
     {
-        return object.serializedSize();
+        return object.serializedSize(type);
     }
 
     private static class CorruptColumnException extends IOException

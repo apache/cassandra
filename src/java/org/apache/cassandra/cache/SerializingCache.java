@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cache;
 
-import java.io.DataOutputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.util.Set;
@@ -27,9 +26,12 @@ import com.googlecode.concurrentlinkedhashmap.EvictionListener;
 import com.googlecode.concurrentlinkedhashmap.Weigher;
 import com.googlecode.concurrentlinkedhashmap.Weighers;
 
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.MemoryInputStream;
 import org.apache.cassandra.io.util.MemoryOutputStream;
+import org.apache.cassandra.utils.vint.EncodedDataInputStream;
+import org.apache.cassandra.utils.vint.EncodedDataOutputStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +42,8 @@ import org.slf4j.LoggerFactory;
 public class SerializingCache<K, V> implements ICache<K, V>
 {
     private static final Logger logger = LoggerFactory.getLogger(SerializingCache.class);
+    private static final DBTypeSizes ENCODED_TYPE_SIZES = DBTypeSizes.VINT;
+
     private static final int DEFAULT_CONCURENCY_LEVEL = 64;
 
     private final ConcurrentLinkedHashMap<K, FreeableMemory> map;
@@ -82,7 +86,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
     {
         try
         {
-            return serializer.deserialize(new MemoryInputStream(mem));
+            return serializer.deserialize(new EncodedDataInputStream(new MemoryInputStream(mem)));
         }
         catch (IOException e)
         {
@@ -93,7 +97,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
 
     private FreeableMemory serialize(V value)
     {
-        long serializedSize = serializer.serializedSize(value);
+        long serializedSize = serializer.serializedSize(value, ENCODED_TYPE_SIZES);
         if (serializedSize > Integer.MAX_VALUE)
             throw new IllegalArgumentException("Unable to allocate " + serializedSize + " bytes");
 
@@ -109,7 +113,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
 
         try
         {
-            serializer.serialize(value, new DataOutputStream(new MemoryOutputStream(freeableMemory)));
+            serializer.serialize(value, new EncodedDataOutputStream(new MemoryOutputStream(freeableMemory)));
         }
         catch (IOException e)
         {

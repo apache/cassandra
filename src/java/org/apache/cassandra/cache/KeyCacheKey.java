@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
 
-import org.apache.cassandra.db.DBConstants;
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -52,7 +52,7 @@ public class KeyCacheKey implements CacheKey
 
     public int serializedSize()
     {
-        return key.length + DBConstants.INT_SIZE;
+        return DBTypeSizes.NATIVE.sizeof(key.length) + key.length;
     }
 
     public String toString()

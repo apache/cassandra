@@ -23,7 +23,7 @@ import java.io.IOError;
 import java.io.IOException;
 
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DBConstants;
+import org.apache.cassandra.db.DBTypeSizes;
 import org.apache.cassandra.io.ISerializer;
 
 public class SerializingCacheProvider implements IRowCacheProvider
@@ -60,12 +60,14 @@ public class SerializingCacheProvider implements IRowCacheProvider
             return ColumnFamily.serializer.deserialize(in);
         }
 
-        public long serializedSize(IRowCacheEntry cf)
+        public long serializedSize(IRowCacheEntry cf, DBTypeSizes typeSizes)
         {
-            return DBConstants.BOOL_SIZE
-                   + (cf instanceof RowCacheSentinel
-                      ? DBConstants.INT_SIZE + DBConstants.LONG_SIZE
-                      : ColumnFamily.serializer().serializedSize((ColumnFamily) cf));
+            int size = typeSizes.sizeof(true);
+            if (cf instanceof RowCacheSentinel)
+                size += typeSizes.sizeof(((RowCacheSentinel) cf).sentinelId);
+            else
+                size += ColumnFamily.serializer().serializedSize((ColumnFamily) cf, typeSizes);
+            return size;
         }
     }
 }

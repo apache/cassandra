@@ -183,10 +183,11 @@ public class RowIndexEntry
 
         public int serializedSize()
         {
-            int size = DBConstants.LONG_SIZE + DBConstants.INT_SIZE; // deletion info
-            size += DBConstants.INT_SIZE; // number of entries
+            DBTypeSizes typeSizes = DBTypeSizes.NATIVE;
+            int size = typeSizes.sizeof(deletionInfo.localDeletionTime) + typeSizes.sizeof(deletionInfo.markedForDeleteAt); // deletion info
+            size += typeSizes.sizeof(columnsIndex.size()); // number of entries
             for (IndexHelper.IndexInfo info : columnsIndex)
-                size += info.serializedSize();
+                size += info.serializedSize(typeSizes);
 
             return size + (int) FilterFactory.serializedSize(bloomFilter);
         }

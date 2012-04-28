@@ -341,8 +341,7 @@ public class ByteBufferUtil
         assert 0 <= length && length <= FBUtilities.MAX_UNSIGNED_SHORT : length;
         try
         {
-            out.writeByte((length >> 8) & 0xFF);
-            out.writeByte(length & 0xFF);
+            out.writeShort(length);
             write(buffer, out); // writing data bytes to output source
         }
         catch (IOException e)
@@ -365,8 +364,7 @@ public class ByteBufferUtil
     /* @return An unsigned short in an integer. */
     public static int readShortLength(DataInput in) throws IOException
     {
-        int length = (in.readByte() & 0xFF) << 8;
-        return length | (in.readByte() & 0xFF);
+        return in.readUnsignedShort();
     }
 
     /**
