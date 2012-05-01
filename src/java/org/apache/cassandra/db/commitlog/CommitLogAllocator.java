@@ -273,7 +273,9 @@ public class CommitLogAllocator
      */
     private boolean isCapExceeded()
     {
-        return size.get() > DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024;
+        long currentSize = size.get();
+        logger.debug("Total active commitlog segment space used is {}", currentSize);
+        return currentSize > DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024;
     }
 
     /**
