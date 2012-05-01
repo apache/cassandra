@@ -314,6 +314,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
            pair.set(position, new DataByteArray(ByteBufferUtil.getArray((ByteBuffer) value)));
        else if (value instanceof UUID)
            pair.set(position, new DataByteArray(UUIDGen.decompose((java.util.UUID) value)));
+       else if (value instanceof Date)
+           pair.set(position, new DataByteArray(ByteBufferUtil.getArray(DateType.instance.decompose((Date) value))));
        else
            pair.set(position, value);
     }
@@ -608,7 +610,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 
     private byte getPigType(AbstractType type)
     {
-        if (type instanceof LongType)
+        if (type instanceof LongType || type instanceof DateType) // DateType is bad and it should feel bad
             return DataType.LONG;
         else if (type instanceof IntegerType)
             return DataType.INTEGER;
