@@ -59,10 +59,7 @@ if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
 from cqlshlib import cqlhandling, cql3handling, pylexotron, wcwidth
-from cqlshlib.cqlhandling import (token_dequote, cql_dequote, cql_escape,
-                                  maybe_cql_escape, cql_typename)
-from cqlshlib.cql3handling import (CqlTableDef, maybe_cql3_escape_name,
-                                   cql3_escape_value)
+from cqlshlib.cqlhandling import cql_typename
 
 try:
     import readline
@@ -235,32 +232,32 @@ def complete_help(ctxt, cqlsh):
 
 @cqlhandling.cql_add_completer('describeCommand', 'ksname')
 def complete_describe_ks(ctxt, cqlsh):
-    return map(maybe_cql_escape, cqlsh.get_keyspace_names())
+    return map(cqlsh.cql_protect_name, cqlsh.get_keyspace_names())
 
 @cqlhandling.cql_add_completer('describeCommand', 'cfname')
 def complete_describe_cf(ctxt, cqlsh):
-    return map(maybe_cql_escape, cqlsh.get_columnfamily_names())
+    return map(cqlsh.cql_protect_name, cqlsh.get_columnfamily_names())
 
 @cqlhandling.cql_add_completer('assumeCommand', 'ks')
 def complete_assume_ks(ctxt, cqlsh):
-    return [maybe_cql_escape(ks) + '.' for ks in cqlsh.get_keyspace_names()]
+    return [cqlsh.cql_protect_name(ks) + '.' for ks in cqlsh.get_keyspace_names()]
 
 @cqlhandling.cql_add_completer('assumeCommand', 'cf')
 def complete_assume_cf(ctxt, cqlsh):
     ks = ctxt.get_binding('ks', None)
     if ks is not None:
-        ks = cql_dequote(ks)
-    return map(maybe_cql_escape, cqlsh.get_columnfamily_names(ks))
+        ks = cqlsh.cql_unprotect_name(ks)
+    return map(cqlsh.cql_protect_name, cqlsh.get_columnfamily_names(ks))
 
 @cqlhandling.cql_add_completer('assumeTypeDef', 'colname')
 def complete_assume_col(ctxt, cqlsh):
     ks = ctxt.get_binding('ks', None)
-    ks = cql_dequote(ks) if ks is not None else None
-    cf = cql_dequote(ctxt.get_binding('cf'))
+    ks = cqlsh.cql_unprotect_name(ks) if ks is not None else None
+    cf = cqlsh.cql_unprotect_name(ctxt.get_binding('cf'))
     cfdef = cqlsh.get_columnfamily(cf, ksname=ks)
     cols = [cm.name for cm in cfdef.column_metadata]
     cols.append(cfdef.key_alias or 'KEY')
-    return map(maybe_cql_escape, cols)
+    return map(cqlsh.cql_protect_name, cols)
 
 def complete_source_quoted_filename(ctxt, cqlsh):
     partial = ctxt.get_binding('partial', '')
@@ -576,11 +573,11 @@ class Shell(cmd.Cmd):
             print 'No overrides.'
             return
         for keyspace, ksoverrides in groupby(all_overrides, key=lambda x:x[0][0]):
-            keyspace = maybe_cql_escape(keyspace)
+            keyspace = self.cql_protect_name(keyspace)
             print 'USE %s;' % keyspace
             print
             for (ks, cf), override in ksoverrides:
-                cf = maybe_cql_escape(cf)
+                cf = self.cql_protect_name(cf)
                 if override.default_name_type:
                     print 'ASSUME %s NAMES ARE %s;' \
                           % (cf, cql_typename(override.default_name_type))
@@ -588,7 +585,7 @@ class Shell(cmd.Cmd):
                     print 'ASSUME %s VALUES ARE %s;' \
                           % (cf, cql_typename(override.default_value_type))
                 for colname, vtype in override.value_types.items():
-                    colname = maybe_cql_escape(colname)
+                    colname = self.cql_protect_name(colname)
                     print 'ASSUME %s(%s) VALUES ARE %s;' \
                           % (cf, colname, cql_typename(vtype))
         print
@@ -715,7 +712,7 @@ class Shell(cmd.Cmd):
                                 where "keyspace"=:ks and "columnfamily"=:cf""",
                             {'ks': ksname, 'cf': cfname})
         cols = self.fetchdict_all()
-        return CqlTableDef.from_layout(layout, cols)
+        return cql3handling.CqlTableDef.from_layout(layout, cols)
 
     # ===== end cql3-dependent parts =====
 
@@ -873,7 +870,7 @@ class Shell(cmd.Cmd):
         """
         ksname = parsed.get_binding('ksname')
         if self.perform_statement(parsed.extract_orig()):
-            self.current_keyspace = cql_dequote(ksname)
+            self.current_keyspace = self.cql_unprotect_name(ksname)
 
     def do_select(self, parsed):
         """
@@ -897,8 +894,8 @@ class Shell(cmd.Cmd):
         """
         ksname = parsed.get_binding('selectks')
         if ksname is not None:
-            ksname = cql_dequote(ksname)
-        cfname = cql_dequote(parsed.get_binding('selectsource'))
+            ksname = self.cql_unprotect_name(ksname)
+        cfname = self.cql_unprotect_name(parsed.get_binding('selectsource'))
         decoder = self.determine_decoder_for(cfname, ksname=ksname)
         self.perform_statement(parsed.extract_orig(), decoder=decoder)
 
@@ -1062,13 +1059,30 @@ class Shell(cmd.Cmd):
         if self.prompt != '':
             self.prompt = prompt
 
+    def cql_protect_name(self, name):
+        if self.cqlver_atleast(3):
+            return cql3handling.maybe_cql3_escape_name(name)
+        else:
+            return cqlhandling.maybe_cql_escape(name)
+
+    def cql_protect_value(self, value):
+        return cqlhandling.cql_escape(value)
+
+    def cql_unprotect_name(self, namestr):
+        if namestr is not None:
+            return cql3handling.cql3_dequote_name(namestr)
+
+    def cql_unprotect_value(self, valstr):
+        if valstr is not None:
+            return cqlhandling.cql_dequote(valstr)
+
     def print_recreate_keyspace(self, ksdef, out):
         stratclass = trim_if_present(ksdef.strategy_class, 'org.apache.cassandra.locator.')
-        ksname = maybe_cql_escape(ksdef.name)
+        ksname = self.cql_protect_name(ksdef.name)
         out.write("CREATE KEYSPACE %s WITH strategy_class = %s"
-                   % (ksname, cql_escape(stratclass)))
+                   % (ksname, self.cql_protect_value(stratclass)))
         for opname, opval in ksdef.strategy_options.iteritems():
-            out.write("\n  AND strategy_options:%s = %s" % (opname, cql_escape(opval)))
+            out.write("\n  AND strategy_options:%s = %s" % (opname, self.cql_protect_value(opval)))
         out.write(';\n')
 
         if ksdef.cf_defs:
@@ -1111,41 +1125,41 @@ class Shell(cmd.Cmd):
         return self.print_recreate_columnfamily_from_cfdef(cfdef, out)
 
     def print_recreate_columnfamily_from_cfdef(self, cfdef, out):
-        cfname = maybe_cql_escape(cfdef.name)
+        cfname = self.cql_protect_name(cfdef.name)
         out.write("CREATE COLUMNFAMILY %s (\n" % cfname)
-        alias = maybe_cql_escape(cfdef.key_alias) if cfdef.key_alias else 'KEY'
+        alias = self.cql_protect_name(cfdef.key_alias) if cfdef.key_alias else 'KEY'
         keytype = cql_typename(cfdef.key_validation_class)
         out.write("  %s %s PRIMARY KEY" % (alias, keytype))
         indexed_columns = []
         for col in cfdef.column_metadata:
-            colname = maybe_cql_escape(col.name)
+            colname = self.cql_protect_name(col.name)
             out.write(",\n  %s %s" % (colname, cql_typename(col.validation_class)))
             if col.index_name is not None:
                 indexed_columns.append(col)
-        notable_columns = []
+        cf_opts = []
         for (option, thriftname) in cqlhandling.columnfamily_options:
             optval = getattr(cfdef, thriftname or option, None)
             if optval is None:
                 continue
             if option in ('comparator', 'default_validation'):
                 optval = cql_typename(optval)
-            elif option == 'row_cache_provider':
-                optval = cql_escape(trim_if_present(optval, 'org.apache.cassandra.cache.'))
-            elif option == 'compaction_strategy_class':
-                optval = cql_escape(trim_if_present(optval, 'org.apache.cassandra.db.compaction.'))
             else:
-                optval = cql_escape(optval)
-            notable_columns.append((option, optval))
+                if option == 'row_cache_provider':
+                    optval = trim_if_present(optval, 'org.apache.cassandra.cache.')
+                elif option == 'compaction_strategy_class':
+                    optval = trim_if_present(optval, 'org.apache.cassandra.db.compaction.')
+                optval = self.cql_protect_value(optval)
+            cf_opts.append((option, optval))
         for option, thriftname, _ in cqlhandling.columnfamily_map_options:
             optmap = getattr(cfdef, thriftname or option, {})
             for k, v in optmap.items():
                 if option == 'compression_parameters' and k == 'sstable_compression':
                     v = trim_if_present(v, 'org.apache.cassandra.io.compress.')
-                notable_columns.append(('%s:%s' % (option, k), cql_escape(v)))
+                cf_opts.append(('%s:%s' % (option, k), self.cql_protect_value(v)))
         out.write('\n)')
-        if notable_columns:
+        if cf_opts:
             joiner = 'WITH'
-            for optname, optval in notable_columns:
+            for optname, optval in cf_opts:
                 out.write(" %s\n  %s=%s" % (joiner, optname, optval))
                 joiner = 'AND'
         out.write(";\n")
@@ -1154,25 +1168,25 @@ class Shell(cmd.Cmd):
             out.write('\n')
             # guess CQL can't represent index_type or index_options
             out.write('CREATE INDEX %s ON %s (%s);\n'
-                         % (col.index_name, cfname, maybe_cql_escape(col.name)))
+                         % (col.index_name, cfname, self.cql_protect_name(col.name)))
 
     def print_recreate_columnfamily_from_layout(self, layout, out):
-        cfname = maybe_cql3_escape_name(layout.name)
+        cfname = self.cql_protect_name(layout.name)
         out.write("CREATE COLUMNFAMILY %s (\n" % cfname)
         keycol = layout.columns[0]
-        out.write("  %s %s" % (maybe_cql3_escape_name(keycol.name), keycol.cqltype))
+        out.write("  %s %s" % (self.cql_protect_name(keycol.name), keycol.cqltype))
         if len(layout.key_components) == 1:
             out.write(" PRIMARY KEY")
 
         indexed_columns = []
         for col in layout.columns[1:]:
-            colname = maybe_cql3_escape_name(col.name)
+            colname = self.cql_protect_name(col.name)
             out.write(",\n  %s %s" % (colname, col.cqltype))
             if col.index_name is not None:
                 indexed_columns.append(col)
 
         if len(layout.key_components) > 1:
-            out.write(",\n  PRIMARY KEY (%s)" % ', '.join(map(maybe_cql3_escape_name, layout.key_components)))
+            out.write(",\n  PRIMARY KEY (%s)" % ', '.join(map(self.cql_protect_name, layout.key_components)))
         out.write("\n)")
         joiner = 'WITH'
 
@@ -1189,13 +1203,13 @@ class Shell(cmd.Cmd):
                 optval = trim_if_present(optval, 'org.apache.cassandra.cache.')
             elif option == 'compaction_strategy_class':
                 optval = trim_if_present(optval, 'org.apache.cassandra.db.compaction.')
-            cf_opts.append((option, cql3_escape_value(optval)))
+            cf_opts.append((option, self.cql_protect_value(optval)))
         for option, _ in cql3handling.columnfamily_map_options:
             optmap = getattr(layout, option, {})
             for k, v in optmap.items():
                 if option == 'compression_parameters' and k == 'sstable_compression':
                     v = trim_if_present(v, 'org.apache.cassandra.io.compress.')
-                cf_opts.append(('%s:%s' % (option, k.encode('ascii')), cql3_escape_value(v)))
+                cf_opts.append(('%s:%s' % (option, k.encode('ascii')), self.cql_protect_value(v)))
         if cf_opts:
             for optname, optval in cf_opts:
                 out.write(" %s\n  %s=%s" % (joiner, optname, optval))
@@ -1206,7 +1220,7 @@ class Shell(cmd.Cmd):
             out.write('\n')
             # guess CQL can't represent index_type or index_options
             out.write('CREATE INDEX %s ON %s (%s);\n'
-                         % (col.index_name, cfname, maybe_cql3_escape_name(col.name)))
+                         % (col.index_name, cfname, self.cql_protect_name(col.name)))
 
     def describe_keyspace(self, ksname):
         print
@@ -1296,7 +1310,7 @@ class Shell(cmd.Cmd):
 
         what = parsed.matched[1][1].lower()
         if what == 'keyspace':
-            ksname = cql_dequote(parsed.get_binding('ksname', ''))
+            ksname = self.cql_unprotect_name(parsed.get_binding('ksname', ''))
             if not ksname:
                 ksname = self.current_keyspace
                 if ksname is None:
@@ -1304,7 +1318,7 @@ class Shell(cmd.Cmd):
                     return
             self.describe_keyspace(ksname)
         elif what == 'columnfamily':
-            cfname = cql_dequote(parsed.get_binding('cfname'))
+            cfname = self.cql_unprotect_name(parsed.get_binding('cfname'))
             self.describe_columnfamily(cfname)
         elif what == 'columnfamilies':
             self.describe_columnfamilies(self.current_keyspace)
@@ -1387,12 +1401,12 @@ class Shell(cmd.Cmd):
         """
 
         params = {}
-        for paramname in ('ks', 'cf', 'colname', 'names', 'values', 'colvalues'):
+        for paramname in ('ks', 'cf', 'colname'):
             val = parsed.get_binding(paramname, None)
-            if val is not None:
-                val = cql_dequote(val)
-            params[paramname] = val
-
+            params[paramname] = self.cql_unprotect_name(val)
+        for paramname in ('names', 'values', 'colvalues'):
+            val = parsed.get_binding(paramname, None)
+            params[paramname] = self.cql_unprotect_value(val)
         if params['ks'] is None:
             if self.current_keyspace is None:
                 self.printerr('Error: not in any keyspace.')
@@ -1433,7 +1447,7 @@ class Shell(cmd.Cmd):
         """
 
         fname = parsed.get_binding('fname')
-        fname = os.path.expanduser(cql_dequote(fname))
+        fname = os.path.expanduser(cqlsh.cql_unprotect_value(fname))
         try:
             f = open(fname, 'r')
         except IOError, e:
@@ -1497,7 +1511,7 @@ class Shell(cmd.Cmd):
                           ' to disable.' % (self.query_out.name,))
             return
 
-        fname = os.path.expanduser(cql_dequote(fname))
+        fname = os.path.expanduser(cqlsh.cql_unprotect_value(fname))
         try:
             f = open(fname, 'a')
         except IOError, e:
@@ -1543,7 +1557,7 @@ class Shell(cmd.Cmd):
         if not topics:
             return cmd.Cmd.do_help(self, '')
         for t in topics:
-            cmd.Cmd.do_help(self, cql_dequote(t).lower())
+            cmd.Cmd.do_help(self, self.cql_unprotect_value(t).lower())
 
     def help_types(self):
         print "\n        CQL types recognized by this version of cqlsh:\n"
