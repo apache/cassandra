@@ -17,7 +17,7 @@
  ~ specific language governing permissions and limitations
  ~ under the License.
  -->
-<project basedir="." default="build" name="apache-cassandra"
+<project basedir="." default="jar" name="apache-cassandra"
          xmlns:artifact="antlib:org.apache.maven.artifact.ant">
     <property environment="env"/>
     <property file="build.properties" />
