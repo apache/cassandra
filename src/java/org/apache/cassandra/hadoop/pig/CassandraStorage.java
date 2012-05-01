@@ -314,7 +314,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
        else if (value instanceof UUID)
            pair.set(position, new DataByteArray(UUIDGen.decompose((java.util.UUID) value)));
        else if (value instanceof Date)
-           pair.set(position, new DataByteArray(ByteBufferUtil.getArray(DateType.instance.decompose((Date) value))));
+           pair.set(position, DateType.instance.decompose((Date) value).getLong());
        else
            pair.set(position, value);
     }
