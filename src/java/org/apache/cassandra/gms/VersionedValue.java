@@ -24,7 +24,9 @@ import java.util.UUID;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.commons.lang.StringUtils;
 
 
 /**
@@ -88,6 +90,11 @@ public class VersionedValue implements Comparable<VersionedValue>
         return "Value(" + value + "," + version + ")";
     }
 
+    private static String versionString(String...args)
+    {
+        return StringUtils.join(args, VersionedValue.DELIMITER);
+    }
+
     public static class VersionedValueFactory
     {
         final IPartitioner partitioner;
@@ -97,14 +104,18 @@ public class VersionedValue implements Comparable<VersionedValue>
             this.partitioner = partitioner;
         }
 
-        public VersionedValue bootstrapping(Token token)
+        public VersionedValue bootstrapping(Token token, UUID hostId)
         {
-            return new VersionedValue(VersionedValue.STATUS_BOOTSTRAPPING + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+            return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING,
+                                                    hostId.toString(),
+                                                    partitioner.getTokenFactory().toString(token)));
         }
 
-        public VersionedValue normal(Token token)
+        public VersionedValue normal(Token token, UUID hostId)
         {
-            return new VersionedValue(VersionedValue.STATUS_NORMAL + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+            return new VersionedValue(versionString(VersionedValue.STATUS_NORMAL,
+                                                    hostId.toString(),
+                                                    partitioner.getTokenFactory().toString(token)));
         }
 
         public VersionedValue load(double load)
@@ -189,7 +200,19 @@ public class VersionedValue implements Comparable<VersionedValue>
     {
         public void serialize(VersionedValue value, DataOutput dos, int version) throws IOException
         {
-            dos.writeUTF(value.value);
+            String outValue = value.value;
+
+            if (version < MessagingService.VERSION_12)
+            {
+                String[] pieces = value.value.split(DELIMITER_STR, -1);
+                if ((pieces[0] == STATUS_NORMAL) || pieces[0] == STATUS_BOOTSTRAPPING)
+                {
+                    assert pieces.length >= 3;
+                    outValue = versionString(pieces[0], pieces[2]);
+                }
+            }
+
+            dos.writeUTF(outValue);
             dos.writeInt(value.version);
         }
 

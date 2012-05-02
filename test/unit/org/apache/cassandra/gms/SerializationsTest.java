@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
@@ -101,7 +102,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         private static EndpointState EndpointSt = new EndpointState(HeartbeatSt);
         private static VersionedValue.VersionedValueFactory vvFact = new VersionedValue.VersionedValueFactory(StorageService.getPartitioner());
         private static VersionedValue vv0 = vvFact.load(23d);
-        private static VersionedValue vv1 = vvFact.bootstrapping(StorageService.getPartitioner().getRandomToken());
+        private static VersionedValue vv1 = vvFact.bootstrapping(StorageService.getPartitioner().getRandomToken(), UUID.randomUUID());
         private static List<GossipDigest> Digests = new ArrayList<GossipDigest>();
 
         {

@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
 import org.junit.Test;
@@ -75,6 +76,13 @@ public class BootStrapperTest extends SchemaLoader
             InetAddress.getByName("127.0.0.14"),
             InetAddress.getByName("127.0.0.15"),
         };
+        UUID[] bootstrapHostIds = new UUID[]
+        {
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+        };
         Map<InetAddress, Double> load = new HashMap<InetAddress, Double>();
         for (int i = 0; i < addrs.length; i++)
         {
@@ -93,7 +101,9 @@ public class BootStrapperTest extends SchemaLoader
             Range<Token> range = ss.getPrimaryRangeForEndpoint(bootstrapSource);
             Token token = StorageService.getPartitioner().midpoint(range.left, range.right);
             assert range.contains(token);
-            ss.onChange(bootstrapAddrs[i], ApplicationState.STATUS, StorageService.instance.valueFactory.bootstrapping(token));
+            ss.onChange(bootstrapAddrs[i],
+                        ApplicationState.STATUS,
+                        StorageService.instance.valueFactory.bootstrapping(token, bootstrapHostIds[i]));
         }
 
         // any further attempt to bootsrtap should fail since every node in the cluster is splitting.
@@ -110,7 +120,9 @@ public class BootStrapperTest extends SchemaLoader
         // indicate that one of the nodes is done. see if the node it was bootstrapping from is still available.
         Range<Token> range = ss.getPrimaryRangeForEndpoint(addrs[2]);
         Token token = StorageService.getPartitioner().midpoint(range.left, range.right);
-        ss.onChange(bootstrapAddrs[2], ApplicationState.STATUS, StorageService.instance.valueFactory.normal(token));
+        ss.onChange(bootstrapAddrs[2],
+                    ApplicationState.STATUS,
+                    StorageService.instance.valueFactory.normal(token, bootstrapHostIds[2]));
         load.put(bootstrapAddrs[2], 0d);
         InetAddress addr = BootStrapper.getBootstrapSource(ss.getTokenMetadata(), load);
         assert addr != null && addr.equals(addrs[2]);
@@ -142,7 +154,9 @@ public class BootStrapperTest extends SchemaLoader
         Range<Token> range5 = ss.getPrimaryRangeForEndpoint(five);
         Token fakeToken = StorageService.getPartitioner().midpoint(range5.left, range5.right);
         assert range5.contains(fakeToken);
-        ss.onChange(myEndpoint, ApplicationState.STATUS, StorageService.instance.valueFactory.bootstrapping(fakeToken));
+        ss.onChange(myEndpoint,
+                    ApplicationState.STATUS,
+                    StorageService.instance.valueFactory.bootstrapping(fakeToken, UUID.randomUUID()));
         tmd = ss.getTokenMetadata();
 
         InetAddress source4 = BootStrapper.getBootstrapSource(tmd, load);

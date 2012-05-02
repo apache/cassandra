@@ -82,8 +82,9 @@ public class LeaveAndBootstrapTest
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<UUID> hostIds = new ArrayList<UUID>();
 
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
 
         Map<Token, List<InetAddress>> expectedEndpoints = new HashMap<Token, List<InetAddress>>();
         for (String table : Schema.instance.getNonSystemTables())
@@ -149,9 +150,10 @@ public class LeaveAndBootstrapTest
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<UUID> hostIds = new ArrayList<UUID>();
 
         // create a ring or 10 nodes
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
 
         // nodes 6, 8 and 9 leave
         final int[] LEAVING = new int[] {6, 8, 9};
@@ -160,9 +162,10 @@ public class LeaveAndBootstrapTest
 
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
         InetAddress boot1 = InetAddress.getByName("127.0.1.1");
-        ss.onChange(boot1, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(5)));
+        UUID boot1Id = UUID.randomUUID();
+        ss.onChange(boot1, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(5), boot1Id));
         InetAddress boot2 = InetAddress.getByName("127.0.1.2");
-        ss.onChange(boot2, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(7)));
+        ss.onChange(boot2, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(7), UUID.randomUUID()));
 
         Collection<InetAddress> endpoints = null;
 
@@ -318,7 +321,7 @@ public class LeaveAndBootstrapTest
                 valueFactory.left(endpointTokens.get(LEAVING[0]), Gossiper.computeExpireTime()));
         ss.onChange(hosts.get(LEAVING[2]), ApplicationState.STATUS,
                 valueFactory.left(endpointTokens.get(LEAVING[2]), Gossiper.computeExpireTime()));
-        ss.onChange(boot1, ApplicationState.STATUS, valueFactory.normal(keyTokens.get(5)));
+        ss.onChange(boot1, ApplicationState.STATUS, valueFactory.normal(keyTokens.get(5), boot1Id));
 
         // adjust precalcuated results.  this changes what the epected endpoints are.
         expectedEndpoints.get("Keyspace1").get(new BigIntegerToken("55")).removeAll(makeAddrs("127.0.0.7", "127.0.0.8"));
@@ -434,9 +437,10 @@ public class LeaveAndBootstrapTest
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<UUID> hostIds = new ArrayList<UUID>();
 
         // create a ring or 5 nodes
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 7);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 7);
 
         // node 2 leaves
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(endpointTokens.get(2)));
@@ -448,14 +452,14 @@ public class LeaveAndBootstrapTest
         assertTrue(tmd.getBootstrapTokens().isEmpty());
 
         // Bootstrap the node immedidiately to keyTokens.get(4) without going through STATE_LEFT
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(4)));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(4), hostIds.get(2)));
 
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
         assertTrue(tmd.getBootstrapTokens().get(keyTokens.get(4)).equals(hosts.get(2)));
 
         // Bootstrap node hosts.get(3) to keyTokens.get(1)
-        ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(1)));
+        ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(1), hostIds.get(3)));
 
         assertFalse(tmd.isMember(hosts.get(3)));
         assertFalse(tmd.isLeaving(hosts.get(3)));
@@ -463,7 +467,7 @@ public class LeaveAndBootstrapTest
         assertTrue(tmd.getBootstrapTokens().get(keyTokens.get(1)).equals(hosts.get(3)));
 
         // Bootstrap node hosts.get(2) further to keyTokens.get(3)
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(3)));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(3), hostIds.get(2)));
 
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
@@ -472,8 +476,8 @@ public class LeaveAndBootstrapTest
         assertTrue(tmd.getBootstrapTokens().get(keyTokens.get(1)).equals(hosts.get(3)));
 
         // Go to normal again for both nodes
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(keyTokens.get(3)));
-        ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.normal(keyTokens.get(2)));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(keyTokens.get(3), hostIds.get(2)));
+        ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.normal(keyTokens.get(2), hostIds.get(3)));
 
         assertTrue(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
@@ -497,9 +501,10 @@ public class LeaveAndBootstrapTest
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<UUID> hostIds = new ArrayList<UUID>();
 
         // create a ring or 5 nodes
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 6);
 
         // node 2 leaves
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(endpointTokens.get(2)));
@@ -508,7 +513,7 @@ public class LeaveAndBootstrapTest
         assertTrue(tmd.getToken(hosts.get(2)).equals(endpointTokens.get(2)));
 
         // back to normal
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(keyTokens.get(2)));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(keyTokens.get(2), hostIds.get(2)));
 
         assertTrue(tmd.getLeavingEndpoints().isEmpty());
         assertTrue(tmd.getToken(hosts.get(2)).equals(keyTokens.get(2)));
@@ -517,7 +522,7 @@ public class LeaveAndBootstrapTest
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(keyTokens.get(2)));
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
                 valueFactory.left(keyTokens.get(2), Gossiper.computeExpireTime()));
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(keyTokens.get(4)));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(keyTokens.get(4), hostIds.get(2)));
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
         assertTrue(tmd.getLeavingEndpoints().isEmpty());
@@ -536,9 +541,10 @@ public class LeaveAndBootstrapTest
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<UUID> hostIds = new ArrayList<UUID>();
 
         // create a ring or 5 nodes
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 6);
 
         // node 2 leaves with _different_ token
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(keyTokens.get(0)));
@@ -548,7 +554,7 @@ public class LeaveAndBootstrapTest
         assertTrue(tmd.getEndpoint(endpointTokens.get(2)) == null);
 
         // go to boostrap
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(1)));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(1), hostIds.get(2)));
 
         assertFalse(tmd.isLeaving(hosts.get(2)));
         assertTrue(tmd.getBootstrapTokens().size() == 1);
@@ -581,9 +587,10 @@ public class LeaveAndBootstrapTest
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<UUID> hostIds = new ArrayList<UUID>();
 
         // create a ring of 6 nodes
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 7);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 7);
 
         // node hosts.get(2) goes jumps to left
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
@@ -592,7 +599,7 @@ public class LeaveAndBootstrapTest
         assertFalse(tmd.isMember(hosts.get(2)));
 
         // node hosts.get(4) goes to bootstrap
-        ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(1)));
+        ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(1), hostIds.get(3)));
 
         assertFalse(tmd.isMember(hosts.get(3)));
         assertTrue(tmd.getBootstrapTokens().size() == 1);

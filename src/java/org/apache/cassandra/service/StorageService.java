@@ -252,7 +252,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger.debug("Setting token to {}", token);
         SystemTable.updateToken(token);
         tokenMetadata.updateNormalToken(token, FBUtilities.getBroadcastAddress());
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(getLocalToken()));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS,
+                                                   valueFactory.normal(getLocalToken(), SystemTable.getLocalHostId()));
         setMode(Mode.NORMAL, false);
     }
 
@@ -533,6 +534,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         logger.info("Starting up server gossip");
         joined = true;
 
+        // Seed the host ID-to-endpoint map with our own ID.
+        getTokenMetadata().updateHostId(SystemTable.getLocalHostId(), FBUtilities.getBroadcastAddress());
 
         // have to start the gossip service before we can see any info on other nodes.  this is necessary
         // for bootstrap to get the load info it needs.
@@ -759,7 +762,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (null == DatabaseDescriptor.getReplaceToken())
         {
             // if not an existing token then bootstrap
-            Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.bootstrapping(token));
+            Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS,
+                                                       valueFactory.bootstrapping(token, SystemTable.getLocalHostId()));
             setMode(Mode.JOINING, "sleeping " + RING_DELAY + " ms for pending range setup", true);
             try
             {
@@ -972,6 +976,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return mapString;
     }
 
+    public String getLocalHostId()
+    {
+        return getTokenMetadata().getHostId(FBUtilities.getBroadcastAddress()).toString();
+    }
+
+    public Map<String, String> getHostIdMap()
+    {
+        Map<String, String> mapOut = new HashMap<String, String>();
+        for (Map.Entry<InetAddress, UUID> entry : getTokenMetadata().getEndpointToHostIdMapForReading().entrySet())
+            mapOut.put(entry.getKey().getHostAddress(), entry.getValue().toString());
+        return mapOut;
+    }
+
     /**
      * Construct the range to endpoint mapping based on the true view
      * of the world.
@@ -1074,7 +1091,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private void handleStateBootstrap(InetAddress endpoint, String[] pieces)
     {
         assert pieces.length >= 2;
-        Token token = getPartitioner().getTokenFactory().fromString(pieces[1]);
+
+        // Parse versioned values according to end-point version:
+        //   versions  < 1.2 .....: STATUS,TOKEN
+        //   versions >= 1.2 .....: STATUS,HOST_ID,TOKEN,TOKEN,...
+        int tokenPos;
+        if (Gossiper.instance.getVersion(endpoint) >= MessagingService.VERSION_12)
+        {
+            assert pieces.length >= 3;
+            tokenPos = 2;
+        }
+            else tokenPos = 1;
+
+        Token token = getPartitioner().getTokenFactory().fromString(pieces[tokenPos]);
 
         if (logger.isDebugEnabled())
             logger.debug("Node " + endpoint + " state bootstrapping, token " + token);
@@ -1096,6 +1125,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         tokenMetadata.addBootstrapToken(token, endpoint);
         calculatePendingRanges();
+
+        if (Gossiper.instance.getVersion(endpoint) >= MessagingService.VERSION_12)
+            tokenMetadata.updateHostId(UUID.fromString(pieces[1]), endpoint);
     }
 
     /**
@@ -1108,7 +1140,20 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private void handleStateNormal(InetAddress endpoint, String[] pieces)
     {
         assert pieces.length >= 2;
-        Token token = getPartitioner().getTokenFactory().fromString(pieces[1]);
+
+        // Parse versioned values according to end-point version:
+        //   versions  < 1.2 .....: STATUS,TOKEN
+        //   versions >= 1.2 .....: STATUS,HOST_ID,TOKEN,TOKEN,...
+        int tokensPos;
+        if (Gossiper.instance.getVersion(endpoint) >= MessagingService.VERSION_12)
+        {
+            assert pieces.length >= 3;
+            tokensPos = 2;
+        }
+        else
+            tokensPos = 1;
+
+        Token token = getPartitioner().getTokenFactory().fromString(pieces[tokensPos]);
 
         if (logger.isDebugEnabled())
             logger.debug("Node " + endpoint + " state normal, token " + token);
@@ -1150,6 +1195,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             tokenMetadata.removeFromMoving(endpoint);
 
         calculatePendingRanges();
+
+        if (Gossiper.instance.getVersion(endpoint) >= MessagingService.VERSION_12)
+            tokenMetadata.updateHostId(UUID.fromString(pieces[1]), endpoint);
     }
 
     /**

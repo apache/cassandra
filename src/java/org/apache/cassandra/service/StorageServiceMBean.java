@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
@@ -153,6 +154,12 @@ public interface StorageServiceMBean
      * @return a map of tokens to endpoints in ascending order
      */
     public Map<String, String> getTokenToEndpointMap();
+
+    /** Retrieve this hosts unique ID */
+    public String getLocalHostId();
+
+    /** Retrieve the mapping of endpoint to host ID */
+    public Map<String, String> getHostIdMap();
 
     /**
      * Numeric load value.

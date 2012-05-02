@@ -86,8 +86,9 @@ public class MoveTest
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<UUID> hostIds = new ArrayList<UUID>();
 
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
 
         Map<Token, List<InetAddress>> expectedEndpoints = new HashMap<Token, List<InetAddress>>();
         for (String table : Schema.instance.getNonSystemTables())
@@ -133,7 +134,7 @@ public class MoveTest
         }
 
         // moving endpoint back to the normal state
-        ss.onChange(hosts.get(MOVING_NODE), ApplicationState.STATUS, valueFactory.normal(newToken));
+        ss.onChange(hosts.get(MOVING_NODE), ApplicationState.STATUS, valueFactory.normal(newToken, hostIds.get(MOVING_NODE)));
     }
 
     /*
@@ -152,9 +153,10 @@ public class MoveTest
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<UUID> hostIds = new ArrayList<UUID>();
 
         // create a ring or 10 nodes
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
 
         // nodes 6, 8 and 9 leave
         final int[] MOVING = new int[] {6, 8, 9};
@@ -177,9 +179,9 @@ public class MoveTest
 
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
         InetAddress boot1 = InetAddress.getByName("127.0.1.1");
-        ss.onChange(boot1, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(5)));
+        ss.onChange(boot1, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(5), UUID.randomUUID()));
         InetAddress boot2 = InetAddress.getByName("127.0.1.2");
-        ss.onChange(boot2, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(7)));
+        ss.onChange(boot2, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(7), UUID.randomUUID()));
 
         // don't require test update every time a new keyspace is added to test/conf/cassandra.yaml
         Map<String, AbstractReplicationStrategy> tableStrategyMap = new HashMap<String, AbstractReplicationStrategy>();
@@ -465,7 +467,7 @@ public class MoveTest
         // all moving nodes are back to the normal state
         for (Integer movingIndex : MOVING)
         {
-            ss.onChange(hosts.get(movingIndex), ApplicationState.STATUS, valueFactory.normal(newTokens.get(movingIndex)));
+            ss.onChange(hosts.get(movingIndex), ApplicationState.STATUS, valueFactory.normal(newTokens.get(movingIndex), hostIds.get(movingIndex)));
         }
     }
 
@@ -481,9 +483,10 @@ public class MoveTest
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<UUID> hostIds = new ArrayList<UUID>();
 
         // create a ring or 6 nodes
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 6);
 
         // node 2 leaves
         Token newToken = positionToken(7);
@@ -493,7 +496,7 @@ public class MoveTest
         assertTrue(tmd.getToken(hosts.get(2)).equals(endpointTokens.get(2)));
 
         // back to normal
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(newToken));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(newToken, hostIds.get(2)));
 
         assertTrue(tmd.getMovingEndpoints().isEmpty());
         assertTrue(tmd.getToken(hosts.get(2)).equals(newToken));
@@ -501,7 +504,7 @@ public class MoveTest
         newToken = positionToken(8);
         // node 2 goes through leave and left and then jumps to normal at its new token
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.moving(newToken));
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(newToken));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(newToken, hostIds.get(2)));
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
         assertTrue(tmd.getMovingEndpoints().isEmpty());
