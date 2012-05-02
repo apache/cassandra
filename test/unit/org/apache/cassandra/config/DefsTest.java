@@ -55,6 +55,7 @@ public class DefsTest extends SchemaLoader
         assert CFMetaData.HintsCf.cfId == 1;
         assert CFMetaData.MigrationsCf.cfId == 2;
         assert CFMetaData.SchemaCf.cfId == 3;
+        assert CFMetaData.HostIdCf.cfId == 11;
     }
 
     @Test

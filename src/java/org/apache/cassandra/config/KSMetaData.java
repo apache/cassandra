@@ -84,7 +84,8 @@ public final class KSMetaData
                                                 CFMetaData.VersionCf,
                                                 CFMetaData.SchemaKeyspacesCf,
                                                 CFMetaData.SchemaColumnFamiliesCf,
-                                                CFMetaData.SchemaColumnsCf);
+                                                CFMetaData.SchemaColumnsCf,
+                                                CFMetaData.HostIdCf);
         return new KSMetaData(Table.SYSTEM_TABLE, LocalStrategy.class, optsWithRF(1), true, cfDefs);
     }
 

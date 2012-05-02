@@ -23,6 +23,7 @@ package org.apache.cassandra.db;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.UUID;
 
 import com.google.common.base.Charsets;
 import org.junit.Test;
@@ -51,5 +52,13 @@ public class SystemTableTest
         assert SystemTable.loadTokens().get(token).equals(address);
         SystemTable.removeToken(token);
         assert !SystemTable.loadTokens().containsKey(token);
+    }
+
+    @Test
+    public void testLocalHostID()
+    {
+        UUID firstId = SystemTable.getLocalHostId();
+        UUID secondId = SystemTable.getLocalHostId();
+        assert firstId.equals(secondId) : String.format("%s != %s%n", firstId.toString(), secondId.toString());
     }
 }

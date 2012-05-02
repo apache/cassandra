@@ -156,6 +156,8 @@ public final class CFMetaData
                                           ColumnDefinition.ascii("component_index", 2));
     }
 
+    public static final CFMetaData HostIdCf = newSystemMetadata(SystemTable.HOST_ID_CF, 11, "Host Identifier", UUIDType.instance, null);
+
     public enum Caching
     {
         ALL, KEYS_ONLY, ROWS_ONLY, NONE;

@@ -446,6 +446,7 @@ public class DatabaseDescriptor
             Schema.instance.load(CFMetaData.SchemaKeyspacesCf);
             Schema.instance.load(CFMetaData.SchemaColumnFamiliesCf);
             Schema.instance.load(CFMetaData.SchemaColumnsCf);
+            Schema.instance.load(CFMetaData.HostIdCf);
 
             Schema.instance.addSystemTable(systemMeta);
 
