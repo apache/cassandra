@@ -81,7 +81,7 @@ public class StreamIn
         // new local sstable
         Table table = Table.open(remotedesc.ksname);
         ColumnFamilyStore cfStore = table.getColumnFamilyStore(remotedesc.cfname);
-        Descriptor localdesc = Descriptor.fromFilename(cfStore.getFlushPath(remote.size, remote.desc.version));
+        Descriptor localdesc = Descriptor.fromFilename(cfStore.getFlushPath(remote.size, Descriptor.CURRENT_VERSION));
 
         return new PendingFile(localdesc, remote);
     }

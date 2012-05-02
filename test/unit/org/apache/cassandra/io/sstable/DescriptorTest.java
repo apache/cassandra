@@ -57,12 +57,12 @@ public class DescriptorTest
     @Test
     public void testMurmurBloomFilter()
     {
-        Descriptor desc = Descriptor.fromFilename("Keyspace1-Standard1-ia-1-Data.db");
-        assertEquals("ia", desc.version);
+        Descriptor desc = Descriptor.fromFilename("Keyspace1-Standard1-hz-1-Data.db");
+        assertEquals("hz", desc.version);
         assertEquals(desc.filterType, FilterFactory.Type.MURMUR2);
 
-        desc = Descriptor.fromFilename("Keyspace1-Standard1-ib-1-Data.db");
-        assertEquals("ib", desc.version);
+        desc = Descriptor.fromFilename("Keyspace1-Standard1-ia-1-Data.db");
+        assertEquals("ia", desc.version);
         assertEquals(desc.filterType, FilterFactory.Type.MURMUR3);
     }
 }

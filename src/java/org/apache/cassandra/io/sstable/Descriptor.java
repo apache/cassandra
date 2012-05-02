@@ -56,7 +56,8 @@ public class Descriptor
     // hc (1.0.4): records partitioner in metadata component
     // ia (1.2.0): column indexes are promoted to the index file
     //             records estimated histogram of deletion times in tombstones
-    public static final String CURRENT_VERSION = "ib";
+    //             bloom filter (keys and columns) upgraded to Murmur3
+    public static final String CURRENT_VERSION = "ia";
 
     public final File directory;
     /** version has the following format: <code>[a-z]+</code> */
@@ -110,7 +111,7 @@ public class Descriptor
         isLatestVersion = version.compareTo(CURRENT_VERSION) == 0;
         if (version.compareTo("f") < 0)
             filterType = FilterFactory.Type.SHA;
-        else if (version.compareTo("ia") <= 0)
+        else if (version.compareTo("ia") < 0)
             filterType = FilterFactory.Type.MURMUR2;
         else
             filterType = FilterFactory.Type.MURMUR3;
@@ -235,7 +236,7 @@ public class Descriptor
         // we could add compatibility for earlier versions with the new single-pass streaming
         // (see SSTableWriter.appendFromStream) but versions earlier than 0.7.1 don't have the
         // MessagingService version awareness anyway so there's no point.
-        return isCompatible() && version.charAt(0) >= 'f';
+        return isCompatible() && version.charAt(0) >= 'i';
     }
 
     @Override
