@@ -97,8 +97,9 @@ public class CommitLogSegment
 
                 if (oldFile.exists())
                 {
-                    logger.debug("Re-using discarded CommitLog segment for " + id + " from " + filePath);
-                    oldFile.renameTo(logFile);
+                    logger.debug("Re-using discarded CommitLog segment for {} from {}", id, filePath);
+                    if (!oldFile.renameTo(logFile))
+                        throw new IOException("Rename from " + filePath + " to " + id + " failed");
                     isCreating = false;
                 }
             }
@@ -107,9 +108,7 @@ public class CommitLogSegment
             logFileAccessor = new RandomAccessFile(logFile, "rw");
 
             if (isCreating)
-            {
-                logger.debug("Creating new commit log segment " + logFile.getPath());
-            }
+                logger.debug("Creating new commit log segment {}", logFile.getPath());
 
             // Map the segment, extending or truncating it to the standard segment size
             logFileAccessor.setLength(DatabaseDescriptor.getCommitLogSegmentSize());

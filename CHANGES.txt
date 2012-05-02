@@ -9,6 +9,8 @@
 
 
 1.1.1-dev
+ * Optimize reads when row deletion timestamps allow us to restrict
+   the set of sstables we check (CASSANDRA-4116)
  * incremental repair by token range (CASSANDRA-3912)
  * streaming commitlog backup + pitr (CASSANDRA-3690)
  * avoid generating redundant compaction tasks during streaming
