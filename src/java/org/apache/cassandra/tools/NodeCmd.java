@@ -105,6 +105,7 @@ public class NodeCmd
         REBUILD,
         REFRESH,
         REMOVETOKEN,
+        REMOVENODE,
         REPAIR,
         RING,
         SCRUB,
@@ -158,7 +159,7 @@ public class NodeCmd
         // One arg
         addCmdHelp(header, "netstats [host]", "Print network information on provided host (connecting node by default)");
         addCmdHelp(header, "move <new token>", "Move node on the token ring to a new token");
-        addCmdHelp(header, "removetoken status|force|<token>", "Show status of current token removal, force completion of pending removal or remove providen token");
+        addCmdHelp(header, "removenode status|force|<ID>", "Show status of current node removal, force completion of pending removal or remove provided ID");
         addCmdHelp(header, "setcompactionthroughput <value_in_mb>", "Set the MB/s throughput cap for compaction in the system, or 0 to disable throttling.");
         addCmdHelp(header, "setstreamthroughput <value_in_mb>", "Set the MB/s throughput cap for streaming in the system, or 0 to disable throttling.");
         addCmdHelp(header, "describering [keyspace]", "Shows the token ranges info of a given keyspace.");
@@ -787,11 +788,12 @@ public class NodeCmd
                     probe.rebuild(arguments.length == 1 ? arguments[0] : null);
                     break;
 
+                case REMOVENODE  :
                 case REMOVETOKEN :
-                    if (arguments.length != 1) { badUse("Missing an argument for removetoken (either status, force, or a token)"); }
+                    if (arguments.length != 1) { badUse("Missing an argument for removenode (either status, force, or an ID)"); }
                     else if (arguments[0].equals("status")) { nodeCmd.printRemovalStatus(System.out); }
                     else if (arguments[0].equals("force"))  { nodeCmd.printRemovalStatus(System.out); probe.forceRemoveCompletion(); }
-                    else                                    { probe.removeToken(arguments[0]); }
+                    else                                    { probe.removeNode(arguments[0]); }
                     break;
 
                 case INVALIDATEKEYCACHE :

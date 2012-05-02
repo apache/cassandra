@@ -214,6 +214,12 @@ public class TokenMetadata
         return endpointToHostIdMap.get(endpoint);
     }
 
+    /** Return the end-point for a unique host ID */
+    public InetAddress getEndpointForHostId(UUID hostId)
+    {
+        return endpointToHostIdMap.inverse().get(hostId);
+    }
+
     /** @return a copy of the endpoint-to-id map for read-only operations */
     public Map<InetAddress, UUID> getEndpointToHostIdMapForReading()
     {

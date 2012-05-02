@@ -286,7 +286,7 @@ public interface StorageServiceMBean
      * removeToken removes token (and all data associated with
      * enpoint that had it) from the ring
      */
-    public void removeToken(String token);
+    public void removeNode(String token);
 
     /**
      * Get the status of a token removal.

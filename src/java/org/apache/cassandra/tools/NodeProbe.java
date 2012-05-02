@@ -397,9 +397,9 @@ public class NodeProbe
         ssProxy.move(newToken);
     }
 
-    public void removeToken(String token)
+    public void removeNode(String token)
     {
-        ssProxy.removeToken(token);
+        ssProxy.removeNode(token);
     }
 
     public String getRemovalStatus()

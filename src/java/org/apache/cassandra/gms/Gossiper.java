@@ -382,15 +382,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * This should never be called unless this coordinator has had 'removetoken' invoked
      *
      * @param endpoint - the endpoint being removed
-     * @param token - the token being removed
-     * @param mytoken - my own token for replication coordination
+     * @param hostId - the ID of the host being removed
+     * @param localHostId - my own host ID for replication coordination
      */
-    public void advertiseRemoving(InetAddress endpoint, Token token, Token mytoken)
+    public void advertiseRemoving(InetAddress endpoint, UUID hostId, UUID localHostId)
     {
         EndpointState epState = endpointStateMap.get(endpoint);
         // remember this node's generation
         int generation = epState.getHeartBeatState().getGeneration();
-        logger.info("Removing token: " + token);
+        logger.info("Removing host: {}", hostId);
         logger.info("Sleeping for " + StorageService.RING_DELAY + "ms to ensure " + endpoint + " does not change");
         try
         {
@@ -408,8 +408,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         logger.info("Advertising removal for " + endpoint);
         epState.updateTimestamp(); // make sure we don't evict it too soon
         epState.getHeartBeatState().forceNewerGenerationUnsafe();
-        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removingNonlocal(token));
-        epState.addApplicationState(ApplicationState.REMOVAL_COORDINATOR, StorageService.instance.valueFactory.removalCoordinator(mytoken));
+        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removingNonlocal(hostId));
+        epState.addApplicationState(ApplicationState.REMOVAL_COORDINATOR, StorageService.instance.valueFactory.removalCoordinator(localHostId));
         endpointStateMap.put(endpoint, epState);
     }
 
@@ -417,14 +417,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * Handles switching the endpoint's state from REMOVING_TOKEN to REMOVED_TOKEN
      * This should only be called after advertiseRemoving
      * @param endpoint
-     * @param token
+     * @param hostId
      */
-    public void advertiseTokenRemoved(InetAddress endpoint, Token token)
+    public void advertiseTokenRemoved(InetAddress endpoint, UUID hostId)
     {
         EndpointState epState = endpointStateMap.get(endpoint);
         epState.updateTimestamp(); // make sure we don't evict it too soon
         epState.getHeartBeatState().forceNewerGenerationUnsafe();
-        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(token,computeExpireTime()));
+        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(hostId,computeExpireTime()));
         logger.info("Completing removal of " + endpoint);
         endpointStateMap.put(endpoint, epState);
         // ensure at least one gossip round occurs before returning

@@ -1314,9 +1314,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
                 // find the endpoint coordinating this removal that we need to notify when we're done
                 String[] coordinator = Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.REMOVAL_COORDINATOR).value.split(VersionedValue.DELIMITER_STR, -1);
-                Token coordtoken = getPartitioner().getTokenFactory().fromString(coordinator[1]);
+                UUID hostId = UUID.fromString(coordinator[1]);
                 // grab any data we are now responsible for and notify responsible node
-                restoreReplicaCount(endpoint, tokenMetadata.getEndpoint(coordtoken));
+                restoreReplicaCount(endpoint, tokenMetadata.getEndpointForHostId(hostId));
             }
         } // not a member, nothing to do
     }
@@ -2558,8 +2558,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger.warn("Removal not confirmed for for " + StringUtils.join(this.replicatingNodes, ","));
             for (InetAddress endpoint : tokenMetadata.getLeavingEndpoints())
             {
+                UUID hostId = tokenMetadata.getHostId(endpoint);
+                Gossiper.instance.advertiseTokenRemoved(endpoint, hostId);
                 Token token = tokenMetadata.getToken(endpoint);
-                Gossiper.instance.advertiseTokenRemoved(endpoint, token);
                 excise(token, endpoint);
             }
             replicatingNodes.clear();
@@ -2578,23 +2579,25 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * restore the replica count, finally forceRemoveCompleteion should be
      * called to forcibly remove the node without regard to replica count.
      *
-     * @param tokenString token for the node
+     * @param hostIdString token for the node
      */
-    public void removeToken(String tokenString)
+    public void removeNode(String hostIdString)
     {
         InetAddress myAddress = FBUtilities.getBroadcastAddress();
-        Token localToken = tokenMetadata.getToken(myAddress);
-        Token token = getPartitioner().getTokenFactory().fromString(tokenString);
-        InetAddress endpoint = tokenMetadata.getEndpoint(token);
+        UUID localHostId = tokenMetadata.getHostId(myAddress);
+        UUID hostId = UUID.fromString(hostIdString);
+        InetAddress endpoint = tokenMetadata.getEndpointForHostId(hostId);
 
         if (endpoint == null)
-            throw new UnsupportedOperationException("Token not found.");
+            throw new UnsupportedOperationException("Host ID not found.");
+
+        Token token = tokenMetadata.getToken(endpoint);
 
         if (endpoint.equals(myAddress))
-             throw new UnsupportedOperationException("Cannot remove node's own token");
+             throw new UnsupportedOperationException("Cannot remove self");
 
         if (Gossiper.instance.getLiveMembers().contains(endpoint))
-            throw new UnsupportedOperationException("Node " + endpoint + " is alive and owns this token. Use decommission command to remove it from the ring");
+            throw new UnsupportedOperationException("Node " + endpoint + " is alive and owns this ID. Use decommission command to remove it from the ring");
 
         // A leaving endpoint that is dead is already being removed.
         if (tokenMetadata.isLeaving(endpoint))
@@ -2628,7 +2631,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         calculatePendingRanges();
         // the gossiper will handle spoofing this node's state to REMOVING_TOKEN for us
         // we add our own token so other nodes to let us know when they're done
-        Gossiper.instance.advertiseRemoving(endpoint, token, localToken);
+        Gossiper.instance.advertiseRemoving(endpoint, hostId, localHostId);
 
         // kick off streaming commands
         restoreReplicaCount(endpoint, myAddress);
@@ -2649,7 +2652,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         excise(token, endpoint);
 
         // gossiper will indicate the token has left
-        Gossiper.instance.advertiseTokenRemoved(endpoint, token);
+        Gossiper.instance.advertiseTokenRemoved(endpoint, hostId);
 
         replicatingNodes.clear();
         removingNode = null;

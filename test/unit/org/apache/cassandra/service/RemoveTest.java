@@ -60,7 +60,7 @@ public class RemoveTest
     List<InetAddress> hosts = new ArrayList<InetAddress>();
     List<UUID> hostIds = new ArrayList<UUID>();
     InetAddress removalhost;
-    Token removaltoken;
+    UUID removalId;
 
     @BeforeClass
     public static void setupClass() throws IOException
@@ -92,8 +92,8 @@ public class RemoveTest
         }
         removalhost = hosts.get(5);
         hosts.remove(removalhost);
-        removaltoken = endpointTokens.get(5);
-        endpointTokens.remove(removaltoken);
+        removalId = hostIds.get(5);
+        hostIds.remove(removalId);
     }
 
     @After
@@ -105,27 +105,22 @@ public class RemoveTest
     }
 
     @Test(expected = UnsupportedOperationException.class)
-    public void testBadToken()
+    public void testBadHostId()
     {
-        final String token = StorageService.getPartitioner().getTokenFactory().toString(keyTokens.get(2));
-        ss.removeToken(token);
+        ss.removeNode("ffffffff-aaaa-aaaa-aaaa-ffffffffffff");
 
     }
 
     @Test(expected = UnsupportedOperationException.class)
-    public void testLocalToken()
+    public void testLocalHostId()
     {
-        //first token should be localhost
-        final String token = StorageService.getPartitioner().getTokenFactory().toString(endpointTokens.get(0));
-        ss.removeToken(token);
+        //first ID should be localhost
+        ss.removeNode(hostIds.get(0).toString());
     }
 
     @Test
-    public void testRemoveToken() throws InterruptedException
+    public void testRemoveHostId() throws InterruptedException
     {
-        IPartitioner partitioner = StorageService.getPartitioner();
-
-        final String token = partitioner.getTokenFactory().toString(removaltoken);
         ReplicationSink rSink = new ReplicationSink();
         SinkManager.add(rSink);
 
@@ -137,7 +132,7 @@ public class RemoveTest
             {
                 try
                 {
-                    ss.removeToken(token);
+                    ss.removeNode(removalId.toString());
                 }
                 catch (Exception e)
                 {

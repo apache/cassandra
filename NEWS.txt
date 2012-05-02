@@ -18,6 +18,12 @@ Upgrading
       snapshots and then truncates the hints column family as part of
       starting up 1.2 for the first time.  Additionally, upgraded nodes
       will not store new hints destined for older (pre-1.2) nodes.
+    - The `nodetool removetoken` command (and corresponding JMX operation)
+      have been renamed to `nodetool removenode`.  This function is
+      incompatible with the earlier `nodetool removetoken`, and attempts to
+      remove nodes in this way with a mixed 1.1 (or lower) / 1.2 cluster,
+      is not supported.
+
 
 1.1.1
 =====

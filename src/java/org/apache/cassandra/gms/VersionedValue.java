@@ -144,20 +144,19 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(VersionedValue.STATUS_MOVING + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
         }
 
-        public VersionedValue removingNonlocal(Token token)
+        public VersionedValue removingNonlocal(UUID hostId)
         {
-            return new VersionedValue(VersionedValue.REMOVING_TOKEN + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+            return new VersionedValue(versionString(VersionedValue.REMOVING_TOKEN, hostId.toString()));
         }
 
-        public VersionedValue removedNonlocal(Token token, long expireTime)
+        public VersionedValue removedNonlocal(UUID hostId, long expireTime)
         {
-            return new VersionedValue(VersionedValue.REMOVED_TOKEN + VersionedValue.DELIMITER
-                    + partitioner.getTokenFactory().toString(token) + VersionedValue.DELIMITER + expireTime);
+            return new VersionedValue(versionString(VersionedValue.REMOVED_TOKEN, hostId.toString(), Long.toString(expireTime)));
         }
 
-        public VersionedValue removalCoordinator(Token token)
+        public VersionedValue removalCoordinator(UUID hostId)
         {
-            return new VersionedValue(VersionedValue.REMOVAL_COORDINATOR + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+            return new VersionedValue(versionString(VersionedValue.REMOVAL_COORDINATOR, hostId.toString()));
         }
 
         public VersionedValue hibernate(boolean value)
@@ -205,11 +204,18 @@ public class VersionedValue implements Comparable<VersionedValue>
             if (version < MessagingService.VERSION_12)
             {
                 String[] pieces = value.value.split(DELIMITER_STR, -1);
-                if ((pieces[0] == STATUS_NORMAL) || pieces[0] == STATUS_BOOTSTRAPPING)
+                String type = pieces[0];
+
+                if ((type == STATUS_NORMAL) || type == STATUS_BOOTSTRAPPING)
                 {
                     assert pieces.length >= 3;
                     outValue = versionString(pieces[0], pieces[2]);
                 }
+
+                if ((type == REMOVAL_COORDINATOR) || (type == REMOVING_TOKEN) || (type == REMOVED_TOKEN))
+                    throw new RuntimeException(String.format("Unable to serialize %s(%s...) for nodes older than 1.2",
+                                                             VersionedValue.class.getName(),
+                                                             type));
             }
 
             dos.writeUTF(outValue);
