@@ -58,7 +58,8 @@ public class Descriptor
     // h (1.0): tracks max client timestamp in metadata component
     // hb (1.0.3): records compression ration in metadata component
     // hc (1.0.4): records partitioner in metadata component
-    public static final String CURRENT_VERSION = "hc";
+    // hd (1.0.10): includes row tombstones in maxtimestamp
+    public static final String CURRENT_VERSION = "hd";
 
     public final File directory;
     /** version has the following format: <code>[a-z]+</code> */
@@ -103,7 +104,7 @@ public class Descriptor
         hasEncodedKeys = version.compareTo("e") < 0;
         usesOldBloomFilter = version.compareTo("f") < 0;
         metadataIncludesReplayPosition = version.compareTo("g") >= 0;
-        tracksMaxTimestamp = version.compareTo("h") >= 0;
+        tracksMaxTimestamp = version.compareTo("hd") >= 0;
         hasCompressionRatio = version.compareTo("hb") >= 0;
         hasPartitioner = version.compareTo("hc") >= 0;
         isLatestVersion = version.compareTo(CURRENT_VERSION) == 0;
@@ -270,6 +271,16 @@ public class Descriptor
         // (see SSTableWriter.appendFromStream) but versions earlier than 0.7.1 don't have the
         // MessagingService version awareness anyway so there's no point.
         return isCompatible() && version.charAt(0) >= 'f';
+    }
+
+    /**
+     * Versions [h..hc] contained a timestamp value that was computed incorrectly, ignoring row tombstones.
+     * containsTimestamp returns true if there is a timestamp value in the metadata file; to know if it
+     * actually contains a *correct* timestamp, see tracksMaxTimestamp.
+     */
+    public boolean containsTimestamp()
+    {
+        return version.compareTo("h") >= 0;
     }
 
     @Override
