@@ -1,4 +1,5 @@
 1.0.10
+ * fix maxTimestamp to include row tombstones (CASSANDRA-4116)
  * avoid streaming empty files with bulk loader if sstablewriter errors out
    (CASSANDRA-3946)
  * support PropertyFileSnitch in bulk loader (CASSANDRA-4145)
