@@ -367,7 +367,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
 
     public ColumnStats getColumnStats()
     {
-        long maxTimestampSeen = Long.MIN_VALUE;
+        long maxTimestampSeen = getMarkedForDeleteAt();
         StreamingHistogram tombstones = new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE);
 
         for (IColumn column : columns)

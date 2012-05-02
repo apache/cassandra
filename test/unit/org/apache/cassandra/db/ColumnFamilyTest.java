@@ -27,6 +27,7 @@ import java.util.*;
 import org.apache.cassandra.SchemaLoader;
 import org.junit.Test;
 
+import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.db.filter.QueryPath;
 import static org.apache.cassandra.Util.column;
@@ -177,5 +178,17 @@ public class ColumnFamilyTest extends SchemaLoader
         testSuperColumnResolution(AtomicSortedColumns.factory());
         // array-sorted does allow conflict resolution IF it is the last column.  Bit of an edge case.
         testSuperColumnResolution(ArrayBackedSortedColumns.factory());
+    }
+    
+    @Test
+    public void testColumnStatsRecordsRowDeletesCorrectly() throws IOException
+    {
+        long timestamp = System.currentTimeMillis();
+        int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
+        
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        cf.delete(new DeletionInfo(timestamp, localDeletionTime));
+        ColumnStats stats = cf.getColumnStats();
+        assertEquals(timestamp, stats.maxTimestamp);
     }
 }
