@@ -9,6 +9,7 @@
 
 
 1.1.1-dev
+ * Open 1 sstableScanner per level for leveled compaction (CASSANDRA-4142)
  * Optimize reads when row deletion timestamps allow us to restrict
    the set of sstables we check (CASSANDRA-4116)
  * incremental repair by token range (CASSANDRA-3912)
@@ -32,6 +33,7 @@
  * Expose repairing by a user provided range (CASSANDRA-3912)
  * Add way to force the cassandra-cli to refresh it's schema (CASSANDRA-4052)
  * Avoids having replicate on write tasks stacking up at CL.ONE (CASSANDRA-2889)
+ * (cql) Fix order by for reversed queries (CASSANDRA-4160)
 Merged from 1.0:
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)

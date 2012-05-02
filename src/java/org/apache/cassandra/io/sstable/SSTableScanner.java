@@ -25,6 +25,7 @@ import java.util.Iterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.RowPosition;
@@ -33,9 +34,8 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.CloseableIterator;
 
-public class SSTableScanner implements CloseableIterator<IColumnIterator>
+public class SSTableScanner implements ICompactionScanner
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableScanner.class);
 
@@ -130,7 +130,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
         }
     }
 
-    public long getFileLength()
+    public long getLengthInBytes()
     {
         try
         {
@@ -142,9 +142,14 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
         }
     }
 
-    public long getFilePointer()
+    public long getCurrentPosition()
     {
         return dfile.getFilePointer();
+    }
+
+    public String getBackingFiles()
+    {
+        return sstable.toString();
     }
 
     public boolean hasNext()

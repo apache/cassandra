@@ -299,7 +299,6 @@ public class LeveledManifest
 
     public int getLevelSize(int i)
     {
-
         return generations.length > i ? generations[i].size() : 0;
     }
 
@@ -318,7 +317,7 @@ public class LeveledManifest
         }
     }
 
-    private int levelOf(SSTableReader sstable)
+    int levelOf(SSTableReader sstable)
     {
         Integer level = sstableGenerations.get(sstable);
         if (level == null)

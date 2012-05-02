@@ -57,23 +57,24 @@ public class LazilyCompactedRowTest extends SchemaLoader
 {
     private static void assertBytes(ColumnFamilyStore cfs, int gcBefore) throws IOException
     {
+        AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
         Collection<SSTableReader> sstables = cfs.getSSTables();
 
         // compare eager and lazy compactions
         AbstractCompactionIterable eager = new CompactionIterable(OperationType.UNKNOWN,
-                                                                  sstables,
+                                                                  strategy.getScanners(sstables),
                                                                   new PreCompactingController(cfs, sstables, gcBefore, false));
         AbstractCompactionIterable lazy = new CompactionIterable(OperationType.UNKNOWN,
-                                                                 sstables,
+                                                                 strategy.getScanners(sstables),
                                                                  new LazilyCompactingController(cfs, sstables, gcBefore, false));
         assertBytes(cfs, sstables, eager, lazy);
 
         // compare eager and parallel-lazy compactions
         eager = new CompactionIterable(OperationType.UNKNOWN,
-                                       sstables,
+                                       strategy.getScanners(sstables),
                                        new PreCompactingController(cfs, sstables, gcBefore, false));
         AbstractCompactionIterable parallel = new ParallelCompactionIterable(OperationType.UNKNOWN,
-                                                                             sstables,
+                                                                             strategy.getScanners(sstables),
                                                                              new CompactionController(cfs, sstables, gcBefore, false),
                                                                              0);
         assertBytes(cfs, sstables, eager, parallel);
@@ -143,9 +144,10 @@ public class LazilyCompactedRowTest extends SchemaLoader
 
     private void assertDigest(ColumnFamilyStore cfs, int gcBefore) throws IOException, NoSuchAlgorithmException
     {
+        AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
         Collection<SSTableReader> sstables = cfs.getSSTables();
-        AbstractCompactionIterable ci1 = new CompactionIterable(OperationType.UNKNOWN, sstables, new PreCompactingController(cfs, sstables, gcBefore, false));
-        AbstractCompactionIterable ci2 = new CompactionIterable(OperationType.UNKNOWN, sstables, new LazilyCompactingController(cfs, sstables, gcBefore, false));
+        AbstractCompactionIterable ci1 = new CompactionIterable(OperationType.UNKNOWN, strategy.getScanners(sstables), new PreCompactingController(cfs, sstables, gcBefore, false));
+        AbstractCompactionIterable ci2 = new CompactionIterable(OperationType.UNKNOWN, strategy.getScanners(sstables), new LazilyCompactingController(cfs, sstables, gcBefore, false));
         CloseableIterator<AbstractCompactedRow> iter1 = ci1.iterator();
         CloseableIterator<AbstractCompactedRow> iter2 = ci2.iterator();
 

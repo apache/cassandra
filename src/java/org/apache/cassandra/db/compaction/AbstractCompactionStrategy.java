@@ -17,14 +17,16 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
-
 
 /**
  * Pluggable compaction strategy determines how SSTables get merged.
@@ -124,5 +126,24 @@ public abstract class AbstractCompactionStrategy
         }
 
         return filteredCandidates;
+    }
+
+    /**
+     * Returns a list of KeyScanners given sstables and a range on which to scan.
+     * The default implementation simply grab one SSTableScanner per-sstable, but overriding this method
+     * allow for a more memory efficient solution if we know the sstable don't overlap (see
+     * LeveledCompactionStrategy for instance).
+     */
+    public List<ICompactionScanner> getScanners(Collection<SSTableReader> sstables, Range<Token> range) throws IOException
+    {
+        ArrayList<ICompactionScanner> scanners = new ArrayList<ICompactionScanner>();
+        for (SSTableReader sstable : sstables)
+            scanners.add(sstable.getDirectScanner(range));
+        return scanners;
+    }
+
+    public List<ICompactionScanner> getScanners(Collection<SSTableReader> toCompact) throws IOException
+    {
+        return getScanners(toCompact, null);
     }
 }

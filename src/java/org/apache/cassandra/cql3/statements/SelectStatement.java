@@ -193,8 +193,8 @@ public class SelectStatement implements CQLStatement
         // ...a range (slice) of column names
         if (isColumnRange())
         {
-            ByteBuffer start = getRequestedBound(Bound.START, variables);
-            ByteBuffer finish = getRequestedBound(Bound.END, variables);
+            ByteBuffer start = getRequestedBound(parameters.isColumnsReversed ? Bound.END : Bound.START, variables);
+            ByteBuffer finish = getRequestedBound(parameters.isColumnsReversed ? Bound.START : Bound.END, variables);
 
             // Note that we use the total limit for every key. This is
             // potentially inefficient, but then again, IN + LIMIT is not a
@@ -308,8 +308,8 @@ public class SelectStatement implements CQLStatement
         if (isColumnRange())
         {
             SliceRange sliceRange = new SliceRange();
-            sliceRange.start = getRequestedBound(Bound.START, variables);
-            sliceRange.finish = getRequestedBound(Bound.END, variables);
+            sliceRange.start = getRequestedBound(parameters.isColumnsReversed ? Bound.END : Bound.START, variables);
+            sliceRange.finish = getRequestedBound(parameters.isColumnsReversed ? Bound.START : Bound.END, variables);
             sliceRange.reversed = parameters.isColumnsReversed;
             sliceRange.count = -1; // We use this for range slices, where the count is ignored in favor of the global column count
             thriftSlicePredicate.slice_range = sliceRange;

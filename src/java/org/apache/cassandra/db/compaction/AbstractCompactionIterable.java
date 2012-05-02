@@ -25,7 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.utils.CloseableIterator;
 
 public abstract class AbstractCompactionIterable extends CompactionInfo.Holder implements Iterable<AbstractCompactedRow>
@@ -36,9 +35,9 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
     protected final CompactionController controller;
     protected final long totalBytes;
     protected volatile long bytesRead;
-    protected final List<SSTableScanner> scanners;
+    protected final List<ICompactionScanner> scanners;
 
-    public AbstractCompactionIterable(CompactionController controller, OperationType type, List<SSTableScanner> scanners)
+    public AbstractCompactionIterable(CompactionController controller, OperationType type, List<ICompactionScanner> scanners)
     {
         this.controller = controller;
         this.type = type;
@@ -46,17 +45,9 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
         this.bytesRead = 0;
 
         long bytes = 0;
-        for (SSTableScanner scanner : scanners)
-            bytes += scanner.getFileLength();
+        for (ICompactionScanner scanner : scanners)
+            bytes += scanner.getLengthInBytes();
         this.totalBytes = bytes;
-    }
-
-    protected static List<SSTableScanner> getScanners(Iterable<SSTableReader> sstables) throws IOException
-    {
-        ArrayList<SSTableScanner> scanners = new ArrayList<SSTableScanner>();
-        for (SSTableReader sstable : sstables)
-            scanners.add(sstable.getDirectScanner());
-        return scanners;
     }
 
     public CompactionInfo getCompactionInfo()

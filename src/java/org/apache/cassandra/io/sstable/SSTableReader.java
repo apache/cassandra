@@ -893,6 +893,8 @@ public class SSTableReader extends SSTable
     */
     public SSTableScanner getDirectScanner(Range<Token> range)
     {
+        if (range == null)
+            return getDirectScanner();
         return new SSTableBoundedScanner(this, true, range);
     }
 
