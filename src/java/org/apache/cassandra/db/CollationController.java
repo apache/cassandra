@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,8 +106,15 @@ public class CollationController
             Collections.sort(view.sstables, SSTable.maxTimestampComparator);
 
             // read sorted sstables
+            long mostRecentRowTombstone = Long.MIN_VALUE;
             for (SSTableReader sstable : view.sstables)
             {
+                // if we've already seen a row tombstone with a timestamp greater 
+                // than the most recent update to this sstable, we're done, since the rest of the sstables
+                // will also be older
+                if (sstable.getMaxTimestamp() < mostRecentRowTombstone)
+                    break;
+                
                 long currentMaxTs = sstable.getMaxTimestamp();
                 reduceNameFilter(reducedFilter, container, currentMaxTs);
                 if (((NamesQueryFilter) reducedFilter.filter).columns.isEmpty())
@@ -115,7 +124,14 @@ public class CollationController
                 iterators.add(iter);
                 if (iter.getColumnFamily() != null)
                 {
-                    container.delete(iter.getColumnFamily());
+                    ColumnFamily cf = iter.getColumnFamily();
+                    if (cf.isMarkedForDelete())
+                    {
+                        // track the most recent row level tombstone we encounter
+                        mostRecentRowTombstone = cf.getMarkedForDeleteAt();
+                    }
+                    
+                    container.delete(cf);
                     sstablesIterated++;
                     while (iter.hasNext())
                         container.addColumn(iter.next());
@@ -212,10 +228,10 @@ public class CollationController
         ISortedColumns.Factory factory = mutableColumns
                                        ? cfs.metadata.cfType == ColumnFamilyType.Super ? ThreadSafeSortedColumns.factory() : AtomicSortedColumns.factory()
                                        : ArrayBackedSortedColumns.factory();
-        List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
+        ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
+        List<IColumnIterator> iterators = new ArrayList<IColumnIterator>(Iterables.size(view.memtables) + view.sstables.size());
         ColumnFamily returnCF = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());
 
-        ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
         try
         {
             for (Memtable memtable : view.memtables)
@@ -227,16 +243,36 @@ public class CollationController
                     iterators.add(iter);
                 }
             }
-
+            
+            long mostRecentRowTombstone = Long.MIN_VALUE;
+            Map<IColumnIterator, Long> iteratorMaxTimes = Maps.newHashMapWithExpectedSize(view.sstables.size());
             for (SSTableReader sstable : view.sstables)
             {
+                // if we've already seen a row tombstone with a timestamp greater 
+                // than the most recent update to this sstable, we can skip it
+                if (sstable.getMaxTimestamp() < mostRecentRowTombstone)
+                    continue;
+
                 IColumnIterator iter = filter.getSSTableColumnIterator(sstable);
-                iterators.add(iter);
+                iteratorMaxTimes.put(iter, sstable.getMaxTimestamp());
                 if (iter.getColumnFamily() != null)
                 {
-                    returnCF.delete(iter.getColumnFamily());
+                    ColumnFamily cf = iter.getColumnFamily();
+                    if (cf.isMarkedForDelete())
+                        mostRecentRowTombstone = cf.getMarkedForDeleteAt();
+
+                    returnCF.delete(cf);
                     sstablesIterated++;
                 }
+            }
+            
+            // If we saw a row tombstone, do a second pass through the iterators we
+            // obtained from the sstables and drop any whose maxTimestamp < that of the
+            // row tombstone
+            for (Map.Entry<IColumnIterator, Long> entry : iteratorMaxTimes.entrySet())
+            {
+                if (entry.getValue() >= mostRecentRowTombstone)
+                    iterators.add(entry.getKey());
             }
 
             // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
