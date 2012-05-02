@@ -473,12 +473,7 @@ public final class MessagingService implements MessagingServiceMBean
         if (executor == null)
         {
             // Using a core pool size of 0 is important. See documentation of streamExecutors.
-            executor = new DebuggableThreadPoolExecutor(0,
-                                                        1,
-                                                        1,
-                                                        TimeUnit.SECONDS,
-                                                        new LinkedBlockingQueue<Runnable>(),
-                                                        new NamedThreadFactory("Streaming to " + to));
+            executor = DebuggableThreadPoolExecutor.createWithMaximumPoolSize("Streaming to " + to, 1, 1, TimeUnit.SECONDS);
             DebuggableThreadPoolExecutor old = streamExecutors.putIfAbsent(to, executor);
             if (old != null)
             {

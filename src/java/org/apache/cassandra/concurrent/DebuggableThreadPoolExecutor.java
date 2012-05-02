@@ -94,9 +94,32 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
         this.setRejectedExecutionHandler(blockingExecutionHandler);
     }
 
-    public static DebuggableThreadPoolExecutor createWithPoolSize(String threadPoolName, int size)
+    /**
+     * Returns a ThreadPoolExecutor with a fixed number of threads.
+     * When all threads are actively executing tasks, new tasks are queued.
+     * If (most) threads are expected to be idle most of the time, prefer createWithMaxSize() instead.
+     * @param threadPoolName the name of the threads created by this executor
+     * @param size the fixed number of threads for this executor
+     * @return the new DebuggableThreadPoolExecutor
+     */
+    public static DebuggableThreadPoolExecutor createWithFixedPoolSize(String threadPoolName, int size)
     {
-        return new DebuggableThreadPoolExecutor(size, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName));
+        return createWithMaximumPoolSize(threadPoolName, size, Integer.MAX_VALUE, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Returns a ThreadPoolExecutor with a fixed maximum number of threads, but whose
+     * threads are terminated when idle for too long.
+     * When all threads are actively executing tasks, new tasks are queued.
+     * @param threadPoolName the name of the threads created by this executor
+     * @param size the maximum number of threads for this executor
+     * @param keepAliveTime the time an idle thread is kept alive before being terminated
+     * @param unit tht time unit for {@code keepAliveTime}
+     * @return the new DebuggableThreadPoolExecutor
+     */
+    public static DebuggableThreadPoolExecutor createWithMaximumPoolSize(String threadPoolName, int size, int keepAliveTime, TimeUnit unit)
+    {
+        return new DebuggableThreadPoolExecutor(size, Integer.MAX_VALUE, keepAliveTime, unit, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName));
     }
 
     protected void onInitialRejection(Runnable task) {}

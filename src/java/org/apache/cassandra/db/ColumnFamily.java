@@ -266,7 +266,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
 
     public long maxTimestamp()
     {
-        long maxTimestamp = Long.MIN_VALUE;
+        long maxTimestamp = getMarkedForDeleteAt();
         for (IColumn column : columns)
             maxTimestamp = Math.max(maxTimestamp, column.maxTimestamp());
         return maxTimestamp;
