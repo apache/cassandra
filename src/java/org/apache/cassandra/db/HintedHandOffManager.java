@@ -52,6 +52,7 @@ import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
@@ -163,9 +164,9 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     {
         if (!StorageService.instance.getTokenMetadata().isMember(endpoint))
             return;
-        Token<?> token = StorageService.instance.getTokenMetadata().getToken(endpoint);
-        ByteBuffer tokenBytes = StorageService.getPartitioner().getTokenFactory().toByteArray(token);
-        final RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tokenBytes);
+        UUID hostId = StorageService.instance.getTokenMetadata().getHostId(endpoint);
+        ByteBuffer hostIdBytes = ByteBuffer.wrap(UUIDGen.decompose(hostId));
+        final RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, hostIdBytes);
         rm.delete(new QueryPath(HINTS_CF), System.currentTimeMillis());
 
         // execute asynchronously to avoid blocking caller (which may be processing gossip)
@@ -289,10 +290,11 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         // 5. Do major compaction to clean up all deletes etc.
 
         // find the hints for the node using its token.
-        Token<?> token = StorageService.instance.getTokenMetadata().getToken(endpoint);
-        logger.info("Started hinted handoff for token: {} with IP: {}", token, endpoint);
-        ByteBuffer tokenBytes = StorageService.getPartitioner().getTokenFactory().toByteArray(token);
-        DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(tokenBytes);
+        UUID hostId = StorageService.instance.getTokenMetadata().getHostId(endpoint);
+        logger.info("Started hinted handoff for host: {} with IP: {}", hostId, endpoint);
+        ByteBuffer hostIdBytes = ByteBuffer.wrap(UUIDGen.decompose(hostId));
+        DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(hostIdBytes);
+
         int rowsReplayed = 0;
         ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
@@ -324,7 +326,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                     if (ByteBufferUtil.string(subColumn.name()).contains(SEPARATOR_08))
                     {
                         logger.debug("0.8-style hint found.  This should have been taken care of by purgeIncompatibleHints");
-                        deleteHint(tokenBytes, hint.name(), hint.maxTimestamp());
+                        deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
                         continue page;
                     }
                 }
@@ -356,7 +358,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                         sendMutation(endpoint, rm);
                         rowsReplayed++;
                     }
-                    deleteHint(tokenBytes, hint.name(), hint.maxTimestamp());
+                    deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
                 }
                 catch (TimeoutException e)
                 {

@@ -109,7 +109,7 @@ public class SystemTable
     /** if hints become incompatible across versions of cassandra, that logic (and associated purging) is managed here. */
     private static void purgeIncompatibleHints() throws IOException
     {
-        ByteBuffer upgradeMarker = ByteBufferUtil.bytes("Pre-1.0 hints purged");
+        ByteBuffer upgradeMarker = ByteBufferUtil.bytes("Pre-1.2 hints purged");
         Table table = Table.open(Table.SYSTEM_TABLE);
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(COOKIE_KEY), new QueryPath(STATUS_CF), upgradeMarker);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
