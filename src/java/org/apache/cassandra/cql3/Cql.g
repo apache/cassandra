@@ -492,6 +492,7 @@ property returns [String str]
 
 propertyValue returns [String str]
     : v=(STRING_LITERAL | IDENT | INTEGER | FLOAT) { $str = $v.text; }
+    | u=unreserved_keyword                         { $str = u; }
     ;
 
 properties returns [Map<String, String> props]

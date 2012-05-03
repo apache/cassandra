@@ -112,17 +112,14 @@ public class Directories
 
     public File getDirectoryForNewSSTables(long estimatedSize)
     {
-        return getDirectoryForNewSSTables(estimatedSize, true);
-    }
+        File path = getLocationWithMaximumAvailableSpace(estimatedSize);
 
-    public File getDirectoryForNewSSTables(long estimatedSize, boolean ensureFreeSpace)
-    {
-        File path = getLocationWithMaximumAvailableSpace(estimatedSize, ensureFreeSpace);
         // Requesting GC has a chance to free space only if we're using mmap and a non SUN jvm
         if (path == null
-         && (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap || DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
-         && !MmappedSegmentedFile.isCleanerAvailable())
+            && (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap || DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
+            && !MmappedSegmentedFile.isCleanerAvailable())
         {
+            logger.info("Forcing GC to free up disk space.  Upgrade to the Oracle JVM to avoid this");
             StorageService.instance.requestGC();
             // retry after GCing has forced unmap of compacted SSTables so they can be deleted
             // Note: GCInspector will do this already, but only sun JVM supports GCInspector so far
@@ -135,8 +132,9 @@ public class Directories
             {
                 throw new AssertionError(e);
             }
-            path = getLocationWithMaximumAvailableSpace(estimatedSize, ensureFreeSpace);
+            path = getLocationWithMaximumAvailableSpace(estimatedSize);
         }
+
         return path;
     }
 
@@ -146,7 +144,7 @@ public class Directories
      * compacted file is greater than the max disk space available return null, we cannot
      * do compaction in this case.
      */
-    public File getLocationWithMaximumAvailableSpace(long estimatedSize, boolean ensureFreeSpace)
+    public File getLocationWithMaximumAvailableSpace(long estimatedSize)
     {
         long maxFreeDisk = 0;
         File maxLocation = null;
@@ -159,25 +157,14 @@ public class Directories
                 maxLocation = dir;
             }
         }
-        logger.debug(String.format("expected data files size is %d; largest free partition (%s) has %d bytes free",
-                                   estimatedSize,
-                                   maxLocation,
-                                   maxFreeDisk));
-
         // Load factor of 0.9 we do not want to use the entire disk that is too risky.
         maxFreeDisk = (long) (0.9 * maxFreeDisk);
+        logger.debug(String.format("expected data files size is %d; largest free partition (%s) has %d bytes free",
+                                   estimatedSize, maxLocation, maxFreeDisk));
 
-        if (!ensureFreeSpace || estimatedSize < maxFreeDisk)
-        {
-            if (estimatedSize >= maxFreeDisk)
-                logger.warn(String.format("Data file location %s only has %d free, estimated size is %d",
-                                          maxLocation,
-                                          maxFreeDisk,
-                                          estimatedSize));
 
+        if (estimatedSize < maxFreeDisk)
             return maxLocation;
-        }
-
         return null;
     }
 

@@ -253,7 +253,9 @@ public class SSTableMetadata
             ReplayPosition replayPosition = desc.metadataIncludesReplayPosition
                                           ? ReplayPosition.serializer.deserialize(dis)
                                           : ReplayPosition.NONE;
-            long maxTimestamp = desc.tracksMaxTimestamp ? dis.readLong() : Long.MIN_VALUE;
+            long maxTimestamp = desc.containsTimestamp() ? dis.readLong() : Long.MIN_VALUE;
+            if (!desc.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
+                maxTimestamp = Long.MIN_VALUE;
             double compressionRatio = desc.hasCompressionRatio
                                     ? dis.readDouble()
                                               : Double.MIN_VALUE;

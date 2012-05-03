@@ -54,6 +54,7 @@ public class Descriptor
     // h (1.0): tracks max client timestamp in metadata component
     // hb (1.0.3): records compression ration in metadata component
     // hc (1.0.4): records partitioner in metadata component
+    // hd (1.0.10): includes row tombstones in maxtimestamp
     // ia (1.2.0): column indexes are promoted to the index file
     //             records estimated histogram of deletion times in tombstones
     //             bloom filter (keys and columns) upgraded to Murmur3
@@ -103,7 +104,7 @@ public class Descriptor
         hasIntRowSize = version.compareTo("d") < 0;
         hasEncodedKeys = version.compareTo("e") < 0;
         metadataIncludesReplayPosition = version.compareTo("g") >= 0;
-        tracksMaxTimestamp = version.compareTo("h") >= 0;
+        tracksMaxTimestamp = version.compareTo("hd") >= 0;
         hasCompressionRatio = version.compareTo("hb") >= 0;
         hasPartitioner = version.compareTo("hc") >= 0;
         tracksTombstones = version.compareTo("ia") >= 0;
@@ -237,6 +238,16 @@ public class Descriptor
         // (see SSTableWriter.appendFromStream) but versions earlier than 0.7.1 don't have the
         // MessagingService version awareness anyway so there's no point.
         return isCompatible() && version.charAt(0) >= 'i';
+    }
+
+    /**
+     * Versions [h..hc] contained a timestamp value that was computed incorrectly, ignoring row tombstones.
+     * containsTimestamp returns true if there is a timestamp value in the metadata file; to know if it
+     * actually contains a *correct* timestamp, see tracksMaxTimestamp.
+     */
+    public boolean containsTimestamp()
+    {
+        return version.compareTo("h") >= 0;
     }
 
     @Override
