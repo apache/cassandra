@@ -1,4 +1,6 @@
 1.1.1-dev
+ * include tombstone size in ColumnFamily.size, which can prevent OOM
+   during sudden mass delete operations (CASSANDRA-3741)
  * Open 1 sstableScanner per level for leveled compaction (CASSANDRA-4142)
  * Optimize reads when row deletion timestamps allow us to restrict
    the set of sstables we check (CASSANDRA-4116)
