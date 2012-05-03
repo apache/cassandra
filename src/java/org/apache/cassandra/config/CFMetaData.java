@@ -254,8 +254,6 @@ public final class CFMetaData
         // System cfs have specific ids, and copies of old CFMDs need
         //  to copy over the old id.
         cfId = id;
-        caching = DEFAULT_CACHING_STRATEGY;
-        bloomFilterFpChance = DEFAULT_BF_FP_CHANCE;
 
         this.init();
     }
@@ -279,6 +277,8 @@ public final class CFMetaData
         gcGraceSeconds               = DEFAULT_GC_GRACE_SECONDS;
         minCompactionThreshold       = DEFAULT_MIN_COMPACTION_THRESHOLD;
         maxCompactionThreshold       = DEFAULT_MAX_COMPACTION_THRESHOLD;
+        caching                      = DEFAULT_CACHING_STRATEGY;
+        bloomFilterFpChance          = DEFAULT_BF_FP_CHANCE;
 
         // Defaults strange or simple enough to not need a DEFAULT_T for
         defaultValidator = BytesType.instance;

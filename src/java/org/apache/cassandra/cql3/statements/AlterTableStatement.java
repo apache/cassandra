@@ -138,38 +138,11 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     throw new InvalidRequestException(String.format("ALTER COLUMNFAMILY WITH invoked, but no parameters found"));
 
                 cfProps.validate();
-                applyPropertiesToCFMetadata(cfm, cfProps);
+                cfProps.applyToCFMetadata(cfm);
                 break;
         }
 
         MigrationManager.announceColumnFamilyUpdate(cfm);
-    }
-
-    public static void applyPropertiesToCFMetadata(CFMetaData cfm, CFPropDefs cfProps) throws InvalidRequestException, ConfigurationException
-    {
-        if (cfProps.hasProperty(CFPropDefs.KW_COMMENT))
-        {
-            cfm.comment(cfProps.get(CFPropDefs.KW_COMMENT));
-        }
-
-        cfm.readRepairChance(cfProps.getDouble(CFPropDefs.KW_READREPAIRCHANCE, cfm.getReadRepairChance()));
-        cfm.dcLocalReadRepairChance(cfProps.getDouble(CFPropDefs.KW_DCLOCALREADREPAIRCHANCE, cfm.getDcLocalReadRepair()));
-        cfm.gcGraceSeconds(cfProps.getInt(CFPropDefs.KW_GCGRACESECONDS, cfm.getGcGraceSeconds()));
-        cfm.replicateOnWrite(cfProps.getBoolean(CFPropDefs.KW_REPLICATEONWRITE, cfm.getReplicateOnWrite()));
-        cfm.minCompactionThreshold(cfProps.getInt(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, cfm.getMinCompactionThreshold()));
-        cfm.maxCompactionThreshold(cfProps.getInt(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, cfm.getMaxCompactionThreshold()));
-        cfm.caching(CFMetaData.Caching.fromString(cfProps.getString(CFPropDefs.KW_CACHING, cfm.getCaching().toString())));
-        cfm.bloomFilterFpChance(cfProps.getDouble(CFPropDefs.KW_BF_FP_CHANCE, cfm.getBloomFilterFpChance()));
-
-        if (!cfProps.compactionStrategyOptions.isEmpty())
-        {
-            cfm.compactionStrategyOptions(new HashMap<String, String>(cfProps.compactionStrategyOptions));
-        }
-
-        if (!cfProps.compressionParameters.isEmpty())
-        {
-            cfm.compressionParameters(CompressionParameters.create(cfProps.compressionParameters));
-        }
     }
 
     public String toString()

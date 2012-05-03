@@ -101,23 +101,14 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                                      comparator,
                                      null);
 
-            newCFMD.comment(properties.get(CFPropDefs.KW_COMMENT))
-                   .readRepairChance(properties.getDouble(CFPropDefs.KW_READREPAIRCHANCE, CFMetaData.DEFAULT_READ_REPAIR_CHANCE))
-                   .dcLocalReadRepairChance(properties.getDouble(CFPropDefs.KW_DCLOCALREADREPAIRCHANCE, CFMetaData.DEFAULT_DCLOCAL_READ_REPAIR_CHANCE))
-                   .replicateOnWrite(properties.getBoolean(CFPropDefs.KW_REPLICATEONWRITE, CFMetaData.DEFAULT_REPLICATE_ON_WRITE))
-                   .gcGraceSeconds(properties.getInt(CFPropDefs.KW_GCGRACESECONDS, CFMetaData.DEFAULT_GC_GRACE_SECONDS))
-                   .defaultValidator(defaultValidator)
-                   .minCompactionThreshold(properties.getInt(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD))
-                   .maxCompactionThreshold(properties.getInt(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD))
+            newCFMD.defaultValidator(defaultValidator)
                    .columnMetadata(getColumns())
                    .keyValidator(keyValidator)
                    .keyAlias(keyAlias)
                    .columnAliases(columnAliases)
-                   .valueAlias(valueAlias)
-                   .compactionStrategyOptions(properties.compactionStrategyOptions)
-                   .compressionParameters(CompressionParameters.create(properties.compressionParameters))
-                   .caching(CFMetaData.Caching.fromString(properties.getString(CFPropDefs.KW_CACHING, CFMetaData.DEFAULT_CACHING_STRATEGY.toString())))
-                   .bloomFilterFpChance(properties.getDouble(CFPropDefs.KW_BF_FP_CHANCE, CFMetaData.DEFAULT_BF_FP_CHANCE));
+                   .valueAlias(valueAlias);
+
+            properties.applyToCFMetadata(newCFMD);
         }
         catch (ConfigurationException e)
         {
