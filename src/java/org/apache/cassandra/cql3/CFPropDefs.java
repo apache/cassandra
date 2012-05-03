@@ -74,6 +74,7 @@ public class CFPropDefs
         comparators.put("uuid", "UUIDType");
         comparators.put("varchar", "UTF8Type");
         comparators.put("varint", "IntegerType");
+        comparators.put("timeuuid", "TimeUUIDType");
 
         keywords.add(KW_COMMENT);
         keywords.add(KW_READREPAIRCHANCE);
