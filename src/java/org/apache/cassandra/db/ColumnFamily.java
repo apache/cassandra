@@ -256,7 +256,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
 
     int size(DBTypeSizes typeSizes)
     {
-        int size = DBConstants.longSize + DBConstants.intSize; // tombstone tracking
+        int size = DBTypeSizes.NATIVE.sizeof(1L) + DBTypeSizes.NATIVE.sizeof(1); // tombstone tracking
         for (IColumn column : columns)
         {
             size += column.size(typeSizes);
