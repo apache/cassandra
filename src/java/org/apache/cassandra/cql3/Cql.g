@@ -50,6 +50,11 @@ options {
         recognitionErrors.add(hdr + " " + msg);
     }
 
+    public void addRecognitionError(String msg)
+    {
+        recognitionErrors.add(msg);
+    }
+
     public List<String> getRecognitionErrors()
     {
         return recognitionErrors;
@@ -159,7 +164,7 @@ selectStatement returns [SelectStatement.RawStatement expr]
         int limit = 10000;
         Map<ColumnIdentifier, Boolean> orderings = new LinkedHashMap<ColumnIdentifier, Boolean>();
     }
-    : K_SELECT ( sclause=selectClause | (K_COUNT '(' sclause=selectClause ')' { isCount = true; }) )
+    : K_SELECT ( sclause=selectClause | (K_COUNT '(' sclause=selectCountClause ')' { isCount = true; }) )
       K_FROM cf=columnFamilyName
       ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text.toUpperCase()); } )?
       ( K_WHERE wclause=whereClause )?
@@ -177,6 +182,11 @@ selectStatement returns [SelectStatement.RawStatement expr]
 selectClause returns [List<ColumnIdentifier> expr]
     : ids=cidentList { $expr = ids; }
     | '\*'           { $expr = Collections.<ColumnIdentifier>emptyList();}
+    ;
+
+selectCountClause returns [List<ColumnIdentifier> expr]
+    : c=selectClause { $expr = c; }
+    | i=INTEGER      { if (!i.getText().equals("1")) addRecognitionError("Only COUNT(1) is supported, got COUNT(" + i.getText() + ")"); $expr = Collections.<ColumnIdentifier>emptyList();}
     ;
 
 whereClause returns [List<Relation> clause]
@@ -618,7 +628,7 @@ QMARK
  * to support multiple (see @lexer::members near the top of the grammar).
  */
 FLOAT
-    : INTEGER '.' INTEGER
+    : INTEGER '.' DIGIT*
     ;
 
 IDENT

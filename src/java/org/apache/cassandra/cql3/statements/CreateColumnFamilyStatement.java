@@ -36,6 +36,7 @@ import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CqlResult;
@@ -175,6 +176,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
                 stmt.keyAlias = keyAliases.get(0).key;
                 stmt.keyValidator = getTypeAndRemove(stmt.columns, keyAliases.get(0));
+                if (stmt.keyValidator instanceof CounterColumnType)
+                    throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", stmt.keyAlias));
 
                 // Handle column aliases
                 if (columnAliases != null && !columnAliases.isEmpty())
@@ -185,6 +188,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                     {
                         stmt.columnAliases.add(columnAliases.get(0).key);
                         stmt.comparator = getTypeAndRemove(stmt.columns, columnAliases.get(0));
+                        if (stmt.comparator instanceof CounterColumnType)
+                            throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", stmt.columnAliases.get(0)));
                     }
                     else
                     {
@@ -192,7 +197,11 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                         for (ColumnIdentifier t : columnAliases)
                         {
                             stmt.columnAliases.add(t.key);
-                            types.add(getTypeAndRemove(stmt.columns, t));
+
+                            AbstractType<?> type = getTypeAndRemove(stmt.columns, t);
+                            if (type instanceof CounterColumnType)
+                                throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", t.key));
+                            types.add(type);
                         }
                         // For sparse, we must add the last UTF8 component
                         if (!useCompactStorage)
@@ -210,6 +219,9 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
                 if (useCompactStorage)
                 {
+                    // There should at least have been one column alias
+                    if (stmt.columnAliases.isEmpty())
+                        throw new InvalidRequestException("COMPACT STORAGE requires at least one column part of the clustering key, none found");
                     // There should be only one column definition remaining, which gives us the default validator.
                     if (stmt.columns.isEmpty())
                         throw new InvalidRequestException("COMPACT STORAGE requires one definition not part of the PRIMARY KEY, none found");

@@ -145,6 +145,10 @@ public class SelectStatement implements CQLStatement
         CqlResult result = new CqlResult();
         result.type = CqlResultType.ROWS;
 
+        // Even for count, we need to process the result as it'll group some column together in sparse column families
+        CqlMetadata schema = createSchema();
+        List<CqlRow> cqlRows = process(rows, schema, variables);
+
         // count resultset is a single column named "count"
         if (parameters.isCount)
         {
@@ -152,15 +156,15 @@ public class SelectStatement implements CQLStatement
                                             Collections.<ByteBuffer, String>emptyMap(),
                                             "AsciiType",
                                             "LongType");
-            List<Column> columns = Collections.singletonList(new Column(countColumn).setValue(ByteBufferUtil.bytes((long) rows.size())));
+            List<Column> columns = Collections.singletonList(new Column(countColumn).setValue(ByteBufferUtil.bytes((long) cqlRows.size())));
             result.rows = Collections.singletonList(new CqlRow(countColumn, columns));
             return result;
         }
         else
         {
             // otherwise create resultset from query results
-            result.schema = createSchema();
-            result.rows = process(rows, result.schema, variables);
+            result.schema = schema;
+            result.rows = cqlRows;
             return result;
         }
     }
@@ -822,10 +826,7 @@ public class SelectStatement implements CQLStatement
             // Select clause
             if (parameters.isCount)
             {
-                if (selectClause.size() != 1)
-                    throw new InvalidRequestException("Only COUNT(*) and COUNT(1) operations are currently supported.");
-                String columnName = selectClause.get(0).toString();
-                if (!columnName.equals("*") && !columnName.equals("1"))
+                if (!selectClause.isEmpty())
                     throw new InvalidRequestException("Only COUNT(*) and COUNT(1) operations are currently supported.");
             }
             else
