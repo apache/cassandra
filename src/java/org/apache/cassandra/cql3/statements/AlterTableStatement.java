@@ -23,7 +23,9 @@ import java.util.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
@@ -89,7 +91,10 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 switch (name.kind)
                 {
                     case KEY_ALIAS:
-                        cfm.keyValidator(CFPropDefs.parseType(validator));
+                        AbstractType<?> newType = CFPropDefs.parseType(validator);
+                        if (newType instanceof CounterColumnType)
+                            throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", columnName));
+                        cfm.keyValidator(newType);
                         break;
                     case COLUMN_ALIAS:
                         throw new InvalidRequestException(String.format("Cannot alter PRIMARY KEY part %s", columnName));

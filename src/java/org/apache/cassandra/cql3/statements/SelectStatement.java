@@ -43,6 +43,7 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -91,6 +92,8 @@ public class SelectStatement implements CQLStatement
     private final Restriction[] columnRestrictions;
     private final Map<CFDefinition.Name, Restriction> metadataRestrictions = new HashMap<CFDefinition.Name, Restriction>();
     private Restriction sliceRestriction;
+
+    private boolean isReversed;
 
     private static enum Bound
     {
@@ -141,6 +144,10 @@ public class SelectStatement implements CQLStatement
         CqlResult result = new CqlResult();
         result.type = CqlResultType.ROWS;
 
+        // Even for count, we need to process the result as it'll group some column together in sparse column families
+        CqlMetadata schema = createSchema();
+        List<CqlRow> cqlRows = process(rows, schema, variables);
+
         // count resultset is a single column named "count"
         if (parameters.isCount)
         {
@@ -148,15 +155,15 @@ public class SelectStatement implements CQLStatement
                                             Collections.<ByteBuffer, String>emptyMap(),
                                             "AsciiType",
                                             "LongType");
-            List<Column> columns = Collections.singletonList(new Column(countColumn).setValue(ByteBufferUtil.bytes((long) rows.size())));
+            List<Column> columns = Collections.singletonList(new Column(countColumn).setValue(ByteBufferUtil.bytes((long) cqlRows.size())));
             result.rows = Collections.singletonList(new CqlRow(countColumn, columns));
             return result;
         }
         else
         {
             // otherwise create resultset from query results
-            result.schema = createSchema();
-            result.rows = process(rows, result.schema, variables);
+            result.schema = schema;
+            result.rows = cqlRows;
             return result;
         }
     }
@@ -193,8 +200,8 @@ public class SelectStatement implements CQLStatement
         // ...a range (slice) of column names
         if (isColumnRange())
         {
-            ByteBuffer start = getRequestedBound(parameters.isColumnsReversed ? Bound.END : Bound.START, variables);
-            ByteBuffer finish = getRequestedBound(parameters.isColumnsReversed ? Bound.START : Bound.END, variables);
+            ByteBuffer start = getRequestedBound(isReversed ? Bound.END : Bound.START, variables);
+            ByteBuffer finish = getRequestedBound(isReversed ? Bound.START : Bound.END, variables);
 
             // Note that we use the total limit for every key. This is
             // potentially inefficient, but then again, IN + LIMIT is not a
@@ -202,13 +209,13 @@ public class SelectStatement implements CQLStatement
             for (ByteBuffer key : getKeys(variables))
             {
                 QueryProcessor.validateKey(key);
-                QueryProcessor.validateSliceRange(cfDef.cfm, start, finish, parameters.isColumnsReversed);
+                QueryProcessor.validateSliceRange(cfDef.cfm, start, finish, isReversed);
                 commands.add(new SliceFromReadCommand(keyspace(),
                                                       key,
                                                       queryPath,
                                                       start,
                                                       finish,
-                                                      parameters.isColumnsReversed,
+                                                      isReversed,
                                                       getLimit()));
             }
         }
@@ -308,9 +315,9 @@ public class SelectStatement implements CQLStatement
         if (isColumnRange())
         {
             SliceRange sliceRange = new SliceRange();
-            sliceRange.start = getRequestedBound(parameters.isColumnsReversed ? Bound.END : Bound.START, variables);
-            sliceRange.finish = getRequestedBound(parameters.isColumnsReversed ? Bound.START : Bound.END, variables);
-            sliceRange.reversed = parameters.isColumnsReversed;
+            sliceRange.start = getRequestedBound(isReversed ? Bound.END : Bound.START, variables);
+            sliceRange.finish = getRequestedBound(isReversed ? Bound.START : Bound.END, variables);
+            sliceRange.reversed = isReversed;
             sliceRange.count = -1; // We use this for range slices, where the count is ignored in favor of the global column count
             thriftSlicePredicate.slice_range = sliceRange;
         }
@@ -723,7 +730,7 @@ public class SelectStatement implements CQLStatement
             }
         }
         // We don't allow reversed on range scan, but we do on multiget (IN (...)), so let's reverse the rows there too.
-        if (parameters.isColumnsReversed)
+        if (isReversed)
             Collections.reverse(cqlRows);
 
         // Trim result if needed to respect the limit
@@ -818,10 +825,7 @@ public class SelectStatement implements CQLStatement
             // Select clause
             if (parameters.isCount)
             {
-                if (selectClause.size() != 1)
-                    throw new InvalidRequestException("Only COUNT(*) and COUNT(1) operations are currently supported.");
-                String columnName = selectClause.get(0).toString();
-                if (!columnName.equals("*") && !columnName.equals("1"))
+                if (!selectClause.isEmpty())
                     throw new InvalidRequestException("Only COUNT(*) and COUNT(1) operations are currently supported.");
             }
             else
@@ -953,26 +957,58 @@ public class SelectStatement implements CQLStatement
                 }
             }
 
-            // We only support order by on the the second PK column
-            if (stmt.parameters.orderBy != null)
+            if (!stmt.parameters.orderings.isEmpty())
             {
-                CFDefinition.Name name = cfDef.get(stmt.parameters.orderBy);
-                if (name == null)
-                    throw new InvalidRequestException(String.format("Order by on unknown column %s", stmt.parameters.orderBy));
+                boolean[] reversedMap = new boolean[cfDef.columns.size()];
+                int i = 0;
+                for (Map.Entry<ColumnIdentifier, Boolean> entry : stmt.parameters.orderings.entrySet())
+                {
+                    ColumnIdentifier column = entry.getKey();
+                    boolean reversed = entry.getValue();
 
-                if (name.kind != CFDefinition.Name.Kind.COLUMN_ALIAS || name.position != 0)
-                    throw new InvalidRequestException(String.format("Order by is currently only supported on the second column of the PRIMARY KEY (if any), got %s", stmt.parameters.orderBy));
+                    CFDefinition.Name name = cfDef.get(column);
+                    if (name == null)
+                        throw new InvalidRequestException(String.format("Order by on unknown column %s", column));
+
+                    if (name.kind != CFDefinition.Name.Kind.COLUMN_ALIAS)
+                        throw new InvalidRequestException(String.format("Order by is currently only supported on the clustered columns of the PRIMARY KEY, got %s", column));
+
+                    if (i++ != name.position)
+                        throw new InvalidRequestException(String.format("Order by currently only support the ordering of columns following their declared order in the PRIMARY KEY"));
+
+                    if (reversed != isReversedType(name))
+                        reversedMap[name.position] = true;
+                }
+
+                // Check that all boolean in reversedMap agrees
+                Boolean isReversed = null;
+                for (boolean b : reversedMap)
+                {
+                    if (isReversed == null)
+                    {
+                        isReversed = b;
+                        continue;
+                    }
+                    if (isReversed != b)
+                        throw new InvalidRequestException(String.format("Unsupported order by relation"));
+                }
+                stmt.isReversed = isReversed;
             }
 
             // Only allow reversed if the row key restriction is an equality,
             // since we don't know how to reverse otherwise
-            if (stmt.parameters.isColumnsReversed)
+            if (stmt.isReversed)
             {
                 if (stmt.keyRestriction == null || !stmt.keyRestriction.isEquality())
                     throw new InvalidRequestException("Descending order is only supported is the first part of the PRIMARY KEY is restricted by an Equal or a IN");
             }
 
             return new ParsedStatement.Prepared(stmt, Arrays.<AbstractType<?>>asList(types));
+        }
+
+        private static boolean isReversedType(CFDefinition.Name name)
+        {
+            return name.type instanceof ReversedType;
         }
 
         Restriction updateRestriction(ColumnIdentifier name, Restriction restriction, Relation newRel) throws InvalidRequestException
@@ -1144,16 +1180,14 @@ public class SelectStatement implements CQLStatement
     {
         private final int limit;
         private final ConsistencyLevel consistencyLevel;
-        private final ColumnIdentifier orderBy;
-        private final boolean isColumnsReversed;
+        private final Map<ColumnIdentifier, Boolean> orderings;
         private final boolean isCount;
 
-        public Parameters(ConsistencyLevel consistency, int limit, ColumnIdentifier orderBy, boolean reversed, boolean isCount)
+        public Parameters(ConsistencyLevel consistency, int limit, Map<ColumnIdentifier, Boolean> orderings, boolean isCount)
         {
             this.consistencyLevel = consistency;
             this.limit = limit;
-            this.orderBy = orderBy;
-            this.isColumnsReversed = reversed;
+            this.orderings = orderings;
             this.isCount = isCount;
         }
     }

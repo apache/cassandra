@@ -193,6 +193,4 @@ public class SelectStatement
                              clause,
                              numRecords);
     }
-
-
 }

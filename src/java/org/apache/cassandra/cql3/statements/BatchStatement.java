@@ -146,16 +146,20 @@ public class BatchStatement extends ModificationStatement
         return batch;
     }
 
-    public ParsedStatement.Prepared prepare() throws InvalidRequestException
+    public ParsedStatement.Prepared prepare(AbstractType[] boundTypes) throws InvalidRequestException
     {
-        List<AbstractType<?>> boundTypes = new ArrayList<AbstractType<?>>(statements.size());
-        // XXX: we use our knowledge that Modification don't create new
-        // statement upon call to prepare()
+        // XXX: we use our knowledge that Modification don't create new statement upon call to prepare()
         for (ModificationStatement statement : statements)
         {
-            boundTypes.addAll(statement.prepare().boundTypes);
+            statement.prepare(boundTypes);
         }
-        return new ParsedStatement.Prepared(this, boundTypes);
+        return new ParsedStatement.Prepared(this, Arrays.<AbstractType<?>>asList(boundTypes));
+    }
+
+    public ParsedStatement.Prepared prepare() throws InvalidRequestException
+    {
+        AbstractType[] boundTypes = new AbstractType[getBoundsTerms()];
+        return prepare(boundTypes);
     }
 
     public String toString()

@@ -130,34 +130,9 @@ public class TimeUUIDType extends AbstractType<UUID>
             if (uuid.version() != 1)
                 throw new MarshalException("TimeUUID supports only version 1 UUIDs");
         }
-        else if (source.toLowerCase().equals("now"))
-        {
-            idBytes = ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress())));
-        }
-        // Milliseconds since epoch?
-        else if (source.matches("^\\d+$"))
-        {
-            try
-            {
-                idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(Long.parseLong(source)));
-            }
-            catch (NumberFormatException e)
-            {
-                throw new MarshalException(String.format("unable to make version 1 UUID from '%s'", source), e);
-            }
-        }
-        // Last chance, attempt to parse as date-time string
         else
         {
-            try
-            {
-                long timestamp = DateUtils.parseDate(source, iso8601Patterns).getTime();
-                idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timestamp));
-            }
-            catch (ParseException e1)
-            {
-                throw new MarshalException(String.format("unable to coerce '%s' to version 1 UUID", source), e1);
-            }
+            idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(DateType.dateStringToTimestamp(source)));
         }
 
         return idBytes;

@@ -26,11 +26,12 @@ options {
 @header {
     package org.apache.cassandra.cql3;
 
-    import java.util.Map;
-    import java.util.HashMap;
-    import java.util.Collections;
-    import java.util.List;
     import java.util.ArrayList;
+    import java.util.Collections;
+    import java.util.HashMap;
+    import java.util.LinkedHashMap;
+    import java.util.List;
+    import java.util.Map;
 
     import org.apache.cassandra.cql3.statements.*;
     import org.apache.cassandra.utils.Pair;
@@ -47,6 +48,11 @@ options {
         String hdr = getErrorHeader(e);
         String msg = getErrorMessage(e, tokenNames);
         recognitionErrors.add(hdr + " " + msg);
+    }
+
+    public void addRecognitionError(String msg)
+    {
+        recognitionErrors.add(msg);
     }
 
     public List<String> getRecognitionErrors()
@@ -156,20 +162,18 @@ selectStatement returns [SelectStatement.RawStatement expr]
         boolean isCount = false;
         ConsistencyLevel cLevel = ConsistencyLevel.ONE;
         int limit = 10000;
-        boolean reversed = false;
-        ColumnIdentifier orderBy = null;
+        Map<ColumnIdentifier, Boolean> orderings = new LinkedHashMap<ColumnIdentifier, Boolean>();
     }
-    : K_SELECT ( sclause=selectClause | (K_COUNT '(' sclause=selectClause ')' { isCount = true; }) )
+    : K_SELECT ( sclause=selectClause | (K_COUNT '(' sclause=selectCountClause ')' { isCount = true; }) )
       K_FROM cf=columnFamilyName
       ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text.toUpperCase()); } )?
       ( K_WHERE wclause=whereClause )?
-      ( K_ORDER K_BY c=cident { orderBy = c; } (K_ASC | K_DESC { reversed = true; })? )?
+      ( K_ORDER K_BY orderByClause[orderings] ( ',' orderByClause[orderings] )* )?
       ( K_LIMIT rows=INTEGER { limit = Integer.parseInt($rows.text); } )?
       {
           SelectStatement.Parameters params = new SelectStatement.Parameters(cLevel,
                                                                              limit,
-                                                                             orderBy,
-                                                                             reversed,
+                                                                             orderings,
                                                                              isCount);
           $expr = new SelectStatement.RawStatement(cf, params, sclause, wclause);
       }
@@ -180,9 +184,22 @@ selectClause returns [List<ColumnIdentifier> expr]
     | '\*'           { $expr = Collections.<ColumnIdentifier>emptyList();}
     ;
 
+selectCountClause returns [List<ColumnIdentifier> expr]
+    : c=selectClause { $expr = c; }
+    | i=INTEGER      { if (!i.getText().equals("1")) addRecognitionError("Only COUNT(1) is supported, got COUNT(" + i.getText() + ")"); $expr = Collections.<ColumnIdentifier>emptyList();}
+    ;
+
 whereClause returns [List<Relation> clause]
     @init{ $clause = new ArrayList<Relation>(); }
     : first=relation { $clause.add(first); } (K_AND next=relation { $clause.add(next); })*
+    ;
+
+orderByClause[Map<ColumnIdentifier, Boolean> orderings]
+    @init{
+        ColumnIdentifier orderBy = null;
+        boolean reversed = false;
+    }
+    : c=cident { orderBy = c; } (K_ASC | K_DESC { reversed = true; })? { orderings.put(c, reversed); }
     ;
 
 /**
@@ -343,6 +360,12 @@ cfamColumns[CreateColumnFamilyStatement.RawStatement expr]
 cfamProperty[CreateColumnFamilyStatement.RawStatement expr]
     : k=property '=' v=propertyValue { $expr.addProperty(k, v); }
     | K_COMPACT K_STORAGE { $expr.setCompactStorage(); }
+    | K_CLUSTERING K_ORDER K_BY '(' cfamOrdering[expr] (',' cfamOrdering[expr])* ')'
+    ;
+
+cfamOrdering[CreateColumnFamilyStatement.RawStatement expr]
+    @init{ boolean reversed=false; }
+    : k=cident (K_ASC | K_DESC { reversed=true;} ) { $expr.setOrdering(k, reversed); }
     ;
 
 /**
@@ -538,6 +561,7 @@ K_ORDER:       O R D E R;
 K_BY:          B Y;
 K_ASC:         A S C;
 K_DESC:        D E S C;
+K_CLUSTERING:  C L U S T E R I N G;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
@@ -604,7 +628,7 @@ QMARK
  * to support multiple (see @lexer::members near the top of the grammar).
  */
 FLOAT
-    : INTEGER '.' INTEGER
+    : INTEGER '.' DIGIT*
     ;
 
 IDENT
