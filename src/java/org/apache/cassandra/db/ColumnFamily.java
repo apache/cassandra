@@ -250,12 +250,12 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
     }
 
     /** the size of user-provided data, not including internal overhead */
-    int dataSize(TypeSizes typeSizes)
+    int dataSize()
     {
-        int size = TypeSizes.NATIVE.sizeof(1L) + TypeSizes.NATIVE.sizeof(1); // tombstone tracking
+        int size = TypeSizes.NATIVE.sizeof(getMarkedForDeleteAt());
         for (IColumn column : columns)
         {
-            size += column.dataSize(typeSizes);
+            size += column.dataSize();
         }
         return size;
     }

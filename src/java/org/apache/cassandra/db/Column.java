@@ -124,7 +124,16 @@ public class Column implements IColumn
         return timestamp;
     }
 
-    public int dataSize(TypeSizes typeSizes)
+    public int dataSize()
+    {
+        return name().remaining() + value.remaining() + TypeSizes.NATIVE.sizeof(timestamp);
+    }
+
+    /*
+     * This returns the size of the column when serialized.
+     * @see com.facebook.infrastructure.db.IColumn#serializedSize()
+    */
+    public int serializedSize(TypeSizes sizes)
     {
         /*
          * Size of a column is =
@@ -136,16 +145,7 @@ public class Column implements IColumn
         */
         int nameSize = name.remaining();
         int valueSize = value.remaining();
-        return typeSizes.sizeof((short) nameSize) + nameSize + 1 + typeSizes.sizeof(timestamp) + typeSizes.sizeof(valueSize) + valueSize;
-    }
-
-    /*
-     * This returns the size of the column when serialized.
-     * @see com.facebook.infrastructure.db.IColumn#serializedSize()
-    */
-    public int serializedSize(TypeSizes typeSizes)
-    {
-        return dataSize(typeSizes);
+        return sizes.sizeof((short) nameSize) + nameSize + 1 + sizes.sizeof(timestamp) + sizes.sizeof(valueSize) + valueSize;
     }
 
     public int serializationFlags()

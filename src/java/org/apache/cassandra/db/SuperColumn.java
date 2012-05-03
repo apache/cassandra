@@ -102,13 +102,11 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
     /**
      * This calculates the exact size of the sub columns on the fly
      */
-    public int dataSize(TypeSizes typeSizes)
+    public int dataSize()
     {
-        int size = 0;
+        int size = TypeSizes.NATIVE.sizeof(getMarkedForDeleteAt());
         for (IColumn subColumn : getSubColumns())
-        {
-            size += subColumn.serializedSize(typeSizes);
-        }
+            size += subColumn.dataSize();
         return size;
     }
 
@@ -116,7 +114,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
      * This returns the size of the super-column when serialized.
      * @see org.apache.cassandra.db.IColumn#serializedSize()
     */
-    public int serializedSize(TypeSizes typeSizes)
+    public int serializedSize(TypeSizes sizes)
     {
         /*
          * We need to keep the way we are calculating the column size in sync with the
@@ -130,11 +128,13 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
          * size(constantSize) of subcolumns.
          */
         int nameSize = name.remaining();
-        int subColumnsSize = dataSize(typeSizes);
-        return typeSizes.sizeof((short) nameSize) + nameSize
-                + typeSizes.sizeof(getLocalDeletionTime())
-                + typeSizes.sizeof(getMarkedForDeleteAt())
-                + typeSizes.sizeof(subColumnsSize) + subColumnsSize;
+        int subColumnsSize = 0;
+        for (IColumn subColumn : getSubColumns())
+            subColumnsSize += subColumn.serializedSize(sizes);
+        return sizes.sizeof((short) nameSize) + nameSize
+                + sizes.sizeof(getLocalDeletionTime())
+                + sizes.sizeof(getMarkedForDeleteAt())
+                + sizes.sizeof(subColumnsSize) + subColumnsSize;
     }
 
     public long timestamp()

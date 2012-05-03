@@ -119,9 +119,7 @@ public class Memtable
 
     public long getLiveSize()
     {
-        // 25% fudge factor on the base throughput * liveRatio calculation.  (Based on observed
-        // pre-slabbing behavior -- not sure what accounts for this. May have changed with introduction of slabbing.)
-        return (long) (currentThroughput.get() * cfs.liveRatio * 1.25);
+        return (long) (currentThroughput.get() * cfs.liveRatio);
     }
 
     public long getSerializedSize()
@@ -225,7 +223,7 @@ public class Memtable
 
     private void resolve(DecoratedKey key, ColumnFamily cf)
     {
-        currentThroughput.addAndGet(cf.dataSize(TypeSizes.NATIVE));
+        currentThroughput.addAndGet(cf.dataSize());
         currentOperations.addAndGet((cf.getColumnCount() == 0)
                                     ? cf.isMarkedForDelete() ? 1 : 0
                                     : cf.getColumnCount());
