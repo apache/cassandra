@@ -21,7 +21,6 @@ package org.apache.cassandra.db.compaction;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
-import java.util.Map.Entry;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
@@ -75,9 +74,7 @@ public class CompactionTask extends AbstractCompactionTask
         if (!isCompactionInteresting(toCompact))
             return 0;
 
-        File compactionFileLocation = cfs.directories.getDirectoryForNewSSTables(cfs.getExpectedCompactedFileSize(toCompact),
-                                                                                 ensureFreeSpace());
-
+        File compactionFileLocation = cfs.directories.getDirectoryForNewSSTables(cfs.getExpectedCompactedFileSize(toCompact));
         if (compactionFileLocation == null && partialCompactionsAcceptable())
         {
             // If the compaction file path is null that means we have no space left for this compaction.
@@ -88,17 +85,15 @@ public class CompactionTask extends AbstractCompactionTask
                 // Note that we have removed files that are still marked as compacting.
                 // This suboptimal but ok since the caller will unmark all the sstables at the end.
                 toCompact.remove(cfs.getMaxSizeFile(toCompact));
-                compactionFileLocation = cfs.directories.getDirectoryForNewSSTables(cfs.getExpectedCompactedFileSize(toCompact),
-                                                                                    ensureFreeSpace());
+                compactionFileLocation = cfs.directories.getDirectoryForNewSSTables(cfs.getExpectedCompactedFileSize(toCompact));
             }
         }
 
         if (compactionFileLocation == null)
         {
-            logger.warn("insufficient space to compact even the two smallest files, aborting");
+            logger.warn("insufficient space to compact; aborting compaction");
             return 0;
         }
-        assert compactionFileLocation != null;
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-" + "compact-" + cfs.columnFamily);
@@ -204,10 +199,10 @@ public class CompactionTask extends AbstractCompactionTask
 
         cfs.replaceCompactedSSTables(toCompact, sstables, compactionType);
         // TODO: this doesn't belong here, it should be part of the reader to load when the tracker is wired up
-        for (Entry<SSTableReader, Map<DecoratedKey, Long>> ssTableReaderMapEntry : cachedKeyMap.entrySet())
+        for (Map.Entry<SSTableReader, Map<DecoratedKey, Long>> ssTableReaderMapEntry : cachedKeyMap.entrySet())
         {
             SSTableReader key = ssTableReaderMapEntry.getKey();
-            for (Entry<DecoratedKey, Long> entry : ssTableReaderMapEntry.getValue().entrySet())
+            for (Map.Entry<DecoratedKey, Long> entry : ssTableReaderMapEntry.getValue().entrySet())
                key.cacheKey(entry.getKey(), entry.getValue());
         }
 
@@ -230,11 +225,6 @@ public class CompactionTask extends AbstractCompactionTask
     }
 
     protected boolean partialCompactionsAcceptable()
-    {
-        return !isUserDefined;
-    }
-
-    protected boolean ensureFreeSpace()
     {
         return !isUserDefined;
     }
