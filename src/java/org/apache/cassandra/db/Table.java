@@ -556,17 +556,15 @@ public class Table
 
     public String getDataFileLocation(long expectedSize)
     {
-        return getDataFileLocation(expectedSize, true);
-    }
+        String path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize);
 
-    public String getDataFileLocation(long expectedSize, boolean ensureFreeSpace)
-    {
-        String path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize, ensureFreeSpace);
         // Requesting GC has a chance to free space only if we're using mmap and a non SUN jvm
         if (path == null
-         && (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap || DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
-         && !MmappedSegmentedFile.isCleanerAvailable())
+            && (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap || DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
+            && !MmappedSegmentedFile.isCleanerAvailable())
         {
+            logger.info("Forcing GC to free up disk space.  Upgrade to the Oracle JVM to avoid this");
+
             StorageService.instance.requestGC();
             // retry after GCing has forced unmap of compacted SSTables so they can be deleted
             // Note: GCInspector will do this already, but only sun JVM supports GCInspector so far
@@ -579,8 +577,9 @@ public class Table
             {
                 throw new AssertionError(e);
             }
-            path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize, ensureFreeSpace);
+            path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize);
         }
+
         return path;
     }
 

@@ -12,6 +12,8 @@
  * fix stress tool that hangs forever on timeout or error (CASSANDRA-4128)
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
  * stress tool to return appropriate exit code on failure (CASSANDRA-4188)
+ * fix compaction NPE when out of disk space and assertions disabled
+   (CASSANDRA-3985)
 
 
 1.0.9
@@ -27,8 +29,6 @@
  * don't change manifest level for cleanup, scrub, and upgradesstables
    operations under LeveledCompactionStrategy (CASSANDRA-3989, 4112)
  * fix race leading to super columns assertion failure (CASSANDRA-3957)
- * ensure that directory is selected for compaction for user-defined
-   tasks and upgradesstables (CASSANDRA-3985)
  * fix NPE on invalid CQL delete command (CASSANDRA-3755)
  * allow custom types in CLI's assume command (CASSANDRA-4081)
  * fix totalBytes count for parallel compactions (CASSANDRA-3758)

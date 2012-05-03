@@ -77,7 +77,7 @@ public class CompactionTask extends AbstractCompactionTask
             return 0;
 
         if (compactionFileLocation == null)
-            compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact), ensureFreeSpace());
+            compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact));
 
         if (compactionFileLocation == null && partialCompactionsAcceptable())
         {
@@ -89,17 +89,14 @@ public class CompactionTask extends AbstractCompactionTask
                 // Note that we have removed files that are still marked as compacting.
                 // This suboptimal but ok since the caller will unmark all the sstables at the end.
                 toCompact.remove(cfs.getMaxSizeFile(toCompact));
-                compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact),
-                                                                       ensureFreeSpace());
-            }
-
-            if (compactionFileLocation == null)
-            {
-                logger.warn("insufficient space to compact even the two smallest files, aborting");
-                return 0;
+                compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact));
             }
         }
-        assert compactionFileLocation != null;
+        if (compactionFileLocation == null)
+        {
+            logger.warn("insufficient space to compact; aborting compaction");
+            return 0;
+        }
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-" + "compact-" + cfs.columnFamily);
@@ -227,11 +224,6 @@ public class CompactionTask extends AbstractCompactionTask
     }
 
     protected boolean partialCompactionsAcceptable()
-    {
-        return !isUserDefined;
-    }
-
-    protected boolean ensureFreeSpace()
     {
         return !isUserDefined;
     }

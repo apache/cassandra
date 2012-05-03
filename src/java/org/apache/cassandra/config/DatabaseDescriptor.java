@@ -757,23 +757,19 @@ public class DatabaseDescriptor
         return Collections.unmodifiableSet(new HashSet(seedProvider.getSeeds()));
     }
 
-    public synchronized static String getDataFileLocationForTable(String table, long expectedCompactedFileSize)
-    {
-        return getDataFileLocationForTable(table, expectedCompactedFileSize, true);
-    }
-
     /*
      * Loop through all the disks to see which disk has the max free space
      * return the disk with max free space for compactions. If the size of the expected
      * compacted file is greater than the max disk space available return null, we cannot
      * do compaction in this case.
      *
+     * Should only be called by Table.getDataFileLocation, which knows how to free up extra space under
+     * some contitions to retry.  (Left public because some test methods cheat and call this directly.)
+     *
      * @param table name of the table.
      * @param expectedCompactedSize expected file size in bytes.
-     * @param ensureFreeSpace Flag if the function should ensure enough free space exists for the expected file size.
-     *                        If False and there is not enough free space a warning is logged, and the dir with the most space is returned.
      */
-    public synchronized static String getDataFileLocationForTable(String table, long expectedCompactedFileSize, boolean ensureFreeSpace)
+    public synchronized static String getDataFileLocationForTable(String table, long expectedCompactedFileSize)
     {
         long maxFreeDisk = 0;
         int maxDiskIndex = 0;
@@ -791,22 +787,13 @@ public class DatabaseDescriptor
             }
         }
 
-        logger.debug("expected data files size is {}; largest free partition has {} bytes free",
-                     expectedCompactedFileSize,
-                     maxFreeDisk);
-
         // Load factor of 0.9 we do not want to use the entire disk that is too risky.
         maxFreeDisk = (long) (0.9 * maxFreeDisk);
-        if (!ensureFreeSpace || expectedCompactedFileSize < maxFreeDisk)
-        {
-            dataFileDirectory = dataDirectoryForTable[maxDiskIndex];
+        logger.debug("expected data files size is {}; largest free partition has {} bytes usable",
+                     expectedCompactedFileSize, maxFreeDisk);
 
-            if (expectedCompactedFileSize >= maxFreeDisk)
-                logger.warn(String.format("Data file location %s only has %d free, expected size is %d",
-                                          dataFileDirectory,
-                                          maxFreeDisk,
-                                          expectedCompactedFileSize));
-        }
+        if (expectedCompactedFileSize < maxFreeDisk)
+            dataFileDirectory = dataDirectoryForTable[maxDiskIndex];
 
         return dataFileDirectory;
     }
