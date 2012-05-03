@@ -234,10 +234,9 @@ public class UpdateStatement extends ModificationStatement
         }
     }
 
-    public ParsedStatement.Prepared prepare() throws InvalidRequestException
+    public ParsedStatement.Prepared prepare(AbstractType[] boundTypes) throws InvalidRequestException
     {
         boolean hasCommutativeOperation = false;
-        AbstractType[] types = new AbstractType[getBoundsTerms()];
 
         if (columns != null)
         {
@@ -275,7 +274,7 @@ public class UpdateStatement extends ModificationStatement
 
                 Term value = columnValues.get(i);
                 if (value.isBindMarker())
-                    types[value.bindIndex] = name.type;
+                    boundTypes[value.bindIndex] = name.type;
 
                 switch (name.kind)
                 {
@@ -314,15 +313,21 @@ public class UpdateStatement extends ModificationStatement
                             throw new InvalidRequestException(String.format("Multiple definition found for column %s", name));
                         Operation op = entry.getValue();
                         if (op.value.isBindMarker())
-                            types[op.value.bindIndex] = name.type;
+                            boundTypes[op.value.bindIndex] = name.type;
                         processedColumns.put(name.name, op);
                         break;
                 }
             }
-            processKeys(cfDef, whereClause, processedKeys, types);
+            processKeys(cfDef, whereClause, processedKeys, boundTypes);
         }
 
-        return new ParsedStatement.Prepared(this, Arrays.<AbstractType<?>>asList(types));
+        return new ParsedStatement.Prepared(this, Arrays.<AbstractType<?>>asList(boundTypes));
+    }
+
+    public ParsedStatement.Prepared prepare() throws InvalidRequestException
+    {
+        AbstractType[] types = new AbstractType[getBoundsTerms()];
+        return prepare(types);
     }
 
     // Reused by DeleteStatement

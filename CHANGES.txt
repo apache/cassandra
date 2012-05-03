@@ -27,6 +27,7 @@
  * (cql3) Add ReversedType support (CASSANDRA-4004)
  * (cql3) Add timeuuid type (CASSANDRA-4194)
  * (cql3) Minor fixes (CASSANDRA-4185)
+ * (cql3) Fix prepared statement in BATCH (CASSANDRA-4202)
 Merged from 1.0:
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)

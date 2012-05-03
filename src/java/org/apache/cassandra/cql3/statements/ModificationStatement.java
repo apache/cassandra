@@ -25,6 +25,7 @@ import java.util.concurrent.TimeoutException;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.ConsistencyLevel;
@@ -125,4 +126,6 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
      * @throws InvalidRequestException on invalid requests
      */
     public abstract List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables) throws InvalidRequestException;
+
+    public abstract ParsedStatement.Prepared prepare(AbstractType[] boundTypes) throws InvalidRequestException;
 }
