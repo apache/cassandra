@@ -256,7 +256,10 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
 
     int size(DBTypeSizes typeSizes)
     {
-        int size = 0;
+        // 8 bytes for object itself,
+        // 8 bytes for cmf reference, and 24 bytes for
+        // the minimal column storage in AbstractColumnContainer.
+        int size = 40;
         for (IColumn column : columns)
         {
             size += column.size(typeSizes);
