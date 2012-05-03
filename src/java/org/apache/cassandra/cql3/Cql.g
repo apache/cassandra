@@ -433,8 +433,9 @@ truncateStatement returns [TruncateStatement stmt]
 
 // Column Identifiers
 cident returns [ColumnIdentifier id]
-    : t=IDENT       { $id = new ColumnIdentifier($t.text, false); }
-    | t=QUOTED_NAME { $id = new ColumnIdentifier($t.text, true); }
+    : t=IDENT              { $id = new ColumnIdentifier($t.text, false); }
+    | t=QUOTED_NAME        { $id = new ColumnIdentifier($t.text, true); }
+    | k=unreserved_keyword { $id = new ColumnIdentifier(k, true); }
     ;
 
 // Keyspace & Column family names
@@ -449,8 +450,9 @@ columnFamilyName returns [CFName name]
     ;
 
 cfOrKsName[CFName name, boolean isKs]
-    : t=IDENT        { if (isKs) $name.setKeyspace($t.text, false); else $name.setColumnFamily($t.text, false); }
-    | t=QUOTED_NAME  { if (isKs) $name.setKeyspace($t.text, true); else $name.setColumnFamily($t.text, true); }
+    : t=IDENT              { if (isKs) $name.setKeyspace($t.text, false); else $name.setColumnFamily($t.text, false); }
+    | t=QUOTED_NAME        { if (isKs) $name.setKeyspace($t.text, true); else $name.setColumnFamily($t.text, true); }
+    | k=unreserved_keyword { if (isKs) $name.setKeyspace(k, false); else $name.setColumnFamily(k, false); }
     ;
 
 cidentList returns [List<ColumnIdentifier> items]
@@ -504,7 +506,41 @@ relation returns [Relation rel]
     ;
 
 comparatorType returns [String str]
-    : c=(IDENT | STRING_LITERAL | K_TIMESTAMP) { $str = $c.text; }
+    : c=native_type    { $str=c; }
+    | s=STRING_LITERAL { $str = $s.text; }
+    ;
+
+native_type returns [String str]
+    : c=( K_ASCII
+        | K_BIGINT
+        | K_BLOB
+        | K_BOOLEAN
+        | K_COUNTER
+        | K_DECIMAL
+        | K_DOUBLE
+        | K_FLOAT
+        | K_INT
+        | K_TEXT
+        | K_TIMESTAMP
+        | K_UUID
+        | K_VARCHAR
+        | K_VARINT
+        | K_TIMEUUID
+      ) { return $c.text; }
+    ;
+
+unreserved_keyword returns [String str]
+    : k=( K_KEY
+        | K_CONSISTENCY
+        | K_LEVEL
+        | K_COUNT
+        | K_TTL
+        | K_COMPACT
+        | K_STORAGE
+        | K_TYPE
+        | K_VALUES
+        ) { $str = $k.text; }
+    | t=native_type { $str = t; }
     ;
 
 
@@ -562,6 +598,21 @@ K_BY:          B Y;
 K_ASC:         A S C;
 K_DESC:        D E S C;
 K_CLUSTERING:  C L U S T E R I N G;
+
+K_ASCII:       A S C I I;
+K_BIGINT:      B I G I N T;
+K_BLOB:        B L O B;
+K_BOOLEAN:     B O O L E A N;
+K_COUNTER:     C O U N T E R;
+K_DECIMAL:     D E C I M A L;
+K_DOUBLE:      D O U B L E;
+K_FLOAT:       F L O A T;
+K_INT:         I N T;
+K_TEXT:        T E X T;
+K_UUID:        U U I D;
+K_VARCHAR:     V A R C H A R;
+K_VARINT:      V A R I N T;
+K_TIMEUUID:    T I M E U U I D;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

@@ -9,6 +9,8 @@
 
 
 1.1.1-dev
+ * include tombstone size in ColumnFamily.size, which can prevent OOM
+   during sudden mass delete operations (CASSANDRA-3741)
  * Open 1 sstableScanner per level for leveled compaction (CASSANDRA-4142)
  * Optimize reads when row deletion timestamps allow us to restrict
    the set of sstables we check (CASSANDRA-4116)
@@ -38,6 +40,9 @@
  * (cql3) Add timeuuid type (CASSANDRA-4194)
  * (cql3) Minor fixes (CASSANDRA-4185)
  * (cql3) Fix prepared statement in BATCH (CASSANDRA-4202)
+ * (cql3) Reduce the list of reserved keywords (CASSANDRA-4186)
+ * (cql3) Move max/min compaction thresholds to compaction strategy options
+   (CASSANDRA-4187)
 Merged from 1.0:
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)
