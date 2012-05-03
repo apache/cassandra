@@ -960,7 +960,7 @@ public class SelectStatement implements CQLStatement
 
             if (!stmt.parameters.orderings.isEmpty())
             {
-                boolean[] reversedMap = new boolean[cfDef.columns.size()];
+                Boolean[] reversedMap = new Boolean[cfDef.columns.size()];
                 int i = 0;
                 for (Map.Entry<ColumnIdentifier, Boolean> entry : stmt.parameters.orderings.entrySet())
                 {
@@ -977,14 +977,17 @@ public class SelectStatement implements CQLStatement
                     if (i++ != name.position)
                         throw new InvalidRequestException(String.format("Order by currently only support the ordering of columns following their declared order in the PRIMARY KEY"));
 
-                    if (reversed != isReversedType(name))
-                        reversedMap[name.position] = true;
+                    reversedMap[name.position] = (reversed != isReversedType(name));
                 }
 
-                // Check that all boolean in reversedMap agrees
+                // Check that all boolean in reversedMap, if set, agrees
                 Boolean isReversed = null;
-                for (boolean b : reversedMap)
+                for (Boolean b : reversedMap)
                 {
+                    // Column on which order is specified can be in any order
+                    if (b == null)
+                        continue;
+
                     if (isReversed == null)
                     {
                         isReversed = b;
@@ -993,6 +996,7 @@ public class SelectStatement implements CQLStatement
                     if (isReversed != b)
                         throw new InvalidRequestException(String.format("Unsupported order by relation"));
                 }
+                assert isReversed != null;
                 stmt.isReversed = isReversed;
             }
 
