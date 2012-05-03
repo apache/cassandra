@@ -37,6 +37,11 @@ public class StressAction extends Thread
 
     private volatile boolean stop = false;
 
+    public static final int SUCCESS = 0;
+    public static final int FAILURE = 1;
+
+    private volatile int returnCode = -1;
+
     public StressAction(Session session, PrintStream out)
     {
         client = session;
@@ -137,11 +142,28 @@ public class StressAction extends Thread
             }
         }
 
+        // if any consumer failed, set the return code to failure.
+        returnCode = SUCCESS;
         if (producer.isAlive())
+        {
             producer.interrupt(); // if producer is still alive it means that we had errors in the consumers
+            returnCode = FAILURE;
+        }
+        for (Consumer consumer : consumers)
+            if (consumer.getReturnCode() == FAILURE)
+                returnCode = FAILURE;
 
-        // marking an end of the output to the client
-        output.println("END");
+        if (returnCode == SUCCESS)
+            // marking an end of the output to the client
+            output.println("END");
+        else
+            output.println("FAILURE");
+
+    }
+
+    public int getReturnCode()
+    {
+        return returnCode;
     }
 
     /**
@@ -184,6 +206,7 @@ public class StressAction extends Thread
     {
         private final int items;
         private volatile boolean stop = false;
+        private volatile int returnCode = StressAction.SUCCESS;
 
         public Consumer(int toConsume)
         {
@@ -208,11 +231,13 @@ public class StressAction extends Thread
                     if (output == null)
                     {
                         System.err.println(e.getMessage());
+                        returnCode = StressAction.FAILURE;
                         System.exit(-1);
                     }
 
 
                     output.println(e.getMessage());
+                    returnCode = StressAction.FAILURE;
                     break;
                 }
             }
@@ -221,6 +246,11 @@ public class StressAction extends Thread
         public void stopConsume()
         {
             stop = true;
+        }
+
+        public int getReturnCode()
+        {
+            return returnCode;
         }
     }
 

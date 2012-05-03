@@ -11,6 +11,7 @@
  * Avoids possible deadlock during bootstrap (CASSANDRA-4159)
  * fix stress tool that hangs forever on timeout or error (CASSANDRA-4128)
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
+ * stress tool to return appropriate exit code on failure (CASSANDRA-4188)
 
 
 1.0.9
