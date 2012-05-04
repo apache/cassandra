@@ -135,20 +135,6 @@ public class Memory
         peer = 0;
     }
 
-    @Override
-    protected void finalize() throws Throwable
-    {
-        try
-        {
-            if (peer != 0)
-                free();
-        }
-        finally
-        {
-            super.finalize();
-        }
-    }
-
     public long size()
     {
         return size;

@@ -9,6 +9,7 @@
 
 
 1.1.1-dev
+ * remove [Freeable]Memory finalizers (CASSANDRA-4222)
  * include tombstone size in ColumnFamily.size, which can prevent OOM
    during sudden mass delete operations (CASSANDRA-3741)
  * Open 1 sstableScanner per level for leveled compaction (CASSANDRA-4142)
