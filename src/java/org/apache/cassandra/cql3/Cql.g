@@ -533,6 +533,7 @@ native_type returns [String str]
 unreserved_keyword returns [String str]
     : k=( K_KEY
         | K_CONSISTENCY
+        | K_CLUSTERING
         | K_LEVEL
         | K_COUNT
         | K_TTL
