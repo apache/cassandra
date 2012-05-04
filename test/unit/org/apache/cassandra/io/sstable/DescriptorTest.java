@@ -41,12 +41,10 @@ public class DescriptorTest
         // letter only
         Descriptor desc = Descriptor.fromFilename("Keyspace1-Standard1-h-1-Data.db");
         assert "h".equals(desc.version);
-        assert desc.tracksMaxTimestamp;
 
         // multiple letters
         desc = Descriptor.fromFilename("Keyspace1-Standard1-ha-1-Data.db");
         assert "ha".equals(desc.version);
-        assert desc.tracksMaxTimestamp;
 
         // hypothetical two-letter g version
         desc = Descriptor.fromFilename("Keyspace1-Standard1-gz-1-Data.db");
