@@ -227,7 +227,7 @@ public class NodeCmd
         try
         {
             ownerships = probe.effectiveOwnership(keyspace);
-            outs.printf(format, "Address", "DC", "Rack", "Status", "State", "Load", "Effective-Owership", "Token");
+            outs.printf(format, "Address", "DC", "Rack", "Status", "State", "Load", "Effective-Ownership", "Token");
         }
         catch (ConfigurationException ex)
         {
