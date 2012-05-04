@@ -189,7 +189,11 @@ public class RangeStreamer implements IEndpointStateChangeSubscriber, IFailureDe
             for (InetAddress address : rangesWithSources.get(range))
             {
                 if (address.equals(FBUtilities.getBroadcastAddress()))
+                {
+                    // If localhost is a source, we have found one, but we don't add it to the map to avoid streaming locally
+                    foundSource = true;
                     continue;
+                }
 
                 for (ISourceFilter filter : sourceFilters)
                 {
