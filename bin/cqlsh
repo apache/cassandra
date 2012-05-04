@@ -1229,7 +1229,7 @@ class Shell(cmd.Cmd):
 
     def describe_columnfamily(self, cfname):
         print
-        self.print_recreate_columnfamily(ksname, cfname, sys.stdout)
+        self.print_recreate_columnfamily(self.current_keyspace, cfname, sys.stdout)
         print
 
     def describe_columnfamilies(self, ksname):
