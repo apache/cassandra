@@ -249,7 +249,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         {
             double score = entry.getValue().mean() / maxLatency;
             if (penalties.containsKey(entry.getKey()))
-                score += penalties.get(entry.getKey()) / maxPenalty;
+                score += penalties.get(entry.getKey()) / ((double) maxPenalty);
             else
                 score += 1; // maxPenalty / maxPenalty
             score += StorageService.instance.getSeverity(entry.getKey());
