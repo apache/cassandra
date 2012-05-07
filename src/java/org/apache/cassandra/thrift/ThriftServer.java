@@ -23,9 +23,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.service.AbstractCassandraDaemon;
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.thrift.server.TNonblockingServer;
 import org.apache.thrift.server.TThreadPoolServer;
 import org.slf4j.Logger;
@@ -34,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.ClientState;
 import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.TFramedTransport;
@@ -42,41 +46,34 @@ import org.apache.thrift.transport.TServerTransport;
 import org.apache.thrift.transport.TTransportException;
 import org.apache.thrift.transport.TTransportFactory;
 
-/**
- * This class supports two methods for creating a Cassandra node daemon,
- * invoking the class's main method, and using the jsvc wrapper from
- * commons-daemon, (for more information on using this class with the
- * jsvc wrapper, see the
- * <a href="http://commons.apache.org/daemon/jsvc.html">Commons Daemon</a>
- * documentation).
- */
-
-public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassandraDaemon
+public class ThriftServer implements CassandraDaemon.Server
 {
-    protected static CassandraDaemon instance;
-
-    static
-    {
-        AbstractCassandraDaemon.initLog4j();
-    }
-
-    private static final Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
+    private static final Logger logger = LoggerFactory.getLogger(ThriftServer.class);
     private final static String SYNC = "sync";
     private final static String ASYNC = "async";
     private final static String HSHA = "hsha";
     public final static List<String> rpc_server_types = Arrays.asList(SYNC, ASYNC, HSHA);
-    private ThriftServer server;
 
-    protected void startServer()
+    private final InetAddress address;
+    private final int port;
+    private volatile ThriftServerThread server;
+
+    public ThriftServer(InetAddress address, int port)
+    {
+        this.address = address;
+        this.port = port;
+    }
+
+    public void start()
     {
         if (server == null)
         {
-            server = new ThriftServer(listenAddr, listenPort);
+            server = new ThriftServerThread(address, port);
             server.start();
         }
     }
 
-    protected void stopServer()
+    public void stop()
     {
         if (server != null)
         {
@@ -93,27 +90,20 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
         }
     }
 
-    public static void stop(String[] args)
+    public boolean isRunning()
     {
-        instance.stopServer();
-        instance.deactivate();
-    }
-
-    public static void main(String[] args)
-    {
-        instance = new CassandraDaemon();
-        instance.activate();
+        return server != null;
     }
 
     /**
      * Simple class to run the thrift connection accepting code in separate
      * thread of control.
      */
-    private static class ThriftServer extends Thread
+    private static class ThriftServerThread extends Thread
     {
         private TServer serverEngine;
 
-        public ThriftServer(InetAddress listenAddr, int listenPort)
+        public ThriftServerThread(InetAddress listenAddr, int listenPort)
         {
             // now we start listening for clients
             final CassandraServer cassandraServer = new CassandraServer();
@@ -216,6 +206,31 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
         {
             logger.info("Stop listening to thrift clients");
             serverEngine.stop();
+        }
+    }
+
+    /**
+     * A subclass of Java's ThreadPoolExecutor which implements Jetty's ThreadPool
+     * interface (for integration with Avro), and performs ClientState cleanup.
+     *
+     * (Note that the tasks being executed perform their own while-command-process
+     * loop until the client disconnects.)
+     */
+    private static class CleaningThreadPool extends ThreadPoolExecutor
+    {
+        private final ThreadLocal<ClientState> state;
+        public CleaningThreadPool(ThreadLocal<ClientState> state, int minWorkerThread, int maxWorkerThreads)
+        {
+            super(minWorkerThread, maxWorkerThreads, 60, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new NamedThreadFactory("Thrift"));
+            this.state = state;
+        }
+
+        @Override
+        protected void afterExecute(Runnable r, Throwable t)
+        {
+            super.afterExecute(r, t);
+            DebuggableThreadPoolExecutor.logExceptionsAfterExecute(r, t);
+            state.get().logout();
         }
     }
 }

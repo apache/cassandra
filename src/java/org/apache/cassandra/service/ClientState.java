@@ -206,6 +206,11 @@ public class ClientState
         hasAccess(user, perms, perm, resource);
     }
 
+    public boolean isLogged()
+    {
+        return user != null;
+    }
+
     private void validateLogin() throws InvalidRequestException
     {
         if (user == null)

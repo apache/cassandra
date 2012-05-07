@@ -648,7 +648,7 @@
 
     <target name="test-run" depends="build"
             description="Run in test mode.  Not for production use!">
-      <java classname="org.apache.cassandra.thrift.CassandraDaemon" fork="true">
+      <java classname="org.apache.cassandra.service.CassandraDaemon" fork="true">
         <classpath>
           <path refid="cassandra.classpath"/>  
           <pathelement location="${test.conf}"/>

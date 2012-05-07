@@ -44,9 +44,9 @@ public abstract class ParsedStatement
     public static class Prepared
     {
         public final CQLStatement statement;
-        public final List<CFDefinition.Name> boundNames;
+        public final List<ColumnSpecification> boundNames;
 
-        public Prepared(CQLStatement statement, List<CFDefinition.Name> boundNames)
+        public Prepared(CQLStatement statement, List<ColumnSpecification> boundNames)
         {
             this.statement = statement;
             this.boundNames = boundNames;
@@ -54,7 +54,7 @@ public abstract class ParsedStatement
 
         public Prepared(CQLStatement statement)
         {
-            this(statement, Collections.<CFDefinition.Name>emptyList());
+            this(statement, Collections.<ColumnSpecification>emptyList());
         }
     }
 }

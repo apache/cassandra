@@ -148,7 +148,7 @@ launch_service()
 args=`getopt vfhp:bD: "$@"`
 eval set -- "$args"
 
-classname="org.apache.cassandra.thrift.CassandraDaemon"
+classname="org.apache.cassandra.service.CassandraDaemon"
 
 while true; do
     case "$1" in

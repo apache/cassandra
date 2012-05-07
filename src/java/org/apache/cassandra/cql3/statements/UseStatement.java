@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -48,9 +49,9 @@ public class UseStatement extends ParsedStatement implements CQLStatement
     {
     }
 
-    public CqlResult execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException
+    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException
     {
         state.setKeyspace(keyspace);
-        return null;
+        return new ResultMessage.SetKeyspace(keyspace);
     }
 }

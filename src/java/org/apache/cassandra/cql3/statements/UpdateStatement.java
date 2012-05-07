@@ -320,7 +320,7 @@ public class UpdateStatement extends ModificationStatement
             processKeys(cfDef, whereClause, processedKeys, boundNames);
         }
 
-        return new ParsedStatement.Prepared(this, Arrays.<CFDefinition.Name>asList(boundNames));
+        return new ParsedStatement.Prepared(this, Arrays.<ColumnSpecification>asList(boundNames));
     }
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException

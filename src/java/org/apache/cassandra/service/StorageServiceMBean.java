@@ -370,6 +370,10 @@ public interface StorageServiceMBean
     // to determine if thrift is running
     public boolean isRPCServerRunning();
 
+    public void stopNativeTransport();
+    public void startNativeTransport();
+    public boolean isNativeTransportRunning();
+
     // allows a node that have been started without joining the ring to join it
     public void joinRing() throws IOException, org.apache.cassandra.config.ConfigurationException;
     public boolean isJoined();

@@ -153,7 +153,7 @@ public class BatchStatement extends ModificationStatement
         {
             statement.prepare(boundNames);
         }
-        return new ParsedStatement.Prepared(this, Arrays.<CFDefinition.Name>asList(boundNames));
+        return new ParsedStatement.Prepared(this, Arrays.<ColumnSpecification>asList(boundNames));
     }
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException

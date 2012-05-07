@@ -169,7 +169,7 @@ public class DeleteStatement extends ModificationStatement
         CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
         cfDef = metadata.getCfDef();
         UpdateStatement.processKeys(cfDef, whereClause, processedKeys, boundNames);
-        return new ParsedStatement.Prepared(this, Arrays.<CFDefinition.Name>asList(boundNames));
+        return new ParsedStatement.Prepared(this, Arrays.<ColumnSpecification>asList(boundNames));
     }
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException

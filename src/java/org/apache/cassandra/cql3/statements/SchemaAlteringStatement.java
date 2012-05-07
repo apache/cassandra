@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.db.migration.*;
 import org.apache.cassandra.concurrent.Stage;
@@ -91,7 +92,7 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
         validateSchemaAgreement();
     }
 
-    public CqlResult execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, SchemaDisagreementException
+    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, SchemaDisagreementException
     {
         try
         {

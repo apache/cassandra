@@ -32,7 +32,6 @@ import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql.CQLStatement;
@@ -1234,20 +1233,11 @@ public class CassandraServer implements Cassandra.Iface
 
         String queryString = uncompress(query,compression);
 
-        try
-        {
-            ClientState cState = state();
-            if (cState.getCQLVersion().major == 2)
-                return QueryProcessor.process(queryString, state());
-            else
-                return org.apache.cassandra.cql3.QueryProcessor.process(queryString, cState);
-        }
-        catch (RecognitionException e)
-        {
-            InvalidRequestException ire = new InvalidRequestException("Invalid or malformed CQL query string");
-            ire.initCause(e);
-            throw ire;
-        }
+        ClientState cState = state();
+        if (cState.getCQLVersion().major == 2)
+            return QueryProcessor.process(queryString, state());
+        else
+            return org.apache.cassandra.cql3.QueryProcessor.process(queryString, cState).toThriftResult();
     }
 
     public CqlPreparedResult prepare_cql_query(ByteBuffer query, Compression compression)
@@ -1257,20 +1247,11 @@ public class CassandraServer implements Cassandra.Iface
 
         String queryString = uncompress(query,compression);
 
-        try
-        {
-            ClientState cState = state();
-            if (cState.getCQLVersion().major == 2)
-                return QueryProcessor.prepare(queryString, cState);
-            else
-                return org.apache.cassandra.cql3.QueryProcessor.prepare(queryString, cState);
-        }
-        catch (RecognitionException e)
-        {
-            InvalidRequestException ire = new InvalidRequestException("Invalid or malformed CQL query string");
-            ire.initCause(e);
-            throw ire;
-        }
+        ClientState cState = state();
+        if (cState.getCQLVersion().major == 2)
+            return QueryProcessor.prepare(queryString, cState);
+        else
+            return org.apache.cassandra.cql3.QueryProcessor.prepare(queryString, cState).toThriftPreparedResult();
     }
 
     public CqlResult execute_prepared_cql_query(int itemId, List<ByteBuffer> bindVariables)
@@ -1297,7 +1278,7 @@ public class CassandraServer implements Cassandra.Iface
                 throw new InvalidRequestException(String.format("Prepared query with ID %d not found", itemId));
             logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, statement.getBoundsTerms());
 
-            return org.apache.cassandra.cql3.QueryProcessor.processPrepared(statement, cState, bindVariables);
+            return org.apache.cassandra.cql3.QueryProcessor.processPrepared(statement, cState, bindVariables).toThriftResult();
         }
     }
 

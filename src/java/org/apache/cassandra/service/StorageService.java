@@ -100,8 +100,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * This pool is used by tasks that can have longer execution times, and usually are non periodic.
      */
     public static final DebuggableScheduledThreadPoolExecutor tasks = new DebuggableScheduledThreadPoolExecutor("NonPeriodicTasks");
-
-    /**
+/**
      * tasks that do not need to be waited for on shutdown/drain
      */
     public static final DebuggableScheduledThreadPoolExecutor optionalTasks = new DebuggableScheduledThreadPoolExecutor("OptionalTasks");
@@ -262,18 +261,18 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         if (daemon == null)
         {
-            throw new IllegalStateException("No configured RPC daemon");
+            throw new IllegalStateException("No configured daemon");
         }
-        daemon.startRPCServer();
+        daemon.thriftServer.start();
     }
 
     public void stopRPCServer()
     {
         if (daemon == null)
         {
-            throw new IllegalStateException("No configured RPC daemon");
+            throw new IllegalStateException("No configured daemon");
         }
-        daemon.stopRPCServer();
+        daemon.thriftServer.stop();
     }
 
     public boolean isRPCServerRunning()
@@ -282,7 +281,34 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             return false;
         }
-        return daemon.isRPCServerRunning();
+        return daemon.thriftServer.isRunning();
+    }
+
+    public void startNativeTransport()
+    {
+        if (daemon == null)
+        {
+            throw new IllegalStateException("No configured daemon");
+        }
+        daemon.nativeServer.start();
+    }
+
+    public void stopNativeTransport()
+    {
+        if (daemon == null)
+        {
+            throw new IllegalStateException("No configured  daemon");
+        }
+        daemon.nativeServer.stop();
+    }
+
+    public boolean isNativeTransportRunning()
+    {
+        if (daemon == null)
+        {
+            return false;
+        }
+        return daemon.nativeServer.isRunning();
     }
 
     public void stopClient()
@@ -3064,7 +3090,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public int getExceptionCount()
     {
-        return AbstractCassandraDaemon.exceptions.get();
+        return CassandraDaemon.exceptions.get();
     }
 
     public void rescheduleFailedDeletions()

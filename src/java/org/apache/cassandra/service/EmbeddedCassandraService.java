@@ -19,7 +19,7 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 
-import org.apache.cassandra.thrift.CassandraDaemon;
+import org.apache.cassandra.service.CassandraDaemon;
 
 /**
  * An embedded, in-memory cassandra storage service that listens

@@ -282,10 +282,6 @@ public final class CFMetaData
         {
             throw new RuntimeException(e);
         }
-        catch (RecognitionException e)
-        {
-            throw new RuntimeException(e);
-        }
         catch (ConfigurationException e)
         {
             throw new RuntimeException(e);
