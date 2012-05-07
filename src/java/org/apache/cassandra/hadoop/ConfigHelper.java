@@ -1,4 +1,6 @@
+package org.apache.cassandra.hadoop;
 /*
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,15 +9,16 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
  */
-package org.apache.cassandra.hadoop;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -291,22 +294,32 @@ public class ConfigHelper
 
     public static String getInputKeyspaceUserName(Configuration conf)
     {
-        return conf.get(INPUT_KEYSPACE_USERNAME_CONFIG);
+    	return conf.get(INPUT_KEYSPACE_USERNAME_CONFIG);
     }
 
     public static String getInputKeyspacePassword(Configuration conf)
     {
-        return conf.get(INPUT_KEYSPACE_PASSWD_CONFIG);
+    	return conf.get(INPUT_KEYSPACE_PASSWD_CONFIG);
+    }
+
+    public static void setOutputKeyspaceUserName(Configuration conf, String username)
+    {
+        conf.set(OUTPUT_KEYSPACE_USERNAME_CONFIG, username);
     }
 
     public static String getOutputKeyspaceUserName(Configuration conf)
     {
-        return conf.get(OUTPUT_KEYSPACE_USERNAME_CONFIG);
+    	return conf.get(OUTPUT_KEYSPACE_USERNAME_CONFIG);
+    }
+
+    public static void setOutputKeyspacePassword(Configuration conf, String password)
+    {
+        conf.set(OUTPUT_KEYSPACE_PASSWD_CONFIG, password);
     }
 
     public static String getOutputKeyspacePassword(Configuration conf)
     {
-        return conf.get(OUTPUT_KEYSPACE_PASSWD_CONFIG);
+    	return conf.get(OUTPUT_KEYSPACE_PASSWD_CONFIG);
     }
 
     public static String getInputColumnFamily(Configuration conf)
