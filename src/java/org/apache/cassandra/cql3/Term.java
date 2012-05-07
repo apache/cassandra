@@ -21,6 +21,9 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.FloatType;
@@ -35,12 +38,19 @@ public class Term
     private final String text;
     private final TermType type;
     public final int bindIndex;
+    public final boolean isToken;
 
-    public Term(String text, TermType type)
+    private Term(String text, TermType type, int bindIndex, boolean isToken)
     {
         this.text = text == null ? "" : text;
         this.type = type;
-        this.bindIndex = -1;
+        this.bindIndex = bindIndex;
+        this.isToken = isToken;
+    }
+
+    public Term(String text, TermType type)
+    {
+        this(text, type, -1, false);
     }
 
     /**
@@ -62,9 +72,12 @@ public class Term
 
     public Term(String text, int type, int index)
     {
-        this.text = text == null ? "" : text;
-        this.type = TermType.forInt(type);
-        this.bindIndex = index;
+        this(text, TermType.forInt(type), index, false);
+    }
+
+    public static Term tokenOf(Term t)
+    {
+        return new Term(t.text, t.type, t.bindIndex, true);
     }
 
     /**
@@ -74,7 +87,7 @@ public class Term
      */
     public String getText()
     {
-        return text;
+        return isToken ? "token(" + text + ")" : text;
     }
 
     /**
@@ -105,29 +118,28 @@ public class Term
         }
     }
 
-    /**
-     * Returns the typed value, serialized to a ByteBuffer.
-     *
-     * @return a ByteBuffer of the value.
-     * @throws InvalidRequestException if unable to coerce the string to its type.
-     */
-    public ByteBuffer getByteBuffer() throws InvalidRequestException
+    public Token getAsToken(AbstractType<?> validator, List<ByteBuffer> variables, IPartitioner<?> p) throws InvalidRequestException
     {
-        switch (type)
-        {
-            case STRING:
-                return AsciiType.instance.fromString(text);
-            case INTEGER:
-                return IntegerType.instance.fromString(text);
-            case UUID:
-                // we specifically want the Lexical class here, not "UUIDType," because we're supposed to have
-                // a uuid-shaped string here, and UUIDType also accepts integer or date strings (and turns them into version 1 uuids).
-                return LexicalUUIDType.instance.fromString(text);
-            case FLOAT:
-              return FloatType.instance.fromString(text);
-        }
+        if (!(isToken || type == TermType.STRING))
+            throw new InvalidRequestException("Invalid value for token (use a string literal of the token value or the token() function)");
 
-        throw new IllegalStateException();
+        try
+        {
+            if (isToken)
+            {
+                ByteBuffer value = getByteBuffer(validator, variables);
+                return p.getToken(value);
+            }
+            else
+            {
+                p.getTokenFactory().validate(text);
+                return p.getTokenFactory().fromString(text);
+            }
+        }
+        catch (ConfigurationException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
     }
 
     /**
@@ -148,14 +160,14 @@ public class Term
     @Override
     public String toString()
     {
-        return String.format("Term(%s, type=%s)", getText(), type);
+        return String.format("Term(%s, type=%s%s)", getText(), type, isToken ? ", isToken" : "");
     }
 
     @Override
     public int hashCode()
     {
         final int prime = 31;
-        int result = 1;
+        int result = 1 + (isToken ? 1 : 0);
         result = prime * result + ((text == null) ? 0 : text.hashCode());
         result = prime * result + ((type == null) ? 0 : type.hashCode());
         return result;
@@ -179,6 +191,8 @@ public class Term
         } else if (!text.equals(other.text))
             return false;
         if (type != other.type)
+            return false;
+        if (isToken != other.isToken)
             return false;
         return true;
     }
