@@ -235,8 +235,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public long serializedSize(VersionedValue value, int version)
         {
-            int outLength = FBUtilities.encodedUTF8Length(outValue(value, version));
-            return TypeSizes.NATIVE.sizeof(outLength) + outLength + TypeSizes.NATIVE.sizeof(value.version);
+            return TypeSizes.NATIVE.sizeof(outValue(value, version)) + TypeSizes.NATIVE.sizeof(value.version);
         }
     }
 }

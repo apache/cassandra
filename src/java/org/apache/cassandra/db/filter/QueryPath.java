@@ -99,15 +99,9 @@ public class QueryPath
         int size = 0;
 
         if (columnFamilyName == null)
-        {
             size += typeSizes.sizeof((short) 0);
-        }
         else
-        {
-            int cfNameSize = FBUtilities.encodedUTF8Length(columnFamilyName);
-            size += typeSizes.sizeof((short) cfNameSize);
-            size += cfNameSize;
-        }
+            size += typeSizes.sizeof(columnFamilyName);
 
         if (superColumnName == null)
         {

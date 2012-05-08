@@ -440,16 +440,15 @@ public class RowMutation implements IMutation
 
         public long serializedSize(RowMutation rm, int version)
         {
-            TypeSizes typeSizes = TypeSizes.NATIVE;
-            int tableSize = FBUtilities.encodedUTF8Length(rm.getTable());
+            TypeSizes sizes = TypeSizes.NATIVE;
+            int size = sizes.sizeof(rm.getTable());
             int keySize = rm.key().remaining();
-            int size = typeSizes.sizeof((short) tableSize) + tableSize;
-            size += typeSizes.sizeof((short) keySize) + keySize;
+            size += sizes.sizeof((short) keySize) + keySize;
 
-            size += typeSizes.sizeof(rm.modifications.size());
+            size += sizes.sizeof(rm.modifications.size());
             for (Map.Entry<Integer,ColumnFamily> entry : rm.modifications.entrySet())
             {
-                size += typeSizes.sizeof(entry.getKey());
+                size += sizes.sizeof(entry.getKey());
                 size += ColumnFamily.serializer.serializedSize(entry.getValue(), TypeSizes.NATIVE);
             }
 

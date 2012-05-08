@@ -34,7 +34,6 @@ import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.HeapAllocator;
 
 public class CounterMutation implements IMutation
@@ -182,8 +181,7 @@ class CounterMutationSerializer implements IVersionedSerializer<CounterMutation>
 
     public long serializedSize(CounterMutation cm, int version)
     {
-        int tableSize = FBUtilities.encodedUTF8Length(cm.consistency().name());
         return RowMutation.serializer.serializedSize(cm.rowMutation(), version)
-             + TypeSizes.NATIVE.sizeof((short) tableSize) + tableSize;
+             + TypeSizes.NATIVE.sizeof(cm.consistency().name());
     }
 }

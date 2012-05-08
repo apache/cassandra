@@ -88,12 +88,11 @@ public class WriteResponse
 
         public long serializedSize(WriteResponse response, int version)
         {
-            TypeSizes typeSizes = TypeSizes.NATIVE;
-            int utfSize = FBUtilities.encodedUTF8Length(response.table());
+            TypeSizes sizes = TypeSizes.NATIVE;
             int keySize = response.key().remaining();
-            int size = typeSizes.sizeof((short) utfSize) + utfSize;
-            size += typeSizes.sizeof((short) keySize) + keySize;
-            size += typeSizes.sizeof(response.isSuccess());
+            int size = sizes.sizeof(response.table());
+            size += sizes.sizeof((short) keySize) + keySize;
+            size += sizes.sizeof(response.isSuccess());
             return size;
         }
     }

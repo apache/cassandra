@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db;
 
+import org.apache.cassandra.utils.FBUtilities;
+
 public abstract class TypeSizes
 {
     public static final TypeSizes NATIVE = new NativeDBTypeSizes();
@@ -31,6 +33,31 @@ public abstract class TypeSizes
     public abstract int sizeof(short value);
     public abstract int sizeof(int value);
     public abstract int sizeof(long value);
+
+    /** assumes UTF8 */
+    public int sizeof(String value)
+    {
+        int length = encodedUTF8Length(value);
+        assert length <= Short.MAX_VALUE;
+        return sizeof((short) length) + length;
+    }
+
+    public static int encodedUTF8Length(String st)
+    {
+        int strlen = st.length();
+        int utflen = 0;
+        for (int i = 0; i < strlen; i++)
+        {
+            int c = st.charAt(i);
+            if ((c >= 0x0001) && (c <= 0x007F))
+                utflen++;
+            else if (c > 0x07FF)
+                utflen += 3;
+            else
+                utflen += 2;
+        }
+        return utflen;
+    }
 
     public static class NativeDBTypeSizes extends TypeSizes
     {

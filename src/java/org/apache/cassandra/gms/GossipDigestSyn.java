@@ -23,7 +23,6 @@ import java.util.List;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This is the first message that gets sent out as a start of the Gossip protocol in a
@@ -92,7 +91,7 @@ class GossipDigestSynSerializer implements IVersionedSerializer<GossipDigestSyn>
 
     public long serializedSize(GossipDigestSyn syn, int version)
     {
-        return FBUtilities.serializedUTF8Size(syn.clusterId) + GossipDigestSerializationHelper.serializedSize(syn.gDigests, version);
+        return TypeSizes.NATIVE.sizeof(syn.clusterId) + GossipDigestSerializationHelper.serializedSize(syn.gDigests, version);
     }
 }
 

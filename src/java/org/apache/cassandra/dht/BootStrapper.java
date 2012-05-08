@@ -32,6 +32,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -41,8 +42,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SimpleCondition;
-
-import static org.apache.cassandra.utils.FBUtilities.serializedUTF8Size;
 
 public class BootStrapper
 {
@@ -230,7 +229,7 @@ public class BootStrapper
 
         public long serializedSize(String s, int version)
         {
-            return serializedUTF8Size(s);
+            return TypeSizes.NATIVE.sizeof(s);
         }
     }
 }

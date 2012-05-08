@@ -265,8 +265,8 @@ public class StreamingRepairTask implements Runnable
         {
             long size = UUIDGen.serializer.serializedSize(task.id, version);
             size += 3 * CompactEndpointSerializationHelper.serializedSize(task.owner);
-            size += FBUtilities.serializedUTF8Size(task.tableName);
-            size += FBUtilities.serializedUTF8Size(task.cfName);
+            size += TypeSizes.NATIVE.sizeof(task.tableName);
+            size += TypeSizes.NATIVE.sizeof(task.cfName);
             size += TypeSizes.NATIVE.sizeof(task.ranges.size());
             for (Range<Token> range : task.ranges)
                 size += AbstractBounds.serializer.serializedSize(range, version);

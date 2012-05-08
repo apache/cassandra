@@ -102,7 +102,7 @@ public class StreamHeader
 
         public long serializedSize(StreamHeader sh, int version)
         {
-            long size = FBUtilities.serializedUTF8Size(sh.table);
+            long size = TypeSizes.NATIVE.sizeof(sh.table);
             size += TypeSizes.NATIVE.sizeof(sh.sessionId);
             size += PendingFile.serializer.serializedSize(sh.file, version);
             size += TypeSizes.NATIVE.sizeof(sh.pendingFiles.size());

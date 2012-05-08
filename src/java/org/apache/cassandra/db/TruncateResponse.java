@@ -25,8 +25,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 
-import static org.apache.cassandra.utils.FBUtilities.serializedUTF8Size;
-
 /**
  * This message is sent back the truncate operation and basically specifies if
  * the truncate succeeded.
@@ -70,8 +68,8 @@ public class TruncateResponse
 
         public long serializedSize(TruncateResponse tr, int version)
         {
-            return serializedUTF8Size(tr.keyspace)
-                 + serializedUTF8Size(tr.columnFamily)
+            return TypeSizes.NATIVE.sizeof(tr.keyspace)
+                 + TypeSizes.NATIVE.sizeof(tr.columnFamily)
                  + TypeSizes.NATIVE.sizeof(tr.success);
         }
     }

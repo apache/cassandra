@@ -37,7 +37,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
 * This class encapsulates the message that needs to be sent to nodes
@@ -186,12 +185,12 @@ public class StreamRequest
             if (sr.file != null)
                 return size + PendingFile.serializer.serializedSize(sr.file, version);
 
-            size += FBUtilities.serializedUTF8Size(sr.table);
+            size += TypeSizes.NATIVE.sizeof(sr.table);
             size += TypeSizes.NATIVE.sizeof(sr.ranges.size());
             for (Range<Token> range : sr.ranges)
                 size += AbstractBounds.serializer.serializedSize(range, version);
             if (version > MessagingService.VERSION_07)
-                size += FBUtilities.serializedUTF8Size(sr.type.name());
+                size += TypeSizes.NATIVE.sizeof(sr.type.name());
             if (version > MessagingService.VERSION_080)
             {
                 size += TypeSizes.NATIVE.sizeof(Iterables.size(sr.columnFamilies));

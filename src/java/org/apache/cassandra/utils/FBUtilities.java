@@ -305,23 +305,6 @@ public class FBUtilities
         }
     }
 
-    public static int encodedUTF8Length(String st)
-    {
-        int strlen = st.length();
-        int utflen = 0;
-        for (int i = 0; i < strlen; i++)
-        {
-            int c = st.charAt(i);
-            if ((c >= 0x0001) && (c <= 0x007F))
-                utflen++;
-            else if (c > 0x07FF)
-                utflen += 3;
-            else
-                utflen += 2;
-        }
-        return utflen;
-    }
-
     public static String resourceToFile(String filename) throws ConfigurationException
     {
         ClassLoader loader = FBUtilities.class.getClassLoader();
@@ -582,12 +565,6 @@ public class FBUtilities
         {
             throw new AssertionError(e);
         }
-    }
-
-    public static int serializedUTF8Size(String st)
-    {
-        int length = encodedUTF8Length(st);
-        return TypeSizes.NATIVE.sizeof(length) + length;
     }
 
     private static final class WrappedCloseableIterator<T>

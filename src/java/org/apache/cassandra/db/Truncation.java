@@ -24,9 +24,6 @@ import java.io.IOException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
-
-import static org.apache.cassandra.utils.FBUtilities.serializedUTF8Size;
 
 /**
  * A truncate operation descriptor
@@ -72,6 +69,6 @@ class TruncationSerializer implements IVersionedSerializer<Truncation>
 
     public long serializedSize(Truncation truncation, int version)
     {
-        return serializedUTF8Size(truncation.keyspace) + serializedUTF8Size(truncation.columnFamily);
+        return TypeSizes.NATIVE.sizeof(truncation.keyspace) + TypeSizes.NATIVE.sizeof(truncation.columnFamily);
     }
 }

@@ -217,14 +217,12 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         return new RangeSliceCommand(keyspace, columnFamily, superColumn, pred, range, rowFilter, maxResults, maxIsColumns, isPaging);
     }
 
-    public long serializedSize(RangeSliceCommand rangeSliceCommand, int version)
+    public long serializedSize(RangeSliceCommand rsc, int version)
     {
-        int ksLength = FBUtilities.encodedUTF8Length(rangeSliceCommand.keyspace);
-        long size = TypeSizes.NATIVE.sizeof(ksLength) + ksLength;
-        int cfLength = FBUtilities.encodedUTF8Length(rangeSliceCommand.column_family);
-        size += TypeSizes.NATIVE.sizeof(cfLength) + cfLength;
+        long size = TypeSizes.NATIVE.sizeof(rsc.keyspace);
+        size += TypeSizes.NATIVE.sizeof(rsc.column_family);
 
-        ByteBuffer sc = rangeSliceCommand.super_column;
+        ByteBuffer sc = rsc.super_column;
         if (sc != null)
         {
             size += TypeSizes.NATIVE.sizeof(sc.remaining());
@@ -238,7 +236,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
         try
         {
-            int predicateLength = ser.serialize(rangeSliceCommand.predicate).length;
+            int predicateLength = ser.serialize(rsc.predicate).length;
             size += TypeSizes.NATIVE.sizeof(predicateLength);
             size += predicateLength;
         }
@@ -249,14 +247,14 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
 
         if (version >= MessagingService.VERSION_11)
         {
-            if (rangeSliceCommand.row_filter == null)
+            if (rsc.row_filter == null)
             {
                 size += TypeSizes.NATIVE.sizeof(0);
             }
             else
             {
-                size += TypeSizes.NATIVE.sizeof(rangeSliceCommand.row_filter.size());
-                for (IndexExpression expr : rangeSliceCommand.row_filter)
+                size += TypeSizes.NATIVE.sizeof(rsc.row_filter.size());
+                for (IndexExpression expr : rsc.row_filter)
                 {
                     try
                     {
@@ -271,12 +269,12 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                 }
             }
         }
-        size += AbstractBounds.serializer.serializedSize(rangeSliceCommand.range, version);
-        size += TypeSizes.NATIVE.sizeof(rangeSliceCommand.maxResults);
+        size += AbstractBounds.serializer.serializedSize(rsc.range, version);
+        size += TypeSizes.NATIVE.sizeof(rsc.maxResults);
         if (version >= MessagingService.VERSION_11)
         {
-            size += TypeSizes.NATIVE.sizeof(rangeSliceCommand.maxIsColumns);
-            size += TypeSizes.NATIVE.sizeof(rangeSliceCommand.isPaging);
+            size += TypeSizes.NATIVE.sizeof(rsc.maxIsColumns);
+            size += TypeSizes.NATIVE.sizeof(rsc.isPaging);
         }
         return size;
     }

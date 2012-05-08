@@ -25,8 +25,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 
-import static org.apache.cassandra.utils.FBUtilities.serializedUTF8Size;
-
 public class SnapshotCommand
 {
     public static final SnapshotCommandSerializer serializer = new SnapshotCommandSerializer();
@@ -80,9 +78,9 @@ class SnapshotCommandSerializer implements IVersionedSerializer<SnapshotCommand>
 
     public long serializedSize(SnapshotCommand sc, int version)
     {
-        return serializedUTF8Size(sc.keyspace)
-             + serializedUTF8Size(sc.column_family)
-             + serializedUTF8Size(sc.snapshot_name)
+        return TypeSizes.NATIVE.sizeof(sc.keyspace)
+             + TypeSizes.NATIVE.sizeof(sc.column_family)
+             + TypeSizes.NATIVE.sizeof(sc.snapshot_name)
              + TypeSizes.NATIVE.sizeof(sc.clear_snapshot);
     }
 }

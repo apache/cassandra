@@ -34,10 +34,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.SnapshotCommand;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -46,7 +43,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.streaming.StreamingRepairTask;
 import org.apache.cassandra.utils.*;
@@ -557,10 +553,10 @@ public class AntiEntropyService
 
             public long serializedSize(TreeRequest request, int version)
             {
-                return 2 + FBUtilities.encodedUTF8Length(request.sessionid)
+                return TypeSizes.NATIVE.sizeof(request.sessionid)
                      + CompactEndpointSerializationHelper.serializedSize(request.endpoint)
-                     + 2 + FBUtilities.encodedUTF8Length(request.cf.left)
-                     + 2 + FBUtilities.encodedUTF8Length(request.cf.right)
+                     + TypeSizes.NATIVE.sizeof(request.cf.left)
+                     + TypeSizes.NATIVE.sizeof(request.cf.right)
                      + AbstractBounds.serializer.serializedSize(request.range, version);
             }
         }
