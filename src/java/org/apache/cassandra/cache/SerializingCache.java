@@ -26,7 +26,7 @@ import com.googlecode.concurrentlinkedhashmap.EvictionListener;
 import com.googlecode.concurrentlinkedhashmap.Weigher;
 import com.googlecode.concurrentlinkedhashmap.Weighers;
 
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.MemoryInputStream;
 import org.apache.cassandra.io.util.MemoryOutputStream;
@@ -42,7 +42,7 @@ import org.slf4j.LoggerFactory;
 public class SerializingCache<K, V> implements ICache<K, V>
 {
     private static final Logger logger = LoggerFactory.getLogger(SerializingCache.class);
-    private static final DBTypeSizes ENCODED_TYPE_SIZES = DBTypeSizes.VINT;
+    private static final TypeSizes ENCODED_TYPE_SIZES = TypeSizes.VINT;
 
     private static final int DEFAULT_CONCURENCY_LEVEL = 64;
 

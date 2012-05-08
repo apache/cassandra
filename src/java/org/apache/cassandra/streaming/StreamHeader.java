@@ -24,7 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
@@ -103,9 +103,9 @@ public class StreamHeader
         public long serializedSize(StreamHeader sh, int version)
         {
             long size = FBUtilities.serializedUTF8Size(sh.table);
-            size += DBTypeSizes.NATIVE.sizeof(sh.sessionId);
+            size += TypeSizes.NATIVE.sizeof(sh.sessionId);
             size += PendingFile.serializer.serializedSize(sh.file, version);
-            size += DBTypeSizes.NATIVE.sizeof(sh.pendingFiles.size());
+            size += TypeSizes.NATIVE.sizeof(sh.pendingFiles.size());
             for(PendingFile file : sh.pendingFiles)
                 size += PendingFile.serializer.serializedSize(file, version);
             size += CompactEndpointSerializationHelper.serializedSize(sh.broadcastAddress);

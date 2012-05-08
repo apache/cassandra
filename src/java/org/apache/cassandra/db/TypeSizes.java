@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.db;
 
-public abstract class DBTypeSizes
+public abstract class TypeSizes
 {
-    public static final DBTypeSizes NATIVE = new NativeDBTypeSizes();
-    public static final DBTypeSizes VINT = new VIntEncodedDBTypeSizes();
+    public static final TypeSizes NATIVE = new NativeDBTypeSizes();
+    public static final TypeSizes VINT = new VIntEncodedTypeSizes();
 
     private static final int BOOL_SIZE = 1;
     private static final int SHORT_SIZE = 2;
@@ -32,7 +32,7 @@ public abstract class DBTypeSizes
     public abstract int sizeof(int value);
     public abstract int sizeof(long value);
 
-    public static class NativeDBTypeSizes extends DBTypeSizes
+    public static class NativeDBTypeSizes extends TypeSizes
     {
         public int sizeof(boolean value)
         {
@@ -55,7 +55,7 @@ public abstract class DBTypeSizes
         }
     }
 
-    public static class VIntEncodedDBTypeSizes extends DBTypeSizes
+    public static class VIntEncodedTypeSizes extends TypeSizes
     {
         private static final int BOOL_SIZE = 1;
 

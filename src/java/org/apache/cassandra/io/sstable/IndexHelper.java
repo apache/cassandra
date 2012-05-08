@@ -24,7 +24,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
@@ -200,7 +200,7 @@ public class IndexHelper
             dos.writeLong(width);
         }
 
-        public int serializedSize(DBTypeSizes typeSizes)
+        public int serializedSize(TypeSizes typeSizes)
         {
             int firstNameSize = firstName.remaining();
             int lastNameSize = lastName.remaining();

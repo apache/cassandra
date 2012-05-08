@@ -96,7 +96,7 @@ public abstract class RowPosition implements RingPosition<RowPosition>
             }
         }
 
-        public long serializedSize(RowPosition pos, DBTypeSizes typeSizes)
+        public long serializedSize(RowPosition pos, TypeSizes typeSizes)
         {
             Kind kind = pos.kind();
             int size = 1; // 1 byte for enum

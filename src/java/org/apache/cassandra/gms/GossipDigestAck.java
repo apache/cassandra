@@ -25,7 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
@@ -95,8 +95,8 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
     {
         int size = GossipDigestSerializationHelper.serializedSize(ack.gDigestList, version);
         if (version <= MessagingService.VERSION_11)
-            size += DBTypeSizes.NATIVE.sizeof(true);
-        size += DBTypeSizes.NATIVE.sizeof(ack.epStateMap.size());
+            size += TypeSizes.NATIVE.sizeof(true);
+        size += TypeSizes.NATIVE.sizeof(ack.epStateMap.size());
         for (Map.Entry<InetAddress, EndpointState> entry : ack.epStateMap.entrySet())
             size += CompactEndpointSerializationHelper.serializedSize(entry.getKey())
                   + EndpointState.serializer.serializedSize(entry.getValue(), version);

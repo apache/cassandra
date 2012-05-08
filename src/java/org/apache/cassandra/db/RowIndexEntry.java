@@ -183,7 +183,7 @@ public class RowIndexEntry
 
         public int serializedSize()
         {
-            DBTypeSizes typeSizes = DBTypeSizes.NATIVE;
+            TypeSizes typeSizes = TypeSizes.NATIVE;
             int size = typeSizes.sizeof(deletionInfo.localDeletionTime) + typeSizes.sizeof(deletionInfo.markedForDeleteAt); // deletion info
             size += typeSizes.sizeof(columnsIndex.size()); // number of entries
             for (IndexHelper.IndexInfo info : columnsIndex)

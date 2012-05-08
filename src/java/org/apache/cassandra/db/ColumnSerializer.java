@@ -121,7 +121,7 @@ public class ColumnSerializer implements IColumnSerializer
         }
     }
 
-    public long serializedSize(IColumn object, DBTypeSizes type)
+    public long serializedSize(IColumn object, TypeSizes type)
     {
         return object.serializedSize(type);
     }

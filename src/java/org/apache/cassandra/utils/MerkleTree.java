@@ -26,7 +26,7 @@ import java.util.*;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.PeekingIterator;
 
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -105,9 +105,9 @@ public class MerkleTree implements Serializable
 
         public long serializedSize(MerkleTree mt, int version)
         {
-            return DBTypeSizes.NATIVE.sizeof(mt.hashdepth)
-                 + DBTypeSizes.NATIVE.sizeof(mt.maxsize)
-                 + DBTypeSizes.NATIVE.sizeof(mt.size)
+            return TypeSizes.NATIVE.sizeof(mt.hashdepth)
+                 + TypeSizes.NATIVE.sizeof(mt.maxsize)
+                 + TypeSizes.NATIVE.sizeof(mt.size)
                  + Hashable.serializer.serializedSize(mt.root, version);
         }
     }
@@ -715,10 +715,10 @@ public class MerkleTree implements Serializable
             public long serializedSize(Inner inner, int version)
             {
                 int size = inner.hash == null
-                         ? DBTypeSizes.NATIVE.sizeof(-1)
-                         : DBTypeSizes.NATIVE.sizeof(inner.hash().length) + inner.hash().length;
+                         ? TypeSizes.NATIVE.sizeof(-1)
+                         : TypeSizes.NATIVE.sizeof(inner.hash().length) + inner.hash().length;
 
-                size += Token.serializer.serializedSize(inner.token, DBTypeSizes.NATIVE)
+                size += Token.serializer.serializedSize(inner.token, TypeSizes.NATIVE)
                         + Hashable.serializer.serializedSize(inner.lchild, version)
                         + Hashable.serializer.serializedSize(inner.rchild, version);
                 return size;
@@ -797,8 +797,8 @@ public class MerkleTree implements Serializable
             public long serializedSize(Leaf leaf, int version)
             {
                 return leaf.hash == null
-                     ? DBTypeSizes.NATIVE.sizeof(-1)
-                     : DBTypeSizes.NATIVE.sizeof(leaf.hash().length) + leaf.hash().length;
+                     ? TypeSizes.NATIVE.sizeof(-1)
+                     : TypeSizes.NATIVE.sizeof(leaf.hash().length) + leaf.hash().length;
             }
         }
     }

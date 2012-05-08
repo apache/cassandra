@@ -88,7 +88,7 @@ public class WriteResponse
 
         public long serializedSize(WriteResponse response, int version)
         {
-            DBTypeSizes typeSizes = DBTypeSizes.NATIVE;
+            TypeSizes typeSizes = TypeSizes.NATIVE;
             int utfSize = FBUtilities.encodedUTF8Length(response.table());
             int keySize = response.key().remaining();
             int size = typeSizes.sizeof((short) utfSize) + utfSize;

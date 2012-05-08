@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
 
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessagingService;
@@ -117,13 +117,13 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
             out.writeInt(kindInt(range));
             if (range.left instanceof Token)
             {
-                Token.serializer.serialize((Token)range.left, out);
-                Token.serializer.serialize((Token)range.right, out);
+                Token.serializer.serialize((Token) range.left, out);
+                Token.serializer.serialize((Token) range.right, out);
             }
             else
             {
-                RowPosition.serializer.serialize((RowPosition)range.left, out);
-                RowPosition.serializer.serialize((RowPosition)range.right, out);
+                RowPosition.serializer.serialize((RowPosition) range.left, out);
+                RowPosition.serializer.serialize((RowPosition) range.right, out);
             }
         }
 
@@ -161,16 +161,16 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
 
         public long serializedSize(AbstractBounds<?> ab, int version)
         {
-            int size = DBTypeSizes.NATIVE.sizeof(kindInt(ab));
+            int size = TypeSizes.NATIVE.sizeof(kindInt(ab));
             if (ab.left instanceof Token)
             {
-                size += Token.serializer.serializedSize((Token) ab.left, DBTypeSizes.NATIVE);
-                size += Token.serializer.serializedSize((Token) ab.right, DBTypeSizes.NATIVE);
+                size += Token.serializer.serializedSize((Token) ab.left, TypeSizes.NATIVE);
+                size += Token.serializer.serializedSize((Token) ab.right, TypeSizes.NATIVE);
             }
             else
             {
-                size += RowPosition.serializer.serializedSize((RowPosition) ab.left, DBTypeSizes.NATIVE);
-                size += RowPosition.serializer.serializedSize((RowPosition) ab.right, DBTypeSizes.NATIVE);
+                size += RowPosition.serializer.serializedSize((RowPosition) ab.left, TypeSizes.NATIVE);
+                size += RowPosition.serializer.serializedSize((RowPosition) ab.right, TypeSizes.NATIVE);
             }
             return size;
         }

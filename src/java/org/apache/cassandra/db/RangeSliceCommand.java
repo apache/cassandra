@@ -36,7 +36,6 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -45,8 +44,6 @@ import java.util.List;
 
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.FastByteArrayInputStream;
-import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.IReadCommand;
@@ -223,26 +220,26 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
     public long serializedSize(RangeSliceCommand rangeSliceCommand, int version)
     {
         int ksLength = FBUtilities.encodedUTF8Length(rangeSliceCommand.keyspace);
-        long size = DBTypeSizes.NATIVE.sizeof(ksLength) + ksLength;
+        long size = TypeSizes.NATIVE.sizeof(ksLength) + ksLength;
         int cfLength = FBUtilities.encodedUTF8Length(rangeSliceCommand.column_family);
-        size += DBTypeSizes.NATIVE.sizeof(cfLength) + cfLength;
+        size += TypeSizes.NATIVE.sizeof(cfLength) + cfLength;
 
         ByteBuffer sc = rangeSliceCommand.super_column;
         if (sc != null)
         {
-            size += DBTypeSizes.NATIVE.sizeof(sc.remaining());
+            size += TypeSizes.NATIVE.sizeof(sc.remaining());
             size += sc.remaining();
         }
         else
         {
-            size += DBTypeSizes.NATIVE.sizeof(0);
+            size += TypeSizes.NATIVE.sizeof(0);
         }
 
         TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
         try
         {
             int predicateLength = ser.serialize(rangeSliceCommand.predicate).length;
-            size += DBTypeSizes.NATIVE.sizeof(predicateLength);
+            size += TypeSizes.NATIVE.sizeof(predicateLength);
             size += predicateLength;
         }
         catch (TException e)
@@ -254,17 +251,17 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         {
             if (rangeSliceCommand.row_filter == null)
             {
-                size += DBTypeSizes.NATIVE.sizeof(0);
+                size += TypeSizes.NATIVE.sizeof(0);
             }
             else
             {
-                size += DBTypeSizes.NATIVE.sizeof(rangeSliceCommand.row_filter.size());
+                size += TypeSizes.NATIVE.sizeof(rangeSliceCommand.row_filter.size());
                 for (IndexExpression expr : rangeSliceCommand.row_filter)
                 {
                     try
                     {
                         int filterLength = ser.serialize(expr).length;
-                        size += DBTypeSizes.NATIVE.sizeof(filterLength);
+                        size += TypeSizes.NATIVE.sizeof(filterLength);
                         size += filterLength;
                     }
                     catch (TException e)
@@ -275,11 +272,11 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             }
         }
         size += AbstractBounds.serializer.serializedSize(rangeSliceCommand.range, version);
-        size += DBTypeSizes.NATIVE.sizeof(rangeSliceCommand.maxResults);
+        size += TypeSizes.NATIVE.sizeof(rangeSliceCommand.maxResults);
         if (version >= MessagingService.VERSION_11)
         {
-            size += DBTypeSizes.NATIVE.sizeof(rangeSliceCommand.maxIsColumns);
-            size += DBTypeSizes.NATIVE.sizeof(rangeSliceCommand.isPaging);
+            size += TypeSizes.NATIVE.sizeof(rangeSliceCommand.maxIsColumns);
+            size += TypeSizes.NATIVE.sizeof(rangeSliceCommand.isPaging);
         }
         return size;
     }

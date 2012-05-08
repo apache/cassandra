@@ -72,7 +72,7 @@ public class TruncateResponse
         {
             return serializedUTF8Size(tr.keyspace)
                  + serializedUTF8Size(tr.columnFamily)
-                 + DBTypeSizes.NATIVE.sizeof(tr.success);
+                 + TypeSizes.NATIVE.sizeof(tr.success);
         }
     }
 }

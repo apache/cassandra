@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 
 /**
@@ -110,7 +110,7 @@ public class UUIDGen
 
         public long serializedSize(UUID uuid, int version)
         {
-            return DBTypeSizes.NATIVE.sizeof(uuid.getMostSignificantBits()) + DBTypeSizes.NATIVE.sizeof(uuid.getLeastSignificantBits());
+            return TypeSizes.NATIVE.sizeof(uuid.getMostSignificantBits()) + TypeSizes.NATIVE.sizeof(uuid.getLeastSignificantBits());
         }
     }
 

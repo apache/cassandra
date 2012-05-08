@@ -21,7 +21,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 
 public interface ISerializer<T>
 {
@@ -41,5 +41,5 @@ public interface ISerializer<T>
      */
     public T deserialize(DataInput dis) throws IOException;
 
-    public long serializedSize(T t, DBTypeSizes type);
+    public long serializedSize(T t, TypeSizes type);
 }

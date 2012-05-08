@@ -238,7 +238,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
             IColumn reduced = purged.iterator().next();
             container.clear();
 
-            serializedSize += reduced.serializedSize(DBTypeSizes.NATIVE);
+            serializedSize += reduced.serializedSize(TypeSizes.NATIVE);
             columns++;
             maxTimestampSeen = Math.max(maxTimestampSeen, reduced.maxTimestamp());
             int deletionTime = reduced.getLocalDeletionTime();

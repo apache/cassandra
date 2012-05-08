@@ -21,7 +21,7 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -147,17 +147,17 @@ public class PendingFile
         public long serializedSize(PendingFile pf, int version)
         {
             if (pf == null)
-                return DBTypeSizes.NATIVE.sizeof(0);
+                return TypeSizes.NATIVE.sizeof(0);
 
             long size = FBUtilities.serializedUTF8Size(pf.desc.filenameFor(pf.component));
             size += FBUtilities.serializedUTF8Size(pf.component);
-            size += DBTypeSizes.NATIVE.sizeof(pf.sections.size());
+            size += TypeSizes.NATIVE.sizeof(pf.sections.size());
             for (Pair<Long,Long> section : pf.sections)
-                size += DBTypeSizes.NATIVE.sizeof(section.left + DBTypeSizes.NATIVE.sizeof(section.right));
+                size += TypeSizes.NATIVE.sizeof(section.left + TypeSizes.NATIVE.sizeof(section.right));
             if (version > MessagingService.VERSION_07)
                 size += FBUtilities.serializedUTF8Size(pf.type.name());
             if (version > MessagingService.VERSION_080)
-                size += DBTypeSizes.NATIVE.sizeof(pf.estimatedKeys);
+                size += TypeSizes.NATIVE.sizeof(pf.estimatedKeys);
             return size;
         }
     }

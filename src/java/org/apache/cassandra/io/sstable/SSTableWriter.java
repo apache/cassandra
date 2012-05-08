@@ -48,7 +48,7 @@ public class SSTableWriter extends SSTable
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
     private final SSTableMetadata.Collector sstableMetadataCollector;
-    private final DBTypeSizes typeSizes = DBTypeSizes.NATIVE;
+    private final TypeSizes typeSizes = TypeSizes.NATIVE;
 
     public SSTableWriter(String filename, long keyCount) throws IOException
     {

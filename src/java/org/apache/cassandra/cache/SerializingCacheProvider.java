@@ -23,7 +23,7 @@ import java.io.IOError;
 import java.io.IOException;
 
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 
 public class SerializingCacheProvider implements IRowCacheProvider
@@ -60,7 +60,7 @@ public class SerializingCacheProvider implements IRowCacheProvider
             return ColumnFamily.serializer.deserialize(in);
         }
 
-        public long serializedSize(IRowCacheEntry cf, DBTypeSizes typeSizes)
+        public long serializedSize(IRowCacheEntry cf, TypeSizes typeSizes)
         {
             int size = typeSizes.sizeof(true);
             if (cf instanceof RowCacheSentinel)

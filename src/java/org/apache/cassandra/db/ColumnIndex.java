@@ -73,7 +73,7 @@ public class ColumnIndex
          */
         private static long rowHeaderSize(ByteBuffer key)
         {
-            DBTypeSizes typeSizes = DBTypeSizes.NATIVE;
+            TypeSizes typeSizes = TypeSizes.NATIVE;
             // TODO fix constantSize when changing the nativeconststs.
             int keysize = key.remaining();
             return typeSizes.sizeof((short) keysize) + keysize + // Row key
@@ -113,7 +113,7 @@ public class ColumnIndex
                 startPosition = endPosition;
             }
 
-            endPosition += column.serializedSize(DBTypeSizes.NATIVE);
+            endPosition += column.serializedSize(TypeSizes.NATIVE);
 
             // if we hit the column index size that we have to index after, go ahead and index it.
             if (endPosition - startPosition >= DatabaseDescriptor.getColumnIndexSize())

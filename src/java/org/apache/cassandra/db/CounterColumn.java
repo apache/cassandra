@@ -93,7 +93,7 @@ public class CounterColumn extends Column
     }
 
     @Override
-    public int size(DBTypeSizes typeSizes)
+    public int size(TypeSizes typeSizes)
     {
         /*
          * A counter column adds to a Column :

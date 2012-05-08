@@ -102,7 +102,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
     /**
      * This calculates the exact size of the sub columns on the fly
      */
-    public int size(DBTypeSizes typeSizes)
+    public int size(TypeSizes typeSizes)
     {
         int size = 0;
         for (IColumn subColumn : getSubColumns())
@@ -116,7 +116,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
      * This returns the size of the super-column when serialized.
      * @see org.apache.cassandra.db.IColumn#serializedSize()
     */
-    public int serializedSize(DBTypeSizes typeSizes)
+    public int serializedSize(TypeSizes typeSizes)
     {
         /*
          * We need to keep the way we are calculating the column size in sync with the
@@ -412,7 +412,7 @@ class SuperColumnSerializer implements IColumnSerializer
         return superColumn;
     }
 
-    public long serializedSize(IColumn object, DBTypeSizes typeSizes)
+    public long serializedSize(IColumn object, TypeSizes typeSizes)
     {
         return object.serializedSize(typeSizes);
     }

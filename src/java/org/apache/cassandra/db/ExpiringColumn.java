@@ -74,7 +74,7 @@ public class ExpiringColumn extends Column
     }
 
     @Override
-    public int size(DBTypeSizes typeSizes)
+    public int size(TypeSizes typeSizes)
     {
         /*
          * An expired column adds to a Column :

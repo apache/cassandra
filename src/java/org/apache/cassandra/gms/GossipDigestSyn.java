@@ -21,7 +21,7 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -68,7 +68,7 @@ class GossipDigestSerializationHelper
     
     static int serializedSize(List<GossipDigest> digests, int version)
     {
-        int size = DBTypeSizes.NATIVE.sizeof(digests.size());
+        int size = TypeSizes.NATIVE.sizeof(digests.size());
         for (GossipDigest digest : digests)
             size += GossipDigest.serializer.serializedSize(digest, version);
         return size;

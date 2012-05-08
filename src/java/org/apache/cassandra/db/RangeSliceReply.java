@@ -80,7 +80,7 @@ public class RangeSliceReply
 
         public long serializedSize(RangeSliceReply rsr, int version)
         {
-            int size = DBTypeSizes.NATIVE.sizeof(rsr.rows.size());
+            int size = TypeSizes.NATIVE.sizeof(rsr.rows.size());
             for (Row row : rsr.rows)
                 size += Row.serializer.serializedSize(row, version);
             return size;

@@ -28,7 +28,7 @@ import java.util.List;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -180,23 +180,23 @@ public class StreamRequest
 
         public long serializedSize(StreamRequest sr, int version)
         {
-            long size = DBTypeSizes.NATIVE.sizeof(sr.sessionId);
+            long size = TypeSizes.NATIVE.sizeof(sr.sessionId);
             size += CompactEndpointSerializationHelper.serializedSize(sr.target);
-            size += DBTypeSizes.NATIVE.sizeof(true);
+            size += TypeSizes.NATIVE.sizeof(true);
             if (sr.file != null)
                 return size + PendingFile.serializer.serializedSize(sr.file, version);
 
             size += FBUtilities.serializedUTF8Size(sr.table);
-            size += DBTypeSizes.NATIVE.sizeof(sr.ranges.size());
+            size += TypeSizes.NATIVE.sizeof(sr.ranges.size());
             for (Range<Token> range : sr.ranges)
                 size += AbstractBounds.serializer.serializedSize(range, version);
             if (version > MessagingService.VERSION_07)
                 size += FBUtilities.serializedUTF8Size(sr.type.name());
             if (version > MessagingService.VERSION_080)
             {
-                size += DBTypeSizes.NATIVE.sizeof(Iterables.size(sr.columnFamilies));
+                size += TypeSizes.NATIVE.sizeof(Iterables.size(sr.columnFamilies));
                 for (ColumnFamilyStore cfs : sr.columnFamilies)
-                    size += DBTypeSizes.NATIVE.sizeof(cfs.metadata.cfId);
+                    size += TypeSizes.NATIVE.sizeof(cfs.metadata.cfId);
             }
             return size;
         }

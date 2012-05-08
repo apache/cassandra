@@ -139,7 +139,7 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
         return cf;
     }
 
-    public long serializedSize(ColumnFamily cf, DBTypeSizes type)
+    public long serializedSize(ColumnFamily cf, TypeSizes type)
     {
         if (cf == null)
         {
@@ -153,7 +153,7 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
         }
     }
 
-    public long serializedSizeForSSTable(ColumnFamily cf, DBTypeSizes typeSizes)
+    public long serializedSizeForSSTable(ColumnFamily cf, TypeSizes typeSizes)
     {
         int size = typeSizes.sizeof(cf.getLocalDeletionTime()) // local deletion time
                  + typeSizes.sizeof(cf.getMarkedForDeleteAt()) // client deletion time

@@ -26,7 +26,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
 
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 
@@ -130,7 +130,7 @@ public class ReplayPosition implements Comparable<ReplayPosition>
             return new ReplayPosition(dis.readLong(), dis.readInt());
         }
 
-        public long serializedSize(ReplayPosition object, DBTypeSizes typeSizes)
+        public long serializedSize(ReplayPosition object, TypeSizes typeSizes)
         {
             throw new UnsupportedOperationException();
         }

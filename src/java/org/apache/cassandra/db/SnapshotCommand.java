@@ -18,16 +18,12 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.FastByteArrayInputStream;
-import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.FBUtilities.serializedUTF8Size;
 
@@ -87,6 +83,6 @@ class SnapshotCommandSerializer implements IVersionedSerializer<SnapshotCommand>
         return serializedUTF8Size(sc.keyspace)
              + serializedUTF8Size(sc.column_family)
              + serializedUTF8Size(sc.snapshot_name)
-             + DBTypeSizes.NATIVE.sizeof(sc.clear_snapshot);
+             + TypeSizes.NATIVE.sizeof(sc.clear_snapshot);
     }
 }

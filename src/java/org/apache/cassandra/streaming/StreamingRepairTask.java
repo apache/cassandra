@@ -28,7 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -267,7 +267,7 @@ public class StreamingRepairTask implements Runnable
             size += 3 * CompactEndpointSerializationHelper.serializedSize(task.owner);
             size += FBUtilities.serializedUTF8Size(task.tableName);
             size += FBUtilities.serializedUTF8Size(task.cfName);
-            size += DBTypeSizes.NATIVE.sizeof(task.ranges.size());
+            size += TypeSizes.NATIVE.sizeof(task.ranges.size());
             for (Range<Token> range : task.ranges)
                 size += AbstractBounds.serializer.serializedSize(range, version);
             return size;

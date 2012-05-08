@@ -20,7 +20,7 @@ package org.apache.cassandra.db.filter;
 import java.io.*;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -94,7 +94,7 @@ public class QueryPath
                              cName.remaining() == 0 ? null : cName);
     }
 
-    public int serializedSize(DBTypeSizes typeSizes)
+    public int serializedSize(TypeSizes typeSizes)
     {
         int size = 0;
 

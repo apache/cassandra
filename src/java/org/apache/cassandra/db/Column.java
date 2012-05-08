@@ -124,7 +124,7 @@ public class Column implements IColumn
         return timestamp;
     }
 
-    public int size(DBTypeSizes typeSizes)
+    public int size(TypeSizes typeSizes)
     {
         /*
          * Size of a column is =
@@ -143,7 +143,7 @@ public class Column implements IColumn
      * This returns the size of the column when serialized.
      * @see com.facebook.infrastructure.db.IColumn#serializedSize()
     */
-    public int serializedSize(DBTypeSizes typeSizes)
+    public int serializedSize(TypeSizes typeSizes)
     {
         return size(typeSizes);
     }

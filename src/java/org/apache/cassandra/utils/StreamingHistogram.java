@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.utils;
 
-import org.apache.cassandra.db.DBTypeSizes;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 
 import java.io.DataInput;
@@ -193,7 +193,7 @@ public class StreamingHistogram
             return new StreamingHistogram(maxBinSize, tmp);
         }
 
-        public long serializedSize(StreamingHistogram histogram, DBTypeSizes typeSizes)
+        public long serializedSize(StreamingHistogram histogram, TypeSizes typeSizes)
         {
             throw new UnsupportedOperationException();
         }
