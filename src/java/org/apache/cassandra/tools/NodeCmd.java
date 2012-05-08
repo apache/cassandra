@@ -24,6 +24,7 @@ package org.apache.cassandra.tools;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.management.MemoryUsage;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.DecimalFormat;
@@ -660,7 +661,21 @@ public class NodeCmd
         }
         catch (IOException ioe)
         {
-            err(ioe, "Error connection to remote JMX agent!");
+            Throwable inner = findInnermostThrowable(ioe);
+            if (inner instanceof ConnectException)
+            {
+                System.err.printf("Failed to connect to '%s:%d': %s\n", host, port, inner.getMessage());
+                System.exit(1);
+            }
+            else if (inner instanceof UnknownHostException)
+            {
+                System.err.printf("Cannot resolve '%s': unknown host\n", host);
+                System.exit(1);
+            }
+            else
+            {
+                err(ioe, "Error connecting to remote JMX agent!");
+            }
         }
         try
         {
@@ -854,6 +869,12 @@ public class NodeCmd
             }
         }
         System.exit(0);
+    }
+
+    private static Throwable findInnermostThrowable(Throwable ex)
+    {
+        Throwable inner = ex.getCause();
+        return inner == null ? ex : findInnermostThrowable(inner);
     }
 
     private void printDescribeRing(String keyspaceName, PrintStream out)
