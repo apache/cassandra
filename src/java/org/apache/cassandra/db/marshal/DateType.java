@@ -86,7 +86,6 @@ public class DateType extends AbstractType<Date>
     public static long dateStringToTimestamp(String source) throws MarshalException
     {
       long millis;
-      source = source.toLowerCase();
 
       if (source.toLowerCase().equals("now"))
       {

@@ -31,6 +31,7 @@ public class Relation
     private final Type relationType;
     private final Term value;
     private final List<Term> inValues;
+    public final boolean onToken;
 
     public static enum Type
     {
@@ -53,12 +54,13 @@ public class Relation
         }
     }
 
-    private Relation(ColumnIdentifier entity, Type type, Term value, List<Term> inValues)
+    private Relation(ColumnIdentifier entity, Type type, Term value, List<Term> inValues, boolean onToken)
     {
         this.entity = entity;
         this.relationType = type;
         this.value = value;
         this.inValues = inValues;
+        this.onToken = onToken;
     }
 
     /**
@@ -70,12 +72,17 @@ public class Relation
      */
     public Relation(ColumnIdentifier entity, String type, Term value)
     {
-        this(entity, Type.forString(type), value, null);
+        this(entity, Type.forString(type), value, null, false);
+    }
+
+    public Relation(ColumnIdentifier entity, String type, Term value, boolean onToken)
+    {
+        this(entity, Type.forString(type), value, null, onToken);
     }
 
     public static Relation createInRelation(ColumnIdentifier entity)
     {
-        return new Relation(entity, Type.IN, null, new ArrayList<Term>());
+        return new Relation(entity, Type.IN, null, new ArrayList<Term>(), false);
     }
 
     public Type operator()

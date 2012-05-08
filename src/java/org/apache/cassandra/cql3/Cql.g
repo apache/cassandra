@@ -461,6 +461,11 @@ cidentList returns [List<ColumnIdentifier> items]
     ;
 
 // Values (includes prepared statement markers)
+extendedTerm returns [Term term]
+    : K_TOKEN '(' t=term ')' { $term = Term.tokenOf(t); }
+    | t=term                 { $term = t; }
+    ;
+
 term returns [Term term]
     : t=(STRING_LITERAL | UUID | INTEGER | FLOAT ) { $term = new Term($t.text, $t.type); }
     | t=QMARK                                      { $term = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
@@ -502,6 +507,7 @@ properties returns [Map<String, String> props]
 
 relation returns [Relation rel]
     : name=cident type=('=' | '<' | '<=' | '>=' | '>') t=term { $rel = new Relation($name.id, $type.text, $t.term); }
+    | K_TOKEN '(' name=cident ')' type=('=' |'<' | '<=' | '>=' | '>') t=extendedTerm { $rel = new Relation($name.id, $type.text, $t.term, true); }
     | name=cident K_IN { $rel = Relation.createInRelation($name.id); }
       '(' f1=term { $rel.addInValue(f1); } (',' fN=term { $rel.addInValue(fN); } )* ')'
     ;
@@ -615,6 +621,7 @@ K_UUID:        U U I D;
 K_VARCHAR:     V A R C H A R;
 K_VARINT:      V A R I N T;
 K_TIMEUUID:    T I M E U U I D;
+K_TOKEN:       T O K E N;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

@@ -45,13 +45,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.TypeParser;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.ExcludingBounds;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.IncludingExcludingBounds;
-import org.apache.cassandra.dht.RandomPartitioner;
-import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
@@ -249,33 +243,6 @@ public class SelectStatement implements CQLStatement
     private List<Row> multiRangeSlice(List<ByteBuffer> variables) throws InvalidRequestException, TimedOutException, UnavailableException
     {
         List<Row> rows;
-        IPartitioner<?> p = StorageService.getPartitioner();
-
-        ByteBuffer startKeyBytes = getKeyBound(Bound.START, variables);
-        ByteBuffer finishKeyBytes = getKeyBound(Bound.END, variables);
-
-        RowPosition startKey = RowPosition.forKey(startKeyBytes, p);
-        RowPosition finishKey = RowPosition.forKey(finishKeyBytes, p);
-        if (startKey.compareTo(finishKey) > 0 && !finishKey.isMinimum(p))
-        {
-            if (p instanceof RandomPartitioner)
-                throw new InvalidRequestException("Start key sorts after end key. This is not allowed; you probably should not specify end key at all, under RandomPartitioner");
-            else
-                throw new InvalidRequestException("Start key must sort before (or equal to) finish key in your partitioner!");
-        }
-        AbstractBounds<RowPosition> bounds;
-        if (includeKeyBound(Bound.START))
-        {
-            bounds = includeKeyBound(Bound.END)
-                   ? new Bounds<RowPosition>(startKey, finishKey)
-                   : new IncludingExcludingBounds<RowPosition>(startKey, finishKey);
-        }
-        else
-        {
-            bounds = includeKeyBound(Bound.END)
-                   ? new Range<RowPosition>(startKey, finishKey)
-                   : new ExcludingBounds<RowPosition>(startKey, finishKey);
-        }
 
         // XXX: Our use of Thrift structs internally makes me Sad. :(
         SlicePredicate thriftSlicePredicate = makeSlicePredicate(variables);
@@ -289,7 +256,7 @@ public class SelectStatement implements CQLStatement
                                                                     columnFamily(),
                                                                     null,
                                                                     thriftSlicePredicate,
-                                                                    bounds,
+                                                                    getKeyBounds(variables),
                                                                     expressions,
                                                                     getLimit(),
                                                                     true, // limit by columns, not keys
@@ -305,6 +272,50 @@ public class SelectStatement implements CQLStatement
             throw new TimedOutException();
         }
         return rows;
+    }
+
+    private AbstractBounds<RowPosition> getKeyBounds(List<ByteBuffer> variables) throws InvalidRequestException
+    {
+        IPartitioner<?> p = StorageService.getPartitioner();
+        AbstractBounds<RowPosition> bounds;
+
+        if (keyRestriction != null && keyRestriction.onToken)
+        {
+            Token startToken = getTokenBound(Bound.START, variables, p);
+            Token endToken = getTokenBound(Bound.END, variables, p);
+
+            RowPosition start = includeKeyBound(Bound.START) ? startToken.minKeyBound() : startToken.maxKeyBound();
+            RowPosition end = includeKeyBound(Bound.END) ? endToken.maxKeyBound() : endToken.minKeyBound();
+            bounds = new Range<RowPosition>(start, end);
+        }
+        else
+        {
+            ByteBuffer startKeyBytes = getKeyBound(Bound.START, variables);
+            ByteBuffer finishKeyBytes = getKeyBound(Bound.END, variables);
+
+            RowPosition startKey = RowPosition.forKey(startKeyBytes, p);
+            RowPosition finishKey = RowPosition.forKey(finishKeyBytes, p);
+            if (startKey.compareTo(finishKey) > 0 && !finishKey.isMinimum(p))
+            {
+                if (p instanceof RandomPartitioner)
+                    throw new InvalidRequestException("Start key sorts after end key. This is not allowed; you probably should not specify end key at all, under RandomPartitioner");
+                else
+                    throw new InvalidRequestException("Start key must sort before (or equal to) finish key in your partitioner!");
+            }
+            if (includeKeyBound(Bound.START))
+            {
+                bounds = includeKeyBound(Bound.END)
+                    ? new Bounds<RowPosition>(startKey, finishKey)
+                    : new IncludingExcludingBounds<RowPosition>(startKey, finishKey);
+            }
+            else
+            {
+                bounds = includeKeyBound(Bound.END)
+                    ? new Range<RowPosition>(startKey, finishKey)
+                    : new ExcludingBounds<RowPosition>(startKey, finishKey);
+            }
+        }
+        return bounds;
     }
 
     private SlicePredicate makeSlicePredicate(List<ByteBuffer> variables)
@@ -341,11 +352,11 @@ public class SelectStatement implements CQLStatement
 
     private boolean isKeyRange()
     {
-        // If indexed columns, they always use getRangeSlices
+        // If indexed columns or a token range, they always use getRangeSlices
         if (!metadataRestrictions.isEmpty())
             return true;
 
-        return keyRestriction == null || !keyRestriction.isEquality();
+        return keyRestriction == null || !keyRestriction.isEquality() || keyRestriction.onToken;
     }
 
     private Collection<ByteBuffer> getKeys(final List<ByteBuffer> variables) throws InvalidRequestException
@@ -373,6 +384,21 @@ public class SelectStatement implements CQLStatement
         {
             Term bound = keyRestriction.bound(b);
             return bound == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : bound.getByteBuffer(cfDef.key.type, variables);
+        }
+    }
+
+    private Token getTokenBound(Bound b, List<ByteBuffer> variables, IPartitioner<?> p) throws InvalidRequestException
+    {
+        assert keyRestriction != null;
+        if (keyRestriction.isEquality())
+        {
+            assert keyRestriction.eqValues.size() == 1;
+            return keyRestriction.eqValues.get(0).getAsToken(cfDef.key.type, variables, p);
+        }
+        else
+        {
+            Term bound = keyRestriction.bound(b);
+            return bound == null ? p.getMinimumToken() : bound.getAsToken(cfDef.key.type, variables, p);
         }
     }
 
@@ -870,17 +896,17 @@ public class SelectStatement implements CQLStatement
                 switch (name.kind)
                 {
                     case KEY_ALIAS:
-                        if (rel.operator() != Relation.Type.EQ && rel.operator() != Relation.Type.IN && !StorageService.getPartitioner().preservesOrder())
-                            throw new InvalidRequestException("Only EQ and IN relation are supported on first component of the PRIMARY KEY for RandomPartitioner");
-                        stmt.keyRestriction = updateRestriction(name.name, stmt.keyRestriction, rel);
+                        if (rel.operator() != Relation.Type.EQ && rel.operator() != Relation.Type.IN && !rel.onToken && !StorageService.getPartitioner().preservesOrder())
+                            throw new InvalidRequestException("Only EQ and IN relation are supported on first component of the PRIMARY KEY for RandomPartitioner (unless you use the token() function)");
+                        stmt.keyRestriction = updateRestriction(name, stmt.keyRestriction, rel);
                         break;
                     case COLUMN_ALIAS:
-                        stmt.columnRestrictions[name.position] = updateRestriction(name.name, stmt.columnRestrictions[name.position], rel);
+                        stmt.columnRestrictions[name.position] = updateRestriction(name, stmt.columnRestrictions[name.position], rel);
                         break;
                     case VALUE_ALIAS:
                         throw new InvalidRequestException(String.format("Restricting the value of a compact CF (%s) is not supported", name.name));
                     case COLUMN_METADATA:
-                        stmt.metadataRestrictions.put(name, updateRestriction(name.name, stmt.metadataRestrictions.get(name), rel));
+                        stmt.metadataRestrictions.put(name, updateRestriction(name, stmt.metadataRestrictions.get(name), rel));
                         break;
                 }
             }
@@ -940,21 +966,9 @@ public class SelectStatement implements CQLStatement
                 if (!hasEq)
                     throw new InvalidRequestException("No indexed columns present in by-columns clause with Equal operator");
 
-                // If we have indexed columns and the key = X clause, we transform it into a key >= X AND key <= X clause.
-                // If it's a IN relation however, we reject it.
-                if (stmt.keyRestriction != null && stmt.keyRestriction.isEquality())
-                {
-                    if (stmt.keyRestriction.eqValues.size() > 1)
-                        throw new InvalidRequestException("Select on indexed columns and with IN clause for the PRIMARY KEY are not supported");
-
-                    Restriction newRestriction = new Restriction();
-                    for (Bound b : Bound.values())
-                    {
-                        newRestriction.setBound(b, stmt.keyRestriction.eqValues.get(0));
-                        newRestriction.setInclusive(b);
-                    }
-                    stmt.keyRestriction = newRestriction;
-                }
+                // If we have indexed columns and the key = X clause, we will do a range query, but if it's a IN relation, we don't know how to handle it.
+                if (stmt.keyRestriction != null && stmt.keyRestriction.isEquality() && stmt.keyRestriction.eqValues.size() > 1)
+                    throw new InvalidRequestException("Select on indexed columns and with IN clause for the PRIMARY KEY are not supported");
             }
 
             if (!stmt.parameters.orderings.isEmpty())
@@ -1007,6 +1021,10 @@ public class SelectStatement implements CQLStatement
                     throw new InvalidRequestException("Descending order is only supported is the first part of the PRIMARY KEY is restricted by an Equal or a IN");
             }
 
+            // If this is a query on tokens, it's necessary a range query (there can be more than one key per token), so reject IN queries (as we don't know how to do them)
+            if (stmt.keyRestriction != null && stmt.keyRestriction.onToken && stmt.keyRestriction.isEquality() && stmt.keyRestriction.eqValues.size() > 1)
+                throw new InvalidRequestException("Select using the token() function don't support IN clause");
+
             return new ParsedStatement.Prepared(stmt, Arrays.<AbstractType<?>>asList(types));
         }
 
@@ -1015,14 +1033,17 @@ public class SelectStatement implements CQLStatement
             return name.type instanceof ReversedType;
         }
 
-        Restriction updateRestriction(ColumnIdentifier name, Restriction restriction, Relation newRel) throws InvalidRequestException
+        Restriction updateRestriction(CFDefinition.Name name, Restriction restriction, Relation newRel) throws InvalidRequestException
         {
+            if (newRel.onToken && name.kind != CFDefinition.Name.Kind.KEY_ALIAS)
+                throw new InvalidRequestException(String.format("The token() function is only supported on the partition key, found on %s", name));
+
             switch (newRel.operator())
             {
                 case EQ:
                     if (restriction != null)
                         throw new InvalidRequestException(String.format("%s cannot be restricted by more than one relation if it includes an Equal", name));
-                    restriction = new Restriction(newRel.getValue());
+                    restriction = new Restriction(newRel.getValue(), newRel.onToken);
                     break;
                 case IN:
                     if (restriction != null)
@@ -1034,8 +1055,8 @@ public class SelectStatement implements CQLStatement
                 case LT:
                 case LTE:
                     if (restriction == null)
-                        restriction = new Restriction();
-                    restriction.setBound(name, newRel.operator(), newRel.getValue());
+                        restriction = new Restriction(newRel.onToken);
+                    restriction.setBound(name.name, newRel.operator(), newRel.getValue());
                     break;
             }
             return restriction;
@@ -1065,23 +1086,27 @@ public class SelectStatement implements CQLStatement
         private final Term[] bounds;
         private final boolean[] boundInclusive;
 
+        final boolean onToken;
+
         Restriction(List<Term> values)
         {
             this.eqValues = values;
             this.bounds = null;
             this.boundInclusive = null;
+            this.onToken = false;
         }
 
-        Restriction(Term value)
+        Restriction(Term value, boolean onToken)
         {
             this(Collections.singletonList(value));
         }
 
-        Restriction()
+        Restriction(boolean onToken)
         {
             this.eqValues = null;
             this.bounds = new Term[2];
             this.boundInclusive = new boolean[2];
+            this.onToken = onToken;
         }
 
         boolean isEquality()
@@ -1166,17 +1191,19 @@ public class SelectStatement implements CQLStatement
         @Override
         public String toString()
         {
+            String s;
             if (eqValues == null)
             {
-                return String.format("SLICE(%s %s, %s %s)", boundInclusive[0] ? ">=" : ">",
+                s = String.format("SLICE(%s %s, %s %s)", boundInclusive[0] ? ">=" : ">",
                                                             bounds[0],
                                                             boundInclusive[1] ? "<=" : "<",
                                                             bounds[1]);
             }
             else
             {
-                return String.format("EQ(%s)", eqValues);
+                s = String.format("EQ(%s)", eqValues);
             }
+            return onToken ? s + "*" : s;
         }
     }
 
