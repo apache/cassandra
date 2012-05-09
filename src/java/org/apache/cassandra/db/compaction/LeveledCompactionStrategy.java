@@ -179,29 +179,14 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         {
             if (level == 0)
             {
-                // L0 makes no guarantees about overlapping-ness.  Just create a direct scanner for each.
+                // L0 makes no guarantees about overlapping-ness.  Just create a direct scanner for each
                 for (SSTableReader sstable : byLevel.get(level))
                     scanners.add(sstable.getDirectScanner(range));
             }
             else
             {
                 // Create a LeveledScanner that only opens one sstable at a time, in sorted order
-                ArrayList<SSTableReader> sstables1 = new ArrayList<SSTableReader>(byLevel.get(level));
-                scanners.add(new LeveledScanner(sstables1, range));
-
-                Collections.sort(sstables1, SSTable.sstableComparator);
-                SSTableReader previous = null;
-                for (SSTableReader sstable : sstables1)
-                {
-                    assert previous == null || sstable.first.compareTo(previous.last) > 0 : String.format("%s >= %s in %s and %s for %s in %s",
-                                                                                                          previous.last,
-                                                                                                          sstable.first,
-                                                                                                          previous,
-                                                                                                          sstable,
-                                                                                                          sstable.getColumnFamilyName(),
-                                                                                                          manifest.getLevel(level));
-                    previous = sstable;
-                }
+                scanners.add(new LeveledScanner(byLevel.get(level), range));
             }
         }
 
