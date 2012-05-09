@@ -145,7 +145,7 @@ public class NodeCmd
         addCmdHelp(header, "tpstats", "Print usage statistics of thread pools");
         addCmdHelp(header, "proxyhistograms", "Print statistic histograms for network operations");
         addCmdHelp(header, "drain", "Drain the node (stop accepting writes and flush all column families)");
-        addCmdHelp(header, "decommission", "Decommission the node");
+        addCmdHelp(header, "decommission", "Decommission the *node I am connecting to*");
         addCmdHelp(header, "compactionstats", "Print statistics on compactions");
         addCmdHelp(header, "disablegossip", "Disable gossip (effectively marking the node dead)");
         addCmdHelp(header, "enablegossip", "Reenable gossip");
@@ -743,7 +743,6 @@ public class NodeCmd
 
                 case INFO            : nodeCmd.printInfo(System.out); break;
                 case CFSTATS         : nodeCmd.printColumnFamilyStats(System.out); break;
-                case DECOMMISSION    : probe.decommission(); break;
                 case TPSTATS         : nodeCmd.printThreadPoolStats(System.out); break;
                 case VERSION         : nodeCmd.printReleaseVersion(System.out); break;
                 case COMPACTIONSTATS : nodeCmd.printCompactionStats(System.out); break;
@@ -754,6 +753,15 @@ public class NodeCmd
                 case STATUSTHRIFT    : nodeCmd.printIsThriftServerRunning(System.out); break;
                 case RESETLOCALSCHEMA: probe.resetLocalSchema(); break;
                 case IDS             : nodeCmd.printHostIds(System.out); break;
+
+                case DECOMMISSION :
+                    if (arguments.length > 0)
+                    {
+                        System.err.println("Decommission will decommission the node you are connected to and does not take arguments!");
+                        System.exit(1);
+                    }
+                    probe.decommission();
+                    break;
 
                 case DRAIN :
                     try { probe.drain(); }
