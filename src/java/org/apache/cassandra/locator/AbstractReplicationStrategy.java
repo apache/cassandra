@@ -251,4 +251,13 @@ public abstract class AbstractReplicationStrategy
             throw new ConfigurationException("Replication factor must be numeric; found " + rf);
         }
     }
+
+    protected void warnOnUnexpectedOptions(Collection<String> expectedOptions)
+    {
+        for (String key : configOptions.keySet())
+        {
+            if (expectedOptions.contains(key))
+                logger.warn("Unrecognized strategy option {" + key + "} passed to " + getClass().getSimpleName() + " for keyspace " + table);
+        }
+    }
 }
