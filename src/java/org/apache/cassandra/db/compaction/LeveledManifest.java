@@ -32,7 +32,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -188,14 +187,6 @@ public class LeveledManifest
         lastCompactedKeys[minimumLevel] = SSTable.sstableOrdering.max(added).last;
         for (SSTableReader ssTableReader : added)
             add(ssTableReader, newLevel);
-
-        DecoratedKey last = null;
-        Collections.sort(generations[newLevel], SSTable.sstableComparator);
-        for (SSTableReader sstable : generations[newLevel])
-        {
-            assert last == null || sstable.first.compareTo(last) > 0;
-            last = sstable.last;
-        }
 
         serialize();
     }
