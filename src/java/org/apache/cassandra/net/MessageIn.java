@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.FileUtils;
 
 public class MessageIn<T>
 {
@@ -82,7 +83,7 @@ public class MessageIn<T>
             if (callback == null)
             {
                 // reply for expired callback.  we'll have to skip it.
-                in.skipBytes(payloadSize);
+                FileUtils.skipBytesFully(in, payloadSize);
                 return null;
             }
             serializer = (IVersionedSerializer<T2>) callback.serializer;
