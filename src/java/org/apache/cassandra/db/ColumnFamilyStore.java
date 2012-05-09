@@ -31,6 +31,7 @@ import java.util.regex.Pattern;
 import javax.management.*;
 
 import com.google.common.collect.*;
+import com.google.common.util.concurrent.Futures;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -609,8 +610,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             assert getMemtableThreadSafe() == oldMemtable;
-            final ReplayPosition ctx = writeCommitLog ? CommitLog.instance.getContext() : ReplayPosition.NONE;
-            logger.debug("flush position is {}", ctx);
+            final Future<ReplayPosition> ctx = writeCommitLog ? CommitLog.instance.getContext() : Futures.immediateFuture(ReplayPosition.NONE);
 
             // submit the memtable for any indexed sub-cfses, and our own.
             final List<ColumnFamilyStore> icc = new ArrayList<ColumnFamilyStore>();
@@ -642,7 +642,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
             return postFlushExecutor.submit(new WrappedRunnable()
             {
-                public void runMayThrow() throws InterruptedException, IOException
+                public void runMayThrow() throws InterruptedException, IOException, ExecutionException
                 {
                     latch.await();
 
@@ -662,7 +662,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     {
                         // if we're not writing to the commit log, we are replaying the log, so marking
                         // the log header with "you can discard anything written before the context" is not valid
-                        CommitLog.instance.discardCompletedSegments(metadata.cfId, ctx);
+                        CommitLog.instance.discardCompletedSegments(metadata.cfId, ctx.get());
                     }
                 }
             });
@@ -1710,13 +1710,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (ksm.durableWrites)
         {
             CommitLog.instance.forceNewSegment();
-            ReplayPosition position = CommitLog.instance.getContext();
+            Future<ReplayPosition> position = CommitLog.instance.getContext();
             // now flush everyone else.  re-flushing ourselves is not necessary, but harmless
             for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
                 cfs.forceFlush();
             waitForActiveFlushes();
             // if everything was clean, flush won't have called discard
-            CommitLog.instance.discardCompletedSegments(metadata.cfId, position);
+            CommitLog.instance.discardCompletedSegments(metadata.cfId, position.get());
         }
 
         // sleep a little to make sure that our truncatedAt comes after any sstable
