@@ -19,12 +19,14 @@ package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Token;
+
 
 /**
  * This class returns the nodes responsible for a given
@@ -68,6 +70,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         {
             throw new ConfigurationException("SimpleStrategy requires a replication_factor strategy option.");
         }
+        warnOnUnexpectedOptions(Arrays.<String>asList("replication_factor"));
         validateReplicationFactor(configOptions.get("replication_factor"));
     }
 }

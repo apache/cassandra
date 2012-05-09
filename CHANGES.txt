@@ -9,6 +9,8 @@
 
 
 1.1.1-dev
+ * enable caching on index CFs based on data CF cache setting (CASSANDRA-4197)
+ * warn on invalid replication strategy creation options (CASSANDRA-4046)
  * remove [Freeable]Memory finalizers (CASSANDRA-4222)
  * include tombstone size in ColumnFamily.size, which can prevent OOM
    during sudden mass delete operations (CASSANDRA-3741)

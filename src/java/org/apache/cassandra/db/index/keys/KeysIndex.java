@@ -60,6 +60,25 @@ public class KeysIndex extends PerColumnSecondaryIndex
                                                              indexedCfMetadata.cfName,
                                                              new LocalPartitioner(columnDef.getValidator()),
                                                              indexedCfMetadata);
+
+        // enable and initialize row cache based on parent's setting and indexed column's cardinality
+        CFMetaData.Caching baseCaching = baseCfs.metadata.getCaching();
+        if (baseCaching == CFMetaData.Caching.ALL || baseCaching == CFMetaData.Caching.ROWS_ONLY)
+        {
+            /*
+             * # of index CF's key = cardinality of indexed column.
+             * if # of keys stored in index CF is more than average column counts (means tall table),
+             * then consider it as high cardinality.
+             */
+            double estimatedKeys = indexCfs.estimateKeys();
+            double averageColumnCount = indexCfs.getMeanColumns();
+            if (averageColumnCount > 0 && estimatedKeys / averageColumnCount > 1)
+            {
+                logger.debug("turning row cache on for " + indexCfs.getColumnFamilyName());
+                indexCfs.metadata.caching(baseCaching);
+                indexCfs.initRowCache();
+            }
+        }
     }
 
     public static AbstractType<?> indexComparator()
