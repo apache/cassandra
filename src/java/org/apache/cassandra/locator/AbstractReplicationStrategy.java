@@ -256,7 +256,7 @@ public abstract class AbstractReplicationStrategy
     {
         for (String key : configOptions.keySet())
         {
-            if (expectedOptions.contains(key))
+            if (!expectedOptions.contains(key))
                 logger.warn("Unrecognized strategy option {" + key + "} passed to " + getClass().getSimpleName() + " for keyspace " + table);
         }
     }
