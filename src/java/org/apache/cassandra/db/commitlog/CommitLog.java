@@ -22,6 +22,7 @@ import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.*;
@@ -158,9 +159,10 @@ public class CommitLog implements CommitLogMBean
     }
 
     /**
-     * @return the current ReplayPosition of the current segment file
+     * @return a Future representing a ReplayPosition such that when it is ready,
+     * all commitlog tasks enqueued prior to the getContext call will be complete (i.e., appended to the log)
      */
-    public ReplayPosition getContext()
+    public Future<ReplayPosition> getContext()
     {
         Callable<ReplayPosition> task = new Callable<ReplayPosition>()
         {
@@ -169,18 +171,7 @@ public class CommitLog implements CommitLogMBean
                 return activeSegment.getContext();
             }
         };
-        try
-        {
-            return executor.submit(task).get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return executor.submit(task);
     }
 
     /**

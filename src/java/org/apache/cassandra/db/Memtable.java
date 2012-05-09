@@ -260,7 +260,7 @@ public class Memtable
     }
 
 
-    private SSTableReader writeSortedContents(ReplayPosition context) throws IOException
+    private SSTableReader writeSortedContents(Future<ReplayPosition> context) throws IOException, ExecutionException, InterruptedException
     {
         logger.info("Writing " + this);
 
@@ -277,7 +277,7 @@ public class Memtable
                                      * 1.2); // bloom filter and row index overhead
         SSTableReader ssTable;
         // errors when creating the writer that may leave empty temp files.
-        SSTableWriter writer = cfs.createFlushWriter(columnFamilies.size(), estimatedSize, context);
+        SSTableWriter writer = cfs.createFlushWriter(columnFamilies.size(), estimatedSize, context.get());
         try
         {
             // (we can't clear out the map as-we-go to free up memory,
@@ -303,16 +303,16 @@ public class Memtable
             writer.abort();
             throw FBUtilities.unchecked(e);
         }
-        logger.info(String.format("Completed flushing %s (%d bytes)",
-                                  ssTable.getFilename(), new File(ssTable.getFilename()).length()));
+        logger.info(String.format("Completed flushing %s (%d bytes) for commitlog position %s",
+                                  ssTable.getFilename(), new File(ssTable.getFilename()).length(), context.get()));
         return ssTable;
     }
 
-    public void flushAndSignal(final CountDownLatch latch, ExecutorService writer, final ReplayPosition context)
+    public void flushAndSignal(final CountDownLatch latch, ExecutorService writer, final Future<ReplayPosition> context)
     {
         writer.execute(new WrappedRunnable()
         {
-            public void runMayThrow() throws IOException
+            public void runMayThrow() throws Exception
             {
                 SSTableReader sstable = writeSortedContents(context);
                 cfs.replaceFlushed(Memtable.this, sstable);
