@@ -124,7 +124,7 @@ public class Column implements IColumn
         return timestamp;
     }
 
-    public int size(TypeSizes typeSizes)
+    public int dataSize(TypeSizes typeSizes)
     {
         /*
          * Size of a column is =
@@ -145,7 +145,7 @@ public class Column implements IColumn
     */
     public int serializedSize(TypeSizes typeSizes)
     {
-        return size(typeSizes);
+        return dataSize(typeSizes);
     }
 
     public int serializationFlags()

@@ -102,7 +102,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
     /**
      * This calculates the exact size of the sub columns on the fly
      */
-    public int size(TypeSizes typeSizes)
+    public int dataSize(TypeSizes typeSizes)
     {
         int size = 0;
         for (IColumn subColumn : getSubColumns())
@@ -130,7 +130,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
          * size(constantSize) of subcolumns.
          */
         int nameSize = name.remaining();
-        int subColumnsSize = size(typeSizes);
+        int subColumnsSize = dataSize(typeSizes);
         return typeSizes.sizeof((short) nameSize) + nameSize
                 + typeSizes.sizeof(getLocalDeletionTime())
                 + typeSizes.sizeof(getMarkedForDeleteAt())
