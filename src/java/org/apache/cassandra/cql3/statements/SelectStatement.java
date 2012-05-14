@@ -190,7 +190,8 @@ public class SelectStatement implements CQLStatement
     private List<Row> getSlice(List<ByteBuffer> variables) throws InvalidRequestException, TimedOutException, UnavailableException
     {
         QueryPath queryPath = new QueryPath(columnFamily());
-        List<ReadCommand> commands = new ArrayList<ReadCommand>();
+        Collection<ByteBuffer> keys = getKeys(variables);
+        List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
 
         // ...a range (slice) of column names
         if (isColumnRange())
@@ -201,7 +202,7 @@ public class SelectStatement implements CQLStatement
             // Note that we use the total limit for every key. This is
             // potentially inefficient, but then again, IN + LIMIT is not a
             // very sensible choice
-            for (ByteBuffer key : getKeys(variables))
+            for (ByteBuffer key : keys)
             {
                 QueryProcessor.validateKey(key);
                 QueryProcessor.validateSliceRange(cfDef.cfm, start, finish, isReversed);
@@ -220,7 +221,7 @@ public class SelectStatement implements CQLStatement
             Collection<ByteBuffer> columnNames = getRequestedColumns(variables);
             QueryProcessor.validateColumnNames(columnNames);
 
-            for (ByteBuffer key: getKeys(variables))
+            for (ByteBuffer key: keys)
             {
                 QueryProcessor.validateKey(key);
                 commands.add(new SliceByNamesReadCommand(keyspace(), key, queryPath, columnNames));
