@@ -50,6 +50,7 @@
    (CASSANDRA-4187)
  * Fix exception during move when localhost is the only source (CASSANDRA-4200)
  * (cql3) Allow paging through non-ordered partitioner results (CASSANDRA-3771)
+ * (cql3) Fix drop index
 Merged from 1.0:
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)

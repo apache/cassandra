@@ -28,12 +28,12 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 
 public class DropIndexStatement extends SchemaAlteringStatement
 {
-    public final CharSequence index;
+    public final String indexName;
 
     public DropIndexStatement(String indexName)
     {
         super(new CFName());
-        index = indexName;
+        this.indexName = indexName;
     }
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException
@@ -50,7 +50,7 @@ public class DropIndexStatement extends SchemaAlteringStatement
         }
 
         if (updatedCfm == null)
-            throw new InvalidRequestException("Index '" + index + "' could not be found in any of the column families of keyspace '" + keyspace() + "'");
+            throw new InvalidRequestException("Index '" + indexName + "' could not be found in any of the column families of keyspace '" + keyspace() + "'");
 
         MigrationManager.announceColumnFamilyUpdate(updatedCfm);
     }
@@ -59,11 +59,14 @@ public class DropIndexStatement extends SchemaAlteringStatement
     {
         for (ColumnDefinition column : cfm.getColumn_metadata().values())
         {
-            if (column.getIndexType() != null && column.getIndexName() != null && column.getIndexName().equals(index))
+            if (column.getIndexType() != null && column.getIndexName() != null && column.getIndexName().equals(indexName))
             {
-                column.setIndexName(null);
-                column.setIndexType(null, null);
-                return cfm;
+                CFMetaData cloned = cfm.clone();
+                ColumnDefinition toChange = cloned.getColumn_metadata().get(column.name);
+                assert toChange.getIndexName() != null && toChange.getIndexName().equals(indexName);
+                toChange.setIndexName(null);
+                toChange.setIndexType(null, null);
+                return cloned;
             }
         }
 
