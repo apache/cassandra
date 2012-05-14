@@ -849,10 +849,18 @@ public final class CFMetaData
      */
     public void addDefaultIndexNames() throws ConfigurationException
     {
+        Set<String> existingNames = existingIndexNames(null);
         for (ColumnDefinition column : column_metadata.values())
         {
             if (column.getIndexType() != null && column.getIndexName() == null)
-                column.setIndexName(getDefaultIndexName(cfName, comparator, column.name));
+            {
+                String baseName = getDefaultIndexName(cfName, comparator, column.name);
+                String indexName = baseName;
+                int i = 0;
+                while (existingNames.contains(indexName))
+                    indexName = baseName + '_' + (++i);
+                column.setIndexName(indexName);
+            }
         }
     }
 
@@ -941,14 +949,7 @@ public final class CFMetaData
         validateAlias(valueAlias, "Value");
 
         // initialize a set of names NOT in the CF under consideration
-        Set<String> indexNames = new HashSet<String>();
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
-            if (!cfs.getColumnFamilyName().equals(cfName))
-                for (ColumnDefinition cd : cfs.metadata.getColumn_metadata().values())
-                    indexNames.add(cd.getIndexName());
-        }
-
+        Set<String> indexNames = existingIndexNames(cfName);
         for (ColumnDefinition c : column_metadata.values())
         {
             AbstractType<?> comparator = getColumnDefinitionComparator(c);
@@ -993,6 +994,18 @@ public final class CFMetaData
         validateCompactionThresholds();
 
         return this;
+    }
+
+    private static Set<String> existingIndexNames(String cfToExclude)
+    {
+        Set<String> indexNames = new HashSet<String>();
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+        {
+            if (cfToExclude == null || !cfs.getColumnFamilyName().equals(cfToExclude))
+                for (ColumnDefinition cd : cfs.metadata.getColumn_metadata().values())
+                    indexNames.add(cd.getIndexName());
+        }
+        return indexNames;
     }
 
     private static void validateAlias(ByteBuffer alias, String msg) throws ConfigurationException
