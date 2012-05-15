@@ -45,6 +45,7 @@ import time
 import optparse
 import ConfigParser
 import codecs
+import locale
 import re
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
@@ -408,7 +409,7 @@ class Shell(cmd.Cmd):
 
         self.color = color
         if encoding is None:
-            encoding = sys.stdout.encoding
+            encoding = locale.getpreferredencoding()
         self.encoding = encoding
         self.output_codec = codecs.lookup(encoding)
 
