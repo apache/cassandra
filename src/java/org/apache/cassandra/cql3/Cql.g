@@ -435,7 +435,7 @@ truncateStatement returns [TruncateStatement stmt]
 cident returns [ColumnIdentifier id]
     : t=IDENT              { $id = new ColumnIdentifier($t.text, false); }
     | t=QUOTED_NAME        { $id = new ColumnIdentifier($t.text, true); }
-    | k=unreserved_keyword { $id = new ColumnIdentifier(k, true); }
+    | k=unreserved_keyword { $id = new ColumnIdentifier(k, false); }
     ;
 
 // Keyspace & Column family names
