@@ -888,17 +888,35 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionManager.instance.submitBackground(this);
     }
 
-    /*
-     * Add up all the files sizes this is the worst case file
+    /**
+     * Calculate expected file size of SSTable after compaction.
+     *
+     * If operation type is {@code CLEANUP}, then we calculate expected file size
+     * with checking token range to be eliminated.
+     * Other than that, we just add up all the files' size, which is the worst case file
      * size for compaction of all the list of files given.
+     *
+     * @param sstables SSTables to calculate expected compacted file size
+     * @param operation Operation type
+     * @return Expected file size of SSTable after compaction
      */
-    public long getExpectedCompactedFileSize(Iterable<SSTableReader> sstables)
+    public long getExpectedCompactedFileSize(Iterable<SSTableReader> sstables, OperationType operation)
     {
         long expectedFileSize = 0;
-        for (SSTableReader sstable : sstables)
+        if (operation == OperationType.CLEANUP)
         {
-            long size = sstable.onDiskLength();
-            expectedFileSize = expectedFileSize + size;
+            Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.name);
+            for (SSTableReader sstable : sstables)
+            {
+                List<Pair<Long, Long>> positions = sstable.getPositionsForRanges(ranges);
+                for (Pair<Long, Long> position : positions)
+                    expectedFileSize += position.right - position.left;
+            }
+        }
+        else
+        {
+            for (SSTableReader sstable : sstables)
+                expectedFileSize += sstable.onDiskLength();
         }
         return expectedFileSize;
     }

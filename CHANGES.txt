@@ -9,6 +9,7 @@
 
 
 1.1.1-dev
+ * calculate exact size required for cleanup operations (CASSANDRA-1404)
  * avoid blocking additional writes during flush when the commitlog
    gets behind temporarily (CASSANDRA-1991)
  * enable caching on index CFs based on data CF cache setting (CASSANDRA-4197)
