@@ -152,7 +152,7 @@ public class DefsTable
 
         for (Row row : serializedSchema)
         {
-            if (row.cf == null || row.cf.isEmpty() || row.cf.isMarkedForDelete())
+            if (row.cf == null || (row.cf.isMarkedForDelete() && row.cf.isEmpty()))
                 continue;
 
             keyspaces.add(KSMetaData.fromSchema(row, serializedColumnFamilies(row.key)));
