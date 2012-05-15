@@ -1455,8 +1455,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                      " created in " + snapshotDirectory);
                 }
 
-                if (compactionStrategy instanceof LeveledCompactionStrategy)
-                    directories.snapshotLeveledManifest(snapshotName);
+                if (cfs.compactionStrategy instanceof LeveledCompactionStrategy)
+                    cfs.directories.snapshotLeveledManifest(snapshotName);
             }
             catch (IOException e)
             {

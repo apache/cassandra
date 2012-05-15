@@ -43,6 +43,7 @@
  * (cql3) Fix drop index (CASSANDRA-4192)
  * (cql3) Don't return range ghosts anymore (CASSANDRA-3982)
  * fix the problem re-creating Keyspace/ColumnFamily (CASSANDRA-4219)
+ * fix SecondaryIndex LelevedManifest save upon snapshot (CASSANDRA-4230)
 Merged from 1.0:
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)
