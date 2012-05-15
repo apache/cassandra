@@ -74,7 +74,7 @@ public class CompactionTask extends AbstractCompactionTask
         if (!isCompactionInteresting(toCompact))
             return 0;
 
-        File compactionFileLocation = cfs.directories.getDirectoryForNewSSTables(cfs.getExpectedCompactedFileSize(toCompact));
+        File compactionFileLocation = cfs.directories.getDirectoryForNewSSTables(cfs.getExpectedCompactedFileSize(toCompact, compactionType));
         if (compactionFileLocation == null && partialCompactionsAcceptable())
         {
             // If the compaction file path is null that means we have no space left for this compaction.
@@ -85,7 +85,7 @@ public class CompactionTask extends AbstractCompactionTask
                 // Note that we have removed files that are still marked as compacting.
                 // This suboptimal but ok since the caller will unmark all the sstables at the end.
                 toCompact.remove(cfs.getMaxSizeFile(toCompact));
-                compactionFileLocation = cfs.directories.getDirectoryForNewSSTables(cfs.getExpectedCompactedFileSize(toCompact));
+                compactionFileLocation = cfs.directories.getDirectoryForNewSSTables(cfs.getExpectedCompactedFileSize(toCompact, compactionType));
             }
         }
 
