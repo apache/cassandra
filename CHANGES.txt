@@ -9,6 +9,7 @@
 
 
 1.1.1-dev
+ * log number of rows read from saved cache (CASSANDRA-4249)
  * calculate exact size required for cleanup operations (CASSANDRA-1404)
  * avoid blocking additional writes during flush when the commitlog
    gets behind temporarily (CASSANDRA-1991)
@@ -55,6 +56,7 @@
  * (cql3) Don't return range ghosts anymore (CASSANDRA-3982)
  * fix the problem re-creating Keyspace/ColumnFamily (CASSANDRA-4219)
  * fix SecondaryIndex LelevedManifest save upon snapshot (CASSANDRA-4230)
+ * fix missing arrayOffset in FBUtilities.hash (CASSANDRA-4250)
 Merged from 1.0:
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)

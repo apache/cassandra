@@ -417,6 +417,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                    Integer.MIN_VALUE,
                                                    true);
             CacheService.instance.rowCache.put(new RowCacheKey(metadata.cfId, key), data);
+            cachedRowsRead++;
         }
 
         if (cachedRowsRead > 0)
