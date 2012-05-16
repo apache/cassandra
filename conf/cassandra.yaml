@@ -400,7 +400,18 @@ compaction_preheat_key_cache: true
 # When unset, the default is 400 Mbps or 50 MB/s.
 # stream_throughput_outbound_megabits_per_sec: 400
 
-# Time to wait for a reply from other nodes before failing the command 
+# How long the coordinator should wait for read operations to complete
+read_rpc_timeout_in_ms: 10000
+# How long the coordinator should wait for seq or index scans to complete
+range_rpc_timeout_in_ms: 10000
+# How long the coordinator should wait for writes to complete
+write_rpc_timeout_in_ms: 10000
+# How long the coordinator should wait for truncates to complete
+# (This can be much longer, because we need to flush all CFs
+# to make sure we can clear out anythink in the commitlog that could
+# cause truncated data to reappear.)
+truncate_timeout_in_ms: 300000
+# The default timeout for other, miscellaneous operations
 rpc_timeout_in_ms: 10000
 
 # Enable socket timeout for streaming operation.

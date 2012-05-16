@@ -36,6 +36,11 @@ Upgrading
     - Global option hinted_handoff_throttle_delay_in_ms has been removed.
       hinted_handoff_throttle_in_kb has been added instead.
 
+Features
+--------
+    - rpc_timeout has been split up to allow finer-grained control
+      on timeouts for different operation types
+
 
 1.1.1
 =====

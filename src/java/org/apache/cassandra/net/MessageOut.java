@@ -27,6 +27,7 @@ import java.util.Map;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.utils.FBUtilities;
@@ -85,6 +86,11 @@ public class MessageOut<T>
     public Stage getStage()
     {
         return MessagingService.verbStages.get(verb);
+    }
+
+    public long getTimeout()
+    {
+        return DatabaseDescriptor.getTimeout(verb);
     }
 
     public String toString()

@@ -128,7 +128,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
 
     public TResolved get() throws TimeoutException, DigestMismatchException, IOException
     {
-        long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
+        long timeout = command.getTimeout() - (System.currentTimeMillis() - startTime);
         boolean success;
         try
         {

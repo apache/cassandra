@@ -44,7 +44,8 @@ public abstract class AbstractWriteResponseHandler implements IWriteResponseHand
 
     public void get() throws TimeoutException
     {
-        long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
+        long timeout = DatabaseDescriptor.getWriteRpcTimeout() - (System.currentTimeMillis() - startTime);
+
         boolean success;
         try
         {

@@ -45,7 +45,15 @@ public class Config
     /* initial token in the ring */
     public String initial_token;
 
-    public Long rpc_timeout_in_ms = new Long(2000);
+    public Long rpc_timeout_in_ms = new Long(10000);
+
+    public Long read_rpc_timeout_in_ms = new Long(10000);
+
+    public Long range_rpc_timeout_in_ms = new Long(10000);
+
+    public Long write_rpc_timeout_in_ms = new Long(10000);
+
+    public Long truncate_rpc_timeout_in_ms = new Long(300000);
 
     public Integer streaming_socket_timeout_in_ms = new Integer(0);
 

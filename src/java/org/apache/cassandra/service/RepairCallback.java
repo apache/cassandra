@@ -55,7 +55,7 @@ public class RepairCallback implements IAsyncCallback
 
     public Row get() throws TimeoutException, DigestMismatchException, IOException
     {
-        long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
+        long timeout = DatabaseDescriptor.getWriteRpcTimeout() - (System.currentTimeMillis() - startTime);
         try
         {
             condition.await(timeout, TimeUnit.MILLISECONDS);

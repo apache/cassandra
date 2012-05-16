@@ -155,7 +155,7 @@ public class BootStrapper
     {
         MessageOut message = new MessageOut(MessagingService.Verb.BOOTSTRAP_TOKEN);
         int retries = 5;
-        long timeout = Math.max(MessagingService.getDefaultCallbackTimeout(), BOOTSTRAP_TIMEOUT);
+        long timeout = Math.max(DatabaseDescriptor.getRpcTimeout(), BOOTSTRAP_TIMEOUT);
 
         while (retries > 0)
         {

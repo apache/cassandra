@@ -104,7 +104,7 @@ public class CassandraServer implements Cassandra.Iface
         List<Row> rows;
         try
         {
-            schedule(DatabaseDescriptor.getRpcTimeout());
+            schedule(DatabaseDescriptor.getReadRpcTimeout());
             try
             {
                 rows = StorageProxy.read(commands, consistency_level);
@@ -626,7 +626,7 @@ public class CassandraServer implements Cassandra.Iface
             return;
         try
         {
-            schedule(DatabaseDescriptor.getRpcTimeout());
+            schedule(DatabaseDescriptor.getWriteRpcTimeout());
             try
             {
                 StorageProxy.mutate(mutations, consistency_level);
@@ -685,7 +685,7 @@ public class CassandraServer implements Cassandra.Iface
             {
                 bounds = new Bounds<RowPosition>(RowPosition.forKey(range.start_key, p), RowPosition.forKey(range.end_key, p));
             }
-            schedule(DatabaseDescriptor.getRpcTimeout());
+            schedule(DatabaseDescriptor.getRangeRpcTimeout());
             try
             {
                 IFilter filter = ThriftValidation.asIFilter(predicate, metadata.getComparatorFor(column_parent.super_column));
@@ -745,7 +745,7 @@ public class CassandraServer implements Cassandra.Iface
         List<Row> rows;
         try
         {
-            schedule(DatabaseDescriptor.getRpcTimeout());
+            schedule(DatabaseDescriptor.getRangeRpcTimeout());
             try
             {
                 IFilter filter = ThriftValidation.asIFilter(predicate, metadata.comparator);
@@ -1091,7 +1091,7 @@ public class CassandraServer implements Cassandra.Iface
         cState.hasColumnFamilyAccess(cfname, Permission.WRITE);
         try
         {
-            schedule(DatabaseDescriptor.getRpcTimeout());
+            schedule(DatabaseDescriptor.getTruncateRpcTimeout());
             try
             {
                 StorageProxy.truncateBlocking(cState.getKeyspace(), cfname);

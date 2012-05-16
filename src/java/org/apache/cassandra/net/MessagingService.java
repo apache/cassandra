@@ -285,7 +285,6 @@ public final class MessagingService implements MessagingServiceMBean
     private final Map<String, AtomicLong> timeoutsPerHost = new HashMap<String, AtomicLong>();
     private final Map<String, AtomicLong> recentTimeoutsPerHost = new HashMap<String, AtomicLong>();
     private final List<ILatencySubscriber> subscribers = new ArrayList<ILatencySubscriber>();
-    private static final long DEFAULT_CALLBACK_TIMEOUT = DatabaseDescriptor.getRpcTimeout();
 
     // protocol versions of the other nodes in the cluster
     private final ConcurrentMap<InetAddress, Integer> versions = new NonBlockingHashMap<InetAddress, Integer>();
@@ -324,7 +323,7 @@ public final class MessagingService implements MessagingServiceMBean
             public Object apply(Pair<String, CallbackInfo> pair)
             {
                 CallbackInfo expiredCallbackInfo = pair.right;
-                maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, (double) DatabaseDescriptor.getRpcTimeout());
+                maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, (double) expiredCallbackInfo.sentMessage.getTimeout());
                 totalTimeouts++;
                 String ip = expiredCallbackInfo.target.getHostAddress();
                 AtomicLong c = timeoutsPerHost.get(ip);
@@ -350,7 +349,7 @@ public final class MessagingService implements MessagingServiceMBean
             }
         };
 
-        callbacks = new ExpiringMap<String, CallbackInfo>(DEFAULT_CALLBACK_TIMEOUT, timeoutReporter);
+        callbacks = new ExpiringMap<String, CallbackInfo>(DatabaseDescriptor.getMinRpcTimeout(), timeoutReporter);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
@@ -488,11 +487,6 @@ public final class MessagingService implements MessagingServiceMBean
         return verbHandlers.get(type);
     }
 
-    public String addCallback(IMessageCallback cb, MessageOut message, InetAddress to)
-    {
-        return addCallback(cb, message, to, DEFAULT_CALLBACK_TIMEOUT);
-    }
-
     public String addCallback(IMessageCallback cb, MessageOut message, InetAddress to, long timeout)
     {
         String messageId = nextId();
@@ -520,7 +514,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public String sendRR(MessageOut message, InetAddress to, IMessageCallback cb)
     {
-        return sendRR(message, to, cb, DEFAULT_CALLBACK_TIMEOUT);
+        return sendRR(message, to, cb, message.getTimeout());
     }
 
     /**
@@ -912,11 +906,6 @@ public final class MessagingService implements MessagingServiceMBean
         for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
             completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().ackCon.getCompletedMesssages());
         return completedTasks;
-    }
-
-    public static long getDefaultCallbackTimeout()
-    {
-        return DEFAULT_CALLBACK_TIMEOUT;
     }
 
     public Map<String, Integer> getDroppedMessages()

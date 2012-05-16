@@ -26,6 +26,7 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
 
+import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,10 +46,12 @@ import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.CassandraDaemon;
 import org.apache.cassandra.utils.FBUtilities;
 import org.yaml.snakeyaml.Loader;
@@ -694,6 +697,73 @@ public class DatabaseDescriptor
     public static void setRpcTimeout(Long timeOutInMillis)
     {
         conf.rpc_timeout_in_ms = timeOutInMillis;
+    }
+
+    public static long getReadRpcTimeout()
+    {
+        return conf.read_rpc_timeout_in_ms;
+    }
+
+    public static void setReadRpcTimeout(Long timeOutInMillis)
+    {
+        conf.read_rpc_timeout_in_ms = timeOutInMillis;
+    }
+
+    public static long getRangeRpcTimeout()
+    {
+        return conf.range_rpc_timeout_in_ms;
+    }
+
+    public static void setRangeRpcTimeout(Long timeOutInMillis)
+    {
+        conf.range_rpc_timeout_in_ms = timeOutInMillis;
+    }
+
+    public static long getWriteRpcTimeout()
+    {
+        return conf.write_rpc_timeout_in_ms;
+    }
+
+    public static void setWriteRpcTimeout(Long timeOutInMillis)
+    {
+        conf.write_rpc_timeout_in_ms = timeOutInMillis;
+    }
+
+    public static long getTruncateRpcTimeout()
+    {
+        return conf.truncate_rpc_timeout_in_ms;
+    }
+
+    public static void setTruncateRpcTimeout(Long timeOutInMillis)
+    {
+        conf.truncate_rpc_timeout_in_ms = timeOutInMillis;
+    }
+
+    // not part of the Verb enum so we can change timeouts easily via JMX
+    public static long getTimeout(MessagingService.Verb verb)
+    {
+        switch (verb)
+        {
+            case READ:
+                return getReadRpcTimeout();
+            case RANGE_SLICE:
+                return getRangeRpcTimeout();
+            case TRUNCATE:
+                return getTruncateRpcTimeout();
+            case READ_REPAIR:
+            case MUTATION:
+                return getWriteRpcTimeout();
+            default:
+                return getRpcTimeout();
+        }
+    }
+
+    /**
+     * @return the minimum configured {read, write, range, truncate, misc} timeout
+     */
+    public static long getMinRpcTimeout()
+    {
+        return Longs.min(getRpcTimeout(), getReadRpcTimeout(), getRangeRpcTimeout(), getWriteRpcTimeout(), getTruncateRpcTimeout());
     }
 
     public static double getPhiConvictThreshold()

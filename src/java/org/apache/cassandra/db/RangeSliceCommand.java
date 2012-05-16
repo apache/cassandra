@@ -43,8 +43,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.filter.IFilter;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -167,6 +170,11 @@ public class RangeSliceCommand implements IReadCommand
         // IndexScanCommand is deprecated so don't bother
         SlicePredicate pred = RangeSliceCommandSerializer.asSlicePredicate(predicate);
         return new IndexScanCommand(keyspace, column_family, clause, pred, range);
+    }
+
+    public long getTimeout()
+    {
+        return DatabaseDescriptor.getRangeRpcTimeout();
     }
 }
 

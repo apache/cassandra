@@ -430,7 +430,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     InetAddress destination = iter.next();
                     CompactEndpointSerializationHelper.serialize(destination, dos);
-                    String id = MessagingService.instance().addCallback(handler, message, destination);
+                    String id = MessagingService.instance().addCallback(handler, message, destination, message.getTimeout());
                     dos.writeUTF(id);
                     if (logger.isDebugEnabled())
                         logger.debug("Adding FWD message to: " + destination + " with ID " + id);
@@ -763,7 +763,7 @@ public class StorageProxy implements StorageProxyMBean
                     RepairCallback handler = repairResponseHandlers.get(i);
                     // wait for the repair writes to be acknowledged, to minimize impact on any replica that's
                     // behind on writes in case the out-of-sync row is read multiple times in quick succession
-                    FBUtilities.waitOnFutures(handler.resolver.repairResults, DatabaseDescriptor.getRpcTimeout());
+                    FBUtilities.waitOnFutures(handler.resolver.repairResults, DatabaseDescriptor.getWriteRpcTimeout());
 
                     Row row;
                     try
@@ -903,7 +903,7 @@ public class StorageProxy implements StorageProxyMBean
                             columnsCount += row.getLiveColumnCount();
                             logger.debug("range slices read {}", row.key);
                         }
-                        FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getRpcTimeout());
+                        FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getWriteRpcTimeout());
                     }
                     catch (TimeoutException ex)
                     {
@@ -1237,7 +1237,7 @@ public class StorageProxy implements StorageProxyMBean
 
         public final void run()
         {
-            if (System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getRpcTimeout())
+            if (System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getTimeout(verb))
             {
                 MessagingService.instance().incrementDroppedMessages(verb);
                 return;
@@ -1282,13 +1282,18 @@ public class StorageProxy implements StorageProxyMBean
             logger.warn("Some hints were not written before shutdown.  This is not supposed to happen.  You should (a) run repair, and (b) file a bug report");
     }
 
-    public Long getRpcTimeout()
-    {
-        return DatabaseDescriptor.getRpcTimeout();
-    }
+    public Long getRpcTimeout() { return DatabaseDescriptor.getRpcTimeout(); }
+    public void setRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setRpcTimeout(timeoutInMillis); }
 
-    public void setRpcTimeout(Long timeoutInMillis)
-    {
-        DatabaseDescriptor.setRpcTimeout(timeoutInMillis);
-    }
+    public Long getReadRpcTimeout() { return DatabaseDescriptor.getReadRpcTimeout(); }
+    public void setReadRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setReadRpcTimeout(timeoutInMillis); }
+
+    public Long getWriteRpcTimeout() { return DatabaseDescriptor.getWriteRpcTimeout(); }
+    public void setWriteRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setWriteRpcTimeout(timeoutInMillis); }
+
+    public Long getRangeRpcTimeout() { return DatabaseDescriptor.getRangeRpcTimeout(); }
+    public void setRangeRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setRangeRpcTimeout(timeoutInMillis); }
+
+    public Long getTruncateRpcTimeout() { return DatabaseDescriptor.getTruncateRpcTimeout(); }
+    public void setTruncateRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setTruncateRpcTimeout(timeoutInMillis); }
 }

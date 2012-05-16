@@ -131,7 +131,7 @@ public class OutboundTcpConnection extends Thread
                 disconnect();
                 continue;
             }
-            if (entry.timestamp < System.currentTimeMillis() - DatabaseDescriptor.getRpcTimeout())
+            if (entry.timestamp < System.currentTimeMillis() - m.getTimeout())
                 dropped.incrementAndGet();
             else if (socket != null || connect())
                 writeConnected(m, id);
@@ -312,7 +312,7 @@ public class OutboundTcpConnection extends Thread
         while (true)
         {
             Entry entry = backlog.peek();
-            if (entry == null || entry.timestamp >= System.currentTimeMillis() - DatabaseDescriptor.getRpcTimeout())
+            if (entry == null || entry.timestamp >= System.currentTimeMillis() - entry.message.getTimeout())
                 break;
 
             Entry entry2 = backlog.poll();
