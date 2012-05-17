@@ -757,7 +757,8 @@ public class SelectStatement implements CQLStatement
                 cqlRows.add(new CqlRow(row.key.key, thriftColumns));
             }
         }
-        // We don't allow reversed on range scan, but we do on multiget (IN (...)), so let's reverse the rows there too.
+
+        // Internal calls always return columns in the comparator order, even when reverse was set
         if (isReversed)
             Collections.reverse(cqlRows);
 
@@ -1013,14 +1014,13 @@ public class SelectStatement implements CQLStatement
                 }
                 assert isReversed != null;
                 stmt.isReversed = isReversed;
-            }
 
-            // Only allow reversed if the row key restriction is an equality,
-            // since we don't know how to reverse otherwise
-            if (stmt.isReversed)
-            {
-                if (stmt.keyRestriction == null || !stmt.keyRestriction.isEquality())
-                    throw new InvalidRequestException("Descending order is only supported is the first part of the PRIMARY KEY is restricted by an Equal or a IN");
+                // Only allow ordering if the row key restriction is an equality,
+                // since otherwise the order will be primarily on the row key.
+                // TODO: we could allow ordering for IN queries, as we can do the
+                // sorting post-query easily, but we will have to add it
+                if (stmt.keyRestriction == null || !stmt.keyRestriction.isEquality() || stmt.keyRestriction.eqValues.size() != 1)
+                    throw new InvalidRequestException("Ordering is only supported is the first part of the PRIMARY KEY is restricted by an Equal or a IN");
             }
 
             // If this is a query on tokens, it's necessary a range query (there can be more than one key per token), so reject IN queries (as we don't know how to do them)
