@@ -20,15 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -87,7 +79,7 @@ public class Table
     /* Table name. */
     public final String name;
     /* ColumnFamilyStore per column family */
-    private final Map<Integer, ColumnFamilyStore> columnFamilyStores = new ConcurrentHashMap<Integer, ColumnFamilyStore>();
+    private final Map<UUID, ColumnFamilyStore> columnFamilyStores = new ConcurrentHashMap<UUID, ColumnFamilyStore>();
     private final Object[] indexLocks;
     private volatile AbstractReplicationStrategy replicationStrategy;
 
@@ -148,13 +140,13 @@ public class Table
 
     public ColumnFamilyStore getColumnFamilyStore(String cfName)
     {
-        Integer id = Schema.instance.getId(name, cfName);
+        UUID id = Schema.instance.getId(name, cfName);
         if (id == null)
             throw new IllegalArgumentException(String.format("Unknown table/cf pair (%s.%s)", name, cfName));
         return getColumnFamilyStore(id);
     }
 
-    public ColumnFamilyStore getColumnFamilyStore(Integer id)
+    public ColumnFamilyStore getColumnFamilyStore(UUID id)
     {
         ColumnFamilyStore cfs = columnFamilyStores.get(id);
         if (cfs == null)
@@ -313,7 +305,7 @@ public class Table
     }
 
     // best invoked on the compaction mananger.
-    public void dropCf(Integer cfId) throws IOException
+    public void dropCf(UUID cfId) throws IOException
     {
         assert columnFamilyStores.containsKey(cfId);
         ColumnFamilyStore cfs = columnFamilyStores.remove(cfId);
@@ -342,7 +334,7 @@ public class Table
     }
 
     /** adds a cf to internal structures, ends up creating disk files). */
-    public void initCf(Integer cfId, String cfName)
+    public void initCf(UUID cfId, String cfName)
     {
         if (columnFamilyStores.containsKey(cfId))
         {
@@ -556,7 +548,7 @@ public class Table
     public List<Future<?>> flush() throws IOException
     {
         List<Future<?>> futures = new ArrayList<Future<?>>();
-        for (Integer cfId : columnFamilyStores.keySet())
+        for (UUID cfId : columnFamilyStores.keySet())
         {
             Future<?> future = columnFamilyStores.get(cfId).forceFlush();
             if (future != null)

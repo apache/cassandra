@@ -208,7 +208,7 @@ public class CommitLog implements CommitLogMBean
      * @param cfId    the column family ID that was flushed
      * @param context the replay position of the flush
      */
-    public void discardCompletedSegments(final Integer cfId, final ReplayPosition context) throws IOException
+    public void discardCompletedSegments(final UUID cfId, final ReplayPosition context) throws IOException
     {
         Callable task = new Callable()
         {

@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
@@ -39,7 +40,7 @@ public final class CompactionInfo implements Serializable
         this(null, tasktype, bytesComplete, totalBytes);
     }
 
-    public CompactionInfo(Integer id, OperationType tasktype, long bytesComplete, long totalBytes)
+    public CompactionInfo(UUID id, OperationType tasktype, long bytesComplete, long totalBytes)
     {
         this.tasktype = tasktype;
         this.bytesComplete = bytesComplete;
@@ -53,7 +54,7 @@ public final class CompactionInfo implements Serializable
         return new CompactionInfo(cfm == null ? null : cfm.cfId, tasktype, bytesComplete, totalBytes);
     }
 
-    public Integer getId()
+    public UUID getId()
     {
         return cfm == null ? null : cfm.cfId;
     }
@@ -100,7 +101,7 @@ public final class CompactionInfo implements Serializable
     public Map<String, String> asMap()
     {
         Map<String, String> ret = new HashMap<String, String>();
-        ret.put("id", Integer.toString(getId()));
+        ret.put("id", getId().toString());
         ret.put("keyspace", getKeyspace());
         ret.put("columnfamily", getColumnFamily());
         ret.put("bytesComplete", Long.toString(bytesComplete));

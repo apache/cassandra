@@ -27,6 +27,7 @@ import java.util.List;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.Table;
@@ -136,7 +137,7 @@ public class StreamRequest
 
                 dos.writeInt(Iterables.size(srm.columnFamilies));
                 for (ColumnFamilyStore cfs : srm.columnFamilies)
-                    dos.writeInt(cfs.metadata.cfId);
+                    ColumnFamily.serializer.serializeCfId(cfs.metadata.cfId, dos, version);
             }
         }
 
@@ -163,7 +164,7 @@ public class StreamRequest
                 List<ColumnFamilyStore> stores = new ArrayList<ColumnFamilyStore>();
                 int cfsSize = dis.readInt();
                 for (int i = 0; i < cfsSize; ++i)
-                    stores.add(Table.open(table).getColumnFamilyStore(dis.readInt()));
+                    stores.add(Table.open(table).getColumnFamilyStore(ColumnFamily.serializer.deserializeCfId(dis, version)));
 
                 return new StreamRequest(target, ranges, table, stores, sessionId, type);
             }
@@ -184,7 +185,7 @@ public class StreamRequest
             size += TypeSizes.NATIVE.sizeof(sr.type.name());
             size += TypeSizes.NATIVE.sizeof(Iterables.size(sr.columnFamilies));
             for (ColumnFamilyStore cfs : sr.columnFamilies)
-                size += TypeSizes.NATIVE.sizeof(cfs.metadata.cfId);
+                size += ColumnFamily.serializer.cfIdSerializedSize(cfs.metadata.cfId, TypeSizes.NATIVE, version);
             return size;
         }
     }

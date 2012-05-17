@@ -1209,8 +1209,7 @@ public class CompactionManager implements CompactionManagerMBean
         {
             try
             {
-                return new CompactionInfo(this.hashCode(),
-                                          OperationType.CLEANUP,
+                return new CompactionInfo(OperationType.CLEANUP,
                                           scanner.getCurrentPosition(),
                                           scanner.getLengthInBytes());
             }
@@ -1235,8 +1234,7 @@ public class CompactionManager implements CompactionManagerMBean
         {
             try
             {
-                return new CompactionInfo(this.hashCode(),
-                                          OperationType.SCRUB,
+                return new CompactionInfo(OperationType.SCRUB,
                                           dataFile.getFilePointer(),
                                           dataFile.length());
             }

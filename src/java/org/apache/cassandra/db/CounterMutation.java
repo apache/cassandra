@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +56,7 @@ public class CounterMutation implements IMutation
         return rowMutation.getTable();
     }
 
-    public Collection<Integer> getColumnFamilyIds()
+    public Collection<UUID> getColumnFamilyIds()
     {
         return rowMutation.getColumnFamilyIds();
     }

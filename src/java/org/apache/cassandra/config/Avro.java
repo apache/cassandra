@@ -127,8 +127,7 @@ public class Avro
                                             cf.name.toString(),
                                             ColumnFamilyType.create(cf.column_type.toString()),
                                             comparator,
-                                            subcolumnComparator,
-                                            cf.id);
+                                            subcolumnComparator);
 
         // When we pull up an old avro CfDef which doesn't have these arguments,
         //  it doesn't default them correctly. Without explicit defaulting,
@@ -177,6 +176,9 @@ public class Avro
         {
             throw new RuntimeException(e);
         }
+
+        // adding old -> new style ID mapping to support backward compatibility
+        Schema.instance.addOldCfIdMapping(cf.id, newCFMD.cfId);
 
         return newCFMD.comment(cf.comment.toString())
                       .readRepairChance(cf.read_repair_chance)

@@ -23,6 +23,7 @@ import java.io.IOError;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -300,7 +301,7 @@ public class CommitLogAllocator
 
         if (oldestSegment != null)
         {
-            for (Integer dirtyCFId : oldestSegment.getDirtyCFIDs())
+            for (UUID dirtyCFId : oldestSegment.getDirtyCFIDs())
             {
                 String keypace = Schema.instance.getCF(dirtyCFId).left;
                 final ColumnFamilyStore cfs = Table.open(keypace).getColumnFamilyStore(dirtyCFId);

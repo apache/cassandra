@@ -49,10 +49,7 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
 
     public CompactionInfo getCompactionInfo()
     {
-        return new CompactionInfo(this.hashCode(),
-                                  type,
-                                  bytesRead,
-                                  totalBytes);
+        return new CompactionInfo(type, bytesRead, totalBytes);
     }
 
     public abstract CloseableIterator<AbstractCompactedRow> iterator();

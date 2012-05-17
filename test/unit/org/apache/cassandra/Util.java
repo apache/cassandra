@@ -159,7 +159,7 @@ public class Util
     {
         IMutation first = rms.get(0);
         String tablename = first.getTable();
-        Integer cfid = first.getColumnFamilyIds().iterator().next();
+        UUID cfid = first.getColumnFamilyIds().iterator().next();
 
         for (IMutation rm : rms)
             rm.apply();

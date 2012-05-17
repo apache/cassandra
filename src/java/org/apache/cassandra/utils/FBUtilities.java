@@ -606,7 +606,7 @@ public class FBUtilities
         DataOutputBuffer buffer = new DataOutputBuffer(size);
         serializer.serialize(object, buffer, version);
         assert buffer.getLength() == size && buffer.getData().length == size
-               : String.format("Final buffer length %s to accomodate data size of %s (predicted %s) for %s",
+               : String.format("Final buffer length %s to accommodate data size of %s (predicted %s) for %s",
                                buffer.getData().length, buffer.getLength(), size, object);
         return buffer.getData();
     }

@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
 
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -30,11 +31,13 @@ public abstract class TypeSizes
     private static final int SHORT_SIZE = 2;
     private static final int INT_SIZE = 4;
     private static final int LONG_SIZE = 8;
+    private static final int UUID_SIZE = 16;
 
     public abstract int sizeof(boolean value);
     public abstract int sizeof(short value);
     public abstract int sizeof(int value);
     public abstract int sizeof(long value);
+    public abstract int sizeof(UUID value);
 
     /** assumes UTF8 */
     public int sizeof(String value)
@@ -92,6 +95,11 @@ public abstract class TypeSizes
         {
             return LONG_SIZE;
         }
+
+        public int sizeof(UUID value)
+        {
+            return UUID_SIZE;
+        }
     }
 
     public static class VIntEncodedTypeSizes extends TypeSizes
@@ -140,6 +148,11 @@ public abstract class TypeSizes
         public int sizeof(int i)
         {
             return sizeofVInt(i);
+        }
+
+        public int sizeof(UUID value)
+        {
+            return sizeofVInt(value.getMostSignificantBits()) + sizeofVInt(value.getLeastSignificantBits());
         }
     }
 }

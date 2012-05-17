@@ -20,6 +20,8 @@ package org.apache.cassandra.db;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.UUID;
+
 import org.apache.cassandra.config.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +30,8 @@ import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.ISSTableSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily>, ISSTableSerializer<ColumnFamily>
 {
@@ -61,7 +65,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
             }
 
             dos.writeBoolean(true);
-            dos.writeInt(cf.id());
+            serializeCfId(cf.id(), dos, version);
 
             DeletionInfo.serializer().serialize(cf.deletionInfo(), dos, version);
 
@@ -92,12 +96,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
         if (!dis.readBoolean())
             return null;
 
-        // create a ColumnFamily based on the cf id
-        int cfId = dis.readInt();
-        if (Schema.instance.getCF(cfId) == null)
-            throw new UnknownColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
-
-        ColumnFamily cf = ColumnFamily.create(cfId, factory);
+        ColumnFamily cf = ColumnFamily.create(deserializeCfId(dis, version), factory);
         IColumnSerializer columnSerializer = cf.getColumnSerializer();
         cf.delete(DeletionInfo.serializer().deserialize(dis, version, cf.getComparator()));
         int expireBefore = (int) (System.currentTimeMillis() / 1000);
@@ -126,8 +125,8 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
         }
         else
         {
-            return typeSizes.sizeof(true)     /* nullness bool */
-                 + typeSizes.sizeof(cf.id())  /* id */
+            return typeSizes.sizeof(true)  /* nullness bool */
+                 + cfIdSerializedSize(cf.id(), typeSizes, version)  /* id */
                  + contentSerializedSize(cf, typeSizes, version);
         }
     }
@@ -161,5 +160,50 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
         int size = dis.readInt();
         int expireBefore = (int) (System.currentTimeMillis() / 1000);
         deserializeColumnsFromSSTable(dis, cf, size, flag, expireBefore, version);
+    }
+
+    public void serializeCfId(UUID cfId, DataOutput dos, int version) throws IOException
+    {
+        if (version < MessagingService.VERSION_12) // try to use CF's old id where possible (CASSANDRA-3794)
+        {
+            Integer oldId = Schema.instance.convertNewCfId(cfId);
+
+            if (oldId == null)
+                throw new IOException("Can't serialize ColumnFamily ID " + cfId + " to be used by version " + version +
+                                      ", because int <-> uuid mapping could not be established (CF was created in mixed version cluster).");
+
+            dos.writeInt(oldId);
+        }
+        else
+            UUIDGen.serializer.serialize(cfId, dos, version);
+    }
+
+    public UUID deserializeCfId(DataInput dis, int version) throws IOException
+    {
+        // create a ColumnFamily based on the cf id
+        UUID cfId = (version < MessagingService.VERSION_12)
+                     ? Schema.instance.convertOldCfId(dis.readInt())
+                     : UUIDGen.serializer.deserialize(dis, version);
+
+        if (Schema.instance.getCF(cfId) == null)
+            throw new UnknownColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
+
+        return cfId;
+    }
+
+    public int cfIdSerializedSize(UUID cfId, TypeSizes typeSizes, int version)
+    {
+        if (version < MessagingService.VERSION_12) // try to use CF's old id where possible (CASSANDRA-3794)
+        {
+            Integer oldId = Schema.instance.convertNewCfId(cfId);
+
+            if (oldId == null)
+                throw new RuntimeException("Can't serialize ColumnFamily ID " + cfId + " to be used by version " + version +
+                        ", because int <-> uuid mapping could not be established (CF was created in mixed version cluster).");
+
+            return typeSizes.sizeof(oldId);
+        }
+
+        return typeSizes.sizeof(cfId);
     }
 }

@@ -34,21 +34,24 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
+import java.util.*;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
+    @BeforeClass
+    public static void loadSchema() throws IOException
+    {
+        loadSchema(true);
+    }
+
     private void testRangeSliceCommandWrite() throws IOException
     {
         ByteBuffer startCol = ByteBufferUtil.bytes("Start");
@@ -213,7 +216,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         standardRm.add(Statics.StandardCf);
         RowMutation superRm = new RowMutation(Statics.KS, Statics.Key);
         superRm.add(Statics.SuperCf);
-        Map<Integer, ColumnFamily> mods = new HashMap<Integer, ColumnFamily>();
+        Map<UUID, ColumnFamily> mods = new HashMap<UUID, ColumnFamily>();
         mods.put(Statics.StandardCf.metadata().cfId, Statics.StandardCf);
         mods.put(Statics.SuperCf.metadata().cfId, Statics.SuperCf);
         RowMutation mixedRm = new RowMutation(Statics.KS, Statics.Key, mods);

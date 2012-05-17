@@ -21,6 +21,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.UUID;
 
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.TypeSizes;
@@ -31,15 +32,15 @@ import org.apache.cassandra.utils.Pair;
 
 public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
 {
-    public final int cfId;
+    public final UUID cfId;
     public final byte[] key;
 
-    public RowCacheKey(int cfId, DecoratedKey key)
+    public RowCacheKey(UUID cfId, DecoratedKey key)
     {
         this(cfId, key.key);
     }
 
-    public RowCacheKey(int cfId, ByteBuffer key)
+    public RowCacheKey(UUID cfId, ByteBuffer key)
     {
         this.cfId = cfId;
         this.key = ByteBufferUtil.getArray(key);
@@ -69,21 +70,20 @@ public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
 
         RowCacheKey that = (RowCacheKey) o;
 
-        if (cfId != that.cfId) return false;
-        return Arrays.equals(key, that.key);
+        return cfId.equals(that.cfId) && Arrays.equals(key, that.key);
     }
 
     @Override
     public int hashCode()
     {
-        int result = cfId;
+        int result = cfId.hashCode();
         result = 31 * result + (key != null ? Arrays.hashCode(key) : 0);
         return result;
     }
 
     public int compareTo(RowCacheKey otherKey)
     {
-        return (cfId < otherKey.cfId) ? -1 : ((cfId == otherKey.cfId) ?  FBUtilities.compareUnsigned(key, otherKey.key, 0, 0, key.length, otherKey.key.length) : 1);
+        return (cfId.compareTo(otherKey.cfId) < 0) ? -1 : ((cfId.equals(otherKey.cfId)) ?  FBUtilities.compareUnsigned(key, otherKey.key, 0, 0, key.length, otherKey.key.length) : 1);
     }
 
     @Override

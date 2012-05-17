@@ -18,13 +18,14 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.UUID;
 
 
 public class UnknownColumnFamilyException extends IOException
 {
-    public final int cfId;
+    public final UUID cfId;
 
-    public UnknownColumnFamilyException(String msg, int cfId)
+    public UnknownColumnFamilyException(String msg, UUID cfId)
     {
         super(msg);
         this.cfId = cfId;

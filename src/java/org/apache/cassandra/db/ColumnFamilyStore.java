@@ -1122,7 +1122,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return the entire row for filter.key, if present in the cache (or we can cache it), or just the column
      *         specified by filter otherwise
      */
-    private ColumnFamily getThroughCache(Integer cfId, QueryFilter filter)
+    private ColumnFamily getThroughCache(UUID cfId, QueryFilter filter)
     {
         assert isRowCacheEnabled()
                : String.format("Row cache is not enabled on column family [" + getColumnFamilyName() + "]");
@@ -1181,7 +1181,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
             }
 
-            Integer cfId = Schema.instance.getId(table.name, this.columnFamily);
+            UUID cfId = Schema.instance.getId(table.name, this.columnFamily);
             if (cfId == null)
                 return null; // secondary index
 
@@ -1586,7 +1586,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void invalidateCachedRow(DecoratedKey key)
     {
-        Integer cfId = Schema.instance.getId(table.name, this.columnFamily);
+        UUID cfId = Schema.instance.getId(table.name, this.columnFamily);
         if (cfId == null)
             return; // secondary index
 

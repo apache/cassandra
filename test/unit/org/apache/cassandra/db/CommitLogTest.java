@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.util.UUID;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -111,7 +112,7 @@ public class CommitLogTest extends SchemaLoader
 
         assert CommitLog.instance.activeSegments() == 2 : "Expecting 2 segments, got " + CommitLog.instance.activeSegments();
 
-        int cfid2 = rm2.getColumnFamilyIds().iterator().next();
+        UUID cfid2 = rm2.getColumnFamilyIds().iterator().next();
         CommitLog.instance.discardCompletedSegments(cfid2, CommitLog.instance.getContext().get());
 
         // Assert we still have both our segment
@@ -133,7 +134,7 @@ public class CommitLogTest extends SchemaLoader
         assert CommitLog.instance.activeSegments() == 1 : "Expecting 1 segment, got " + CommitLog.instance.activeSegments();
 
         // "Flush": this won't delete anything
-        int cfid1 = rm.getColumnFamilyIds().iterator().next();
+        UUID cfid1 = rm.getColumnFamilyIds().iterator().next();
         CommitLog.instance.discardCompletedSegments(cfid1, CommitLog.instance.getContext().get());
 
         assert CommitLog.instance.activeSegments() == 1 : "Expecting 1 segment, got " + CommitLog.instance.activeSegments();
@@ -151,7 +152,7 @@ public class CommitLogTest extends SchemaLoader
         // "Flush" second cf: The first segment should be deleted since we
         // didn't write anything on cf1 since last flush (and we flush cf2)
 
-        int cfid2 = rm2.getColumnFamilyIds().iterator().next();
+        UUID cfid2 = rm2.getColumnFamilyIds().iterator().next();
         CommitLog.instance.discardCompletedSegments(cfid2, CommitLog.instance.getContext().get());
 
         // Assert we still have both our segment

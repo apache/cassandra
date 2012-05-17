@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.config;
 
-import java.io.IOError;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
@@ -55,9 +54,6 @@ public class Schema
      */
     public static final int NAME_LENGTH = 48;
 
-    private static final int MIN_CF_ID = 1000;
-    private final AtomicInteger cfIdGen = new AtomicInteger(MIN_CF_ID);
-
     /* metadata map for faster table lookup */
     private final Map<String, KSMetaData> tables = new NonBlockingHashMap<String, KSMetaData>();
 
@@ -65,7 +61,9 @@ public class Schema
     private final Map<String, Table> tableInstances = new NonBlockingHashMap<String, Table>();
 
     /* metadata map for faster ColumnFamily lookup */
-    private final BiMap<Pair<String, String>, Integer> cfIdMap = HashBiMap.create();
+    private final BiMap<Pair<String, String>, UUID> cfIdMap = HashBiMap.create();
+    // mapping from old ColumnFamily Id (Integer) to a new version which is UUID
+    private final BiMap<Integer, UUID> oldCfIdMap = HashBiMap.create();
 
     private volatile UUID version;
     private final ReadWriteLock versionLock = new ReentrantReadWriteLock();
@@ -105,8 +103,6 @@ public class Schema
             load(cfm);
 
         setTableDefinition(keyspaceDef);
-
-        fixCFMaxId();
 
         return this;
     }
@@ -184,7 +180,7 @@ public class Schema
      *
      * @return metadata about ColumnFamily
      */
-    public CFMetaData getCFMetaData(Integer cfId)
+    public CFMetaData getCFMetaData(UUID cfId)
     {
         Pair<String,String> cf = getCF(cfId);
         return (cf == null) ? null : getCFMetaData(cf.left, cf.right);
@@ -343,11 +339,34 @@ public class Schema
 
     /* ColumnFamily query/control methods */
 
+    public void addOldCfIdMapping(Integer oldId, UUID newId)
+    {
+        if (oldId == null)
+            return;
+
+        oldCfIdMap.put(oldId, newId);
+    }
+
+    public UUID convertOldCfId(Integer oldCfId)
+    {
+        UUID cfId = oldCfIdMap.get(oldCfId);
+
+        if (cfId == null)
+            throw new IllegalArgumentException("ColumnFamily identified by old " + oldCfId + " was not found.");
+
+        return cfId;
+    }
+
+    public Integer convertNewCfId(UUID newCfId)
+    {
+        return oldCfIdMap.containsValue(newCfId) ? oldCfIdMap.inverse().get(newCfId) : null;
+    }
+
     /**
      * @param cfId The identifier of the ColumnFamily to lookup
      * @return The (ksname,cfname) pair for the given id, or null if it has been dropped.
      */
-    public Pair<String,String> getCF(Integer cfId)
+    public Pair<String,String> getCF(UUID cfId)
     {
         return cfIdMap.inverse().get(cfId);
     }
@@ -360,7 +379,7 @@ public class Schema
      *
      * @return The id for the given (ksname,cfname) pair, or null if it has been dropped.
      */
-    public Integer getId(String ksName, String cfName)
+    public UUID getId(String ksName, String cfName)
     {
         return cfIdMap.get(new Pair<String, String>(ksName, cfName));
     }
@@ -382,8 +401,6 @@ public class Schema
 
         logger.debug("Adding {} to cfIdMap", cfm);
         cfIdMap.put(key, cfm.cfId);
-
-        fixCFMaxId();
     }
 
     /**
@@ -394,30 +411,6 @@ public class Schema
     public void purge(CFMetaData cfm)
     {
         cfIdMap.remove(new Pair<String, String>(cfm.ksName, cfm.cfName));
-    }
-
-    /**
-     * This gets called after initialization to make sure that id generation happens properly.
-     */
-    public void fixCFMaxId()
-    {
-        int cval, nval;
-        do
-        {
-            cval = cfIdGen.get();
-            int inMap = cfIdMap.isEmpty() ? 0 : Collections.max(cfIdMap.values()) + 1;
-            // never set it to less than 1000. this ensures that we have enough system CFids for future use.
-            nval = Math.max(Math.max(inMap, cval), MIN_CF_ID);
-        }
-        while (!cfIdGen.compareAndSet(cval, nval));
-    }
-
-    /**
-     * @return identifier for the new ColumnFamily (called primarily by CFMetaData constructor)
-     */
-    public int nextCFId()
-    {
-        return cfIdGen.getAndIncrement();
     }
 
     /* Version control */
@@ -494,6 +487,5 @@ public class Schema
         }
 
         updateVersionAndAnnounce();
-        fixCFMaxId();
     }
 }

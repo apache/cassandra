@@ -19,9 +19,11 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.util.UUID;
 
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.utils.*;
+
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
 import org.apache.cassandra.cache.IRowCacheEntry;
@@ -32,8 +34,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.sstable.ColumnStats;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.utils.*;
 
 public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEntry
 {
@@ -41,12 +41,12 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
     public static final ColumnFamilySerializer serializer = new ColumnFamilySerializer();
     private final CFMetaData cfm;
 
-    public static ColumnFamily create(Integer cfId)
+    public static ColumnFamily create(UUID cfId)
     {
         return create(Schema.instance.getCFMetaData(cfId));
     }
 
-    public static ColumnFamily create(Integer cfId, ISortedColumns.Factory factory)
+    public static ColumnFamily create(UUID cfId, ISortedColumns.Factory factory)
     {
         return create(Schema.instance.getCFMetaData(cfId), factory);
     }
@@ -108,7 +108,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
         return cf;
     }
 
-    public Integer id()
+    public UUID id()
     {
         return cfm.cfId;
     }
