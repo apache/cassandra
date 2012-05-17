@@ -848,7 +848,7 @@ public class SelectStatement implements CQLStatement
 
             CFDefinition cfDef = cfm.getCfDef();
             SelectStatement stmt = new SelectStatement(cfDef, getBoundsTerms(), parameters);
-            AbstractType[] types = new AbstractType[getBoundsTerms()];
+            CFDefinition.Name[] names = new CFDefinition.Name[getBoundsTerms()];
 
             // Select clause
             if (parameters.isCount)
@@ -886,13 +886,13 @@ public class SelectStatement implements CQLStatement
                 {
                     for (Term value : rel.getInValues())
                         if (value.isBindMarker())
-                            types[value.bindIndex] = name.type;
+                            names[value.bindIndex] = name;
                 }
                 else
                 {
                     Term value = rel.getValue();
                     if (value.isBindMarker())
-                        types[value.bindIndex] = name.type;
+                        names[value.bindIndex] = name;
                 }
 
                 switch (name.kind)
@@ -1027,7 +1027,7 @@ public class SelectStatement implements CQLStatement
             if (stmt.keyRestriction != null && stmt.keyRestriction.onToken && stmt.keyRestriction.isEquality() && stmt.keyRestriction.eqValues.size() > 1)
                 throw new InvalidRequestException("Select using the token() function don't support IN clause");
 
-            return new ParsedStatement.Prepared(stmt, Arrays.<AbstractType<?>>asList(types));
+            return new ParsedStatement.Prepared(stmt, Arrays.<CFDefinition.Name>asList(names));
         }
 
         private static boolean isReversedType(CFDefinition.Name name)

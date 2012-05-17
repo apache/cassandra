@@ -147,20 +147,20 @@ public class BatchStatement extends ModificationStatement
         return batch;
     }
 
-    public ParsedStatement.Prepared prepare(AbstractType[] boundTypes) throws InvalidRequestException
+    public ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException
     {
         // XXX: we use our knowledge that Modification don't create new statement upon call to prepare()
         for (ModificationStatement statement : statements)
         {
-            statement.prepare(boundTypes);
+            statement.prepare(boundNames);
         }
-        return new ParsedStatement.Prepared(this, Arrays.<AbstractType<?>>asList(boundTypes));
+        return new ParsedStatement.Prepared(this, Arrays.<CFDefinition.Name>asList(boundNames));
     }
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException
     {
-        AbstractType[] boundTypes = new AbstractType[getBoundsTerms()];
-        return prepare(boundTypes);
+        CFDefinition.Name[] boundNames = new CFDefinition.Name[getBoundsTerms()];
+        return prepare(boundNames);
     }
 
     public String toString()
