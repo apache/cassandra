@@ -462,7 +462,7 @@ public class LeveledManifest
         return generations[i];
     }
 
-    public int getEstimatedTasks()
+    public synchronized int getEstimatedTasks()
     {
         long tasks = 0;
         for (int i = generations.length - 1; i >= 0; i--)

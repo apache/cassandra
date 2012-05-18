@@ -1,4 +1,6 @@
 1.1.1-dev
+ * ignore min/max compactions settings in LCS, while preserving
+   behavior that min=max=0 disables autocompaction (CASSANDRA-4233)
  * log number of rows read from saved cache (CASSANDRA-4249)
  * calculate exact size required for cleanup operations (CASSANDRA-1404)
  * avoid blocking additional writes during flush when the commitlog
