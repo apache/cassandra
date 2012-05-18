@@ -1,3 +1,6 @@
+1.0.11
+ * ensure unique streaming session id's (CASSANDRA-4223)
+
 1.0.10
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)
  * avoid streaming empty files with bulk loader if sstablewriter errors out

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
@@ -50,15 +51,38 @@ public class StreamInSession
     private final List<SSTableReader> readers = new ArrayList<SSTableReader>();
     private PendingFile current;
 
+    private final static AtomicInteger sessionIdCounter = new AtomicInteger(0);
+
     private StreamInSession(Pair<InetAddress, Long> context, Runnable callback)
     {
         this.context = context;
         this.callback = callback;
     }
 
+    /**
+     * The next session id is a combination of a local integer counter and a flag used to avoid collisions
+     * between session id's generated on different machines. Nodes can may have StreamOutSessions with the
+     * following contexts:
+     *
+     * <1.1.1.1, (stream_in_flag, 6)>
+     * <1.1.1.1, (stream_out_flag, 6)>
+     *
+     * The first is an out stream created in response to a request from node 1.1.1.1. The  id (6) was created by
+     * the requesting node. The second is an out stream created by this node to push to 1.1.1.1. The  id (6) was
+     * created by this node.
+     *
+     * Note: The StreamInSession results in a StreamOutSession on the target that uses the StreamInSession sessionId.
+     *
+     * @return next StreamInSession sessionId
+     */
+    private static long nextSessionId()
+    {
+        return (((long)StreamHeader.STREAM_IN_SOURCE_FLAG << 32) + sessionIdCounter.incrementAndGet());
+    }
+
     public static StreamInSession create(InetAddress host, Runnable callback)
     {
-        Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, System.nanoTime());
+        Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, nextSessionId());
         StreamInSession session = new StreamInSession(context, callback);
         sessions.put(context, session);
         return session;
@@ -166,6 +190,11 @@ public class StreamInSession
                 callback.run();
             sessions.remove(context);
         }
+    }
+
+    public int getSourceFlag()
+    {
+        return (int)(context.right >> 32);
     }
 
     public long getSessionId()

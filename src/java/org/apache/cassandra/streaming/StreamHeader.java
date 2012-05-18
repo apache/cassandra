@@ -33,6 +33,11 @@ public class StreamHeader
 {
     private static IVersionedSerializer<StreamHeader> serializer;
 
+    // Streaming sessionId flags, used to avoid duplicate session id's between nodes.
+    // See StreamInSession and StreamOutSession
+    public static final int STREAM_IN_SOURCE_FLAG = 0;
+    public static final int STREAM_OUT_SOURCE_FLAG = 1;
+
     static
     {
         serializer = new StreamHeaderSerializer();
