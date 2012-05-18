@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.StringUtils;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -40,10 +41,29 @@ public class StreamOutSession extends AbstractStreamSession
 
     // one host may have multiple stream sessions.
     private static final ConcurrentMap<Pair<InetAddress, Long>, StreamOutSession> streams = new NonBlockingHashMap<Pair<InetAddress, Long>, StreamOutSession>();
+    private final static AtomicInteger sessionIdCounter = new AtomicInteger(0);
+
+    /**
+     * The next session id is a combination of a local integer counter and a flag used to avoid collisions
+     * between session id's generated on different machines. Nodes can may have StreamOutSessions with the
+     * following contexts:
+     *
+     * <1.1.1.1, (stream_in_flag, 6)>
+     * <1.1.1.1, (stream_out_flag, 6)>
+     *
+     * The first is an out stream created in response to a request from node 1.1.1.1. The  id (6) was created by
+     * the requesting node. The second is an out stream created by this node to push to 1.1.1.1. The  id (6) was
+     * created by this node.
+     * @return next StreamOutSession sessionId
+     */
+    private static long nextSessionId()
+    {
+        return (((long)StreamHeader.STREAM_OUT_SOURCE_FLAG << 32) + sessionIdCounter.incrementAndGet());
+    }
 
     public static StreamOutSession create(String table, InetAddress host, IStreamCallback callback)
     {
-        return create(table, host, System.nanoTime(), callback);
+        return create(table, host, nextSessionId(), callback);
     }
 
     public static StreamOutSession create(String table, InetAddress host, long sessionId)
