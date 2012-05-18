@@ -103,11 +103,11 @@ public abstract class RowPosition implements RingPosition<RowPosition>
             if (kind == Kind.ROW_KEY)
             {
                 int keySize = ((DecoratedKey)pos).key.remaining();
-                size += (typeSizes.sizeof((short) keySize) + keySize);
+                size += typeSizes.sizeof((short) keySize) + keySize;
             }
             else
             {
-                Token.serializer.serializedSize(pos.getToken(), typeSizes);
+                size += Token.serializer.serializedSize(pos.getToken(), typeSizes);
             }
             return size;
         }

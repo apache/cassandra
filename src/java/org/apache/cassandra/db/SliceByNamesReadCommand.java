@@ -27,7 +27,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class SliceByNamesReadCommand extends ReadCommand
 {
@@ -116,7 +115,7 @@ class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadComm
         int keySize = command.key.remaining();
 
         size += sizes.sizeof(command.table);
-        size += sizes.sizeof(keySize) + keySize;
+        size += sizes.sizeof((short)keySize) + keySize;
         size += command.queryPath.serializedSize(sizes);
         size += sizes.sizeof(command.columnNames.size());
         if (!command.columnNames.isEmpty())
