@@ -138,9 +138,9 @@ public class NodeCmd
         StringBuilder header = new StringBuilder();
         header.append("\nAvailable commands:\n");
         // No args
-        addCmdHelp(header, "ring", "Print informations on the token ring");
+        addCmdHelp(header, "ring", "Print information about the token ring");
         addCmdHelp(header, "join", "Join the ring");
-        addCmdHelp(header, "info", "Print node informations (uptime, load, ...)");
+        addCmdHelp(header, "info", "Print node information (uptime, load, ...)");
         addCmdHelp(header, "cfstats", "Print statistics on column families");
         addCmdHelp(header, "version", "Print cassandra version");
         addCmdHelp(header, "tpstats", "Print usage statistics of thread pools");
