@@ -24,6 +24,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.MessagingService;
@@ -52,6 +53,28 @@ public class StreamInSession extends AbstractStreamSession
     private PendingFile current;
     private Socket socket;
     private volatile int retries;
+    private final static AtomicInteger sessionIdCounter = new AtomicInteger(0);
+
+    /**
+     * The next session id is a combination of a local integer counter and a flag used to avoid collisions
+     * between session id's generated on different machines. Nodes can may have StreamOutSessions with the
+     * following contexts:
+     *
+     * <1.1.1.1, (stream_in_flag, 6)>
+     * <1.1.1.1, (stream_out_flag, 6)>
+     *
+     * The first is an out stream created in response to a request from node 1.1.1.1. The  id (6) was created by
+     * the requesting node. The second is an out stream created by this node to push to 1.1.1.1. The  id (6) was
+     * created by this node.
+     *
+     * Note: The StreamInSession results in a StreamOutSession on the target that uses the StreamInSession sessionId.
+     *
+     * @return next StreamInSession sessionId
+     */
+    private static long nextSessionId()
+    {
+        return (((long)StreamHeader.STREAM_IN_SOURCE_FLAG << 32) + sessionIdCounter.incrementAndGet());
+    }
 
     private StreamInSession(Pair<InetAddress, Long> context, IStreamCallback callback)
     {
@@ -60,7 +83,7 @@ public class StreamInSession extends AbstractStreamSession
 
     public static StreamInSession create(InetAddress host, IStreamCallback callback)
     {
-        Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, System.nanoTime());
+        Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, nextSessionId());
         StreamInSession session = new StreamInSession(context, callback);
         sessions.put(context, session);
         return session;
