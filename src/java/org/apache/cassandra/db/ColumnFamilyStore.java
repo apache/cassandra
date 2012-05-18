@@ -1844,7 +1844,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.maxCompactionThreshold.set(maxCompactionThreshold);
     }
 
-    public boolean giisCompactionDisabled()
+    public boolean isCompactionDisabled()
     {
         return getMinimumCompactionThreshold() <= 0 || getMaximumCompactionThreshold() <= 0;
     }
