@@ -60,7 +60,6 @@ if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
 from cqlshlib import cqlhandling, cql3handling, pylexotron, wcwidth
-from cqlshlib.cqlhandling import cql_typename
 
 try:
     import readline
@@ -159,7 +158,7 @@ else:
 debug_completion = bool(os.environ.get('CQLSH_DEBUG_COMPLETION', '') == 'YES')
 
 # we want the cql parser to understand our cqlsh-specific commands too
-cqlhandling.commands_end_with_newline.update((
+my_commands_ending_with_newline = (
     'help',
     '?',
     'describe',
@@ -171,9 +170,16 @@ cqlhandling.commands_end_with_newline.update((
     'debug',
     'exit',
     'quit'
-))
+)
 
-cqlhandling.CqlRuleSet.append_rules(r'''
+cqlsh_syntax_completers = []
+def cqlsh_syntax_completer(rulename, termname):
+    def registrator(f):
+        cqlsh_syntax_completers.append((rulename, termname, f))
+        return f
+    return registrator
+
+cqlsh_extra_syntax_rules = r'''
 <cqlshCommand> ::= <CQL_Statement>
                  | <specialCommand> ( ";" | "\n" )
                  ;
@@ -187,9 +193,10 @@ cqlhandling.CqlRuleSet.append_rules(r'''
                    | <exitCommand>
                    ;
 
-<describeCommand> ::= ( "DESCRIBE" | "DESC" ) ( "KEYSPACE" ksname=<name>?
-                                  | "COLUMNFAMILY" cfname=<name>
-                                  | "COLUMNFAMILIES"
+<describeCommand> ::= ( "DESCRIBE" | "DESC" )
+                                  ( "KEYSPACE" ksname=<keyspaceName>?
+                                  | ( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName>
+                                  | ( "COLUMNFAMILIES" | "TABLES" )
                                   | "SCHEMA"
                                   | "CLUSTER" )
                     ;
@@ -197,13 +204,13 @@ cqlhandling.CqlRuleSet.append_rules(r'''
 <showCommand> ::= "SHOW" what=( "VERSION" | "HOST" | "ASSUMPTIONS" )
                 ;
 
-<assumeCommand> ::= "ASSUME" ( ks=<name> "." )? cf=<name> <assumeTypeDef>
-                                                          ( "," <assumeTypeDef> )*
+<assumeCommand> ::= "ASSUME" cf=<columnFamilyName> <assumeTypeDef>
+                                                   ( "," <assumeTypeDef> )*
                   ;
 
 <assumeTypeDef> ::= "NAMES" "ARE" names=<storageType>
                   | "VALUES" "ARE" values=<storageType>
-                  | "(" colname=<name> ")" "VALUES" "ARE" colvalues=<storageType>
+                  | "(" colname=<colname> ")" "VALUES" "ARE" colvalues=<storageType>
                   ;
 
 <sourceCommand> ::= "SOURCE" fname=<stringLiteral>
@@ -212,7 +219,8 @@ cqlhandling.CqlRuleSet.append_rules(r'''
 <captureCommand> ::= "CAPTURE" ( fname=( <stringLiteral> | "OFF" ) )?
                    ;
 
-<debugCommand> ::= "DEBUG"
+# avoiding just "DEBUG" so that this rule doesn't get treated as a terminal
+<debugCommand> ::= "DEBUG" "THINGS"?
                  ;
 
 <helpCommand> ::= ( "HELP" | "?" ) [topic]=( <identifier> | <stringLiteral> )*
@@ -222,35 +230,16 @@ cqlhandling.CqlRuleSet.append_rules(r'''
                 ;
 
 <qmark> ::= "?" ;
-''')
+'''
 
-@cqlhandling.cql_add_completer('helpCommand', 'topic')
+@cqlsh_syntax_completer('helpCommand', 'topic')
 def complete_help(ctxt, cqlsh):
     helpfuncs = [n[5:].upper() for n in cqlsh.get_names() if n.startswith('help_')]
     funcs_with_docstrings = [n[3:].upper() for n in cqlsh.get_names()
                              if n.startswith('do_') and getattr(cqlsh, n, None).__doc__]
     return sorted(helpfuncs + funcs_with_docstrings)
 
-@cqlhandling.cql_add_completer('describeCommand', 'ksname')
-def complete_describe_ks(ctxt, cqlsh):
-    return map(cqlsh.cql_protect_name, cqlsh.get_keyspace_names())
-
-@cqlhandling.cql_add_completer('describeCommand', 'cfname')
-def complete_describe_cf(ctxt, cqlsh):
-    return map(cqlsh.cql_protect_name, cqlsh.get_columnfamily_names())
-
-@cqlhandling.cql_add_completer('assumeCommand', 'ks')
-def complete_assume_ks(ctxt, cqlsh):
-    return [cqlsh.cql_protect_name(ks) + '.' for ks in cqlsh.get_keyspace_names()]
-
-@cqlhandling.cql_add_completer('assumeCommand', 'cf')
-def complete_assume_cf(ctxt, cqlsh):
-    ks = ctxt.get_binding('ks', None)
-    if ks is not None:
-        ks = cqlsh.cql_unprotect_name(ks)
-    return map(cqlsh.cql_protect_name, cqlsh.get_columnfamily_names(ks))
-
-@cqlhandling.cql_add_completer('assumeTypeDef', 'colname')
+@cqlsh_syntax_completer('assumeTypeDef', 'colname')
 def complete_assume_col(ctxt, cqlsh):
     ks = ctxt.get_binding('ks', None)
     ks = cqlsh.cql_unprotect_name(ks) if ks is not None else None
@@ -277,9 +266,9 @@ def complete_source_quoted_filename(ctxt, cqlsh):
         annotated.append(match)
     return annotated
 
-cqlhandling.cql_add_completer('sourceCommand', 'fname') \
+cqlsh_syntax_completer('sourceCommand', 'fname') \
         (complete_source_quoted_filename)
-cqlhandling.cql_add_completer('captureCommand', 'fname') \
+cqlsh_syntax_completer('captureCommand', 'fname') \
         (complete_source_quoted_filename)
 
 class NoKeyspaceError(Exception):
@@ -309,6 +298,13 @@ class DecodeError(Exception):
 
     def __repr__(self):
         return '<%s %s>' % (self.__class__.__name__, self.message())
+
+def full_cql_version(ver):
+    while ver.count('.') < 2:
+        ver += '.0'
+    ver_parts = ver.split('-', 1) + ['']
+    vertuple = tuple(map(int, ver_parts[0].split('.')) + [ver_parts[1]])
+    return ver, vertuple
 
 def trim_if_present(s, prefix):
     if s.startswith(prefix):
@@ -441,7 +437,7 @@ def format_value(val, casstype, output_encoding, addcolor=False, time_format='',
     elif casstype in ('DecimalType', 'UUIDType', 'BooleanType'):
         # let python do these for us
         bval = str(val)
-        color = colormap[cql_typename(casstype)]
+        color = colormap[cqlruleset.cql_typename(casstype)]
     elif casstype == 'BytesType':
         bval = ''.join('%02x' % ord(c) for c in val)
         color = colormap['hex']
@@ -527,12 +523,10 @@ class Shell(cmd.Cmd):
         self.query_out = sys.stdout
 
     def set_expanded_cql_version(self, ver):
-        while ver.count('.') < 2:
-            ver += '.0'
+        ver, vertuple = full_cql_version(ver)
         self.set_cql_version(ver)
         self.cql_version = ver
-        ver_parts = ver.split('-', 1) + ['']
-        self.cql_ver_tuple = tuple(map(int, ver_parts[0].split('.')) + [ver_parts[1]])
+        self.cql_ver_tuple = vertuple
 
     def cqlver_atleast(self, major, minor=0, patch=0):
         return self.cql_ver_tuple[:3] >= (major, minor, patch)
@@ -581,14 +575,14 @@ class Shell(cmd.Cmd):
                 cf = self.cql_protect_name(cf)
                 if override.default_name_type:
                     print 'ASSUME %s NAMES ARE %s;' \
-                          % (cf, cql_typename(override.default_name_type))
+                          % (cf, cqlruleset.cql_typename(override.default_name_type))
                 if override.default_value_type:
                     print 'ASSUME %s VALUES ARE %s;' \
-                          % (cf, cql_typename(override.default_value_type))
+                          % (cf, cqlruleset.cql_typename(override.default_value_type))
                 for colname, vtype in override.value_types.items():
                     colname = self.cql_protect_name(colname)
                     print 'ASSUME %s(%s) VALUES ARE %s;' \
-                          % (cf, colname, cql_typename(vtype))
+                          % (cf, colname, cqlruleset.cql_typename(vtype))
         print
 
     def get_cluster_versions(self):
@@ -647,8 +641,7 @@ class Shell(cmd.Cmd):
                     indnames.append(md.index_name)
         return indnames
 
-    def filterable_column_names(self, cfname, ksname=None):
-        cfdef = self.get_columnfamily(cfname, ksname=ksname)
+    def filterable_column_names(self, cfdef):
         filterable = set()
         if cfdef.key_alias is not None and cfdef.key_alias != 'KEY':
             filterable.add(cfdef.key_alias)
@@ -705,6 +698,8 @@ class Shell(cmd.Cmd):
     # ===== cql3-dependent parts =====
 
     def get_columnfamily_layout(self, ksname, cfname):
+        if ksname is None:
+            ksname = self.current_keyspace
         self.cursor.execute("""select * from system.schema_columnfamilies
                                 where "keyspace"=:ks and "columnfamily"=:cf""",
                             {'ks': ksname, 'cf': cfname})
@@ -792,7 +787,7 @@ class Shell(cmd.Cmd):
         """
 
         try:
-            statements, in_batch = cqlhandling.cql_split_statements(statementtext)
+            statements, in_batch = cqlruleset.cql_split_statements(statementtext)
         except pylexotron.LexingError, e:
             if self.show_line_nums:
                 self.printerr('Invalid syntax at char %d' % (e.charnum,))
@@ -837,20 +832,20 @@ class Shell(cmd.Cmd):
             cmdword = 'help'
         custom_handler = getattr(self, 'do_' + cmdword.lower(), None)
         if custom_handler:
-            parsed = cqlhandling.cql_whole_parse_tokens(tokens, srcstr=srcstr,
-                                                        startsymbol='cqlshCommand')
+            parsed = cqlruleset.cql_whole_parse_tokens(tokens, srcstr=srcstr,
+                                                       startsymbol='cqlshCommand')
             if parsed and not parsed.remainder:
                 # successful complete parse
                 return custom_handler(parsed)
             else:
                 return self.handle_parse_error(cmdword, tokens, parsed, srcstr)
-        return self.perform_statement(cqlhandling.cql_extract_orig(tokens, srcstr))
+        return self.perform_statement(cqlruleset.cql_extract_orig(tokens, srcstr))
 
     def handle_parse_error(self, cmdword, tokens, parsed, srcstr):
         if cmdword.lower() == 'select':
             # hey, maybe they know about some new syntax we don't. type
             # assumptions won't work, but maybe the query will.
-            return self.perform_statement(cqlhandling.cql_extract_orig(tokens, srcstr))
+            return self.perform_statement(cqlruleset.cql_extract_orig(tokens, srcstr))
         if parsed:
             self.printerr('Improper %s command (problem at %r).' % (cmdword, parsed.remainder[0]))
         else:
@@ -861,13 +856,14 @@ class Shell(cmd.Cmd):
         USE <keyspacename>;
 
         Tells cqlsh and the connected Cassandra instance that you will be
-        working in the given keyspace. All subsequent operations on column
-        families or indexes will be in the context of this keyspace, unless
-        otherwise specified, until another USE command is issued or the
-        connection terminates.
+        working in the given keyspace. All subsequent operations on tables
+        or indexes will be in the context of this keyspace, unless otherwise
+        specified, until another USE command is issued or the connection
+        terminates.
 
         As always, when a keyspace name does not work as a normal identifier or
-        number, it can be enclosed in quotes and expressed as a string literal.
+        number, it can be quoted using single quotes (CQL 2) or double quotes
+        (CQL 3).
         """
         ksname = parsed.get_binding('ksname')
         if self.perform_statement(parsed.extract_orig()):
@@ -876,19 +872,22 @@ class Shell(cmd.Cmd):
     def do_select(self, parsed):
         """
         SELECT [FIRST n] [REVERSED] <selectExpr>
-          FROM [<keyspace>.]<columnFamily>
+          FROM [<keyspace>.]<table>
             [USING CONSISTENCY <consistencylevel>]
             [WHERE <clause>]
+            [ORDER BY <colname> [DESC]]
             [LIMIT m];
 
-        SELECT is used to read one or more records from a Cassandra column
-        family. It returns a result-set of rows, where each row consists of a
-        key and a collection of columns corresponding to the query.
+        SELECT is used to read one or more records from a CQL table. It returns
+        a set of rows matching the selection criteria specified.
+
+        Note that FIRST and REVERSED are only supported in CQL 2, and ORDER BY
+        is only supported in CQL 3 and higher.
 
         For more information, see one of the following:
 
           HELP SELECT_EXPR
-          HELP SELECT_COLUMNFAMILY
+          HELP SELECT_TABLE
           HELP SELECT_WHERE
           HELP SELECT_LIMIT
           HELP CONSISTENCYLEVEL
@@ -1053,29 +1052,27 @@ class Shell(cmd.Cmd):
         begidx = readline.get_begidx() + len(prevlines)
         endidx = readline.get_endidx() + len(prevlines)
         stuff_to_complete = wholestmt[:begidx]
-        return cqlhandling.cql_complete(stuff_to_complete, text, cassandra_conn=self,
-                                        debug=debug_completion, startsymbol='cqlshCommand')
+        return cqlruleset.cql_complete(stuff_to_complete, text, cassandra_conn=self,
+                                       debug=debug_completion, startsymbol='cqlshCommand')
 
     def set_prompt(self, prompt):
         if self.prompt != '':
             self.prompt = prompt
 
     def cql_protect_name(self, name):
-        if self.cqlver_atleast(3):
-            return cql3handling.maybe_cql3_escape_name(name)
-        else:
-            return cqlhandling.maybe_cql_escape(name)
+        return cqlruleset.maybe_escape_name(name)
 
     def cql_protect_value(self, value):
-        return cqlhandling.cql_escape(value)
+        return cqlruleset.escape_value(value)
 
     def cql_unprotect_name(self, namestr):
-        if namestr is not None:
-            return cql3handling.cql3_dequote_name(namestr)
+        if namestr is None:
+            return
+        return cqlruleset.dequote_name(namestr)
 
     def cql_unprotect_value(self, valstr):
         if valstr is not None:
-            return cqlhandling.cql_dequote(valstr)
+            return cqlruleset.dequote_value(valstr)
 
     def print_recreate_keyspace(self, ksdef, out):
         stratclass = trim_if_present(ksdef.strategy_class, 'org.apache.cassandra.locator.')
@@ -1127,23 +1124,23 @@ class Shell(cmd.Cmd):
 
     def print_recreate_columnfamily_from_cfdef(self, cfdef, out):
         cfname = self.cql_protect_name(cfdef.name)
-        out.write("CREATE COLUMNFAMILY %s (\n" % cfname)
+        out.write("CREATE TABLE %s (\n" % cfname)
         alias = self.cql_protect_name(cfdef.key_alias) if cfdef.key_alias else 'KEY'
-        keytype = cql_typename(cfdef.key_validation_class)
+        keytype = cqlruleset.cql_typename(cfdef.key_validation_class)
         out.write("  %s %s PRIMARY KEY" % (alias, keytype))
         indexed_columns = []
         for col in cfdef.column_metadata:
             colname = self.cql_protect_name(col.name)
-            out.write(",\n  %s %s" % (colname, cql_typename(col.validation_class)))
+            out.write(",\n  %s %s" % (colname, cqlruleset.cql_typename(col.validation_class)))
             if col.index_name is not None:
                 indexed_columns.append(col)
         cf_opts = []
-        for (option, thriftname) in cqlhandling.columnfamily_options:
+        for (option, thriftname) in cqlruleset.columnfamily_options:
             optval = getattr(cfdef, thriftname or option, None)
             if optval is None:
                 continue
             if option in ('comparator', 'default_validation'):
-                optval = cql_typename(optval)
+                optval = cqlruleset.cql_typename(optval)
             else:
                 if option == 'row_cache_provider':
                     optval = trim_if_present(optval, 'org.apache.cassandra.cache.')
@@ -1151,7 +1148,7 @@ class Shell(cmd.Cmd):
                     optval = trim_if_present(optval, 'org.apache.cassandra.db.compaction.')
                 optval = self.cql_protect_value(optval)
             cf_opts.append((option, optval))
-        for option, thriftname, _ in cqlhandling.columnfamily_map_options:
+        for option, thriftname, _ in cqlruleset.columnfamily_map_options:
             optmap = getattr(cfdef, thriftname or option, {})
             for k, v in optmap.items():
                 if option == 'compression_parameters' and k == 'sstable_compression':
@@ -1173,7 +1170,7 @@ class Shell(cmd.Cmd):
 
     def print_recreate_columnfamily_from_layout(self, layout, out):
         cfname = self.cql_protect_name(layout.name)
-        out.write("CREATE COLUMNFAMILY %s (\n" % cfname)
+        out.write("CREATE TABLE %s (\n" % cfname)
         keycol = layout.columns[0]
         out.write("  %s %s" % (self.cql_protect_name(keycol.name), keycol.cqltype))
         if len(layout.key_components) == 1:
@@ -1196,7 +1193,7 @@ class Shell(cmd.Cmd):
             joiner = 'AND'
 
         cf_opts = []
-        for option in cql3handling.columnfamily_options:
+        for option in cqlruleset.columnfamily_layout_options:
             optval = getattr(layout, option, None)
             if optval is None:
                 continue
@@ -1205,7 +1202,7 @@ class Shell(cmd.Cmd):
             elif option == 'compaction_strategy_class':
                 optval = trim_if_present(optval, 'org.apache.cassandra.db.compaction.')
             cf_opts.append((option, self.cql_protect_value(optval)))
-        for option, _ in cql3handling.columnfamily_map_options:
+        for option, _ in cqlruleset.columnfamily_layout_map_options:
             optmap = getattr(layout, option, {})
             for k, v in optmap.items():
                 if option == 'compression_parameters' and k == 'sstable_compression':
@@ -1228,9 +1225,11 @@ class Shell(cmd.Cmd):
         self.print_recreate_keyspace(self.get_keyspace(ksname), sys.stdout)
         print
 
-    def describe_columnfamily(self, cfname):
+    def describe_columnfamily(self, ksname, cfname):
+        if ksname is None:
+            ksname = self.current_keyspace
         print
-        self.print_recreate_columnfamily(self.current_keyspace, cfname, sys.stdout)
+        self.print_recreate_columnfamily(ksname, cfname, sys.stdout)
         print
 
     def describe_columnfamilies(self, ksname):
@@ -1277,23 +1276,23 @@ class Shell(cmd.Cmd):
         DESCRIBE KEYSPACE [<keyspacename>]
 
           Output CQL commands that could be used to recreate the given
-          keyspace, and the columnfamilies in it. In some cases, as the CQL
-          interface matures, there will be some metadata about a keyspace that
-          is not representable with CQL. That metadata will not be shown.
+          keyspace, and the tables in it. In some cases, as the CQL interface
+          matures, there will be some metadata about a keyspace that is not
+          representable with CQL. That metadata will not be shown.
 
           The '<keyspacename>' argument may be omitted when using a non-system
           keyspace; in that case, the current keyspace will be described.
 
-        DESCRIBE COLUMNFAMILIES
+        DESCRIBE TABLES
 
-          Output the names of all column families in the current keyspace, or
-          in all keyspaces if there is no current keyspace.
+          Output the names of all tables in the current keyspace, or in all
+          keyspaces if there is no current keyspace.
 
-        DESCRIBE COLUMNFAMILY <columnfamilyname>
+        DESCRIBE TABLE <tablename>
 
-          Output CQL commands that could be used to recreate the given
-          columnfamily. In some cases, as above, there may be columnfamily
-          metadata which is not representable and which will not be shown.
+          Output CQL commands that could be used to recreate the given table.
+          In some cases, as above, there may be table metadata which is not
+          representable and which will not be shown.
 
         DESCRIBE CLUSTER
 
@@ -1318,10 +1317,11 @@ class Shell(cmd.Cmd):
                     self.printerr('Not in any keyspace.')
                     return
             self.describe_keyspace(ksname)
-        elif what == 'columnfamily':
-            cfname = self.cql_unprotect_name(parsed.get_binding('cfname'))
-            self.describe_columnfamily(cfname)
-        elif what == 'columnfamilies':
+        elif what in ('columnfamily', 'table'):
+            ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
+            cf = self.cql_unprotect_name(parsed.get_binding('cfname'))
+            self.describe_columnfamily(ks, cf)
+        elif what in ('columnfamilies', 'tables'):
             self.describe_columnfamilies(self.current_keyspace)
         elif what == 'cluster':
             self.describe_cluster()
@@ -1369,62 +1369,62 @@ class Shell(cmd.Cmd):
 
           Instruct cqlsh to consider certain column names or values to be of a
           specified type, even if that type information is not specified in
-          the columnfamily's metadata. Data will be deserialized according to
-          the given type, and displayed appropriately when retrieved.
+          the table's metadata. Data will be deserialized according to the
+          given type, and displayed appropriately when retrieved.
 
           Use thus:
 
-        ASSUME [<keyspace>.]<columnfamily> NAMES ARE <type>;
+        ASSUME [<keyspace>.]<tablename> NAMES ARE <type>;
 
-          Treat all column names in the given columnfamily as being of the
+          Treat all column names in the given table as being of the
           given type.
 
-        ASSUME [<keyspace>.]<columnfamily> VALUES ARE <type>;
+        ASSUME [<keyspace>.]<tablename> VALUES ARE <type>;
 
-          Treat all column values in the given columnfamily as being of the
+          Treat all column values in the given table as being of the
           given type, unless there is more information about the specific
           column being deserialized. That is, a column-specific ASSUME will
           take precedence here, as will column-specific metadata in the
-          columnfamily's definition.
+          table's definition.
 
-        ASSUME [<keyspace>.]<columnfamily>(<colname>) VALUES ARE <type>;
+        ASSUME [<keyspace>.]<tablename>(<colname>) VALUES ARE <type>;
 
-          Treat all values in the given column in the given columnfamily as
+          Treat all values in the given column in the given table as
           being of the specified type. This overrides any other information
           about the type of a value.
 
-        Assign multiple overrides at once for the same columnfamily by
+        Assign multiple overrides at once for the same table by
         separating with commas:
 
-          ASSUME ks.cf NAMES ARE uuid, VALUES ARE int, (col) VALUES ARE ascii
+          ASSUME ks.table NAMES ARE uuid, VALUES ARE int, (col) VALUES ARE ascii
 
         See HELP TYPES for information on the supported data storage types.
         """
 
+        ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
+        cf = self.cql_unprotect_name(parsed.get_binding('cfname'))
+        colname = self.cql_unprotect_name(parsed.get_binding('colname', None))
+
         params = {}
-        for paramname in ('ks', 'cf', 'colname'):
-            val = parsed.get_binding(paramname, None)
-            params[paramname] = self.cql_unprotect_name(val)
         for paramname in ('names', 'values', 'colvalues'):
             val = parsed.get_binding(paramname, None)
             params[paramname] = self.cql_unprotect_value(val)
-        if params['ks'] is None:
+        if ks is None:
             if self.current_keyspace is None:
                 self.printerr('Error: not in any keyspace.')
                 return
-            params['ks'] = self.current_keyspace
+            ks = self.current_keyspace
 
         for overridetype in ('names', 'values', 'colvalues'):
             cqltype = params[overridetype]
             if cqltype is None:
                 continue
             try:
-                validator_class = cqlhandling.find_validator_class(cqltype)
+                validator_class = cqlruleset.find_validator_class(cqltype)
             except KeyError:
                 self.printerr('Error: validator type %s not found.' % cqltype)
             else:
-                self.add_assumption(params['ks'], params['cf'], params['colname'],
-                                    overridetype, validator_class)
+                self.add_assumption(ks, cf, colname, overridetype, validator_class)
 
     def do_source(self, parsed):
         """
@@ -1441,7 +1441,7 @@ class Shell(cmd.Cmd):
 
         That is, the path to the file to be executed must be given inside a
         string literal. The path is interpreted relative to the current working
-        directory. The tilde shorthand notation ("~/mydir") is supported for
+        directory. The tilde shorthand notation ('~/mydir') is supported for
         referring to $HOME.
 
         See also the --file option to cqlsh.
@@ -1473,9 +1473,9 @@ class Shell(cmd.Cmd):
           CAPTURE OFF;
           CAPTURE;
 
-        That is, the path to the file to be executed must be given inside a
+        That is, the path to the file to be appended to must be given inside a
         string literal. The path is interpreted relative to the current working
-        directory. The tilde shorthand notation ("~/mydir") is supported for
+        directory. The tilde shorthand notation ('~/mydir') is supported for
         referring to $HOME.
 
         Only query result output is captured. Errors and output from cqlsh-only
@@ -1562,7 +1562,7 @@ class Shell(cmd.Cmd):
 
     def help_types(self):
         print "\n        CQL types recognized by this version of cqlsh:\n"
-        for t in cqlhandling.cql_types:
+        for t in cqlruleset.cql_types:
             print '          ' + t
         print """
         For information on the various recognizable input formats for these
@@ -1696,20 +1696,22 @@ class Shell(cmd.Cmd):
         value is the number of rows from the pre-aggregation resultset.
 
         Currently, COUNT is the only function supported by CQL.
+
+         ** [FIRST n] and [REVERSED] are no longer supported in CQL 3.
         """
 
-    def help_select_columnfamily(self):
+    def help_select_table(self):
         print """
-        SELECT: Specifying Column Family
+        SELECT: Specifying Table
 
-          SELECT ... FROM [<keyspace>.]<columnFamily> ...
+          SELECT ... FROM [<keyspace>.]<tablename> ...
 
-        The FROM clause is used to specify the Cassandra column family
-        applicable to a SELECT query. The keyspace in which the column family
-        exists can optionally be specified along with the column family name,
-        separated by a dot (.). This will not change the current keyspace of
-        the session (see HELP USE).
+        The FROM clause is used to specify the CQL table applicable to a SELECT
+        query. The keyspace in which the table exists can optionally be
+        specified along with the table name, separated by a dot (.). This will
+        not change the current keyspace of the session (see HELP USE).
         """
+    help_select_columnfamily = help_select_table
 
     def help_select_where(self):
         print """
@@ -1758,6 +1760,8 @@ class Shell(cmd.Cmd):
 
          * ANY
          * ONE (default)
+         * TWO
+         * THREE
          * QUORUM
          * ALL
          * LOCAL_QUORUM
@@ -1769,18 +1773,18 @@ class Shell(cmd.Cmd):
 
     def help_insert(self):
         print """
-        INSERT INTO <columnFamily>
-                    ( <keyname>, <colname1> [, <colname2> [, ...]] )
-               VALUES ( <keyval>, <colval1> [, <colval2> [, ...]] )
+        INSERT INTO [<keyspace>.]<tablename>
+                    ( <colname1>, <colname2> [, <colname3> [, ...]] )
+               VALUES ( <colval1>, <colval2> [, <colval3> [, ...]] )
                [USING CONSISTENCY <consistencylevel>
                  [AND TIMESTAMP <timestamp>]
                  [AND TTL <timeToLive]];
 
         An INSERT is used to write one or more columns to a record in a
-        Cassandra column family. No results are returned.
+        CQL table. No results are returned.
 
-        The first column name in the INSERT list must be the name of the
-        column family key. Also, there must be more than one column name
+        Values for all component columns in the table's primary key must
+        be given. Also, there must be at least one non-primary-key column
         specified (Cassandra rows are not considered to exist with only
         a key and no associated columns).
 
@@ -1796,17 +1800,19 @@ class Shell(cmd.Cmd):
 
     def help_update(self):
         print """
-        UPDATE <columnFamily> [USING CONSISTENCY <consistencylevel>
+        UPDATE [<keyspace>.]<columnFamily>
+                              [USING CONSISTENCY <consistencylevel>
                                 [AND TIMESTAMP <timestamp>]
                                 [AND TTL <timeToLive>]]
-               SET name1 = value1, name2 = value2 WHERE <KEY> = keyname;
+               SET name1 = value1, name2 = value2 WHERE <keycol> = keyval;
 
-        An UPDATE is used to write one or more columns to a record in a
-        Cassandra column family. No results are returned. Key can be given
-        using the KEY keyword or by an alias set per columnfamily.
+        An UPDATE is used to write one or more columns to a record in a table.
+        No results are returned. The record's primary key must be completely
+        and uniquely specified; that is, if the primary key includes multiple
+        columns, all must be explicitly given in the WHERE clause.
 
-        Statements begin with the UPDATE keyword followed by a Cassandra
-        column family name.
+        Statements begin with the UPDATE keyword followed by the name of the
+        table to be updated.
 
         For more information, see one of the following:
 
@@ -1832,10 +1838,11 @@ class Shell(cmd.Cmd):
           UPDATE ... USING TTL 43200 AND CONSISTENCY LOCAL_QUORUM;
 
         <timestamp> defines the optional timestamp for the new column value(s).
-        It must be an integer.
+        It must be an integer. Cassandra timestamps are generally specified
+        using milliseconds since the Unix epoch (1970-01-01 00:00:00 UTC).
 
-        <timeToLive> defines the optional time to live (TTL) for the new column
-        value(s). It must be an integer.
+        <timeToLive> defines the optional time to live (TTL) in seconds for the
+        new column value(s). It must be an integer.
         """
 
     def help_update_set(self):
@@ -1870,17 +1877,18 @@ class Shell(cmd.Cmd):
 
           UPDATE ... WHERE <keyname> = <keyval>;
           UPDATE ... WHERE <keyname> IN (<keyval1>, <keyval2>, ...);
+          UPDATE ... WHERE <keycol1> = <keyval1> AND <keycol2> = <keyval2>;
 
         Each update statement requires a precise set of keys to be specified
         using a WHERE clause.
 
-        <keyname> can be the keyword KEY or the key alias for the column
-        family.
+        If the table's primary key consists of multiple columns, an explicit
+        value must be given for each for the UPDATE statement to make sense.
         """
 
     def help_delete(self):
         print """
-        DELETE [<col1> [, <col2>, ...] FROM <columnFamily>
+        DELETE [<col1> [, <col2>, ...] FROM [<keyspace>.]<tablename>
                [USING CONSISTENCY <consistencylevel>
                    [AND TIMESTAMP <timestamp>]]
             WHERE <keyname> = <keyvalue>;
@@ -1911,33 +1919,39 @@ class Shell(cmd.Cmd):
           DELETE ... CONSISTENCY LOCAL_QUORUM AND TIMESTAMP 1318452291034;
 
         <timestamp> defines the optional timestamp for the new tombstone
-        record. It must be an integer.
+        record. It must be an integer. Cassandra timestamps are generally
+        specified using milliseconds since the Unix epoch (1970-01-01 00:00:00
+        UTC).
         """
 
     def help_delete_columns(self):
         print """
         DELETE: specifying columns
 
-          DELETE col1, 'col2 name', 3 FROM ...
+          DELETE col1, col2, col3 FROM ...
 
         Following the DELETE keyword is an optional comma-delimited list of
         column name terms. When no column names are given, the remove applies
         to the entire row(s) matched by the WHERE clause.
+
+        When column names do not parse as valid CQL identifiers, they can be
+        quoted in single quotes (CQL 2) or double quotes (CQL 3).
         """
 
     def help_delete_where(self):
         print """
         DELETE: specifying rows
 
-          DELETE ... WHERE KEY = 'some_key_value';
-          DELETE ... WHERE keyalias IN (key1, key2);
+          DELETE ... WHERE keycol = 'some_key_value';
+          DELETE ... WHERE keycol1 = 'val1' AND keycol2 = 'val2';
+          DELETE ... WHERE keycol IN (key1, key2);
 
         The WHERE clause is used to determine to which row(s) a DELETE
-        applies. The first form allows the specification of a single keyname
-        using the KEY keyword (or the key alias) and the = operator. The
-        second form allows a list of keyname terms to be specified using the
-        IN operator and a parenthesized list of comma-delimited keyname
-        terms.
+        applies. The first form allows the specification of a precise row
+        by specifying a particular primary key value (if the primary key has
+        multiple columns, values for each must be given). The second form
+        allows a list of key values to be specified using the IN operator
+        and a parenthesized list of comma-delimited key values.
         """
 
     def help_create(self):
@@ -1946,7 +1960,7 @@ class Shell(cmd.Cmd):
         one of the following:
 
           HELP CREATE_KEYSPACE;
-          HELP CREATE_COLUMNFAMILY;
+          HELP CREATE_TABLE;
           HELP CREATE_INDEX;
         """
 
@@ -1974,69 +1988,74 @@ class Shell(cmd.Cmd):
           "strategy_options:replication_factor=3".
         """
 
-    def help_create_columnfamily(self):
+    def help_create_table(self):
         print """
-        CREATE COLUMNFAMILY <cfname> ( <colname> <type> PRIMARY KEY [,
-                                       <colname> <type> [, ...]] )
+        CREATE TABLE <cfname> ( <colname> <type> PRIMARY KEY [,
+                                <colname> <type> [, ...]] )
                [WITH <optionname> = <val> [AND <optionname> = <val> [...]]];
 
-        CREATE COLUMNFAMILY statements create a new column family under the
-        current keyspace. Valid column family names are strings of alphanumeric
-        characters and underscores, which begin with a letter.
+        CREATE TABLE statements create a new CQL table under the current
+        keyspace. Valid table names are strings of alphanumeric characters and
+        underscores, which begin with a letter.
 
-        Each columnfamily requires at least one column definition and type,
-        which will correspond to the columnfamily key and key validator. It's
-        important to note that the key type you use must be compatible with the
-        partitioner in use. For example, OrderPreservingPartitioner and
-        CollatingOrderPreservingPartitioner both require UTF-8 keys. If you
-        use an identifier for the primary key name, instead of the KEY
-        keyword, a key alias will be set automatically.
+        Each table requires a primary key, which will correspond to the
+        underlying columnfamily key and key validator. It's important to
+        note that the key type you use must be compatible with the partitioner
+        in use. For example, OrderPreservingPartitioner and
+        CollatingOrderPreservingPartitioner both require UTF-8 keys.
+
+        In cql3 mode, a table can have multiple columns composing the primary
+        key (see HELP COMPOSITE_PRIMARY_KEYS).
 
         For more information, see one of the following:
 
-          HELP CREATE_COLUMNFAMILY_TYPES;
-          HELP CREATE_COLUMNFAMILY_OPTIONS;
+          HELP CREATE_TABLE_TYPES;
+          HELP CREATE_TABLE_OPTIONS;
         """
+    help_create_columnfamily = help_create_table
 
-    def help_create_columnfamily_types(self):
+    def help_create_table_types(self):
         print """
-        CREATE COLUMNFAMILY: Specifying column types
+        CREATE TABLE: Specifying column types
 
           CREATE ... (KEY <type> PRIMARY KEY,
                       othercol <type>) ...
 
-        It is possible to assign columns a type during column family creation.
-        Columns configured with a type are validated accordingly when a write
-        occurs, and intelligent CQL drivers and interfaces will be able to
-        decode the column values correctly when receiving them. Column types
-        are specified as a parenthesized, comma-separated list of column term
-        and type pairs. See HELP TYPES; for the list of recognized types.
+        It is possible to assign columns a type during table creation. Columns
+        configured with a type are validated accordingly when a write occurs,
+        and intelligent CQL drivers and interfaces will be able to decode the
+        column values correctly when receiving them. Column types are specified
+        as a parenthesized, comma-separated list of column term and type pairs.
+        See HELP TYPES; for the list of recognized types.
         """
+    help_create_columnfamily_types = help_create_table_types
 
-    def help_create_columnfamily_options(self):
+    def help_create_table_options(self):
         print """
-        CREATE COLUMNFAMILY: Specifying columnfamily options
+        CREATE TABLE: Specifying columnfamily options
 
-          CREATE COLUMNFAMILY blah (...)
+          CREATE TABLE blah (...)
              WITH optionname = val AND otheroption = val2;
 
         A number of optional keyword arguments can be supplied to control the
-        configuration of a new column family, such as the size of the
-        associated row and key caches. Consult your CQL reference for the
-        complete list of options and possible values.
+        configuration of a new CQL table, such as the size of the associated
+        row and key caches for the underlying Cassandra columnfamily. Consult
+        your CQL reference for the complete list of options and possible
+        values.
         """
+    help_create_columnfamily_options = help_create_table_options
 
     def help_create_index(self):
         print """
         CREATE INDEX [<indexname>] ON <cfname> ( <colname> );
 
         A CREATE INDEX statement is used to create a new, automatic secondary
-        index on the given column family, for the named column. A name for the
+        index on the given CQL table, for the named column. A name for the
         index itself can be specified before the ON keyword, if desired. A
         single column name must be specified inside the parentheses. It is not
         necessary for the column to exist on any current rows (Cassandra is
-        schemaless), but the column must already have a type (specified during
-        the CREATE COLUMNFAMILY, or added afterwards with ALTER COLUMNFAMILY.
+        schema-optional), but the column must already have a type (specified
+        during the CREATE TABLE, or added afterwards with ALTER TABLE).
         """
 
     def help_drop(self):
@@ -2045,7 +2064,7 @@ class Shell(cmd.Cmd):
         one of the following:
 
           HELP DROP_KEYSPACE;
-          HELP DROP_COLUMNFAMILY;
+          HELP DROP_TABLE;
           HELP DROP_INDEX;
         """
 
@@ -2058,13 +2077,15 @@ class Shell(cmd.Cmd):
         data contained in those column families.
         """
 
-    def help_drop_columnfamily(self):
+    def help_drop_table(self):
         print """
-        DROP COLUMNFAMILY <columnfamilyname>;
+        DROP TABLE <tablename>;
 
-        A DROP COLUMNFAMILY statement results in the immediate, irreversible
-        removal of a column family, including all data contained in it.
+        A DROP TABLE statement results in the immediate, irreversible
+        removal of a CQL table and the underlying column family, including all
+        data contained in it.
         """
+    help_drop_columnfamily = help_drop_table
 
     def help_drop_index(self):
         print """
@@ -2075,10 +2096,10 @@ class Shell(cmd.Cmd):
 
     def help_truncate(self):
         print """
-        TRUNCATE <columnfamilyname>;
+        TRUNCATE <tablename>;
 
-        TRUNCATE accepts a single argument for the column family name, and
-        permanently removes all data from said column family.
+        TRUNCATE accepts a single argument for the table name, and permanently
+        removes all data from it.
         """
 
     def help_begin(self):
@@ -2109,15 +2130,15 @@ class Shell(cmd.Cmd):
 
     def help_alter(self):
         print """
-        ALTER COLUMNFAMILY <cfname> ALTER <columnname> TYPE <type>;
-        ALTER COLUMNFAMILY <cfname> ADD <columnname> <type>;
-        ALTER COLUMNFAMILY <cfname> DROP <columnname>;
-        ALTER COLUMNFAMILY <cfname> WITH <optionname> = <val> [AND <optionname> = <val> [...]];
+        ALTER TABLE <tablename> ALTER <columnname> TYPE <type>;
+        ALTER TABLE <tablename> ADD <columnname> <type>;
+        ALTER TABLE <tablename> DROP <columnname>;
+        ALTER TABLE <tablename> WITH <optionname> = <val> [AND <optionname> = <val> [...]];
 
-        An ALTER statement is used to manipulate column family column
-        metadata. It allows you to add new columns, drop existing columns,
-        change the data storage type of existing columns, or change column
-        family properties. No results are returned.
+        An ALTER statement is used to manipulate table metadata. It allows you
+        to add new typed columns, drop existing columns, change the data
+        storage type of existing columns, or change table properties.
+        No results are returned.
 
         See one of the following for more information:
 
@@ -2129,26 +2150,26 @@ class Shell(cmd.Cmd):
 
     def help_alter_alter(self):
         print """
-        ALTER COLUMNFAMILY: altering existing typed columns
+        ALTER TABLE: altering existing typed columns
 
-          ALTER COLUMNFAMILY addamsFamily ALTER lastKnownLocation TYPE uuid;
+          ALTER TABLE addamsFamily ALTER lastKnownLocation TYPE uuid;
 
-        ALTER COLUMNFAMILY ... ALTER changes the expected storage type for a
-        column. The column must either be the key alias or already have a type
-        in the column family metadata. The column may or may not already exist
-        in current rows-- but be aware that no validation of existing data is
-        done. The bytes stored in values for that column will remain unchanged,
-        and if existing data is not deserializable according to the new type,
-        this may cause your CQL driver or interface to report errors.
+        ALTER TABLE ... ALTER changes the expected storage type for a column.
+        The column must already have a type in the column family metadata. The
+        column may or may not already exist in current rows-- but be aware that
+        no validation of existing data is done. The bytes stored in values for
+        that column will remain unchanged, and if existing data is not
+        deserializable according to the new type, this may cause your CQL
+        driver or interface to report errors.
         """
 
     def help_alter_add(self):
         print """
-        ALTER COLUMNFAMILY: adding a typed column
+        ALTER TABLE: adding a typed column
 
-          ALTER COLUMNFAMILY addamsFamily ADD gravesite varchar;
+          ALTER TABLE addamsFamily ADD gravesite varchar;
 
-        The ALTER COLUMNFAMILY ... ADD variant adds a typed column to a column
+        The ALTER TABLE ... ADD variant adds a typed column to a column
         family. The column must not already have a type in the column family
         metadata. See the warnings on HELP ALTER_ALTER regarding the lack of
         validation of existing data; they apply here as well.
@@ -2156,11 +2177,11 @@ class Shell(cmd.Cmd):
 
     def help_alter_drop(self):
         print """
-        ALTER COLUMNFAMILY: dropping a typed column
+        ALTER TABLE: dropping a typed column
 
-          ALTER COLUMNFAMILY addamsFamily DROP gender;
+          ALTER TABLE addamsFamily DROP gender;
 
-        An ALTER COLUMNFAMILY ... DROP statement removes the type of a column
+        An ALTER TABLE ... DROP statement removes the type of a column
         from the column family metadata. Note that this does _not_ remove the
         column from current rows; it just removes the metadata saying that the
         bytes stored under that column are expected to be deserializable
@@ -2169,15 +2190,15 @@ class Shell(cmd.Cmd):
 
     def help_alter_with(self):
         print """
-        ALTER COLUMNFAMILY: changing column family properties
+        ALTER TABLE: changing column family properties
 
-          ALTER COLUMNFAMILY addamsFamily WITH comment = 'Glad to be here!'
-                                           AND read_repair_chance = 0.2;
+          ALTER TABLE addamsFamily WITH comment = 'Glad to be here!'
+                                    AND read_repair_chance = 0.2;
 
-        An ALTER COLUMNFAMILY ... WITH statement makes adjustments to the
-        column family properties, as defined when the column family was created
-        (see HELP CREATE_COLUMNFAMILY_OPTIONS, and your Cassandra documentation
-        for information about the supported parameter names and values).
+        An ALTER TABLE ... WITH statement makes adjustments to the
+        table properties, as defined when the table was created (see
+        HELP CREATE_TABLE_OPTIONS and your Cassandra documentation for
+        information about the supported parameter names and values).
         """
 
     def applycolor(self, text, color=None):
@@ -2297,6 +2318,12 @@ def read_options(cmdlineargs, environment):
         options.color = False
         options.tty = False
 
+    options.cqlversion, cqlvertup = full_cql_version(options.cqlversion)
+    if cqlvertup[0] < 3:
+        options.cqlmodule = cqlhandling
+    else:
+        options.cqlmodule = cql3handling
+
     try:
         port = int(port)
     except ValueError:
@@ -2304,7 +2331,17 @@ def read_options(cmdlineargs, environment):
 
     return options, hostname, port
 
+def setup_cqlruleset(cqlmodule):
+    global cqlruleset
+    cqlruleset = cqlmodule.CqlRuleSet
+    cqlruleset.append_rules(cqlsh_extra_syntax_rules)
+    for rulename, termname, func in cqlsh_syntax_completers:
+        cqlruleset.completer_for(rulename, termname)(func)
+    cqlruleset.commands_end_with_newline.update(my_commands_ending_with_newline)
+
 def main(options, hostname, port):
+    setup_cqlruleset(options.cqlmodule)
+
     if os.path.exists(HISTORY) and readline is not None:
         readline.read_history_file(HISTORY)
         delims = readline.get_completer_delims()

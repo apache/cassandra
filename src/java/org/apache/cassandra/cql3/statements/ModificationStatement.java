@@ -126,5 +126,5 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
      */
     public abstract List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables) throws InvalidRequestException;
 
-    public abstract ParsedStatement.Prepared prepare(AbstractType[] boundTypes) throws InvalidRequestException;
+    public abstract ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException;
 }

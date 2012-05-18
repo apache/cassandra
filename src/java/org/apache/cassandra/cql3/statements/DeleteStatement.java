@@ -144,18 +144,18 @@ public class DeleteStatement extends ModificationStatement
         return rm;
     }
 
-    public ParsedStatement.Prepared prepare(AbstractType[] boundTypes) throws InvalidRequestException
+    public ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException
     {
         CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
         cfDef = metadata.getCfDef();
-        UpdateStatement.processKeys(cfDef, whereClause, processedKeys, boundTypes);
-        return new ParsedStatement.Prepared(this, Arrays.<AbstractType<?>>asList(boundTypes));
+        UpdateStatement.processKeys(cfDef, whereClause, processedKeys, boundNames);
+        return new ParsedStatement.Prepared(this, Arrays.<CFDefinition.Name>asList(boundNames));
     }
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException
     {
-        AbstractType[] boundTypes = new AbstractType[getBoundsTerms()];
-        return prepare(boundTypes);
+        CFDefinition.Name[] boundNames = new CFDefinition.Name[getBoundsTerms()];
+        return prepare(boundNames);
     }
 
     public String toString()

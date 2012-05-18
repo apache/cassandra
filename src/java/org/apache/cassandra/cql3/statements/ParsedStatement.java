@@ -44,17 +44,17 @@ public abstract class ParsedStatement
     public static class Prepared
     {
         public final CQLStatement statement;
-        public final List<AbstractType<?>> boundTypes;
+        public final List<CFDefinition.Name> boundNames;
 
-        public Prepared(CQLStatement statement, List<AbstractType<?>> boundTypes)
+        public Prepared(CQLStatement statement, List<CFDefinition.Name> boundNames)
         {
             this.statement = statement;
-            this.boundTypes = boundTypes;
+            this.boundNames = boundNames;
         }
 
         public Prepared(CQLStatement statement)
         {
-            this(statement, Collections.<AbstractType<?>>emptyList());
+            this(statement, Collections.<CFDefinition.Name>emptyList());
         }
     }
 }

@@ -48,16 +48,19 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
   private static final org.apache.thrift.protocol.TField ITEM_ID_FIELD_DESC = new org.apache.thrift.protocol.TField("itemId", org.apache.thrift.protocol.TType.I32, (short)1);
   private static final org.apache.thrift.protocol.TField COUNT_FIELD_DESC = new org.apache.thrift.protocol.TField("count", org.apache.thrift.protocol.TType.I32, (short)2);
   private static final org.apache.thrift.protocol.TField VARIABLE_TYPES_FIELD_DESC = new org.apache.thrift.protocol.TField("variable_types", org.apache.thrift.protocol.TType.LIST, (short)3);
+  private static final org.apache.thrift.protocol.TField VARIABLE_NAMES_FIELD_DESC = new org.apache.thrift.protocol.TField("variable_names", org.apache.thrift.protocol.TType.LIST, (short)4);
 
   public int itemId; // required
   public int count; // required
   public List<String> variable_types; // required
+  public List<String> variable_names; // required
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     ITEM_ID((short)1, "itemId"),
     COUNT((short)2, "count"),
-    VARIABLE_TYPES((short)3, "variable_types");
+    VARIABLE_TYPES((short)3, "variable_types"),
+    VARIABLE_NAMES((short)4, "variable_names");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -78,6 +81,8 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
           return COUNT;
         case 3: // VARIABLE_TYPES
           return VARIABLE_TYPES;
+        case 4: // VARIABLE_NAMES
+          return VARIABLE_NAMES;
         default:
           return null;
       }
@@ -132,6 +137,9 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
     tmpMap.put(_Fields.VARIABLE_TYPES, new org.apache.thrift.meta_data.FieldMetaData("variable_types", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
+    tmpMap.put(_Fields.VARIABLE_NAMES, new org.apache.thrift.meta_data.FieldMetaData("variable_names", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(CqlPreparedResult.class, metaDataMap);
   }
@@ -165,6 +173,13 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
       }
       this.variable_types = __this__variable_types;
     }
+    if (other.isSetVariable_names()) {
+      List<String> __this__variable_names = new ArrayList<String>();
+      for (String other_element : other.variable_names) {
+        __this__variable_names.add(other_element);
+      }
+      this.variable_names = __this__variable_names;
+    }
   }
 
   public CqlPreparedResult deepCopy() {
@@ -178,6 +193,7 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
     setCountIsSet(false);
     this.count = 0;
     this.variable_types = null;
+    this.variable_names = null;
   }
 
   public int getItemId() {
@@ -265,6 +281,45 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
     }
   }
 
+  public int getVariable_namesSize() {
+    return (this.variable_names == null) ? 0 : this.variable_names.size();
+  }
+
+  public java.util.Iterator<String> getVariable_namesIterator() {
+    return (this.variable_names == null) ? null : this.variable_names.iterator();
+  }
+
+  public void addToVariable_names(String elem) {
+    if (this.variable_names == null) {
+      this.variable_names = new ArrayList<String>();
+    }
+    this.variable_names.add(elem);
+  }
+
+  public List<String> getVariable_names() {
+    return this.variable_names;
+  }
+
+  public CqlPreparedResult setVariable_names(List<String> variable_names) {
+    this.variable_names = variable_names;
+    return this;
+  }
+
+  public void unsetVariable_names() {
+    this.variable_names = null;
+  }
+
+  /** Returns true if field variable_names is set (has been assigned a value) and false otherwise */
+  public boolean isSetVariable_names() {
+    return this.variable_names != null;
+  }
+
+  public void setVariable_namesIsSet(boolean value) {
+    if (!value) {
+      this.variable_names = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case ITEM_ID:
@@ -291,6 +346,14 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
       }
       break;
 
+    case VARIABLE_NAMES:
+      if (value == null) {
+        unsetVariable_names();
+      } else {
+        setVariable_names((List<String>)value);
+      }
+      break;
+
     }
   }
 
@@ -304,6 +367,9 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
 
     case VARIABLE_TYPES:
       return getVariable_types();
+
+    case VARIABLE_NAMES:
+      return getVariable_names();
 
     }
     throw new IllegalStateException();
@@ -322,6 +388,8 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
       return isSetCount();
     case VARIABLE_TYPES:
       return isSetVariable_types();
+    case VARIABLE_NAMES:
+      return isSetVariable_names();
     }
     throw new IllegalStateException();
   }
@@ -366,6 +434,15 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
         return false;
     }
 
+    boolean this_present_variable_names = true && this.isSetVariable_names();
+    boolean that_present_variable_names = true && that.isSetVariable_names();
+    if (this_present_variable_names || that_present_variable_names) {
+      if (!(this_present_variable_names && that_present_variable_names))
+        return false;
+      if (!this.variable_names.equals(that.variable_names))
+        return false;
+    }
+
     return true;
   }
 
@@ -387,6 +464,11 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
     builder.append(present_variable_types);
     if (present_variable_types)
       builder.append(variable_types);
+
+    boolean present_variable_names = true && (isSetVariable_names());
+    builder.append(present_variable_names);
+    if (present_variable_names)
+      builder.append(variable_names);
 
     return builder.toHashCode();
   }
@@ -425,6 +507,16 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
     }
     if (isSetVariable_types()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.variable_types, typedOther.variable_types);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetVariable_names()).compareTo(typedOther.isSetVariable_names());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetVariable_names()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.variable_names, typedOther.variable_names);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -479,6 +571,23 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 4: // VARIABLE_NAMES
+          if (field.type == org.apache.thrift.protocol.TType.LIST) {
+            {
+              org.apache.thrift.protocol.TList _list90 = iprot.readListBegin();
+              this.variable_names = new ArrayList<String>(_list90.size);
+              for (int _i91 = 0; _i91 < _list90.size; ++_i91)
+              {
+                String _elem92; // required
+                _elem92 = iprot.readString();
+                this.variable_names.add(_elem92);
+              }
+              iprot.readListEnd();
+            }
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
@@ -511,9 +620,23 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
         oprot.writeFieldBegin(VARIABLE_TYPES_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.variable_types.size()));
-          for (String _iter90 : this.variable_types)
+          for (String _iter93 : this.variable_types)
           {
-            oprot.writeString(_iter90);
+            oprot.writeString(_iter93);
+          }
+          oprot.writeListEnd();
+        }
+        oprot.writeFieldEnd();
+      }
+    }
+    if (this.variable_names != null) {
+      if (isSetVariable_names()) {
+        oprot.writeFieldBegin(VARIABLE_NAMES_FIELD_DESC);
+        {
+          oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.variable_names.size()));
+          for (String _iter94 : this.variable_names)
+          {
+            oprot.writeString(_iter94);
           }
           oprot.writeListEnd();
         }
@@ -543,6 +666,16 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
         sb.append("null");
       } else {
         sb.append(this.variable_types);
+      }
+      first = false;
+    }
+    if (isSetVariable_names()) {
+      if (!first) sb.append(", ");
+      sb.append("variable_names:");
+      if (this.variable_names == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.variable_names);
       }
       first = false;
     }
