@@ -57,6 +57,11 @@ public class LeveledCompactionTask extends CompactionTask
         return latch.getCount() == 0;
     }
 
+    public boolean markSSTablesForCompaction(int min, int max)
+    {
+        return super.markSSTablesForCompaction(1, Integer.MAX_VALUE);
+    }
+
     @Override
     protected boolean newSSTableSegmentThresholdReached(SSTableWriter writer, long position)
     {

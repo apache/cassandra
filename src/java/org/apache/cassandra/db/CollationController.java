@@ -74,7 +74,7 @@ public class CollationController
     {
         logger.debug("collectTimeOrderedData");
 
-        // AtomicSortedColumns doesn't work for super columns (see #3821)
+        // AtomicSortedColumns doesn't work for super columi ns (see #3821)
         ISortedColumns.Factory factory = mutableColumns
                                        ? cfs.metadata.cfType == ColumnFamilyType.Super ? ThreadSafeSortedColumns.factory() : AtomicSortedColumns.factory()
                                        : TreeMapBackedSortedColumns.factory();

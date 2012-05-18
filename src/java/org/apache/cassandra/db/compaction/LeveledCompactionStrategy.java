@@ -75,9 +75,6 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
 
         manifest = LeveledManifest.create(cfs, this.maxSSTableSizeInMB);
         logger.debug("Created {}", manifest);
-        // override min/max for this strategy
-        cfs.setMaximumCompactionThreshold(Integer.MAX_VALUE);
-        cfs.setMinimumCompactionThreshold(1);
     }
 
     public void shutdown()
@@ -91,7 +88,19 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         return manifest.getLevelSize(i);
     }
 
+    /**
+     * the only difference between background and maximal in LCS is that maximal is still allowed
+     * (by explicit user request) even when compaction is disabled.
+     */
     public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    {
+        if (cfs.isCompactionDisabled())
+            return null;
+
+        return getMaximalTask(gcBefore);
+    }
+
+    public AbstractCompactionTask getMaximalTask(int gcBefore)
     {
         LeveledCompactionTask currentTask = task.get();
         if (currentTask != null && !currentTask.isDone())
@@ -111,11 +120,6 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         return task.compareAndSet(currentTask, newTask)
                ? newTask
                : null;
-    }
-
-    public AbstractCompactionTask getMaximalTask(int gcBefore)
-    {
-        return getNextBackgroundTask(gcBefore);
     }
 
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
