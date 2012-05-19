@@ -176,7 +176,7 @@ public class CliOptions
             // Abort if there are any unrecognized arguments left
             if (cmd.getArgs().length > 0)
             {
-                System.err.printf("Unknown argument: %s\n", cmd.getArgs()[0]);
+                System.err.printf("Unknown argument: %s%n", cmd.getArgs()[0]);
                 System.err.println();
                 printUsage();
                 System.exit(1);
