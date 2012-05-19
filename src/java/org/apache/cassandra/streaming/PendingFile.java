@@ -113,12 +113,11 @@ public class PendingFile
             dos.writeInt(sc.sections.size());
             for (Pair<Long,Long> section : sc.sections)
             {
-                dos.writeLong(section.left); dos.writeLong(section.right);
+                dos.writeLong(section.left);
+                dos.writeLong(section.right);
             }
-            if (version > MessagingService.VERSION_07)
-                dos.writeUTF(sc.type.name());
-            if (version > MessagingService.VERSION_080)
-                dos.writeLong(sc.estimatedKeys);
+            dos.writeUTF(sc.type.name());
+            dos.writeLong(sc.estimatedKeys);
         }
 
         public PendingFile deserialize(DataInput dis, int version) throws IOException
@@ -135,11 +134,8 @@ public class PendingFile
                 sections.add(new Pair<Long,Long>(Long.valueOf(dis.readLong()), Long.valueOf(dis.readLong())));
             // this controls the way indexes are rebuilt when streaming in.
             OperationType type = OperationType.RESTORE_REPLICA_COUNT;
-            if (version > MessagingService.VERSION_07)
-                type = OperationType.valueOf(dis.readUTF());
-            long estimatedKeys = 0;
-            if (version > MessagingService.VERSION_080)
-                estimatedKeys = dis.readLong();
+            type = OperationType.valueOf(dis.readUTF());
+            long estimatedKeys = dis.readLong();
             return new PendingFile(null, desc, component, sections, type, estimatedKeys);
         }
 
@@ -153,10 +149,8 @@ public class PendingFile
             size += TypeSizes.NATIVE.sizeof(pf.sections.size());
             for (Pair<Long,Long> section : pf.sections)
                 size += TypeSizes.NATIVE.sizeof(section.left) + TypeSizes.NATIVE.sizeof(section.right);
-            if (version > MessagingService.VERSION_07)
-                size += TypeSizes.NATIVE.sizeof(pf.type.name());
-            if (version > MessagingService.VERSION_080)
-                size += TypeSizes.NATIVE.sizeof(pf.estimatedKeys);
+            size += TypeSizes.NATIVE.sizeof(pf.type.name());
+            size += TypeSizes.NATIVE.sizeof(pf.estimatedKeys);
             return size;
         }
     }

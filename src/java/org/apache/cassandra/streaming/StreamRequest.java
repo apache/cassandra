@@ -132,15 +132,11 @@ public class StreamRequest
                 for (Range<Token> range : srm.ranges)
                     AbstractBounds.serializer.serialize(range, dos, version);
 
-                if (version > MessagingService.VERSION_07)
-                    dos.writeUTF(srm.type.name());
+                dos.writeUTF(srm.type.name());
 
-                if (version > MessagingService.VERSION_080)
-                {
-                    dos.writeInt(Iterables.size(srm.columnFamilies));
-                    for (ColumnFamilyStore cfs : srm.columnFamilies)
-                        dos.writeInt(cfs.metadata.cfId);
-                }
+                dos.writeInt(Iterables.size(srm.columnFamilies));
+                for (ColumnFamilyStore cfs : srm.columnFamilies)
+                    dos.writeInt(cfs.metadata.cfId);
             }
         }
 
@@ -162,16 +158,12 @@ public class StreamRequest
                 for( int i = 0; i < size; ++i )
                     ranges.add((Range<Token>) AbstractBounds.serializer.deserialize(dis, version).toTokenBounds());
                 OperationType type = OperationType.RESTORE_REPLICA_COUNT;
-                if (version > MessagingService.VERSION_07)
-                    type = OperationType.valueOf(dis.readUTF());
+                type = OperationType.valueOf(dis.readUTF());
 
                 List<ColumnFamilyStore> stores = new ArrayList<ColumnFamilyStore>();
-                if (version > MessagingService.VERSION_080)
-                {
-                    int cfsSize = dis.readInt();
-                    for (int i = 0; i < cfsSize; ++i)
-                        stores.add(Table.open(table).getColumnFamilyStore(dis.readInt()));
-                }
+                int cfsSize = dis.readInt();
+                for (int i = 0; i < cfsSize; ++i)
+                    stores.add(Table.open(table).getColumnFamilyStore(dis.readInt()));
 
                 return new StreamRequest(target, ranges, table, stores, sessionId, type);
             }
@@ -189,14 +181,10 @@ public class StreamRequest
             size += TypeSizes.NATIVE.sizeof(sr.ranges.size());
             for (Range<Token> range : sr.ranges)
                 size += AbstractBounds.serializer.serializedSize(range, version);
-            if (version > MessagingService.VERSION_07)
-                size += TypeSizes.NATIVE.sizeof(sr.type.name());
-            if (version > MessagingService.VERSION_080)
-            {
-                size += TypeSizes.NATIVE.sizeof(Iterables.size(sr.columnFamilies));
-                for (ColumnFamilyStore cfs : sr.columnFamilies)
-                    size += TypeSizes.NATIVE.sizeof(cfs.metadata.cfId);
-            }
+            size += TypeSizes.NATIVE.sizeof(sr.type.name());
+            size += TypeSizes.NATIVE.sizeof(Iterables.size(sr.columnFamilies));
+            for (ColumnFamilyStore cfs : sr.columnFamilies)
+                size += TypeSizes.NATIVE.sizeof(cfs.metadata.cfId);
             return size;
         }
     }
