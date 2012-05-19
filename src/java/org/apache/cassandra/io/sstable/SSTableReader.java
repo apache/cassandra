@@ -545,10 +545,10 @@ public class SSTableReader extends SSTable
         if (samples.isEmpty())
             return positions;
 
-        for (Range<Token> range : Range.<Token>normalize(ranges))
+        for (Range<Token> range : Range.normalize(ranges))
         {
             RowPosition leftPosition = range.left.maxKeyBound();
-            RowPosition rightPosition = range.left.maxKeyBound();
+            RowPosition rightPosition = range.right.maxKeyBound();
 
             int left = Collections.binarySearch(samples, leftPosition);
             if (left < 0)

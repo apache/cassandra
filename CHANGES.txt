@@ -10,6 +10,7 @@
 
 
 1.1.1-dev
+ * (Hadoop) fix split generation regression (CASSANDRA-4259)
  * ignore min/max compactions settings in LCS, while preserving
    behavior that min=max=0 disables autocompaction (CASSANDRA-4233)
  * log number of rows read from saved cache (CASSANDRA-4249)

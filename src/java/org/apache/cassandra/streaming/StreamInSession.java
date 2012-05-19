@@ -54,11 +54,6 @@ public class StreamInSession extends AbstractStreamSession
     private volatile int retries;
     private final static AtomicInteger sessionIdCounter = new AtomicInteger(0);
 
-    private StreamInSession(Pair<InetAddress, Long> context, IStreamCallback callback)
-    {
-        super(null, context, callback);
-    }
-
     /**
      * The next session id is a combination of a local integer counter and a flag used to avoid collisions
      * between session id's generated on different machines. Nodes can may have StreamOutSessions with the
@@ -78,6 +73,11 @@ public class StreamInSession extends AbstractStreamSession
     private static long nextSessionId()
     {
         return (((long)StreamHeader.STREAM_IN_SOURCE_FLAG << 32) + sessionIdCounter.incrementAndGet());
+    }
+
+    private StreamInSession(Pair<InetAddress, Long> context, IStreamCallback callback)
+    {
+        super(null, context, callback);
     }
 
     public static StreamInSession create(InetAddress host, IStreamCallback callback)
