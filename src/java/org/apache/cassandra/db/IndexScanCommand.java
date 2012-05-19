@@ -18,19 +18,18 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.FastByteArrayInputStream;
-import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.IndexClause;
+import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.TBinaryProtocol;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TSerializer;
@@ -64,6 +63,8 @@ public class IndexScanCommand
     {
         public void serialize(IndexScanCommand o, DataOutput out, int version) throws IOException
         {
+            assert version < MessagingService.VERSION_12; // 1.2 only uses RangeScanCommand
+
             out.writeUTF(o.keyspace);
             out.writeUTF(o.column_family);
             TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
@@ -74,13 +75,15 @@ public class IndexScanCommand
 
         public IndexScanCommand deserialize(DataInput in, int version) throws IOException
         {
+            assert version < MessagingService.VERSION_12; // 1.2 only uses RangeScanCommand
+
             String keyspace = in.readUTF();
             String columnFamily = in.readUTF();
 
-            TDeserializer dser = new TDeserializer(new TBinaryProtocol.Factory());
             IndexClause indexClause = new IndexClause();
-            FBUtilities.deserialize(dser, indexClause, in);
             SlicePredicate predicate = new SlicePredicate();
+            TDeserializer dser = new TDeserializer(new TBinaryProtocol.Factory());
+            FBUtilities.deserialize(dser, indexClause, in);
             FBUtilities.deserialize(dser, predicate, in);
             AbstractBounds<RowPosition> range = AbstractBounds.serializer.deserialize(in, version).toRowBounds();
             return new IndexScanCommand(keyspace, columnFamily, indexClause, predicate, range);
