@@ -38,7 +38,7 @@ public class CacheProviderTest extends SchemaLoader
     String key3 = "key3";
     String key4 = "key4";
     String key5 = "key5";
-    private static final int CAPACITY = 4;
+    private static final long CAPACITY = 4;
     private String tableName = "Keyspace1";
     private String cfName = "Standard1";
 
