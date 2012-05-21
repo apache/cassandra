@@ -1,5 +1,7 @@
 1.0.11
+ * synchronize LCS getEstimatedTasks to avoid CME (CASSANDRA-4255)
  * ensure unique streaming session id's (CASSANDRA-4223)
+
 
 1.0.10
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)
