@@ -24,7 +24,9 @@ import java.util.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
@@ -90,7 +92,10 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 switch (name.kind)
                 {
                     case KEY_ALIAS:
-                        cfm.keyValidator(CFPropDefs.parseType(validator));
+                        AbstractType<?> newType = CFPropDefs.parseType(validator);
+                        if (newType instanceof CounterColumnType)
+                            throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", columnName));
+                        cfm.keyValidator(newType);
                         break;
                     case COLUMN_ALIAS:
                         throw new InvalidRequestException(String.format("Cannot alter PRIMARY KEY part %s", columnName));
@@ -98,7 +103,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         cfm.defaultValidator(CFPropDefs.parseType(validator));
                         break;
                     case COLUMN_METADATA:
-                        ColumnDefinition column = meta.getColumnDefinition(columnName.key);
+                        ColumnDefinition column = cfm.getColumnDefinition(columnName.key);
                         column.setValidator(CFPropDefs.parseType(validator));
                         cfm.addColumnDefinition(column);
                         break;
@@ -133,38 +138,11 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     throw new InvalidRequestException(String.format("ALTER COLUMNFAMILY WITH invoked, but no parameters found"));
 
                 cfProps.validate();
-                applyPropertiesToCFMetadata(cfm, cfProps);
+                cfProps.applyToCFMetadata(cfm);
                 break;
         }
 
         MigrationManager.announceColumnFamilyUpdate(cfm);
-    }
-
-    public static void applyPropertiesToCFMetadata(CFMetaData cfm, CFPropDefs cfProps) throws InvalidRequestException, ConfigurationException
-    {
-        if (cfProps.hasProperty(CFPropDefs.KW_COMMENT))
-        {
-            cfm.comment(cfProps.get(CFPropDefs.KW_COMMENT));
-        }
-
-        cfm.readRepairChance(cfProps.getDouble(CFPropDefs.KW_READREPAIRCHANCE, cfm.getReadRepairChance()));
-        cfm.dcLocalReadRepairChance(cfProps.getDouble(CFPropDefs.KW_DCLOCALREADREPAIRCHANCE, cfm.getDcLocalReadRepair()));
-        cfm.gcGraceSeconds(cfProps.getInt(CFPropDefs.KW_GCGRACESECONDS, cfm.getGcGraceSeconds()));
-        cfm.replicateOnWrite(cfProps.getBoolean(CFPropDefs.KW_REPLICATEONWRITE, cfm.getReplicateOnWrite()));
-        cfm.minCompactionThreshold(cfProps.getInt(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, cfm.getMinCompactionThreshold()));
-        cfm.maxCompactionThreshold(cfProps.getInt(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, cfm.getMaxCompactionThreshold()));
-        cfm.caching(CFMetaData.Caching.fromString(cfProps.getString(CFPropDefs.KW_CACHING, cfm.getCaching().toString())));
-        cfm.bloomFilterFpChance(cfProps.getDouble(CFPropDefs.KW_BF_FP_CHANCE, cfm.getBloomFilterFpChance()));
-
-        if (!cfProps.compactionStrategyOptions.isEmpty())
-        {
-            cfm.compactionStrategyOptions(new HashMap<String, String>(cfProps.compactionStrategyOptions));
-        }
-
-        if (!cfProps.compressionParameters.isEmpty())
-        {
-            cfm.compressionParameters(CompressionParameters.create(cfProps.compressionParameters));
-        }
     }
 
     public String toString()

@@ -32,7 +32,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
@@ -50,23 +49,10 @@ public class CompactionIterable extends AbstractCompactionIterable
         }
     };
 
-    public CompactionIterable(OperationType type, Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
-    {
-        this(type, getScanners(sstables), controller);
-    }
-
-    protected CompactionIterable(OperationType type, List<SSTableScanner> scanners, CompactionController controller)
+    public CompactionIterable(OperationType type, List<ICompactionScanner> scanners, CompactionController controller)
     {
         super(controller, type, scanners);
         row = 0;
-    }
-
-    protected static List<SSTableScanner> getScanners(Iterable<SSTableReader> sstables) throws IOException
-    {
-        ArrayList<SSTableScanner> scanners = new ArrayList<SSTableScanner>();
-        for (SSTableReader sstable : sstables)
-            scanners.add(sstable.getDirectScanner());
-        return scanners;
     }
 
     public CloseableIterator<AbstractCompactedRow> iterator()
@@ -116,8 +102,8 @@ public class CompactionIterable extends AbstractCompactionIterable
                 if ((row++ % 1000) == 0)
                 {
                     long n = 0;
-                    for (SSTableScanner scanner : scanners)
-                        n += scanner.getFilePointer();
+                    for (ICompactionScanner scanner : scanners)
+                        n += scanner.getCurrentPosition();
                     bytesRead = n;
                     controller.mayThrottle(bytesRead);
                 }

@@ -46,6 +46,11 @@ public abstract class AbstractStreamSession implements IEndpointStateChangeSubsc
         FailureDetector.instance.registerFailureDetectionEventListener(this);
     }
 
+    public int getSourceFlag()
+    {
+        return (int)(context.right >> 32);
+    }
+
     public long getSessionId()
     {
         return context.right;

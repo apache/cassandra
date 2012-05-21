@@ -303,7 +303,6 @@ public class LeveledManifest
 
     public int getLevelSize(int i)
     {
-
         return generations.length > i ? generations[i].size() : 0;
     }
 
@@ -322,7 +321,7 @@ public class LeveledManifest
         }
     }
 
-    private int levelOf(SSTableReader sstable)
+    int levelOf(SSTableReader sstable)
     {
         Integer level = sstableGenerations.get(sstable);
         if (level == null)
@@ -463,7 +462,7 @@ public class LeveledManifest
         return generations[i];
     }
 
-    public int getEstimatedTasks()
+    public synchronized int getEstimatedTasks()
     {
         long tasks = 0;
         for (int i = generations.length - 1; i >= 0; i--)

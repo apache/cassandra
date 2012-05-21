@@ -21,17 +21,23 @@ package org.apache.cassandra.db.compaction;
  */
 
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
+import com.google.common.base.Joiner;
+import com.google.common.collect.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
@@ -73,9 +79,6 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
 
         manifest = LeveledManifest.create(cfs, this.maxSSTableSizeInMB);
         logger.debug("Created {}", manifest);
-        // override min/max for this strategy
-        cfs.setMaximumCompactionThreshold(Integer.MAX_VALUE);
-        cfs.setMinimumCompactionThreshold(1);
     }
 
     public void shutdown()
@@ -89,7 +92,19 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         return manifest.getLevelSize(i);
     }
 
+    /**
+     * the only difference between background and maximal in LCS is that maximal is still allowed
+     * (by explicit user request) even when compaction is disabled.
+     */
     public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    {
+        if (cfs.isCompactionDisabled())
+            return null;
+
+        return getMaximalTask(gcBefore);
+    }
+
+    public AbstractCompactionTask getMaximalTask(int gcBefore)
     {
         LeveledCompactionTask currentTask = task.get();
         if (currentTask != null && !currentTask.isDone())
@@ -109,11 +124,6 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         return task.compareAndSet(currentTask, newTask)
                ? newTask
                : null;
-    }
-
-    public AbstractCompactionTask getMaximalTask(int gcBefore)
-    {
-        return getNextBackgroundTask(gcBefore);
     }
 
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
@@ -160,6 +170,109 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     {
         Set<SSTableReader> L0 = ImmutableSet.copyOf(manifest.getLevel(0));
         return Sets.difference(L0, sstablesToIgnore).size() + manifest.getLevelCount() > 20;
+    }
+
+    public List<ICompactionScanner> getScanners(Collection<SSTableReader> sstables, Range<Token> range) throws IOException
+    {
+        Multimap<Integer, SSTableReader> byLevel = ArrayListMultimap.create();
+        for (SSTableReader sstable : sstables)
+            byLevel.get(manifest.levelOf(sstable)).add(sstable);
+
+        List<ICompactionScanner> scanners = new ArrayList<ICompactionScanner>(sstables.size());
+        for (Integer level : byLevel.keySet())
+        {
+            if (level == 0)
+            {
+                // L0 makes no guarantees about overlapping-ness.  Just create a direct scanner for each
+                for (SSTableReader sstable : byLevel.get(level))
+                    scanners.add(sstable.getDirectScanner(range));
+            }
+            else
+            {
+                // Create a LeveledScanner that only opens one sstable at a time, in sorted order
+                scanners.add(new LeveledScanner(byLevel.get(level), range));
+            }
+        }
+
+        return scanners;
+    }
+
+    // Lazily creates SSTableBoundedScanner for sstable that are assumed to be from the
+    // same level (e.g. non overlapping) - see #4142
+    private static class LeveledScanner extends AbstractIterator<IColumnIterator> implements ICompactionScanner
+    {
+        private final Range<Token> range;
+        private final List<SSTableReader> sstables;
+        private final Iterator<SSTableReader> sstableIterator;
+        private final long totalLength;
+
+        private SSTableScanner currentScanner;
+        private long positionOffset;
+
+        public LeveledScanner(Collection<SSTableReader> sstables, Range<Token> range)
+        {
+            this.range = range;
+            this.sstables = new ArrayList<SSTableReader>(sstables);
+            Collections.sort(this.sstables, SSTable.sstableComparator);
+            this.sstableIterator = this.sstables.iterator();
+
+            long length = 0;
+            for (SSTableReader sstable : sstables)
+                length += sstable.uncompressedLength();
+            totalLength = length;
+        }
+
+        protected IColumnIterator computeNext()
+        {
+            try
+            {
+                if (currentScanner != null)
+                {
+                    if (currentScanner.hasNext())
+                    {
+                        return currentScanner.next();
+                    }
+                    else
+                    {
+                        positionOffset += currentScanner.getLengthInBytes();
+                        currentScanner.close();
+                        currentScanner = null;
+                        return computeNext();
+                    }
+                }
+
+                if (!sstableIterator.hasNext())
+                    return endOfData();
+
+                currentScanner = sstableIterator.next().getDirectScanner(range);
+                return computeNext();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public void close() throws IOException
+        {
+            if (currentScanner != null)
+                currentScanner.close();
+        }
+
+        public long getLengthInBytes()
+        {
+            return totalLength;
+        }
+
+        public long getCurrentPosition()
+        {
+            return positionOffset + (currentScanner == null ? 0L : currentScanner.getCurrentPosition());
+        }
+
+        public String getBackingFiles()
+        {
+            return Joiner.on(", ").join(sstables);
+        }
     }
 
     @Override

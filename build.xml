@@ -17,7 +17,7 @@
  ~ specific language governing permissions and limitations
  ~ under the License.
  -->
-<project basedir="." default="build" name="apache-cassandra"
+<project basedir="." default="jar" name="apache-cassandra"
          xmlns:artifact="antlib:org.apache.maven.artifact.ant">
     <property environment="env"/>
     <property file="build.properties" />
@@ -25,7 +25,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="1.1.0-rc1"/>
+    <property name="base.version" value="1.1.0"/>
     <property name="scm.connection" value="scm:git://git.apache.org/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:git://git.apache.org/cassandra.git"/>
     <property name="scm.url" value="http://git-wip-us.apache.org/repos/asf?p=cassandra.git;a=tree"/>
@@ -328,8 +328,8 @@
           <dependency groupId="org.antlr" artifactId="antlr" version="3.2"/>
           <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.6.1"/>
           <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" version="1.6.1"/>
-          <dependency groupId="org.codehaus.jackson" artifactId="jackson-core-asl" version="1.4.0"/>
-          <dependency groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl" version="1.4.0"/>
+          <dependency groupId="org.codehaus.jackson" artifactId="jackson-core-asl" version="1.9.2"/>
+          <dependency groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl" version="1.9.2"/>
           <dependency groupId="jline" artifactId="jline" version="0.9.94">
             <exclusion groupId="junit" artifactId="junit"/>
           </dependency>
@@ -1077,7 +1077,6 @@
         </fileset>
         <fileset dir="${build.lib}">
           <include name="**/guava*.jar" />
-          <include name="**/commons-lang*.jar" />
         </fileset>
       </classpath>
     </junit>

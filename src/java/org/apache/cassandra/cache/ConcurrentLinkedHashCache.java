@@ -49,7 +49,7 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
      *
      * @return initialized cache
      */
-    public static <K, V> ConcurrentLinkedHashCache<K, V> create(int capacity)
+    public static <K, V> ConcurrentLinkedHashCache<K, V> create(long capacity)
     {
         return create(capacity, Weighers.<V>singleton());
     }
@@ -65,7 +65,7 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
      *
      * @return initialized cache
      */
-    public static <K, V> ConcurrentLinkedHashCache<K, V> create(int weightedCapacity, Weigher<V> weigher)
+    public static <K, V> ConcurrentLinkedHashCache<K, V> create(long weightedCapacity, Weigher<V> weigher)
     {
         ConcurrentLinkedHashMap<K, V> map = new ConcurrentLinkedHashMap.Builder<K, V>()
                                             .weigher(weigher)
@@ -76,12 +76,12 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
         return new ConcurrentLinkedHashCache<K, V>(map);
     }
 
-    public int capacity()
+    public long capacity()
     {
         return map.capacity();
     }
 
-    public void setCapacity(int capacity)
+    public void setCapacity(long capacity)
     {
         map.setCapacity(capacity);
     }
@@ -96,7 +96,7 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
         return map.size();
     }
 
-    public int weightedSize()
+    public long weightedSize()
     {
         return map.weightedSize();
     }

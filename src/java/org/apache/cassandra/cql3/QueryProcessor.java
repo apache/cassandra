@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.antlr.runtime.*;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -162,11 +163,19 @@ public class QueryProcessor
                                    statementId,
                                    prepared.statement.getBoundsTerms()));
 
-        assert prepared.statement.getBoundsTerms() == prepared.boundTypes.size();
-        List<String> types = new ArrayList<String>(prepared.boundTypes.size());
-        for (AbstractType<?> t : prepared.boundTypes)
-            types.add(TypeParser.getShortName(t));
-        return new CqlPreparedResult(statementId, types.size()).setVariable_types(types);
+        assert prepared.statement.getBoundsTerms() == prepared.boundNames.size();
+        List<String> var_types = new ArrayList<String>(prepared.boundNames.size()) ;
+        List<String> var_names = new ArrayList<String>(prepared.boundNames.size());
+        for (CFDefinition.Name n : prepared.boundNames)
+        {
+            var_types.add(TypeParser.getShortName(n.type));
+            var_names.add(n.name.toString());
+        }
+
+        CqlPreparedResult result = new CqlPreparedResult(statementId, prepared.boundNames.size());
+        result.setVariable_types(var_types);
+        result.setVariable_names(var_names);
+        return result;
     }
 
     public static CqlResult processPrepared(CQLStatement statement, ClientState clientState, List<ByteBuffer> variables)

@@ -74,28 +74,16 @@ public class CFPropDefs
         comparators.put("uuid", "UUIDType");
         comparators.put("varchar", "UTF8Type");
         comparators.put("varint", "IntegerType");
+        comparators.put("timeuuid", "TimeUUIDType");
 
         keywords.add(KW_COMMENT);
         keywords.add(KW_READREPAIRCHANCE);
         keywords.add(KW_DCLOCALREADREPAIRCHANCE);
         keywords.add(KW_GCGRACESECONDS);
-        keywords.add(KW_MINCOMPACTIONTHRESHOLD);
-        keywords.add(KW_MAXCOMPACTIONTHRESHOLD);
         keywords.add(KW_REPLICATEONWRITE);
         keywords.add(KW_COMPACTION_STRATEGY_CLASS);
         keywords.add(KW_CACHING);
         keywords.add(KW_BF_FP_CHANCE);
-
-        obsoleteKeywords.add("row_cache_size");
-        obsoleteKeywords.add("key_cache_size");
-        obsoleteKeywords.add("row_cache_save_period_in_seconds");
-        obsoleteKeywords.add("key_cache_save_period_in_seconds");
-        obsoleteKeywords.add("memtable_throughput_in_mb");
-        obsoleteKeywords.add("memtable_operations_in_millions");
-        obsoleteKeywords.add("memtable_flush_after_mins");
-        obsoleteKeywords.add("row_cache_provider");
-        obsoleteKeywords.add("comparator");
-        obsoleteKeywords.add("default_validation");
 
         allowedKeywords.addAll(keywords);
         allowedKeywords.addAll(obsoleteKeywords);
@@ -130,41 +118,13 @@ public class CFPropDefs
      * knows what they are doing (a custom comparator/validator for example), and pass it on as-is.
      */
 
-    public void validate() throws InvalidRequestException
+    public void validate() throws ConfigurationException
     {
         // Catch the case where someone passed a kwarg that is not recognized.
         for (String bogus : Sets.difference(properties.keySet(), allowedKeywords))
-            throw new InvalidRequestException(bogus + " is not a valid keyword argument for CREATE COLUMNFAMILY");
+            throw new ConfigurationException(bogus + " is not a valid keyword argument for CREATE TABLE");
         for (String obsolete : Sets.intersection(properties.keySet(), obsoleteKeywords))
             logger.warn("Ignoring obsolete property {}", obsolete);
-
-        // Validate min/max compaction thresholds
-        Integer minCompaction = getInt(KW_MINCOMPACTIONTHRESHOLD, null);
-        Integer maxCompaction = getInt(KW_MAXCOMPACTIONTHRESHOLD, null);
-
-        if ((minCompaction != null) && (maxCompaction != null))     // Both min and max are set
-        {
-            if ((minCompaction > maxCompaction) && (maxCompaction != 0))
-                throw new InvalidRequestException(String.format("%s cannot be larger than %s",
-                        KW_MINCOMPACTIONTHRESHOLD,
-                        KW_MAXCOMPACTIONTHRESHOLD));
-        }
-        else if (minCompaction != null)     // Only the min threshold is set
-        {
-            if (minCompaction > CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD)
-                throw new InvalidRequestException(String.format("%s cannot be larger than %s, (default %s)",
-                        KW_MINCOMPACTIONTHRESHOLD,
-                        KW_MAXCOMPACTIONTHRESHOLD,
-                        CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD));
-        }
-        else if (maxCompaction != null)     // Only the max threshold is set
-        {
-            if ((maxCompaction < CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD) && (maxCompaction != 0))
-                throw new InvalidRequestException(String.format("%s cannot be smaller than %s, (default %s)",
-                        KW_MAXCOMPACTIONTHRESHOLD,
-                        KW_MINCOMPACTIONTHRESHOLD,
-                        CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD));
-        }
     }
 
     /** Map a keyword to the corresponding value */
@@ -198,6 +158,27 @@ public class CFPropDefs
         return properties.containsKey(name);
     }
 
+    public void applyToCFMetadata(CFMetaData cfm) throws ConfigurationException
+    {
+        if (hasProperty(KW_COMMENT))
+            cfm.comment(get(KW_COMMENT));
+
+        cfm.readRepairChance(getDouble(KW_READREPAIRCHANCE, cfm.getReadRepairChance()));
+        cfm.dcLocalReadRepairChance(getDouble(KW_DCLOCALREADREPAIRCHANCE, cfm.getDcLocalReadRepair()));
+        cfm.gcGraceSeconds(getInt(KW_GCGRACESECONDS, cfm.getGcGraceSeconds()));
+        cfm.replicateOnWrite(getBoolean(KW_REPLICATEONWRITE, cfm.getReplicateOnWrite()));
+        cfm.minCompactionThreshold(toInt(KW_MINCOMPACTIONTHRESHOLD, compactionStrategyOptions.get(KW_MINCOMPACTIONTHRESHOLD), cfm.getMinCompactionThreshold()));
+        cfm.maxCompactionThreshold(toInt(KW_MAXCOMPACTIONTHRESHOLD, compactionStrategyOptions.get(KW_MAXCOMPACTIONTHRESHOLD), cfm.getMaxCompactionThreshold()));
+        cfm.caching(CFMetaData.Caching.fromString(getString(KW_CACHING, cfm.getCaching().toString())));
+        cfm.bloomFilterFpChance(getDouble(KW_BF_FP_CHANCE, cfm.getBloomFilterFpChance()));
+
+        if (!compactionStrategyOptions.isEmpty())
+            cfm.compactionStrategyOptions(new HashMap<String, String>(compactionStrategyOptions));
+
+        if (!compressionParameters.isEmpty())
+            cfm.compressionParameters(CompressionParameters.create(compressionParameters));
+    }
+
     public String get(String name)
     {
         return properties.get(name);
@@ -210,14 +191,14 @@ public class CFPropDefs
     }
 
     // Return a property value, typed as a Boolean
-    public Boolean getBoolean(String key, Boolean defaultValue) throws InvalidRequestException
+    public Boolean getBoolean(String key, Boolean defaultValue)
     {
         String value = properties.get(key);
         return (value == null) ? defaultValue : value.toLowerCase().matches("(1|true|yes)");
     }
 
     // Return a property value, typed as a Double
-    public Double getDouble(String key, Double defaultValue) throws InvalidRequestException
+    public Double getDouble(String key, Double defaultValue) throws ConfigurationException
     {
         Double result;
         String value = properties.get(key);
@@ -232,17 +213,22 @@ public class CFPropDefs
             }
             catch (NumberFormatException e)
             {
-                throw new InvalidRequestException(String.format("%s not valid for \"%s\"", value, key));
+                throw new ConfigurationException(String.format("%s not valid for \"%s\"", value, key));
             }
         }
         return result;
     }
 
     // Return a property value, typed as an Integer
-    public Integer getInt(String key, Integer defaultValue) throws InvalidRequestException
+    public Integer getInt(String key, Integer defaultValue) throws ConfigurationException
+    {
+        String value = properties.get(key);
+        return toInt(key, value, defaultValue);
+    }
+
+    public static Integer toInt(String key, String value, Integer defaultValue) throws ConfigurationException
     {
         Integer result;
-        String value = properties.get(key);
 
         if (value == null)
             result = defaultValue;
@@ -254,11 +240,12 @@ public class CFPropDefs
             }
             catch (NumberFormatException e)
             {
-                throw new InvalidRequestException(String.format("%s not valid for \"%s\"", value, key));
+                throw new ConfigurationException(String.format("%s not valid for \"%s\"", value, key));
             }
         }
         return result;
     }
+
 
     public String toString()
     {

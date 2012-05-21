@@ -16,6 +16,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+DESC="Cassandra Stress Test Daemon"
+
 if [ "x$CLASSPATH" = "x" ]; then
     
     # execute from the build dir.
@@ -45,4 +47,38 @@ if [ "x$JAVA" = "x" ]; then
     exit 1
 fi
 
-$JAVA -server -cp $CLASSPATH org.apache.cassandra.stress.Stress $@
+case "$1" in
+  start)
+    echo "Starting $DESC: "
+    $JAVA -server -cp $CLASSPATH org.apache.cassandra.stress.StressServer $@ 1> ./stressd.out.log 2> ./stressd.err.log &
+    echo $! > ./stressd.pid
+    echo "done."
+  ;;
+  
+  stop)
+    PID=`cat ./stressd.pid 2> /dev/null`
+    
+    if [ "x$PID" = "x" ]; then
+      echo "$DESC is not running."
+    else
+      kill -9 $PID
+      rm ./stressd.pid
+      echo "$DESC is stopped."
+    fi
+  ;;
+
+  status)
+    PID=`cat ./stressd.pid 2> /dev/null`
+
+    if [ "x$PID" = "x" ]; then
+      echo "$DESC is not running."
+    else
+      echo "$DESC is running with pid $PID."
+    fi
+  ;;
+
+  *)
+    echo "Usage: $0 start|stop|status [-h <host>]"
+  ;;
+esac
+

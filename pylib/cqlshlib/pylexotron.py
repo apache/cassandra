@@ -269,6 +269,28 @@ class case_match(text_match):
     def pattern(self):
         return re.escape(self.arg)
 
+class word_match(text_match):
+    def pattern(self):
+        return r'\b' + text_match.pattern(self) + r'\b'
+
+class case_word_match(case_match):
+    def pattern(self):
+        return r'\b' + case_match.pattern(self) + r'\b'
+
+class terminal_type_matcher(matcher):
+    def __init__(self, tokentype, submatcher):
+        matcher.__init__(self, tokentype)
+        self.tokentype = tokentype
+        self.submatcher = submatcher
+
+    def match(self, ctxt, completions):
+        if ctxt.remainder:
+            if ctxt.remainder[0][0] == self.tokentype:
+                return [ctxt.with_match(1)]
+        elif completions is not None:
+            self.submatcher.match(ctxt, completions)
+        return []
+
 class ParsingRuleSet:
     RuleSpecScanner = SaferScanner([
         (r'::=', lambda s,t: t),
@@ -309,9 +331,10 @@ class ParsingRuleSet:
                     raise ValueError('Unexpected token %r; expected "::="' % (assign,))
                 name = t[1]
                 production = cls.read_rule_tokens_until(';', tokeniter)
-                rules[name] = production
                 if isinstance(production, terminal_matcher):
                     terminals.append((name, production))
+                    production = terminal_type_matcher(name, production)
+                rules[name] = production
             else:
                 raise ValueError('Unexpected token %r; expected name' % (t,))
         return rules, terminals
@@ -345,7 +368,10 @@ class ParsingRuleSet:
                 if t[0] == 'reference':
                     t = rule_reference(t[1])
                 elif t[0] == 'litstring':
-                    t = text_match(t[1])
+                    if t[1][1].isalnum() or t[1][1] == '_':
+                        t = word_match(t[1])
+                    else:
+                        t = text_match(t[1])
                 elif t[0] == 'regex':
                     t = regex_rule(t[1])
                 elif t[0] == 'named_collector':

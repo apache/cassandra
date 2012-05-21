@@ -82,24 +82,27 @@ public class DateType extends AbstractType<Date>
       if (source.isEmpty())
           return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
+      return ByteBufferUtil.bytes(dateStringToTimestamp(source));
+    }
+
+    public static long dateStringToTimestamp(String source) throws MarshalException
+    {
       long millis;
-      ByteBuffer idBytes = null;
 
       if (source.toLowerCase().equals("now"))
       {
           millis = System.currentTimeMillis();
-          idBytes = ByteBufferUtil.bytes(millis);
       }
       // Milliseconds since epoch?
       else if (source.matches("^\\d+$"))
       {
           try
           {
-              idBytes = ByteBufferUtil.bytes(Long.parseLong(source));
+              millis = Long.parseLong(source);
           }
           catch (NumberFormatException e)
           {
-              throw new MarshalException(String.format("unable to make long (for date) from:  '%s'", source), e);
+              throw new MarshalException(String.format("unable to make long (for date) from: '%s'", source), e);
           }
       }
       // Last chance, attempt to parse as date-time string
@@ -108,7 +111,6 @@ public class DateType extends AbstractType<Date>
           try
           {
               millis = DateUtils.parseDate(source, iso8601Patterns).getTime();
-              idBytes = ByteBufferUtil.bytes(millis);
           }
           catch (ParseException e1)
           {
@@ -116,7 +118,7 @@ public class DateType extends AbstractType<Date>
           }
       }
 
-      return idBytes;
+      return millis;
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

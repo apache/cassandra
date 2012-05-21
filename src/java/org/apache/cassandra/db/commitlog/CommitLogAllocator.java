@@ -101,6 +101,7 @@ public class CommitLogAllocator
                         // almost always a segment available when it's needed.
                         if (availableSegments.isEmpty() && (activeSegments.isEmpty() || createReserveSegments))
                         {
+                            logger.debug("No segments in reserve; creating a fresh one");
                             createFreshSegment();
                         }
                     }
@@ -156,6 +157,8 @@ public class CommitLogAllocator
             discardSegment(segment, true);
             return;
         }
+
+        logger.debug("Recycling {}", segment);
         queue.add(new Runnable()
         {
             public void run()
@@ -205,6 +208,7 @@ public class CommitLogAllocator
      */
     private void discardSegment(final CommitLogSegment segment, final boolean deleteFile)
     {
+        logger.debug("Segment {} is no longer active and will be deleted {}", segment, deleteFile ? "now" : "by the archive script");
         size.addAndGet(-DatabaseDescriptor.getCommitLogSegmentSize());
 
         queue.add(new Runnable()

@@ -24,6 +24,7 @@ package org.apache.cassandra.tools;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.management.MemoryUsage;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.DecimalFormat;
@@ -137,14 +138,14 @@ public class NodeCmd
         StringBuilder header = new StringBuilder();
         header.append("\nAvailable commands:\n");
         // No args
-        addCmdHelp(header, "ring", "Print informations on the token ring");
+        addCmdHelp(header, "ring", "Print information about the token ring");
         addCmdHelp(header, "join", "Join the ring");
-        addCmdHelp(header, "info", "Print node informations (uptime, load, ...)");
+        addCmdHelp(header, "info", "Print node information (uptime, load, ...)");
         addCmdHelp(header, "cfstats", "Print statistics on column families");
         addCmdHelp(header, "version", "Print cassandra version");
         addCmdHelp(header, "tpstats", "Print usage statistics of thread pools");
         addCmdHelp(header, "drain", "Drain the node (stop accepting writes and flush all column families)");
-        addCmdHelp(header, "decommission", "Decommission the node");
+        addCmdHelp(header, "decommission", "Decommission the *node I am connecting to*");
         addCmdHelp(header, "compactionstats", "Print statistics on compactions");
         addCmdHelp(header, "disablegossip", "Disable gossip (effectively marking the node dead)");
         addCmdHelp(header, "enablegossip", "Reenable gossip");
@@ -227,7 +228,7 @@ public class NodeCmd
         try
         {
             ownerships = probe.effectiveOwnership(keyspace);
-            outs.printf(format, "Address", "DC", "Rack", "Status", "State", "Load", "Effective-Owership", "Token");
+            outs.printf(format, "Address", "DC", "Rack", "Status", "State", "Load", "Effective-Ownership", "Token");
         }
         catch (ConfigurationException ex)
         {
@@ -319,6 +320,7 @@ public class NodeCmd
         boolean gossipInitialized = probe.isInitialized();
         outs.printf("%-17s: %s%n", "Token", probe.getToken());
         outs.printf("%-17s: %s%n", "Gossip active", gossipInitialized);
+        outs.printf("%-17s: %s%n", "Thrift active", probe.isThriftServerRunning());
         outs.printf("%-17s: %s%n", "Load", probe.getLoadString());
         if (gossipInitialized)
             outs.printf("%-17s: %s%n", "Generation No", probe.getCurrentGenerationNumber());
@@ -660,7 +662,21 @@ public class NodeCmd
         }
         catch (IOException ioe)
         {
-            err(ioe, "Error connection to remote JMX agent!");
+            Throwable inner = findInnermostThrowable(ioe);
+            if (inner instanceof ConnectException)
+            {
+                System.err.printf("Failed to connect to '%s:%d': %s\n", host, port, inner.getMessage());
+                System.exit(1);
+            }
+            else if (inner instanceof UnknownHostException)
+            {
+                System.err.printf("Cannot resolve '%s': unknown host\n", host);
+                System.exit(1);
+            }
+            else
+            {
+                err(ioe, "Error connecting to remote JMX agent!");
+            }
         }
         try
         {
@@ -692,7 +708,6 @@ public class NodeCmd
 
                 case INFO            : nodeCmd.printInfo(System.out); break;
                 case CFSTATS         : nodeCmd.printColumnFamilyStats(System.out); break;
-                case DECOMMISSION    : probe.decommission(); break;
                 case TPSTATS         : nodeCmd.printThreadPoolStats(System.out); break;
                 case VERSION         : nodeCmd.printReleaseVersion(System.out); break;
                 case COMPACTIONSTATS : nodeCmd.printCompactionStats(System.out); break;
@@ -702,6 +717,15 @@ public class NodeCmd
                 case ENABLETHRIFT    : probe.startThriftServer(); break;
                 case STATUSTHRIFT    : nodeCmd.printIsThriftServerRunning(System.out); break;
                 case RESETLOCALSCHEMA: probe.resetLocalSchema(); break;
+
+                case DECOMMISSION :
+                    if (arguments.length > 0)
+                    {
+                        System.err.println("Decommission will decommission the node you are connected to and does not take arguments!");
+                        System.exit(1);
+                    }
+                    probe.decommission();
+                    break;
 
                 case DRAIN :
                     try { probe.drain(); }
@@ -854,6 +878,12 @@ public class NodeCmd
             }
         }
         System.exit(0);
+    }
+
+    private static Throwable findInnermostThrowable(Throwable ex)
+    {
+        Throwable inner = ex.getCause();
+        return inner == null ? ex : findInnermostThrowable(inner);
     }
 
     private void printDescribeRing(String keyspaceName, PrintStream out)

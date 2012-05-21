@@ -254,8 +254,6 @@ public final class CFMetaData
         // System cfs have specific ids, and copies of old CFMDs need
         //  to copy over the old id.
         cfId = id;
-        caching = DEFAULT_CACHING_STRATEGY;
-        bloomFilterFpChance = DEFAULT_BF_FP_CHANCE;
 
         this.init();
     }
@@ -279,6 +277,8 @@ public final class CFMetaData
         gcGraceSeconds               = DEFAULT_GC_GRACE_SECONDS;
         minCompactionThreshold       = DEFAULT_MIN_COMPACTION_THRESHOLD;
         maxCompactionThreshold       = DEFAULT_MAX_COMPACTION_THRESHOLD;
+        caching                      = DEFAULT_CACHING_STRATEGY;
+        bloomFilterFpChance          = DEFAULT_BF_FP_CHANCE;
 
         // Defaults strange or simple enough to not need a DEFAULT_T for
         defaultValidator = BytesType.instance;
@@ -326,11 +326,17 @@ public final class CFMetaData
 
     public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType<?> columnComparator)
     {
+        // Depends on parent's cache setting, turn on its index CF's cache.
+        // Here, only key cache is enabled, but later (in KeysIndex) row cache will be turned on depending on cardinality.
+        Caching indexCaching = parent.getCaching() == Caching.ALL || parent.getCaching() == Caching.KEYS_ONLY
+                             ? Caching.KEYS_ONLY
+                             : Caching.NONE;
+
         return new CFMetaData(parent.ksName, parent.indexColumnFamilyName(info), ColumnFamilyType.Standard, columnComparator, null)
                              .keyValidator(info.getValidator())
                              .readRepairChance(0.0)
                              .dcLocalReadRepairChance(0.0)
-                             .caching(Caching.NONE)
+                             .caching(indexCaching)
                              .reloadSecondaryIndexMetadata(parent);
     }
 
@@ -843,10 +849,18 @@ public final class CFMetaData
      */
     public void addDefaultIndexNames() throws ConfigurationException
     {
+        Set<String> existingNames = existingIndexNames(null);
         for (ColumnDefinition column : column_metadata.values())
         {
             if (column.getIndexType() != null && column.getIndexName() == null)
-                column.setIndexName(getDefaultIndexName(cfName, comparator, column.name));
+            {
+                String baseName = getDefaultIndexName(cfName, comparator, column.name);
+                String indexName = baseName;
+                int i = 0;
+                while (existingNames.contains(indexName))
+                    indexName = baseName + '_' + (++i);
+                column.setIndexName(indexName);
+            }
         }
     }
 
@@ -935,14 +949,7 @@ public final class CFMetaData
         validateAlias(valueAlias, "Value");
 
         // initialize a set of names NOT in the CF under consideration
-        Set<String> indexNames = new HashSet<String>();
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
-            if (!cfs.getColumnFamilyName().equals(cfName))
-                for (ColumnDefinition cd : cfs.metadata.getColumn_metadata().values())
-                    indexNames.add(cd.getIndexName());
-        }
-
+        Set<String> indexNames = existingIndexNames(cfName);
         for (ColumnDefinition c : column_metadata.values())
         {
             AbstractType<?> comparator = getColumnDefinitionComparator(c);
@@ -987,6 +994,18 @@ public final class CFMetaData
         validateCompactionThresholds();
 
         return this;
+    }
+
+    private static Set<String> existingIndexNames(String cfToExclude)
+    {
+        Set<String> indexNames = new HashSet<String>();
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+        {
+            if (cfToExclude == null || !cfs.getColumnFamilyName().equals(cfToExclude))
+                for (ColumnDefinition cd : cfs.metadata.getColumn_metadata().values())
+                    indexNames.add(cd.getIndexName());
+        }
+        return indexNames;
     }
 
     private static void validateAlias(ByteBuffer alias, String msg) throws ConfigurationException

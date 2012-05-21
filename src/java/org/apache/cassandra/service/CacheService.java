@@ -95,7 +95,7 @@ public class CacheService implements CacheServiceMBean
     {
         logger.info("Initializing key cache with capacity of {} MBs.", DatabaseDescriptor.getKeyCacheSizeInMB());
 
-        int keyCacheInMemoryCapacity = DatabaseDescriptor.getKeyCacheSizeInMB() * 1024 * 1024;
+        long keyCacheInMemoryCapacity = DatabaseDescriptor.getKeyCacheSizeInMB() * 1024 * 1024;
 
         // as values are constant size we can use singleton weigher
         // where 48 = 40 bytes (average size of the key) + 8 bytes (size of value)
@@ -122,7 +122,7 @@ public class CacheService implements CacheServiceMBean
                     DatabaseDescriptor.getRowCacheSizeInMB(),
                     DatabaseDescriptor.getRowCacheProvider().getClass().getName());
 
-        int rowCacheInMemoryCapacity = DatabaseDescriptor.getRowCacheSizeInMB() * 1024 * 1024;
+        long rowCacheInMemoryCapacity = DatabaseDescriptor.getRowCacheSizeInMB() * 1024 * 1024;
 
         // cache object
         ICache<RowCacheKey, IRowCacheEntry> rc = DatabaseDescriptor.getRowCacheProvider().create(rowCacheInMemoryCapacity, true);
@@ -207,17 +207,17 @@ public class CacheService implements CacheServiceMBean
         rowCache.clear();
     }
 
-    public int getRowCacheCapacityInBytes()
+    public long getRowCacheCapacityInBytes()
     {
         return rowCache.getCapacity();
     }
 
-    public int getRowCacheCapacityInMB()
+    public long getRowCacheCapacityInMB()
     {
         return getRowCacheCapacityInBytes() / 1024 / 1024;
     }
 
-    public void setRowCacheCapacityInMB(int capacity)
+    public void setRowCacheCapacityInMB(long capacity)
     {
         if (capacity < 0)
             throw new RuntimeException("capacity should not be negative.");
@@ -225,17 +225,17 @@ public class CacheService implements CacheServiceMBean
         rowCache.setCapacity(capacity * 1024 * 1024);
     }
 
-    public int getKeyCacheCapacityInBytes()
+    public long getKeyCacheCapacityInBytes()
     {
         return keyCache.getCapacity() * AVERAGE_KEY_CACHE_ROW_SIZE;
     }
 
-    public int getKeyCacheCapacityInMB()
+    public long getKeyCacheCapacityInMB()
     {
         return getKeyCacheCapacityInBytes() / 1024 / 1024;
     }
 
-    public void setKeyCacheCapacityInMB(int capacity)
+    public void setKeyCacheCapacityInMB(long capacity)
     {
         if (capacity < 0)
             throw new RuntimeException("capacity should not be negative.");
@@ -243,12 +243,12 @@ public class CacheService implements CacheServiceMBean
         keyCache.setCapacity(capacity * 1024 * 1024 / 48);
     }
 
-    public int getRowCacheSize()
+    public long getRowCacheSize()
     {
         return rowCache.weightedSize();
     }
 
-    public int getKeyCacheSize()
+    public long getKeyCacheSize()
     {
         return keyCache.weightedSize() * AVERAGE_KEY_CACHE_ROW_SIZE;
     }

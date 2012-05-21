@@ -35,11 +35,14 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.utils.Pair;
 
 /** A <code>CREATE COLUMNFAMILY</code> parsed from a CQL query statement. */
 public class CreateColumnFamilyStatement extends SchemaAlteringStatement
@@ -52,7 +55,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     private List<ByteBuffer> columnAliases = new ArrayList<ByteBuffer>();
     private ByteBuffer valueAlias;
 
-    private final Map<ColumnIdentifier, String> columns = new HashMap<ColumnIdentifier, String>();
+    private final Map<ColumnIdentifier, AbstractType> columns = new HashMap<ColumnIdentifier, AbstractType>();
     private final CFPropDefs properties;
 
     public CreateColumnFamilyStatement(CFName name, CFPropDefs properties)
@@ -67,11 +70,9 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         Map<ByteBuffer, ColumnDefinition> columnDefs = new HashMap<ByteBuffer, ColumnDefinition>();
         Integer componentIndex = comparator instanceof CompositeType ? ((CompositeType)comparator).types.size() - 1 : null;
 
-        for (Map.Entry<ColumnIdentifier, String> col : columns.entrySet())
+        for (Map.Entry<ColumnIdentifier, AbstractType> col : columns.entrySet())
         {
-            AbstractType<?> validator = CFPropDefs.parseType(col.getValue());
-
-            columnDefs.put(col.getKey().key, new ColumnDefinition(col.getKey().key, validator, null, null, null, componentIndex));
+            columnDefs.put(col.getKey().key, new ColumnDefinition(col.getKey().key, col.getValue(), null, null, null, componentIndex));
         }
 
         return columnDefs;
@@ -100,23 +101,14 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                                      comparator,
                                      null);
 
-            newCFMD.comment(properties.get(CFPropDefs.KW_COMMENT))
-                   .readRepairChance(properties.getDouble(CFPropDefs.KW_READREPAIRCHANCE, CFMetaData.DEFAULT_READ_REPAIR_CHANCE))
-                   .dcLocalReadRepairChance(properties.getDouble(CFPropDefs.KW_DCLOCALREADREPAIRCHANCE, CFMetaData.DEFAULT_DCLOCAL_READ_REPAIR_CHANCE))
-                   .replicateOnWrite(properties.getBoolean(CFPropDefs.KW_REPLICATEONWRITE, CFMetaData.DEFAULT_REPLICATE_ON_WRITE))
-                   .gcGraceSeconds(properties.getInt(CFPropDefs.KW_GCGRACESECONDS, CFMetaData.DEFAULT_GC_GRACE_SECONDS))
-                   .defaultValidator(defaultValidator)
-                   .minCompactionThreshold(properties.getInt(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD))
-                   .maxCompactionThreshold(properties.getInt(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD))
+            newCFMD.defaultValidator(defaultValidator)
                    .columnMetadata(getColumns())
                    .keyValidator(keyValidator)
                    .keyAlias(keyAlias)
                    .columnAliases(columnAliases)
-                   .valueAlias(valueAlias)
-                   .compactionStrategyOptions(properties.compactionStrategyOptions)
-                   .compressionParameters(CompressionParameters.create(properties.compressionParameters))
-                   .caching(CFMetaData.Caching.fromString(properties.getString(CFPropDefs.KW_CACHING, CFMetaData.DEFAULT_CACHING_STRATEGY.toString())))
-                   .bloomFilterFpChance(properties.getDouble(CFPropDefs.KW_BF_FP_CHANCE, CFMetaData.DEFAULT_BF_FP_CHANCE));
+                   .valueAlias(valueAlias);
+
+            properties.applyToCFMetadata(newCFMD);
         }
         catch (ConfigurationException e)
         {
@@ -131,7 +123,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         private final CFPropDefs properties = new CFPropDefs();
 
         private final List<ColumnIdentifier> keyAliases = new ArrayList<ColumnIdentifier>();
-        private List<ColumnIdentifier> columnAliases = new ArrayList<ColumnIdentifier>();
+        private final List<ColumnIdentifier> columnAliases = new ArrayList<ColumnIdentifier>();
+        private final Map<ColumnIdentifier, Boolean> definedOrdering = new HashMap<ColumnIdentifier, Boolean>();
 
         private boolean useCompactStorage;
         private Multiset<ColumnIdentifier> definedNames = HashMultiset.create(1);
@@ -162,7 +155,11 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
                 CreateColumnFamilyStatement stmt = new CreateColumnFamilyStatement(cfName, properties);
                 stmt.setBoundTerms(getBoundsTerms());
-                stmt.columns.putAll(definitions); // we'll remove what is not a column below
+                for (Map.Entry<ColumnIdentifier, String> entry : definitions.entrySet())
+                {
+                    AbstractType<?> type = CFPropDefs.parseType(entry.getValue());
+                    stmt.columns.put(entry.getKey(), type); // we'll remove what is not a column below
+                }
 
                 // Ensure that exactly one key has been specified.
                 if (keyAliases.size() == 0)
@@ -172,6 +169,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
                 stmt.keyAlias = keyAliases.get(0).key;
                 stmt.keyValidator = getTypeAndRemove(stmt.columns, keyAliases.get(0));
+                if (stmt.keyValidator instanceof CounterColumnType)
+                    throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", stmt.keyAlias));
 
                 // Handle column aliases
                 if (columnAliases != null && !columnAliases.isEmpty())
@@ -182,6 +181,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                     {
                         stmt.columnAliases.add(columnAliases.get(0).key);
                         stmt.comparator = getTypeAndRemove(stmt.columns, columnAliases.get(0));
+                        if (stmt.comparator instanceof CounterColumnType)
+                            throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", stmt.columnAliases.get(0)));
                     }
                     else
                     {
@@ -189,7 +190,11 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                         for (ColumnIdentifier t : columnAliases)
                         {
                             stmt.columnAliases.add(t.key);
-                            types.add(getTypeAndRemove(stmt.columns, t));
+
+                            AbstractType<?> type = getTypeAndRemove(stmt.columns, t);
+                            if (type instanceof CounterColumnType)
+                                throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", t.key));
+                            types.add(type);
                         }
                         // For sparse, we must add the last UTF8 component
                         if (!useCompactStorage)
@@ -207,14 +212,17 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
                 if (useCompactStorage)
                 {
+                    // There should at least have been one column alias
+                    if (stmt.columnAliases.isEmpty())
+                        throw new InvalidRequestException("COMPACT STORAGE requires at least one column part of the clustering key, none found");
                     // There should be only one column definition remaining, which gives us the default validator.
                     if (stmt.columns.isEmpty())
                         throw new InvalidRequestException("COMPACT STORAGE requires one definition not part of the PRIMARY KEY, none found");
                     if (stmt.columns.size() > 1)
                         throw new InvalidRequestException(String.format("COMPACT STORAGE allows only one column not part of the PRIMARY KEY (got: %s)", StringUtils.join(stmt.columns.keySet(), ", ")));
 
-                    Map.Entry<ColumnIdentifier, String> lastEntry = stmt.columns.entrySet().iterator().next();
-                    stmt.defaultValidator = CFPropDefs.parseType(lastEntry.getValue());
+                    Map.Entry<ColumnIdentifier, AbstractType> lastEntry = stmt.columns.entrySet().iterator().next();
+                    stmt.defaultValidator = lastEntry.getValue();
                     stmt.valueAlias = lastEntry.getKey().key;
                     stmt.columns.remove(lastEntry.getKey());
                 }
@@ -224,8 +232,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                         throw new InvalidRequestException("No definition found that is not part of the PRIMARY KEY");
 
                     // There is no way to insert/access a column that is not defined for non-compact
-                    // storage, so the actual validator don't matter much.
-                    stmt.defaultValidator = CFDefinition.definitionType;
+                    // storage, so the actual validator don't matter much (except that we want to recognize counter CF as limitation apply to them).
+                    stmt.defaultValidator = (stmt.columns.values().iterator().next() instanceof CounterColumnType) ? CounterColumnType.instance : CFDefinition.definitionType;
                 }
 
                 return new ParsedStatement.Prepared(stmt);
@@ -236,13 +244,14 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
             }
         }
 
-        private static AbstractType<?> getTypeAndRemove(Map<ColumnIdentifier, String> columns, ColumnIdentifier t) throws InvalidRequestException, ConfigurationException
+        private AbstractType<?> getTypeAndRemove(Map<ColumnIdentifier, AbstractType> columns, ColumnIdentifier t) throws InvalidRequestException, ConfigurationException
         {
-            String typeStr = columns.get(t);
-            if (typeStr == null)
+            AbstractType type = columns.get(t);
+            if (type == null)
                 throw new InvalidRequestException(String.format("Unkown definition %s referenced in PRIMARY KEY", t));
             columns.remove(t);
-            return CFPropDefs.parseType(typeStr);
+            Boolean isReversed = definedOrdering.get(t);
+            return isReversed != null && isReversed ? ReversedType.getInstance(type) : type;
         }
 
         public void addDefinition(ColumnIdentifier def, String type)
@@ -264,6 +273,11 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         public void addProperty(String name, String value)
         {
             properties.addProperty(name, value);
+        }
+
+        public void setOrdering(ColumnIdentifier alias, boolean reversed)
+        {
+            definedOrdering.put(alias, reversed);
         }
 
         public void setCompactStorage()

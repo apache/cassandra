@@ -66,7 +66,7 @@ public final class Stress
             {
                 while (!socket.isClosed() && (line = inp.readLine()) != null)
                 {
-                    if (line.equals("END"))
+                    if (line.equals("END") || line.equals("FAILURE"))
                     {
                         out.writeInt(1);
                         break;
@@ -88,7 +88,10 @@ public final class Stress
         }
         else
         {
-            new StressAction(session, outStream).start();
+            StressAction stressAction = new StressAction(session, outStream);
+            stressAction.start();
+            stressAction.join();
+            System.exit(stressAction.getReturnCode());
         }
     }
 
@@ -97,7 +100,7 @@ public final class Stress
      */
     public static void printHelpMessage()
     {
-        System.out.println("Usage: ./bin/stress [options]\n\nOptions:");
+        System.out.println("Usage: ./bin/cassandra-stress [options]\n\nOptions:");
 
         for(Object o : Session.availableOptions.getOptions())
         {

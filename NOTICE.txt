@@ -36,3 +36,7 @@ Written by Taro L. Saito.
 Streaming compression support provided by ning-compress
 (https://github.com/ning/compress)
 Copyright 2009-2010 Ning, Inc.
+
+Alternative map implementation provided by SnapTree
+(https://github.com/nbronson/snaptree)
+Written by Nathan G. Bronson et al.

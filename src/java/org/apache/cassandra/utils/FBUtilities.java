@@ -221,7 +221,7 @@ public class FBUtilities
         for (ByteBuffer block : data)
         {
             if (block.hasArray())
-                messageDigest.update(block.array(), block.position(), block.remaining());
+                messageDigest.update(block.array(), block.arrayOffset() + block.position(), block.remaining());
             else
                 messageDigest.update(block.duplicate());
         }

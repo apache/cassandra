@@ -57,14 +57,6 @@ public class FreeableMemory extends Memory
     }
 
     @Override
-    protected void finalize() throws Throwable
-    {
-        assert references.get() <= 0;
-        assert peer == 0;
-        super.finalize();
-    }
-
-    @Override
     public byte getByte(long offset)
     {
         assert peer != 0;

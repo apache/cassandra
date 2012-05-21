@@ -139,7 +139,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
     }
 
     /**
-     * Same as addAll() but do a cloneMeShallow of SuperColumn if necessary to
+     * Same as addAll() but do a cloneMe of SuperColumn if necessary to
      * avoid keeping references to the structure (see #3957).
      */
     public void addAllWithSCCopy(ColumnFamily cf, Allocator allocator)
@@ -148,7 +148,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
         {
             for (IColumn c : cf)
             {
-                columns.addColumn(((SuperColumn)c).cloneMeShallow(), allocator);
+                columns.addColumn(((SuperColumn)c).cloneMe(), allocator);
             }
             delete(cf);
         }
@@ -260,7 +260,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
 
     int size()
     {
-        int size = 0;
+        int size = DBConstants.longSize + DBConstants.intSize; // tombstone tracking
         for (IColumn column : columns)
         {
             size += column.size();
@@ -270,7 +270,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
 
     public long maxTimestamp()
     {
-        long maxTimestamp = Long.MIN_VALUE;
+        long maxTimestamp = getMarkedForDeleteAt();
         for (IColumn column : columns)
             maxTimestamp = Math.max(maxTimestamp, column.maxTimestamp());
         return maxTimestamp;

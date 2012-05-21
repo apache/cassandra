@@ -234,10 +234,9 @@ public class UpdateStatement extends ModificationStatement
         }
     }
 
-    public ParsedStatement.Prepared prepare() throws InvalidRequestException
+    public ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException
     {
         boolean hasCommutativeOperation = false;
-        AbstractType[] types = new AbstractType[getBoundsTerms()];
 
         if (columns != null)
         {
@@ -275,7 +274,7 @@ public class UpdateStatement extends ModificationStatement
 
                 Term value = columnValues.get(i);
                 if (value.isBindMarker())
-                    types[value.bindIndex] = name.type;
+                    boundNames[value.bindIndex] = name;
 
                 switch (name.kind)
                 {
@@ -314,19 +313,25 @@ public class UpdateStatement extends ModificationStatement
                             throw new InvalidRequestException(String.format("Multiple definition found for column %s", name));
                         Operation op = entry.getValue();
                         if (op.value.isBindMarker())
-                            types[op.value.bindIndex] = name.type;
+                            boundNames[op.value.bindIndex] = name;
                         processedColumns.put(name.name, op);
                         break;
                 }
             }
-            processKeys(cfDef, whereClause, processedKeys, types);
+            processKeys(cfDef, whereClause, processedKeys, boundNames);
         }
 
-        return new ParsedStatement.Prepared(this, Arrays.<AbstractType<?>>asList(types));
+        return new ParsedStatement.Prepared(this, Arrays.<CFDefinition.Name>asList(boundNames));
+    }
+
+    public ParsedStatement.Prepared prepare() throws InvalidRequestException
+    {
+        CFDefinition.Name[] names = new CFDefinition.Name[getBoundsTerms()];
+        return prepare(names);
     }
 
     // Reused by DeleteStatement
-    static void processKeys(CFDefinition cfDef, List<Relation> keys, Map<ColumnIdentifier, List<Term>> processed, AbstractType[] types) throws InvalidRequestException
+    static void processKeys(CFDefinition cfDef, List<Relation> keys, Map<ColumnIdentifier, List<Term>> processed, CFDefinition.Name[] names) throws InvalidRequestException
     {
         for (Relation rel : keys)
         {
@@ -350,7 +355,7 @@ public class UpdateStatement extends ModificationStatement
                         throw new InvalidRequestException(String.format("Multiple definition found for PRIMARY KEY part %s", name));
                     for (Term value : values)
                         if (value.isBindMarker())
-                            types[value.bindIndex] = name.type;
+                            names[value.bindIndex] = name;
                     processed.put(name.name, values);
                     break;
                 case VALUE_ALIAS:

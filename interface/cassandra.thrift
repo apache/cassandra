@@ -55,7 +55,7 @@ namespace rb CassandraThrift
 # An effort should be made not to break forward-client-compatibility either
 # (e.g. one should avoid removing obsolete fields from the IDL), but no
 # guarantees in this respect are made by the Cassandra project.
-const string VERSION = "19.31.0"
+const string VERSION = "19.32.0"
 
 
 #
@@ -497,7 +497,8 @@ struct CqlResult {
 struct CqlPreparedResult {
     1: required i32 itemId,
     2: required i32 count,
-    3: optional list<string> variable_types
+    3: optional list<string> variable_types,
+    4: optional list<string> variable_names
 }
 
 
