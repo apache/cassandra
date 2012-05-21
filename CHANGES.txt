@@ -7,6 +7,7 @@
    'delete' key function (CASSANDRA-4132)
  * Save IndexSummary into new SSTable 'Summary' component (CASSANDRA-2392)
  * Add support for range tombstones (CASSANDRA-3708)
+ * Improve MessagingService efficiency (CASSANDRA-3617)
 
 
 1.1.1-dev

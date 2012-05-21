@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
+
 import org.apache.cassandra.utils.FBUtilities;
 
 public abstract class TypeSizes
@@ -57,6 +59,16 @@ public abstract class TypeSizes
                 utflen += 2;
         }
         return utflen;
+    }
+
+    public int sizeofWithShortLength(ByteBuffer value)
+    {
+        return sizeof((short) value.remaining()) + value.remaining();
+    }
+
+    public int sizeofWithLength(ByteBuffer value)
+    {
+        return sizeof(value.remaining()) + value.remaining();
     }
 
     public static class NativeDBTypeSizes extends TypeSizes

@@ -21,6 +21,9 @@ Upgrading
 
 Upgrading
 ---------
+    - Network compatibility for versions older than 1.0 has been removed.
+      (Disk compatibility is retained.)  If you want to do node-at-a-time,
+      zero-downtime upgrades to 1.2, you must be on 1.0 or 1.1 first.
     - The hints schema was changed from 1.1 to 1.2. Cassandra automatically
       snapshots and then truncates the hints column family as part of
       starting up 1.2 for the first time.  Additionally, upgraded nodes

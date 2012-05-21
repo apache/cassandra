@@ -162,18 +162,6 @@ public class AntiEntropyService
 
         Set<InetAddress> neighbors = new HashSet<InetAddress>(replicaSets.get(rangeSuperSet));
         neighbors.remove(FBUtilities.getBroadcastAddress());
-        // Excluding all node with version <= 0.7 since they don't know how to
-        // create a correct merkle tree (they build it over the full range)
-        Iterator<InetAddress> iter = neighbors.iterator();
-        while (iter.hasNext())
-        {
-            InetAddress endpoint = iter.next();
-            if (Gossiper.instance.getVersion(endpoint) <= MessagingService.VERSION_07)
-            {
-                logger.info("Excluding " + endpoint + " from repair because it is on version 0.7 or sooner. You should consider updating this node before running repair again.");
-                iter.remove();
-            }
-        }
         return neighbors;
     }
 

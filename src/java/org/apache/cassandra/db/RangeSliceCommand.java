@@ -47,10 +47,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.IReadCommand;
-import org.apache.cassandra.thrift.ColumnParent;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.TBinaryProtocol;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TDeserializer;
@@ -149,8 +146,30 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         if (sc != null)
             ByteBufferUtil.write(sc, dos);
 
-        TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
-        FBUtilities.serialize(ser, sliceCommand.predicate, dos);
+        if (version < MessagingService.VERSION_12)
+        {
+            FBUtilities.serialize(new TSerializer(new TBinaryProtocol.Factory()), sliceCommand.predicate, dos);
+        }
+        else
+        {
+            SliceRange range = sliceCommand.predicate.slice_range;
+            if (range != null)
+            {
+                dos.writeByte(0);
+                ByteBufferUtil.writeWithShortLength(range.start, dos);
+                ByteBufferUtil.writeWithShortLength(range.finish, dos);
+                dos.writeBoolean(range.reversed);
+                dos.writeInt(range.count);
+            }
+            else
+            {
+                dos.writeByte(1);
+                List<ByteBuffer> columns = sliceCommand.predicate.column_names;
+                dos.writeInt(columns.size());
+                for (ByteBuffer column : columns)
+                    ByteBufferUtil.writeWithShortLength(column, dos);
+            }
+        }
 
         if (version >= MessagingService.VERSION_11)
         {
@@ -162,7 +181,18 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             {
                 dos.writeInt(sliceCommand.row_filter.size());
                 for (IndexExpression expr : sliceCommand.row_filter)
-                    FBUtilities.serialize(ser, expr, dos);
+                {
+                    if (version < MessagingService.VERSION_12)
+                    {
+                        FBUtilities.serialize(new TSerializer(new TBinaryProtocol.Factory()), expr, dos);
+                    }
+                    else
+                    {
+                        ByteBufferUtil.writeWithShortLength(expr.column_name, dos);
+                        dos.writeInt(expr.op.getValue());
+                        ByteBufferUtil.writeWithLength(expr.value, dos);
+                    }
+                }
             }
         }
         AbstractBounds.serializer.serialize(sliceCommand.range, dos, version);
@@ -188,9 +218,31 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             superColumn = ByteBuffer.wrap(buf);
         }
 
-        TDeserializer dser = new TDeserializer(new TBinaryProtocol.Factory());
         SlicePredicate pred = new SlicePredicate();
-        FBUtilities.deserialize(dser, pred, dis);
+        if (version < MessagingService.VERSION_12)
+        {
+            FBUtilities.deserialize(new TDeserializer(new TBinaryProtocol.Factory()), pred, dis);
+        }
+        else
+        {
+            int type = dis.readByte();
+            if (type == 0)
+            {
+                pred.slice_range = new SliceRange(ByteBufferUtil.readWithShortLength(dis),
+                                                  ByteBufferUtil.readWithShortLength(dis),
+                                                  dis.readBoolean(),
+                                                  dis.readInt());
+            }
+            else
+            {
+                assert type == 1;
+                int count = dis.readInt();
+                List<ByteBuffer> columns = new ArrayList<ByteBuffer>(count);
+                for (int i = 0; i < count; i++)
+                    columns.add(ByteBufferUtil.readWithShortLength(dis));
+                pred.column_names = columns;
+            }
+        }
 
         List<IndexExpression> rowFilter = null;
         if (version >= MessagingService.VERSION_11)
@@ -199,8 +251,18 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             rowFilter = new ArrayList<IndexExpression>(filterCount);
             for (int i = 0; i < filterCount; i++)
             {
-                IndexExpression expr = new IndexExpression();
-                FBUtilities.deserialize(dser, expr, dis);
+                IndexExpression expr;
+                if (version < MessagingService.VERSION_12)
+                {
+                    expr = new IndexExpression();
+                    FBUtilities.deserialize(new TDeserializer(new TBinaryProtocol.Factory()), expr, dis);
+                }
+                else
+                {
+                    expr = new IndexExpression(ByteBufferUtil.readWithShortLength(dis),
+                                               IndexOperator.findByValue(dis.readInt()),
+                                               ByteBufferUtil.readWithShortLength(dis));
+                }
                 rowFilter.add(expr);
             }
         }
@@ -233,16 +295,39 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             size += TypeSizes.NATIVE.sizeof(0);
         }
 
-        TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
-        try
+        if (version < MessagingService.VERSION_12)
         {
-            int predicateLength = ser.serialize(rsc.predicate).length;
-            size += TypeSizes.NATIVE.sizeof(predicateLength);
-            size += predicateLength;
+            TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
+            try
+            {
+                int predicateLength = ser.serialize(rsc.predicate).length;
+                if (version < MessagingService.VERSION_12)
+                    size += TypeSizes.NATIVE.sizeof(predicateLength);
+                size += predicateLength;
+            }
+            catch (TException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
-        catch (TException e)
+        else
         {
-            throw new RuntimeException(e);
+            SliceRange range = rsc.predicate.slice_range;
+            size += 1;
+            if (range != null)
+            {
+                size += TypeSizes.NATIVE.sizeofWithShortLength(range.start);
+                size += TypeSizes.NATIVE.sizeofWithShortLength(range.finish);
+                size += TypeSizes.NATIVE.sizeof(range.reversed);
+                size += TypeSizes.NATIVE.sizeof(range.count);
+            }
+            else
+            {
+                List<ByteBuffer> columns = rsc.predicate.column_names;
+                size += TypeSizes.NATIVE.sizeof(columns.size());
+                for (ByteBuffer column : columns)
+                    size += TypeSizes.NATIVE.sizeofWithShortLength(column);
+            }
         }
 
         if (version >= MessagingService.VERSION_11)
@@ -256,15 +341,24 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                 size += TypeSizes.NATIVE.sizeof(rsc.row_filter.size());
                 for (IndexExpression expr : rsc.row_filter)
                 {
-                    try
+                    if (version < MessagingService.VERSION_12)
                     {
-                        int filterLength = ser.serialize(expr).length;
-                        size += TypeSizes.NATIVE.sizeof(filterLength);
-                        size += filterLength;
+                        try
+                        {
+                            int filterLength = new TSerializer(new TBinaryProtocol.Factory()).serialize(expr).length;
+                            size += TypeSizes.NATIVE.sizeof(filterLength);
+                            size += filterLength;
+                        }
+                        catch (TException e)
+                        {
+                            throw new RuntimeException(e);
+                        }
                     }
-                    catch (TException e)
+                    else
                     {
-                        throw new RuntimeException(e);
+                        size += TypeSizes.NATIVE.sizeofWithShortLength(expr.column_name);
+                        size += TypeSizes.NATIVE.sizeof(expr.op.getValue());
+                        size += TypeSizes.NATIVE.sizeofWithLength(expr.value);
                     }
                 }
             }
