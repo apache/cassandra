@@ -49,7 +49,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
     private final ConcurrentLinkedHashMap<K, FreeableMemory> map;
     private final ISerializer<V> serializer;
 
-    public SerializingCache(int capacity, boolean useMemoryWeigher, ISerializer<V> serializer)
+    public SerializingCache(long capacity, boolean useMemoryWeigher, ISerializer<V> serializer)
     {
         this.serializer = serializer;
 
@@ -122,12 +122,12 @@ public class SerializingCache<K, V> implements ICache<K, V>
         return freeableMemory;
     }
 
-    public int capacity()
+    public long capacity()
     {
         return map.capacity();
     }
 
-    public void setCapacity(int capacity)
+    public void setCapacity(long capacity)
     {
         map.setCapacity(capacity);
     }
@@ -142,7 +142,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         return map.size();
     }
 
-    public int weightedSize()
+    public long weightedSize()
     {
         return map.weightedSize();
     }

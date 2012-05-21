@@ -1,14 +1,14 @@
-stress
+cassandra-stress
 ======
 
 Description
 -----------
-stress is a tool for benchmarking and load testing a Cassandra
+cassandra-stress is a tool for benchmarking and load testing a Cassandra
 cluster.  It is significantly faster than the older py_stress tool.
 
 Setup
 -----
-Run `ant` from the Cassandra source directory, then stress can be invoke from tools/bin/stress
+Run `ant` from the Cassandra source directory, then cassandra-stress can be invoke from tools/bin/cassandra-stress
 
 Usage
 -----
@@ -42,7 +42,7 @@ Important options:
         when switching partioners.)  This option sets the number of rows to
         slice at a time and defaults to 1000.
     -r or --random:
-        Only used for reads.  By default, stress.py will perform reads on rows
+        Only used for reads.  By default, cassandra-stress will perform reads on rows
         with a guassian distribution, which will cause some repeats.  Setting
         this option makes the reads completely random instead.
     -i or --progress-interval:
@@ -53,6 +53,6 @@ Remember that you must perform inserts before performing reads or range slices.
 Examples
 --------
 
-    * contrib/stress/bin/stress -d 192.168.1.101 # 1M inserts to given host
-    * contrib/stress/bin/stress -d 192.168.1.101 -o read # 1M reads
-    * contrib/stress/bin/stress -d 192.168.1.101,192.168.1.102 -n 10000000 # 10M inserts spread across two nodes
+    * tools/bin/cassandra-stress -d 192.168.1.101 # 1M inserts to given host
+    * tools/bin/cassandra-stress -d 192.168.1.101 -o read # 1M reads
+    * tools/bin/cassandra-stress -d 192.168.1.101,192.168.1.102 -n 10000000 # 10M inserts spread across two nodes

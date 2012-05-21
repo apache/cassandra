@@ -100,7 +100,7 @@ public final class Stress
      */
     public static void printHelpMessage()
     {
-        System.out.println("Usage: ./bin/stress [options]\n\nOptions:");
+        System.out.println("Usage: ./bin/cassandra-stress [options]\n\nOptions:");
 
         for(Object o : Session.availableOptions.getOptions())
         {

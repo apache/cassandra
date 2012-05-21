@@ -26,9 +26,9 @@ import java.util.Set;
  */
 public interface ICache<K, V>
 {
-    public int capacity();
+    public long capacity();
 
-    public void setCapacity(int capacity);
+    public void setCapacity(long capacity);
 
     public void put(K key, V value);
 
@@ -42,7 +42,7 @@ public interface ICache<K, V>
 
     public int size();
 
-    public int weightedSize();
+    public long weightedSize();
 
     public void clear();
 

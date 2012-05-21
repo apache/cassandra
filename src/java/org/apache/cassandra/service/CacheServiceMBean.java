@@ -46,17 +46,17 @@ public interface CacheServiceMBean
      */
     public void invalidateRowCache();
 
-    public int getRowCacheCapacityInMB();
-    public int getRowCacheCapacityInBytes();
-    public void setRowCacheCapacityInMB(int capacity);
+    public long getRowCacheCapacityInMB();
+    public long getRowCacheCapacityInBytes();
+    public void setRowCacheCapacityInMB(long capacity);
 
-    public int getKeyCacheCapacityInMB();
-    public int getKeyCacheCapacityInBytes();
-    public void setKeyCacheCapacityInMB(int capacity);
+    public long getKeyCacheCapacityInMB();
+    public long getKeyCacheCapacityInBytes();
+    public void setKeyCacheCapacityInMB(long capacity);
 
-    public int getRowCacheSize();
+    public long getRowCacheSize();
 
-    public int getKeyCacheSize();
+    public long getKeyCacheSize();
 
     /**
      * sets each cache's maximum capacity to "reduce_cache_capacity_to" of its current size

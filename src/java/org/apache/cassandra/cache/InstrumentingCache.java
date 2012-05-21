@@ -71,7 +71,7 @@ public class InstrumentingCache<K, V>
         map.remove(key);
     }
 
-    public int getCapacity()
+    public long getCapacity()
     {
         return map.capacity();
     }
@@ -81,12 +81,12 @@ public class InstrumentingCache<K, V>
         return capacitySetManually;
     }
 
-    public void updateCapacity(int capacity)
+    public void updateCapacity(long capacity)
     {
         map.setCapacity(capacity);
     }
 
-    public void setCapacity(int capacity)
+    public void setCapacity(long capacity)
     {
         updateCapacity(capacity);
         capacitySetManually = true;
@@ -97,7 +97,7 @@ public class InstrumentingCache<K, V>
         return map.size();
     }
 
-    public int weightedSize()
+    public long weightedSize()
     {
         return map.weightedSize();
     }

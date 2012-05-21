@@ -24,7 +24,7 @@ import org.github.jamm.MemoryMeter;
 
 public class ConcurrentLinkedHashCacheProvider implements IRowCacheProvider
 {
-    public ICache<RowCacheKey, IRowCacheEntry> create(int capacity, boolean useMemoryWeigher)
+    public ICache<RowCacheKey, IRowCacheEntry> create(long capacity, boolean useMemoryWeigher)
     {
         return ConcurrentLinkedHashCache.create(capacity, useMemoryWeigher
                                                             ? createMemoryWeigher()

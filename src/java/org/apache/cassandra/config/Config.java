@@ -125,11 +125,11 @@ public class Config
     public boolean trickle_fsync = false;
     public int trickle_fsync_interval_in_kb = 10240;
 
-    public Integer key_cache_size_in_mb = null;
+    public Long key_cache_size_in_mb = null;
     public int key_cache_save_period = 14400;
     public int key_cache_keys_to_save = Integer.MAX_VALUE;
 
-    public int row_cache_size_in_mb = 0;
+    public long row_cache_size_in_mb = 0;
     public int row_cache_save_period = 0;
     public int row_cache_keys_to_save = Integer.MAX_VALUE;
     public String row_cache_provider = ConcurrentLinkedHashCacheProvider.class.getSimpleName();

@@ -24,5 +24,5 @@ import org.apache.cassandra.db.ColumnFamily;
  */
 public interface IRowCacheProvider
 {
-    public ICache<RowCacheKey, IRowCacheEntry> create(int capacity, boolean useMemoryWeigher);
+    public ICache<RowCacheKey, IRowCacheEntry> create(long capacity, boolean useMemoryWeigher);
 }
