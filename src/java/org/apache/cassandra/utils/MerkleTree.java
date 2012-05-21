@@ -105,7 +105,7 @@ public class MerkleTree implements Serializable
 
         public long serializedSize(MerkleTree mt, int version)
         {
-            return TypeSizes.NATIVE.sizeof(mt.hashdepth)
+            return 1 // mt.hashdepth
                  + TypeSizes.NATIVE.sizeof(mt.maxsize)
                  + TypeSizes.NATIVE.sizeof(mt.size)
                  + Hashable.serializer.serializedSize(mt.root, version);
