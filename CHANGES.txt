@@ -21,7 +21,8 @@
  * warn on invalid replication strategy creation options (CASSANDRA-4046)
  * remove [Freeable]Memory finalizers (CASSANDRA-4222)
  * include tombstone size in ColumnFamily.size, which can prevent OOM
-   during sudden mass delete operations (CASSANDRA-3741)
+   during sudden mass delete operations by yielding a nonzero liveRatio
+   (CASSANDRA-3741)
  * Open 1 sstableScanner per level for leveled compaction (CASSANDRA-4142)
  * Optimize reads when row deletion timestamps allow us to restrict
    the set of sstables we check (CASSANDRA-4116)
@@ -69,11 +70,12 @@ Merged from 1.0:
  * (CLI) properly handle quotes in create/update keyspace commands (CASSANDRA-4129)
  * Avoids possible deadlock during bootstrap (CASSANDRA-4159)
  * fix stress tool that hangs forever on timeout or error (CASSANDRA-4128)
- * Fix super columns bug where cache is not updated (CASSANDRA-4190)
  * stress tool to return appropriate exit code on failure (CASSANDRA-4188)
  * fix compaction NPE when out of disk space and assertions disabled
    (CASSANDRA-3985)
+ * synchronize LCS getEstimatedTasks to avoid CME (CASSANDRA-4255)
  * ensure unique streaming session id's (CASSANDRA-4223)
+
 
 1.1.0-final
  * average a reduced liveRatio estimate with the previous one (CASSANDRA-4065)
@@ -875,7 +877,8 @@ Merged from 0.8:
  * don't sample the system table when choosing a bootstrap token
    (CASSANDRA-2825)
  * gossiper notifies of local state changes (CASSANDRA-2948)
- * add asynchronous and half-sync/half-async thrift servers (CASSANDRA-1405)
+ * add asynchronous and half-sync/half-async (hsha) thrift servers 
+   (CASSANDRA-1405)
  * fix potential use of free'd native memory in SerializingCache 
    (CASSANDRA-2951)
  * prune index scan resultset back to original request for lazy
