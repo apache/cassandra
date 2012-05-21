@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-DESC="Stress Test Daemon"
+DESC="Cassandra Stress Test Daemon"
 
 if [ "x$CLASSPATH" = "x" ]; then
     
