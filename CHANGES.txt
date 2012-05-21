@@ -16,15 +16,14 @@
  * Optimize reads when row deletion timestamps allow us to restrict
    the set of sstables we check (CASSANDRA-4116)
  * incremental repair by token range (CASSANDRA-3912)
- * streaming commitlog backup + pitr (CASSANDRA-3690)
+ * add support for commitlog archiving and point-in-time recovery
+   (CASSANDRA-3690)
  * avoid generating redundant compaction tasks during streaming
    (CASSANDRA-4174)
  * add -cf option to nodetool snapshot, and takeColumnFamilySnapshot to
    StorageService mbean (CASSANDRA-556)
  * optimize cleanup to drop entire sstables where possible (CASSANDRA-4079)
  * optimize truncate when autosnapshot is disabled (CASSANDRA-4153)
- * add support for commitlog archiving and point-in-time recovery
-   (CASSANDRA-3647)
  * update caches to use byte[] keys to reduce memory overhead (CASSANDRA-3966)
  * add column limit to cli (CASSANDRA-3012, 4098)
  * clean up and optimize DataOutputBuffer, used by CQL compression and
@@ -33,9 +32,11 @@
  * identify and blacklist corrupted SSTables from future compactions 
    (CASSANDRA-2261)
  * Move CfDef and KsDef validation out of thrift (CASSANDRA-4037)
- * Expose repairing by a user provided range (CASSANDRA-3912)
- * Add way to force the cassandra-cli to refresh it's schema (CASSANDRA-4052)
- * Avoids having replicate on write tasks stacking up at CL.ONE (CASSANDRA-2889)
+ * Expose API to repair a user provided range (CASSANDRA-3912)
+ * Add way to force the cassandra-cli to refresh its schema (CASSANDRA-4052)
+ * Avoid having replicate on write tasks stacking up at CL.ONE (CASSANDRA-2889)
+ * (cql3) Backwards compatibility for composite comparators in non-cql3-aware
+   clients (CASSANDRA-4093)
  * (cql3) Fix order by for reversed queries (CASSANDRA-4160)
  * (cql3) Add ReversedType support (CASSANDRA-4004)
  * (cql3) Add timeuuid type (CASSANDRA-4194)
@@ -48,11 +49,12 @@
  * (cql3) Allow paging through non-ordered partitioner results (CASSANDRA-3771)
  * (cql3) Fix drop index (CASSANDRA-4192)
  * (cql3) Don't return range ghosts anymore (CASSANDRA-3982)
- * fix the problem re-creating Keyspace/ColumnFamily (CASSANDRA-4219)
- * fix SecondaryIndex LelevedManifest save upon snapshot (CASSANDRA-4230)
+ * fix re-creating Keyspaces/ColumnFamilies with the same name as dropped
+   ones (CASSANDRA-4219)
+ * fix SecondaryIndex LeveledManifest save upon snapshot (CASSANDRA-4230)
  * fix missing arrayOffset in FBUtilities.hash (CASSANDRA-4250)
  * (cql3) Add name of parameters in CqlResultSet (CASSANDRA-4242)
- * (cql3) Correctly validat order by queries (CASSANDRA-4246)
+ * (cql3) Correctly validate order by queries (CASSANDRA-4246)
  * rename stress to cassandra-stress for saner packaging (CASSANDRA-4256)
 Merged from 1.0:
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
