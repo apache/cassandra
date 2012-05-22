@@ -85,7 +85,7 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
 
                 for (Map.Entry<ByteBuffer, ColumnDefinition> def : cfm.getColumn_metadata().entrySet())
                 {
-                    ColumnIdentifier id = new ColumnIdentifier(def.getKey());
+                    ColumnIdentifier id = new ColumnIdentifier(def.getKey(), cfm.getColumnDefinitionComparator(def.getValue()));
                     this.metadata.put(id, new Name(id, Name.Kind.COLUMN_METADATA, def.getValue().getValidator()));
                 }
             }
@@ -111,7 +111,7 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
                 assert cfm.getColumnAliases() == null || cfm.getColumnAliases().isEmpty();
                 for (Map.Entry<ByteBuffer, ColumnDefinition> def : cfm.getColumn_metadata().entrySet())
                 {
-                    ColumnIdentifier id = new ColumnIdentifier(def.getKey());
+                    ColumnIdentifier id = new ColumnIdentifier(def.getKey(), cfm.getColumnDefinitionComparator(def.getValue()));
                     this.metadata.put(id, new Name(id, Name.Kind.COLUMN_METADATA, def.getValue().getValidator()));
                 }
             }
@@ -123,7 +123,7 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
     {
         return cfm.getKeyAlias() == null
              ? new ColumnIdentifier(DEFAULT_KEY_ALIAS, false)
-             : new ColumnIdentifier(cfm.getKeyAlias());
+             : new ColumnIdentifier(cfm.getKeyAlias(), definitionType);
     }
 
     private static ColumnIdentifier getColumnId(CFMetaData cfm, int i)
@@ -131,14 +131,14 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
         List<ByteBuffer> definedNames = cfm.getColumnAliases();
         return definedNames == null || i >= definedNames.size()
              ? new ColumnIdentifier(DEFAULT_COLUMN_ALIAS + (i + 1), false)
-             : new ColumnIdentifier(cfm.getColumnAliases().get(i));
+             : new ColumnIdentifier(cfm.getColumnAliases().get(i), definitionType);
     }
 
     private static ColumnIdentifier getValueId(CFMetaData cfm)
     {
         return cfm.getValueAlias() == null
              ? new ColumnIdentifier(DEFAULT_VALUE_ALIAS, false)
-             : new ColumnIdentifier(cfm.getValueAlias());
+             : new ColumnIdentifier(cfm.getValueAlias(), definitionType);
     }
 
     public Name get(ColumnIdentifier name)
