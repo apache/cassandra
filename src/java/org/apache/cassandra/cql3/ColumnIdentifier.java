@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.nio.charset.CharacterCodingException;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -38,17 +39,10 @@ public class ColumnIdentifier implements Comparable<ColumnIdentifier>
         this.key = ByteBufferUtil.bytes(this.text);
     }
 
-    public ColumnIdentifier(ByteBuffer key)
+    public ColumnIdentifier(ByteBuffer key, AbstractType type)
     {
-        try
-        {
-            this.key = key;
-            this.text = ByteBufferUtil.string(key);
-        }
-        catch (CharacterCodingException e)
-        {
-            throw new RuntimeException(e);
-        }
+        this.key = key;
+        this.text = type.getString(key);
     }
 
     @Override

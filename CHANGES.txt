@@ -56,6 +56,7 @@
  * (cql3) Add name of parameters in CqlResultSet (CASSANDRA-4242)
  * (cql3) Correctly validate order by queries (CASSANDRA-4246)
  * rename stress to cassandra-stress for saner packaging (CASSANDRA-4256)
+ * Fix exception on colum metadata with non-string comparator (CASSANDRA-4269)
 Merged from 1.0:
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)
