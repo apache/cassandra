@@ -1127,8 +1127,9 @@
 
   <target name="long-test" depends="build-test" description="Execute functional tests">
     <testmacro suitename="long" inputdir="${test.long.src}"
-               timeout="${test.long.timeout}" />
+               timeout="${test.long.timeout}">
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+    </testmacro>
   </target>
 
   <!-- instruments the classes to later create code coverage reports -->
