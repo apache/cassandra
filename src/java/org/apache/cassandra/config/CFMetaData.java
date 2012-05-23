@@ -71,6 +71,9 @@ public final class CFMetaData
     public final static Caching DEFAULT_CACHING_STRATEGY = Caching.KEYS_ONLY;
     public final static Double DEFAULT_BF_FP_CHANCE = null;
 
+    // Note that this is the default only for user created tables
+    public final static String DEFAULT_COMPRESSOR = SnappyCompressor.isAvailable() ? SnappyCompressor.class.getCanonicalName() : null;
+
     public static final CFMetaData StatusCf = newSystemMetadata(SystemTable.STATUS_CF, 0, "persistent metadata for the local node", BytesType.instance, null);
     public static final CFMetaData HintsCf = newSystemMetadata(HintedHandOffManager.HINTS_CF, 1, "hinted handoff data", BytesType.instance, BytesType.instance);
     @Deprecated
@@ -596,7 +599,8 @@ public final class CFMetaData
         {
             cf_def.setCompression_options(new HashMap<String, String>()
             {{
-                put(CompressionParameters.SSTABLE_COMPRESSION, SnappyCompressor.class.getCanonicalName());
+                if (DEFAULT_COMPRESSOR != null)
+                    put(CompressionParameters.SSTABLE_COMPRESSION, DEFAULT_COMPRESSOR);
             }});
         }
         if (!cf_def.isSetDclocal_read_repair_chance())

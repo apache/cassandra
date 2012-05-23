@@ -18,13 +18,24 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xerial.snappy.Snappy;
 
 public class SnappyCompressor implements ICompressor
 {
     public static final SnappyCompressor instance = new SnappyCompressor();
+
+    private static Logger logger = LoggerFactory.getLogger(SnappyCompressor.class);
+    static
+    {
+        if (!isAvailable())
+            logger.warn("Cannot initialize native Snappy library. Compression on new tables will be disabled.");
+    }
 
     public static SnappyCompressor create(Map<String, String> compressionOptions)
     {
@@ -34,6 +45,28 @@ public class SnappyCompressor implements ICompressor
 
         // no specific options supported so far
         return instance;
+    }
+
+    public static boolean isAvailable()
+    {
+        try
+        {
+            create(Collections.<String, String>emptyMap());
+            return true;
+        }
+        catch (Exception e)
+        {
+            return false;
+        }
+        catch (NoClassDefFoundError e)
+        {
+            return false;
+        }
+    }
+
+    public Set<String> supportedOptions()
+    {
+        return Collections.emptySet();
     }
 
     public int initialCompressedBufferLength(int chunkLength)

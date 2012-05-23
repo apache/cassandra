@@ -59,6 +59,8 @@ public class CFPropDefs {
     public static final String COMPACTION_OPTIONS_PREFIX = "compaction_strategy_options";
     public static final String COMPRESSION_PARAMETERS_PREFIX = "compression_parameters";
 
+    private static final String DEFAULT_COMPRESSOR = SnappyCompressor.isAvailable() ? SnappyCompressor.class.getCanonicalName() : null;
+
     static
     {
         comparators.put("ascii", "AsciiType");
@@ -107,7 +109,8 @@ public class CFPropDefs {
     public final Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
     public final Map<String, String> compressionParameters = new HashMap<String, String>()
     {{
-        put(CompressionParameters.SSTABLE_COMPRESSION, SnappyCompressor.class.getCanonicalName());
+        if (CFMetaData.DEFAULT_COMPRESSOR != null)
+            put(CompressionParameters.SSTABLE_COMPRESSION, CFMetaData.DEFAULT_COMPRESSOR);
     }};
 
     public void validate() throws InvalidRequestException

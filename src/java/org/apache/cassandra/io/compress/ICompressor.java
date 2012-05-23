@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.IOException;
+import java.util.Set;
 
 public interface ICompressor
 {
@@ -26,6 +27,8 @@ public interface ICompressor
     public int compress(byte[] input, int inputOffset, int inputLength, WrappedArray output, int outputOffset) throws IOException;
 
     public int uncompress(byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset) throws IOException;
+
+    public Set<String> supportedOptions();
 
     /**
      * A simple wrapper of a byte array.

@@ -92,7 +92,8 @@ public class CFPropDefs
     public final Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
     public final Map<String, String> compressionParameters = new HashMap<String, String>()
     {{
-        put(CompressionParameters.SSTABLE_COMPRESSION, SnappyCompressor.class.getCanonicalName());
+        if (CFMetaData.DEFAULT_COMPRESSOR != null)
+            put(CompressionParameters.SSTABLE_COMPRESSION, CFMetaData.DEFAULT_COMPRESSOR);
     }};
 
     public static AbstractType<?> parseType(String type) throws InvalidRequestException
