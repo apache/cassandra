@@ -492,7 +492,7 @@ public class CompactionManager implements CompactionManagerMBean
 
             while (!dataFile.isEOF())
             {
-                if (scrubInfo.isStopped())
+                if (scrubInfo.isStopRequested())
                     throw new CompactionInterruptedException(scrubInfo.getCompactionInfo());
                 long rowStart = dataFile.getFilePointer();
                 if (logger.isDebugEnabled())
@@ -709,7 +709,7 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 while (scanner.hasNext())
                 {
-                    if (ci.isStopped())
+                    if (ci.isStopRequested())
                         throw new CompactionInterruptedException(ci.getCompactionInfo());
                     SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
                     if (Range.isInRanges(row.getKey().token, ranges))
@@ -860,7 +860,7 @@ public class CompactionManager implements CompactionManagerMBean
             validator.prepare(cfs);
             while (nni.hasNext())
             {
-                if (ci.isStopped())
+                if (ci.isStopRequested())
                     throw new CompactionInterruptedException(ci.getCompactionInfo());
                 AbstractCompactedRow row = nni.next();
                 validator.add(row);
