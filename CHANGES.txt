@@ -1,4 +1,5 @@
 1.1.1-dev
+ * apply parent CF compaction settings to secondary index CFs (CASSANDRA-4280)
  * preserve commitlog size cap when recycling segments at startup
    (CASSANDRA-4201)
  * (Hadoop) fix split generation regression (CASSANDRA-4259)
