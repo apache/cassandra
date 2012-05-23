@@ -27,7 +27,9 @@ Upgrading
     - The hints schema was changed from 1.1 to 1.2. Cassandra automatically
       snapshots and then truncates the hints column family as part of
       starting up 1.2 for the first time.  Additionally, upgraded nodes
-      will not store new hints destined for older (pre-1.2) nodes.
+      will not store new hints destined for older (pre-1.2) nodes.  It is
+      therefore recommended that you perform a cluster upgrade when all
+      nodes are up.
     - The `nodetool removetoken` command (and corresponding JMX operation)
       have been renamed to `nodetool removenode`.  This function is
       incompatible with the earlier `nodetool removetoken`, and attempts to
