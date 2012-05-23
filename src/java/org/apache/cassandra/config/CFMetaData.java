@@ -341,6 +341,8 @@ public final class CFMetaData
                              .readRepairChance(0.0)
                              .dcLocalReadRepairChance(0.0)
                              .caching(indexCaching)
+                             .compactionStrategyClass(parent.compactionStrategyClass)
+                             .compactionStrategyOptions(parent.compactionStrategyOptions)
                              .reloadSecondaryIndexMetadata(parent);
     }
 
