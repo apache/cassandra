@@ -103,19 +103,19 @@ public final class CompactionInfo implements Serializable
 
     public static abstract class Holder
     {
-        private volatile boolean isStopped = false;
+        private volatile boolean stopRequested = false;
         public abstract CompactionInfo getCompactionInfo();
         double load = StorageService.instance.getLoad();
         boolean reportedSeverity = false;
 
         public void stop()
         {
-            isStopped = true;
+            stopRequested = true;
         }
 
-        public boolean isStopped()
+        public boolean isStopRequested()
         {
-            return isStopped;
+            return stopRequested;
         }
         /**
          * report event on the size of the compaction.
