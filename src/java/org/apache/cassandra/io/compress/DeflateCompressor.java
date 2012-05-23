@@ -19,7 +19,9 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
@@ -55,6 +57,11 @@ public class DeflateCompressor implements ICompressor
                 return new Inflater();
             }
         };
+    }
+
+    public Set<String> supportedOptions()
+    {
+        return Collections.emptySet();
     }
 
     public int initialCompressedBufferLength(int chunkLength)

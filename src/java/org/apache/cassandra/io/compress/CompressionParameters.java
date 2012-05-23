@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.avro.util.Utf8;
 import org.apache.commons.lang.builder.EqualsBuilder;
@@ -104,7 +105,13 @@ public class CompressionParameters
         try
         {
             Method method = compressorClass.getMethod("create", Map.class);
-            return (ICompressor)method.invoke(null, compressionOptions);
+            ICompressor compressor = (ICompressor)method.invoke(null, compressionOptions);
+            // Check for unknown options
+            Set<String> supportedOpts = compressor.supportedOptions();
+            for (String provided : compressionOptions.keySet())
+                if (!supportedOpts.contains(provided))
+                    throw new ConfigurationException("Unknown compression options " + provided);
+            return compressor;
         }
         catch (NoSuchMethodException e)
         {
