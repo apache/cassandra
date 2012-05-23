@@ -102,17 +102,17 @@ public final class CompactionInfo implements Serializable
 
     public static abstract class Holder
     {
-        private volatile boolean isStopped = false;
+        private volatile boolean stopRequested = false;
         public abstract CompactionInfo getCompactionInfo();
 
         public void stop()
         {
-            isStopped = true;
+            stopRequested = true;
         }
 
-        public boolean isStopped()
+        public boolean isStopRequested()
         {
-            return isStopped;
+            return stopRequested;
         }
     }
 }

@@ -59,7 +59,7 @@ public class SecondaryIndexBuilder extends CompactionInfo.Holder
     {
         while (iter.hasNext())
         {
-            if (isStopped())
+            if (isStopRequested())
                 throw new CompactionInterruptedException(getCompactionInfo());
             DecoratedKey<?> key = iter.next();
             Table.indexRow(key, cfs, columns);
