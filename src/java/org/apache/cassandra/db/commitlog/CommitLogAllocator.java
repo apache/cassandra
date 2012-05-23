@@ -179,8 +179,10 @@ public class CommitLogAllocator
         // check against SEGMENT_SIZE avoids recycling odd-sized or empty segments from old C* versions and unit tests
         if (isCapExceeded() || file.length() != DatabaseDescriptor.getCommitLogSegmentSize())
         {
+            // (don't decrease managed size, since this was never a "live" segment)
             try
             {
+                logger.debug("(Unopened) segment {} is no longer needed and will be deleted now", file);
                 FileUtils.deleteWithConfirm(file);
             }
             catch (IOException e)
@@ -190,6 +192,9 @@ public class CommitLogAllocator
             return;
         }
 
+        logger.debug("Recycling {}", file);
+        // this wasn't previously a live segment, so add it to the managed size when we make it live
+        size.addAndGet(DatabaseDescriptor.getCommitLogSegmentSize());
         queue.add(new Runnable()
         {
             public void run()
@@ -272,7 +277,9 @@ public class CommitLogAllocator
      */
     private boolean isCapExceeded()
     {
-        return size.get() > DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024;
+        long currentSize = size.get();
+        logger.debug("Total active commitlog segment space used is {}", currentSize);
+        return currentSize > DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024;
     }
 
     /**
