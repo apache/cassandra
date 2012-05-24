@@ -546,8 +546,11 @@ public class SelectStatement implements CQLStatement
             {
                 for (Bound b : Bound.values())
                 {
-                    ByteBuffer value = restriction.bound(b).getByteBuffer(name.type, variables);
-                    expressions.add(new IndexExpression(name.name.key, restriction.getIndexOperator(b), value));
+                    if (restriction.bound(b) != null)
+                    {
+                        ByteBuffer value = restriction.bound(b).getByteBuffer(name.type, variables);
+                        expressions.add(new IndexExpression(name.name.key, restriction.getIndexOperator(b), value));
+                    }
                 }
             }
         }
