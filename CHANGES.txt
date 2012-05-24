@@ -61,6 +61,7 @@
  * rename stress to cassandra-stress for saner packaging (CASSANDRA-4256)
  * Fix exception on colum metadata with non-string comparator (CASSANDRA-4269)
  * Check for unknown/invalid compression options (CASSANDRA-4266)
+ * (cql3) Adds simple access to column timestamp and ttl (CASSANDRA-4217)
 Merged from 1.0:
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)
