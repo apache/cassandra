@@ -1,6 +1,8 @@
 1.0.11
  * synchronize LCS getEstimatedTasks to avoid CME (CASSANDRA-4255)
  * ensure unique streaming session id's (CASSANDRA-4223)
+ * kick off background compaction when min/max thresholds change 
+   (CASSANDRA-4279)
 
 
 1.0.10
