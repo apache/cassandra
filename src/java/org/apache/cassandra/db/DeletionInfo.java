@@ -205,7 +205,10 @@ public class DeletionInfo
     {
         int size = TypeSizes.NATIVE.sizeof(topLevel.markedForDeleteAt);
         for (RangeTombstone r : ranges)
-            size += r.data.markedForDeleteAt;
+        {
+            size += r.min.remaining() + r.max.remaining();
+            size += TypeSizes.NATIVE.sizeof(r.data.markedForDeleteAt);
+        }
         return size;
     }
 
