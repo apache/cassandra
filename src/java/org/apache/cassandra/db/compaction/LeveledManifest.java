@@ -448,13 +448,17 @@ public class LeveledManifest
     public synchronized int getEstimatedTasks()
     {
         long tasks = 0;
+        long[] estimated = new long[generations.length];
+
         for (int i = generations.length - 1; i >= 0; i--)
         {
             List<SSTableReader> sstables = generations[i];
-            long n = Math.max(0L, SSTableReader.getTotalBytes(sstables) - maxBytesForLevel(i)) / (maxSSTableSizeInMB * 1024 * 1024);
-            logger.debug("Estimating " + n + " compaction tasks in level " + i);
-            tasks += n;
+            estimated[i] = Math.max(0L, SSTableReader.getTotalBytes(sstables) - maxBytesForLevel(i)) / (maxSSTableSizeInMB * 1024 * 1024);
+            tasks += estimated[i];
         }
+
+        logger.debug("Estimating {} compactions to do for {}.{}",
+                     new Object[] {Arrays.asList(estimated), cfs.table.name, cfs.columnFamily});
         return Ints.checkedCast(tasks);
     }
 }

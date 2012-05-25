@@ -53,11 +53,12 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         if (cfs.isCompactionDisabled())
         {
             logger.debug("Compaction is currently disabled.");
-            return Collections.<AbstractCompactionTask>emptyList();
+            return Collections.emptyList();
         }
 
         List<AbstractCompactionTask> tasks = new LinkedList<AbstractCompactionTask>();
         List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(cfs.getSSTables()), minSSTableSize);
+        logger.debug("Compaction buckets are {}", buckets);
 
         for (List<SSTableReader> bucket : buckets)
         {

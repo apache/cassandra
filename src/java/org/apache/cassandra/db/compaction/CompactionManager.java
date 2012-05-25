@@ -111,6 +111,10 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public Future<Integer> submitBackground(final ColumnFamilyStore cfs)
     {
+        logger.debug("Scheduling a background task check for {}.{} with {}",
+                     new Object[] {cfs.table.name,
+                                   cfs.columnFamily,
+                                   cfs.getCompactionStrategy().getClass().getSimpleName()});
         Callable<Integer> callable = new Callable<Integer>()
         {
             public Integer call() throws IOException
@@ -118,16 +122,24 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.readLock().lock();
                 try
                 {
+                    logger.debug("Checking {}.{}", cfs.table.name, cfs.columnFamily); // log after we get the lock so we can see delays from that if any
                     if (!cfs.isValid())
+                    {
+                        logger.debug("Aborting compaction for dropped CF");
                         return 0;
+                    }
 
                     boolean taskExecuted = false;
                     AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
                     List<AbstractCompactionTask> tasks = strategy.getBackgroundTasks(getDefaultGcBefore(cfs));
+                    logger.debug("{} minor compaction tasks available", tasks.size());
                     for (AbstractCompactionTask task : tasks)
                     {
                         if (!task.markSSTablesForCompaction())
+                        {
+                            logger.debug("Skipping {}; sstables are busy", task);
                             continue;
+                        }
 
                         taskExecuted = true;
                         try

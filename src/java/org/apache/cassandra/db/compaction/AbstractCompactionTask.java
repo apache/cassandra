@@ -84,4 +84,9 @@ public abstract class AbstractCompactionTask
     // Can be overriden for action that need to be performed if the task won't
     // execute (if sstable can't be marked successfully)
     protected void cancel() {}
+
+    public String toString()
+    {
+        return "CompactionTask(" + sstables + ")";
+    }
 }
