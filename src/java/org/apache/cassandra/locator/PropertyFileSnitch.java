@@ -49,7 +49,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
 {
     private static final Logger logger = LoggerFactory.getLogger(PropertyFileSnitch.class);
 
-    private static final String RACK_PROPERTY_FILENAME = "cassandra-topology.properties";
+    public static final String RACK_PROPERTY_FILENAME = "cassandra-topology.properties";
 
     private static volatile Map<InetAddress, String[]> endpointMap;
     private static volatile String[] defaultDCRack;
@@ -125,7 +125,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
             stream = getClass().getClassLoader().getResourceAsStream(RACK_PROPERTY_FILENAME);
             properties.load(stream);
         }
-        catch (IOException e)
+        catch (Exception e)
         {
             throw new ConfigurationException("Unable to read " + RACK_PROPERTY_FILENAME, e);
         }

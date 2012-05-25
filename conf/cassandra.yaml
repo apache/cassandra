@@ -437,6 +437,11 @@ rpc_timeout_in_ms: 10000
 #  - PropertyFileSnitch:
 #    Proximity is determined by rack and data center, which are
 #    explicitly configured in cassandra-topology.properties.
+#  - GossipingPropertyFileSnitch
+#    The rack and datacenter for the local node are defined in
+#    cassandra-rackdc.properties and propagated to other nodes via gossip.  If
+#    cassandra-topology.properties exists, it is used as a fallback, allowing
+#    migration from the PropertyFileSnitch.
 #  - RackInferringSnitch:
 #    Proximity is determined by rack and data center, which are
 #    assumed to correspond to the 3rd and 2nd octet of each node's
