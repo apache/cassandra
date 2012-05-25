@@ -68,8 +68,10 @@ Upgrading
 Features
 --------
     - Concurrent schema updates are now supported, with any conflicts
-      automatically resolved.  This makes temporary columnfamilies and
-      other uses of dynamic schema appropriate to use in applications.
+      automatically resolved. Please note that simultaneously running
+      ‘CREATE COLUMN FAMILY’ operation on the different nodes wouldn’t
+      be safe until version 1.2 due to the nature of ColumnFamily
+      identifier generation, for more details see CASSANDRA-3794.
     - The CQL language has undergone a major revision, CQL3, the
       highlights of which are covered at [1].  CQL3 is not
       backwards-compatibile with CQL2, so we've introduced a
