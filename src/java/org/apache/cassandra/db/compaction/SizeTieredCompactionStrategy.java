@@ -124,11 +124,11 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
         Map<Long, List<T>> buckets = new HashMap<Long, List<T>>();
 
+        outer:
         for (Pair<T, Long> pair: sortedFiles)
         {
             long size = pair.right;
 
-            boolean bFound = false;
             // look for a bucket containing similar-sized files:
             // group in the same bucket if it's w/in 50% of the average for this bucket,
             // or this file and the bucket are all considered "small" (less than `minSSTableSize`)
@@ -145,17 +145,14 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
                     long newAverageSize = (totalSize + size) / (bucket.size() + 1);
                     bucket.add(pair.left);
                     buckets.put(newAverageSize, bucket);
-                    bFound = true;
-                    break;
+                    continue outer;
                 }
             }
+
             // no similar bucket found; put it in a new one
-            if (!bFound)
-            {
-                ArrayList<T> bucket = new ArrayList<T>();
-                bucket.add(pair.left);
-                buckets.put(size, bucket);
-            }
+            ArrayList<T> bucket = new ArrayList<T>();
+            bucket.add(pair.left);
+            buckets.put(size, bucket);
         }
 
         return new ArrayList<List<T>>(buckets.values());
