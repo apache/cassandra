@@ -122,7 +122,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             }
         });
 
-        Map<List<T>, Long> buckets = new HashMap<List<T>, Long>();
+        Map<Long, List<T>> buckets = new HashMap<Long, List<T>>();
 
         for (Pair<T, Long> pair: sortedFiles)
         {
@@ -132,19 +132,19 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             // look for a bucket containing similar-sized files:
             // group in the same bucket if it's w/in 50% of the average for this bucket,
             // or this file and the bucket are all considered "small" (less than `minSSTableSize`)
-            for (Entry<List<T>, Long> entry : buckets.entrySet())
+            for (Entry<Long, List<T>> entry : buckets.entrySet())
             {
-                List<T> bucket = entry.getKey();
-                long averageSize = entry.getValue();
-                if ((size > (averageSize / 2) && size < (3 * averageSize) / 2)
-                    || (size < minSSTableSize && averageSize < minSSTableSize))
+                List<T> bucket = entry.getValue();
+                long oldAverageSize = entry.getKey();
+                if ((size > (oldAverageSize / 2) && size < (3 * oldAverageSize) / 2)
+                    || (size < minSSTableSize && oldAverageSize < minSSTableSize))
                 {
-                    // remove and re-add because adding changes the hash
-                    buckets.remove(bucket);
-                    long totalSize = bucket.size() * averageSize;
-                    averageSize = (totalSize + size) / (bucket.size() + 1);
+                    // remove and re-add under new new average size
+                    buckets.remove(oldAverageSize);
+                    long totalSize = bucket.size() * oldAverageSize;
+                    long newAverageSize = (totalSize + size) / (bucket.size() + 1);
                     bucket.add(pair.left);
-                    buckets.put(bucket, averageSize);
+                    buckets.put(newAverageSize, bucket);
                     bFound = true;
                     break;
                 }
@@ -154,11 +154,11 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             {
                 ArrayList<T> bucket = new ArrayList<T>();
                 bucket.add(pair.left);
-                buckets.put(bucket, size);
+                buckets.put(size, bucket);
             }
         }
 
-        return new ArrayList<List<T>>(buckets.keySet());
+        return new ArrayList<List<T>>(buckets.values());
     }
 
     private void updateEstimatedCompactionsByTasks(List<AbstractCompactionTask> tasks)
