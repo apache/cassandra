@@ -56,7 +56,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             return Collections.emptyList();
         }
 
-        List<AbstractCompactionTask> tasks = new LinkedList<AbstractCompactionTask>();
+        List<AbstractCompactionTask> tasks = new ArrayList<AbstractCompactionTask>();
         List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(cfs.getSSTables()), minSSTableSize);
         logger.debug("Compaction buckets are {}", buckets);
 
@@ -81,7 +81,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public List<AbstractCompactionTask> getMaximalTasks(final int gcBefore)
     {
-        List<AbstractCompactionTask> tasks = new LinkedList<AbstractCompactionTask>();
+        List<AbstractCompactionTask> tasks = new ArrayList<AbstractCompactionTask>();
         if (!cfs.getSSTables().isEmpty())
             tasks.add(new CompactionTask(cfs, cfs.getSSTables(), gcBefore));
         return tasks;
@@ -158,7 +158,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             }
         }
 
-        return new LinkedList<List<T>>(buckets.keySet());
+        return new ArrayList<List<T>>(buckets.keySet());
     }
 
     private void updateEstimatedCompactionsByTasks(List<AbstractCompactionTask> tasks)
