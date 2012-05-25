@@ -18,7 +18,6 @@
  * Open 1 sstableScanner per level for leveled compaction (CASSANDRA-4142)
  * Optimize reads when row deletion timestamps allow us to restrict
    the set of sstables we check (CASSANDRA-4116)
- * incremental repair by token range (CASSANDRA-3912)
  * add support for commitlog archiving and point-in-time recovery
    (CASSANDRA-3690)
  * avoid generating redundant compaction tasks during streaming
