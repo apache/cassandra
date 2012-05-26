@@ -119,16 +119,7 @@ package org.apache.cassandra.cli;
 {
     public void reportError(RecognitionException e) 
     {
-        String errorMessage;
-
-        if (e instanceof NoViableAltException)
-        {
-            errorMessage = "Command not found: `" + this.input + "`. Type 'help;' or '?' for help.";
-        }
-        else
-        {
-            errorMessage = "Syntax error at position " + e.charPositionInLine + ": " + this.getErrorMessage(e, this.getTokenNames());
-        }
+        String errorMessage = "Syntax error at position " + e.charPositionInLine + ": " + this.getErrorMessage(e, this.getTokenNames());
 
         throw new RuntimeException(errorMessage);
     }
@@ -630,7 +621,9 @@ IntegerNegativeLiteral
    ;
    
 DoubleLiteral
-   : Digit+ '.' Digit+;
+   : Digit+ ('.' Digit+)?
+   | '.' Digit+ 
+   ;
 
 Identifier
     : (Letter | Alnum) (Alnum | '_' | '-' )*
