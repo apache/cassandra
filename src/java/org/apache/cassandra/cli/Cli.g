@@ -622,7 +622,7 @@ IntegerNegativeLiteral
    
 DoubleLiteral
    : Digit+ ('.' Digit+)?
-   | '.' Digit+ 
+   | ' ' '.' Digit+
    ;
 
 Identifier
