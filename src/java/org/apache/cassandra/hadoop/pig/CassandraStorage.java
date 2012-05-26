@@ -80,10 +80,14 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     public final static String PIG_OUTPUT_FORMAT = "PIG_OUTPUT_FORMAT";
     public final static String PIG_ALLOW_DELETES = "PIG_ALLOW_DELETES";
     public final static String PIG_WIDEROW_INPUT = "PIG_WIDEROW_INPUT";
+    public final static String PIG_USE_SECONDARY = "PIG_USE_SECONDARY";
 
     private final static String DEFAULT_INPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyInputFormat";
     private final static String DEFAULT_OUTPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyOutputFormat";
     private final static boolean DEFAULT_WIDEROW_INPUT = false;
+    private final static boolean DEFAULT_USE_SECONDARY = false;
+
+    private final static String PARTITION_FILTER_SIGNATURE = "cassandra.partition.filter";
 
     private final static ByteBuffer BOUND = ByteBufferUtil.EMPTY_BYTE_BUFFER;
     private static final Log logger = LogFactory.getLog(CassandraStorage.class);
@@ -104,6 +108,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private String outputFormatClass;
     private int limit;
     private boolean widerows;
+    private boolean usePartitionFilter;
     // wide row hacks
     private Map<ByteBuffer,IColumn> lastRow;
     private boolean hasNext = true;
@@ -245,6 +250,15 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                     bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
             }
             tuple.append(bag);
+            // finally, special top-level indexes if needed
+            if (usePartitionFilter)
+            {
+                for (ColumnDef cdef : getIndexes())
+                {
+                    Tuple throwaway = columnToTuple(cf.get(cdef.name), cfDef, parseType(cfDef.getComparator_type()));
+                    tuple.append(throwaway.get(1));
+                }
+            }
             return tuple;
         }
         catch (InterruptedException e)
@@ -325,6 +339,16 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         UDFContext context = UDFContext.getUDFContext();
         Properties property = context.getUDFProperties(CassandraStorage.class);
         return cfdefFromString(property.getProperty(signature));
+    }
+
+    private List<IndexExpression> getIndexExpressions()
+    {
+        UDFContext context = UDFContext.getUDFContext();
+        Properties property = context.getUDFProperties(CassandraStorage.class);
+        if (property.getProperty(PARTITION_FILTER_SIGNATURE) != null)
+            return indexExpressionsFromString(property.getProperty(PARTITION_FILTER_SIGNATURE));
+        else
+            return null;
     }
 
     private List<AbstractType> getDefaultMarshallers(CfDef cfDef) throws IOException
@@ -512,6 +536,13 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         widerows = DEFAULT_WIDEROW_INPUT;
         if (System.getenv(PIG_WIDEROW_INPUT) != null)
             widerows = Boolean.valueOf(System.getProperty(PIG_WIDEROW_INPUT));
+        usePartitionFilter = DEFAULT_USE_SECONDARY;
+        if (System.getenv() != null)
+            usePartitionFilter = Boolean.valueOf(System.getenv(PIG_USE_SECONDARY));
+
+        if (usePartitionFilter && getIndexExpressions() != null)
+            ConfigHelper.setInputRange(conf, getIndexExpressions());
+
         ConfigHelper.setInputColumnFamily(conf, keyspace, column_family, widerows);
         setConnectionInformation();
 
@@ -603,6 +634,20 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         // bag at the end for unknown columns
         allSchemaFields.add(bagField);
 
+        // add top-level index elements if needed
+        if (usePartitionFilter)
+        {
+            for (ColumnDef cdef : getIndexes())
+            {
+                ResourceFieldSchema idxSchema = new ResourceFieldSchema();
+                idxSchema.setName("index_" + new String(cdef.getName()));
+                AbstractType validator = validators.get(cdef.name);
+                if (validator == null)
+                    validator = marshallers.get(1);
+                idxSchema.setType(getPigType(validator));
+                allSchemaFields.add(idxSchema);
+            }
+        }
         // top level schema contains everything
         schema.setFields(allSchemaFields.toArray(new ResourceFieldSchema[allSchemaFields.size()]));
         return schema;
@@ -635,12 +680,67 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 
     public String[] getPartitionKeys(String location, Job job)
     {
-        return null;
+        if (!usePartitionFilter)
+            return null;
+        List<ColumnDef> indexes = getIndexes();
+        String[] partitionKeys = new String[indexes.size()];
+        for (int i = 0; i < indexes.size(); i++)
+        {
+            partitionKeys[i] = new String(indexes.get(i).getName());
+        }
+        return partitionKeys;
     }
 
     public void setPartitionFilter(Expression partitionFilter)
     {
-        // no-op
+        UDFContext context = UDFContext.getUDFContext();
+        Properties property = context.getUDFProperties(CassandraStorage.class);
+        property.setProperty(PARTITION_FILTER_SIGNATURE, indexExpressionsToString(filterToIndexExpressions(partitionFilter)));
+    }
+
+    private List<IndexExpression> filterToIndexExpressions(Expression expression)
+    {
+        List<IndexExpression> indexExpressions = new ArrayList<IndexExpression>();
+        Expression.BinaryExpression be = (Expression.BinaryExpression)expression;
+        ByteBuffer name = ByteBuffer.wrap(be.getLhs().toString().getBytes());
+        ByteBuffer value = ByteBuffer.wrap(be.getRhs().toString().getBytes());
+        switch (expression.getOpType())
+        {
+            case OP_EQ:
+                indexExpressions.add(new IndexExpression(name, IndexOperator.EQ, value));
+                break;
+            case OP_GE:
+                indexExpressions.add(new IndexExpression(name, IndexOperator.GTE, value));
+                break;
+            case OP_GT:
+                indexExpressions.add(new IndexExpression(name, IndexOperator.GT, value));
+                break;
+            case OP_LE:
+                indexExpressions.add(new IndexExpression(name, IndexOperator.LTE, value));
+                break;
+            case OP_LT:
+                indexExpressions.add(new IndexExpression(name, IndexOperator.LT, value));
+                break;
+            case OP_AND:
+                indexExpressions.addAll(filterToIndexExpressions(be.getLhs()));
+                indexExpressions.addAll(filterToIndexExpressions(be.getRhs()));
+                break;
+            default:
+                throw new RuntimeException("Unsupported expression type: " + expression.getOpType().name());
+        }
+        return indexExpressions;
+    }
+
+    private List<ColumnDef> getIndexes()
+    {
+        CfDef cfdef = getCfDef(loadSignature);
+        List<ColumnDef> indexes = new ArrayList<ColumnDef>();
+        for (ColumnDef cdef : cfdef.column_metadata)
+        {
+            if (cdef.index_type != null)
+                indexes.add(cdef);
+        }
+        return indexes;
     }
 
     @Override
@@ -679,6 +779,11 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             throw new IOException("PIG_OUTPUT_INITIAL_ADDRESS or PIG_INITIAL_ADDRESS environment variable not set");
         if (ConfigHelper.getOutputPartitioner(conf) == null)
             throw new IOException("PIG_OUTPUT_PARTITIONER or PIG_PARTITIONER environment variable not set");
+
+        // we have to do this again here for the check in writeColumnsFromTuple
+        usePartitionFilter = DEFAULT_USE_SECONDARY;
+        if (System.getenv() != null)
+            usePartitionFilter = Boolean.valueOf(System.getenv(PIG_USE_SECONDARY));
 
         initSchema(storeSignature);
     }
@@ -766,8 +871,10 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                 if (inner.size() > 0) // may be empty, for an indexed column that wasn't present
                     mutationList.add(mutationFromTuple(inner));
             }
-            else
+            else if (!usePartitionFilter)
+            {
                 throw new IOException("Output type was not a bag or a tuple");
+            }
         }
         if (mutationList.size() > 0)
             writeMutations(key, mutationList);
@@ -947,6 +1054,40 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             throw new RuntimeException(e);
         }
         return cfDef;
+    }
+
+    private static String indexExpressionsToString(List<IndexExpression> indexExpressions)
+    {
+        assert indexExpressions != null;
+        // oh, you thought cfdefToString was awful?
+        IndexClause indexClause = new IndexClause();
+        indexClause.setExpressions(indexExpressions);
+        indexClause.setStart_key("".getBytes());
+        TSerializer serializer = new TSerializer(new TBinaryProtocol.Factory());
+        try
+        {
+            return Hex.bytesToHex(serializer.serialize(indexClause));
+        }
+        catch (TException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static List<IndexExpression> indexExpressionsFromString(String ie)
+    {
+        assert ie != null;
+        TDeserializer deserializer = new TDeserializer(new TBinaryProtocol.Factory());
+        IndexClause indexClause = new IndexClause();
+        try
+        {
+            deserializer.deserialize(indexClause, Hex.hexToBytes(ie));
+        }
+        catch (TException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return indexClause.getExpressions();
     }
 }
 
