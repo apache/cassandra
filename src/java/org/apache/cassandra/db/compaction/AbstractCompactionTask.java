@@ -101,4 +101,9 @@ public abstract class AbstractCompactionTask
         this.compactionType = compactionType;
         return this;
     }
+
+    public String toString()
+    {
+        return "CompactionTask(" + sstables + ")";
+    }
 }

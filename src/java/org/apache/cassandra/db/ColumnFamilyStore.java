@@ -1826,7 +1826,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             throw new RuntimeException("The min_compaction_threshold cannot be larger than the max.");
 
         this.minCompactionThreshold.set(minCompactionThreshold);
-        CompactionManager.instance.submitBackground(this);
+
+        // this is called as part of CompactionStrategy constructor; avoid circular dependency by checking for null
+        if (compactionStrategy != null)
+            CompactionManager.instance.submitBackground(this);
     }
 
     public int getMaximumCompactionThreshold()
@@ -1840,7 +1843,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             throw new RuntimeException("The max_compaction_threshold cannot be smaller than the min.");
 
         this.maxCompactionThreshold.set(maxCompactionThreshold);
-        CompactionManager.instance.submitBackground(this);
+
+        // this is called as part of CompactionStrategy constructor; avoid circular dependency by checking for null
+        if (compactionStrategy != null)
+            CompactionManager.instance.submitBackground(this);
     }
 
     public boolean isCompactionDisabled()
