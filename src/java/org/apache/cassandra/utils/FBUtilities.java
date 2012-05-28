@@ -569,6 +569,18 @@ public class FBUtilities
         }
     }
 
+    public static void sleep(int millis)
+    {
+        try
+        {
+            Thread.sleep(millis);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError();
+        }
+    }
+
     private static final class WrappedCloseableIterator<T>
         extends AbstractIterator<T> implements CloseableIterator<T>
     {

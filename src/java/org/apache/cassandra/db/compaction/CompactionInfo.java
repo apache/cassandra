@@ -21,48 +21,56 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.service.StorageService;
 
 /** Implements serializable to allow structured info to be returned via JMX. */
 public final class CompactionInfo implements Serializable
 {
     private static final long serialVersionUID = 3695381572726744816L;
-    private final int id;
-    private final String ksname;
-    private final String cfname;
+    private final CFMetaData cfm;
     private final OperationType tasktype;
     private final long bytesComplete;
     private final long totalBytes;
 
-    public CompactionInfo(int id, String ksname, String cfname, OperationType tasktype, long bytesComplete, long totalBytes)
+    public CompactionInfo(OperationType tasktype, long bytesComplete, long totalBytes)
     {
-        this.id = id;
-        this.ksname = ksname;
-        this.cfname = cfname;
+        this(null, tasktype, bytesComplete, totalBytes);
+    }
+
+    public CompactionInfo(Integer id, OperationType tasktype, long bytesComplete, long totalBytes)
+    {
         this.tasktype = tasktype;
         this.bytesComplete = bytesComplete;
         this.totalBytes = totalBytes;
+        this.cfm = id == null ? null : Schema.instance.getCFMetaData(id);
     }
 
     /** @return A copy of this CompactionInfo with updated progress. */
     public CompactionInfo forProgress(long bytesComplete, long totalBytes)
     {
-        return new CompactionInfo(id, ksname, cfname, tasktype, bytesComplete, totalBytes);
+        return new CompactionInfo(cfm == null ? null : cfm.cfId, tasktype, bytesComplete, totalBytes);
     }
 
-    public int getId()
+    public Integer getId()
     {
-        return id;
+        return cfm == null ? null : cfm.cfId;
     }
 
     public String getKeyspace()
     {
-        return ksname;
+        return cfm == null ? null : cfm.ksName;
     }
 
     public String getColumnFamily()
     {
-        return cfname;
+        return cfm == null ? null : cfm.cfName;
+    }
+
+    public CFMetaData getCFMetaData()
+    {
+        return cfm;
     }
 
     public long getBytesComplete()
@@ -83,7 +91,7 @@ public final class CompactionInfo implements Serializable
     public String toString()
     {
         StringBuilder buff = new StringBuilder();
-        buff.append(getTaskType()).append('@').append(id);
+        buff.append(getTaskType()).append('@').append(getId());
         buff.append('(').append(getKeyspace()).append(", ").append(getColumnFamily());
         buff.append(", ").append(getBytesComplete()).append('/').append(getTotalBytes());
         return buff.append(')').toString();
@@ -92,9 +100,9 @@ public final class CompactionInfo implements Serializable
     public Map<String, String> asMap()
     {
         Map<String, String> ret = new HashMap<String, String>();
-        ret.put("id", Integer.toString(id));
-        ret.put("keyspace", ksname);
-        ret.put("columnfamily", cfname);
+        ret.put("id", Integer.toString(getId()));
+        ret.put("keyspace", getKeyspace());
+        ret.put("columnfamily", getColumnFamily());
         ret.put("bytesComplete", Long.toString(bytesComplete));
         ret.put("totalBytes", Long.toString(totalBytes));
         ret.put("taskType", tasktype.toString());

@@ -35,6 +35,7 @@ import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificRecord;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -463,6 +464,8 @@ public class DefsTable
         KSMetaData ksm = Schema.instance.getTableDefinition(ksName);
         String snapshotName = Table.getTimestampedSnapshotName(ksName);
 
+        CompactionManager.instance.stopCompactionFor(ksm.cfMetaData().values());
+
         // remove all cfs from the table instance.
         for (CFMetaData cfm : ksm.cfMetaData().values())
         {
@@ -495,6 +498,8 @@ public class DefsTable
 
         Schema.instance.purge(cfm);
         Schema.instance.setTableDefinition(makeNewKeyspaceDefinition(ksm, cfm));
+
+        CompactionManager.instance.stopCompactionFor(Arrays.asList(cfm));
 
         if (!StorageService.instance.isClientMode())
         {

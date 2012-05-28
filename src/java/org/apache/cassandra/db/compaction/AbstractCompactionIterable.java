@@ -17,14 +17,11 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.CloseableIterator;
 
 public abstract class AbstractCompactionIterable extends CompactionInfo.Holder implements Iterable<AbstractCompactedRow>
@@ -53,8 +50,6 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
     public CompactionInfo getCompactionInfo()
     {
         return new CompactionInfo(this.hashCode(),
-                                  controller.getKeyspace(),
-                                  controller.getColumnFamily(),
                                   type,
                                   bytesRead,
                                   totalBytes);

@@ -33,6 +33,7 @@ import javax.management.ObjectName;
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
@@ -1209,8 +1210,6 @@ public class CompactionManager implements CompactionManagerMBean
             try
             {
                 return new CompactionInfo(this.hashCode(),
-                                          sstable.descriptor.ksname,
-                                          sstable.descriptor.cfname,
                                           OperationType.CLEANUP,
                                           scanner.getCurrentPosition(),
                                           scanner.getLengthInBytes());
@@ -1237,8 +1236,6 @@ public class CompactionManager implements CompactionManagerMBean
             try
             {
                 return new CompactionInfo(this.hashCode(),
-                                          sstable.descriptor.ksname,
-                                          sstable.descriptor.cfname,
                                           OperationType.SCRUB,
                                           dataFile.getFilePointer(),
                                           dataFile.length());
@@ -1257,6 +1254,25 @@ public class CompactionManager implements CompactionManagerMBean
         {
             if (holder.getCompactionInfo().getTaskType() == operation)
                 holder.stop();
+        }
+    }
+
+    /**
+     * Try to stop all of the compactions for given ColumnFamilies.
+     * Note that this method does not wait indefinitely for all compactions to finish, maximum wait time is 30 secs.
+     *
+     * @param columnFamilies The ColumnFamilies to try to stop compaction upon.
+     */
+    public void stopCompactionFor(Collection<CFMetaData> columnFamilies)
+    {
+        assert columnFamilies != null;
+
+        for (Holder compactionHolder : CompactionExecutor.getCompactions())
+        {
+            CompactionInfo info = compactionHolder.getCompactionInfo();
+
+            if (columnFamilies.contains(info.getCFMetaData()))
+                compactionHolder.stop(); // signal compaction to stop
         }
     }
 }
