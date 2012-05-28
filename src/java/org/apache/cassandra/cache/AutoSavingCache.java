@@ -192,12 +192,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             else
                 type = OperationType.UNKNOWN;
 
-            info = new CompactionInfo(this.hashCode(),
-                                      "Global",
-                                      cacheType.toString(),
-                                      type,
-                                      0,
-                                      estimatedTotalBytes);
+            info = new CompactionInfo(type, 0, estimatedTotalBytes);
         }
 
         public CompactionInfo getCompactionInfo()
