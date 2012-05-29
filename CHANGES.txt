@@ -9,6 +9,7 @@
  * Add support for range tombstones (CASSANDRA-3708)
  * Improve MessagingService efficiency (CASSANDRA-3617)
  * Avoid ID conflicts from concurrent schema changes (CASSANDRA-3794)
+ * Set thrift HSHA server thread limit to unlimet by default (CASSANDRA-4277)
 
 
 1.1.1-dev
