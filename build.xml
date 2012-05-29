@@ -781,9 +781,6 @@
       <mkdir dir="${build.dir}/tools/lib/" />
       <jar destfile="${build.dir}/tools/lib/stress.jar" manifest="${stress.manifest}">
         <fileset dir="${stress.build.classes}"/>
-        <fileset dir="${basedir}/build/classes/main" />
-        <fileset dir="${basedir}/build/classes/thrift" />
-        <zipgroupfileset dir="${build.lib}" includes="*.jar" />
       </jar>
     </target>
 
