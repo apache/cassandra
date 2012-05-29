@@ -415,7 +415,8 @@ public class RowMutation implements IMutation
             assert size >= 0;
             for (Map.Entry<UUID, ColumnFamily> entry : rm.modifications.entrySet())
             {
-                ColumnFamily.serializer.serializeCfId(entry.getKey(), dos, version);
+                if (version < MessagingService.VERSION_12)
+                    ColumnFamily.serializer.serializeCfId(entry.getKey(), dos, version);
                 ColumnFamily.serializer.serialize(entry.getValue(), dos, version);
             }
         }
@@ -428,9 +429,13 @@ public class RowMutation implements IMutation
             int size = dis.readInt();
             for (int i = 0; i < size; ++i)
             {
-                UUID cfId = ColumnFamily.serializer.deserializeCfId(dis, version);
+                // We used to uselessly write the cf id here
+                if (version < MessagingService.VERSION_12)
+                    ColumnFamily.serializer.deserializeCfId(dis, version);
                 ColumnFamily cf = ColumnFamily.serializer.deserialize(dis, flag, TreeMapBackedSortedColumns.factory(), version);
-                modifications.put(cfId, cf);
+                // We don't allow RowMutation with null column family, so we should never get null back.
+                assert cf != null;
+                modifications.put(cf.id(), cf);
             }
             return new RowMutation(table, key, modifications);
         }
@@ -450,7 +455,8 @@ public class RowMutation implements IMutation
             size += sizes.sizeof(rm.modifications.size());
             for (Map.Entry<UUID,ColumnFamily> entry : rm.modifications.entrySet())
             {
-                size += ColumnFamily.serializer.cfIdSerializedSize(entry.getValue().id(), sizes, version);
+                if (version < MessagingService.VERSION_12)
+                    size += ColumnFamily.serializer.cfIdSerializedSize(entry.getValue().id(), sizes, version);
                 size += ColumnFamily.serializer.serializedSize(entry.getValue(), TypeSizes.NATIVE, version);
             }
 
