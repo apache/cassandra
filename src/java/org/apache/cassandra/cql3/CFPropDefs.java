@@ -246,7 +246,7 @@ public class CFPropDefs
         return result;
     }
 
-
+    @Override
     public String toString()
     {
         return String.format("CFPropDefs(%s, compaction: %s, compression: %s)",

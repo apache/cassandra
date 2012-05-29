@@ -80,6 +80,7 @@
  * (cql3) Fix range queries with secondary indexes (CASSANDRA-4257)
  * Better error messages from improper input in cli (CASSANDRA-3865)
  * Try to stop all compaction upon Keyspace or ColumnFamily drop (CASSANDRA-4221)
+ * (cql3) Allow keyspace properties to contain hyphens (CASSANDRA-4278)
 Merged from 1.0:
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)

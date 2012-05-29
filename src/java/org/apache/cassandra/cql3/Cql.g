@@ -72,7 +72,6 @@ options {
         if (op == null && (value.isBindMarker() || Long.parseLong(value.getText()) > 0))
             throw new MissingTokenException(102, stream, value);
     }
-
 }
 
 @lexer::header {
@@ -499,7 +498,8 @@ termPairWithOperation[Map<ColumnIdentifier, Operation> columns]
     ;
 
 property returns [String str]
-    : p=(COMPIDENT | IDENT) { $str = $p.text; }
+    @init{ StringBuilder sb = new StringBuilder(); }
+    : c1=cident { sb.append(c1); } ( ':' cn=cident { sb.append(':').append(cn); } )* { $str = sb.toString(); }
     ;
 
 propertyValue returns [String str]
@@ -702,10 +702,6 @@ FLOAT
 
 IDENT
     : LETTER (LETTER | DIGIT | '_')*
-    ;
-
-COMPIDENT
-    : IDENT ( ':' (IDENT | INTEGER))+
     ;
 
 UUID
