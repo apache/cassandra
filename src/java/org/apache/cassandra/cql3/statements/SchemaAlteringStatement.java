@@ -80,7 +80,7 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
     public void checkAccess(ClientState state) throws InvalidRequestException
     {
         if (isColumnFamilyLevel)
-            state.hasColumnFamilySchemaAccess(Permission.WRITE);
+            state.hasColumnFamilySchemaAccess(keyspace(), Permission.WRITE);
         else
             state.hasKeyspaceSchemaAccess(Permission.WRITE);
     }

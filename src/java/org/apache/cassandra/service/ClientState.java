@@ -159,14 +159,19 @@ public class ClientState
         hasAccess(user, perms, perm, resource);
     }
 
-    /**
-     * Confirms that the client thread has the given Permission for the ColumnFamily list of
-     * the current keyspace.
-     */
     public void hasColumnFamilySchemaAccess(Permission perm) throws InvalidRequestException
     {
+        hasColumnFamilySchemaAccess(keyspace, perm);
+    }
+
+    /**
+     * Confirms that the client thread has the given Permission for the ColumnFamily list of
+     * the provided keyspace.
+     */
+    public void hasColumnFamilySchemaAccess(String keyspace, Permission perm) throws InvalidRequestException
+    {
         validateLogin();
-        validateKeyspace();
+        validateKeyspace(keyspace);
 
         // hardcode disallowing messing with system keyspace
         if (keyspace.equalsIgnoreCase(Table.SYSTEM_TABLE) && perm == Permission.WRITE)
@@ -191,7 +196,7 @@ public class ClientState
     public void hasColumnFamilyAccess(String keyspace, String columnFamily, Permission perm) throws InvalidRequestException
     {
         validateLogin();
-        validateKeyspace();
+        validateKeyspace(keyspace);
 
         resourceClear();
         resource.add(keyspace);
@@ -207,7 +212,7 @@ public class ClientState
             throw new InvalidRequestException("You have not logged in");
     }
 
-    private void validateKeyspace() throws InvalidRequestException
+    private static void validateKeyspace(String keyspace) throws InvalidRequestException
     {
         if (keyspace == null)
             throw new InvalidRequestException("You have not set a keyspace for this session");
