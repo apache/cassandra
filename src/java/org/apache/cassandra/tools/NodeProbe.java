@@ -464,6 +464,12 @@ public class NodeProbe
         return ssProxy.getNaturalEndpoints(keyspace, cf, key);
     }
 
+    public List<String> getSSTables(String keyspace, String cf, String key)
+    {
+        ColumnFamilyStoreMBean cfsProxy = getCfsProxy(keyspace, cf);
+        return cfsProxy.getSSTablesForKey(key);
+    }
+
     public Set<InetAddress> getStreamDestinations()
     {
         return streamProxy.getStreamDestinations();
