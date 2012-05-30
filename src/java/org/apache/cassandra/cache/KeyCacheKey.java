@@ -17,21 +17,18 @@
  */
 package org.apache.cassandra.cache;
 
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 public class KeyCacheKey implements CacheKey
 {
-    private final Descriptor desc;
-    private final byte[] key;
+    public final Descriptor desc;
+    public final byte[] key;
 
     public KeyCacheKey(Descriptor desc, ByteBuffer key)
     {
@@ -40,19 +37,9 @@ public class KeyCacheKey implements CacheKey
         assert this.key != null;
     }
 
-    public void write(DataOutputStream out) throws IOException
-    {
-        ByteBufferUtil.writeWithLength(key, out);
-    }
-
     public Pair<String, String> getPathInfo()
     {
         return new Pair<String, String>(desc.ksname, desc.cfname);
-    }
-
-    public int serializedSize()
-    {
-        return TypeSizes.NATIVE.sizeof(key.length) + key.length;
     }
 
     public String toString()

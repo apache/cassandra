@@ -17,14 +17,11 @@
  */
 package org.apache.cassandra.cache;
 
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;
 
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -47,19 +44,9 @@ public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
         assert this.key != null;
     }
 
-    public void write(DataOutputStream out) throws IOException
-    {
-        ByteBufferUtil.writeWithLength(key, out);
-    }
-
     public Pair<String, String> getPathInfo()
     {
         return Schema.instance.getCF(cfId);
-    }
-
-    public int serializedSize()
-    {
-        return key.length + TypeSizes.NATIVE.sizeof(key.length);
     }
 
     @Override

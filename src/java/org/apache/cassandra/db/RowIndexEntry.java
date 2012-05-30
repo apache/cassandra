@@ -133,9 +133,12 @@ public class RowIndexEntry
         public void skip(DataInput dis, Descriptor.Version version) throws IOException
         {
             dis.readLong();
-            if (!version.hasPromotedIndexes)
-                return;
+            if (version.hasPromotedIndexes)
+                skipPromotedIndex(dis);
+        }
 
+        public void skipPromotedIndex(DataInput dis) throws IOException
+        {
             int size = dis.readInt();
             if (size <= 0)
                 return;

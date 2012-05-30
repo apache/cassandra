@@ -17,23 +17,10 @@
  */
 package org.apache.cassandra.cache;
 
-import java.io.DataOutputStream;
-import java.io.IOException;
-
 import org.apache.cassandra.utils.Pair;
 
 public interface CacheKey
 {
-    /**
-     * @return Serialized part of the key which should be persisted
-     */
-    public void write(DataOutputStream out) throws IOException;
-
-    /**
-     * @return The size of the serialized key
-     */
-    public int serializedSize();
-
     /**
      * @return The keyspace and ColumnFamily names to which this key belongs
      */
