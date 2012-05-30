@@ -94,6 +94,7 @@ public class NodeCmd
         FLUSH,
         GETCOMPACTIONTHRESHOLD,
         GETENDPOINTS,
+        GETSSTABLES,
         GOSSIPINFO,
         IDS,
         INFO,
@@ -184,6 +185,7 @@ public class NodeCmd
 
         // Three args
         addCmdHelp(header, "getendpoints <keyspace> <cf> <key>", "Print the end points that owns the key");
+        addCmdHelp(header, "getsstables <keyspace> <cf> <key>", "Print the sstable filenames that own the key");
 
         // Four args
         addCmdHelp(header, "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>", "Set the key and row cache capacities of a given column family");
@@ -652,6 +654,15 @@ public class NodeCmd
         }
     }
 
+    private void printSSTables(String keyspace, String cf, String key, PrintStream output)
+    {
+        List<String> sstables = this.probe.getSSTables(keyspace, cf, key);
+        for (String sstable : sstables)
+        {
+            output.println(sstable);
+        }
+    }
+
     private void printIsThriftServerRunning(PrintStream outs)
     {
         outs.println(probe.isThriftServerRunning() ? "running" : "not running");
@@ -870,6 +881,11 @@ public class NodeCmd
                 case PROXYHISTOGRAMS :
                     if (arguments.length != 0) { badUse("proxyhistograms does not take arguments"); }
                     nodeCmd.printProxyHistograms(System.out);
+                    break;
+
+                case GETSSTABLES:
+                    if (arguments.length != 3) { badUse("getsstables requires ks, cf and key args"); }
+                    nodeCmd.printSSTables(arguments[0], arguments[1], arguments[2], System.out);
                     break;
 
                 case REFRESH:

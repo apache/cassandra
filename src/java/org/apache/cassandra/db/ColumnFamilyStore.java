@@ -1279,6 +1279,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return new ViewFragment(sstables, Iterables.concat(Collections.singleton(view.memtable), view.memtablesPendingFlush));
     }
 
+    public List<String> getSSTablesForKey(String key)
+    {
+        DecoratedKey dk = new DecoratedKey(partitioner.getToken(ByteBuffer.wrap(key.getBytes())), ByteBuffer.wrap(key.getBytes()));
+        ViewFragment view = markReferenced(dk);
+        try
+        {
+            List<String> files = new ArrayList<String>();
+            for (SSTableReader sstr : view.sstables)
+            {
+                // check if the key actually exists in this sstable, without updating cache and stats
+                if (sstr.getPosition(dk, SSTableReader.Operator.EQ, false) != null)
+                    files.add(sstr.getFilename());
+            }
+            return files;
+        }
+        finally {
+            SSTableReader.releaseReferences(view.sstables);
+        }
+    }
+
     public ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore, boolean forCache)
     {
         CollationController controller = new CollationController(this, forCache, filter, gcBefore);

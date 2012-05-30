@@ -226,6 +226,13 @@ public interface ColumnFamilyStoreMBean
     public List<String> getBuiltIndexes();
 
     /**
+     * Returns a list of filenames that contain the given key on this node
+     * @param key
+     * @return list of filenames containing the key
+     */
+    public List<String> getSSTablesForKey(String key);
+
+    /**
      * Scan through Keyspace/ColumnFamily's data directory
      * determine which SSTables should be loaded and load them
      */

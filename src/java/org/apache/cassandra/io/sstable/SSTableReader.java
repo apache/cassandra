@@ -685,12 +685,22 @@ public class SSTableReader extends SSTable
     }
 
     /**
+     * Get position updating key cache and stats.
+     * @see #getPosition(org.apache.cassandra.db.RowPosition, org.apache.cassandra.io.sstable.SSTableReader.Operator, boolean)
+     */
+    public RowIndexEntry getPosition(RowPosition key, Operator op)
+    {
+        return getPosition(key, op, true);
+    }
+
+    /**
      * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
      * allow key selection by token bounds but only if op != * EQ
      * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     * @param updateCacheAndStats true if updating stats and cache
      * @return The index entry corresponding to the key, or null if the key is not present
      */
-    public RowIndexEntry getPosition(RowPosition key, Operator op)
+    public RowIndexEntry getPosition(RowPosition key, Operator op, boolean updateCacheAndStats)
     {
         // first, check bloom filter
         if (op == Operator.EQ)
@@ -704,7 +714,7 @@ public class SSTableReader extends SSTable
         if ((op == Operator.EQ || op == Operator.GE) && (key instanceof DecoratedKey))
         {
             DecoratedKey decoratedKey = (DecoratedKey)key;
-            RowIndexEntry cachedPosition = getCachedPosition(new KeyCacheKey(descriptor, decoratedKey.key), true);
+            RowIndexEntry cachedPosition = getCachedPosition(new KeyCacheKey(descriptor, decoratedKey.key), updateCacheAndStats);
             if (cachedPosition != null)
                 return cachedPosition;
         }
@@ -713,7 +723,7 @@ public class SSTableReader extends SSTable
         long sampledPosition = getIndexScanPosition(key);
         if (sampledPosition == -1)
         {
-            if (op == Operator.EQ)
+            if (op == Operator.EQ && updateCacheAndStats)
                 bloomFilterTracker.addFalsePositive();
             // we matched the -1th position: if the operator might match forward, we'll start at the first
             // position. We however need to return the correct index entry for that first position.
@@ -739,20 +749,20 @@ public class SSTableReader extends SSTable
                     if (v == 0)
                     {
                         RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(input, descriptor.version);
-                        if (comparison == 0 && keyCache != null && keyCache.getCapacity() > 0)
+                        if (comparison == 0 && keyCache != null && keyCache.getCapacity() > 0 && updateCacheAndStats)
                         {
                             assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
                             DecoratedKey decoratedKey = (DecoratedKey)key;
                             // store exact match for the key
                             cacheKey(decoratedKey, indexEntry);
                         }
-                        if (op == Operator.EQ)
+                        if (op == Operator.EQ && updateCacheAndStats)
                             bloomFilterTracker.addTruePositive();
                         return indexEntry;
                     }
                     if (v < 0)
                     {
-                        if (op == Operator.EQ)
+                        if (op == Operator.EQ && updateCacheAndStats)
                             bloomFilterTracker.addFalsePositive();
                         return null;
                     }
@@ -770,7 +780,7 @@ public class SSTableReader extends SSTable
             }
         }
 
-        if (op == Operator.EQ)
+        if (op == Operator.EQ && updateCacheAndStats)
             bloomFilterTracker.addFalsePositive();
         return null;
     }
