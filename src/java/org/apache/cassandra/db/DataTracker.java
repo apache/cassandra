@@ -569,7 +569,7 @@ public class DataTracker
         {
             return EMPTY;
         }
-    };
+    }
 
     /**
      * An immutable structure holding the current memtable, the memtables pending

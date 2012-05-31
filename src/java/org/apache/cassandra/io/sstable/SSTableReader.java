@@ -50,6 +50,8 @@ import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 
+import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
+
 /**
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
  * Do not re-call open() on existing SSTable files; use the references kept by ColumnFamilyStore post-start instead.
@@ -113,9 +115,9 @@ public class SSTableReader extends SSTable
     public static SSTableReader open(Descriptor descriptor) throws IOException
     {
         CFMetaData metadata;
-        if (descriptor.cfname.contains("."))
+        if (descriptor.cfname.contains(SECONDARY_INDEX_NAME_SEPARATOR))
         {
-            int i = descriptor.cfname.indexOf(".");
+            int i = descriptor.cfname.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
             String parentName = descriptor.cfname.substring(0, i);
             CFMetaData parent = Schema.instance.getCFMetaData(descriptor.ksname, parentName);
             ColumnDefinition def = parent.getColumnDefinitionForIndex(descriptor.cfname.substring(i + 1));
@@ -130,7 +132,7 @@ public class SSTableReader extends SSTable
 
     public static SSTableReader open(Descriptor desc, CFMetaData metadata) throws IOException
     {
-        IPartitioner p = desc.cfname.contains(".")
+        IPartitioner p = desc.cfname.contains(SECONDARY_INDEX_NAME_SEPARATOR)
                        ? new LocalPartitioner(metadata.getKeyValidator())
                        : StorageService.getPartitioner();
         return open(desc, componentsFor(desc), metadata, p);
@@ -360,7 +362,7 @@ public class SSTableReader extends SSTable
                 ByteBuffer key = ByteBufferUtil.readWithShortLength(primaryIndex);
                 RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(primaryIndex, descriptor.version);
                 DecoratedKey decoratedKey = decodeKey(partitioner, descriptor, key);
-                if(null == first)
+                if (first == null)
                     first = decoratedKey;
                 last = decoratedKey;
 

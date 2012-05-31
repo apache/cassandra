@@ -306,22 +306,22 @@ public class CacheService implements CacheServiceMBean
             ByteBufferUtil.writeWithLength(key.key, out);
         }
 
-        public Pair<RowCacheKey, IRowCacheEntry> deserialize(DataInputStream in, ColumnFamilyStore store) throws IOException
+        public Pair<RowCacheKey, IRowCacheEntry> deserialize(DataInputStream in, ColumnFamilyStore cfs) throws IOException
         {
             ByteBuffer buffer = ByteBufferUtil.readWithLength(in);
-            DecoratedKey key = store.partitioner.decorateKey(buffer);
-            ColumnFamily data = store.getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(store.columnFamily)), Integer.MIN_VALUE, true);
-            return new Pair<RowCacheKey, IRowCacheEntry>(new RowCacheKey(store.metadata.cfId, key), data);
+            DecoratedKey key = cfs.partitioner.decorateKey(buffer);
+            ColumnFamily data = cfs.getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(cfs.columnFamily)), Integer.MIN_VALUE, true);
+            return new Pair<RowCacheKey, IRowCacheEntry>(new RowCacheKey(cfs.metadata.cfId, key), data);
         }
 
         @Override
-        public void load(Set<ByteBuffer> buffers, ColumnFamilyStore store)
+        public void load(Set<ByteBuffer> buffers, ColumnFamilyStore cfs)
         {
             for (ByteBuffer key : buffers)
             {
-                DecoratedKey dk = store.partitioner.decorateKey(key);
-                ColumnFamily data = store.getTopLevelColumns(QueryFilter.getIdentityFilter(dk, new QueryPath(store.columnFamily)), Integer.MIN_VALUE, true);
-                rowCache.put(new RowCacheKey(store.metadata.cfId, dk), data);
+                DecoratedKey dk = cfs.partitioner.decorateKey(key);
+                ColumnFamily data = cfs.getTopLevelColumns(QueryFilter.getIdentityFilter(dk, new QueryPath(cfs.columnFamily)), Integer.MIN_VALUE, true);
+                rowCache.put(new RowCacheKey(cfs.metadata.cfId, dk), data);
             }
         }
     }
@@ -342,11 +342,11 @@ public class CacheService implements CacheServiceMBean
             RowIndexEntry.serializer.serialize(entry, out);
         }
 
-        public Pair<KeyCacheKey, RowIndexEntry> deserialize(DataInputStream input, ColumnFamilyStore store) throws IOException
+        public Pair<KeyCacheKey, RowIndexEntry> deserialize(DataInputStream input, ColumnFamilyStore cfs) throws IOException
         {
             ByteBuffer key = ByteBufferUtil.readWithLength(input);
             int generation = input.readInt();
-            SSTableReader reader = findDesc(generation, store.getSSTables());
+            SSTableReader reader = findDesc(generation, cfs.getSSTables());
             if (reader == null)
             {
                 RowIndexEntry.serializer.skipPromotedIndex(input);
@@ -371,13 +371,13 @@ public class CacheService implements CacheServiceMBean
         }
 
         @Override
-        public void load(Set<ByteBuffer> buffers, ColumnFamilyStore store)
+        public void load(Set<ByteBuffer> buffers, ColumnFamilyStore cfs)
         {
             for (ByteBuffer key : buffers)
             {
-                DecoratedKey dk = store.partitioner.decorateKey(key);
+                DecoratedKey dk = cfs.partitioner.decorateKey(key);
 
-                for (SSTableReader sstable : store.getSSTables())
+                for (SSTableReader sstable : cfs.getSSTables())
                 {
                     RowIndexEntry entry = sstable.getPosition(dk, Operator.EQ);
                     if (entry != null)

@@ -1887,12 +1887,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return partitioner instanceof LocalPartitioner;
     }
 
-    private String getParentColumnfamily()
-    {
-        assert isIndex();
-        return columnFamily.split("\\.")[0];
-    }
-
     private ByteBuffer intern(ByteBuffer name)
     {
         ByteBuffer internedName = internedNames.get(name);

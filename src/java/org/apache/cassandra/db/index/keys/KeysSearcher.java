@@ -132,8 +132,8 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         }
 
                         if (logger.isDebugEnabled())
-                            logger.debug(String.format("Scanning index %s starting with %s",
-                                                       expressionString(primary), index.getBaseCfs().metadata.getKeyValidator().getString(startKey)));
+                            logger.debug("Scanning index {} starting with {}",
+                                         expressionString(primary), index.getBaseCfs().metadata.getKeyValidator().getString(startKey));
 
                         QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
                                                                              new QueryPath(index.getIndexCfs().getColumnFamilyName()),

@@ -95,11 +95,11 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         }
     }
 
-    public int loadSaved(ColumnFamilyStore store)
+    public int loadSaved(ColumnFamilyStore cfs)
     {
         int count = 0;
         long start = System.currentTimeMillis();
-        File path = getCachePath(store.table.name, store.columnFamily, null);
+        File path = getCachePath(cfs.table.name, cfs.columnFamily, null);
         if (path.exists())
         {
             DataInputStream in = null;
@@ -113,7 +113,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                     keys.add(ByteBufferUtil.readWithLength(in));
                     count++;
                 }
-                cacheLoader.load(keys, store);
+                cacheLoader.load(keys, cfs);
             }
             catch (Exception e)
             {
@@ -126,7 +126,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             }
         }
 
-        path = getCachePath(store.table.name, store.columnFamily, CURRENT_VERSION);
+        path = getCachePath(cfs.table.name, cfs.columnFamily, CURRENT_VERSION);
         if (path.exists())
         {
             DataInputStream in = null;
@@ -136,7 +136,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 in = new DataInputStream(new BufferedInputStream(new FileInputStream(path)));
                 while (in.available() > 0)
                 {
-                    Pair<K, V> entry = cacheLoader.deserialize(in, store);
+                    Pair<K, V> entry = cacheLoader.deserialize(in, cfs);
                     put(entry.left, entry.right);
                     count++;
                 }
@@ -293,9 +293,9 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
     {
         void serialize(K key, DataOutput out) throws IOException;
 
-        Pair<K, V> deserialize(DataInputStream in, ColumnFamilyStore store) throws IOException;
+        Pair<K, V> deserialize(DataInputStream in, ColumnFamilyStore cfs) throws IOException;
 
         @Deprecated
-        void load(Set<ByteBuffer> buffer, ColumnFamilyStore store);
+        void load(Set<ByteBuffer> buffer, ColumnFamilyStore cfs);
     }
 }

@@ -63,7 +63,7 @@ public class Directories
 
     public static final String BACKUPS_SUBDIR = "backups";
     public static final String SNAPSHOT_SUBDIR = "snapshots";
-    public static final char SECONDARY_INDEX_NAME_SEPARATOR = '.';
+    public static final String SECONDARY_INDEX_NAME_SEPARATOR = ".";
 
     public static final File[] dataFileLocations;
     static
