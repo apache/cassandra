@@ -52,12 +52,12 @@ grunt> cols = FOREACH rows GENERATE flatten(columns);
 grunt> colnames = FOREACH cols GENERATE $0;
 grunt> namegroups = GROUP colnames BY (chararray) $0;
 grunt> namecounts = FOREACH namegroups GENERATE COUNT($1), group;
-grunt> orderednames = ORDER namecounts BY $0;
+grunt> orderednames = ORDER namecounts BY $0 DESC;
 grunt> topnames = LIMIT orderednames 50;
 grunt> dump topnames;
 
 Slices on columns can also be specified:
-grunt> rows = LOAD 'cassandra://MyKeyspace/MyColumnFamily&slice_start=C2&slice_end=C4&limit=1&reversed=true' USING CassandraStorage();
+grunt> rows = LOAD 'cassandra://MyKeyspace/MyColumnFamily?slice_start=C2&slice_end=C4&limit=1&reversed=true' USING CassandraStorage();
 
 Binary values for slice_start and slice_end can be escaped such as '\u0255'
 
