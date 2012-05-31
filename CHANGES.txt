@@ -96,6 +96,9 @@ Merged from 1.0:
  * ensure unique streaming session id's (CASSANDRA-4223)
  * kick off background compaction when min/max thresholds change 
    (CASSANDRA-4279)
+ * improve ability of STCS.getBuckets to deal with 100s of 1000s of
+   sstables, such as when convertinb back from LCS (CASSANDRA-4287)
+ * Oversize integer in CQL throws NumberFormatException (CASSANDRA-4291)
 
 
 1.1.0-final

@@ -941,21 +941,30 @@ public class QueryProcessor
 
     private static CQLStatement getStatement(String queryStr) throws InvalidRequestException, RecognitionException
     {
-        // Lexer and parser
-        CharStream stream = new ANTLRStringStream(queryStr);
-        CqlLexer lexer = new CqlLexer(stream);
-        TokenStream tokenStream = new CommonTokenStream(lexer);
-        CqlParser parser = new CqlParser(tokenStream);
-
-        // Parse the query string to a statement instance
-        CQLStatement statement = parser.query();
-
-        // The lexer and parser queue up any errors they may have encountered
-        // along the way, if necessary, we turn them into exceptions here.
-        lexer.throwLastRecognitionError();
-        parser.throwLastRecognitionError();
-
-        return statement;
+        try
+        {
+            // Lexer and parser
+            CharStream stream = new ANTLRStringStream(queryStr);
+            CqlLexer lexer = new CqlLexer(stream);
+            TokenStream tokenStream = new CommonTokenStream(lexer);
+            CqlParser parser = new CqlParser(tokenStream);
+            
+            // Parse the query string to a statement instance
+            CQLStatement statement = parser.query();
+            
+            // The lexer and parser queue up any errors they may have encountered
+            // along the way, if necessary, we turn them into exceptions here.
+            lexer.throwLastRecognitionError();
+            parser.throwLastRecognitionError();
+            
+            return statement;
+        } 
+        catch (RuntimeException re)
+        {
+            InvalidRequestException ire = new InvalidRequestException("Failed parsing statement: [" + queryStr + "] reason: " + re.getClass().getSimpleName() + " " + re.getMessage());
+            ire.initCause(re);
+            throw ire;
+        }
     }
 
     private static void validateSchemaIsSettled() throws SchemaDisagreementException
