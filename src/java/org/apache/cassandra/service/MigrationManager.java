@@ -52,8 +52,6 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationManager.class);
 
-    // try that many times to send migration request to the node before giving up
-    static final int MIGRATION_REQUEST_RETRIES = 3;
     private static final ByteBuffer LAST_MIGRATION_KEY = ByteBufferUtil.bytes("Last Migration");
 
     public void onJoin(InetAddress endpoint, EndpointState epState)
