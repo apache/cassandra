@@ -70,6 +70,7 @@ public class Avro
                 strategyOptions.put(name, e.getValue().toString());
             }
         }
+        maybeAddReplicationFactor(strategyOptions, ks.strategy_class.toString(), ks.replication_factor);
 
         int cfsz = ks.cf_defs.size();
         List<CFMetaData> cfMetaData = new ArrayList<CFMetaData>(cfsz);
@@ -92,6 +93,13 @@ public class Avro
         }
 
         return new KSMetaData(ks.name.toString(), repStratClass, strategyOptions, ks.durable_writes, cfMetaData);
+    }
+
+    @Deprecated
+    private static void maybeAddReplicationFactor(Map<String, String> options, String cls, Integer rf)
+    {
+        if (rf != null && (cls.endsWith("SimpleStrategy") || cls.endsWith("OldNetworkTopologyStrategy")))
+            options.put("replication_factor", rf.toString());
     }
 
     @Deprecated

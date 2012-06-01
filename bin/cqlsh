@@ -124,6 +124,7 @@ parser.add_option("-C", "--color", action="store_true",
                   help="Enable color output.")
 parser.add_option("-u", "--username", help="Authenticate as user.")
 parser.add_option("-p", "--password", help="Authenticate using password.")
+parser.add_option('-k', '--keyspace', help='Authenticate to the given keyspace.')
 parser.add_option("-f", "--file",
                   help="Execute commands from FILE, then exit")
 parser.add_option('--debug', action='store_true',
@@ -483,20 +484,27 @@ class Shell(cmd.Cmd):
 
     def __init__(self, hostname, port, color=False, username=None,
                  password=None, encoding=None, stdin=None, tty=True,
-                 completekey='tab', use_conn=None, cqlver=None):
+                 completekey='tab', use_conn=None, cqlver=None, keyspace=None):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
         self.username = username
         self.password = password
+        self.keyspace = keyspace
         if use_conn is not None:
             self.conn = use_conn
         else:
             self.conn = cql.connect(hostname, port, user=username, password=password)
             self.set_expanded_cql_version(cqlver)
+            # we could set the keyspace through cql.connect(), but as of 1.0.10,
+            # it doesn't quote the keyspace for USE :(
+            if keyspace is not None:
+                tempcurs = self.conn.cursor()
+                tempcurs.execute('USE %s;' % self.cql_protect_name(keyspace))
+                tempcurs.close()
         self.cursor = self.conn.cursor()
 
-        self.current_keyspace = None
+        self.current_keyspace = keyspace
 
         self.color = color
         if encoding is None:
@@ -514,7 +522,8 @@ class Shell(cmd.Cmd):
             stdin = sys.stdin
         self.tty = tty
         if tty:
-            self.prompt = self.default_prompt
+            self.prompt = None
+            self.reset_prompt()
             self.report_connection()
             print 'Use HELP for help.'
         else:
@@ -2291,6 +2300,7 @@ def read_options(cmdlineargs, environment):
     optvalues = optparse.Values()
     optvalues.username = option_with_default(configs.get, 'authentication', 'username')
     optvalues.password = option_with_default(configs.get, 'authentication', 'password')
+    optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
     optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey', 'tab')
     optvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
     if optvalues.color is None:
@@ -2371,7 +2381,8 @@ def main(options, hostname, port):
                       stdin=stdin,
                       tty=options.tty,
                       completekey=options.completekey,
-                      cqlver=options.cqlversion)
+                      cqlver=options.cqlversion,
+                      keyspace=options.keyspace)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS, e:

@@ -42,6 +42,8 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
@@ -132,6 +134,35 @@ public class RangeSliceCommand implements IReadCommand
     public String getKeyspace()
     {
         return keyspace;
+    }
+
+    // Convert to a equivalent IndexScanCommand for backward compatibility sake
+    public IndexScanCommand toIndexScanCommand()
+    {
+        assert row_filter != null && !row_filter.isEmpty();
+        if (maxIsColumns || isPaging)
+            throw new IllegalStateException("Cannot proceed with range query as the remote end has a version < 1.1. Please update the full cluster first.");
+
+        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace, column_family);
+        try
+        {
+            if (!ThriftValidation.validateFilterClauses(cfm, row_filter))
+                throw new IllegalStateException("Cannot proceed with non-indexed query as the remote end has a version < 1.1. Please update the full cluster first.");
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        RowPosition start = range.left;
+        ByteBuffer startKey = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+        if (start instanceof DecoratedKey)
+        {
+            startKey = ((DecoratedKey)start).key;
+        }
+
+        IndexClause clause = new IndexClause(row_filter, startKey, maxResults);
+        return new IndexScanCommand(keyspace, column_family, clause, predicate, range);
     }
 }
 

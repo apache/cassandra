@@ -59,7 +59,7 @@ public class IndexScanCommand
         return new MessageOut<IndexScanCommand>(MessagingService.Verb.INDEX_SCAN, this, serializer);
     }
 
-    private static class IndexScanCommandSerializer implements IVersionedSerializer<IndexScanCommand>
+    static class IndexScanCommandSerializer implements IVersionedSerializer<IndexScanCommand>
     {
         public void serialize(IndexScanCommand o, DataOutput out, int version) throws IOException
         {

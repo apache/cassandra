@@ -118,7 +118,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
 
     /**
      * This returns the size of the super-column when serialized.
-     * @see org.apache.cassandra.db.IColumn#serializedSize()
+     * @see org.apache.cassandra.db.IColumn#serializedSize(TypeSizes)
     */
     public int serializedSize(TypeSizes typeSizes)
     {
