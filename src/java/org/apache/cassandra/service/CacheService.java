@@ -309,7 +309,7 @@ public class CacheService implements CacheServiceMBean
         public Pair<RowCacheKey, IRowCacheEntry> deserialize(DataInputStream in, ColumnFamilyStore store) throws IOException
         {
             ByteBuffer buffer = ByteBufferUtil.readWithLength(in);
-            DecoratedKey key = StorageService.getPartitioner().decorateKey(buffer);
+            DecoratedKey key = store.partitioner.decorateKey(buffer);
             ColumnFamily data = store.getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(store.columnFamily)), Integer.MIN_VALUE, true);
             return new Pair<RowCacheKey, IRowCacheEntry>(new RowCacheKey(store.metadata.cfId, key), data);
         }
@@ -319,7 +319,7 @@ public class CacheService implements CacheServiceMBean
         {
             for (ByteBuffer key : buffers)
             {
-                DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+                DecoratedKey dk = store.partitioner.decorateKey(key);
                 ColumnFamily data = store.getTopLevelColumns(QueryFilter.getIdentityFilter(dk, new QueryPath(store.columnFamily)), Integer.MIN_VALUE, true);
                 rowCache.put(new RowCacheKey(store.metadata.cfId, dk), data);
             }
@@ -356,7 +356,7 @@ public class CacheService implements CacheServiceMBean
             if (input.readBoolean())
                 entry = RowIndexEntry.serializer.deserialize(input, reader.descriptor.version);
             else
-                entry = reader.getPosition(StorageService.getPartitioner().decorateKey(key), Operator.EQ);
+                entry = reader.getPosition(reader.partitioner.decorateKey(key), Operator.EQ);
             return new Pair<KeyCacheKey, RowIndexEntry>(new KeyCacheKey(reader.descriptor, key), entry);
         }
 
@@ -375,7 +375,8 @@ public class CacheService implements CacheServiceMBean
         {
             for (ByteBuffer key : buffers)
             {
-                DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+                DecoratedKey dk = store.partitioner.decorateKey(key);
+
                 for (SSTableReader sstable : store.getSSTables())
                 {
                     RowIndexEntry entry = sstable.getPosition(dk, Operator.EQ);

@@ -41,12 +41,15 @@ import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
+import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
@@ -282,6 +285,32 @@ public class SSTableReaderTest extends SchemaLoader
         assert keySamples.size() == 1 && keySamples.iterator().next().equals(firstKey);
         assert target.first.equals(firstKey);
         assert target.last.equals(lastKey);
+    }
+
+    @Test
+    public void testLoadingSummaryUsesCorrectPartitioner() throws Exception
+    {
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Indexed1");
+        ByteBuffer key = ByteBufferUtil.bytes(String.valueOf("k1"));
+        RowMutation rm = new RowMutation("Keyspace1", key);
+        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), System.currentTimeMillis());
+        rm.apply();
+        store.forceBlockingFlush();
+
+        ColumnFamilyStore indexCfs = store.indexManager.getIndexForColumn(ByteBufferUtil.bytes("birthdate")).getIndexCfs();
+        assert indexCfs.partitioner instanceof LocalPartitioner;
+        SSTableReader sstable = indexCfs.getSSTables().iterator().next();
+        assert sstable.first.token instanceof LocalToken;
+
+        SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
+        SegmentedFile.Builder dbuilder = sstable.compression
+                                          ? SegmentedFile.getCompressedBuilder()
+                                          : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
+        SSTableReader.saveSummary(sstable, ibuilder, dbuilder);
+
+        SSTableReader reopened = SSTableReader.open(sstable.descriptor);
+        assert reopened.first.token instanceof LocalToken;
     }
 
     private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS) throws IOException

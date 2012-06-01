@@ -12,6 +12,7 @@
  * Set thrift HSHA server thread limit to unlimet by default (CASSANDRA-4277)
  * Avoids double serialization of CF id in RowMutation messages
    (CASSANDRA-4293)
+ * fix Summary component and caches to use correct partitioner (CASSANDRA-4289)
 
 
 1.1.1-dev

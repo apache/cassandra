@@ -26,6 +26,7 @@ import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -110,7 +111,7 @@ public class IndexSummary
             }
         }
 
-        public IndexSummary deserialize(DataInput dis) throws IOException
+        public IndexSummary deserialize(DataInput dis, IPartitioner partitioner) throws IOException
         {
             IndexSummary summary = new IndexSummary();
             if (dis.readInt() != DatabaseDescriptor.getIndexInterval())
@@ -121,7 +122,7 @@ public class IndexSummary
             {
                 long location = dis.readLong();
                 ByteBuffer key = ByteBufferUtil.readWithLength(dis);
-                summary.addEntry(StorageService.getPartitioner().decorateKey(key), location);
+                summary.addEntry(partitioner.decorateKey(key), location);
             }
             return summary;
         }
