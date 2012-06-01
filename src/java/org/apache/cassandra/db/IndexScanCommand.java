@@ -38,7 +38,7 @@ import org.apache.cassandra.thrift.TBinaryProtocol;
 
 public class IndexScanCommand implements MessageProducer
 {
-    private static final IndexScanCommandSerializer serializer = new IndexScanCommandSerializer();
+    public static final IndexScanCommandSerializer serializer = new IndexScanCommandSerializer();
 
     public final String keyspace;
     public final String column_family;
@@ -80,7 +80,7 @@ public class IndexScanCommand implements MessageProducer
         return serializer.deserialize(new DataInputStream(bis), message.getVersion());
     }
 
-    private static class IndexScanCommandSerializer implements IVersionedSerializer<IndexScanCommand>
+    static class IndexScanCommandSerializer implements IVersionedSerializer<IndexScanCommand>
     {
         public void serialize(IndexScanCommand o, DataOutput out, int version) throws IOException
         {

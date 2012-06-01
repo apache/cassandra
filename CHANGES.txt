@@ -71,6 +71,7 @@
  * Take supercolumn names and deletion info into account in memtable throughput
    (CASSANDRA-4264)
  * Add back backward compatibility for old style replication factor (CASSANDRA-4294)
+ * Preserve compatibility with pre-1.1 index queries (CASSANDRA_4264)
 Merged from 1.0:
  * Fix super columns bug where cache is not updated (CASSANDRA-4190)
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)

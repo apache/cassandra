@@ -42,6 +42,8 @@ import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -52,9 +54,12 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.IReadCommand;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
+import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.TBinaryProtocol;
+import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TDeserializer;
@@ -117,6 +122,12 @@ public class RangeSliceCommand implements MessageProducer, IReadCommand
 
     public Message getMessage(Integer version) throws IOException
     {
+        if (version < MessagingService.VERSION_11 && row_filter != null && !row_filter.isEmpty())
+        {
+            // pre-1.1 versions use IndexScanCommand for index queries, so generate that instead
+            return toIndexScanCommand().getMessage(version);
+        }
+
         DataOutputBuffer dob = new DataOutputBuffer();
         serializer.serialize(this, dob, version);
         return new Message(FBUtilities.getBroadcastAddress(),
@@ -149,6 +160,35 @@ public class RangeSliceCommand implements MessageProducer, IReadCommand
     public String getKeyspace()
     {
         return keyspace;
+    }
+
+    // Convert to a equivalent IndexScanCommand for backward compatibility sake
+    public IndexScanCommand toIndexScanCommand()
+    {
+        assert row_filter != null && !row_filter.isEmpty();
+        if (maxIsColumns || isPaging)
+            throw new IllegalStateException("Cannot proceed with range query as the remote end has a version < 1.1. Please update the full cluster first.");
+
+        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace, column_family);
+        try
+        {
+            if (!ThriftValidation.validateFilterClauses(cfm, row_filter))
+                throw new IllegalStateException("Cannot proceed with non-indexed query as the remote end has a version < 1.1. Please update the full cluster first.");
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        RowPosition start = range.left;
+        ByteBuffer startKey = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+        if (start instanceof DecoratedKey)
+        {
+            startKey = ((DecoratedKey)start).key;
+        }
+
+        IndexClause clause = new IndexClause(row_filter, startKey, maxResults);
+        return new IndexScanCommand(keyspace, column_family, clause, predicate, range);
     }
 }
 
