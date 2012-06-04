@@ -30,6 +30,9 @@ Upgrading
       incompatible with the earlier `nodetool removetoken`, and attempts to
       remove nodes in this way with a mixed 1.1 (or lower) / 1.2 cluster,
       is not supported.
+    - The somewhat ill-concieved CollatingOrderPreservingPartitioner
+      has been removed.  Use RandomPartitioner (recommended) or
+      ByteOrderedPartitioner instead.
 
 
 1.1.1

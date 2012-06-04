@@ -1,4 +1,5 @@
 1.2-dev
+ * remove COPP (CASSANDRA-2479)
  * Track tombstone expiration and compact when tombstone content is
    higher than a configurable threshold, default 20% (CASSANDRA-3442)
  * update MurmurHash to version 3 (CASSANDRA-2975)
