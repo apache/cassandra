@@ -1,3 +1,6 @@
+1.1.2
+ * enforce 1m min keycache for auto (CASSANDRA-4306)
+
 1.1.1
  * add getsstables command to nodetool (CASSANDRA-4199)
  * apply parent CF compaction settings to secondary index CFs (CASSANDRA-4280)
