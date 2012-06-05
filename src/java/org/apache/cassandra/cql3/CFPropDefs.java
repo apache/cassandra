@@ -49,7 +49,6 @@ public class CFPropDefs
     public static final String KW_BF_FP_CHANCE = "bloom_filter_fp_chance";
 
     // Maps CQL short names to the respective Cassandra comparator/validator class names
-    public static final Map<String, String> comparators = new HashMap<String, String>();
     public static final Set<String> keywords = new HashSet<String>();
     public static final Set<String> obsoleteKeywords = new HashSet<String>();
     public static final Set<String> allowedKeywords = new HashSet<String>();
@@ -59,23 +58,6 @@ public class CFPropDefs
 
     static
     {
-        comparators.put("ascii", "AsciiType");
-        comparators.put("bigint", "LongType");
-        comparators.put("blob", "BytesType");
-        comparators.put("boolean", "BooleanType");
-        comparators.put("counter", "CounterColumnType");
-        comparators.put("decimal", "DecimalType");
-        comparators.put("double", "DoubleType");
-        comparators.put("float", "FloatType");
-        comparators.put("inet", "InetAddressType");
-        comparators.put("int", "Int32Type");
-        comparators.put("text", "UTF8Type");
-        comparators.put("timestamp", "DateType");
-        comparators.put("uuid", "UUIDType");
-        comparators.put("varchar", "UTF8Type");
-        comparators.put("varint", "IntegerType");
-        comparators.put("timeuuid", "TimeUUIDType");
-
         keywords.add(KW_COMMENT);
         keywords.add(KW_READREPAIRCHANCE);
         keywords.add(KW_DCLOCALREADREPAIRCHANCE);
@@ -96,28 +78,6 @@ public class CFPropDefs
         if (CFMetaData.DEFAULT_COMPRESSOR != null)
             put(CompressionParameters.SSTABLE_COMPRESSION, CFMetaData.DEFAULT_COMPRESSOR);
     }};
-
-    public static AbstractType<?> parseType(String type) throws InvalidRequestException
-    {
-        try
-        {
-            String className = comparators.get(type);
-            if (className == null)
-                className = type;
-            return TypeParser.parse(className);
-        }
-        catch (ConfigurationException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.toString());
-            ex.initCause(e);
-            throw ex;
-        }
-    }
-
-    /* If not comparator/validator is not specified, default to text (BytesType is the wrong default for CQL
-     * since it uses hex terms).  If the value specified is not found in the comparators map, assume the user
-     * knows what they are doing (a custom comparator/validator for example), and pass it on as-is.
-     */
 
     public void validate() throws ConfigurationException
     {

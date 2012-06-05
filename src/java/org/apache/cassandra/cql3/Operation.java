@@ -17,37 +17,92 @@
  */
 package org.apache.cassandra.cql3;
 
-public class Operation
+import java.util.Collections;
+import java.util.List;
+
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.thrift.InvalidRequestException;
+
+public abstract class Operation
 {
-    public static enum Type { PLUS, MINUS }
+    public static enum Type { SET, COUNTER, FUNCTION }
 
     public final Type type;
-    public final ColumnIdentifier ident;
-    public final Term value;
 
-    // unary operation
-    public Operation(Term a)
+    protected Operation(Type type)
     {
-        this(null, null, a);
-    }
-
-    // binary operation
-    public Operation(ColumnIdentifier a, Type type, Term b)
-    {
-        this.ident = a;
         this.type = type;
-        this.value = b;
     }
 
-    public boolean isUnary()
+    public abstract Iterable<Term> allTerms();
+
+    public static class Set extends Operation
     {
-        return type == null && ident == null;
+        public final Value value;
+
+        public Set(Value value)
+        {
+            super(Type.SET);
+            this.value = value;
+        }
+
+        @Override
+        public String toString()
+        {
+            return " = " + value;
+        }
+
+        public List<Term> allTerms()
+        {
+            return value.asList();
+        }
     }
 
-    public String toString()
+    public static class Counter extends Operation
     {
-        return (isUnary())
-                ? String.format("UnaryOperation(%s)", value)
-                : String.format("BinaryOperation(%s, %s, %s)", ident, type, value);
+        public final Term value;
+        public final boolean isSubstraction;
+
+        public Counter(Term value, boolean isSubstraction)
+        {
+            super(Type.COUNTER);
+            this.value = value;
+            this.isSubstraction = isSubstraction;
+        }
+
+        @Override
+        public String toString()
+        {
+            return (isSubstraction ? "-" : "+") + "= " + value;
+        }
+
+        public Iterable<Term> allTerms()
+        {
+            return Collections.singletonList(value);
+        }
+    }
+
+    public static class Function extends Operation
+    {
+        public final CollectionType.Function fct;
+        public final List<Term> arguments;
+
+        public Function(CollectionType.Function fct, List<Term> arguments)
+        {
+            super(Type.FUNCTION);
+            this.fct = fct;
+            this.arguments = arguments;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "." + fct + arguments;
+        }
+
+        public Iterable<Term> allTerms()
+        {
+            return arguments;
+        }
     }
 }

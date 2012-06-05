@@ -204,6 +204,29 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     }
 
     /**
+     * An alternative comparison function used by CollectionsType in conjunction with CompositeType.
+     *
+     * This comparator is only called to compare components of a CompositeType. It gets the value of the
+     * previous component as argument (or null if it's the first component of the composite).
+     *
+     * Unless you're doing something very similar to CollectionsType, you shouldn't override this.
+     */
+    public int compareCollectionMembers(ByteBuffer v1, ByteBuffer v2, ByteBuffer collectionName)
+    {
+        return compare(v1, v2);
+    }
+
+    /**
+     * An alternative validation function used by CollectionsType in conjunction with CompositeType.
+     *
+     * This is similar to the compare function above.
+     */
+    public void validateCollectionMember(ByteBuffer bytes, ByteBuffer collectionName) throws MarshalException
+    {
+        validate(bytes);
+    }
+
+    /**
      * This must be overriden by subclasses if necessary so that for any
      * AbstractType, this == TypeParser.parse(toString()).
      *

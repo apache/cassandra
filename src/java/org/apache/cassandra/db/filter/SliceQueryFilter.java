@@ -34,6 +34,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.SSTableSliceIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -48,6 +49,12 @@ public class SliceQueryFilter implements IFilter
     public final ColumnSlice[] slices;
     public final boolean reversed;
     public volatile int count;
+    private final int compositesToGroup;
+    // This is a hack to allow rolling upgrade with pre-1.2 nodes
+    private final int countMutliplierForCompatibility;
+
+    // Not serialized, just a ack for range slices to find the number of live column counted, even when we group
+    private ColumnCounter columnCounter;
 
     public SliceQueryFilter(ByteBuffer start, ByteBuffer finish, boolean reversed, int count)
     {
@@ -60,9 +67,21 @@ public class SliceQueryFilter implements IFilter
      */
     public SliceQueryFilter(ColumnSlice[] slices, boolean reversed, int count)
     {
+        this(slices, reversed, count, -1, 1);
+    }
+
+    public SliceQueryFilter(ColumnSlice[] slices, boolean reversed, int count, int compositesToGroup, int countMutliplierForCompatibility)
+    {
         this.slices = slices;
         this.reversed = reversed;
         this.count = count;
+        this.compositesToGroup = compositesToGroup;
+        this.countMutliplierForCompatibility = countMutliplierForCompatibility;
+    }
+
+    public SliceQueryFilter withUpdatedCount(int newCount)
+    {
+        return new SliceQueryFilter(slices, reversed, newCount, compositesToGroup, countMutliplierForCompatibility);
     }
 
     public OnDiskAtomIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key)
@@ -119,25 +138,26 @@ public class SliceQueryFilter implements IFilter
 
     public void collectReducedColumns(IColumnContainer container, Iterator<IColumn> reducedColumns, int gcBefore)
     {
-        int liveColumns = 0;
         AbstractType<?> comparator = container.getComparator();
+
+        if (compositesToGroup < 0)
+            columnCounter = new ColumnCounter();
+        else if (compositesToGroup == 0)
+            columnCounter = new ColumnCounter.GroupByPrefix(null, 0);
+        else
+            columnCounter = new ColumnCounter.GroupByPrefix((CompositeType)comparator, compositesToGroup);
 
         while (reducedColumns.hasNext())
         {
-            if (liveColumns >= count)
+            if (columnCounter.count() >= count)
                 break;
 
             IColumn column = reducedColumns.next();
             if (logger.isDebugEnabled())
                 logger.debug(String.format("collecting %s of %s: %s",
-                                           liveColumns, count, column.getString(comparator)));
+                                           columnCounter.count(), count, column.getString(comparator)));
 
-            // only count live columns towards the `count` criteria
-            if (column.isLive()
-                && (!container.deletionInfo().isDeleted(column)))
-            {
-                liveColumns++;
-            }
+            columnCounter.countColum(column, container);
 
             // but we need to add all non-gc-able columns to the result for read repair:
             if (QueryFilter.isRelevant(column, container, gcBefore))
@@ -159,6 +179,11 @@ public class SliceQueryFilter implements IFilter
     {
         assert slices.length == 1;
         this.slices[0] = new ColumnSlice(start, this.slices[0].finish);
+    }
+
+    public int lastCounted()
+    {
+        return columnCounter == null ? 0 : columnCounter.count();
     }
 
     @Override
@@ -194,7 +219,15 @@ public class SliceQueryFilter implements IFilter
                     ColumnSlice.serializer.serialize(slice, dos, version);
             }
             dos.writeBoolean(f.reversed);
-            dos.writeInt(f.count);
+            int count = f.count;
+            if (f.compositesToGroup > 0 && version < MessagingService.VERSION_12)
+                count *= f.countMutliplierForCompatibility;
+            dos.writeInt(count);
+
+            if (version < MessagingService.VERSION_12)
+                return;
+
+            dos.writeInt(f.compositesToGroup);
         }
 
         public SliceQueryFilter deserialize(DataInput dis, int version) throws IOException
@@ -212,7 +245,11 @@ public class SliceQueryFilter implements IFilter
             }
             boolean reversed = dis.readBoolean();
             int count = dis.readInt();
-            return new SliceQueryFilter(slices, reversed, count);
+            int compositesToGroup = -1;
+            if (version >= MessagingService.VERSION_12)
+                compositesToGroup = dis.readInt();
+
+            return new SliceQueryFilter(slices, reversed, count, compositesToGroup, 1);
         }
 
         public long serializedSize(SliceQueryFilter f, int version)
@@ -232,6 +269,9 @@ public class SliceQueryFilter implements IFilter
             }
             size += sizes.sizeof(f.reversed);
             size += sizes.sizeof(f.count);
+
+            if (version >= MessagingService.VERSION_12)
+                size += sizes.sizeof(f.compositesToGroup);
             return size;
         }
     }

@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
@@ -30,6 +31,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.RequestType;
 import org.apache.cassandra.thrift.ThriftValidation;
+import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -97,7 +99,7 @@ public class BatchStatement extends ModificationStatement
     }
 
     public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables)
-    throws InvalidRequestException
+    throws UnavailableException, TimeoutException, InvalidRequestException
     {
         Map<Pair<String, ByteBuffer>, RowAndCounterMutation> mutations = new HashMap<Pair<String, ByteBuffer>, RowAndCounterMutation>();
         for (ModificationStatement statement : statements)

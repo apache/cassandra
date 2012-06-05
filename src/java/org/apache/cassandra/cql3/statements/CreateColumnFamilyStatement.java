@@ -34,6 +34,8 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ColumnToCollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
@@ -68,7 +70,14 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     private Map<ByteBuffer, ColumnDefinition> getColumns() throws InvalidRequestException
     {
         Map<ByteBuffer, ColumnDefinition> columnDefs = new HashMap<ByteBuffer, ColumnDefinition>();
-        Integer componentIndex = comparator instanceof CompositeType ? ((CompositeType)comparator).types.size() - 1 : null;
+        Integer componentIndex = null;
+        if (comparator instanceof CompositeType)
+        {
+            CompositeType ct = (CompositeType) comparator;
+            componentIndex = ct.types.get(ct.types.size() - 1) instanceof ColumnToCollectionType
+                           ? ct.types.size() - 2
+                           : ct.types.size() - 1;
+        }
 
         for (Map.Entry<ColumnIdentifier, AbstractType> col : columns.entrySet())
         {
@@ -123,7 +132,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
     public static class RawStatement extends CFStatement
     {
-        private final Map<ColumnIdentifier, String> definitions = new HashMap<ColumnIdentifier, String>();
+        private final Map<ColumnIdentifier, ParsedType> definitions = new HashMap<ColumnIdentifier, ParsedType>();
         private final CFPropDefs properties = new CFPropDefs();
 
         private final List<ColumnIdentifier> keyAliases = new ArrayList<ColumnIdentifier>();
@@ -159,10 +168,19 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
                 CreateColumnFamilyStatement stmt = new CreateColumnFamilyStatement(cfName, properties);
                 stmt.setBoundTerms(getBoundsTerms());
-                for (Map.Entry<ColumnIdentifier, String> entry : definitions.entrySet())
+
+                Map<ByteBuffer, CollectionType> definedCollections = null;
+                for (Map.Entry<ColumnIdentifier, ParsedType> entry : definitions.entrySet())
                 {
-                    AbstractType<?> type = CFPropDefs.parseType(entry.getValue());
-                    stmt.columns.put(entry.getKey(), type); // we'll remove what is not a column below
+                    ColumnIdentifier id = entry.getKey();
+                    ParsedType pt = entry.getValue();
+                    if (pt.isCollection())
+                    {
+                        if (definedCollections == null)
+                            definedCollections = new HashMap<ByteBuffer, CollectionType>();
+                        definedCollections.put(id.key, (CollectionType)pt.getType());
+                    }
+                    stmt.columns.put(id, pt.getType()); // we'll remove what is not a column below
                 }
 
                 // Ensure that exactly one key has been specified.
@@ -183,6 +201,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                     // standard "dynamic" CF, otherwise it's a composite
                     if (useCompactStorage && columnAliases.size() == 1)
                     {
+                        if (definedCollections != null)
+                            throw new InvalidRequestException("Collection types are not supported with COMPACT STORAGE");
                         stmt.columnAliases.add(columnAliases.get(0).key);
                         stmt.comparator = getTypeAndRemove(stmt.columns, columnAliases.get(0));
                         if (stmt.comparator instanceof CounterColumnType)
@@ -200,9 +220,20 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                                 throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", t.key));
                             types.add(type);
                         }
-                        // For sparse, we must add the last UTF8 component
-                        if (!useCompactStorage)
+
+                        if (useCompactStorage)
+                        {
+                            if (definedCollections != null)
+                                throw new InvalidRequestException("Collection types are not supported with COMPACT STORAGE");
+                        }
+                        else
+                        {
+                            // For sparse, we must add the last UTF8 component
+                            // and the collection type if there is one
                             types.add(CFDefinition.definitionType);
+                            if (definedCollections != null)
+                                types.add(ColumnToCollectionType.getInstance(definedCollections));
+                        }
 
                         if (types.isEmpty())
                             throw new IllegalStateException("Nonsensical empty parameter list for CompositeType");
@@ -212,9 +243,15 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                 else
                 {
                     if (useCompactStorage)
+                    {
+                        if (definedCollections != null)
+                            throw new InvalidRequestException("Collection types are not supported with non composite PRIMARY KEY");
                         stmt.comparator = CFDefinition.definitionType;
+                    }
                     else
+                    {
                         stmt.comparator = CompositeType.getInstance(Collections.<AbstractType<?>>singletonList(CFDefinition.definitionType));
+                    }
                 }
 
                 if (stmt.columns.isEmpty())
@@ -250,12 +287,14 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
             AbstractType type = columns.get(t);
             if (type == null)
                 throw new InvalidRequestException(String.format("Unkown definition %s referenced in PRIMARY KEY", t));
+            if (type instanceof CollectionType)
+                throw new InvalidRequestException(String.format("Invalid collection type for PRIMARY KEY component %s", t));
             columns.remove(t);
             Boolean isReversed = definedOrdering.get(t);
             return isReversed != null && isReversed ? ReversedType.getInstance(type) : type;
         }
 
-        public void addDefinition(ColumnIdentifier def, String type)
+        public void addDefinition(ColumnIdentifier def, ParsedType type)
         {
             definedNames.add(def);
             definitions.put(def, type);

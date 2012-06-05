@@ -29,7 +29,7 @@ import org.apache.cassandra.cql3.statements.Selector;
 /**
  * Represents an identifer for a CQL column definition.
  */
-public class ColumnIdentifier implements Comparable<ColumnIdentifier>, Selector
+public class ColumnIdentifier extends Selector implements Comparable<ColumnIdentifier>
 {
     public final ByteBuffer key;
     private final String text;
@@ -75,15 +75,5 @@ public class ColumnIdentifier implements Comparable<ColumnIdentifier>, Selector
     public ColumnIdentifier id()
     {
         return this;
-    }
-
-    public boolean hasFunction()
-    {
-        return false;
-    }
-
-    public Selector.Function function()
-    {
-        return null;
     }
 }

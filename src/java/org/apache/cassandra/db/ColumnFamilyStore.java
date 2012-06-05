@@ -1448,7 +1448,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 data = filter.prune(data);
                 rows.add(new Row(rawRow.key, data));
                 if (data != null)
-                    columnsCount += data.getLiveColumnCount();
+                    columnsCount += filter.lastCounted(data);
                 // Update the underlying filter to avoid querying more columns per slice than necessary and to handle paging
                 filter.updateFilter(columnsCount);
             }

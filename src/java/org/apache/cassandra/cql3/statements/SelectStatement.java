@@ -48,8 +48,8 @@ import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.RequestType;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.thrift.TimedOutException;
+import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -117,20 +117,27 @@ public class SelectStatement implements CQLStatement
 
     public ResultSet executeInternal(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        List<Row> rows;
-        if (isKeyRange())
+        try
         {
-            rows = multiRangeSlice(variables);
-        }
-        else
-        {
-            rows = getSlice(variables);
-        }
+            List<Row> rows;
+            if (isKeyRange())
+            {
+                rows = multiRangeSlice(variables);
+            }
+            else
+            {
+                rows = getSlice(variables);
+            }
 
-        // Even for count, we need to process the result as it'll group some column together in sparse column families
-        ResultSet rset = process(rows, variables);
-        rset = parameters.isCount ? rset.makeCountResult() : rset;
-        return rset;
+            // Even for count, we need to process the result as it'll group some column together in sparse column families
+            ResultSet rset = process(rows, variables);
+            rset = parameters.isCount ? rset.makeCountResult() : rset;
+            return rset;
+        }
+        catch (TimeoutException e)
+        {
+            throw new TimedOutException();
+        }
     }
 
     public ResultSet process(List<Row> rows) throws InvalidRequestException
@@ -149,40 +156,32 @@ public class SelectStatement implements CQLStatement
         return cfDef.cfm.cfName;
     }
 
-    private List<Row> getSlice(List<ByteBuffer> variables) throws InvalidRequestException, TimedOutException, UnavailableException
+    private List<Row> getSlice(List<ByteBuffer> variables) throws InvalidRequestException, TimeoutException, UnavailableException
     {
         QueryPath queryPath = new QueryPath(columnFamily());
         Collection<ByteBuffer> keys = getKeys(variables);
         List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
 
+        IFilter filter = makeFilter(variables);
         // ...a range (slice) of column names
         if (isColumnRange())
         {
-            ByteBuffer start = getColumnStart(variables);
-            ByteBuffer finish = getColumnEnd(variables);
-
-            SliceQueryFilter filter = new SliceQueryFilter(start, finish, isReversed, getLimit());
-            QueryProcessor.validateSliceFilter(cfDef.cfm, filter);
-
             // Note that we use the total limit for every key. This is
             // potentially inefficient, but then again, IN + LIMIT is not a
             // very sensible choice
             for (ByteBuffer key : keys)
             {
                 QueryProcessor.validateKey(key);
-                commands.add(new SliceFromReadCommand(keyspace(), key, queryPath, filter));
+                commands.add(new SliceFromReadCommand(keyspace(), key, queryPath, (SliceQueryFilter)filter));
             }
         }
         // ...of a list of column names
         else
         {
-            Collection<ByteBuffer> columnNames = getRequestedColumns(variables);
-            QueryProcessor.validateColumnNames(columnNames);
-
             for (ByteBuffer key: keys)
             {
                 QueryProcessor.validateKey(key);
-                commands.add(new SliceByNamesReadCommand(keyspace(), key, queryPath, columnNames));
+                commands.add(new SliceByNamesReadCommand(keyspace(), key, queryPath, (NamesQueryFilter)filter));
             }
         }
 
@@ -190,23 +189,16 @@ public class SelectStatement implements CQLStatement
         {
             return StorageProxy.read(commands, parameters.consistencyLevel);
         }
-        catch (TimeoutException e)
-        {
-            throw new TimedOutException();
-        }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
     }
 
-    private List<Row> multiRangeSlice(List<ByteBuffer> variables) throws InvalidRequestException, TimedOutException, UnavailableException
+    private List<Row> multiRangeSlice(List<ByteBuffer> variables) throws InvalidRequestException, TimeoutException, UnavailableException
     {
         List<Row> rows;
-
-        IFilter filter =  makeFilter(variables);
-        QueryProcessor.validateFilter(cfDef.cfm, filter);
-
+        IFilter filter = makeFilter(variables);
         List<IndexExpression> expressions = getIndexExpressions(variables);
 
         try
@@ -225,10 +217,6 @@ public class SelectStatement implements CQLStatement
         catch (IOException e)
         {
             throw new RuntimeException(e);
-        }
-        catch (TimeoutException e)
-        {
-            throw new TimedOutException();
         }
         return rows;
     }
@@ -282,14 +270,26 @@ public class SelectStatement implements CQLStatement
     {
         if (isColumnRange())
         {
-            return new SliceQueryFilter(getRequestedBound(isReversed ? Bound.END : Bound.START, variables),
-                                        getRequestedBound(isReversed ? Bound.START : Bound.END, variables),
-                                        isReversed,
-                                        -1); // We use this for range slices, where the count is ignored in favor of the global column count
+            // For sparse, we used to ask for 'defined columns' * 'asked limit' to account for the grouping of columns.
+            // Since that doesn't work for maps/sets/lists, we use the compositesToGroup option of SliceQueryFilter.
+            // But we must preserver backward compatibility too.
+            int multiplier = cfDef.isCompact ? 1 : cfDef.metadata.size();
+            int toGroup = cfDef.isCompact ? -1 : cfDef.columns.size();
+            ColumnSlice slice = new ColumnSlice(getRequestedBound(isReversed ? Bound.END : Bound.START, variables),
+                                                getRequestedBound(isReversed ? Bound.START : Bound.END, variables));
+            SliceQueryFilter filter = new SliceQueryFilter(new ColumnSlice[]{slice},
+                                                           isReversed,
+                                                           getLimit(),
+                                                           toGroup,
+                                                           multiplier);
+            QueryProcessor.validateSliceFilter(cfDef.cfm, filter);
+            return filter;
         }
         else
         {
-            return new NamesQueryFilter(getRequestedColumns(variables));
+            SortedSet<ByteBuffer> columnNames = getRequestedColumns(variables);
+            QueryProcessor.validateColumnNames(columnNames);
+            return new NamesQueryFilter(columnNames);
         }
     }
 
@@ -297,11 +297,7 @@ public class SelectStatement implements CQLStatement
     {
         // Internally, we don't support exclusive bounds for slices. Instead,
         // we query one more element if necessary and exclude
-        int limit = sliceRestriction != null && !sliceRestriction.isInclusive(Bound.START) ? parameters.limit + 1 : parameters.limit;
-        // For sparse, we'll end up merging all defined colums into the same CqlRow. Thus we should query up
-        // to 'defined columns' * 'asked limit' to be sure to have enough columns. We'll trim after query if
-        // this end being too much.
-        return cfDef.isCompact ? limit : cfDef.metadata.size() * limit;
+        return sliceRestriction != null && !sliceRestriction.isInclusive(Bound.START) ? parameters.limit + 1 : parameters.limit;
     }
 
     private boolean isKeyRange()
@@ -369,6 +365,10 @@ public class SelectStatement implements CQLStatement
         // Static CF never entails a column slice
         if (!cfDef.isCompact && !cfDef.isComposite)
             return false;
+
+        // However, collections always entails one
+        if (cfDef.hasCollections)
+            return true;
 
         // Otherwise, it is a range query if it has at least one the column alias
         // for which no relation is defined or is not EQ.
@@ -468,17 +468,7 @@ public class SelectStatement implements CQLStatement
             }
         }
         // Means no relation at all or everything was an equal
-        return builder.build();
-    }
-
-    public ByteBuffer getColumnStart(List<ByteBuffer> variables) throws InvalidRequestException
-    {
-        return getRequestedBound(isReversed ? Bound.END : Bound.START, variables);
-    }
-
-    public ByteBuffer getColumnEnd(List<ByteBuffer> variables) throws InvalidRequestException
-    {
-        return getRequestedBound(isReversed ? Bound.START : Bound.END, variables);
+        return (b == Bound.END) ? builder.buildAsEndOfRange() : builder.build();
     }
 
     private List<IndexExpression> getIndexExpressions(List<ByteBuffer> variables) throws InvalidRequestException
@@ -708,30 +698,14 @@ public class SelectStatement implements CQLStatement
             {
                 // Sparse case: group column in cqlRow when composite prefix is equal
                 CompositeType composite = (CompositeType)cfDef.cfm.comparator;
-                int last = composite.types.size() - 1;
 
-                ByteBuffer[] previous = null;
-                Map<ByteBuffer, IColumn> group = new HashMap<ByteBuffer, IColumn>();
+                ColumnGroupMap.Builder builder = new ColumnGroupMap.Builder(composite, cfDef.hasCollections);
+
                 for (IColumn c : row.cf)
-                {
-                    if (c.isMarkedForDelete())
-                        continue;
+                    builder.add(c);
 
-                    ByteBuffer[] current = composite.split(c.name());
-                    // If current differs from previous, we've just finished a group
-                    if (previous != null && !isSameRow(previous, current))
-                    {
-                        handleGroup(selection, row.key.key, previous, group, cqlRows);
-                        group = new HashMap<ByteBuffer, IColumn>();
-                    }
-
-                    // Accumulate the current column
-                    group.put(current[last], c);
-                    previous = current;
-                }
-                // Handle the last group
-                if (previous != null)
-                    handleGroup(selection, row.key.key, previous, group, cqlRows);
+                for (ColumnGroupMap group : builder.groups())
+                    handleGroup(selection, row.key.key, group, cqlRows);
             }
             else
             {
@@ -808,30 +782,7 @@ public class SelectStatement implements CQLStatement
         Collections.sort(cqlRows.rows, new CompositeComparator(startPosition, types));
     }
 
-
-    /**
-     * For sparse composite, returns wheter two columns belong to the same
-     * cqlRow base on the full list of component in the name.
-     * Two columns do belong together if they differ only by the last
-     * component.
-     */
-    private static boolean isSameRow(ByteBuffer[] c1, ByteBuffer[] c2)
-    {
-        // Cql don't allow to insert columns who doesn't have all component of
-        // the composite set for sparse composite. Someone coming from thrift
-        // could hit that though. But since we have no way to handle this
-        // correctly, better fail here and tell whomever may hit that (if
-        // someone ever do) to change the definition to a dense composite
-        assert c1.length == c2.length : "Sparse composite should not have partial column names";
-        for (int i = 0; i < c1.length - 1; i++)
-        {
-            if (!c1[i].equals(c2[i]))
-                return false;
-        }
-        return true;
-    }
-
-    private void handleGroup(List<Pair<CFDefinition.Name, Selector>> selection, ByteBuffer key, ByteBuffer[] components, Map<ByteBuffer, IColumn> columns, ResultSet cqlRows)
+    private void handleGroup(List<Pair<CFDefinition.Name, Selector>> selection, ByteBuffer key, ColumnGroupMap columns, ResultSet cqlRows)
     {
         // Respect requested order
         for (Pair<CFDefinition.Name, Selector> p : selection)
@@ -844,13 +795,18 @@ public class SelectStatement implements CQLStatement
                     cqlRows.addColumnValue(key);
                     break;
                 case COLUMN_ALIAS:
-                    cqlRows.addColumnValue(components[name.position]);
+                    cqlRows.addColumnValue(columns.getKeyComponent(name.position));
                     break;
                 case VALUE_ALIAS:
                     // This should not happen for SPARSE
                     throw new AssertionError();
                 case COLUMN_METADATA:
-                    IColumn c = columns.get(name.name.key);
+                    if (name.type instanceof CollectionType)
+                    {
+                         cqlRows.addColumnValue(((CollectionType)name.type).serializeForThrift(columns.getCollection(name.name.key)));
+                        break;
+                    }
+                    IColumn c = columns.getSimple(name.name.key);
                     addReturnValue(cqlRows, selector, c);
                     break;
                 default:

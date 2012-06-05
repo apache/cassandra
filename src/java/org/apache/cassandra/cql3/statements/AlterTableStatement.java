@@ -17,11 +17,14 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ColumnToCollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.service.MigrationManager;
@@ -37,11 +40,11 @@ public class AlterTableStatement extends SchemaAlteringStatement
     }
 
     public final Type oType;
-    public final String validator;
+    public final ParsedType validator;
     public final ColumnIdentifier columnName;
     private final CFPropDefs cfProps = new CFPropDefs();
 
-    public AlterTableStatement(CFName name, Type type, ColumnIdentifier columnName, String validator, Map<String, String> propertyMap)
+    public AlterTableStatement(CFName name, Type type, ColumnIdentifier columnName, ParsedType validator, Map<String, String> propertyMap)
     {
         super(name);
         this.oType = type;
@@ -73,8 +76,26 @@ public class AlterTableStatement extends SchemaAlteringStatement
                             throw new InvalidRequestException(String.format("Invalid column name %s because it conflicts with an existing column", columnName));
                     }
                 }
+
+                AbstractType<?> type = validator.getType();
+                if (type instanceof CollectionType)
+                {
+                    if (!cfDef.isComposite)
+                        throw new InvalidRequestException("Cannot use collection types with non-composite PRIMARY KEY");
+
+                    Map<ByteBuffer, CollectionType> collections = cfDef.hasCollections
+                                                                ? new HashMap<ByteBuffer, CollectionType>(cfDef.getCollectionType().defined)
+                                                                : new HashMap<ByteBuffer, CollectionType>();
+                    ColumnToCollectionType newColType = ColumnToCollectionType.getInstance(collections);
+                    List<AbstractType<?>> ctypes = new ArrayList<AbstractType<?>>(((CompositeType)cfm.comparator).types);
+                    if (cfDef.hasCollections)
+                        ctypes.set(ctypes.size() - 1, newColType);
+                    else
+                        ctypes.add(newColType);
+                    cfm.comparator = CompositeType.getInstance(ctypes);
+                }
                 cfm.addColumnDefinition(new ColumnDefinition(columnName.key,
-                                                             CFPropDefs.parseType(validator),
+                                                             validator.getType(),
                                                              null,
                                                              null,
                                                              null,
@@ -88,7 +109,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 switch (name.kind)
                 {
                     case KEY_ALIAS:
-                        AbstractType<?> newType = CFPropDefs.parseType(validator);
+                        AbstractType<?> newType = validator.getType();
                         if (newType instanceof CounterColumnType)
                             throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", columnName));
                         cfm.keyValidator(newType);
@@ -97,16 +118,16 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         assert cfDef.isComposite;
 
                         List<AbstractType<?>> newTypes = new ArrayList<AbstractType<?>>(((CompositeType) cfm.comparator).types);
-                        newTypes.set(name.position, CFPropDefs.parseType(validator));
+                        newTypes.set(name.position, validator.getType());
 
                         cfm.comparator = CompositeType.getInstance(newTypes);
                         break;
                     case VALUE_ALIAS:
-                        cfm.defaultValidator(CFPropDefs.parseType(validator));
+                        cfm.defaultValidator(validator.getType());
                         break;
                     case COLUMN_METADATA:
                         ColumnDefinition column = cfm.getColumnDefinition(columnName.key);
-                        column.setValidator(CFPropDefs.parseType(validator));
+                        column.setValidator(validator.getType());
                         cfm.addColumnDefinition(column);
                         break;
                 }

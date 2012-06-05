@@ -222,15 +222,15 @@ public class QueryProcessor
             CqlLexer lexer = new CqlLexer(stream);
             TokenStream tokenStream = new CommonTokenStream(lexer);
             CqlParser parser = new CqlParser(tokenStream);
-    
+
             // Parse the query string to a statement instance
             ParsedStatement statement = parser.query();
-    
+
             // The lexer and parser queue up any errors they may have encountered
             // along the way, if necessary, we turn them into exceptions here.
             lexer.throwLastRecognitionError();
             parser.throwLastRecognitionError();
-    
+
             return statement;
         }
         catch (RuntimeException re)

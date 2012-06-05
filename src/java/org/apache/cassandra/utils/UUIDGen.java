@@ -154,6 +154,25 @@ public class UUIDGen
         return createTimeUUIDBytes(instance.createTimeUnsafe(timeMillis));
     }
 
+    /**
+     * Converts a 100-nanoseconds precision timestamp into the 16 byte representation
+     * of a type 1 UUID (a time-based UUID).
+     *
+     * To specify a 100-nanoseconds precision timestamp, one should provide a milliseconds timestamp and
+     * a number 0 <= n < 10000 such that n*100 is the number of nanoseconds within that millisecond.
+     *
+     * <p><i><b>Warning:</b> This method is not guaranteed to return unique UUIDs; Multiple
+     * invocations using identical timestamps will result in identical UUIDs.</i></p>
+     *
+     * @return a type 1 UUID represented as a byte[]
+     */
+    public static byte[] getTimeUUIDBytes(long timeMillis, int nanos)
+    {
+        if (nanos >= 10000)
+            throw new IllegalArgumentException();
+        return createTimeUUIDBytes(instance.createTimeUnsafe(timeMillis, nanos));
+    }
+
     private static byte[] createTimeUUIDBytes(long msb)
     {
         long lsb = instance.getClockSeqAndNode(FBUtilities.getLocalAddress());
@@ -208,7 +227,12 @@ public class UUIDGen
 
     private long createTimeUnsafe(long when)
     {
-        long nanosSince = (when - START_EPOCH) * 10000;
+        return createTimeUnsafe(when, 0);
+    }
+
+    private long createTimeUnsafe(long when, int nanos)
+    {
+        long nanosSince = ((when - START_EPOCH) * 10000) + nanos;
         return createTime(nanosSince);
     }
 

@@ -101,6 +101,14 @@ public abstract class ExtendedFilter
         initialFilter().updateColumnsLimit(remaining);
     }
 
+    public int lastCounted(ColumnFamily data)
+    {
+        if (initialFilter() instanceof SliceQueryFilter)
+            return ((SliceQueryFilter)initialFilter()).lastCounted();
+        else
+            return data.getLiveColumnCount();
+    }
+
     /** The initial filter we'll do our first slice with (either the original or a superset of it) */
     public abstract IFilter initialFilter();
 

@@ -27,6 +27,7 @@ options {
     package org.apache.cassandra.cql3;
 
     import java.util.ArrayList;
+    import java.util.Arrays;
     import java.util.Collections;
     import java.util.HashMap;
     import java.util.LinkedHashMap;
@@ -34,6 +35,8 @@ options {
     import java.util.Map;
 
     import org.apache.cassandra.cql3.statements.*;
+    import org.apache.cassandra.config.ConfigurationException;
+    import org.apache.cassandra.db.marshal.CollectionType;
     import org.apache.cassandra.utils.Pair;
     import org.apache.cassandra.thrift.ConsistencyLevel;
     import org.apache.cassandra.thrift.InvalidRequestException;
@@ -190,8 +193,7 @@ selector returns [Selector s]
     ;
 
 selectCountClause returns [List<Selector> expr]
-    : ids=cidentList { $expr = new ArrayList<Selector>(ids); }
-    | '\*'           { $expr = Collections.<Selector>emptyList();}
+    : '\*'           { $expr = Collections.<Selector>emptyList();}
     | i=INTEGER      { if (!i.getText().equals("1")) addRecognitionError("Only COUNT(1) is supported, got COUNT(" + i.getText() + ")"); $expr = Collections.<Selector>emptyList();}
     ;
 
@@ -219,15 +221,15 @@ insertStatement returns [UpdateStatement expr]
     @init {
         Attributes attrs = new Attributes();
         List<ColumnIdentifier> columnNames  = new ArrayList<ColumnIdentifier>();
-        List<Term> columnValues = new ArrayList<Term>();
+        List<Value> columnValues = new ArrayList<Value>();
     }
     : K_INSERT K_INTO cf=columnFamilyName
           '(' c1=cident { columnNames.add(c1); }  ( ',' cn=cident { columnNames.add(cn); } )+ ')'
         K_VALUES
-          '(' v1=term { columnValues.add(v1); } ( ',' vn=term { columnValues.add(vn); } )+ ')'
+          '(' v1=value { columnValues.add(v1); } ( ',' vn=value { columnValues.add(vn); } )+ ')'
         ( usingClause[attrs] )?
       {
-          $expr = new UpdateStatement(cf, columnNames, columnValues, attrs);
+          $expr = new UpdateStatement(cf, attrs, columnNames, columnValues);
       }
     ;
 
@@ -258,7 +260,7 @@ usingClauseObjective[Attributes attrs]
 updateStatement returns [UpdateStatement expr]
     @init {
         Attributes attrs = new Attributes();
-        Map<ColumnIdentifier, Operation> columns = new HashMap<ColumnIdentifier, Operation>();
+        List<Pair<ColumnIdentifier, Operation>> columns = new ArrayList<Pair<ColumnIdentifier, Operation>>();
     }
     : K_UPDATE cf=columnFamilyName
       ( usingClause[attrs] )?
@@ -278,9 +280,9 @@ updateStatement returns [UpdateStatement expr]
 deleteStatement returns [DeleteStatement expr]
     @init {
         Attributes attrs = new Attributes();
-        List<ColumnIdentifier> columnsList = Collections.emptyList();
+        List<Selector> columnsList = Collections.emptyList();
     }
-    : K_DELETE ( ids=cidentList { columnsList = ids; } )?
+    : K_DELETE ( ids=deleteSelection { columnsList = ids; } )?
       K_FROM cf=columnFamilyName
       ( usingClauseDelete[attrs] )?
       K_WHERE wclause=whereClause
@@ -289,6 +291,14 @@ deleteStatement returns [DeleteStatement expr]
       }
     ;
 
+deleteSelection returns [List<Selector> expr]
+    : t1=deleteSelector { $expr = new ArrayList<Selector>(); $expr.add(t1); } (',' tN=deleteSelector { $expr.add(tN); })*
+    ;
+
+deleteSelector returns [Selector s]
+    : c=cident                { $s = c; }
+    | c=cident '[' t=term ']' { $s = new Selector.WithKey(c, t); }
+    ;
 
 /**
  * BEGIN BATCH [USING CONSISTENCY <LVL>]
@@ -461,12 +471,32 @@ cfOrKsName[CFName name, boolean isKs]
     | k=unreserved_keyword { if (isKs) $name.setKeyspace(k, false); else $name.setColumnFamily(k, false); }
     ;
 
-cidentList returns [List<ColumnIdentifier> items]
-    @init{ $items = new ArrayList<ColumnIdentifier>(); }
-    :  t1=cident { $items.add(t1); } (',' tN=cident { $items.add(tN); })*
+// Values (includes prepared statement markers)
+value returns [Value value]
+    : t=term               { $value = t; }
+    | c=collection_literal { $value = c; }
     ;
 
-// Values (includes prepared statement markers)
+collection_literal returns [Value value]
+    : ll=list_literal { $value = ll; }
+    | sl=set_literal  { $value = sl; }
+    | ml=map_literal  { $value = ml; }
+    ;
+
+list_literal returns [Value.ListLiteral value]
+    : '[' { Value.ListLiteral l = new Value.ListLiteral(); } ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']' { $value = l; }
+    ;
+
+set_literal returns [Value.SetLiteral value]
+    : '{' { Value.SetLiteral s = new Value.SetLiteral(); } ( t1=term { s.add(t1); } ( ',' tn=term { s.add(tn); } )* )? '}'  { $value = s; }
+    ;
+
+map_literal returns [Value.MapLiteral value]
+    // Note that we have an ambiguity between maps and set for "{}". So we force it to a set, and deal with it later based on the type of the column
+    : '{' { Value.MapLiteral m = new Value.MapLiteral(); } k1=term ':' v1=term { m.put(k1, v1); } ( ',' kn=term ':' vn=term { m.put(kn, vn); } )* '}'
+       { $value = m; }
+    ;
+
 extendedTerm returns [Term term]
     : K_TOKEN '(' t=term ')' { $term = Term.tokenOf(t); }
     | t=term                 { $term = t; }
@@ -482,19 +512,45 @@ intTerm returns [Term integer]
     | t=QMARK   { $integer = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
     ;
 
-termPairWithOperation[Map<ColumnIdentifier, Operation> columns]
+termPairWithOperation[List<Pair<ColumnIdentifier, Operation>> columns]
     : key=cident '='
-        ( value=term { columns.put(key, new Operation(value)); }
-        | c=cident ( '+'     v=intTerm { columns.put(key, new Operation(c, Operation.Type.PLUS, v)); }
-                   | op='-'? v=intTerm
-                     {
-                       validateMinusSupplied(op, v, input);
-                       if (op == null)
-                           v = new Term(-(Long.valueOf(v.getText())), v.getType());
-                       columns.put(key, new Operation(c, Operation.Type.MINUS, v));
-                     }
-                    )
+        ( v=value { columns.add(Pair.<ColumnIdentifier, Operation>create(key, new Operation.Set(v))); }
+        | c=cident op=operation
+          {
+              if (!key.equals(c))
+                  addRecognitionError("Only expressions like X = X <op> <value> are supported.");
+              columns.add(Pair.<ColumnIdentifier, Operation>create(key, op));
+          }
+        | ll=list_literal '+' c=cident
+          {
+              if (!key.equals(c))
+                  addRecognitionError("Only expressions like X = <value> + X are supported.");
+              columns.add(Pair.<ColumnIdentifier, Operation>create(key, new Operation.Function(CollectionType.Function.PREPEND, ll)));
+          }
         )
+    | key=cident '[' t=term ']' '=' vv=term
+      {
+          List<Term> args = Arrays.asList(t, vv);
+          columns.add(Pair.<ColumnIdentifier, Operation>create(key, new Operation.Function(CollectionType.Function.SET, args)));
+      }
+    ;
+
+operation returns [Operation op]
+    : '+' v=intTerm { $op = new Operation.Counter(v, false); }
+    | sign='-'? v=intTerm
+      {
+          validateMinusSupplied(sign, v, input);
+          if (sign == null)
+              v = new Term(-(Long.valueOf(v.getText())), v.getType());
+          $op = new Operation.Counter(v, true);
+      }
+    | '+' ll=list_literal { $op = new Operation.Function(CollectionType.Function.APPEND, ll); }
+    | '-' ll=list_literal { $op = new Operation.Function(CollectionType.Function.DISCARD_LIST, ll); }
+
+    | '+' sl=set_literal { $op = new Operation.Function(CollectionType.Function.ADD, sl.asList()); }
+    | '-' sl=set_literal { $op = new Operation.Function(CollectionType.Function.DISCARD_SET, sl.asList()); }
+
+    | '+' ml=map_literal { $op = new Operation.Function(CollectionType.Function.SET, ml.asList()); }
     ;
 
 property returns [String str]
@@ -519,29 +575,45 @@ relation returns [Relation rel]
       '(' f1=term { $rel.addInValue(f1); } (',' fN=term { $rel.addInValue(fN); } )* ')'
     ;
 
-comparatorType returns [String str]
-    : c=native_type    { $str=c; }
-    | s=STRING_LITERAL { $str = $s.text; }
+comparatorType returns [ParsedType t]
+    : c=native_type     { $t = c; }
+    | c=collection_type { $t = c; }
+    | s=STRING_LITERAL
+      {
+        try {
+            $t = new ParsedType.Custom($s.text);
+        } catch (ConfigurationException e) {
+            addRecognitionError("Cannot parse type " + $s.text + ": " + e.getMessage());
+        }
+      }
     ;
 
-native_type returns [String str]
-    : c=( K_ASCII
-        | K_BIGINT
-        | K_BLOB
-        | K_BOOLEAN
-        | K_COUNTER
-        | K_DECIMAL
-        | K_DOUBLE
-        | K_FLOAT
-        | K_INET
-        | K_INT
-        | K_TEXT
-        | K_TIMESTAMP
-        | K_UUID
-        | K_VARCHAR
-        | K_VARINT
-        | K_TIMEUUID
-      ) { return $c.text; }
+native_type returns [ParsedType t]
+    : K_ASCII     { $t = ParsedType.Native.ASCII; }
+    | K_BIGINT    { $t = ParsedType.Native.BIGINT; }
+    | K_BLOB      { $t = ParsedType.Native.BLOB; }
+    | K_BOOLEAN   { $t = ParsedType.Native.BOOLEAN; }
+    | K_COUNTER   { $t = ParsedType.Native.COUNTER; }
+    | K_DECIMAL   { $t = ParsedType.Native.DECIMAL; }
+    | K_DOUBLE    { $t = ParsedType.Native.DOUBLE; }
+    | K_FLOAT     { $t = ParsedType.Native.FLOAT; }
+    | K_INET      { $t = ParsedType.Native.INET;}
+    | K_INT       { $t = ParsedType.Native.INT; }
+    | K_TEXT      { $t = ParsedType.Native.TEXT; }
+    | K_TIMESTAMP { $t = ParsedType.Native.TIMESTAMP; }
+    | K_UUID      { $t = ParsedType.Native.UUID; }
+    | K_VARCHAR   { $t = ParsedType.Native.VARCHAR; }
+    | K_VARINT    { $t = ParsedType.Native.VARINT; }
+    | K_TIMEUUID  { $t = ParsedType.Native.TIMEUUID; }
+    ;
+
+collection_type returns [ParsedType pt]
+    : K_MAP  '<' t1=comparatorType ',' t2=comparatorType '>'
+        { try { $pt = ParsedType.Collection.map(t1, t2); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+    | K_LIST '<' t=comparatorType '>'
+        { try { $pt = ParsedType.Collection.list(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+    | K_SET  '<' t=comparatorType '>'
+        { try { $pt = ParsedType.Collection.set(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
     ;
 
 unreserved_keyword returns [String str]
@@ -556,8 +628,10 @@ unreserved_keyword returns [String str]
         | K_TYPE
         | K_VALUES
         | K_WRITETIME
+        | K_MAP
+        | K_LIST
         ) { $str = $k.text; }
-    | t=native_type { $str = t; }
+    | t=native_type { $str = t.toString(); }
     ;
 
 
@@ -633,6 +707,9 @@ K_VARINT:      V A R I N T;
 K_TIMEUUID:    T I M E U U I D;
 K_TOKEN:       T O K E N;
 K_WRITETIME:   W R I T E T I M E;
+
+K_MAP:         M A P;
+K_LIST:        L I S T;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

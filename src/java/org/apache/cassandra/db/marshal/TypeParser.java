@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -29,6 +30,8 @@ import java.util.Map;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.cql3.CFPropDefs;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -48,6 +51,11 @@ public class TypeParser
     {
         this.str = str;
         this.idx = idx;
+    }
+
+    public TypeParser(String str)
+    {
+        this(str, 0);
     }
 
     /**
@@ -99,7 +107,7 @@ public class TypeParser
     /**
      * Parse an AbstractType from current position of this parser.
      */
-    private AbstractType<?> parse() throws ConfigurationException
+    public AbstractType<?> parse() throws ConfigurationException
     {
         skipBlank();
         String name = readNextIdentifier();
@@ -220,6 +228,60 @@ public class TypeParser
             try
             {
                 map.put((byte)aliasChar, parse());
+            }
+            catch (ConfigurationException e)
+            {
+                ConfigurationException ex = new ConfigurationException(String.format("Exception while parsing '%s' around char %d", str, idx));
+                ex.initCause(e);
+                throw ex;
+            }
+        }
+        throw new ConfigurationException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
+    }
+
+    public Map<ByteBuffer, CollectionType> getCollectionsParameters() throws ConfigurationException
+    {
+        Map<ByteBuffer, CollectionType> map = new HashMap<ByteBuffer, CollectionType>();
+
+        if (isEOS())
+            return map;
+
+        if (str.charAt(idx) != '(')
+            throw new IllegalStateException();
+
+        ++idx; // skipping '('
+
+        while (skipBlankAndComma())
+        {
+            if (str.charAt(idx) == ')')
+            {
+                ++idx;
+                return map;
+            }
+
+            String bbHex = readNextIdentifier();
+            ByteBuffer bb = null;
+            try
+            {
+                 bb = ByteBufferUtil.hexToBytes(bbHex);
+            }
+            catch (NumberFormatException e)
+            {
+                throwSyntaxError(e.getMessage());
+            }
+
+            skipBlank();
+            if (str.charAt(idx) != ':')
+                throwSyntaxError("expecting ':' token");
+
+            ++idx;
+            skipBlank();
+            try
+            {
+                AbstractType<?> type = parse();
+                if (!(type instanceof CollectionType))
+                    throw new ConfigurationException(type.toString() + " is not a collection type");
+                map.put(bb, (CollectionType)type);
             }
             catch (ConfigurationException e)
             {
@@ -388,13 +450,19 @@ public class TypeParser
     }
 
     // left idx positioned on the character stopping the read
-    private String readNextIdentifier()
+    public String readNextIdentifier()
     {
         int i = idx;
         while (!isEOS() && isIdentifierChar(str.charAt(idx)))
             ++idx;
 
         return str.substring(i, idx);
+    }
+
+    public char readNextChar()
+    {
+        skipBlank();
+        return str.charAt(idx++);
     }
 
     /**
@@ -426,6 +494,25 @@ public class TypeParser
     {
         StringBuilder sb = new StringBuilder();
         sb.append('(').append(StringUtils.join(types, ",")).append(')');
+        return sb.toString();
+    }
+
+    public static String stringifyCollectionsParameters(Map<ByteBuffer, CollectionType> collections)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append('(');
+        boolean first = true;
+        for (Map.Entry<ByteBuffer, CollectionType> entry : collections.entrySet())
+        {
+            if (first)
+            {
+                sb.append(',');
+                first = false;
+            }
+            sb.append(ByteBufferUtil.bytesToHex(entry.getKey())).append(":");
+            entry.getValue().appendToStringBuilder(sb);
+        }
+        sb.append(')');
         return sb.toString();
     }
 }
