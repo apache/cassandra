@@ -248,7 +248,22 @@ public class CompactionManager implements CompactionManagerMBean
         {
             public void perform(ColumnFamilyStore store, Collection<SSTableReader> sstables) throws IOException
             {
-                doCleanupCompaction(store, sstables, renewer);
+                // Sort the column families in order of SSTable size, so cleanup of smaller CFs
+                // can free up space for larger ones
+                List<SSTableReader> sortedSSTables = new ArrayList<SSTableReader>(sstables);
+                Collections.sort(sortedSSTables, new Comparator<SSTableReader>()
+                {
+                    public int compare(SSTableReader o1, SSTableReader o2)
+                    {
+                        return o1.onDiskLength() < o2.onDiskLength()
+                               ? -1
+                               : o1.onDiskLength() > o2.onDiskLength()
+                                 ? 1
+                                 : 0;
+                    }
+                });
+
+                doCleanupCompaction(store, sortedSSTables, renewer);
             }
         });
     }
