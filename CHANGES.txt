@@ -1,5 +1,7 @@
 1.1.2
  * enforce 1m min keycache for auto (CASSANDRA-4306)
+ * Have DeletedColumn.isMFD always return true (CASSANDRA-4307)
+
 
 1.1.1
  * add getsstables command to nodetool (CASSANDRA-4199)
