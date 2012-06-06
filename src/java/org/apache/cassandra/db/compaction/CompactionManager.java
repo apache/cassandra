@@ -54,6 +54,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
+import com.google.common.primitives.Longs;
 
 /**
  * A singleton which manages a private executor of ongoing compactions. A readwrite lock
@@ -255,11 +256,7 @@ public class CompactionManager implements CompactionManagerMBean
                 {
                     public int compare(SSTableReader o1, SSTableReader o2)
                     {
-                        return o1.onDiskLength() < o2.onDiskLength()
-                               ? -1
-                               : o1.onDiskLength() > o2.onDiskLength()
-                                 ? 1
-                                 : 0;
+                        return Longs.compare(o1.onDiskLength(), o2.onDiskLength());
                     }
                 });
 
