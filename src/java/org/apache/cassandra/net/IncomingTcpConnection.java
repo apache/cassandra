@@ -26,6 +26,7 @@ import java.net.Socket;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xerial.snappy.SnappyInputStream;
 
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
@@ -53,17 +54,15 @@ public class IncomingTcpConnection extends Thread
     @Override
     public void run()
     {
-        DataInputStream input;
-        boolean isStream;
-        int version;
         try
         {
             // determine the connection type to decide whether to buffer
-            input = new DataInputStream(socket.getInputStream());
+            DataInputStream input = new DataInputStream(socket.getInputStream());
             MessagingService.validateMagic(input.readInt());
             int header = input.readInt();
-            isStream = MessagingService.getBits(header, 3, 1) == 1;
-            version = MessagingService.getBits(header, 15, 8);
+            boolean compressed = MessagingService.getBits(header, 2, 1) == 1;
+            boolean isStream = MessagingService.getBits(header, 3, 1) == 1;
+            int version = MessagingService.getBits(header, 15, 8);
             if (isStream)
             {
                 if (version == MessagingService.current_version)
@@ -97,7 +96,11 @@ public class IncomingTcpConnection extends Thread
             }
             Gossiper.instance.setVersion(from, version);
             logger.debug("set version for {} to {}", from, version);
-
+            if (compressed)
+            {
+                logger.debug("Upgrading incoming connection to be compressed");
+                input = new DataInputStream(new SnappyInputStream(input));
+            }
             // loop to get the next message.
             while (true)
             {

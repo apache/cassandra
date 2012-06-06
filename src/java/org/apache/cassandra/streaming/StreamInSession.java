@@ -171,7 +171,7 @@ public class StreamInSession extends AbstractStreamSession
         OutboundTcpConnection.write(message,
                                     String.valueOf(getSessionId()),
                                     out,
-                                    Gossiper.instance.getVersion(getHost()));
+                                    Gossiper.instance.getVersion(getHost()), false);
         out.flush();
     }
 
@@ -222,7 +222,7 @@ public class StreamInSession extends AbstractStreamSession
                     OutboundTcpConnection.write(reply.createMessage(),
                                                 context.right.toString(),
                                                 new DataOutputStream(socket.getOutputStream()),
-                                                Gossiper.instance.getVersion(getHost()));
+                                                Gossiper.instance.getVersion(getHost()), false);
                 else
                     logger.debug("No socket to reply to {} with!", getHost());
             }

@@ -553,3 +553,10 @@ encryption_options:
     # algorithm: SunX509
     # store_type: JKS
     # cipher_suites: [TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA]
+
+# internode_compression controls whether traffic between nodes is
+# compressed.
+# can be:  all  - all traffic is compressed
+#          dc   - traffic between different datacenters is compressed
+#          none - nothing is compressed.
+internode_compression: all

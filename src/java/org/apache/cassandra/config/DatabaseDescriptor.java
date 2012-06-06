@@ -1059,4 +1059,9 @@ public class DatabaseDescriptor
     {
         return conf.populate_io_cache_on_flush;
     }
+
+    public static Config.InternodeCompression internodeCompression()
+    {
+        return conf.internode_compression;
+    }
 }

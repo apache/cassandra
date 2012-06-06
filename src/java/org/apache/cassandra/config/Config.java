@@ -112,6 +112,8 @@ public class Config
 
     public EncryptionOptions encryption_options = new EncryptionOptions();
 
+    public InternodeCompression internode_compression = InternodeCompression.none;
+
     public Integer index_interval = 128;
 
     public Double flush_largest_memtables_at = 1.0;
@@ -158,12 +160,19 @@ public class Config
         loadYaml = value;
     }
 
-    public static enum CommitLogSync {
+    public static enum CommitLogSync
+    {
         periodic,
         batch
     }
 
-    public static enum DiskAccessMode {
+    public static enum InternodeCompression
+    {
+        all, none, dc
+    }
+
+    public static enum DiskAccessMode
+    {
         auto,
         mmap,
         mmap_index_only,

@@ -20,6 +20,7 @@ package org.apache.cassandra.net;
 import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -27,10 +28,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xerial.snappy.SnappyOutputStream;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class OutboundTcpConnection extends Thread
 {
@@ -51,11 +53,21 @@ public class OutboundTcpConnection extends Thread
     private Socket socket;
     private volatile long completed;
     private final AtomicLong dropped = new AtomicLong();
+    private boolean isUpgraded = false;
+    private boolean writeToLocalDC;
 
     public OutboundTcpConnection(OutboundTcpConnectionPool pool)
     {
         super("WRITE-" + pool.endPoint());
+        this.writeToLocalDC = isSameDC(pool.endPoint());
         this.poolReference = pool;
+    }
+
+    private static boolean isSameDC(InetAddress targetHost)
+    {
+        String remoteDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(targetHost);
+        String thisDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(DatabaseDescriptor.getRpcAddress());
+        return remoteDC.equals(thisDC);
     }
 
     public void enqueue(MessageOut<?> message, String id)
@@ -137,6 +149,15 @@ public class OutboundTcpConnection extends Thread
         return dropped.get();
     }
 
+    private boolean shouldUpgradeConnection()
+    {
+        if(Gossiper.instance.getVersion(poolReference.endPoint()) >= MessagingService.current_version &&
+                (DatabaseDescriptor.internodeCompression() == Config.InternodeCompression.all ||
+                (DatabaseDescriptor.internodeCompression() == Config.InternodeCompression.dc && !writeToLocalDC)))
+            return true;
+        return false;
+    }
+
     private void writeConnected(MessageOut<?> message, String id)
     {
         try
@@ -146,6 +167,13 @@ public class OutboundTcpConnection extends Thread
             if (active.peek() == null)
             {
                 out.flush();
+            }
+            if(!isUpgraded && shouldUpgradeConnection())
+            {
+                out.flush();
+                logger.debug("Upgrading OutputStream to be compressed");
+                out = new DataOutputStream(new SnappyOutputStream(new BufferedOutputStream(socket.getOutputStream())));
+                isUpgraded = true;
             }
         }
         catch (Exception e)
@@ -161,10 +189,10 @@ public class OutboundTcpConnection extends Thread
 
     public void write(MessageOut<?> message, String id, DataOutputStream out) throws IOException
     {
-        write(message, id, out, Gossiper.instance.getVersion(poolReference.endPoint()));
+        write(message, id, out, Gossiper.instance.getVersion(poolReference.endPoint()), shouldUpgradeConnection());
     }
 
-    public static void write(MessageOut message, String id, DataOutputStream out, int version) throws IOException
+    public static void write(MessageOut message, String id, DataOutputStream out, int version, boolean compressionEnabled) throws IOException
     {
         /*
          Setting up the protocol header. This is 4 bytes long
@@ -180,7 +208,7 @@ public class OutboundTcpConnection extends Thread
         // Setting up the serializer bit
         header |= MessagingService.serializerType.ordinal();
         // set compression bit.
-        if (false)
+        if (compressionEnabled)
             header |= 4;
         // Setting up the version bit
         header |= (version << 8);
@@ -216,6 +244,7 @@ public class OutboundTcpConnection extends Thread
 
     private boolean connect()
     {
+        isUpgraded = false;
         if (logger.isDebugEnabled())
             logger.debug("attempting to connect to " + poolReference.endPoint());
         long start = System.currentTimeMillis();
@@ -244,6 +273,9 @@ public class OutboundTcpConnection extends Thread
                 }
             }
         }
+        // nodes can change dc during the lifetime of this OutboundTcpConnection, but we cannot upgrade a
+        // connection mid-flight, so it is safe to set here and dont change until the next connect()
+        this.writeToLocalDC = isSameDC(poolReference.endPoint());
         return false;
     }
 

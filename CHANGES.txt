@@ -1,4 +1,5 @@
 1.2-dev
+ * add inter-node message compression (CASSANDRA-3127)
  * enforce 1m min keycache for auto (CASSANDRA-4306)
  * remove COPP (CASSANDRA-2479)
  * Track tombstone expiration and compact when tombstone content is
