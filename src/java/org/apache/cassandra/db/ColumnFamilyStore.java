@@ -224,7 +224,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data = new DataTracker(this);
         Directories.SSTableLister sstables = directories.sstableLister().skipCompacted(true).skipTemporary(true);
         data.addInitialSSTables(SSTableReader.batchOpen(sstables.list().entrySet(), data, metadata, this.partitioner));
-        if (caching != Caching.NONE || caching != Caching.ROWS_ONLY)
+        if (caching == Caching.ALL || caching == Caching.KEYS_ONLY)
             CacheService.instance.keyCache.loadSaved(this);
 
         // compaction strategy should be created after the CFS has been prepared
