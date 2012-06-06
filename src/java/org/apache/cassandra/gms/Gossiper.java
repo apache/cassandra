@@ -200,10 +200,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         subscribers.remove(subscriber);
     }
 
-    public void setVersion(InetAddress address, int version)
+    public Integer setVersion(InetAddress address, int version)
     {
         logger.debug("Setting version {} for {}", version, address);
-        versions.put(address, version);
+        return versions.put(address, version);
     }
 
     public void resetVersion(InetAddress endpoint)

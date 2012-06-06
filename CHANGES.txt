@@ -1,4 +1,6 @@
 1.2-dev
+ * update MS protocol with a version handshake + broadcast address id
+   (CASSANDRA-4311)
  * multithreaded hint replay (CASSANDRA-4189)
  * add inter-node message compression (CASSANDRA-3127)
  * enforce 1m min keycache for auto (CASSANDRA-4306)

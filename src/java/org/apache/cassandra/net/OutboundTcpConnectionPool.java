@@ -61,10 +61,19 @@ public class OutboundTcpConnectionPool
                : cmdCon;
     }
 
-    synchronized void reset()
+    void reset()
     {
-        for (OutboundTcpConnection con : new OutboundTcpConnection[] { cmdCon, ackCon })
-            con.closeSocket();
+        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { cmdCon, ackCon })
+            conn.closeSocket();
+    }
+
+    public void resetToNewerVersion(int version)
+    {
+        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { cmdCon, ackCon })
+        {
+            if (version > conn.getTargetVersion())
+                conn.softCloseSocket();
+        }
     }
 
     /**
@@ -75,8 +84,8 @@ public class OutboundTcpConnectionPool
     public void reset(InetAddress remoteEP)
     {
         resetedEndpoint = remoteEP;
-        for (OutboundTcpConnection con : new OutboundTcpConnection[] { cmdCon, ackCon })
-            con.softCloseSocket();
+        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { cmdCon, ackCon })
+            conn.softCloseSocket();
     }
 
     public Socket newSocket() throws IOException

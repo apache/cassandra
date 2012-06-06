@@ -18,6 +18,7 @@
 package org.apache.cassandra.net;
 
 import java.io.BufferedOutputStream;
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -28,6 +29,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.FBUtilities;
 import org.xerial.snappy.SnappyOutputStream;
 
 import org.apache.cassandra.config.Config;
@@ -53,21 +57,19 @@ public class OutboundTcpConnection extends Thread
     private Socket socket;
     private volatile long completed;
     private final AtomicLong dropped = new AtomicLong();
-    private boolean isUpgraded = false;
-    private boolean writeToLocalDC;
+    private int targetVersion;
 
     public OutboundTcpConnection(OutboundTcpConnectionPool pool)
     {
         super("WRITE-" + pool.endPoint());
-        this.writeToLocalDC = isSameDC(pool.endPoint());
         this.poolReference = pool;
     }
 
-    private static boolean isSameDC(InetAddress targetHost)
+    private static boolean isLocalDC(InetAddress targetHost)
     {
         String remoteDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(targetHost);
-        String thisDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(DatabaseDescriptor.getRpcAddress());
-        return remoteDC.equals(thisDC);
+        String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(DatabaseDescriptor.getRpcAddress());
+        return remoteDC.equals(localDC);
     }
 
     public void enqueue(MessageOut<?> message, String id)
@@ -93,6 +95,11 @@ public class OutboundTcpConnection extends Thread
     void softCloseSocket()
     {
         enqueue(CLOSE_SENTINEL, null);
+    }
+
+    public int getTargetVersion()
+    {
+        return targetVersion;
     }
 
     public void run()
@@ -149,13 +156,11 @@ public class OutboundTcpConnection extends Thread
         return dropped.get();
     }
 
-    private boolean shouldUpgradeConnection()
+    private boolean shouldCompressConnection()
     {
-        if(Gossiper.instance.getVersion(poolReference.endPoint()) >= MessagingService.current_version &&
-                (DatabaseDescriptor.internodeCompression() == Config.InternodeCompression.all ||
-                (DatabaseDescriptor.internodeCompression() == Config.InternodeCompression.dc && !writeToLocalDC)))
-            return true;
-        return false;
+        // assumes version >= 1.2
+        return DatabaseDescriptor.internodeCompression() == Config.InternodeCompression.all
+               || (DatabaseDescriptor.internodeCompression() == Config.InternodeCompression.dc && !isLocalDC(poolReference.endPoint()));
     }
 
     private void writeConnected(MessageOut<?> message, String id)
@@ -167,13 +172,6 @@ public class OutboundTcpConnection extends Thread
             if (active.peek() == null)
             {
                 out.flush();
-            }
-            if(!isUpgraded && shouldUpgradeConnection())
-            {
-                out.flush();
-                logger.debug("Upgrading OutputStream to be compressed");
-                out = new DataOutputStream(new SnappyOutputStream(new BufferedOutputStream(socket.getOutputStream())));
-                isUpgraded = true;
             }
         }
         catch (Exception e)
@@ -189,39 +187,35 @@ public class OutboundTcpConnection extends Thread
 
     public void write(MessageOut<?> message, String id, DataOutputStream out) throws IOException
     {
-        write(message, id, out, Gossiper.instance.getVersion(poolReference.endPoint()), shouldUpgradeConnection());
+        write(message, id, out, targetVersion);
     }
 
-    public static void write(MessageOut message, String id, DataOutputStream out, int version, boolean compressionEnabled) throws IOException
+    public static void write(MessageOut message, String id, DataOutputStream out, int version) throws IOException
     {
-        /*
-         Setting up the protocol header. This is 4 bytes long
-         represented as an integer. The first 2 bits indicate
-         the serializer type. The 3rd bit indicates if compression
-         is turned on or off. It is turned off by default. The 4th
-         bit indicates if we are in streaming mode. It is turned off
-         by default. The 5th-8th bits are reserved for future use.
-         The next 8 bits indicate a version number. Remaining 15 bits
-         are not used currently.
-        */
-        int header = 0;
-        // Setting up the serializer bit
-        header |= MessagingService.serializerType.ordinal();
-        // set compression bit.
-        if (compressionEnabled)
-            header |= 4;
-        // Setting up the version bit
-        header |= (version << 8);
-
         out.writeInt(MessagingService.PROTOCOL_MAGIC);
-        out.writeInt(header);
-
+        if (version < MessagingService.VERSION_12)
+            writeHeader(out, version, false);
         // 0.8 included a total message size int.  1.0 doesn't need it but expects it to be there.
-        if (version <= MessagingService.VERSION_11)
+        if (version <  MessagingService.VERSION_12)
             out.writeInt(-1);
 
         out.writeUTF(id);
         message.serialize(out, version);
+    }
+
+    private static void writeHeader(DataOutputStream out, int version, boolean compressionEnabled) throws IOException
+    {
+        // 2 bits: unused.  used to be "serializer type," which was always Binary
+        // 1 bit: compression
+        // 1 bit: streaming mode
+        // 3 bits: unused
+        // 8 bits: version
+        // 15 bits: unused
+        int header = 0;
+        if (compressionEnabled)
+            header |= 4;
+        header |= (version << 8);
+        out.writeInt(header);
     }
 
     private void disconnect()
@@ -244,9 +238,11 @@ public class OutboundTcpConnection extends Thread
 
     private boolean connect()
     {
-        isUpgraded = false;
         if (logger.isDebugEnabled())
             logger.debug("attempting to connect to " + poolReference.endPoint());
+
+        targetVersion = Gossiper.instance.getVersion(poolReference.endPoint());
+
         long start = System.currentTimeMillis();
         while (System.currentTimeMillis() < start + DatabaseDescriptor.getRpcTimeout())
         {
@@ -256,6 +252,41 @@ public class OutboundTcpConnection extends Thread
                 socket.setKeepAlive(true);
                 socket.setTcpNoDelay(true);
                 out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 4096));
+
+                if (targetVersion >= MessagingService.VERSION_12)
+                {
+                    out.writeInt(MessagingService.PROTOCOL_MAGIC);
+                    writeHeader(out, targetVersion, shouldCompressConnection());
+                    out.flush();
+
+                    DataInputStream in = new DataInputStream(socket.getInputStream());
+                    int maxTargetVersion = in.readInt();
+                    if (targetVersion > maxTargetVersion)
+                    {
+                        logger.debug("Target max version is {}; will reconnect with that version", maxTargetVersion);
+                        Gossiper.instance.setVersion(poolReference.endPoint(), maxTargetVersion);
+                        disconnect();
+                        return false;
+                    }
+
+                    if (targetVersion < maxTargetVersion && targetVersion < MessagingService.current_version)
+                    {
+                        logger.debug("Detected higher max version {} (using {}); will reconnect when queued messages are done",
+                                     maxTargetVersion, targetVersion);
+                        Gossiper.instance.setVersion(poolReference.endPoint(), Math.min(MessagingService.current_version, maxTargetVersion));
+                        softCloseSocket();
+                    }
+
+                    out.writeInt(MessagingService.current_version);
+                    CompactEndpointSerializationHelper.serialize(FBUtilities.getBroadcastAddress(), out);
+                    if (shouldCompressConnection())
+                    {
+                        out.flush();
+                        logger.debug("Upgrading OutputStream to be compressed");
+                        out = new DataOutputStream(new SnappyOutputStream(new BufferedOutputStream(socket.getOutputStream())));
+                    }
+                }
+
                 return true;
             }
             catch (IOException e)
@@ -273,9 +304,6 @@ public class OutboundTcpConnection extends Thread
                 }
             }
         }
-        // nodes can change dc during the lifetime of this OutboundTcpConnection, but we cannot upgrade a
-        // connection mid-flight, so it is safe to set here and dont change until the next connect()
-        this.writeToLocalDC = isSameDC(poolReference.endPoint());
         return false;
     }
 

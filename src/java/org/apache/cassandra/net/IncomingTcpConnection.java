@@ -17,15 +17,13 @@
  */
 package org.apache.cassandra.net;
 
-import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.EOFException;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.xerial.snappy.SnappyInputStream;
 
 import org.apache.cassandra.gms.Gossiper;
@@ -57,61 +55,19 @@ public class IncomingTcpConnection extends Thread
         try
         {
             // determine the connection type to decide whether to buffer
-            DataInputStream input = new DataInputStream(socket.getInputStream());
-            MessagingService.validateMagic(input.readInt());
-            int header = input.readInt();
-            boolean compressed = MessagingService.getBits(header, 2, 1) == 1;
+            DataInputStream in = new DataInputStream(socket.getInputStream());
+            MessagingService.validateMagic(in.readInt());
+            int header = in.readInt();
             boolean isStream = MessagingService.getBits(header, 3, 1) == 1;
             int version = MessagingService.getBits(header, 15, 8);
-            if (isStream)
-            {
-                if (version == MessagingService.current_version)
-                {
-                    int size = input.readInt();
-                    byte[] headerBytes = new byte[size];
-                    input.readFully(headerBytes);
-                    stream(StreamHeader.serializer.deserialize(new DataInputStream(new FastByteArrayInputStream(headerBytes)), version), input);
-                }
-                else
-                {
-                    // streaming connections are per-session and have a fixed version.  we can't do anything with a wrong-version stream connection, so drop it.
-                    logger.error("Received stream using protocol version {} (my version {}). Terminating connection",
-                                 version, MessagingService.current_version);
-                }
-                // We are done with this connection....
-                return;
-            }
+            logger.debug("Connection version {} from {}", version, socket.getInetAddress());
 
-            // we should buffer
-            input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
-            // Receive the first message to set the version.
-            from = receiveMessage(input, version); // why? see => CASSANDRA-4099
-            logger.debug("Version for {} is {}", from, version);
-            if (version > MessagingService.current_version)
-            {
-                // save the endpoint so gossip will reconnect to it
-                Gossiper.instance.addSavedEndpoint(from);
-                logger.info("Received " + (isStream ? "streaming " : "") + "connection from newer protocol version. Ignoring");
-                return;
-            }
-            Gossiper.instance.setVersion(from, version);
-            logger.debug("set version for {} to {}", from, version);
-            if (compressed)
-            {
-                logger.debug("Upgrading incoming connection to be compressed");
-                input = new DataInputStream(new SnappyInputStream(input));
-            }
-            // loop to get the next message.
-            while (true)
-            {
-                // prepare to read the next message
-                MessagingService.validateMagic(input.readInt());
-                header = input.readInt();
-                assert isStream == (MessagingService.getBits(header, 3, 1) == 1) : "Connections cannot change type: " + isStream;
-                version = MessagingService.getBits(header, 15, 8);
-                logger.trace("Version is now {}", version);
-                receiveMessage(input, version);
-            }
+            if (isStream)
+                handleStream(in, version);
+            else if (version < MessagingService.VERSION_12)
+                handleLegacyVersion(version);
+            else
+                handleModernVersion(version, header);
         }
         catch (EOFException e)
         {
@@ -125,6 +81,95 @@ public class IncomingTcpConnection extends Thread
         finally
         {
             close();
+        }
+    }
+
+    private void handleModernVersion(int version, int header) throws IOException
+    {
+        DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+        out.writeInt(MessagingService.current_version);
+        out.flush();
+
+        DataInputStream in = new DataInputStream(socket.getInputStream());
+        int maxVersion = in.readInt();
+        from = CompactEndpointSerializationHelper.deserialize(in);
+        boolean compressed = MessagingService.getBits(header, 2, 1) == 1;
+
+        if (compressed)
+        {
+            logger.debug("Upgrading incoming connection to be compressed");
+            in = new DataInputStream(new SnappyInputStream(socket.getInputStream()));
+        }
+        else
+        {
+            in = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
+        }
+
+        logger.debug("Max version for {} is {}", from, maxVersion);
+        if (version > MessagingService.current_version)
+        {
+            // save the endpoint so gossip will reconnect to it
+            Gossiper.instance.addSavedEndpoint(from);
+            logger.info("Received messages from newer protocol version {}. Ignoring", version);
+            return;
+        }
+        Gossiper.instance.setVersion(from, Math.min(MessagingService.current_version, maxVersion));
+        logger.debug("set version for {} to {}", from, Math.min(MessagingService.current_version, maxVersion));
+        // outbound side will reconnect if necessary to upgrade version
+
+        while (true)
+        {
+            MessagingService.validateMagic(in.readInt());
+            receiveMessage(in, version);
+        }
+    }
+
+    private void handleLegacyVersion(int version) throws IOException
+    {
+        DataInputStream in = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
+
+        from = receiveMessage(in, version); // why? see => CASSANDRA-4099
+        logger.debug("Version for {} is {}", from, version);
+        if (version > MessagingService.current_version)
+        {
+            // save the endpoint so gossip will reconnect to it
+            Gossiper.instance.addSavedEndpoint(from);
+            logger.info("Received messages from newer protocol version. Ignoring");
+            return;
+        }
+        int lastVersion = Gossiper.instance.setVersion(from, version);
+        logger.debug("set version for {} to {}", from, version);
+        if (lastVersion < version)
+        {
+            logger.debug("breaking outbound connections to force version upgrade");
+            MessagingService.instance().getConnectionPool(from).resetToNewerVersion(version);
+        }
+
+        while (true)
+        {
+            MessagingService.validateMagic(in.readInt());
+            int header = in.readInt(); // legacy protocol re-sends header for each message
+            assert !(MessagingService.getBits(header, 3, 1) == 1) : "Non-stream connection cannot change to stream";
+            version = MessagingService.getBits(header, 15, 8);
+            logger.trace("Version is now {}", version);
+            receiveMessage(in, version);
+        }
+    }
+
+    private void handleStream(DataInputStream input, int version) throws IOException
+    {
+        if (version == MessagingService.current_version)
+        {
+            int size = input.readInt();
+            byte[] headerBytes = new byte[size];
+            input.readFully(headerBytes);
+            stream(StreamHeader.serializer.deserialize(new DataInputStream(new FastByteArrayInputStream(headerBytes)), version), input);
+        }
+        else
+        {
+            // streaming connections are per-session and have a fixed version.  we can't do anything with a wrong-version stream connection, so drop it.
+            logger.error("Received stream using protocol version {} (my version {}). Terminating connection",
+                         version, MessagingService.current_version);
         }
     }
 

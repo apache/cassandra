@@ -54,7 +54,6 @@ import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.ILatencySubscriber;
-import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.AntiEntropyService;
@@ -77,8 +76,6 @@ public final class MessagingService implements MessagingServiceMBean
     public static final int VERSION_11 = 4;
     public static final int VERSION_12 = 5;
     public static final int current_version = VERSION_12;
-
-    static SerializerType serializerType = SerializerType.BINARY;
 
     /** we preface every message with this number so the recipient can validate the sender is sane */
     static final int PROTOCOL_MAGIC = 0xCA552DFA;
@@ -721,34 +718,21 @@ public final class MessagingService implements MessagingServiceMBean
             throw new IOException("invalid protocol header");
     }
 
-    public static int getBits(int x, int p, int n)
+    public static int getBits(int packed, int start, int count)
     {
-        return x >>> (p + 1) - n & ~(-1 << n);
+        return packed >>> (start + 1) - count & ~(-1 << count);
     }
 
     public ByteBuffer constructStreamHeader(StreamHeader streamHeader, boolean compress, int version)
     {
-        /*
-        Setting up the protocol header. This is 4 bytes long
-        represented as an integer. The first 2 bits indicate
-        the serializer type. The 3rd bit indicates if compression
-        is turned on or off. It is turned off by default. The 4th
-        bit indicates if we are in streaming mode. It is turned off
-        by default. The following 4 bits are reserved for future use.
-        The next 8 bits indicate a version number. Remaining 15 bits
-        are not used currently.
-        */
         int header = 0;
-        // Setting up the serializer bit
-        header |= serializerType.ordinal();
         // set compression bit.
-        if ( compress )
+        if (compress)
             header |= 4;
         // set streaming bit
         header |= 8;
         // Setting up the version bit
         header |= (version << 8);
-        /* Finished the protocol header setup */
 
         /* Adding the StreamHeader which contains the session Id along
          * with the pendingfile info for the stream.
