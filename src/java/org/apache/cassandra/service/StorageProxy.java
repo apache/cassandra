@@ -362,7 +362,7 @@ public class StorageProxy implements StorageProxyMBean
                 try
                 {
                     UUID hostId = StorageService.instance.getTokenMetadata().getHostId(target);
-                    if ((hostId == null) && (Gossiper.instance.getVersion(target) < MessagingService.VERSION_12))
+                    if ((hostId == null) && (MessagingService.instance().getVersion(target) < MessagingService.VERSION_12))
                     {
                         logger.warn("Unable to store hint for host with missing ID, {} (old node?)", target.toString());
                         return;
@@ -409,7 +409,7 @@ public class StorageProxy implements StorageProxyMBean
                 InetAddress target = iter.next();
 
                 // direct writes to local DC or old Cassadra versions
-                if (dataCenter.equals(localDataCenter) || Gossiper.instance.getVersion(target) < MessagingService.VERSION_11)
+                if (dataCenter.equals(localDataCenter) || MessagingService.instance().getVersion(target) < MessagingService.VERSION_11)
                 {
                     // yes, the loop and non-loop code here are the same; this is clunky but we want to avoid
                     // creating a second iterator since we already have a perfectly good one

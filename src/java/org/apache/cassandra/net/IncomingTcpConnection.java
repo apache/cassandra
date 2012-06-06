@@ -113,7 +113,7 @@ public class IncomingTcpConnection extends Thread
             logger.info("Received messages from newer protocol version {}. Ignoring", version);
             return;
         }
-        Gossiper.instance.setVersion(from, Math.min(MessagingService.current_version, maxVersion));
+        MessagingService.instance().setVersion(from, Math.min(MessagingService.current_version, maxVersion));
         logger.debug("set version for {} to {}", from, Math.min(MessagingService.current_version, maxVersion));
         // outbound side will reconnect if necessary to upgrade version
 
@@ -137,7 +137,7 @@ public class IncomingTcpConnection extends Thread
             logger.info("Received messages from newer protocol version. Ignoring");
             return;
         }
-        int lastVersion = Gossiper.instance.setVersion(from, version);
+        int lastVersion = MessagingService.instance().setVersion(from, version);
         logger.debug("set version for {} to {}", from, version);
         if (lastVersion < version)
         {
@@ -200,7 +200,7 @@ public class IncomingTcpConnection extends Thread
     {
         // reset version here, since we set when starting an incoming socket
         if (from != null)
-            Gossiper.instance.resetVersion(from);
+            MessagingService.instance().resetVersion(from);
         try
         {
             socket.close();

@@ -85,7 +85,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     private static void rectifySchema(UUID theirVersion, final InetAddress endpoint)
     {
         // Can't request migrations from nodes with versions younger than 1.1
-        if (Gossiper.instance.getVersion(endpoint) < MessagingService.VERSION_11)
+        if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_11)
             return;
 
         if (Schema.instance.getVersion().equals(theirVersion))
@@ -204,7 +204,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
                 continue; // we've delt with localhost already
 
             // don't send migrations to the nodes with the versions older than < 1.1
-            if (Gossiper.instance.getVersion(endpoint) < MessagingService.VERSION_11)
+            if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_11)
                 continue;
 
             pushSchemaMutation(endpoint, schema);
@@ -261,7 +261,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
             // because migration format of the nodes with versions < 1.1 is incompatible with older versions
             for (InetAddress node : liveEndpoints)
             {
-                if (Gossiper.instance.getVersion(node) >= MessagingService.VERSION_11)
+                if (MessagingService.instance().getVersion(node) >= MessagingService.VERSION_11)
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("Requesting schema from " + node);

@@ -101,9 +101,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private final Map<InetAddress, Long> expireTimeEndpointMap = new ConcurrentHashMap<InetAddress, Long>();
 
-    // protocol versions of the other nodes in the cluster
-    private final ConcurrentMap<InetAddress, Integer> versions = new NonBlockingHashMap<InetAddress, Integer>();
-
     private class GossipTask implements Runnable
     {
         public void run()
@@ -200,32 +197,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         subscribers.remove(subscriber);
     }
 
-    public Integer setVersion(InetAddress address, int version)
-    {
-        logger.debug("Setting version {} for {}", version, address);
-        return versions.put(address, version);
-    }
-
-    public void resetVersion(InetAddress endpoint)
-    {
-        logger.debug("Reseting version for {}", endpoint);
-        versions.remove(endpoint);
-    }
-
-    public Integer getVersion(InetAddress address)
-    {
-        Integer v = versions.get(address);
-        if (v == null)
-        {
-            // we don't know the version. assume current. we'll know soon enough if that was incorrect.
-            logger.trace("Assuming current protocol version for {}", address);
-            return MessagingService.current_version;
-        }
-        else
-            return v;
-    }
-
-
     public Set<InetAddress> getLiveMembers()
     {
         Set<InetAddress> liveMbrs = new HashSet<InetAddress>(liveEndpoints);
@@ -304,7 +275,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         unreachableEndpoints.remove(endpoint);
         // do not remove endpointState until the quarantine expires
         FailureDetector.instance.remove(endpoint);
-        versions.remove(endpoint);
+        MessagingService.instance().resetVersion(endpoint);
         quarantineEndpoint(endpoint);
         if (logger.isDebugEnabled())
             logger.debug("removing endpoint " + endpoint);
@@ -1113,11 +1084,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             localState.markAlive();
             endpointStateMap.put(addr, localState);
         }
-    }
-
-    public int getVersion(String address) throws UnknownHostException
-    {
-        return getVersion(InetAddress.getByName(address));
     }
 
     public long getEndpointDowntime(String address) throws UnknownHostException

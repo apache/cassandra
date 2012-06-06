@@ -241,7 +241,7 @@ public class OutboundTcpConnection extends Thread
         if (logger.isDebugEnabled())
             logger.debug("attempting to connect to " + poolReference.endPoint());
 
-        targetVersion = Gossiper.instance.getVersion(poolReference.endPoint());
+        targetVersion = MessagingService.instance().getVersion(poolReference.endPoint());
 
         long start = System.currentTimeMillis();
         while (System.currentTimeMillis() < start + DatabaseDescriptor.getRpcTimeout())
@@ -264,7 +264,7 @@ public class OutboundTcpConnection extends Thread
                     if (targetVersion > maxTargetVersion)
                     {
                         logger.debug("Target max version is {}; will reconnect with that version", maxTargetVersion);
-                        Gossiper.instance.setVersion(poolReference.endPoint(), maxTargetVersion);
+                        MessagingService.instance().setVersion(poolReference.endPoint(), maxTargetVersion);
                         disconnect();
                         return false;
                     }
@@ -273,7 +273,7 @@ public class OutboundTcpConnection extends Thread
                     {
                         logger.debug("Detected higher max version {} (using {}); will reconnect when queued messages are done",
                                      maxTargetVersion, targetVersion);
-                        Gossiper.instance.setVersion(poolReference.endPoint(), Math.min(MessagingService.current_version, maxTargetVersion));
+                        MessagingService.instance().setVersion(poolReference.endPoint(), Math.min(MessagingService.current_version, maxTargetVersion));
                         softCloseSocket();
                     }
 

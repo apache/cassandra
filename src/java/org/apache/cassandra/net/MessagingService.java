@@ -287,6 +287,9 @@ public final class MessagingService implements MessagingServiceMBean
     private final List<ILatencySubscriber> subscribers = new ArrayList<ILatencySubscriber>();
     private static final long DEFAULT_CALLBACK_TIMEOUT = DatabaseDescriptor.getRpcTimeout();
 
+    // protocol versions of the other nodes in the cluster
+    private final ConcurrentMap<InetAddress, Integer> versions = new NonBlockingHashMap<InetAddress, Integer>();
+
     private static class MSHandle
     {
         public static final MessagingService instance = new MessagingService();
@@ -759,6 +762,36 @@ public final class MessagingService implements MessagingServiceMBean
         buffer.put(bytes);
         buffer.flip();
         return buffer;
+    }
+
+    public Integer setVersion(InetAddress address, int version)
+    {
+        logger.debug("Setting version {} for {}", version, address);
+        return versions.put(address, version);
+    }
+
+    public void resetVersion(InetAddress endpoint)
+    {
+        logger.debug("Reseting version for {}", endpoint);
+        versions.remove(endpoint);
+    }
+
+    public Integer getVersion(InetAddress address)
+    {
+        Integer v = versions.get(address);
+        if (v == null)
+        {
+            // we don't know the version. assume current. we'll know soon enough if that was incorrect.
+            logger.trace("Assuming current protocol version for {}", address);
+            return MessagingService.current_version;
+        }
+        else
+            return v;
+    }
+
+    public int getVersion(String address) throws UnknownHostException
+    {
+        return getVersion(InetAddress.getByName(address));
     }
 
     public void incrementDroppedMessages(Verb verb)
