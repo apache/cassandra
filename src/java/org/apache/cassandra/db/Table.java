@@ -372,10 +372,14 @@ public class Table
     }
 
     /**
-     * This method adds the row to the Commit Log associated with this table.
-     * Once this happens the data associated with the individual column families
-     * is also written to the column family store's memtable.
-    */
+     * This method appends a row to the global CommitLog, then updates memtables and indexes.
+     *
+     * @param mutation the row to write.  Must not be modified after calling apply, since commitlog append
+     *                 may happen concurrently, depending on the CL Executor type.
+     * @param writeCommitLog false to disable commitlog append entirely
+     * @param updateIndexes false to disable index updates (used by CollationController "defragmenting")
+     * @throws IOException
+     */
     public void apply(RowMutation mutation, boolean writeCommitLog, boolean updateIndexes) throws IOException
     {
         if (logger.isDebugEnabled())
