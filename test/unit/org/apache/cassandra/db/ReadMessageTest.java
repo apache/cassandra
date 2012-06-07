@@ -115,25 +115,75 @@ public class ReadMessageTest extends SchemaLoader
 
         File commitLogDir = new File(DatabaseDescriptor.getCommitLogLocation());
 
+        byte[] commitBytes = "commit".getBytes("UTF-8");
+
         for(String filename : commitLogDir.list())
         {
-            BufferedReader f = new BufferedReader(new FileReader(commitLogDir.getAbsolutePath()+File.separator+filename));
-
-            String line = null;
-            while( (line = f.readLine()) != null)
+            BufferedInputStream is = null;
+            try
             {
-                if(line.contains("commit1"))
-                    commitLogMessageFound = true;
+                is = new BufferedInputStream(new FileInputStream(commitLogDir.getAbsolutePath()+File.separator+filename));
 
-                if(line.contains("commit2"))
-                    noCommitLogMessageFound = true;
+                if (!isEmptyCommitLog(is))
+                {
+                    while (findPatternInStream(commitBytes, is))
+                    {
+                        char c = (char)is.read();
+
+                        if (c == '1')
+                            commitLogMessageFound = true;
+                        else if (c == '2')
+                            noCommitLogMessageFound = true;
+                    }
+                }
             }
-
-            f.close();
+            finally
+            {
+                if (is != null)
+                    is.close();
+            }
         }
 
         assertTrue(commitLogMessageFound);
         assertFalse(noCommitLogMessageFound);
     }
 
+    private boolean isEmptyCommitLog(BufferedInputStream is) throws IOException
+    {
+        byte[] lookahead = new byte[100];
+
+        is.mark(100);
+        is.read(lookahead);
+        is.reset();
+
+        for (int i = 0; i < 100; i++)
+        {
+            if (lookahead[i] != 0)
+                return false;
+        }
+
+        return true;
+    }
+
+    private boolean findPatternInStream(byte[] pattern, InputStream is) throws IOException
+    {
+        int patternOffset = 0;
+
+        int b = is.read();
+        while (b != -1)
+        {
+            if (pattern[patternOffset] == ((byte) b))
+            {
+                patternOffset++;
+                if (patternOffset == pattern.length)
+                    return true;
+            }
+            else
+                patternOffset = 0;
+
+            b = is.read();
+        }
+
+        return false;
+    }
 }
