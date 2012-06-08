@@ -1082,7 +1082,7 @@ public class SelectStatement implements CQLStatement
                 // TODO: we could allow ordering for IN queries, as we can do the
                 // sorting post-query easily, but we will have to add it
                 if (stmt.keyRestriction == null || !stmt.keyRestriction.isEquality() || stmt.keyRestriction.eqValues.size() != 1)
-                    throw new InvalidRequestException("Ordering is only supported is the first part of the PRIMARY KEY is restricted by an Equal or a IN");
+                    throw new InvalidRequestException("Ordering is only supported if the first part of the PRIMARY KEY is restricted by an Equal");
             }
 
             // If this is a query on tokens, it's necessary a range query (there can be more than one key per token), so reject IN queries (as we don't know how to do them)
