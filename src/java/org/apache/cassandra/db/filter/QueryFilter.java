@@ -252,19 +252,6 @@ public class QueryFilter
         return new QueryFilter(key, path, new NamesQueryFilter(columns));
     }
 
-    public static IFilter getFilter(SlicePredicate predicate, AbstractType<?> comparator)
-    {
-        if (predicate.column_names != null)
-        {
-            final SortedSet<ByteBuffer> columnNameSet = new TreeSet<ByteBuffer>(comparator);
-            columnNameSet.addAll(predicate.column_names);
-            return new NamesQueryFilter(columnNameSet);
-        }
-
-        SliceRange range = predicate.slice_range;
-        return new SliceQueryFilter(range.start, range.finish, range.reversed, range.count);
-    }
-
     /**
      * convenience method for creating a name filter matching a single column
      */

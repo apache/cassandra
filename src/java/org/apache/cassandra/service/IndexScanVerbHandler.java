@@ -23,10 +23,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.thrift.ThriftValidation;
 
 @Deprecated // 1.1 implements index scan with RangeSliceVerb instead
 public class IndexScanVerbHandler implements IVerbHandler<IndexScanCommand>
@@ -42,7 +42,7 @@ public class IndexScanVerbHandler implements IVerbHandler<IndexScanCommand>
             List<Row> rows = cfs.search(command.index_clause.expressions,
                                         command.range,
                                         command.index_clause.count,
-                                        QueryFilter.getFilter(command.predicate, cfs.getComparator()));
+                                        ThriftValidation.asIFilter(command.predicate, cfs.getComparator()));
             RangeSliceReply reply = new RangeSliceReply(rows);
             if (logger.isDebugEnabled())
                 logger.debug("Sending " + reply+ " to " + id + "@" + message.from);

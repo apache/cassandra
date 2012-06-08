@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.service.ClientState;
@@ -75,22 +76,22 @@ public class QueryProcessor
         validateColumnNames(Collections.singletonList(column));
     }
 
-    public static void validateSlicePredicate(CFMetaData metadata, SlicePredicate predicate)
+    public static void validateFilter(CFMetaData metadata, IFilter filter)
     throws InvalidRequestException
     {
-        if (predicate.slice_range != null)
-            validateSliceRange(metadata, predicate.slice_range);
+        if (filter instanceof SliceQueryFilter)
+            validateSliceFilter(metadata, (SliceQueryFilter)filter);
         else
-            validateColumnNames(predicate.column_names);
+            validateColumnNames(((NamesQueryFilter)filter).columns);
     }
 
-    public static void validateSliceRange(CFMetaData metadata, SliceRange range)
+    public static void validateSliceFilter(CFMetaData metadata, SliceQueryFilter range)
     throws InvalidRequestException
     {
-        validateSliceRange(metadata, range.start, range.finish, range.reversed);
+        validateSliceFilter(metadata, range.start, range.finish, range.reversed);
     }
 
-    public static void validateSliceRange(CFMetaData metadata, ByteBuffer start, ByteBuffer finish, boolean reversed)
+    public static void validateSliceFilter(CFMetaData metadata, ByteBuffer start, ByteBuffer finish, boolean reversed)
     throws InvalidRequestException
     {
         AbstractType<?> comparator = metadata.getComparatorFor(null);

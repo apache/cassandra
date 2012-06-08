@@ -21,8 +21,8 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
@@ -30,7 +30,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SliceByNamesReadCommand extends ReadCommand
 {
-    public final SortedSet<ByteBuffer> columnNames;
+    public final NamesQueryFilter filter;
 
     public SliceByNamesReadCommand(String table, ByteBuffer key, ColumnParent column_parent, Collection<ByteBuffer> columnNames)
     {
@@ -40,13 +40,20 @@ public class SliceByNamesReadCommand extends ReadCommand
     public SliceByNamesReadCommand(String table, ByteBuffer key, QueryPath path, Collection<ByteBuffer> columnNames)
     {
         super(table, key, path, CMD_TYPE_GET_SLICE_BY_NAMES);
-        this.columnNames = new TreeSet<ByteBuffer>(getComparator());
-        this.columnNames.addAll(columnNames);
+        SortedSet s = new TreeSet<ByteBuffer>(getComparator());
+        s.addAll(columnNames);
+        this.filter = new NamesQueryFilter(s);
+    }
+
+    public SliceByNamesReadCommand(String table, ByteBuffer key, QueryPath path, NamesQueryFilter filter)
+    {
+        super(table, key, path, CMD_TYPE_GET_SLICE_BY_NAMES);
+        this.filter = filter;
     }
 
     public ReadCommand copy()
     {
-        ReadCommand readCommand= new SliceByNamesReadCommand(table, key, queryPath, columnNames);
+        ReadCommand readCommand= new SliceByNamesReadCommand(table, key, queryPath, filter);
         readCommand.setDigestQuery(isDigestQuery());
         return readCommand;
     }
@@ -54,7 +61,7 @@ public class SliceByNamesReadCommand extends ReadCommand
     public Row getRow(Table table) throws IOException
     {
         DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
-        return table.getRow(QueryFilter.getNamesFilter(dk, queryPath, columnNames));
+        return table.getRow(new QueryFilter(dk, queryPath, filter));
     }
 
     @Override
@@ -64,10 +71,9 @@ public class SliceByNamesReadCommand extends ReadCommand
                "table='" + table + '\'' +
                ", key=" + ByteBufferUtil.bytesToHex(key) +
                ", columnParent='" + queryPath + '\'' +
-               ", columns=[" + getComparator().getString(columnNames) + "]" +
+               ", filter=" + filter +
                ')';
     }
-
 }
 
 class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadCommand>
@@ -79,14 +85,7 @@ class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadComm
         dos.writeUTF(command.table);
         ByteBufferUtil.writeWithShortLength(command.key, dos);
         command.queryPath.serialize(dos);
-        dos.writeInt(command.columnNames.size());
-        if (!command.columnNames.isEmpty())
-        {
-            for (ByteBuffer cName : command.columnNames)
-            {
-                ByteBufferUtil.writeWithShortLength(cName, dos);
-            }
-        }
+        NamesQueryFilter.serializer.serialize(command.filter, dos, version);
     }
 
     public SliceByNamesReadCommand deserialize(DataInput dis, int version) throws IOException
@@ -96,13 +95,9 @@ class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadComm
         ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
         QueryPath columnParent = QueryPath.deserialize(dis);
 
-        int size = dis.readInt();
-        List<ByteBuffer> columns = new ArrayList<ByteBuffer>(size);
-        for (int i = 0; i < size; ++i)
-        {
-            columns.add(ByteBufferUtil.readWithShortLength(dis));
-        }
-        SliceByNamesReadCommand command = new SliceByNamesReadCommand(table, key, columnParent, columns);
+        AbstractType<?> comparator = ColumnFamily.getComparatorFor(table, columnParent.columnFamilyName, columnParent.superColumnName);
+        NamesQueryFilter filter = NamesQueryFilter.serializer.deserialize(dis, version, comparator);
+        SliceByNamesReadCommand command = new SliceByNamesReadCommand(table, key, columnParent, filter);
         command.setDigestQuery(isDigest);
         return command;
     }
@@ -117,15 +112,7 @@ class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadComm
         size += sizes.sizeof(command.table);
         size += sizes.sizeof((short)keySize) + keySize;
         size += command.queryPath.serializedSize(sizes);
-        size += sizes.sizeof(command.columnNames.size());
-        if (!command.columnNames.isEmpty())
-        {
-            for (ByteBuffer cName : command.columnNames)
-            {
-                int cNameSize = cName.remaining();
-                size += sizes.sizeof((short) cNameSize) + cNameSize;
-            }
-        }
+        size += NamesQueryFilter.serializer.serializedSize(command.filter, version);
         return size;
     }
 }

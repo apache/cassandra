@@ -41,13 +41,8 @@ import org.apache.cassandra.db.SliceByNamesReadCommand;
 import org.apache.cassandra.db.SliceFromReadCommand;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.db.marshal.ReversedType;
-import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
@@ -62,12 +57,11 @@ import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.RequestType;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -207,7 +201,7 @@ public class SelectStatement implements CQLStatement
             for (ByteBuffer key : keys)
             {
                 QueryProcessor.validateKey(key);
-                QueryProcessor.validateSliceRange(cfDef.cfm, start, finish, isReversed);
+                QueryProcessor.validateSliceFilter(cfDef.cfm, start, finish, isReversed);
                 commands.add(new SliceFromReadCommand(keyspace(),
                                                       key,
                                                       queryPath,
@@ -248,9 +242,8 @@ public class SelectStatement implements CQLStatement
     {
         List<Row> rows;
 
-        // XXX: Our use of Thrift structs internally makes me Sad. :(
-        SlicePredicate thriftSlicePredicate = makeSlicePredicate(variables);
-        QueryProcessor.validateSlicePredicate(cfDef.cfm, thriftSlicePredicate);
+        IFilter filter =  makeFilter(variables);
+        QueryProcessor.validateFilter(cfDef.cfm, filter);
 
         List<IndexExpression> expressions = getIndexExpressions(variables);
 
@@ -259,7 +252,7 @@ public class SelectStatement implements CQLStatement
             rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace(),
                                                                     columnFamily(),
                                                                     null,
-                                                                    thriftSlicePredicate,
+                                                                    filter,
                                                                     getKeyBounds(variables),
                                                                     expressions,
                                                                     getLimit(),
@@ -322,25 +315,20 @@ public class SelectStatement implements CQLStatement
         return bounds;
     }
 
-    private SlicePredicate makeSlicePredicate(List<ByteBuffer> variables)
+    private IFilter makeFilter(List<ByteBuffer> variables)
     throws InvalidRequestException
     {
-        SlicePredicate thriftSlicePredicate = new SlicePredicate();
-
         if (isColumnRange())
         {
-            SliceRange sliceRange = new SliceRange();
-            sliceRange.start = getRequestedBound(isReversed ? Bound.END : Bound.START, variables);
-            sliceRange.finish = getRequestedBound(isReversed ? Bound.START : Bound.END, variables);
-            sliceRange.reversed = isReversed;
-            sliceRange.count = -1; // We use this for range slices, where the count is ignored in favor of the global column count
-            thriftSlicePredicate.slice_range = sliceRange;
+            return new SliceQueryFilter(getRequestedBound(isReversed ? Bound.END : Bound.START, variables),
+                                        getRequestedBound(isReversed ? Bound.START : Bound.END, variables),
+                                        isReversed,
+                                        -1); // We use this for range slices, where the count is ignored in favor of the global column count
         }
         else
         {
-            thriftSlicePredicate.column_names = getRequestedColumns(variables);
+            return new NamesQueryFilter(getRequestedColumns(variables));
         }
-        return thriftSlicePredicate;
     }
 
     private int getLimit()
@@ -435,7 +423,7 @@ public class SelectStatement implements CQLStatement
         return selectedNames.isEmpty();
     }
 
-    private List<ByteBuffer> getRequestedColumns(List<ByteBuffer> variables) throws InvalidRequestException
+    private SortedSet<ByteBuffer> getRequestedColumns(List<ByteBuffer> variables) throws InvalidRequestException
     {
         assert !isColumnRange();
 
@@ -446,7 +434,7 @@ public class SelectStatement implements CQLStatement
             if (r.eqValues.size() > 1)
             {
                 // We have a IN. We only support this for the last column, so just create all columns and return.
-                List<ByteBuffer> columns = new ArrayList<ByteBuffer>(r.eqValues.size());
+                SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfDef.cfm.comparator);
                 Iterator<Term> iter = r.eqValues.iterator();
                 while (iter.hasNext())
                 {
@@ -465,7 +453,7 @@ public class SelectStatement implements CQLStatement
 
         if (cfDef.isCompact)
         {
-            return Collections.singletonList(builder.build());
+            return FBUtilities.singleton(builder.build());
         }
         else
         {
@@ -474,7 +462,7 @@ public class SelectStatement implements CQLStatement
             // Note that when we allow IS NOT NULL in queries and if all
             // selected name are request 'not null', we will allow to only
             // query those.
-            List<ByteBuffer> columns = new ArrayList<ByteBuffer>(cfDef.columns.size());
+            SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfDef.cfm.comparator);
             Iterator<ColumnIdentifier> iter = cfDef.metadata.keySet().iterator();
             while (iter.hasNext())
             {

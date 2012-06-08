@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.filter;
 
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -32,12 +33,15 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.SSTableSliceIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SliceQueryFilter implements IFilter
 {
     private static final Logger logger = LoggerFactory.getLogger(SliceQueryFilter.class);
+    public static final Serializer serializer = new Serializer();
 
     public volatile ByteBuffer start;
     public volatile ByteBuffer finish;
@@ -154,5 +158,40 @@ public class SliceQueryFilter implements IFilter
     public void updateColumnsLimit(int newLimit)
     {
         count = newLimit;
+    }
+
+    public static class Serializer implements IVersionedSerializer<SliceQueryFilter>
+    {
+        public void serialize(SliceQueryFilter f, DataOutput dos, int version) throws IOException
+        {
+            ByteBufferUtil.writeWithShortLength(f.start, dos);
+            ByteBufferUtil.writeWithShortLength(f.finish, dos);
+            dos.writeBoolean(f.reversed);
+            dos.writeInt(f.count);
+        }
+
+        public SliceQueryFilter deserialize(DataInput dis, int version) throws IOException
+        {
+            ByteBuffer start = ByteBufferUtil.readWithShortLength(dis);
+            ByteBuffer finish = ByteBufferUtil.readWithShortLength(dis);
+            boolean reversed = dis.readBoolean();
+            int count = dis.readInt();
+            return new SliceQueryFilter(start, finish, reversed, count);
+        }
+
+        public long serializedSize(SliceQueryFilter f, int version)
+        {
+            TypeSizes sizes = TypeSizes.NATIVE;
+
+            int size = 0;
+            int startSize = f.start.remaining();
+            int finishSize = f.finish.remaining();
+
+            size += sizes.sizeof((short) startSize) + startSize;
+            size += sizes.sizeof((short) finishSize) + finishSize;
+            size += sizes.sizeof(f.reversed);
+            size += sizes.sizeof(f.count);
+            return size;
+        }
     }
 }

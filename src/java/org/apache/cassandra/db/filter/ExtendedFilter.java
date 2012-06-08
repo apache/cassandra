@@ -176,13 +176,13 @@ public abstract class ExtendedFilter
             {
                 logger.debug("adding columns to original Filter to cover additional expressions");
                 assert originalFilter instanceof NamesQueryFilter;
-                SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfs.getComparator());
-                for (IndexExpression expr : clause)
+                if (!clause.isEmpty())
                 {
-                    columns.add(expr.column_name);
-                }
-                if (columns.size() > 0)
-                {
+                    SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfs.getComparator());
+                    for (IndexExpression expr : clause)
+                    {
+                        columns.add(expr.column_name);
+                    }
                     columns.addAll(((NamesQueryFilter) originalFilter).columns);
                     return new NamesQueryFilter(columns);
                 }

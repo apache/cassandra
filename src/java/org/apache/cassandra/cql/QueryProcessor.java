@@ -34,7 +34,7 @@ import org.apache.cassandra.cli.CliUtils;
 import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -102,7 +102,7 @@ public class QueryProcessor
                 ByteBuffer key = rawKey.getByteBuffer(metadata.getKeyValidator(),variables);
 
                 validateKey(key);
-                validateSliceRange(metadata, start, finish, select.isColumnsReversed());
+                validateSliceFilter(metadata, start, finish, select.isColumnsReversed());
                 commands.add(new SliceFromReadCommand(metadata.ksName,
                                                       key,
                                                       queryPath,
@@ -127,12 +127,12 @@ public class QueryProcessor
         }
     }
 
-    private static List<ByteBuffer> getColumnNames(SelectStatement select, CFMetaData metadata, List<ByteBuffer> variables)
+    private static SortedSet<ByteBuffer> getColumnNames(SelectStatement select, CFMetaData metadata, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
         String keyString = getKeyString(metadata);
         List<Term> selectColumnNames = select.getColumnNames();
-        List<ByteBuffer> columnNames = new ArrayList<ByteBuffer>(selectColumnNames.size());
+        SortedSet<ByteBuffer> columnNames = new TreeSet<ByteBuffer>(metadata.comparator);
         for (Term column : selectColumnNames)
         {
             // skip the key for the slice op; we'll add it to the resultset in extractThriftColumns
@@ -168,9 +168,8 @@ public class QueryProcessor
         }
         AbstractBounds<RowPosition> bounds = new Bounds<RowPosition>(startKey, finishKey);
 
-        // XXX: Our use of Thrift structs internally makes me Sad. :(
-        SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, metadata, variables);
-        validateSlicePredicate(metadata, thriftSlicePredicate);
+        IFilter columnFilter = filterFromSelect(select, metadata, variables);
+        validateFilter(metadata, columnFilter);
 
         List<Relation> columnRelations = select.getColumnRelations();
         List<IndexExpression> expressions = new ArrayList<IndexExpression>(columnRelations.size());
@@ -194,7 +193,7 @@ public class QueryProcessor
             rows = StorageProxy.getRangeSlice(new RangeSliceCommand(metadata.ksName,
                                                                     select.getColumnFamily(),
                                                                     null,
-                                                                    thriftSlicePredicate,
+                                                                    columnFilter,
                                                                     bounds,
                                                                     expressions,
                                                                     limit),
@@ -271,26 +270,20 @@ public class QueryProcessor
         }
     }
 
-    private static SlicePredicate slicePredicateFromSelect(SelectStatement select, CFMetaData metadata, List<ByteBuffer> variables)
+    private static IFilter filterFromSelect(SelectStatement select, CFMetaData metadata, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
-        SlicePredicate thriftSlicePredicate = new SlicePredicate();
-
         if (select.isColumnRange() || select.getColumnNames().size() == 0)
         {
-            SliceRange sliceRange = new SliceRange();
-            sliceRange.start = select.getColumnStart().getByteBuffer(metadata.comparator, variables);
-            sliceRange.finish = select.getColumnFinish().getByteBuffer(metadata.comparator, variables);
-            sliceRange.reversed = select.isColumnsReversed();
-            sliceRange.count = select.getColumnsLimit();
-            thriftSlicePredicate.slice_range = sliceRange;
+            return new SliceQueryFilter(select.getColumnStart().getByteBuffer(metadata.comparator, variables),
+                                        select.getColumnFinish().getByteBuffer(metadata.comparator, variables),
+                                        select.isColumnsReversed(),
+                                        select.getColumnsLimit());
         }
         else
         {
-            thriftSlicePredicate.column_names = getColumnNames(select, metadata, variables);
+            return new NamesQueryFilter(getColumnNames(select, metadata, variables));
         }
-
-        return thriftSlicePredicate;
     }
 
     /* Test for SELECT-specific taboos */
@@ -389,22 +382,22 @@ public class QueryProcessor
         }
     }
 
-    private static void validateSlicePredicate(CFMetaData metadata, SlicePredicate predicate)
+    private static void validateFilter(CFMetaData metadata, IFilter filter)
     throws InvalidRequestException
     {
-        if (predicate.slice_range != null)
-            validateSliceRange(metadata, predicate.slice_range);
+        if (filter instanceof SliceQueryFilter)
+            validateSliceFilter(metadata, (SliceQueryFilter)filter);
         else
-            validateColumnNames(predicate.column_names);
+            validateColumnNames(((NamesQueryFilter)filter).columns);
     }
 
-    private static void validateSliceRange(CFMetaData metadata, SliceRange range)
+    private static void validateSliceFilter(CFMetaData metadata, SliceQueryFilter range)
     throws InvalidRequestException
     {
-        validateSliceRange(metadata, range.start, range.finish, range.reversed);
+        validateSliceFilter(metadata, range.start, range.finish, range.reversed);
     }
 
-    private static void validateSliceRange(CFMetaData metadata, ByteBuffer start, ByteBuffer finish, boolean reversed)
+    private static void validateSliceFilter(CFMetaData metadata, ByteBuffer start, ByteBuffer finish, boolean reversed)
     throws InvalidRequestException
     {
         AbstractType<?> comparator = metadata.getComparatorFor(null);

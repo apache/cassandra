@@ -23,8 +23,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.RepairCallback;
 import org.apache.cassandra.service.StorageService;
@@ -38,9 +37,7 @@ public class SliceFromReadCommand extends ReadCommand
 {
     static final Logger logger = LoggerFactory.getLogger(SliceFromReadCommand.class);
 
-    public final ByteBuffer start, finish;
-    public final boolean reversed;
-    public final int count;
+    public final SliceQueryFilter filter;
 
     public SliceFromReadCommand(String table, ByteBuffer key, ColumnParent column_parent, ByteBuffer start, ByteBuffer finish, boolean reversed, int count)
     {
@@ -49,16 +46,19 @@ public class SliceFromReadCommand extends ReadCommand
 
     public SliceFromReadCommand(String table, ByteBuffer key, QueryPath path, ByteBuffer start, ByteBuffer finish, boolean reversed, int count)
     {
-        super(table, key, path, CMD_TYPE_GET_SLICE);
-        this.start = start;
-        this.finish = finish;
-        this.reversed = reversed;
-        this.count = count;
+        this(table, key, path, new SliceQueryFilter(start, finish, reversed, count));
     }
+
+    public SliceFromReadCommand(String table, ByteBuffer key, QueryPath path, SliceQueryFilter filter)
+    {
+        super(table, key, path, CMD_TYPE_GET_SLICE);
+        this.filter = filter;
+    }
+
 
     public ReadCommand copy()
     {
-        ReadCommand readCommand = new SliceFromReadCommand(table, key, queryPath, start, finish, reversed, count);
+        ReadCommand readCommand = new SliceFromReadCommand(table, key, queryPath, filter);
         readCommand.setDigestQuery(isDigestQuery());
         return readCommand;
     }
@@ -66,7 +66,7 @@ public class SliceFromReadCommand extends ReadCommand
     public Row getRow(Table table) throws IOException
     {
         DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
-        return table.getRow(QueryFilter.getSliceFilter(dk, queryPath, start, finish, reversed, count));
+        return table.getRow(new QueryFilter(dk, queryPath, filter));
     }
 
     @Override
@@ -75,6 +75,7 @@ public class SliceFromReadCommand extends ReadCommand
         int maxLiveColumns = handler.getMaxLiveColumns();
         int liveColumnsInRow = row != null ? row.getLiveColumnCount() : 0;
 
+        int count = filter.count;
         assert maxLiveColumns <= count;
         // We generate a retry if at least one node reply with count live columns but after merge we have less
         // than the total number of column we are interested in (which may be < count on a retry)
@@ -85,7 +86,8 @@ public class SliceFromReadCommand extends ReadCommand
             // columns, only l/t end up live after reconciliation. So for next
             // round we want to ask x column so that x * (l/t) == t, i.e. x = t^2/l.
             int retryCount = liveColumnsInRow == 0 ? count + 1 : ((count * count) / liveColumnsInRow) + 1;
-            return new RetriedSliceFromReadCommand(table, key, queryPath, start, finish, reversed, getOriginalRequestedCount(), retryCount);
+            SliceQueryFilter newFilter = new SliceQueryFilter(filter.start, filter.finish, filter.reversed, retryCount);
+            return new RetriedSliceFromReadCommand(table, key, queryPath, newFilter, getOriginalRequestedCount());
         }
 
         return null;
@@ -106,7 +108,7 @@ public class SliceFromReadCommand extends ReadCommand
             logger.debug("trimming {} live columns to the originally requested {}", row.cf.getLiveColumnCount(), getOriginalRequestedCount());
 
             Collection<IColumn> columns;
-            if (reversed)
+            if (filter.reversed)
                 columns = row.cf.getSortedColumns();
             else
                 columns = row.cf.getReverseSortedColumns();
@@ -135,7 +137,7 @@ public class SliceFromReadCommand extends ReadCommand
      */
     protected int getOriginalRequestedCount()
     {
-        return count;
+        return filter.count;
     }
 
     @Override
@@ -145,10 +147,7 @@ public class SliceFromReadCommand extends ReadCommand
                "table='" + table + '\'' +
                ", key='" + ByteBufferUtil.bytesToHex(key) + '\'' +
                ", column_parent='" + queryPath + '\'' +
-               ", start='" + getComparator().getString(start) + '\'' +
-               ", finish='" + getComparator().getString(finish) + '\'' +
-               ", reversed=" + reversed +
-               ", count=" + count +
+               ", filter='" + filter + '\'' +
                ')';
     }
 }
@@ -162,22 +161,17 @@ class SliceFromReadCommandSerializer implements IVersionedSerializer<ReadCommand
         dos.writeUTF(realRM.table);
         ByteBufferUtil.writeWithShortLength(realRM.key, dos);
         realRM.queryPath.serialize(dos);
-        ByteBufferUtil.writeWithShortLength(realRM.start, dos);
-        ByteBufferUtil.writeWithShortLength(realRM.finish, dos);
-        dos.writeBoolean(realRM.reversed);
-        dos.writeInt(realRM.count);
+        SliceQueryFilter.serializer.serialize(realRM.filter, dos, version);
     }
 
     public ReadCommand deserialize(DataInput dis, int version) throws IOException
     {
         boolean isDigest = dis.readBoolean();
-        SliceFromReadCommand rm = new SliceFromReadCommand(dis.readUTF(),
-                                                           ByteBufferUtil.readWithShortLength(dis),
-                                                           QueryPath.deserialize(dis),
-                                                           ByteBufferUtil.readWithShortLength(dis),
-                                                           ByteBufferUtil.readWithShortLength(dis),
-                                                           dis.readBoolean(),
-                                                           dis.readInt());
+        String table = dis.readUTF();
+        ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
+        QueryPath path = QueryPath.deserialize(dis);
+        SliceQueryFilter filter = SliceQueryFilter.serializer.deserialize(dis, version);
+        SliceFromReadCommand rm = new SliceFromReadCommand(table, key, path, filter);
         rm.setDigestQuery(isDigest);
         return rm;
     }
@@ -187,17 +181,12 @@ class SliceFromReadCommandSerializer implements IVersionedSerializer<ReadCommand
         TypeSizes sizes = TypeSizes.NATIVE;
         SliceFromReadCommand command = (SliceFromReadCommand) cmd;
         int keySize = command.key.remaining();
-        int startSize = command.start.remaining();
-        int finishSize = command.finish.remaining();
 
         int size = sizes.sizeof(cmd.isDigestQuery()); // boolean
         size += sizes.sizeof(command.table);
         size += sizes.sizeof((short) keySize) + keySize;
         size += command.queryPath.serializedSize(sizes);
-        size += sizes.sizeof((short) startSize) + startSize;
-        size += sizes.sizeof((short) finishSize) + finishSize;
-        size += sizes.sizeof(command.reversed);
-        size += sizes.sizeof(command.count);
+        size += SliceQueryFilter.serializer.serializedSize(command.filter, version);
         return size;
     }
 }

@@ -25,6 +25,9 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.IFilter;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -603,5 +606,20 @@ public class ThriftValidation
     {
         if (modifiedKeyspace.equalsIgnoreCase(Table.SYSTEM_TABLE))
             throw new InvalidRequestException("system keyspace is not user-modifiable");
+    }
+
+    public static IFilter asIFilter(SlicePredicate sp, AbstractType<?> comparator)
+    {
+        SliceRange sr = sp.slice_range;
+        if (sr == null)
+        {
+            SortedSet<ByteBuffer> ss = new TreeSet<ByteBuffer>(comparator);
+            ss.addAll(sp.column_names);
+            return new NamesQueryFilter(ss);
+        }
+        else
+        {
+            return new SliceQueryFilter(sr.start, sr.finish, sr.reversed, sr.count);
+        }
     }
 }

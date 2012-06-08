@@ -35,10 +35,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.filter.IFilter;
-import org.apache.cassandra.db.filter.NamesQueryFilter;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -464,17 +461,16 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         return result;
     }
 
-    private List<Row> getHintsSlice(int column_count)
+    private List<Row> getHintsSlice(int columnCount)
     {
         // ColumnParent for HintsCF...
         ColumnParent parent = new ColumnParent(HINTS_CF);
 
         // Get count # of columns...
-        SlicePredicate predicate = new SlicePredicate();
-        SliceRange sliceRange = new SliceRange();
-        sliceRange.setStart(new byte[0]).setFinish(new byte[0]);
-        sliceRange.setCount(column_count);
-        predicate.setSlice_range(sliceRange);
+        SliceQueryFilter predicate = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                          ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                          false,
+                                                          columnCount);
 
         // From keys "" to ""...
         IPartitioner<?> partitioner = StorageService.getPartitioner();

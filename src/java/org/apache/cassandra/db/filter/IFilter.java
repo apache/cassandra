@@ -17,11 +17,14 @@
  */
 package org.apache.cassandra.db.filter;
 
+import java.io.*;
 import java.util.Comparator;
 import java.util.Iterator;
+
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 
@@ -72,4 +75,52 @@ public interface IFilter
 
     public boolean isReversed();
     public void updateColumnsLimit(int newLimit);
+
+    public static class Serializer implements IVersionedSerializer<IFilter>
+    {
+        public static Serializer instance = new Serializer();
+
+        public void serialize(IFilter filter, DataOutput dos, int version) throws IOException
+        {
+            if (filter instanceof SliceQueryFilter)
+            {
+                dos.writeByte(0);
+                SliceQueryFilter.serializer.serialize((SliceQueryFilter)filter, dos, version);
+            }
+            else
+            {
+                dos.writeByte(1);
+                NamesQueryFilter.serializer.serialize((NamesQueryFilter)filter, dos, version);
+            }
+        }
+
+        public IFilter deserialize(DataInput dis, int version) throws IOException
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public IFilter deserialize(DataInput dis, int version, AbstractType<?> comparator) throws IOException
+        {
+            int type = dis.readByte();
+            if (type == 0)
+            {
+                return SliceQueryFilter.serializer.deserialize(dis, version);
+            }
+            else
+            {
+                assert type == 1;
+                return NamesQueryFilter.serializer.deserialize(dis, version, comparator);
+            }
+        }
+
+        public long serializedSize(IFilter filter, int version)
+        {
+            int size = 1;
+            if (filter instanceof SliceQueryFilter)
+                size += SliceQueryFilter.serializer.serializedSize((SliceQueryFilter)filter, version);
+            else
+                size += NamesQueryFilter.serializer.serializedSize((NamesQueryFilter)filter, version);
+            return size;
+        }
+    }
 }

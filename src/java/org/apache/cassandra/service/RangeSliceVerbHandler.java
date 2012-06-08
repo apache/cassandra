@@ -41,12 +41,10 @@ public class RangeSliceVerbHandler implements IVerbHandler<RangeSliceCommand>
     static List<Row> executeLocally(RangeSliceCommand command) throws ExecutionException, InterruptedException
     {
         ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
-        IFilter columnFilter = QueryFilter.getFilter(command.predicate, cfs.getComparator());
-
         if (cfs.indexManager.hasIndexFor(command.row_filter))
-            return cfs.search(command.row_filter, command.range, command.maxResults, columnFilter, command.maxIsColumns);
+            return cfs.search(command.row_filter, command.range, command.maxResults, command.predicate, command.maxIsColumns);
         else
-            return cfs.getRangeSlice(command.super_column, command.range, command.maxResults, columnFilter, command.row_filter, command.maxIsColumns, command.isPaging);
+            return cfs.getRangeSlice(command.super_column, command.range, command.maxResults, command.predicate, command.row_filter, command.maxIsColumns, command.isPaging);
     }
 
     public void doVerb(MessageIn<RangeSliceCommand> message, String id)
