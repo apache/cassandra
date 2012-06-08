@@ -251,7 +251,7 @@ public final class CFMetaData
                              .keyValidator(info.getValidator())
                              .keyCacheSize(0.0)
                              .readRepairChance(0.0)
-                             .gcGraceSeconds(parent.gcGraceSeconds)
+                             .gcGraceSeconds(0)
                              .minCompactionThreshold(parent.minCompactionThreshold)
                              .maxCompactionThreshold(parent.maxCompactionThreshold);
     }

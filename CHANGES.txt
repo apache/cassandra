@@ -6,6 +6,7 @@
  * improve ability of STCS.getBuckets to deal with 100s of 1000s of
    sstables, such as when convertinb back from LCS (CASSANDRA-4287)
  * Oversize integer in CQL throws NumberFormatException (CASSANDRA-4291)
+ * Set gc_grace on index CF to 0 (CASSANDRA-4314)
 
 
 1.0.10
