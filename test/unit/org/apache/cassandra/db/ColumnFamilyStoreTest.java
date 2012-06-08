@@ -533,7 +533,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         sp.getSlice_range().setStart(ArrayUtils.EMPTY_BYTE_ARRAY);
         sp.getSlice_range().setFinish(ArrayUtils.EMPTY_BYTE_ARRAY);
 
-        assertRowAndColCount(1, 6, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null));
+        assertRowAndColCount(1, 6, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // deeleet.
         RowMutation rm = new RowMutation(table.name, key.key);
@@ -541,13 +541,13 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         rm.apply();
 
         // verify delete.
-        assertRowAndColCount(1, 0, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null));
+        assertRowAndColCount(1, 0, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // flush
         cfs.forceBlockingFlush();
 
         // re-verify delete.
-        assertRowAndColCount(1, 0, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null));
+        assertRowAndColCount(1, 0, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // late insert.
         putColsSuper(cfs, key, scfName,
@@ -555,14 +555,14 @@ public class ColumnFamilyStoreTest extends SchemaLoader
                 new Column(getBytes(7L), ByteBufferUtil.bytes("val7"), 1L));
 
         // re-verify delete.
-        assertRowAndColCount(1, 0, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null));
+        assertRowAndColCount(1, 0, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // make sure new writes are recognized.
         putColsSuper(cfs, key, scfName,
                 new Column(getBytes(3L), ByteBufferUtil.bytes("val3"), 3),
                 new Column(getBytes(8L), ByteBufferUtil.bytes("val8"), 3),
                 new Column(getBytes(9L), ByteBufferUtil.bytes("val9"), 3));
-        assertRowAndColCount(1, 3, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null));
+        assertRowAndColCount(1, 3, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
     }
 
     private static void assertRowAndColCount(int rowCount, int colCount, ByteBuffer sc, boolean isDeleted, Collection<Row> rows) throws CharacterCodingException
@@ -628,14 +628,14 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         // insert
         putColsStandard(cfs, key, column("col1", "val1", 1), column("col2", "val2", 1));
-        assertRowAndColCount(1, 2, null, false, cfs.getRangeSlice(null, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null));
+        assertRowAndColCount(1, 2, null, false, cfs.getRangeSlice(null, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // flush.
         cfs.forceBlockingFlush();
 
         // insert, don't flush
         putColsStandard(cfs, key, column("col3", "val3", 1), column("col4", "val4", 1));
-        assertRowAndColCount(1, 4, null, false, cfs.getRangeSlice(null, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null));
+        assertRowAndColCount(1, 4, null, false, cfs.getRangeSlice(null, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // delete (from sstable and memtable)
         RowMutation rm = new RowMutation(table.name, key.key);
@@ -643,27 +643,27 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         rm.apply();
 
         // verify delete
-        assertRowAndColCount(1, 0, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null));
+        assertRowAndColCount(1, 0, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // flush
         cfs.forceBlockingFlush();
 
         // re-verify delete. // first breakage is right here because of CASSANDRA-1837.
-        assertRowAndColCount(1, 0, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null));
+        assertRowAndColCount(1, 0, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // simulate a 'late' insertion that gets put in after the deletion. should get inserted, but fail on read.
         putColsStandard(cfs, key, column("col5", "val5", 1), column("col2", "val2", 1));
 
         // should still be nothing there because we deleted this row. 2nd breakage, but was undetected because of 1837.
-        assertRowAndColCount(1, 0, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null));
+        assertRowAndColCount(1, 0, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // make sure that new writes are recognized.
         putColsStandard(cfs, key, column("col6", "val6", 3), column("col7", "val7", 3));
-        assertRowAndColCount(1, 2, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null));
+        assertRowAndColCount(1, 2, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // and it remains so after flush. (this wasn't failing before, but it's good to check.)
         cfs.forceBlockingFlush();
-        assertRowAndColCount(1, 2, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null));
+        assertRowAndColCount(1, 2, null, true, cfs.getRangeSlice(null, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
     }
 
 
@@ -820,11 +820,11 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         sp.getSlice_range().setStart(ArrayUtils.EMPTY_BYTE_ARRAY);
         sp.getSlice_range().setFinish(ArrayUtils.EMPTY_BYTE_ARRAY);
 
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 3, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 3);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 5, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 5);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 8, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 8);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 10, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 10);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 11);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 3, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, false), 3);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 5, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, false), 5);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 8, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, false), 8);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 10, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, false), 10);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, false), 11);
 
         // Check that when querying by name, we always include all names for a
         // gien row even if it means returning more columns than requested (this is necesseray for CQL)
@@ -835,11 +835,11 @@ public class ColumnFamilyStoreTest extends SchemaLoader
             ByteBufferUtil.bytes("c2")
         ));
 
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 1, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 3);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 4, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 5);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 5, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 5);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 6, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 8);
-        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, false), 8);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 1, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, false), 3);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 4, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, false), 5);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 5, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, false), 5);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 6, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, false), 8);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, false), 8);
     }
 
     @Test
@@ -866,13 +866,13 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         sp.getSlice_range().setStart(ArrayUtils.EMPTY_BYTE_ARRAY);
         sp.getSlice_range().setFinish(ArrayUtils.EMPTY_BYTE_ARRAY);
 
-        Collection<Row> rows = cfs.getRangeSlice(null, Util.range("", ""), 3, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, true);
+        Collection<Row> rows = cfs.getRangeSlice(null, Util.range("", ""), 3, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, true);
         assert rows.size() == 1 : "Expected 1 row, got " + rows;
         Row row = rows.iterator().next();
         assertColumnNames(row, "c0", "c1", "c2");
 
         sp.getSlice_range().setStart(ByteBufferUtil.getArray(ByteBufferUtil.bytes("c2")));
-        rows = cfs.getRangeSlice(null, Util.range("", ""), 3, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, true);
+        rows = cfs.getRangeSlice(null, Util.range("", ""), 3, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, true);
         assert rows.size() == 2 : "Expected 2 rows, got " + rows;
         Iterator<Row> iter = rows.iterator();
         Row row1 = iter.next();
@@ -881,13 +881,13 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertColumnNames(row2, "c0");
 
         sp.getSlice_range().setStart(ByteBufferUtil.getArray(ByteBufferUtil.bytes("c0")));
-        rows = cfs.getRangeSlice(null, new Bounds<RowPosition>(row2.key, Util.rp("")), 3, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, true);
+        rows = cfs.getRangeSlice(null, new Bounds<RowPosition>(row2.key, Util.rp("")), 3, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, true);
         assert rows.size() == 1 : "Expected 1 row, got " + rows;
         row = rows.iterator().next();
         assertColumnNames(row, "c0", "c1", "c2");
 
         sp.getSlice_range().setStart(ByteBufferUtil.getArray(ByteBufferUtil.bytes("c2")));
-        rows = cfs.getRangeSlice(null, new Bounds<RowPosition>(row.key, Util.rp("")), 3, QueryFilter.getFilter(sp, cfs.getComparator()), null, true, true);
+        rows = cfs.getRangeSlice(null, new Bounds<RowPosition>(row.key, Util.rp("")), 3, ThriftValidation.asIFilter(sp, cfs.getComparator()), null, true, true);
         assert rows.size() == 2 : "Expected 2 rows, got " + rows;
         iter = rows.iterator();
         row1 = iter.next();
@@ -943,7 +943,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         sp.getSlice_range().setCount(1);
         sp.getSlice_range().setStart(ArrayUtils.EMPTY_BYTE_ARRAY);
         sp.getSlice_range().setFinish(ArrayUtils.EMPTY_BYTE_ARRAY);
-        IFilter qf = QueryFilter.getFilter(sp, cfs.getComparator());
+        IFilter qf = ThriftValidation.asIFilter(sp, cfs.getComparator());
 
         List<Row> rows;
 
