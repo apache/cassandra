@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutionException;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -59,4 +60,23 @@ public class RemoveColumnTest extends SchemaLoader
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
         assertNull(Util.cloneAndRemoveDeleted(store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Standard1"))), Integer.MAX_VALUE));
     }
+
+    @Test
+    public void deletedColumnShouldAlwaysBeMarkedForDelete()
+    {
+        // Check for bug in #4307
+        long timestamp = System.currentTimeMillis();
+        int localDeletionTime = (int) (timestamp / 1000);
+        Column c = DeletedColumn.create(localDeletionTime, timestamp, "dc1");
+        assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete());
+
+        // Simulate a node that is 30 seconds behind
+        c = DeletedColumn.create(localDeletionTime + 30, timestamp + 30000, "dc2");
+        assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete());
+
+        // Simulate a node that is 30 ahead behind
+        c = DeletedColumn.create(localDeletionTime - 30, timestamp - 30000, "dc3");
+        assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete());
+    }
+
 }

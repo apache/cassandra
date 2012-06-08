@@ -38,6 +38,14 @@ public class DeletedColumn extends Column
     }
 
     @Override
+    public boolean isMarkedForDelete()
+    {
+        // We don't rely on the column implementation because it could mistakenly return false if
+        // some node are not exactly synchronized, which is problematic (see #4307)
+        return true;
+    }
+
+    @Override
     public long getMarkedForDeleteAt()
     {
         return timestamp;
