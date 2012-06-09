@@ -1221,7 +1221,8 @@ public class CompactionManager implements CompactionManagerMBean
         {
             try
             {
-                return new CompactionInfo(OperationType.CLEANUP,
+                return new CompactionInfo(sstable.metadata,
+                                          OperationType.CLEANUP,
                                           scanner.getCurrentPosition(),
                                           scanner.getLengthInBytes());
             }
@@ -1246,7 +1247,8 @@ public class CompactionManager implements CompactionManagerMBean
         {
             try
             {
-                return new CompactionInfo(OperationType.SCRUB,
+                return new CompactionInfo(sstable.metadata,
+                                          OperationType.SCRUB,
                                           dataFile.getFilePointer(),
                                           dataFile.length());
             }

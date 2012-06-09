@@ -36,14 +36,9 @@ public final class CompactionInfo implements Serializable
     private final long total;
     private final String unit;
 
-    public CompactionInfo(OperationType tasktype, long bytesComplete, long totalBytes)
+    public CompactionInfo(CFMetaData cfm, OperationType tasktype, long bytesComplete, long totalBytes)
     {
-        this(null, tasktype, bytesComplete, totalBytes);
-    }
-
-    public CompactionInfo(UUID id, OperationType tasktype, long bytesComplete, long totalBytes)
-    {
-        this(id, tasktype, bytesComplete, totalBytes, "bytes");
+        this(cfm, tasktype, bytesComplete, totalBytes, "bytes");
     }
 
     public CompactionInfo(OperationType tasktype, long completed, long total, String unit)
@@ -51,34 +46,34 @@ public final class CompactionInfo implements Serializable
         this(null, tasktype, completed, total, unit);
     }
 
-    public CompactionInfo(UUID id, OperationType tasktype, long completed, long total, String unit)
+    public CompactionInfo(CFMetaData cfm, OperationType tasktype, long completed, long total, String unit)
     {
         this.tasktype = tasktype;
         this.completed = completed;
         this.total = total;
-        this.cfm = id == null ? null : Schema.instance.getCFMetaData(id);
+        this.cfm = cfm;
         this.unit = unit;
     }
 
     /** @return A copy of this CompactionInfo with updated progress. */
-    public CompactionInfo forProgress(long bytesComplete, long totalBytes)
+    public CompactionInfo forProgress(long complete, long total)
     {
-        return new CompactionInfo(cfm == null ? null : cfm.cfId, tasktype, bytesComplete, totalBytes, unit);
+        return new CompactionInfo(cfm, tasktype, complete, total, unit);
     }
 
     public UUID getId()
     {
-        return cfm == null ? null : cfm.cfId;
+        return cfm.cfId;
     }
 
     public String getKeyspace()
     {
-        return cfm == null ? null : cfm.ksName;
+        return cfm.ksName;
     }
 
     public String getColumnFamily()
     {
-        return cfm == null ? null : cfm.cfName;
+        return cfm.cfName;
     }
 
     public CFMetaData getCFMetaData()

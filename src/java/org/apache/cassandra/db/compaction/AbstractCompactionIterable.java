@@ -49,7 +49,10 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
 
     public CompactionInfo getCompactionInfo()
     {
-        return new CompactionInfo(type, bytesRead, totalBytes);
+        return new CompactionInfo(controller.cfs.metadata,
+                                  type,
+                                  bytesRead,
+                                  totalBytes);
     }
 
     public abstract CloseableIterator<AbstractCompactedRow> iterator();
