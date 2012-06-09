@@ -53,7 +53,7 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
 
     public CompactionInfo getCompactionInfo()
     {
-        return new CompactionInfo(this.hashCode(),
+        return new CompactionInfo(controller.cfs.metadata,
                                   type,
                                   bytesRead,
                                   totalBytes);

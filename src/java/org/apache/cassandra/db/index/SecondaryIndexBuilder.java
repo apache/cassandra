@@ -47,7 +47,7 @@ public class SecondaryIndexBuilder extends CompactionInfo.Holder
 
     public CompactionInfo getCompactionInfo()
     {
-        return new CompactionInfo(this.hashCode(),
+        return new CompactionInfo(cfs.metadata,
                                   OperationType.INDEX_BUILD,
                                   iter.getBytesRead(),
                                   iter.getTotalBytes());

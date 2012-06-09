@@ -1,4 +1,5 @@
 1.1.2
+ * fix NPE in compactionstats (CASSANDRA-4318)
  * enforce 1m min keycache for auto (CASSANDRA-4306)
  * Have DeletedColumn.isMFD always return true (CASSANDRA-4307)
  * ex msg for cql3 order by constraints says primary filter can be an IN clause 

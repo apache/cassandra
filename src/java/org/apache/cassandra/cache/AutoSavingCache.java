@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -192,7 +193,10 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             else
                 type = OperationType.UNKNOWN;
 
-            info = new CompactionInfo(type, 0, estimatedTotalBytes);
+            info = new CompactionInfo(new CFMetaData("system", cacheType.toString(), null, null, null),
+                                      type,
+                                      0,
+                                      estimatedTotalBytes);
         }
 
         public CompactionInfo getCompactionInfo()

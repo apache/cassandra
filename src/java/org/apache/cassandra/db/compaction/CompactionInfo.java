@@ -34,38 +34,33 @@ public final class CompactionInfo implements Serializable
     private final long bytesComplete;
     private final long totalBytes;
 
-    public CompactionInfo(OperationType tasktype, long bytesComplete, long totalBytes)
-    {
-        this(null, tasktype, bytesComplete, totalBytes);
-    }
-
-    public CompactionInfo(Integer id, OperationType tasktype, long bytesComplete, long totalBytes)
+    public CompactionInfo(CFMetaData cfm, OperationType tasktype, long bytesComplete, long totalBytes)
     {
         this.tasktype = tasktype;
         this.bytesComplete = bytesComplete;
         this.totalBytes = totalBytes;
-        this.cfm = id == null ? null : Schema.instance.getCFMetaData(id);
+        this.cfm = cfm;
     }
 
     /** @return A copy of this CompactionInfo with updated progress. */
     public CompactionInfo forProgress(long bytesComplete, long totalBytes)
     {
-        return new CompactionInfo(cfm == null ? null : cfm.cfId, tasktype, bytesComplete, totalBytes);
+        return new CompactionInfo(cfm, tasktype, bytesComplete, totalBytes);
     }
 
     public Integer getId()
     {
-        return cfm == null ? null : cfm.cfId;
+        return cfm.cfId;
     }
 
     public String getKeyspace()
     {
-        return cfm == null ? null : cfm.ksName;
+        return cfm.ksName;
     }
 
     public String getColumnFamily()
     {
-        return cfm == null ? null : cfm.cfName;
+        return cfm.cfName;
     }
 
     public CFMetaData getCFMetaData()

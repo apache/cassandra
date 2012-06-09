@@ -42,7 +42,7 @@ public class CompactionController
 {
     private static Logger logger = LoggerFactory.getLogger(CompactionController.class);
 
-    private final ColumnFamilyStore cfs;
+    public final ColumnFamilyStore cfs;
     private final boolean deserializeRequired;
     private final IntervalTree<SSTableReader> overlappingTree;
 
