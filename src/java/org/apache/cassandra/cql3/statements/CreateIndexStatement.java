@@ -55,6 +55,11 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         boolean columnExists = false;
         // Mutating oldCfm directly would be bad so cloning.
         CFMetaData cfm = oldCfm.clone();
+        CFDefinition cfDef = oldCfm.getCfDef();
+
+        if (cfDef.isComposite)
+            throw new InvalidRequestException("Secondary indexes are not (yet) supported on tables with composite PRIMARY KEY");
+
         for (ColumnDefinition cd : cfm.getColumn_metadata().values())
         {
             if (cd.name.equals(columnName.key))
@@ -71,7 +76,6 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         }
         if (!columnExists)
         {
-            CFDefinition cfDef = oldCfm.getCfDef();
             CFDefinition.Name name = cfDef.get(columnName);
             if (name != null)
             {
