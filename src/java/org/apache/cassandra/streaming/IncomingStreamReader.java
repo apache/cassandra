@@ -23,6 +23,10 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.Collections;
 
+import com.ning.compress.lzf.LZFInputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -31,6 +35,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.PrecompactedRow;
 import org.apache.cassandra.io.IColumnSerializer;
+import org.apache.cassandra.streaming.compress.CompressedInputStream;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
@@ -39,11 +44,6 @@ import org.apache.cassandra.utils.BytesReadTracker;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
-import com.ning.compress.lzf.LZFInputStream;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 public class IncomingStreamReader
 {
     private static final Logger logger = LoggerFactory.getLogger(IncomingStreamReader.class);
@@ -51,12 +51,11 @@ public class IncomingStreamReader
     protected final PendingFile localFile;
     protected final PendingFile remoteFile;
     protected final StreamInSession session;
-    private final Socket socket;
+    private final InputStream underliningStream;
 
     public IncomingStreamReader(StreamHeader header, Socket socket) throws IOException
     {
         socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
-        this.socket = socket;
         InetAddress host = header.broadcastAddress != null ? header.broadcastAddress
                            : ((InetSocketAddress)socket.getRemoteSocketAddress()).getAddress();
         session = StreamInSession.get(host, header.sessionId);
@@ -69,6 +68,18 @@ public class IncomingStreamReader
         // pendingFile gets the new context for the local node.
         remoteFile = header.file;
         localFile = remoteFile != null ? StreamIn.getContextMapping(remoteFile) : null;
+
+        if (remoteFile != null)
+        {
+            if (remoteFile.compressionInfo == null)
+                underliningStream = new LZFInputStream(socket.getInputStream());
+            else
+                underliningStream = new CompressedInputStream(socket.getInputStream(), remoteFile.compressionInfo);
+        }
+        else
+        {
+            underliningStream = null;
+        }
     }
 
     public void read() throws IOException
@@ -84,12 +95,10 @@ public class IncomingStreamReader
             }
 
             assert remoteFile.estimatedKeys > 0;
-            SSTableReader reader = null;
-            logger.debug("Estimated keys {}", remoteFile.estimatedKeys);
-            DataInputStream dis = new DataInputStream(new LZFInputStream(socket.getInputStream()));
+            DataInput dis = new DataInputStream(underliningStream);
             try
             {
-                reader = streamIn(dis, localFile, remoteFile);
+                SSTableReader reader = streamIn(dis, localFile, remoteFile);
                 session.finished(remoteFile, reader);
             }
             catch (IOException ex)
@@ -116,6 +125,9 @@ public class IncomingStreamReader
             for (Pair<Long, Long> section : localFile.sections)
             {
                 long length = section.right - section.left;
+                // skip to beginning of section inside chunk
+                if (remoteFile.compressionInfo != null)
+                    ((CompressedInputStream) underliningStream).position(section.left);
                 long bytesRead = 0;
                 while (bytesRead < length)
                 {
@@ -144,7 +156,10 @@ public class IncomingStreamReader
                     }
 
                     bytesRead += in.getBytesRead();
-                    remoteFile.progress += in.getBytesRead();
+                    // when compressed, report total bytes of decompressed chunks since remoteFile.size is the sum of chunks transferred
+                    remoteFile.progress += remoteFile.compressionInfo != null
+                                           ? ((CompressedInputStream) underliningStream).uncompressedBytes()
+                                           : in.getBytesRead();
                 }
             }
             return writer.closeAndOpenReader();

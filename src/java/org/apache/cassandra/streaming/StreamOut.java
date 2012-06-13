@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.streaming.compress.CompressionInfo;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -154,7 +155,13 @@ public class StreamOut
                 sstable.releaseReference();
                 continue;
             }
-            pending.add(new PendingFile(sstable, desc, SSTable.COMPONENT_DATA, sections, type, sstable.estimatedKeysForRanges(ranges)));
+            CompressionInfo compression = null;
+            if (sstable.compression)
+            {
+                compression = new CompressionInfo(sstable.getCompressionMetadata().getChunksForSections(sections),
+                                                  sstable.getCompressionMetadata().parameters);
+            }
+            pending.add(new PendingFile(sstable, desc, SSTable.COMPONENT_DATA, sections, type, sstable.estimatedKeysForRanges(ranges), compression));
         }
         logger.info("Stream context metadata {}, {} sstables.", pending, Iterables.size(sstables));
         return pending;

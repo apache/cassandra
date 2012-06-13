@@ -23,9 +23,11 @@ import java.util.List;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.streaming.compress.CompressionInfo;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -40,23 +42,33 @@ public class PendingFile
 
     public final Descriptor desc;
     public final String component;
-    public final List<Pair<Long,Long>> sections;
+    public final List<Pair<Long, Long>> sections;
     public final OperationType type;
+    /** total length of data to transfer */
     public final long size;
+    /** estimated number of keys to transfer */
     public final long estimatedKeys;
+    /** compression information. null if data is not compressed */
+    public final CompressionInfo compressionInfo;
     public long progress;
 
     public PendingFile(Descriptor desc, PendingFile pf)
     {
-        this(null, desc, pf.component, pf.sections, pf.type, pf.estimatedKeys);
+        this(null, desc, pf.component, pf.sections, pf.type, pf.estimatedKeys, pf.compressionInfo);
     }
 
     public PendingFile(SSTableReader sstable, Descriptor desc, String component, List<Pair<Long,Long>> sections, OperationType type)
     {
-        this(sstable, desc, component, sections, type, 0);
+        this(sstable, desc, component, sections, type, 0, null);
     }
 
-    public PendingFile(SSTableReader sstable, Descriptor desc, String component, List<Pair<Long,Long>> sections, OperationType type, long estimatedKeys)
+    public PendingFile(SSTableReader sstable,
+                       Descriptor desc,
+                       String component,
+                       List<Pair<Long,Long>> sections,
+                       OperationType type,
+                       long estimatedKeys,
+                       CompressionInfo compressionInfo)
     {
         this.sstable = sstable;
         this.desc = desc;
@@ -65,13 +77,21 @@ public class PendingFile
         this.type = type;
 
         long tempSize = 0;
-        for(Pair<Long,Long> section : sections)
+        if (compressionInfo == null)
         {
-            tempSize += section.right - section.left;
+            for (Pair<Long, Long> section : sections)
+                tempSize += section.right - section.left;
+        }
+        else
+        {
+            // calculate total length of transferring chunks
+            for (CompressionMetadata.Chunk chunk : compressionInfo.chunks)
+                tempSize += chunk.length + 4; // 4 bytes for CRC
         }
         size = tempSize;
 
         this.estimatedKeys = estimatedKeys;
+        this.compressionInfo = compressionInfo;
     }
 
     public String getFilename()
@@ -81,7 +101,7 @@ public class PendingFile
 
     public boolean equals(Object o)
     {
-        if ( !(o instanceof PendingFile) )
+        if (!(o instanceof PendingFile))
             return false;
 
         PendingFile rhs = (PendingFile)o;
@@ -118,6 +138,8 @@ public class PendingFile
             }
             dos.writeUTF(sc.type.name());
             dos.writeLong(sc.estimatedKeys);
+            if (version > MessagingService.VERSION_11)
+                CompressionInfo.serializer.serialize(sc.compressionInfo, dos, version);
         }
 
         public PendingFile deserialize(DataInput dis, int version) throws IOException
@@ -131,12 +153,15 @@ public class PendingFile
             int count = dis.readInt();
             List<Pair<Long,Long>> sections = new ArrayList<Pair<Long,Long>>(count);
             for (int i = 0; i < count; i++)
-                sections.add(new Pair<Long,Long>(Long.valueOf(dis.readLong()), Long.valueOf(dis.readLong())));
+                sections.add(new Pair<Long,Long>(dis.readLong(), dis.readLong()));
             // this controls the way indexes are rebuilt when streaming in.
             OperationType type = OperationType.RESTORE_REPLICA_COUNT;
             type = OperationType.valueOf(dis.readUTF());
             long estimatedKeys = dis.readLong();
-            return new PendingFile(null, desc, component, sections, type, estimatedKeys);
+            CompressionInfo info = null;
+            if (version > MessagingService.VERSION_11)
+                info = CompressionInfo.serializer.deserialize(dis, version);
+            return new PendingFile(null, desc, component, sections, type, estimatedKeys, info);
         }
 
         public long serializedSize(PendingFile pf, int version)
@@ -151,6 +176,8 @@ public class PendingFile
                 size += TypeSizes.NATIVE.sizeof(section.left) + TypeSizes.NATIVE.sizeof(section.right);
             size += TypeSizes.NATIVE.sizeof(pf.type.name());
             size += TypeSizes.NATIVE.sizeof(pf.estimatedKeys);
+            if (version > MessagingService.VERSION_11)
+                size += CompressionInfo.serializer.serializedSize(pf.compressionInfo, version);
             return size;
         }
     }

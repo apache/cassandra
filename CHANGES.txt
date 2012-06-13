@@ -16,6 +16,7 @@
  * Avoids double serialization of CF id in RowMutation messages
    (CASSANDRA-4293)
  * fix Summary component and caches to use correct partitioner (CASSANDRA-4289)
+ * stream compressed sstables directly with java nio (CASSANDRA-4297)
 
 
 1.1.2

@@ -19,7 +19,9 @@ package org.apache.cassandra.net;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.nio.channels.SocketChannel;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
@@ -89,10 +91,10 @@ public class OutboundTcpConnectionPool
         }
         else
         {
+            Socket socket = SocketChannel.open(new InetSocketAddress(endPoint(), DatabaseDescriptor.getStoragePort())).socket();
             if (Config.getOutboundBindAny())
-                return new Socket(endPoint(), DatabaseDescriptor.getStoragePort());
-            else
-                return new Socket(endPoint(), DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
+                socket.bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
+            return socket;
         }
     }
 

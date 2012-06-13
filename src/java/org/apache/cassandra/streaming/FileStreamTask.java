@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -31,7 +28,6 @@ import org.slf4j.LoggerFactory;
 import com.ning.compress.lzf.LZFOutputStream;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.net.MessageIn;
@@ -52,7 +48,7 @@ public class FileStreamTask extends WrappedRunnable
     protected final InetAddress to;
 
     // communication socket
-    private Socket socket;
+    protected Socket socket;
     // socket's output/input stream
     private OutputStream output;
     private OutputStream compressedoutput;
@@ -60,7 +56,7 @@ public class FileStreamTask extends WrappedRunnable
     // allocate buffer to use for transfers only once
     private final byte[] transferBuffer = new byte[CHUNK_SIZE];
     // outbound global throughput limiter
-    private final Throttle throttle;
+    protected final Throttle throttle;
     private final StreamReplyVerbHandler handler = new StreamReplyVerbHandler();
 
     public FileStreamTask(StreamHeader header, InetAddress to)
@@ -131,19 +127,17 @@ public class FileStreamTask extends WrappedRunnable
      * Stream file by it's sections specified by this.header
      * @throws IOException on any I/O error
      */
-    private void stream() throws IOException
+    protected void stream() throws IOException
     {
-        ByteBuffer HeaderBuffer = MessagingService.instance().constructStreamHeader(header, false, Gossiper.instance.getVersion(to));
+        ByteBuffer headerBuffer = MessagingService.instance().constructStreamHeader(header, false, Gossiper.instance.getVersion(to));
         // write header (this should not be compressed for compatibility with other messages)
-        output.write(ByteBufferUtil.getArray(HeaderBuffer));
+        output.write(ByteBufferUtil.getArray(headerBuffer));
 
         if (header.file == null)
             return;
 
-        // TODO just use a raw RandomAccessFile since we're managing our own buffer here
-        RandomAccessReader file = (header.file.sstable.compression) // try to skip kernel page cache if possible
-                                ? CompressedRandomAccessReader.open(header.file.getFilename(), header.file.sstable.getCompressionMetadata(), true)
-                                : RandomAccessReader.open(new File(header.file.getFilename()), true);
+        // try to skip kernel page cache if possible
+        RandomAccessReader file = RandomAccessReader.open(new File(header.file.getFilename()), true);
 
         // setting up data compression stream
         compressedoutput = new LZFOutputStream(output);
@@ -188,7 +182,7 @@ public class FileStreamTask extends WrappedRunnable
         }
     }
 
-    private void receiveReply() throws IOException
+    protected void receiveReply() throws IOException
     {
         MessagingService.validateMagic(input.readInt());
         int msheader = input.readInt();

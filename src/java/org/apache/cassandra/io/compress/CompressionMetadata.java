@@ -18,14 +18,18 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.*;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+
+import com.google.common.primitives.Longs;
 
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.BigLongArray;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * Holds metadata about compressed file
@@ -161,6 +165,36 @@ public class CompressionMetadata
         return new Chunk(chunkOffset, (int) (nextChunkOffset - chunkOffset - 4)); // "4" bytes reserved for checksum
     }
 
+    /**
+     * @param sections Collection of sections in uncompressed file
+     * @return Array of chunks which corresponds to given sections of uncompressed file, sorted by chunk offset
+     */
+    public Chunk[] getChunksForSections(Collection<Pair<Long, Long>> sections)
+    {
+        // use SortedSet to eliminate duplicates and sort by chunk offset
+        SortedSet<Chunk> offsets = new TreeSet<Chunk>(new Comparator<Chunk>()
+        {
+            public int compare(Chunk o1, Chunk o2)
+            {
+                return Longs.compare(o1.offset, o2.offset);
+            }
+        });
+        for (Pair<Long, Long> section : sections)
+        {
+            int startIndex = (int) (section.left / parameters.chunkLength());
+            int endIndex = (int) (section.right / parameters.chunkLength());
+            for (int i = startIndex; i <= endIndex; i++)
+            {
+                long chunkOffset = chunkOffsets.get(i);
+                long nextChunkOffset = (i + 1 == chunkOffsets.size)
+                                               ? compressedFileLength
+                                               : chunkOffsets.get(i + 1);
+                offsets.add(new Chunk(chunkOffset, (int) (nextChunkOffset - chunkOffset - 4))); // "4" bytes reserved for checksum
+            }
+        }
+        return offsets.toArray(new Chunk[offsets.size()]);
+    }
+
     public static class Writer extends RandomAccessFile
     {
         // place for uncompressed data length in the index file
@@ -259,6 +293,8 @@ public class CompressionMetadata
      */
     public static class Chunk
     {
+        public static final IVersionedSerializer<Chunk> serializer = new ChunkSerializer();
+
         public final long offset;
         public final int length;
 
@@ -268,9 +304,46 @@ public class CompressionMetadata
             this.length = length;
         }
 
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Chunk chunk = (Chunk) o;
+            return length == chunk.length && offset == chunk.offset;
+        }
+
+        public int hashCode()
+        {
+            int result = (int) (offset ^ (offset >>> 32));
+            result = 31 * result + length;
+            return result;
+        }
+
         public String toString()
         {
             return String.format("Chunk<offset: %d, length: %d>", offset, length);
+        }
+    }
+
+    static class ChunkSerializer implements IVersionedSerializer<Chunk>
+    {
+        public void serialize(Chunk chunk, DataOutput out, int version) throws IOException
+        {
+            out.writeLong(chunk.offset);
+            out.writeInt(chunk.length);
+        }
+
+        public Chunk deserialize(DataInput in, int version) throws IOException
+        {
+            return new Chunk(in.readLong(), in.readInt());
+        }
+
+        public long serializedSize(Chunk chunk, int version)
+        {
+            long size = TypeSizes.NATIVE.sizeof(chunk.offset);
+            size += TypeSizes.NATIVE.sizeof(chunk.length);
+            return size;
         }
     }
 }

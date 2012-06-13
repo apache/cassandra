@@ -62,6 +62,7 @@ import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.*;
+import org.apache.cassandra.streaming.compress.CompressedFileStreamTask;
 import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -609,7 +610,9 @@ public final class MessagingService implements MessagingServiceMBean
             }
         }
 
-        executor.execute(new FileStreamTask(header, to));
+        executor.execute(header.file == null || header.file.compressionInfo == null
+                                 ? new FileStreamTask(header, to)
+                                 : new CompressedFileStreamTask(header, to));
     }
 
     public void incrementActiveStreamsOutbound()

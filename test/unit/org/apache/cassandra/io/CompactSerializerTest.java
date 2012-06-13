@@ -81,6 +81,8 @@ public class CompactSerializerTest extends SchemaLoader
         expectedClassNames.add("UUIDSerializer");
         expectedClassNames.add("Serializer");
         expectedClassNames.add("ColumnFamilySerializer");
+        expectedClassNames.add("CompressionInfoSerializer");
+        expectedClassNames.add("ChunkSerializer");
 
         discoveredClassNames = new ArrayList<String>();
         String cp = System.getProperty("java.class.path");
