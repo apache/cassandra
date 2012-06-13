@@ -20,6 +20,7 @@
 
 
 1.1.2
+ * skip tombstones during hint replay (CASSANDRA-4320)
  * fix NPE in compactionstats (CASSANDRA-4318)
  * enforce 1m min keycache for auto (CASSANDRA-4306)
  * Have DeletedColumn.isMFD always return true (CASSANDRA-4307)
