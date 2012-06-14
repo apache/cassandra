@@ -43,8 +43,7 @@ public class LeveledCompactionTask extends CompactionTask
     {
         try
         {
-            int n = super.execute(collector);
-            return n;
+            return super.execute(collector);
         }
         finally
         {
