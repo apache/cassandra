@@ -60,12 +60,12 @@ public class LeveledManifest
     private final List<SSTableReader>[] generations;
     private final Map<SSTableReader, Integer> sstableGenerations;
     private final RowPosition[] lastCompactedKeys;
-    private final int maxSSTableSizeInMB;
+    private final int maxSSTableSizeInBytes;
 
     private LeveledManifest(ColumnFamilyStore cfs, int maxSSTableSizeInMB)
     {
         this.cfs = cfs;
-        this.maxSSTableSizeInMB = maxSSTableSizeInMB;
+        this.maxSSTableSizeInBytes = maxSSTableSizeInMB * 1024 * 1024;
 
         // allocate enough generations for a PB of data
         int n = (int) Math.log10(1000 * 1000 * 1000 / maxSSTableSizeInMB);
@@ -175,9 +175,18 @@ public class LeveledManifest
         if (!added.iterator().hasNext())
             return;
 
-        int newLevel = minimumLevel == maximumLevel ? maximumLevel + 1 : maximumLevel;
-        newLevel = skipLevels(newLevel, added);
-        assert newLevel > 0;
+        int newLevel;
+        if (minimumLevel == 0 && maximumLevel == 0 && SSTable.getTotalBytes(removed) < maxSSTableSizeInBytes)
+        {
+            // special case for tiny L0 sstables; see CASSANDRA-4341
+            newLevel = 0;
+        }
+        else
+        {
+            newLevel = minimumLevel == maximumLevel ? maximumLevel + 1 : maximumLevel;
+            newLevel = skipLevels(newLevel, added);
+            assert newLevel > 0;
+        }
         if (logger.isDebugEnabled())
             logger.debug("Adding [{}] at L{}", toString(added), newLevel);
 
@@ -230,8 +239,8 @@ public class LeveledManifest
     private long maxBytesForLevel(int level)
     {
         if (level == 0)
-            return 4L * maxSSTableSizeInMB * 1024 * 1024;
-        double bytes = Math.pow(10, level) * maxSSTableSizeInMB * 1024 * 1024;
+            return 4L * maxSSTableSizeInBytes;
+        double bytes = Math.pow(10, level) * maxSSTableSizeInBytes;
         if (bytes > Long.MAX_VALUE)
             throw new RuntimeException("At most " + Long.MAX_VALUE + " bytes may be in a compaction level; your maxSSTableSize must be absurdly high to compute " + bytes);
         return (long) bytes;
@@ -270,7 +279,7 @@ public class LeveledManifest
 
             // L0 gets a special case that if we don't have anything more important to do,
             // we'll go ahead and compact even just one sstable
-            if (score > 1.001 || i == 0)
+            if (score > 1.001 || (i == 0 && sstables.size() > 1))
             {
                 Collection<SSTableReader> candidates = getCandidatesFor(i);
 
@@ -373,17 +382,45 @@ public class LeveledManifest
 
         if (level == 0)
         {
-            // because L0 files may overlap each other, we treat compactions there specially:
-            // a L0 compaction also checks other L0 files for overlap.
+            // L0 is the dumping ground for new sstables which thus may overlap each other.
+            //
+            // We treat L0 compactions specially:
+            // 1a. add sstables to the candidate set until we have at least maxSSTableSizeInMB
+            // 1b. prefer choosing older sstables as candidates, to newer ones
+            // 1c. any L0 sstables that overlap a candidate, will also become candidates
+            // 2. At most MAX_COMPACTING_L0 sstables will be compacted at once
+            // 3. If total candidate size is less than maxSSTableSizeInMB, we won't bother compacting with L1,
+            //    and the result of the compaction will stay in L0 instead of being promoted (see promote())
             Set<SSTableReader> candidates = new HashSet<SSTableReader>();
-            // pick the oldest sstable from L0, and any that overlap with it
+            Set<SSTableReader> remaining = new HashSet<SSTableReader>(generations[0]);
             List<SSTableReader> ageSortedSSTables = new ArrayList<SSTableReader>(generations[0]);
             Collections.sort(ageSortedSSTables, SSTable.maxTimestampComparator);
-            List<SSTableReader> L0 = overlapping(ageSortedSSTables.get(0), generations[0]);
-            L0 = L0.size() > MAX_COMPACTING_L0 ? L0.subList(0, MAX_COMPACTING_L0) : L0;
-            // add the overlapping ones from L1
-            for (SSTableReader sstable : L0)
-                candidates.addAll(overlapping(sstable, generations[1]));
+            for (SSTableReader sstable : ageSortedSSTables)
+            {
+                if (candidates.contains(sstable))
+                    continue;
+
+                List<SSTableReader> newCandidates = overlapping(sstable, remaining);
+                candidates.addAll(newCandidates);
+                remaining.removeAll(newCandidates);
+
+                if (candidates.size() > MAX_COMPACTING_L0)
+                {
+                    // limit to only the MAX_COMPACTING_L0 oldest candidates
+                    List<SSTableReader> ageSortedCandidates = new ArrayList<SSTableReader>(candidates);
+                    Collections.sort(ageSortedCandidates, SSTable.maxTimestampComparator);
+                    return ageSortedCandidates.subList(0, MAX_COMPACTING_L0);
+                }
+
+                if (SSTable.getTotalBytes(candidates) > maxSSTableSizeInBytes)
+                {
+                    // add sstables from L1 that overlap candidates
+                    for (SSTableReader candidate : new ArrayList<SSTableReader>(candidates))
+                        candidates.addAll(overlapping(candidate, generations[1]));
+                    break;
+                }
+            }
+
             return candidates;
         }
 
@@ -475,7 +512,7 @@ public class LeveledManifest
         for (int i = generations.length - 1; i >= 0; i--)
         {
             List<SSTableReader> sstables = generations[i];
-            estimated[i] = Math.max(0L, SSTableReader.getTotalBytes(sstables) - maxBytesForLevel(i)) / (maxSSTableSizeInMB * 1024L * 1024);
+            estimated[i] = Math.max(0L, SSTableReader.getTotalBytes(sstables) - maxBytesForLevel(i)) / maxSSTableSizeInBytes;
             tasks += estimated[i];
         }
 
