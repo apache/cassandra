@@ -89,7 +89,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
                     {
                         RangeTombstone t1 = (RangeTombstone)c1;
                         RangeTombstone t2 = (RangeTombstone)c2;
-                        int comp2 = AbstractType.this.compare(t1.max, t1.max);
+                        int comp2 = AbstractType.this.compare(t1.max, t2.max);
                         if (comp2 == 0)
                             return t1.data.compareTo(t2.data);
                         else
