@@ -954,9 +954,14 @@ public class DatabaseDescriptor
         return conf.reduce_cache_capacity_to;
     }
 
-    public static int getHintedHandoffThrottleDelay()
+    public static int getHintedHandoffThrottleInKB()
     {
-        return conf.hinted_handoff_throttle_delay_in_ms;
+        return conf.hinted_handoff_throttle_in_kb;
+    }
+
+    public static int getMaxHintsThread()
+    {
+        return conf.max_hints_delivery_threads;
     }
 
     public static boolean getPreheatKeyCache()

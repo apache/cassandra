@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.*;
@@ -44,11 +45,13 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throttle;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
@@ -94,7 +97,11 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     private final NonBlockingHashSet<InetAddress> queuedDeliveries = new NonBlockingHashSet<InetAddress>();
 
-    private final ExecutorService executor = new JMXEnabledThreadPoolExecutor("HintedHandoff", Thread.MIN_PRIORITY);
+    private final ThreadPoolExecutor executor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getMaxHintsThread(),
+                                                                                 Integer.MAX_VALUE,
+                                                                                 TimeUnit.SECONDS,
+                                                                                 new LinkedBlockingQueue<Runnable>(),
+                                                                                 new NamedThreadFactory("HintedHandoff", Thread.MIN_PRIORITY), "HintedHandoff");
 
     public void start()
     {
@@ -119,20 +126,11 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         StorageService.optionalTasks.scheduleWithFixedDelay(runnable, 10, 10, TimeUnit.MINUTES);
     }
 
-    private static void sendMutation(InetAddress endpoint, RowMutation mutation) throws TimeoutException
+    private static void sendMutation(InetAddress endpoint, MessageOut<?> message) throws TimeoutException
     {
         IWriteResponseHandler responseHandler = WriteResponseHandler.create(endpoint);
-        MessagingService.instance().sendRR(mutation.createMessage(), endpoint, responseHandler);
+        MessagingService.instance().sendRR(message, endpoint, responseHandler);
         responseHandler.get();
-
-        try
-        {
-            Thread.sleep(DatabaseDescriptor.getHintedHandoffThrottleDelay());
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
     }
 
     private static void deleteHint(ByteBuffer tokenBytes, ByteBuffer hintId, long timestamp) throws IOException
@@ -260,6 +258,21 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     private void deliverHintsToEndpointInternal(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, InterruptedException
     {
+        long hintSizes = 0;
+        Throttle hintThrottle = new Throttle("HintThrottle", new Throttle.ThroughputFunction()
+        {
+            public int targetThroughput()
+            {
+                if (DatabaseDescriptor.getHintedHandoffThrottleInKB() < 1)
+                    // throttling disabled
+                    return 0;
+                // total throughput
+                int totalBytesPerMS = (DatabaseDescriptor.getHintedHandoffThrottleInKB() * 1024) / 8 / 1000;
+                // per hint throughput (target bytes per MS)
+                return totalBytesPerMS / Math.max(1, executor.getActiveCount());
+            }
+        });
+
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         if (hintStore.isEmpty())
             return; // nothing to do, don't confuse users by logging a no-op handoff
@@ -360,7 +373,11 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 {
                     if (rm != null)
                     {
-                        sendMutation(endpoint, rm);
+                        MessageOut<RowMutation> message = rm.createMessage();
+                        sendMutation(endpoint, message);
+                        // throttle for the messages sent.
+                        hintSizes += message.serializedSize(MessagingService.current_version);
+                        hintThrottle.throttle(hintSizes);
                         rowsReplayed++;
                     }
                     deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
@@ -423,10 +440,10 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     */
     public void scheduleHintDelivery(final InetAddress to)
     {
-        logger.debug("deliverHints to {}", to);
-        if (!queuedDeliveries.add(to))
+        // We should not deliver hints to the same host in 2 different threads
+        if (queuedDeliveries.contains(to) || !queuedDeliveries.add(to))
             return;
-
+        logger.debug("Scheduling delivery of Hints to {}", to);
         Runnable r = new WrappedRunnable()
         {
             public void runMayThrow() throws Exception

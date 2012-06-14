@@ -33,6 +33,8 @@ Upgrading
     - The somewhat ill-concieved CollatingOrderPreservingPartitioner
       has been removed.  Use RandomPartitioner (recommended) or
       ByteOrderedPartitioner instead.
+    - Global option hinted_handoff_throttle_delay_in_ms has been removed.
+      hinted_handoff_throttle_in_kb has been added instead.
 
 
 1.1.1
