@@ -764,10 +764,14 @@ public final class MessagingService implements MessagingServiceMBean
         return buffer;
     }
 
-    public Integer setVersion(InetAddress address, int version)
+    /**
+     * @return the last version associated with address, or @param version if this is the first such version
+     */
+    public int setVersion(InetAddress address, int version)
     {
         logger.debug("Setting version {} for {}", version, address);
-        return versions.put(address, version);
+        Integer v = versions.put(address, version);
+        return v == null ? version : v;
     }
 
     public void resetVersion(InetAddress endpoint)
