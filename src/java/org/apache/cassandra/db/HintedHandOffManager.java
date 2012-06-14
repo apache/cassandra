@@ -329,6 +329,14 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             page:
             for (IColumn hint : hintsPage.getSortedColumns())
             {
+                // Skip tombstones:
+                // if we iterate quickly enough, it's possible that we could request a new page in the same millisecond
+                // in which the local deletion timestamp was generated on the last column in the old page, in which
+                // case the hint will have no columns (since it's deleted) but will still be included in the resultset
+                // since (even with gcgs=0) it's still a "relevant" tombstone.
+                if (!hint.isLive())
+                    continue;
+
                 startColumn = hint.name();
                 for (IColumn subColumn : hint.getSubColumns())
                 {
@@ -340,14 +348,6 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                         continue page;
                     }
                 }
-
-                // Skip tombstones:
-                // if we iterate quickly enough, it's possible that we could request a new page in the same millisecond
-                // in which the local deletion timestamp was generated on the last column in the old page, in which
-                // case the hint will have no columns (since it's deleted) but will still be included in the resultset
-                // since (even with gcgs=0) it's still a "relevant" tombstone.
-                if (!hint.isLive())
-                    continue;
 
                 IColumn versionColumn = hint.getSubColumn(ByteBufferUtil.bytes("version"));
                 IColumn tableColumn = hint.getSubColumn(ByteBufferUtil.bytes("table"));
