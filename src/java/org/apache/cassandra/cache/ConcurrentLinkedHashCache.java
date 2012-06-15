@@ -19,10 +19,10 @@ package org.apache.cassandra.cache;
 
 import java.util.Set;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
-import com.googlecode.concurrentlinkedhashmap.Weigher;
+import org.github.jamm.MemoryMeter;
 
-import com.googlecode.concurrentlinkedhashmap.Weighers;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 
 /** Wrapper so CLHM can implement ICache interface.
  *  (this is what you get for making library classes final.) */
@@ -30,47 +30,38 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
 {
     public static final int DEFAULT_CONCURENCY_LEVEL = 64;
     private final ConcurrentLinkedHashMap<K, V> map;
+    private static final MemoryMeter meter = new MemoryMeter().omitSharedBufferOverhead();
 
-    public ConcurrentLinkedHashCache(ConcurrentLinkedHashMap<K, V> map)
+    private ConcurrentLinkedHashCache(ConcurrentLinkedHashMap<K, V> map)
     {
         this.map = map;
     }
 
     /**
-     * Initialize a cache with weigher = Weighers.singleton() and initial capacity 0
-     *
-     * @param capacity cache weighted capacity
-     *
-     * @param <K> key type
-     * @param <V> value type
-     *
-     * @return initialized cache
+     * Initialize a cache with initial capacity with weightedCapacity
      */
-    public static <K, V> ConcurrentLinkedHashCache<K, V> create(long capacity)
-    {
-        return create(capacity, Weighers.<V>singleton());
-    }
-
-    /**
-     * Initialize a cache with initial capacity set to 0
-     *
-     * @param weightedCapacity cache weighted capacity
-     * @param weigher The weigher to use
-     *
-     * @param <K> key type
-     * @param <V> value type
-     *
-     * @return initialized cache
-     */
-    public static <K, V> ConcurrentLinkedHashCache<K, V> create(long weightedCapacity, Weigher<V> weigher)
+    public static <K, V> ConcurrentLinkedHashCache<K, V> create(long weightedCapacity, EntryWeigher<K, V> entryWeiger)
     {
         ConcurrentLinkedHashMap<K, V> map = new ConcurrentLinkedHashMap.Builder<K, V>()
-                                            .weigher(weigher)
+                                            .weigher(entryWeiger)
                                             .maximumWeightedCapacity(weightedCapacity)
                                             .concurrencyLevel(DEFAULT_CONCURENCY_LEVEL)
                                             .build();
 
         return new ConcurrentLinkedHashCache<K, V>(map);
+    }
+
+    public static <K, V> ConcurrentLinkedHashCache<K, V> create(long weightedCapacity)
+    {
+        return create(weightedCapacity, new EntryWeigher<K, V>()
+        {
+            public int weightOf(K key, V value)
+            {
+                long size = meter.measure(key) + meter.measure(value);
+                assert size < Integer.MAX_VALUE : "Serialized size cannot be more than 2GB/Integer.MAX_VALUE";
+                return (int) size;
+            }
+        });
     }
 
     public long capacity()

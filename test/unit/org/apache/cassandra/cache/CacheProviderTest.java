@@ -30,6 +30,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamily;
+
+import com.googlecode.concurrentlinkedhashmap.Weighers;
+
 import static org.apache.cassandra.Util.column;
 import static org.junit.Assert.*;
 
@@ -105,7 +108,7 @@ public class CacheProviderTest extends SchemaLoader
     @Test
     public void testHeapCache() throws InterruptedException
     {
-        ICache<String, IRowCacheEntry> cache = ConcurrentLinkedHashCache.create(CAPACITY);
+        ICache<String, IRowCacheEntry> cache = ConcurrentLinkedHashCache.create(CAPACITY, Weighers.<String, IRowCacheEntry>entrySingleton());
         ColumnFamily cf = createCF();
         simpleCase(cf, cache);
         concurrentCase(cf, cache);
@@ -114,7 +117,7 @@ public class CacheProviderTest extends SchemaLoader
     @Test
     public void testSerializingCache() throws InterruptedException
     {
-        ICache<String, IRowCacheEntry> cache = new SerializingCache<String, IRowCacheEntry>(CAPACITY, false, new SerializingCacheProvider.RowCacheSerializer());
+        ICache<String, IRowCacheEntry> cache = SerializingCache.create(CAPACITY, Weighers.<FreeableMemory>singleton(), new SerializingCacheProvider.RowCacheSerializer());
         ColumnFamily cf = createCF();
         simpleCase(cf, cache);
         concurrentCase(cf, cache);

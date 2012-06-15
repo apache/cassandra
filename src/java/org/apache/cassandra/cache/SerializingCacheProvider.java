@@ -29,9 +29,9 @@ import org.apache.cassandra.net.MessagingService;
 
 public class SerializingCacheProvider implements IRowCacheProvider
 {
-    public ICache<RowCacheKey, IRowCacheEntry> create(long capacity, boolean useMemoryWeigher)
+    public ICache<RowCacheKey, IRowCacheEntry> create(long capacity)
     {
-        return new SerializingCache<RowCacheKey, IRowCacheEntry>(capacity, useMemoryWeigher, new RowCacheSerializer());
+        return SerializingCache.create(capacity, new RowCacheSerializer());
     }
 
     // Package protected for tests

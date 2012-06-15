@@ -17,12 +17,10 @@
  */
 package org.apache.cassandra.cache;
 
-import org.apache.cassandra.db.ColumnFamily;
-
 /**
  * Provides cache objects with a requested capacity.
  */
 public interface IRowCacheProvider
 {
-    public ICache<RowCacheKey, IRowCacheEntry> create(long capacity, boolean useMemoryWeigher);
+    public ICache<RowCacheKey, IRowCacheEntry> create(long capacity);
 }

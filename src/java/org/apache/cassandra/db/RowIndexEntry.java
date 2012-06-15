@@ -20,10 +20,8 @@ package org.apache.cassandra.db;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -41,6 +39,11 @@ public class RowIndexEntry
     public RowIndexEntry(long position)
     {
         this.position = position;
+    }
+
+    public int serializedSize()
+    {
+        return TypeSizes.NATIVE.sizeof(position);
     }
 
     public static RowIndexEntry create(long position, DeletionInfo deletionInfo, ColumnIndex index)
@@ -184,6 +187,7 @@ public class RowIndexEntry
             return bloomFilter;
         }
 
+        @Override
         public int serializedSize()
         {
             TypeSizes typeSizes = TypeSizes.NATIVE;

@@ -22,9 +22,9 @@ import java.io.IOException;
 import java.util.Set;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 import com.googlecode.concurrentlinkedhashmap.EvictionListener;
 import com.googlecode.concurrentlinkedhashmap.Weigher;
-import com.googlecode.concurrentlinkedhashmap.Weighers;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
@@ -49,7 +49,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
     private final ConcurrentLinkedHashMap<K, FreeableMemory> map;
     private final ISerializer<V> serializer;
 
-    public SerializingCache(long capacity, boolean useMemoryWeigher, ISerializer<V> serializer)
+    private SerializingCache(long capacity, Weigher<FreeableMemory> weigher, ISerializer<V> serializer)
     {
         this.serializer = serializer;
 
@@ -62,24 +62,29 @@ public class SerializingCache<K, V> implements ICache<K, V>
         };
 
         this.map = new ConcurrentLinkedHashMap.Builder<K, FreeableMemory>()
-                   .weigher(useMemoryWeigher
-                                ? createMemoryWeigher()
-                                : Weighers.<FreeableMemory>singleton())
+                   .weigher(weigher)
                    .maximumWeightedCapacity(capacity)
                    .concurrencyLevel(DEFAULT_CONCURENCY_LEVEL)
                    .listener(listener)
                    .build();
     }
 
-    private static Weigher<FreeableMemory> createMemoryWeigher()
+    public static <K, V> SerializingCache<K, V> create(long weightedCapacity, Weigher<FreeableMemory> weigher, ISerializer<V> serializer)
     {
-        return new Weigher<FreeableMemory>()
+        return new SerializingCache<K, V>(weightedCapacity, weigher, serializer);
+    }
+
+    public static <K, V> SerializingCache<K, V> create(long weightedCapacity, ISerializer<V> serializer)
+    {
+        return create(weightedCapacity, new Weigher<FreeableMemory>()
         {
             public int weightOf(FreeableMemory value)
             {
-                return (int) Math.min(value.size(), Integer.MAX_VALUE);
+                long size = value.size();
+                assert size < Integer.MAX_VALUE : "Serialized size cannot be more than 2GB";
+                return (int) size;
             }
-        };
+        }, serializer);
     }
 
     private V deserialize(FreeableMemory mem)

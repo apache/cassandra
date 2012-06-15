@@ -39,7 +39,6 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -48,16 +47,18 @@ import org.apache.cassandra.io.sstable.SSTableReader.Operator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.github.jamm.MemoryMeter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 
 public class CacheService implements CacheServiceMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(CacheService.class);
 
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=Caches";
-    public static final int AVERAGE_KEY_CACHE_ROW_SIZE = 48;
 
     public static enum CacheType
     {
@@ -117,7 +118,25 @@ public class CacheService implements CacheServiceMBean
 
         // as values are constant size we can use singleton weigher
         // where 48 = 40 bytes (average size of the key) + 8 bytes (size of value)
-        ICache<KeyCacheKey, RowIndexEntry> kc = ConcurrentLinkedHashCache.create(keyCacheInMemoryCapacity / AVERAGE_KEY_CACHE_ROW_SIZE);
+        ICache<KeyCacheKey, RowIndexEntry> kc;
+        if (MemoryMeter.isInitialized())
+        {
+            kc = ConcurrentLinkedHashCache.create(keyCacheInMemoryCapacity);
+        }
+        else
+        {
+            logger.warn("MemoryMeter uninitialized (jamm not specified as java agent); KeyCache size in JVM Heap will not be calculated accurately. " +
+            		"Usually this means cassandra-env.sh disabled jamm because you are using a buggy JRE; upgrade to the Sun JRE instead");
+            /* We don't know the overhead size because memory meter is not enabled. */
+            EntryWeigher<KeyCacheKey, RowIndexEntry> weigher = new EntryWeigher<KeyCacheKey, RowIndexEntry>()
+            {
+                public int weightOf(KeyCacheKey key, RowIndexEntry entry)
+                {
+                    return key.key.length + entry.serializedSize();
+                }
+            };
+            kc = ConcurrentLinkedHashCache.create(keyCacheInMemoryCapacity, weigher);
+        }
         AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = new AutoSavingCache<KeyCacheKey, RowIndexEntry>(kc, CacheType.KEY_CACHE, new KeyCacheSerializer());
 
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
@@ -143,7 +162,7 @@ public class CacheService implements CacheServiceMBean
         long rowCacheInMemoryCapacity = DatabaseDescriptor.getRowCacheSizeInMB() * 1024 * 1024;
 
         // cache object
-        ICache<RowCacheKey, IRowCacheEntry> rc = DatabaseDescriptor.getRowCacheProvider().create(rowCacheInMemoryCapacity, true);
+        ICache<RowCacheKey, IRowCacheEntry> rc = DatabaseDescriptor.getRowCacheProvider().create(rowCacheInMemoryCapacity);
         AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache = new AutoSavingCache<RowCacheKey, IRowCacheEntry>(rc, CacheType.ROW_CACHE, new RowCacheSerializer());
 
         int rowCacheKeysToSave = DatabaseDescriptor.getRowCacheKeysToSave();
@@ -245,7 +264,7 @@ public class CacheService implements CacheServiceMBean
 
     public long getKeyCacheCapacityInBytes()
     {
-        return keyCache.getCapacity() * AVERAGE_KEY_CACHE_ROW_SIZE;
+        return keyCache.getCapacity();
     }
 
     public long getKeyCacheCapacityInMB()
@@ -258,7 +277,8 @@ public class CacheService implements CacheServiceMBean
         if (capacity < 0)
             throw new RuntimeException("capacity should not be negative.");
 
-        keyCache.setCapacity(capacity * 1024 * 1024 / 48);
+        long weightedCapacity = capacity * 1024 * 1024;
+        keyCache.setCapacity(MemoryMeter.isInitialized() ? weightedCapacity : (weightedCapacity / 48));
     }
 
     public long getRowCacheSize()
@@ -268,7 +288,7 @@ public class CacheService implements CacheServiceMBean
 
     public long getKeyCacheSize()
     {
-        return keyCache.weightedSize() * AVERAGE_KEY_CACHE_ROW_SIZE;
+        return keyCache.weightedSize();
     }
 
     public void reduceCacheSizes()

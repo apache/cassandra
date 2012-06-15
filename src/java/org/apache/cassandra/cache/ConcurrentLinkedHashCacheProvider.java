@@ -17,30 +17,10 @@
  */
 package org.apache.cassandra.cache;
 
-import com.googlecode.concurrentlinkedhashmap.Weigher;
-import com.googlecode.concurrentlinkedhashmap.Weighers;
-
-import org.github.jamm.MemoryMeter;
-
 public class ConcurrentLinkedHashCacheProvider implements IRowCacheProvider
 {
-    public ICache<RowCacheKey, IRowCacheEntry> create(long capacity, boolean useMemoryWeigher)
+    public ICache<RowCacheKey, IRowCacheEntry> create(long capacity)
     {
-        return ConcurrentLinkedHashCache.create(capacity, useMemoryWeigher
-                                                            ? createMemoryWeigher()
-                                                            : Weighers.<IRowCacheEntry>singleton());
-    }
-
-    private static Weigher<IRowCacheEntry> createMemoryWeigher()
-    {
-        return new Weigher<IRowCacheEntry>()
-        {
-            final MemoryMeter meter = new MemoryMeter();
-
-            public int weightOf(IRowCacheEntry value)
-            {
-                return (int) Math.min(meter.measure(value), Integer.MAX_VALUE);
-            }
-        };
+        return ConcurrentLinkedHashCache.create(capacity);
     }
 }
