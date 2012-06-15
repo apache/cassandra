@@ -28,7 +28,6 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -62,7 +61,7 @@ public class CompressedFileStreamTask extends FileStreamTask
         byte[] transferBuffer = null;
 
         // write header
-        ByteBuffer headerBuffer = MessagingService.instance().constructStreamHeader(header, false, Gossiper.instance.getVersion(to));
+        ByteBuffer headerBuffer = MessagingService.instance().constructStreamHeader(header, false, MessagingService.instance().getVersion(to));
         socket.getOutputStream().write(ByteBufferUtil.getArray(headerBuffer));
 
         RandomAccessReader file = RandomAccessReader.open(new File(header.file.getFilename()), true);
