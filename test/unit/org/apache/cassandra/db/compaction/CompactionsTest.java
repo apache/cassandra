@@ -63,13 +63,13 @@ public class CompactionsTest extends SchemaLoader
     {
         // this test does enough rows to force multiple block indexes to be used
         Table table = Table.open(TABLE1);
-        ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
+        ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
 
         final int ROWS_PER_SSTABLE = 10;
         final int SSTABLES = DatabaseDescriptor.getIndexInterval() * 3 / ROWS_PER_SSTABLE;
 
         // disable compaction while flushing
-        store.disableAutoCompaction();
+        cfs.disableAutoCompaction();
 
         long maxTimestampExpected = Long.MIN_VALUE;
         Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
@@ -85,18 +85,18 @@ public class CompactionsTest extends SchemaLoader
                 rm.apply();
                 inserted.add(key);
             }
-            store.forceBlockingFlush();
-            assertMaxTimestamp(store, maxTimestampExpected);
-            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(store).size());
+            cfs.forceBlockingFlush();
+            assertMaxTimestamp(cfs, maxTimestampExpected);
+            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(cfs).size());
         }
 
-        forceCompactions(store);
+        forceCompactions(cfs);
 
-        assertEquals(inserted.size(), Util.getRangeSlice(store).size());
+        assertEquals(inserted.size(), Util.getRangeSlice(cfs).size());
 
         // make sure max timestamp of compacted sstables is recorded properly after compaction.
-        assertMaxTimestamp(store, maxTimestampExpected);
-        store.truncate();
+        assertMaxTimestamp(cfs, maxTimestampExpected);
+        cfs.truncate();
     }
 
     /**
@@ -153,13 +153,13 @@ public class CompactionsTest extends SchemaLoader
     public void testSuperColumnCompactions() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open(TABLE1);
-        ColumnFamilyStore store = table.getColumnFamilyStore("Super1");
+        ColumnFamilyStore cfs = table.getColumnFamilyStore("Super1");
 
         final int ROWS_PER_SSTABLE = 10;
         final int SSTABLES = DatabaseDescriptor.getIndexInterval() * 3 / ROWS_PER_SSTABLE;
 
         //disable compaction while flushing
-        store.disableAutoCompaction();
+        cfs.disableAutoCompaction();
 
         long maxTimestampExpected = Long.MIN_VALUE;
         Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
@@ -178,47 +178,47 @@ public class CompactionsTest extends SchemaLoader
                 rm.apply();
                 inserted.add(key);
             }
-            store.forceBlockingFlush();
-            assertMaxTimestamp(store, maxTimestampExpected);
-            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(store, superColumn).size());
+            cfs.forceBlockingFlush();
+            assertMaxTimestamp(cfs, maxTimestampExpected);
+            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(cfs, superColumn).size());
         }
 
-        forceCompactions(store);
+        forceCompactions(cfs);
 
-        assertEquals(inserted.size(), Util.getRangeSlice(store, superColumn).size());
+        assertEquals(inserted.size(), Util.getRangeSlice(cfs, superColumn).size());
 
         // make sure max timestamp of compacted sstables is recorded properly after compaction.
-        assertMaxTimestamp(store, maxTimestampExpected);
+        assertMaxTimestamp(cfs, maxTimestampExpected);
     }
 
-    public void assertMaxTimestamp(ColumnFamilyStore store, long maxTimestampExpected)
+    public void assertMaxTimestamp(ColumnFamilyStore cfs, long maxTimestampExpected)
     {
         long maxTimestampObserved = Long.MIN_VALUE;
-        for (SSTableReader sstable : store.getSSTables())
+        for (SSTableReader sstable : cfs.getSSTables())
             maxTimestampObserved = Math.max(sstable.getMaxTimestamp(), maxTimestampObserved);
         assertEquals(maxTimestampExpected, maxTimestampObserved);
     }
 
-    private void forceCompactions(ColumnFamilyStore store) throws ExecutionException, InterruptedException
+    private void forceCompactions(ColumnFamilyStore cfs) throws ExecutionException, InterruptedException
     {
         // re-enable compaction with thresholds low enough to force a few rounds
-        store.setMinimumCompactionThreshold(2);
-        store.setMaximumCompactionThreshold(4);
+        cfs.setMinimumCompactionThreshold(2);
+        cfs.setMaximumCompactionThreshold(4);
 
         // loop submitting parallel compactions until they all return 0
         do
         {
             ArrayList<Future<?>> compactions = new ArrayList<Future<?>>();
             for (int i = 0; i < 10; i++)
-                compactions.add(CompactionManager.instance.submitBackground(store));
+                compactions.add(CompactionManager.instance.submitBackground(cfs));
             // another compaction attempt will be launched in the background by
             // each completing compaction: not much we can do to control them here
             FBUtilities.waitOnFutures(compactions);
         } while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0);
 
-        if (store.getSSTables().size() > 1)
+        if (cfs.getSSTables().size() > 1)
         {
-            CompactionManager.instance.performMaximal(store);
+            CompactionManager.instance.performMaximal(cfs);
         }
     }
 
@@ -228,10 +228,10 @@ public class CompactionsTest extends SchemaLoader
         // This test check that EchoedRow doesn't skipp rows: see CASSANDRA-2653
 
         Table table = Table.open(TABLE1);
-        ColumnFamilyStore store = table.getColumnFamilyStore("Standard2");
+        ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard2");
 
         // disable compaction while flushing
-        store.disableAutoCompaction();
+        cfs.disableAutoCompaction();
 
         // Insert 4 keys in two sstables. We need the sstables to have 2 rows
         // at least to trigger what was causing CASSANDRA-2653
@@ -243,9 +243,9 @@ public class CompactionsTest extends SchemaLoader
             rm.apply();
 
             if (i % 2 == 0)
-                store.forceBlockingFlush();
+                cfs.forceBlockingFlush();
         }
-        Collection<SSTableReader> toCompact = store.getSSTables();
+        Collection<SSTableReader> toCompact = cfs.getSSTables();
         assert toCompact.size() == 2;
 
         // Reinserting the same keys. We will compact only the previous sstable, but we need those new ones
@@ -257,23 +257,23 @@ public class CompactionsTest extends SchemaLoader
             rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
             rm.apply();
         }
-        store.forceBlockingFlush();
+        cfs.forceBlockingFlush();
         SSTableReader tmpSSTable = null;
-        for (SSTableReader sstable : store.getSSTables())
+        for (SSTableReader sstable : cfs.getSSTables())
             if (!toCompact.contains(sstable))
                 tmpSSTable = sstable;
         assert tmpSSTable != null;
 
         // Force compaction on first sstables. Since each row is in only one sstable, we will be using EchoedRow.
-        Util.compact(store, toCompact, false);
-        assertEquals(2, store.getSSTables().size());
+        Util.compact(cfs, toCompact, false);
+        assertEquals(2, cfs.getSSTables().size());
 
         // Now, we remove the sstable that was just created to force the use of EchoedRow (so that it doesn't hide the problem)
-        store.markCompacted(Collections.singleton(tmpSSTable), OperationType.UNKNOWN);
-        assertEquals(1, store.getSSTables().size());
+        cfs.markCompacted(Collections.singleton(tmpSSTable), OperationType.UNKNOWN);
+        assertEquals(1, cfs.getSSTables().size());
 
         // Now assert we do have the 4 keys
-        assertEquals(4, Util.getRangeSlice(store).size());
+        assertEquals(4, Util.getRangeSlice(cfs).size());
     }
 
     @Test
@@ -292,11 +292,11 @@ public class CompactionsTest extends SchemaLoader
     {
         // This test catches the regression of CASSANDRA-2786
         Table table = Table.open(TABLE1);
-        ColumnFamilyStore store = table.getColumnFamilyStore(cfname);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfname);
 
         // disable compaction while flushing
-        store.clearUnsafe();
-        store.disableAutoCompaction();
+        cfs.clearUnsafe();
+        cfs.disableAutoCompaction();
 
         // Add test row
         DecoratedKey key = Util.dk(k);
@@ -304,32 +304,32 @@ public class CompactionsTest extends SchemaLoader
         rm.add(new QueryPath(cfname, ByteBufferUtil.bytes("sc"), ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
 
-        store.forceBlockingFlush();
+        cfs.forceBlockingFlush();
 
-        Collection<SSTableReader> sstablesBefore = store.getSSTables();
+        Collection<SSTableReader> sstablesBefore = cfs.getSSTables();
 
         QueryFilter filter = QueryFilter.getIdentityFilter(key, new QueryPath(cfname, null, null));
-        assert !store.getColumnFamily(filter).isEmpty();
+        assert !cfs.getColumnFamily(filter).isEmpty();
 
         // Remove key
         rm = new RowMutation(TABLE1, key.key);
         rm.delete(new QueryPath(cfname, null, null), 2);
         rm.apply();
 
-        ColumnFamily cf = store.getColumnFamily(filter);
+        ColumnFamily cf = cfs.getColumnFamily(filter);
         assert cf == null || cf.isEmpty() : "should be empty: " + cf;
 
-        store.forceBlockingFlush();
+        cfs.forceBlockingFlush();
 
-        Collection<SSTableReader> sstablesAfter = store.getSSTables();
+        Collection<SSTableReader> sstablesAfter = cfs.getSSTables();
         Collection<SSTableReader> toCompact = new ArrayList<SSTableReader>();
         for (SSTableReader sstable : sstablesAfter)
             if (!sstablesBefore.contains(sstable))
                 toCompact.add(sstable);
 
-        Util.compact(store, toCompact, forceDeserialize);
+        Util.compact(cfs, toCompact, forceDeserialize);
 
-        cf = store.getColumnFamily(filter);
+        cf = cfs.getColumnFamily(filter);
         assert cf == null || cf.isEmpty() : "should be empty: " + cf;
     }
 
@@ -337,15 +337,15 @@ public class CompactionsTest extends SchemaLoader
     {
         // this test does enough rows to force multiple block indexes to be used
         Table table = Table.open(TABLE1);
-        final ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
+        final ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
 
         final int ROWS_PER_SSTABLE = 10;
         final int SSTABLES = DatabaseDescriptor.getIndexInterval() * 2 / ROWS_PER_SSTABLE;
 
-        store.setCompactionStrategyClass(compactionStrategy);
+        cfs.setCompactionStrategyClass(compactionStrategy);
 
         // disable compaction while flushing
-        store.disableAutoCompaction();
+        cfs.disableAutoCompaction();
         //test index corruption
         //now create a few new SSTables
         long maxTimestampExpected = Long.MIN_VALUE;
@@ -364,12 +364,12 @@ public class CompactionsTest extends SchemaLoader
                 rm.apply();
                 inserted.add(key);
             }
-            store.forceBlockingFlush();
-            assertMaxTimestamp(store, maxTimestampExpected);
-            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(store).size());
+            cfs.forceBlockingFlush();
+            assertMaxTimestamp(cfs, maxTimestampExpected);
+            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(cfs).size());
         }
 
-        Collection<SSTableReader> sstables = store.getSSTables();
+        Collection<SSTableReader> sstables = cfs.getSSTables();
         int currentSSTable = 0;
         int sstablesToCorrupt = 8;
 
@@ -407,7 +407,7 @@ public class CompactionsTest extends SchemaLoader
             {
                 try
                 {
-                    store.forceMajorCompaction();
+                    cfs.forceMajorCompaction();
                 }
                 catch (Exception e)
                 {
@@ -415,7 +415,7 @@ public class CompactionsTest extends SchemaLoader
                     continue;
                 }
 
-                assertEquals(sstablesToCorrupt + 1, store.getSSTables().size());
+                assertEquals(sstablesToCorrupt + 1, cfs.getSSTables().size());
                 break;
             }
         }
@@ -425,7 +425,7 @@ public class CompactionsTest extends SchemaLoader
         }
 
 
-        store.truncate();
+        cfs.truncate();
         assertEquals(failures, sstablesToCorrupt);
     }
 }

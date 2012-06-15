@@ -23,6 +23,7 @@
 
 
 1.1.2
+ * fix bug in sstable blacklisting with LCS (CASSANDRA-4343)
  * LCS no longer promotes tiny sstables out of L0 (CASSANDRA-4341)
  * skip tombstones during hint replay (CASSANDRA-4320)
  * fix NPE in compactionstats (CASSANDRA-4318)

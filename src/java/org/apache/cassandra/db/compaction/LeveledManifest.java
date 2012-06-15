@@ -282,15 +282,10 @@ public class LeveledManifest
             if (score > 1.001 || (i == 0 && sstables.size() > 1))
             {
                 Collection<SSTableReader> candidates = getCandidatesFor(i);
-
                 if (logger.isDebugEnabled())
                     logger.debug("Compaction candidates for L{} are {}", i, toString(candidates));
-
-                // check if have any SSTables marked as suspected,
-                // saves us filter time when no SSTables are suspects
-                return hasSuspectSSTables(candidates)
-                        ? filterSuspectSSTables(candidates)
-                        : candidates;
+                if (!candidates.isEmpty())
+                    return candidates;
             }
         }
 
@@ -391,6 +386,10 @@ public class LeveledManifest
             // 2. At most MAX_COMPACTING_L0 sstables will be compacted at once
             // 3. If total candidate size is less than maxSSTableSizeInMB, we won't bother compacting with L1,
             //    and the result of the compaction will stay in L0 instead of being promoted (see promote())
+            //
+            // Note that we ignore suspect-ness of L1 sstables here, since if an L1 sstable is suspect we're
+            // basically screwed, since we expect all or most L0 sstables to overlap with each L1 sstable.
+            // So if an L1 sstable is suspect we can't do much besides try anyway and hope for the best.
             Set<SSTableReader> candidates = new HashSet<SSTableReader>();
             Set<SSTableReader> remaining = new HashSet<SSTableReader>(generations[0]);
             List<SSTableReader> ageSortedSSTables = new ArrayList<SSTableReader>(generations[0]);
@@ -400,9 +399,14 @@ public class LeveledManifest
                 if (candidates.contains(sstable))
                     continue;
 
-                List<SSTableReader> newCandidates = overlapping(sstable, remaining);
-                candidates.addAll(newCandidates);
-                remaining.removeAll(newCandidates);
+                for (SSTableReader newCandidate : overlapping(sstable, remaining))
+                {
+                    if (!newCandidate.isMarkedSuspect())
+                    {
+                        candidates.add(newCandidate);
+                        remaining.remove(newCandidate);
+                    }
+                }
 
                 if (candidates.size() > MAX_COMPACTING_L0)
                 {
@@ -426,14 +430,40 @@ public class LeveledManifest
 
         // for non-L0 compactions, pick up where we left off last time
         Collections.sort(generations[level], SSTable.sstableComparator);
-        for (SSTableReader sstable : generations[level])
+        int start = 0; // handles case where the prior compaction touched the very last range
+        for (int i = 0; i < generations[level].size(); i++)
         {
-            // the first sstable that is > than the marked
+            SSTableReader sstable = generations[level].get(i);
             if (sstable.first.compareTo(lastCompactedKeys[level]) > 0)
-                return overlapping(sstable, generations[(level + 1)]);
+            {
+                start = i;
+                break;
+            }
         }
-        // or if there was no last time, start with the first sstable
-        return overlapping(generations[level].get(0), generations[(level + 1)]);
+
+        // look for a non-suspect table to compact with, starting with where we left off last time,
+        // and wrapping back to the beginning of the generation if necessary
+        int i = start;
+        outer:
+        while (true)
+        {
+            SSTableReader sstable = generations[level].get(i);
+            List<SSTableReader> candidates = overlapping(sstable, generations[(level + 1)]);
+            for (SSTableReader candidate : candidates)
+            {
+                if (candidate.isMarkedSuspect())
+                {
+                    i = (i + 1) % generations[level].size();
+                    if (i == start)
+                        break outer;
+                    continue outer;
+                }
+            }
+            return candidates;
+        }
+
+        // all the sstables were suspect or overlapped with something suspect
+        return Collections.emptyList();
     }
 
     public static File tryGetManifest(ColumnFamilyStore cfs)
