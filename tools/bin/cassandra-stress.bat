@@ -15,12 +15,16 @@
 
 @echo off
 
-if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%\..\..
-if NOT DEFINED STRESS_HOME set STRESS_HOME=%CD%
+setlocal
 
-set CLASSPATH="%STRESS_HOME%\..\lib\*.jar"
+if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%\..\..
+if NOT DEFINED STRESS_HOME set STRESS_HOME=%CD%\..
+
+@REM Include the build\classes\main directory so it works in development
+set CLASSPATH="%CASSANDRA_HOME%\build\classes\stress";"%CASSANDRA_HOME%\build\classes\main";"%CASSANDRA_HOME%\build\classes\thrift"
+
+for %%i in ("%STRESS_HOME%\lib\*.jar") do call :append "%%i"
 for %%i in ("%CASSANDRA_HOME%\lib\*.jar") do call :append "%%i"
-    set CLASSPATH=%CLASSPATH%;"%%i"
 goto start
 
 :append
