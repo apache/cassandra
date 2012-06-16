@@ -15,6 +15,8 @@
 
 @echo off
 
+setlocal
+
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%\..\..
 
 set CLASSPATH=""
