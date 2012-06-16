@@ -189,15 +189,19 @@
     <!--
        This generates the CQL grammar files from Cql.g
     -->
-    <target name="check-gen-cql-grammar">
-      <uptodate property="cqlcurrent">
-        <srcfiles dir="${build.src.java}" includes="org/apache/cassandra/cql*/Cql.g"/>
-        <mapper type="glob" from="*.g" to="*.tokens"/>
-      </uptodate>
+    <target name="check-gen-cql2-grammar">
+        <uptodate property="cql2current"
+                srcfile="${build.src.java}/org/apache/cassandra/cql/Cql.g"
+                targetfile="${build.src.gen-java}/org/apache/cassandra/cql/Cql.tokens"/>
+    </target>
+    <target name="check-gen-cql3-grammar">
+        <uptodate property="cql3current"
+                srcfile="${build.src.java}/org/apache/cassandra/cql3/Cql.g"
+                targetfile="${build.src.gen-java}/org/apache/cassandra/cql3/Cql.tokens"/>
     </target>
  
-    <target name="gen-cql-grammar" depends="check-gen-cql-grammar" unless="cqlcurrent">
-      <echo>Building Grammar ${build.src.java}/org/apache/cassandra/cql*/Cql.g  ...</echo>
+    <target name="gen-cql2-grammar" depends="check-gen-cql2-grammar" unless="cql2current">
+      <echo>Building Grammar ${build.src.java}/org/apache/cassandra/cql/Cql.g  ...</echo>
       <java classname="org.antlr.Tool"
             classpath="${build.lib}/antlr-3.2.jar"
             fork="true"
@@ -206,6 +210,9 @@
          <arg value="-fo" />
          <arg value="${build.src.gen-java}/org/apache/cassandra/cql/" />
       </java>
+    </target>
+    <target name="gen-cql3-grammar" depends="check-gen-cql3-grammar" unless="cql3current">
+      <echo>Building Grammar ${build.src.java}/org/apache/cassandra/cql3/Cql.g  ...</echo>
       <java classname="org.antlr.Tool"
             classpath="${build.lib}/antlr-3.2.jar"
             fork="true"
@@ -660,7 +667,7 @@
     <target name="build-subprojects" description="Compile Cassandra contrib projects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report" description="Create code coverage report"/>
 
-    <target depends="init,avro-generate,gen-cli-grammar,gen-cql-grammar"
+    <target depends="init,avro-generate,gen-cli-grammar,gen-cql2-grammar,gen-cql3-grammar"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
