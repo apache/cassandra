@@ -901,10 +901,10 @@ class Shell(cmd.Cmd):
           HELP SELECT_LIMIT
           HELP CONSISTENCYLEVEL
         """
-        ksname = parsed.get_binding('selectks')
+        ksname = parsed.get_binding('ksname')
         if ksname is not None:
             ksname = self.cql_unprotect_name(ksname)
-        cfname = self.cql_unprotect_name(parsed.get_binding('selectsource'))
+        cfname = self.cql_unprotect_name(parsed.get_binding('cfname'))
         decoder = self.determine_decoder_for(cfname, ksname=ksname)
         self.perform_statement(parsed.extract_orig(), decoder=decoder)
 
