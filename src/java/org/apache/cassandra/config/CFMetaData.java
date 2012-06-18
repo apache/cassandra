@@ -645,12 +645,19 @@ public final class CFMetaData
 
         CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
 
-        return newCFMD.comment(cf_def.comment)
-                      .replicateOnWrite(cf_def.replicate_on_write)
-                      .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
-                      .keyValidator(TypeParser.parse(cf_def.key_validation_class))
-                      .columnMetadata(ColumnDefinition.fromThrift(cf_def.column_metadata))
-                      .compressionParameters(cp);
+        try
+        {
+            return newCFMD.comment(cf_def.comment)
+                          .replicateOnWrite(cf_def.replicate_on_write)
+                          .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
+                          .keyValidator(TypeParser.parse(cf_def.key_validation_class))
+                          .columnMetadata(ColumnDefinition.fromThrift(cf_def.column_metadata))
+                          .compressionParameters(cp);
+        }
+        catch (MarshalException e)
+        {
+            throw new ConfigurationException(e.getMessage());
+        }
     }
 
     public void reload() throws IOException

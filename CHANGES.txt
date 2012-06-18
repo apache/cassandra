@@ -13,6 +13,7 @@
    composite primary keys (CASSANDRA-4328)
  * Set JVM stack size to 160k for java 7 (CASSANDRA-4275)
  * cqlsh: add COPY command to load data from CSV flat files (CASSANDRA-4012)
+ * CFMetaData.fromThrift to throw ConfigurationException upon error (CASSANDRA-4353)
 Merged from 1.0:
  * Set gc_grace on index CF to 0 (CASSANDRA-4314)
 
