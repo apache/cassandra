@@ -21,6 +21,7 @@
  * fix Summary component and caches to use correct partitioner (CASSANDRA-4289)
  * stream compressed sstables directly with java nio (CASSANDRA-4297)
  * Support multiple ranges in SliceQueryFilter (CASSANDRA-3885)
+ * Add column metadata to system column families (CASSANDRA-4018)
 
 
 1.1.2
