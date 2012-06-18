@@ -70,7 +70,7 @@ public abstract class ExtendedFilter
         this.isPaging = isPaging;
         if (maxIsColumns)
             originalFilter.updateColumnsLimit(maxResults);
-        if (isPaging && (!(originalFilter instanceof SliceQueryFilter) || ((SliceQueryFilter)originalFilter).finish.remaining() != 0))
+        if (isPaging && (!(originalFilter instanceof SliceQueryFilter) || ((SliceQueryFilter)originalFilter).finish().remaining() != 0))
             throw new IllegalArgumentException("Cross-row paging is only supported for SliceQueryFilter having an empty finish column");
     }
 
@@ -92,7 +92,7 @@ public abstract class ExtendedFilter
     {
         // As soon as we'd done our first call, we want to reset the start column if we're paging
         if (isPaging)
-            ((SliceQueryFilter)initialFilter()).start = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+            ((SliceQueryFilter)initialFilter()).setStart(ByteBufferUtil.EMPTY_BYTE_BUFFER);
 
         if (!maxIsColumns)
             return;
@@ -212,8 +212,9 @@ public abstract class ExtendedFilter
 
             SliceQueryFilter filter = (SliceQueryFilter)originalFilter;
             // Check if we've fetch the whole row
-            if (filter.start.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER)
-             && filter.finish.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER)
+            if (filter.slices.length == 1
+             && filter.start().equals(ByteBufferUtil.EMPTY_BYTE_BUFFER)
+             && filter.finish().equals(ByteBufferUtil.EMPTY_BYTE_BUFFER)
              && filter.count == Integer.MAX_VALUE)
                 return false;
 

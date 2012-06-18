@@ -222,16 +222,19 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
     {
         /* get the various column ranges we have to read */
         AbstractType<?> comparator = metadata.comparator;
-        SortedSet<IndexHelper.IndexInfo> ranges = new TreeSet<IndexHelper.IndexInfo>(IndexHelper.getComparator(comparator, false));
+        List<IndexHelper.IndexInfo> ranges = new ArrayList<IndexHelper.IndexInfo>();
+        int lastIndexIdx = -1;
         for (ByteBuffer name : filteredColumnNames)
         {
-            int index = IndexHelper.indexFor(name, indexList, comparator, false);
+            int index = IndexHelper.indexFor(name, indexList, comparator, false, lastIndexIdx);
             if (index == indexList.size())
                 continue;
             IndexHelper.IndexInfo indexInfo = indexList.get(index);
-            if (comparator.compare(name, indexInfo.firstName) < 0)
+            // Check the index block does contain the column names and that we haven't inserted this block yet.
+            if (comparator.compare(name, indexInfo.firstName) < 0 || index == lastIndexIdx)
                 continue;
             ranges.add(indexInfo);
+            lastIndexIdx = index;
         }
 
         if (ranges.isEmpty())

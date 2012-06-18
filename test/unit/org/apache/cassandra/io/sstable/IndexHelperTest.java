@@ -39,16 +39,16 @@ public class IndexHelperTest
 
         AbstractType comp = IntegerType.instance;
 
-        assert 0 == IndexHelper.indexFor(bytes(-1L), indexes, comp, false);
-        assert 0 == IndexHelper.indexFor(bytes(5L), indexes, comp, false);
-        assert 1 == IndexHelper.indexFor(bytes(12L), indexes, comp, false);
-        assert 2 == IndexHelper.indexFor(bytes(17L), indexes, comp, false);
-        assert 3 == IndexHelper.indexFor(bytes(100L), indexes, comp, false);
+        assert 0 == IndexHelper.indexFor(bytes(-1L), indexes, comp, false, -1);
+        assert 0 == IndexHelper.indexFor(bytes(5L), indexes, comp, false, -1);
+        assert 1 == IndexHelper.indexFor(bytes(12L), indexes, comp, false, -1);
+        assert 2 == IndexHelper.indexFor(bytes(17L), indexes, comp, false, -1);
+        assert 3 == IndexHelper.indexFor(bytes(100L), indexes, comp, false, -1);
 
-        assert -1 == IndexHelper.indexFor(bytes(-1L), indexes, comp, true);
-        assert 0 == IndexHelper.indexFor(bytes(5L), indexes, comp, true);
-        assert 1 == IndexHelper.indexFor(bytes(12L), indexes, comp, true);
-        assert 1 == IndexHelper.indexFor(bytes(17L), indexes, comp, true);
-        assert 2 == IndexHelper.indexFor(bytes(100L), indexes, comp, true);
+        assert -1 == IndexHelper.indexFor(bytes(-1L), indexes, comp, true, -1);
+        assert 0 == IndexHelper.indexFor(bytes(5L), indexes, comp, true, -1);
+        assert 1 == IndexHelper.indexFor(bytes(12L), indexes, comp, true, -1);
+        assert 1 == IndexHelper.indexFor(bytes(17L), indexes, comp, true, -1);
+        assert 2 == IndexHelper.indexFor(bytes(100L), indexes, comp, true, -1);
     }
 }

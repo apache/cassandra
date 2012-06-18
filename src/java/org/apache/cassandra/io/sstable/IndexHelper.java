@@ -150,7 +150,7 @@ public class IndexHelper
      *
      * @return int index
      */
-    public static int indexFor(ByteBuffer name, List<IndexInfo> indexList, AbstractType<?> comparator, boolean reversed)
+    public static int indexFor(ByteBuffer name, List<IndexInfo> indexList, AbstractType<?> comparator, boolean reversed, int lastIndex)
     {
         if (name.remaining() == 0 && reversed)
             return indexList.size() - 1;
@@ -168,8 +168,22 @@ public class IndexHelper
         i.e. 17 in this example, compared to the firstName part of the index slots.  bsearch will give us the
         first slot where firstName > start ([20..25] here), so we subtract an extra one to get the slot just before.
         */
-        int index = Collections.binarySearch(indexList, target, getComparator(comparator, reversed));
-        return index < 0 ? -index - (reversed ? 2 : 1) : index;
+        int startIdx = 0;
+        List<IndexInfo> toSearch = indexList;
+        if (lastIndex >= 0)
+        {
+            if (reversed)
+            {
+                startIdx = lastIndex;
+                toSearch = indexList.subList(lastIndex, indexList.size());
+            }
+            else
+            {
+                toSearch = indexList.subList(0, lastIndex + 1);
+            }
+        }
+        int index = Collections.binarySearch(toSearch, target, getComparator(comparator, reversed));
+        return startIdx + (index < 0 ? -index - (reversed ? 2 : 1) : index);
     }
 
     public static Comparator<IndexInfo> getComparator(final AbstractType<?> nameComparator, boolean reversed)

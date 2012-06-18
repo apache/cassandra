@@ -25,6 +25,7 @@ import java.util.SortedSet;
 
 import com.google.common.base.Function;
 
+import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.Allocator;
@@ -128,22 +129,16 @@ public interface ISortedColumns extends IIterableColumns
     public boolean isEmpty();
 
     /**
-     * Returns an iterator that iterates over the columns of this map in
-     * reverse order.
+     * Returns an iterator over the columns of this map that returns only the matching @param slices.
+     * The provided slices must be in order and must be non-overlapping.
      */
-    public Iterator<IColumn> reverseIterator();
+    public Iterator<IColumn> iterator(ColumnSlice[] slices);
 
     /**
-     * Returns an iterator over the columns of this map starting from the
-     * first column whose name is equal or greater than @param start.
+     * Returns a reversed iterator over the columns of this map that returns only the matching @param slices.
+     * The provided slices must be in reversed order and must be non-overlapping.
      */
-    public Iterator<IColumn> iterator(ByteBuffer start);
-
-    /**
-     * Returns a reversed iterator over the columns of this map starting from
-     * the last column whose name is equal or lesser than @param start.
-     */
-    public Iterator<IColumn> reverseIterator(ByteBuffer start);
+    public Iterator<IColumn> reverseIterator(ColumnSlice[] slices);
 
     /**
      * Returns if this map only support inserts in reverse order.

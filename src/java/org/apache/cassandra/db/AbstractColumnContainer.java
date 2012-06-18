@@ -27,6 +27,7 @@ import com.google.common.base.Functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.Allocator;
@@ -182,19 +183,14 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         return columns.iterator();
     }
 
-    public Iterator<IColumn> reverseIterator()
+    public Iterator<IColumn> iterator(ColumnSlice[] slices)
     {
-        return columns.reverseIterator();
+        return columns.iterator(slices);
     }
 
-    public Iterator<IColumn> iterator(ByteBuffer start)
+    public Iterator<IColumn> reverseIterator(ColumnSlice[] slices)
     {
-        return columns.iterator(start);
-    }
-
-    public Iterator<IColumn> reverseIterator(ByteBuffer start)
-    {
-        return columns.reverseIterator(start);
+        return columns.reverseIterator(slices);
     }
 
     public boolean hasExpiredTombstones(int gcBefore)

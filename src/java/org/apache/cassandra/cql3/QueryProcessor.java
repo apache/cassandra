@@ -88,16 +88,15 @@ public class QueryProcessor
     public static void validateSliceFilter(CFMetaData metadata, SliceQueryFilter range)
     throws InvalidRequestException
     {
-        validateSliceFilter(metadata, range.start, range.finish, range.reversed);
-    }
-
-    public static void validateSliceFilter(CFMetaData metadata, ByteBuffer start, ByteBuffer finish, boolean reversed)
-    throws InvalidRequestException
-    {
-        AbstractType<?> comparator = metadata.getComparatorFor(null);
-        Comparator<ByteBuffer> orderedComparator = reversed ? comparator.reverseComparator: comparator;
-        if (start.remaining() > 0 && finish.remaining() > 0 && orderedComparator.compare(start, finish) > 0)
-            throw new InvalidRequestException("Range finish must come after start in traversal order");
+        try
+        {
+            AbstractType<?> comparator = metadata.getComparatorFor(null);
+            ColumnSlice.validate(range.slices, comparator, range.reversed);
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
     }
 
     private static CqlResult processStatement(CQLStatement statement, ClientState clientState, List<ByteBuffer> variables)

@@ -32,6 +32,7 @@ import com.google.common.base.Function;
 import com.google.common.base.Functions;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.utils.HeapAllocator;
 
@@ -158,10 +159,10 @@ public class ArrayBackedSortedColumnsTest
         //assertSame(new int[]{ 3, 5, 9 }, map.iterator(ByteBufferUtil.bytes(3)));
         //assertSame(new int[]{ 5, 9 }, map.iterator(ByteBufferUtil.bytes(4)));
 
-        assertSame(new int[]{ 3, 2, 1 }, map.reverseIterator(ByteBufferUtil.bytes(3)));
-        assertSame(new int[]{ 3, 2, 1 }, map.reverseIterator(ByteBufferUtil.bytes(4)));
+        assertSame(new int[]{ 3, 2, 1 }, map.reverseIterator(new ColumnSlice[]{ new ColumnSlice(ByteBufferUtil.bytes(3), ByteBufferUtil.EMPTY_BYTE_BUFFER) }));
+        assertSame(new int[]{ 3, 2, 1 }, map.reverseIterator(new ColumnSlice[]{ new ColumnSlice(ByteBufferUtil.bytes(4), ByteBufferUtil.EMPTY_BYTE_BUFFER) }));
 
-        assertSame(map.iterator(), map.iterator(ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertSame(map.iterator(), map.iterator(ColumnSlice.ALL_COLUMNS_ARRAY));
     }
 
     private <T> void assertSame(Collection<T> c1, Collection<T> c2)
@@ -181,8 +182,9 @@ public class ArrayBackedSortedColumnsTest
     {
         for (int name : names)
         {
-            assert iter.hasNext();
-            assert name == ByteBufferUtil.toInt(iter.next().name());
+            assert iter.hasNext() : "Expected " + name + " but no more result";
+            int value = ByteBufferUtil.toInt(iter.next().name());
+            assert name == value : "Expected " + name + " but got " + value;
         }
     }
 }

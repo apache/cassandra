@@ -391,6 +391,9 @@ public class ByteBufferUtil
 
     public static ByteBuffer read(DataInput in, int length) throws IOException
     {
+        if (length == 0)
+            return EMPTY_BYTE_BUFFER;
+
         if (in instanceof FileDataInput)
             return ((FileDataInput) in).readBytes(length);
 

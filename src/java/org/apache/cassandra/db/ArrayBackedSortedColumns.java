@@ -21,9 +21,13 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Function;
+import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Lists;
 
+import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * A ISortedColumns backed by an ArrayList.
@@ -91,12 +95,9 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         return reversed;
     }
 
-    private int compare(ByteBuffer name1, ByteBuffer name2)
+    private Comparator<ByteBuffer> internalComparator()
     {
-        if (reversed)
-            return comparator.reverseComparator.compare(name1, name2);
-        else
-            return comparator.compare(name1, name2);
+        return reversed ? comparator.reverseComparator : comparator;
     }
 
     public IColumn getColumn(ByteBuffer name)
@@ -124,7 +125,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         }
 
         // Fast path if inserting at the tail
-        int c = compare(columns.get(size() - 1).name(), column.name());
+        int c = internalComparator().compare(columns.get(size() - 1).name(), column.name());
         // note that we want an assertion here (see addColumn javadoc), but we also want that if
         // assertion are disabled, addColumn works correctly with unsorted input
         assert c <= 0 : "Added column does not sort as the " + (reversed ? "first" : "last") + " column";
@@ -170,22 +171,27 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         }
     }
 
+    private int binarySearch(ByteBuffer name)
+    {
+        return binarySearch(columns, internalComparator(), name, 0);
+    }
+
     /**
      * Simple binary search for a given column name.
      * The return value has the exact same meaning that the one of Collections.binarySearch().
      * (We don't use Collections.binarySearch() directly because it would require us to create
-     * a fake IColumn (as well an IColumn comparator) to do the search, which is ugly.
+     * a fake IColumn (as well as an IColumn comparator) to do the search, which is ugly.
      */
-    private int binarySearch(ByteBuffer name)
+    private static int binarySearch(List<IColumn> columns, Comparator<ByteBuffer> comparator, ByteBuffer name, int start)
     {
-        int low = 0;
-        int mid = size();
+        int low = start;
+        int mid = columns.size();
         int high = mid - 1;
         int result = -1;
         while (low <= high)
         {
             mid = (low + high) >> 1;
-            if ((result = compare(name, columns.get(mid).name())) > 0)
+            if ((result = comparator.compare(name, columns.get(mid).name())) > 0)
             {
                 low = mid + 1;
             }
@@ -208,14 +214,14 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
 
         IColumn[] copy = columns.toArray(new IColumn[size()]);
         int idx = 0;
-        Iterator<IColumn> other = reversed ? cm.reverseIterator() : cm.iterator();
+        Iterator<IColumn> other = reversed ? cm.reverseIterator(ColumnSlice.ALL_COLUMNS_ARRAY) : cm.iterator();
         IColumn otherColumn = other.next();
 
         columns.clear();
 
         while (idx < copy.length && otherColumn != null)
         {
-            int c = compare(copy[idx].name(), otherColumn.name());
+            int c = internalComparator().compare(copy[idx].name(), otherColumn.name());
             if (c < 0)
             {
                 columns.add(copy[idx]);
@@ -298,56 +304,70 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
     @Override
     public Iterator<IColumn> iterator()
     {
-        return reversed ? reverseInternalIterator(size()) : columns.iterator();
+        return reversed ? Lists.reverse(columns).iterator() : columns.iterator();
     }
 
-    public Iterator<IColumn> reverseIterator()
+    public Iterator<IColumn> iterator(ColumnSlice[] slices)
     {
-        return reversed ? columns.iterator() : reverseInternalIterator(size());
+        return new SlicesIterator(columns, comparator, slices, reversed);
     }
 
-    public Iterator<IColumn> iterator(ByteBuffer start)
+    public Iterator<IColumn> reverseIterator(ColumnSlice[] slices)
     {
-        int idx = binarySearch(start);
-        if (idx < 0)
-            idx = -idx - 1;
-        else if (reversed)
-            // listIterator.previous() doesn't return the current element at first but the previous one
-            idx++;
-        return reversed ? reverseInternalIterator(idx) : columns.listIterator(idx);
+        return new SlicesIterator(columns, comparator, slices, !reversed);
     }
 
-    public Iterator<IColumn> reverseIterator(ByteBuffer start)
+    private static class SlicesIterator extends AbstractIterator<IColumn>
     {
-        int idx = binarySearch(start);
-        if (idx < 0)
-            idx = -idx - 1;
-        else if (!reversed)
-            // listIterator.previous() doesn't return the current element at first but the previous one
-            idx++;
-        return reversed ? columns.listIterator(idx) : reverseInternalIterator(idx);
-    }
+        private final List<IColumn> list;
+        private final ColumnSlice[] slices;
+        private final Comparator<ByteBuffer> comparator;
 
-    private Iterator<IColumn> reverseInternalIterator(int idx)
-    {
-        final ListIterator<IColumn> iter = columns.listIterator(idx);
-        return new Iterator<IColumn>()
+        private int idx = 0;
+        private int previousSliceEnd = 0;
+        private Iterator<IColumn> currentSlice;
+
+        public SlicesIterator(List<IColumn> list, AbstractType<?> comparator, ColumnSlice[] slices, boolean reversed)
         {
-            public boolean hasNext()
+            this.list = reversed ? Lists.reverse(list) : list;
+            this.slices = slices;
+            this.comparator = reversed ? comparator.reverseComparator : comparator;
+        }
+
+        protected IColumn computeNext()
+        {
+            if (currentSlice == null)
             {
-                return iter.hasPrevious();
+                if (idx >= slices.length)
+                    return endOfData();
+
+                ColumnSlice slice = slices[idx++];
+                // The first idx to include
+                int startIdx = slice.start.remaining() == 0 ? 0 : binarySearch(list, comparator, slice.start, previousSliceEnd);
+                if (startIdx < 0)
+                    startIdx = -startIdx - 1;
+
+                // The first idx to exclude
+                int finishIdx = slice.finish.remaining() == 0 ? list.size() - 1 : binarySearch(list, comparator, slice.finish, previousSliceEnd);
+                if (finishIdx >= 0)
+                    finishIdx++;
+                else
+                    finishIdx = -finishIdx - 1;
+
+                if (startIdx == 0 && finishIdx == list.size())
+                    currentSlice = list.iterator();
+                else
+                    currentSlice = list.subList(startIdx, finishIdx).iterator();
+
+                previousSliceEnd = finishIdx > 0 ? finishIdx - 1 : 0;
             }
 
-            public IColumn next()
-            {
-                return iter.previous();
-            }
+            if (currentSlice.hasNext())
+                return currentSlice.next();
 
-            public void remove()
-            {
-                iter.remove();
-            }
-        };
+            currentSlice = null;
+            return computeNext();
+        }
     }
 
     private class ReverseSortedCollection extends AbstractCollection<IColumn>

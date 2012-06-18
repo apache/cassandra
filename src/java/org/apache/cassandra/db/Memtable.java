@@ -369,9 +369,7 @@ public class Memtable
     public static OnDiskAtomIterator getSliceIterator(final DecoratedKey key, final ColumnFamily cf, SliceQueryFilter filter)
     {
         assert cf != null;
-        final Iterator<IColumn> filteredIter = filter.reversed
-                                             ? (filter.start.remaining() == 0 ? cf.reverseIterator() : cf.reverseIterator(filter.start))
-                                             : cf.iterator(filter.start);
+        final Iterator<IColumn> filteredIter = filter.reversed ? cf.reverseIterator(filter.slices) : cf.iterator(filter.slices);
 
         return new AbstractColumnIterator()
         {

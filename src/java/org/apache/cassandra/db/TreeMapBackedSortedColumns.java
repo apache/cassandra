@@ -26,6 +26,7 @@ import java.util.TreeMap;
 
 import com.google.common.base.Function;
 
+import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
@@ -185,18 +186,13 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         return map.values().iterator();
     }
 
-    public Iterator<IColumn> reverseIterator()
+    public Iterator<IColumn> iterator(ColumnSlice[] slices)
     {
-        return getReverseSortedColumns().iterator();
+        return new ColumnSlice.NavigableMapIterator(map, slices);
     }
 
-    public Iterator<IColumn> iterator(ByteBuffer start)
+    public Iterator<IColumn> reverseIterator(ColumnSlice[] slices)
     {
-        return map.tailMap(start).values().iterator();
-    }
-
-    public Iterator<IColumn> reverseIterator(ByteBuffer start)
-    {
-        return map.descendingMap().tailMap(start).values().iterator();
+        return new ColumnSlice.NavigableMapIterator(map.descendingMap(), slices);
     }
 }

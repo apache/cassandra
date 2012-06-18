@@ -143,9 +143,6 @@ public class TableTest extends SchemaLoader
 
         cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ByteBufferUtil.bytes("b"), ByteBufferUtil.bytes("c"), false, 1);
         assertEquals(1, cf.getColumnCount());
-
-        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ByteBufferUtil.bytes("c"), ByteBufferUtil.bytes("b"), false, 1);
-        assertNull(cf);
     }
 
     @Test

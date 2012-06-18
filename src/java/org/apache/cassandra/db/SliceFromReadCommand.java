@@ -86,7 +86,7 @@ public class SliceFromReadCommand extends ReadCommand
             // columns, only l/t end up live after reconciliation. So for next
             // round we want to ask x column so that x * (l/t) == t, i.e. x = t^2/l.
             int retryCount = liveColumnsInRow == 0 ? count + 1 : ((count * count) / liveColumnsInRow) + 1;
-            SliceQueryFilter newFilter = new SliceQueryFilter(filter.start, filter.finish, filter.reversed, retryCount);
+            SliceQueryFilter newFilter = new SliceQueryFilter(filter.slices, filter.reversed, retryCount);
             return new RetriedSliceFromReadCommand(table, key, queryPath, newFilter, getOriginalRequestedCount());
         }
 

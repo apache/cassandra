@@ -394,7 +394,7 @@ public class QueryProcessor
     private static void validateSliceFilter(CFMetaData metadata, SliceQueryFilter range)
     throws InvalidRequestException
     {
-        validateSliceFilter(metadata, range.start, range.finish, range.reversed);
+        validateSliceFilter(metadata, range.start(), range.finish(), range.reversed);
     }
 
     private static void validateSliceFilter(CFMetaData metadata, ByteBuffer start, ByteBuffer finish, boolean reversed)

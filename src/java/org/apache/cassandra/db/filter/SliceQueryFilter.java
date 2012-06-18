@@ -20,6 +20,7 @@ package org.apache.cassandra.db.filter;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -36,6 +37,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SliceQueryFilter implements IFilter
@@ -43,15 +45,22 @@ public class SliceQueryFilter implements IFilter
     private static final Logger logger = LoggerFactory.getLogger(SliceQueryFilter.class);
     public static final Serializer serializer = new Serializer();
 
-    public volatile ByteBuffer start;
-    public volatile ByteBuffer finish;
+    public final ColumnSlice[] slices;
     public final boolean reversed;
     public volatile int count;
 
     public SliceQueryFilter(ByteBuffer start, ByteBuffer finish, boolean reversed, int count)
     {
-        this.start = start;
-        this.finish = finish;
+        this(new ColumnSlice[] { new ColumnSlice(start, finish) }, reversed, count);
+    }
+
+    /**
+     * Constructor that accepts multiple slices. All slices are assumed to be in the same direction (forward or
+     * reversed).
+     */
+    public SliceQueryFilter(ColumnSlice[] slices, boolean reversed, int count)
+    {
+        this.slices = slices;
         this.reversed = reversed;
         this.count = count;
     }
@@ -63,12 +72,12 @@ public class SliceQueryFilter implements IFilter
 
     public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key)
     {
-        return new SSTableSliceIterator(sstable, key, start, finish, reversed);
+        return new SSTableSliceIterator(sstable, key, slices, reversed);
     }
 
     public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry)
     {
-        return new SSTableSliceIterator(sstable, file, key, start, finish, reversed, indexEntry);
+        return new SSTableSliceIterator(sstable, file, key, slices, reversed, indexEntry);
     }
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)
@@ -92,13 +101,13 @@ public class SliceQueryFilter implements IFilter
         while (subcolumns.hasNext())
         {
             IColumn column = subcolumns.next();
-            if (comparator.compare(column.name(), start) >= 0)
+            if (comparator.compare(column.name(), start()) >= 0)
             {
                 subcolumns = Iterators.concat(Iterators.singletonIterator(column), subcolumns);
                 break;
             }
         }
-        // subcolumns is either empty now, or has been redefined in the loop above.  either is ok.
+        // subcolumns is either empty now, or has been redefined in the loop above. either is ok.
         collectReducedColumns(scFiltered, subcolumns, gcBefore);
         return scFiltered;
     }
@@ -123,11 +132,6 @@ public class SliceQueryFilter implements IFilter
                 logger.debug(String.format("collecting %s of %s: %s",
                                            liveColumns, count, column.getString(comparator)));
 
-            if (finish.remaining() > 0
-                && ((!reversed && comparator.compare(column.name(), finish) > 0))
-                    || (reversed && comparator.compare(column.name(), finish) < 0))
-                break;
-
             // only count live columns towards the `count` criteria
             if (column.isLive()
                 && (!container.deletionInfo().isDeleted(column)))
@@ -141,13 +145,26 @@ public class SliceQueryFilter implements IFilter
         }
     }
 
+    public ByteBuffer start()
+    {
+        return this.slices[0].start;
+    }
+
+    public ByteBuffer finish()
+    {
+        return this.slices[slices.length - 1].finish;
+    }
+
+    public void setStart(ByteBuffer start)
+    {
+        assert slices.length == 1;
+        this.slices[0] = new ColumnSlice(start, this.slices[0].finish);
+    }
+
     @Override
-    public String toString() {
-        return getClass().getSimpleName() + "(" +
-               "start=" + start +
-               ", finish=" + finish +
-               ", reversed=" + reversed +
-               ", count=" + count + "]";
+    public String toString()
+    {
+        return "SliceQueryFilter [reversed=" + reversed + ", slices=" + Arrays.toString(slices) + ", count=" + count + "]";
     }
 
     public boolean isReversed()
@@ -164,19 +181,38 @@ public class SliceQueryFilter implements IFilter
     {
         public void serialize(SliceQueryFilter f, DataOutput dos, int version) throws IOException
         {
-            ByteBufferUtil.writeWithShortLength(f.start, dos);
-            ByteBufferUtil.writeWithShortLength(f.finish, dos);
+            if (version < MessagingService.VERSION_12)
+            {
+                // It's kind of lame, but probably better than throwing an exception
+                ColumnSlice slice = new ColumnSlice(f.start(), f.finish());
+                ColumnSlice.serializer.serialize(slice, dos, version);
+            }
+            else
+            {
+                dos.writeInt(f.slices.length);
+                for (ColumnSlice slice : f.slices)
+                    ColumnSlice.serializer.serialize(slice, dos, version);
+            }
             dos.writeBoolean(f.reversed);
             dos.writeInt(f.count);
         }
 
         public SliceQueryFilter deserialize(DataInput dis, int version) throws IOException
         {
-            ByteBuffer start = ByteBufferUtil.readWithShortLength(dis);
-            ByteBuffer finish = ByteBufferUtil.readWithShortLength(dis);
+            ColumnSlice[] slices;
+            if (version < MessagingService.VERSION_12)
+            {
+                slices = new ColumnSlice[]{ ColumnSlice.serializer.deserialize(dis, version) };
+            }
+            else
+            {
+                slices = new ColumnSlice[dis.readInt()];
+                for (int i = 0; i < slices.length; i++)
+                    slices[i] = ColumnSlice.serializer.deserialize(dis, version);
+            }
             boolean reversed = dis.readBoolean();
             int count = dis.readInt();
-            return new SliceQueryFilter(start, finish, reversed, count);
+            return new SliceQueryFilter(slices, reversed, count);
         }
 
         public long serializedSize(SliceQueryFilter f, int version)
@@ -184,11 +220,16 @@ public class SliceQueryFilter implements IFilter
             TypeSizes sizes = TypeSizes.NATIVE;
 
             int size = 0;
-            int startSize = f.start.remaining();
-            int finishSize = f.finish.remaining();
-
-            size += sizes.sizeof((short) startSize) + startSize;
-            size += sizes.sizeof((short) finishSize) + finishSize;
+            if (version < MessagingService.VERSION_12)
+            {
+                size += ColumnSlice.serializer.serializedSize(new ColumnSlice(f.start(), f.finish()), version);
+            }
+            else
+            {
+                size += sizes.sizeof(f.slices.length);
+                for (ColumnSlice slice : f.slices)
+                    size += ColumnSlice.serializer.serializedSize(slice, version);
+            }
             size += sizes.sizeof(f.reversed);
             size += sizes.sizeof(f.count);
             return size;

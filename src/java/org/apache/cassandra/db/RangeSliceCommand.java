@@ -183,7 +183,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         else
         {
             SliceQueryFilter sqf = (SliceQueryFilter)predicate;
-            sp.setSlice_range(new SliceRange(sqf.start, sqf.finish, sqf.reversed, sqf.count));
+            sp.setSlice_range(new SliceRange(sqf.start(), sqf.finish(), sqf.reversed, sqf.count));
         }
         return sp;
     }

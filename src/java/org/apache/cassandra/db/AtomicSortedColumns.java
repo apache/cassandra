@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.google.common.base.Function;
 import edu.stanford.ppl.concurrent.SnapTreeMap;
 
+import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
@@ -266,19 +267,14 @@ public class AtomicSortedColumns implements ISortedColumns
         return getSortedColumns().iterator();
     }
 
-    public Iterator<IColumn> reverseIterator()
+    public Iterator<IColumn> iterator(ColumnSlice[] slices)
     {
-        return getReverseSortedColumns().iterator();
+        return new ColumnSlice.NavigableMapIterator(ref.get().map, slices);
     }
 
-    public Iterator<IColumn> iterator(ByteBuffer start)
+    public Iterator<IColumn> reverseIterator(ColumnSlice[] slices)
     {
-        return ref.get().map.tailMap(start).values().iterator();
-    }
-
-    public Iterator<IColumn> reverseIterator(ByteBuffer start)
-    {
-        return ref.get().map.descendingMap().tailMap(start).values().iterator();
+        return new ColumnSlice.NavigableMapIterator(ref.get().map.descendingMap(), slices);
     }
 
     public boolean isInsertReversed()

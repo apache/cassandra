@@ -195,20 +195,16 @@ public class SelectStatement implements CQLStatement
             ByteBuffer start = getRequestedBound(isReversed ? Bound.END : Bound.START, variables);
             ByteBuffer finish = getRequestedBound(isReversed ? Bound.START : Bound.END, variables);
 
+            SliceQueryFilter filter = new SliceQueryFilter(start, finish, isReversed, getLimit());
+            QueryProcessor.validateSliceFilter(cfDef.cfm, filter);
+
             // Note that we use the total limit for every key. This is
             // potentially inefficient, but then again, IN + LIMIT is not a
             // very sensible choice
             for (ByteBuffer key : keys)
             {
                 QueryProcessor.validateKey(key);
-                QueryProcessor.validateSliceFilter(cfDef.cfm, start, finish, isReversed);
-                commands.add(new SliceFromReadCommand(keyspace(),
-                                                      key,
-                                                      queryPath,
-                                                      start,
-                                                      finish,
-                                                      isReversed,
-                                                      getLimit()));
+                commands.add(new SliceFromReadCommand(keyspace(), key, queryPath, filter));
             }
         }
         // ...of a list of column names

@@ -22,9 +22,36 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+
+import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
+import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang.StringUtils;
+import org.junit.Test;
+
+import static org.junit.Assert.assertNull;
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertSame;
+import static junit.framework.Assert.assertTrue;
+import static org.apache.cassandra.Util.column;
+import static org.apache.cassandra.Util.dk;
+import static org.apache.cassandra.Util.getBytes;
+import static org.apache.cassandra.Util.rp;
+import static org.apache.cassandra.db.TableTest.assertColumns;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.apache.commons.lang.ArrayUtils.EMPTY_BYTE_ARRAY;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -35,27 +62,20 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
 import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.ExcludingBounds;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.IncludingExcludingBounds;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.commons.lang.ArrayUtils;
-import org.apache.commons.lang.StringUtils;
-
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertTrue;
-import static org.apache.cassandra.Util.column;
-import static org.apache.cassandra.Util.getBytes;
-import static org.apache.cassandra.Util.rp;
-import static org.apache.cassandra.db.TableTest.assertColumns;
-import static org.junit.Assert.assertNull;
-
-import org.junit.Test;
 
 public class ColumnFamilyStoreTest extends SchemaLoader
 {
@@ -1009,4 +1029,372 @@ public class ColumnFamilyStoreTest extends SchemaLoader
             k += " " + ByteBufferUtil.string(r.key.key);
         return k;
     }
+    
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testMultiRangeIndexed() throws Throwable
+    {
+        // in order not to change thrift interfaces at this stage we build SliceQueryFilter
+        // directly instead of using QueryFilter to build it for us
+        ColumnSlice[] ranges = new ColumnSlice[] {
+                new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colA")),
+                new ColumnSlice(bytes("colC"), bytes("colE")),
+                new ColumnSlice(bytes("colG"), bytes("colG")),
+                new ColumnSlice(bytes("colI"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        ColumnSlice[] rangesReversed = new ColumnSlice[] {
+                new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colI")),
+                new ColumnSlice(bytes("colG"), bytes("colG")),
+                new ColumnSlice(bytes("colE"), bytes("colC")),
+                new ColumnSlice(bytes("colA"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        String tableName = "Keyspace1";
+        String cfName = "Standard1";
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        cfs.clearUnsafe();
+
+        String[] letters = new String[] { "a", "b", "c", "d", "e", "f", "g", "h", "i" };
+        Column[] cols = new Column[letters.length];
+        for (int i = 0; i < cols.length; i++)
+        {
+            cols[i] = new Column(ByteBufferUtil.bytes("col" + letters[i].toUpperCase()),
+                    // use 1366 so that three cols make an index segment
+                    ByteBuffer.wrap(new byte[1366]), 1);
+        }
+
+        putColsStandard(cfs, dk("a"), cols);
+
+        cfs.forceBlockingFlush();
+
+        // this setup should generate the following row (assuming indexes are of 4Kb each):
+        // [colA, colB, colC, colD, colE, colF, colG, colH, colI]
+        // indexed as:
+        // index0 [colA, colC]
+        // index1 [colD, colF]
+        // index2 [colG, colI]
+        // and we're looking for the ranges:
+        // range0 [____, colA]
+        // range1 [colC, colE]
+        // range2 [colG, ColG]
+        // range3 [colI, ____]
+
+        SliceQueryFilter multiRangeForward = new SliceQueryFilter(ranges, false, 100);
+        SliceQueryFilter multiRangeForwardWithCounting = new SliceQueryFilter(ranges, false, 3);
+        SliceQueryFilter multiRangeReverse = new SliceQueryFilter(rangesReversed, true, 100);
+        SliceQueryFilter multiRangeReverseWithCounting = new SliceQueryFilter(rangesReversed, true, 3);
+
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeForward, "a", "colA", "colC", "colD", "colE", "colG", "colI");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeForwardWithCounting, "a", "colA", "colC", "colD");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeReverse, "a", "colI", "colG", "colE", "colD", "colC", "colA");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeReverseWithCounting, "a", "colI", "colG", "colE");
+
+    }
+
+    @Test
+    public void testMultipleRangesSlicesNoIndexedColumns() throws Throwable
+    {
+        // small values so that cols won't be indexed
+        testMultiRangeSlicesBehavior(prepareMultiRangeSlicesTest(10, true));
+    }
+
+    @Test
+    public void testMultipleRangesSlicesWithIndexedColumns() throws Throwable
+    {
+        // min val size before cols are indexed is 4kb while testing so lets make sure cols are indexed
+        testMultiRangeSlicesBehavior(prepareMultiRangeSlicesTest(1024, true));
+    }
+
+    @Test
+    public void testMultipleRangesSlicesInMemory() throws Throwable
+    {
+        // small values so that cols won't be indexed
+        testMultiRangeSlicesBehavior(prepareMultiRangeSlicesTest(10, false));
+    }
+
+    private ColumnFamilyStore prepareMultiRangeSlicesTest(int valueSize, boolean flush) throws Throwable
+    {
+        String tableName = "Keyspace1";
+        String cfName = "Standard1";
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        cfs.clearUnsafe();
+
+        String[] letters = new String[] { "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l" };
+        Column[] cols = new Column[12];
+        for (int i = 0; i < cols.length; i++)
+        {
+            cols[i] = new Column(ByteBufferUtil.bytes("col" + letters[i]), ByteBuffer.wrap(new byte[valueSize]), 1);
+        }
+
+        for (int i = 0; i < 12; i++)
+        {
+            putColsStandard(cfs, dk(letters[i]), Arrays.copyOfRange(cols, 0, i + 1));
+        }
+
+        if (flush)
+        {
+            cfs.forceBlockingFlush();
+        }
+        else
+        {
+            // The intent is to validate memtable code, so check we really didn't flush
+            assert cfs.getSSTables().isEmpty();
+        }
+
+        return cfs;
+    }
+
+    private void testMultiRangeSlicesBehavior(ColumnFamilyStore cfs)
+    {
+        // in order not to change thrift interfaces at this stage we build SliceQueryFilter
+        // directly instead of using QueryFilter to build it for us
+        ColumnSlice[] startMiddleAndEndRanges = new ColumnSlice[] {
+                new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colc")),
+                new ColumnSlice(bytes("colf"), bytes("colg")),
+                new ColumnSlice(bytes("colj"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        ColumnSlice[] startMiddleAndEndRangesReversed = new ColumnSlice[] {
+                new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colj")),
+                new ColumnSlice(bytes("colg"), bytes("colf")),
+                new ColumnSlice(bytes("colc"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        ColumnSlice[] startOnlyRange =
+                new ColumnSlice[] { new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colc")) };
+
+        ColumnSlice[] startOnlyRangeReversed =
+                new ColumnSlice[] { new ColumnSlice(bytes("colc"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        ColumnSlice[] middleOnlyRanges =
+                new ColumnSlice[] { new ColumnSlice(bytes("colf"), bytes("colg")) };
+
+        ColumnSlice[] middleOnlyRangesReversed =
+                new ColumnSlice[] { new ColumnSlice(bytes("colg"), bytes("colf")) };
+
+        ColumnSlice[] endOnlyRanges =
+                new ColumnSlice[] { new ColumnSlice(bytes("colj"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        ColumnSlice[] endOnlyRangesReversed =
+                new ColumnSlice[] { new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colj")) };
+
+        SliceQueryFilter startOnlyFilter = new SliceQueryFilter(startOnlyRange, false,
+                Integer.MAX_VALUE);
+        SliceQueryFilter startOnlyFilterReversed = new SliceQueryFilter(startOnlyRangeReversed, true,
+                Integer.MAX_VALUE);
+        SliceQueryFilter startOnlyFilterWithCounting = new SliceQueryFilter(startOnlyRange, false, 1);
+        SliceQueryFilter startOnlyFilterReversedWithCounting = new SliceQueryFilter(startOnlyRangeReversed,
+                true, 1);
+
+        SliceQueryFilter middleOnlyFilter = new SliceQueryFilter(middleOnlyRanges,
+                false,
+                Integer.MAX_VALUE);
+        SliceQueryFilter middleOnlyFilterReversed = new SliceQueryFilter(middleOnlyRangesReversed, true,
+                Integer.MAX_VALUE);
+        SliceQueryFilter middleOnlyFilterWithCounting = new SliceQueryFilter(middleOnlyRanges, false, 1);
+        SliceQueryFilter middleOnlyFilterReversedWithCounting = new SliceQueryFilter(middleOnlyRangesReversed,
+                true, 1);
+
+        SliceQueryFilter endOnlyFilter = new SliceQueryFilter(endOnlyRanges, false,
+                Integer.MAX_VALUE);
+        SliceQueryFilter endOnlyReversed = new SliceQueryFilter(endOnlyRangesReversed, true,
+                Integer.MAX_VALUE);
+        SliceQueryFilter endOnlyWithCounting = new SliceQueryFilter(endOnlyRanges, false, 1);
+        SliceQueryFilter endOnlyWithReversedCounting = new SliceQueryFilter(endOnlyRangesReversed,
+                true, 1);
+
+        SliceQueryFilter startMiddleAndEndFilter = new SliceQueryFilter(startMiddleAndEndRanges, false,
+                Integer.MAX_VALUE);
+        SliceQueryFilter startMiddleAndEndFilterReversed = new SliceQueryFilter(startMiddleAndEndRangesReversed, true,
+                Integer.MAX_VALUE);
+        SliceQueryFilter startMiddleAndEndFilterWithCounting = new SliceQueryFilter(startMiddleAndEndRanges, false,
+                1);
+        SliceQueryFilter startMiddleAndEndFilterReversedWithCounting = new SliceQueryFilter(
+                startMiddleAndEndRangesReversed, true,
+                1);
+
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilter, "a", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterReversed, "a", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterWithCounting, "a", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterReversedWithCounting, "a", "cola");
+
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilter, "a", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterReversed, "a", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterWithCounting, "a", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterReversedWithCounting, "a", new String[] {});
+
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyFilter, "a", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyReversed, "a", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyWithCounting, "a", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyWithReversedCounting, "a", new String[] {});
+
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilter, "a", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterReversed, "a", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterWithCounting, "a", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterReversedWithCounting, "a", "cola");
+
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilter, "c", "cola", "colb", "colc");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterReversed, "c", "colc", "colb", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterWithCounting, "c", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterReversedWithCounting, "c", "colc");
+
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilter, "c", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterReversed, "c", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterWithCounting, "c", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterReversedWithCounting, "c", new String[] {});
+
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyFilter, "c", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyReversed, "c", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyWithCounting, "c", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyWithReversedCounting, "c", new String[] {});
+
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilter, "c", "cola", "colb", "colc");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterReversed, "c", "colc", "colb", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterWithCounting, "c", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterReversedWithCounting, "c", "colc");
+
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilter, "f", "cola", "colb", "colc");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterReversed, "f", "colc", "colb", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterWithCounting, "f", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterReversedWithCounting, "f", "colc");
+
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilter, "f", "colf");
+
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterReversed, "f", "colf");
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterWithCounting, "f", "colf");
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterReversedWithCounting, "f", "colf");
+
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyFilter, "f", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyReversed, "f", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyWithCounting, "f", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyWithReversedCounting, "f", new String[] {});
+
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilter, "f", "cola", "colb", "colc", "colf");
+
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterReversed, "f", "colf", "colc", "colb",
+                "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterWithCounting, "f", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterReversedWithCounting, "f", "colf");
+
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilter, "h", "cola", "colb", "colc");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterReversed, "h", "colc", "colb", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterWithCounting, "h", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterReversedWithCounting, "h", "colc");
+
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilter, "h", "colf", "colg");
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterReversed, "h", "colg", "colf");
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterWithCounting, "h", "colf");
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterReversedWithCounting, "h", "colg");
+
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyFilter, "h", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyReversed, "h", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyWithCounting, "h", new String[] {});
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyWithReversedCounting, "h", new String[] {});
+
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilter, "h", "cola", "colb", "colc", "colf",
+                "colg");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterReversed, "h", "colg", "colf", "colc", "colb",
+                "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterWithCounting, "h", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterReversedWithCounting, "h", "colg");
+
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilter, "j", "cola", "colb", "colc");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterReversed, "j", "colc", "colb", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterWithCounting, "j", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterReversedWithCounting, "j", "colc");
+
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilter, "j", "colf", "colg");
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterReversed, "j", "colg", "colf");
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterWithCounting, "j", "colf");
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterReversedWithCounting, "j", "colg");
+
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyFilter, "j", "colj");
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyReversed, "j", "colj");
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyWithCounting, "j", "colj");
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyWithReversedCounting, "j", "colj");
+
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilter, "j", "cola", "colb", "colc", "colf", "colg",
+                "colj");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterReversed, "j", "colj", "colg", "colf", "colc",
+                "colb", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterWithCounting, "j", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterReversedWithCounting, "j", "colj");
+
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilter, "l", "cola", "colb", "colc");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterReversed, "l", "colc", "colb", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterWithCounting, "l", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startOnlyFilterReversedWithCounting, "l", "colc");
+
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilter, "l", "colf", "colg");
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterReversed, "l", "colg", "colf");
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterWithCounting, "l", "colf");
+        findRowGetSlicesAndAssertColsFound(cfs, middleOnlyFilterReversedWithCounting, "l", "colg");
+
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyFilter, "l", "colj", "colk", "coll");
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyReversed, "l", "coll", "colk", "colj");
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyWithCounting, "l", "colj");
+        findRowGetSlicesAndAssertColsFound(cfs, endOnlyWithReversedCounting, "l", "coll");
+
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilter, "l", "cola", "colb", "colc", "colf", "colg",
+                "colj", "colk", "coll");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterReversed, "l", "coll", "colk", "colj", "colg",
+                "colf", "colc", "colb", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterWithCounting, "l", "cola");
+        findRowGetSlicesAndAssertColsFound(cfs, startMiddleAndEndFilterReversedWithCounting, "l", "coll");
+    }
+
+    private void findRowGetSlicesAndAssertColsFound(ColumnFamilyStore cfs, SliceQueryFilter filter, String rowKey,
+            String... colNames)
+    {
+        List<Row> rows = cfs.getRangeSlice(null, new Bounds<RowPosition>(rp(rowKey), rp(rowKey)),
+                Integer.MAX_VALUE,
+                filter, null, false, false);
+        assertSame("unexpected number of rows ", 1, rows.size());
+        Row row = rows.get(0);
+        Collection<IColumn> cols = !filter.isReversed() ? row.cf.getSortedColumns() : row.cf.getReverseSortedColumns();
+        // printRow(cfs, new String(row.key.key.array()), cols);
+        String[] returnedColsNames = Iterables.toArray(Iterables.transform(cols, new Function<IColumn, String>()
+        {
+            @Override
+            public String apply(IColumn arg0)
+            {
+                return new String(arg0.name().array());
+            }
+        }), String.class);
+
+        assertTrue(
+                "Columns did not match. Expected: " + Arrays.toString(colNames) + " but got:"
+                        + Arrays.toString(returnedColsNames), Arrays.equals(colNames, returnedColsNames));
+        int i = 0;
+        for (IColumn col : cols)
+        {
+            assertEquals(colNames[i++], new String(col.name().array()));
+        }
+    }
+
+    private void printRow(ColumnFamilyStore cfs, String rowKey, Collection<IColumn> cols)
+    {
+        DecoratedKey ROW = Util.dk(rowKey);
+        System.err.println("Original:");
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(ROW, new QueryPath("Standard1")));
+        System.err.println("Row key: " + rowKey + " Cols: "
+                + Iterables.transform(cf.getSortedColumns(), new Function<IColumn, String>()
+                {
+                    @Override
+                    public String apply(IColumn arg0)
+                    {
+                        return new String(arg0.name().array());
+                    }
+                }));
+        System.err.println("Filtered:");
+        System.err.println("Row key: " + rowKey + " Cols: "
+                + Iterables.transform(cols, new Function<IColumn, String>()
+                {
+                    @Override
+                    public String apply(IColumn arg0)
+                    {
+                        return new String(arg0.name().array());
+                    }
+                }));
+    }
+
 }
