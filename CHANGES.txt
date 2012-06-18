@@ -25,6 +25,8 @@
 
 
 1.1.2
+ * Raise a meaningful exception instead of NPE when PFS encounters
+   an unconfigured node + no default (CASSANDRA-4349)
  * fix bug in sstable blacklisting with LCS (CASSANDRA-4343)
  * LCS no longer promotes tiny sstables out of L0 (CASSANDRA-4341)
  * skip tombstones during hint replay (CASSANDRA-4320)

@@ -83,6 +83,14 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
      */
     public String[] getEndpointInfo(InetAddress endpoint)
     {
+        String[] rawEndpointInfo = getRawEndpointInfo(endpoint);
+        if (rawEndpointInfo == null)
+            throw new RuntimeException("Unknown host " + endpoint + " with no default configured");
+        return rawEndpointInfo;
+    }
+
+    private String[] getRawEndpointInfo(InetAddress endpoint)
+    {
         String[] value = endpointMap.get(endpoint);
         if (value == null)
         {
