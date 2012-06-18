@@ -215,22 +215,25 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         # inside a string literal
         prefix = None
         dequoter = util.identity
+        lasttype = None
         if tokens:
-            if tokens[-1][0] == 'unclosedString':
+            lasttype = tokens[-1][0]
+            if lasttype == 'unclosedString':
                 prefix = self.token_dequote(tokens[-1])
                 tokens = tokens[:-1]
                 partial = prefix + partial
                 dequoter = self.dequote_value
                 requoter = self.escape_value
-            elif tokens[-1][0] == 'unclosedName':
+            elif lasttype == 'unclosedName':
                 prefix = self.token_dequote(tokens[-1])
                 tokens = tokens[:-1]
                 partial = prefix + partial
                 dequoter = self.dequote_name
                 requoter = self.escape_name
-            elif tokens[-1][0] == 'unclosedComment':
+            elif lasttype == 'unclosedComment':
                 return []
         bindings['partial'] = partial
+        bindings['*LASTTYPE*'] = lasttype
         bindings['*SRC*'] = text
 
         # find completions for the position
@@ -302,6 +305,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         init_bindings = {'cassandra_conn': cassandra_conn}
         if debug:
             init_bindings['*DEBUG*'] = True
+            print "cql_complete(%r, partial=%r)" % (text, partial)
 
         completions, hints = self.cql_complete_single(text, partial, init_bindings,
                                                       startsymbol=startsymbol)
@@ -495,6 +499,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
          ;
 <colname> ::= <term>
             | <identifier>
+            | nocomplete=<K_KEY>
             ;
 
 <statementBody> ::= <useStatement>
@@ -527,6 +532,10 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <columnFamilyName> ::= ( ksname=<name> "." )? cfname=<name> ;
 '''
+
+@completer_for('colname', 'nocomplete')
+def nocomplete(ctxt, cass):
+    return ()
 
 @completer_for('consistencylevel', 'cl')
 def cl_completer(ctxt, cass):

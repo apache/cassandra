@@ -267,8 +267,8 @@ def unreserved_keyword_completer(ctxt, cass):
     return ()
 
 def get_cf_layout(ctxt, cass):
-    ks = ctxt.get_binding('ksname', None)
-    cf = ctxt.get_binding('cfname')
+    ks = dequote_name(ctxt.get_binding('ksname', None))
+    cf = dequote_name(ctxt.get_binding('cfname'))
     return cass.get_columnfamily_layout(ks, cf)
 
 syntax_rules += r'''
