@@ -1,4 +1,5 @@
 1.2-dev
+ * rewrite key cache save/load to use only sequential i/o (CASSANDRA-3762)
  * update MS protocol with a version handshake + broadcast address id
    (CASSANDRA-4311)
  * multithreaded hint replay (CASSANDRA-4189)
