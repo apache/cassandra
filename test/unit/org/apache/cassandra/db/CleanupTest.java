@@ -96,7 +96,6 @@ public class CleanupTest extends SchemaLoader
     {
         Table table = Table.open(TABLE1);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF1);
-        assertEquals(cfs.indexManager.getIndexedColumns().iterator().next(), COLUMN);
 
         List<Row> rows;
 

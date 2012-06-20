@@ -30,10 +30,13 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.index.SecondaryIndex;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.ClientState;
@@ -1060,11 +1063,19 @@ public class SelectStatement implements CQLStatement
             {
                 stmt.isKeyRange = true;
                 boolean hasEq = false;
-                Set<ByteBuffer> indexed = Table.open(keyspace()).getColumnFamilyStore(columnFamily()).indexManager.getIndexedColumns();
+                SecondaryIndexManager idxManager = Table.open(keyspace()).getColumnFamilyStore(columnFamily()).indexManager;
+                Set<ByteBuffer> indexedNames = new HashSet<ByteBuffer>();
+                for (SecondaryIndex index : idxManager.getIndexes())
+                {
+                    for (ColumnDefinition cdef : index.getColumnDefs())
+                        indexedNames.add(cdef.name);
+                }
 
+                // Note: we cannot use idxManager.indexes() methods because we don't have a complete column name at this point, we only
+                // have the indexed component.
                 for (Map.Entry<CFDefinition.Name, Restriction> entry : stmt.metadataRestrictions.entrySet())
                 {
-                    if (entry.getValue().isEquality() && indexed.contains(entry.getKey().name.key))
+                    if (entry.getValue().isEquality() && indexedNames.contains(entry.getKey().name.key))
                     {
                         hasEq = true;
                         break;

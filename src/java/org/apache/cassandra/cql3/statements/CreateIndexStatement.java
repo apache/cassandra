@@ -18,6 +18,8 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +28,8 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.db.index.composites.CompositesIndex;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -54,9 +58,6 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         CFMetaData cfm = oldCfm.clone();
         CFDefinition cfDef = oldCfm.getCfDef();
 
-        if (cfDef.isComposite)
-            throw new InvalidRequestException("Secondary indexes are not (yet) supported on tables with composite PRIMARY KEY");
-
         for (ColumnDefinition cd : cfm.getColumn_metadata().values())
         {
             if (cd.name.equals(columnName.key))
@@ -65,7 +66,18 @@ public class CreateIndexStatement extends SchemaAlteringStatement
                     throw new InvalidRequestException("Index already exists");
                 if (logger.isDebugEnabled())
                     logger.debug("Updating column {} definition for index {}", columnName, indexName);
-                cd.setIndexType(IndexType.KEYS, Collections.<String, String>emptyMap());
+
+                if (cfDef.isComposite)
+                {
+                    CompositeType composite = (CompositeType)cfm.comparator;
+                    Map<String, String> opts = new HashMap<String, String>();
+                    opts.put(CompositesIndex.PREFIX_SIZE_OPTION, String.valueOf(composite.types.size() - 1));
+                    cd.setIndexType(IndexType.COMPOSITES, opts);
+                }
+                else
+                {
+                    cd.setIndexType(IndexType.KEYS, Collections.<String, String>emptyMap());
+                }
                 cd.setIndexName(indexName);
                 columnExists = true;
                 break;

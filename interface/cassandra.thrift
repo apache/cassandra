@@ -393,7 +393,8 @@ struct AuthenticationRequest {
 
 enum IndexType {
     KEYS,
-    CUSTOM
+    CUSTOM,
+    COMPOSITES
 }
 
 /* describes a column in a column family. */

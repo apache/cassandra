@@ -203,7 +203,7 @@ public class StreamInSession extends AbstractStreamSession
                     if (entry.getKey() != null)
                     {
                         entry.getKey().addSSTables(entry.getValue());
-                        entry.getKey().indexManager.maybeBuildSecondaryIndexes(entry.getValue(), entry.getKey().indexManager.getIndexedColumns());
+                        entry.getKey().indexManager.maybeBuildSecondaryIndexes(entry.getValue(), entry.getKey().indexManager.allIndexesNames());
                     }
                 }
             }

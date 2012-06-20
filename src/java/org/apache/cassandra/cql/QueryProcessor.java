@@ -30,6 +30,7 @@ import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -301,10 +302,11 @@ public class QueryProcessor
         if (select.getColumnRelations().size() > 0)
         {
             AbstractType<?> comparator = select.getComparator(keyspace);
-            Set<ByteBuffer> indexed = Table.open(keyspace).getColumnFamilyStore(select.getColumnFamily()).indexManager.getIndexedColumns();
+            SecondaryIndexManager idxManager = Table.open(keyspace).getColumnFamilyStore(select.getColumnFamily()).indexManager;
             for (Relation relation : select.getColumnRelations())
             {
-                if ((relation.operator() == RelationType.EQ) && indexed.contains(relation.getEntity().getByteBuffer(comparator, variables)))
+                ByteBuffer name = relation.getEntity().getByteBuffer(comparator, variables);
+                if ((relation.operator() == RelationType.EQ) && idxManager.indexes(name))
                     return;
             }
             throw new InvalidRequestException("No indexed columns present in by-columns clause with \"equals\" operator");

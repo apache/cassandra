@@ -523,7 +523,7 @@ public class DefsTest extends SchemaLoader
         rm.apply();
         ColumnFamilyStore cfs = Table.open("Keyspace6").getColumnFamilyStore("Indexed1");
         cfs.forceBlockingFlush();
-        ColumnFamilyStore indexedCfs = cfs.indexManager.getIndexForColumn(cfs.indexManager.getIndexedColumns().iterator().next()).getIndexCfs();
+        ColumnFamilyStore indexedCfs = cfs.indexManager.getIndexForColumn(ByteBufferUtil.bytes("birthdate")).getIndexCfs();
         Descriptor desc = indexedCfs.getSSTables().iterator().next().descriptor;
 
         // drop the index
@@ -534,7 +534,7 @@ public class DefsTest extends SchemaLoader
         MigrationManager.announceColumnFamilyUpdate(meta);
 
         // check
-        assert cfs.indexManager.getIndexedColumns().isEmpty();
+        assert cfs.indexManager.getIndexes().isEmpty();
         SSTableDeletingTask.waitForDeletions();
         assert !new File(desc.filenameFor(Component.DATA)).exists();
     }

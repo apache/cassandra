@@ -84,6 +84,11 @@ public class ColumnSlice
             throw new IllegalArgumentException("Slice finish must come after start in traversal order");
     }
 
+    public boolean includes(Comparator<ByteBuffer> cmp, ByteBuffer name)
+    {
+        return cmp.compare(start, name) <= 0 && (finish.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER) || cmp.compare(finish, name) >= 0);
+    }
+
     @Override
     public final int hashCode()
     {

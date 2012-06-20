@@ -345,7 +345,7 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
 
         public ByteBuffer buildAsEndOfRange()
         {
-            throw new IllegalStateException();
+            return build();
         }
 
         public NonCompositeBuilder copy()

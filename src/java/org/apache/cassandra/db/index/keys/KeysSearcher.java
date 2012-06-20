@@ -98,7 +98,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
         if (logger.isDebugEnabled())
             logger.debug("Primary scan clause is " + baseCfs.getComparator().getString(primary.column_name));
         assert index != null;
-        final DecoratedKey indexKey = indexManager.getIndexKeyFor(primary.column_name, primary.value);
+        final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 
         /*
          * XXX: If the range requested is a token range, we'll have to start at the beginning (and stop at the end) of

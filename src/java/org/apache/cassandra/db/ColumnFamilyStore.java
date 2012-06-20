@@ -499,7 +499,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data.addSSTables(newSSTables);
         try
         {
-            indexManager.maybeBuildSecondaryIndexes(newSSTables, indexManager.getIndexedColumns());
+            indexManager.maybeBuildSecondaryIndexes(newSSTables, indexManager.allIndexesNames());
         }
         finally
         {
@@ -513,11 +513,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         ColumnFamilyStore cfs = Table.open(ksName).getColumnFamilyStore(cfName);
 
-        SortedSet<ByteBuffer> indexes = new TreeSet<ByteBuffer>(cfs.metadata.comparator);
-        if (idxNames.length == 0)
-            indexes.addAll(cfs.indexManager.getIndexedColumns());
-        for (String idxName : idxNames)
-            indexes.add(cfs.indexManager.getColumnByIdxName(idxName));
+        Set<String> indexes = new HashSet<String>(Arrays.asList(idxNames));
 
         Collection<SSTableReader> sstables = cfs.getSSTables();
         try
@@ -1313,7 +1309,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return columns;
     }
 
-    public static abstract class AbstractScanIterator extends AbstractIterator<Row> implements CloseableIterator<Row> {}
+    public static abstract class AbstractScanIterator extends AbstractIterator<Row> implements CloseableIterator<Row>
+    {
+        public boolean needsFiltering()
+        {
+            return true;
+        }
+    }
 
     /**
       * Iterate over a range of rows and columns from memtables/sstables.
@@ -1415,23 +1417,28 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 Row rawRow = rowIterator.next();
                 ColumnFamily data = rawRow.cf;
 
-                // roughtly
-                IFilter extraFilter = filter.getExtraFilter(data);
-                if (extraFilter != null)
+                if (rowIterator.needsFiltering())
                 {
-                    QueryPath path = new QueryPath(columnFamily);
-                    ColumnFamily cf = filter.cfs.getColumnFamily(new QueryFilter(rawRow.key, path, extraFilter));
-                    if (cf != null)
-                        data.addAll(cf, HeapAllocator.instance);
+                    // roughtly
+                    IFilter extraFilter = filter.getExtraFilter(data);
+                    if (extraFilter != null)
+                    {
+                        QueryPath path = new QueryPath(columnFamily);
+                        ColumnFamily cf = filter.cfs.getColumnFamily(new QueryFilter(rawRow.key, path, extraFilter));
+                        if (cf != null)
+                            data.addAll(cf, HeapAllocator.instance);
+                    }
+
+                    if (!filter.isSatisfiedBy(data, null))
+                        continue;
+
+                    logger.debug("{} satisfies all filter expressions", data);
+                    // cut the resultset back to what was requested, if necessary
+                    data = filter.prune(data);
                 }
 
-                if (!filter.isSatisfiedBy(data))
-                    continue;
-
-                logger.debug("{} satisfies all filter expressions", data);
-                // cut the resultset back to what was requested, if necessary
-                data = filter.prune(data);
                 rows.add(new Row(rawRow.key, data));
+
                 if (data != null)
                     columnsCount += filter.lastCounted(data);
                 // Update the underlying filter to avoid querying more columns per slice than necessary and to handle paging

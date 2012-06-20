@@ -526,12 +526,11 @@ public class CompactionManager implements CompactionManagerMBean
         }
 
         boolean isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
-        Collection<ByteBuffer> indexedColumns = cfs.indexManager.getIndexedColumns();
+        boolean hasIndexes = !cfs.indexManager.getIndexes().isEmpty();
 
         for (SSTableReader sstable : sstables)
         {
-            if (indexedColumns.isEmpty()
-                && !new Bounds<Token>(sstable.first.token, sstable.last.token).intersects(ranges))
+            if (!hasIndexes && !new Bounds<Token>(sstable.first.token, sstable.last.token).intersects(ranges))
             {
                 cfs.replaceCompactedSSTables(Arrays.asList(sstable), Collections.<SSTableReader>emptyList(), OperationType.CLEANUP);
                 continue;
@@ -583,7 +582,7 @@ public class CompactionManager implements CompactionManagerMBean
                     {
                         cfs.invalidateCachedRow(row.getKey());
 
-                        if (!indexedColumns.isEmpty() || isCommutative)
+                        if (hasIndexes || isCommutative)
                         {
                             if (indexedColumnsInRow != null)
                                 indexedColumnsInRow.clear();
@@ -593,7 +592,7 @@ public class CompactionManager implements CompactionManagerMBean
                                 OnDiskAtom column = row.next();
                                 if (column instanceof CounterColumn)
                                     renewer.maybeRenew((CounterColumn) column);
-                                if (column instanceof IColumn && indexedColumns.contains(column.name()))
+                                if (column instanceof IColumn && cfs.indexManager.indexes((IColumn)column))
                                 {
                                     if (indexedColumnsInRow == null)
                                         indexedColumnsInRow = new ArrayList<IColumn>();

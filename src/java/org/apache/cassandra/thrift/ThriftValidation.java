@@ -28,6 +28,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
@@ -536,7 +537,7 @@ public class ThriftValidation
             // no filter to apply
             return false;
 
-        Set<ByteBuffer> indexedColumns = Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.getIndexedColumns();
+        SecondaryIndexManager idxManager = Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager;
         AbstractType<?> nameValidator =  ColumnFamily.getComparatorFor(metadata.ksName, metadata.cfName, null);
 
         boolean isIndexed = false;
@@ -567,7 +568,7 @@ public class ThriftValidation
                                                                 me.getMessage()));
             }
 
-            isIndexed |= (expression.op == IndexOperator.EQ) && indexedColumns.contains(expression.column_name);
+            isIndexed |= (expression.op == IndexOperator.EQ) && idxManager.indexes(expression.column_name);
         }
 
         return isIndexed;

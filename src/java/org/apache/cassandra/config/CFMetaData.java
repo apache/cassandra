@@ -918,7 +918,7 @@ public final class CFMetaData
         {
             if (column.getIndexType() != null && column.getIndexName() == null)
             {
-                String baseName = getDefaultIndexName(cfName, comparator, column.name);
+                String baseName = getDefaultIndexName(cfName, getColumnDefinitionComparator(column), column.name);
                 String indexName = baseName;
                 int i = 0;
                 while (existingNames.contains(indexName))

@@ -201,6 +201,14 @@ public class SliceQueryFilter implements IFilter
         count = newLimit;
     }
 
+    public boolean includes(Comparator<ByteBuffer> cmp, ByteBuffer name)
+    {
+        for (ColumnSlice slice : slices)
+            if (slice.includes(cmp, name))
+                return true;
+        return false;
+    }
+
     public static class Serializer implements IVersionedSerializer<SliceQueryFilter>
     {
         public void serialize(SliceQueryFilter f, DataOutput dos, int version) throws IOException

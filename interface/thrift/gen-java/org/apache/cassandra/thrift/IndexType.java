@@ -33,7 +33,8 @@ import org.apache.thrift.TEnum;
 
 public enum IndexType implements org.apache.thrift.TEnum {
   KEYS(0),
-  CUSTOM(1);
+  CUSTOM(1),
+  COMPOSITES(2);
 
   private final int value;
 
@@ -58,6 +59,8 @@ public enum IndexType implements org.apache.thrift.TEnum {
         return KEYS;
       case 1:
         return CUSTOM;
+      case 2:
+        return COMPOSITES;
       default:
         return null;
     }
