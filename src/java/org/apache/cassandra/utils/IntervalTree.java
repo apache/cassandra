@@ -251,7 +251,7 @@ public class IntervalTree<C, D, I extends Interval<C, D>> implements Iterable<I>
                     allEndpoints.add(interval.min);
                     allEndpoints.add(interval.max);
                 }
-                if (comparator == null)
+                if (comparator != null)
                     Collections.sort(allEndpoints, comparator);
                 else
                     Collections.sort((List<Comparable>)allEndpoints);
