@@ -162,9 +162,11 @@ public class LeaveAndBootstrapTest
 
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
         InetAddress boot1 = InetAddress.getByName("127.0.1.1");
+        Gossiper.instance.initializeNodeUnsafe(boot1, 1);
         UUID boot1Id = UUID.randomUUID();
         ss.onChange(boot1, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(5), boot1Id));
         InetAddress boot2 = InetAddress.getByName("127.0.1.2");
+        Gossiper.instance.initializeNodeUnsafe(boot2, 1);
         ss.onChange(boot2, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(7), UUID.randomUUID()));
 
         Collection<InetAddress> endpoints = null;

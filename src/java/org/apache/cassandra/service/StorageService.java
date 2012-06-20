@@ -1017,11 +1017,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         if (MessagingService.instance().knowsVersion(endpoint) && MessagingService.instance().getVersion(endpoint) >= MessagingService.VERSION_12)
             return true;
-        else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint) != null) // simply to pass the bootstrap test
-        {
-            if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NET_VERSION) != null && Integer.valueOf(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NET_VERSION).value) >= MessagingService.VERSION_12)
+        else  if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NET_VERSION) != null && Integer.valueOf(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NET_VERSION).value) >= MessagingService.VERSION_12)
                 return true;
-        }
         return false;
     }
 
@@ -1095,6 +1092,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
         else
             tokensPos = 1;
+        logger.debug("Using token position {} for {}", tokensPos, endpoint);
 
         Token token = getPartitioner().getTokenFactory().fromString(pieces[tokensPos]);
 

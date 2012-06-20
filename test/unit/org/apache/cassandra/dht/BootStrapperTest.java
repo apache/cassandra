@@ -88,6 +88,8 @@ public class BootStrapperTest extends SchemaLoader
         {
             Gossiper.instance.initializeNodeUnsafe(addrs[i], 1);
             load.put(addrs[i], (double)i+2);
+            // also make bootstrapping nodes present in gossip
+            Gossiper.instance.initializeNodeUnsafe(bootstrapAddrs[i], 1);
         }
 
         // give every node a bootstrap source.

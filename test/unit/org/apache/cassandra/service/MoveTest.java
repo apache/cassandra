@@ -27,6 +27,8 @@ import java.util.*;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import static org.junit.Assert.*;
+
+import org.apache.cassandra.gms.Gossiper;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -179,8 +181,10 @@ public class MoveTest
 
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
         InetAddress boot1 = InetAddress.getByName("127.0.1.1");
+        Gossiper.instance.initializeNodeUnsafe(boot1, 1);
         ss.onChange(boot1, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(5), UUID.randomUUID()));
         InetAddress boot2 = InetAddress.getByName("127.0.1.2");
+        Gossiper.instance.initializeNodeUnsafe(boot2, 1);
         ss.onChange(boot2, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(7), UUID.randomUUID()));
 
         // don't require test update every time a new keyspace is added to test/conf/cassandra.yaml

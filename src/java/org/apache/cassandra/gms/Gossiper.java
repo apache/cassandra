@@ -1084,6 +1084,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             localState.markAlive();
             endpointStateMap.put(addr, localState);
         }
+        // always add the version state
+        localState.addApplicationState(ApplicationState.NET_VERSION, StorageService.instance.valueFactory.networkVersion());
     }
 
     public long getEndpointDowntime(String address) throws UnknownHostException

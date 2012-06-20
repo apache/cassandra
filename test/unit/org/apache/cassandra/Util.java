@@ -40,6 +40,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -228,6 +229,7 @@ public class Util
         for (int i=0; i<endpointTokens.size(); i++)
         {
             InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
+            Gossiper.instance.initializeNodeUnsafe(ep, 1);
             ss.onChange(ep, ApplicationState.STATUS, new VersionedValue.VersionedValueFactory(partitioner).normal(endpointTokens.get(i), hostIds.get(i)));
             hosts.add(ep);
         }
