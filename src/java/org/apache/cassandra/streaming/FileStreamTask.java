@@ -185,14 +185,9 @@ public class FileStreamTask extends WrappedRunnable
     protected void receiveReply() throws IOException
     {
         MessagingService.validateMagic(input.readInt());
-        int msheader = input.readInt();
-        assert MessagingService.getBits(msheader, 3, 1) == 0 : "Stream received before stream reply";
-        int version = MessagingService.getBits(msheader, 15, 8);
-
-        if (version <= MessagingService.VERSION_11)
-            input.readInt(); // Read total size
         String id = input.readUTF();
-        MessageIn message = MessageIn.read(input, version, id);
+        // since we reject streaming with different version, using current_version here is fine
+        MessageIn message = MessageIn.read(input, MessagingService.current_version, id);
         assert message.verb == MessagingService.Verb.STREAM_REPLY : "Non-reply message received on stream socket";
         handler.doVerb(message, id);
     }
