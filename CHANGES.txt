@@ -19,6 +19,7 @@ Merged from 1.0:
 
 
 1.1.1
+ * allow larger cache capacities than 2GB (CASSANDRA-4150)
  * add getsstables command to nodetool (CASSANDRA-4199)
  * apply parent CF compaction settings to secondary index CFs (CASSANDRA-4280)
  * preserve commitlog size cap when recycling segments at startup
