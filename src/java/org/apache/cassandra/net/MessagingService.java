@@ -798,6 +798,11 @@ public final class MessagingService implements MessagingServiceMBean
         return getVersion(InetAddress.getByName(address));
     }
 
+    public boolean knowsVersion(InetAddress endpoint)
+    {
+        return versions.get(endpoint) != null;
+    }
+
     public void incrementDroppedMessages(Verb verb)
     {
         assert DROPPABLE_VERBS.contains(verb) : "Verb " + verb + " should not legally be dropped";

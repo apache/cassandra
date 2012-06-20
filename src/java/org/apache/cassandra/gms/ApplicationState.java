@@ -29,6 +29,7 @@ public enum ApplicationState
     INTERNAL_IP,
     RPC_ADDRESS,
     SEVERITY,
+    NET_VERSION,
     // pad to allow adding new states to existing cluster
     X1,
     X2,

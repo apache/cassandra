@@ -318,6 +318,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         setMode(Mode.CLIENT, false);
         Gossiper.instance.register(this);
         Gossiper.instance.start((int)(System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
+        Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
 
         // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
@@ -465,6 +466,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.register(this);
         Gossiper.instance.register(migrationManager);
         Gossiper.instance.start(SystemTable.incrementAndGetGeneration()); // needed for node-ring gathering.
+        // gossip network proto version
+        Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
         // gossip schema version when gossiper is running
         Schema.instance.updateVersionAndAnnounce();
         // add rpc listening info
@@ -1005,6 +1008,21 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /**
+     * Checks MS for the version, provided MS _really_ knows it (has directly communicated with the node) otherwise falls back to checking the gossipped version (learned about this node indirectly)
+     * If both fail, the node is too old to use hostid-style status serialization
+     * @param endpoint
+     * @return boolean whether or not to use hostid
+     */
+    private boolean usesHostId(InetAddress endpoint)
+    {
+        if (MessagingService.instance().knowsVersion(endpoint) && MessagingService.instance().getVersion(endpoint) >= MessagingService.VERSION_12)
+            return true;
+        else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NET_VERSION) != null && Integer.valueOf(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NET_VERSION).value) >= MessagingService.VERSION_12)
+            return true;
+        return false;
+    }
+
+    /**
      * Handle node bootstrap
      *
      * @param endpoint bootstrapping node
@@ -1018,7 +1036,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         //   versions  < 1.2 .....: STATUS,TOKEN
         //   versions >= 1.2 .....: STATUS,HOST_ID,TOKEN,TOKEN,...
         int tokenPos;
-        if (MessagingService.instance().getVersion(endpoint) >= MessagingService.VERSION_12)
+        if (usesHostId(endpoint))
         {
             assert pieces.length >= 3;
             tokenPos = 2;
@@ -1048,7 +1066,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         tokenMetadata.addBootstrapToken(token, endpoint);
         calculatePendingRanges();
 
-        if (MessagingService.instance().getVersion(endpoint) >= MessagingService.VERSION_12)
+        if (usesHostId(endpoint))
             tokenMetadata.updateHostId(UUID.fromString(pieces[1]), endpoint);
     }
 
@@ -1067,7 +1085,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         //   versions  < 1.2 .....: STATUS,TOKEN
         //   versions >= 1.2 .....: STATUS,HOST_ID,TOKEN,TOKEN,...
         int tokensPos;
-        if (MessagingService.instance().getVersion(endpoint) >= MessagingService.VERSION_12)
+        if (usesHostId(endpoint))
         {
             assert pieces.length >= 3;
             tokensPos = 2;
@@ -1084,7 +1102,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger.info("Node " + endpoint + " state jump to normal");
 
         // Order Matters, TM.updateHostID() should be called before TM.updateNormalToken(), (see CASSANDRA-4300).
-        if (MessagingService.instance().getVersion(endpoint) >= MessagingService.VERSION_12)
+        if (usesHostId(endpoint))
             tokenMetadata.updateHostId(UUID.fromString(pieces[1]), endpoint);
 
         // we don't want to update if this node is responsible for the token and it has a later startup time than endpoint.
