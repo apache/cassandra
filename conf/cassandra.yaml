@@ -410,7 +410,7 @@ write_rpc_timeout_in_ms: 10000
 # (This can be much longer, because we need to flush all CFs
 # to make sure we can clear out anythink in the commitlog that could
 # cause truncated data to reappear.)
-truncate_timeout_in_ms: 300000
+truncate_rpc_timeout_in_ms: 300000
 # The default timeout for other, miscellaneous operations
 rpc_timeout_in_ms: 10000
 
