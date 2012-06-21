@@ -1,11 +1,11 @@
 1.2-dev
+ * add UseCondCardMark XX jvm settings on jdk 1.7 (CASSANDRA-4366)
  * split up rpc timeout by operation type (CASSANDRA-2819)
  * rewrite key cache save/load to use only sequential i/o (CASSANDRA-3762)
  * update MS protocol with a version handshake + broadcast address id
    (CASSANDRA-4311)
  * multithreaded hint replay (CASSANDRA-4189)
  * add inter-node message compression (CASSANDRA-3127)
- * enforce 1m min keycache for auto (CASSANDRA-4306)
  * remove COPP (CASSANDRA-2479)
  * Track tombstone expiration and compact when tombstone content is
    higher than a configurable threshold, default 20% (CASSANDRA-3442)
