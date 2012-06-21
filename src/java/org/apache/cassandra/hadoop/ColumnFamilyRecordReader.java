@@ -104,7 +104,8 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     {
         // TODO this is totally broken for wide rows
         // the progress is likely to be reported slightly off the actual but close enough
-        return ((float)iter.rowsRead()) / totalRowCount;
+        float progress = ((float) iter.rowsRead() / totalRowCount);
+        return progress > 1.0F ? 1.0F : progress;
     }
 
     static boolean isEmptyPredicate(SlicePredicate predicate)
