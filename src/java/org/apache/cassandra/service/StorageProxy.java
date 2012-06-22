@@ -845,6 +845,22 @@ public class StorageProxy implements StorageProxyMBean
             int columnsCount = 0;
             rows = new ArrayList<Row>();
             List<AbstractBounds<RowPosition>> ranges = getRestrictedRanges(command.range);
+            
+            // get the cardinality of this index based on row count
+            // use this info to decide how many scans to do in parallel
+            long estimatedKeys = Table.open(command.keyspace).getColumnFamilyStore(command.column_family)
+                    .estimateKeys();
+            int concurrencyFactor = (int) command.maxResults / ((int) estimatedKeys + 1);
+
+            if (concurrencyFactor <= 0)
+                concurrencyFactor = 1;
+
+            if (concurrencyFactor > ranges.size())
+                concurrencyFactor = ranges.size();
+            
+            // parallel scan handlers
+            List<ReadCallback<RangeSliceReply, Iterable<Row>>> scanHandlers = new ArrayList<ReadCallback<RangeSliceReply, Iterable<Row>>>(concurrencyFactor);
+            
             for (AbstractBounds<RowPosition> range : ranges)
             {
                 RangeSliceCommand nodeCmd = new RangeSliceCommand(command.keyspace,
@@ -895,32 +911,40 @@ public class StorageProxy implements StorageProxyMBean
                             logger.debug("reading " + nodeCmd + " from " + endpoint);
                     }
 
-                    try
+                    scanHandlers.add(handler);
+                    if (scanHandlers.size() >= concurrencyFactor)
                     {
-                        for (Row row : handler.get())
+                        for (ReadCallback<RangeSliceReply, Iterable<Row>> scanHandler : scanHandlers)
                         {
-                            rows.add(row);
-                            columnsCount += row.getLiveColumnCount();
-                            logger.debug("range slices read {}", row.key);
+                            try
+                            {
+                                for (Row row : scanHandler.get())
+                                {
+                                    rows.add(row);
+                                    columnsCount += row.getLiveColumnCount();
+                                    logger.debug("range slices read {}", row.key);
+                                }
+                                FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getReadRpcTimeout());
+                            }
+                            catch (TimeoutException ex)
+                            {
+                                if (logger.isDebugEnabled())
+                                    logger.debug("Range slice timeout: {}", ex.toString());
+                                throw ex;
+                            }
+                            catch (DigestMismatchException e)
+                            {
+                                throw new AssertionError(e); // no digests in range slices yet
+                            }
+
+                            // if we're done, great, otherwise, move to the next range
+                            int count = nodeCmd.maxIsColumns ? columnsCount : rows.size();
+                            if (count >= nodeCmd.maxResults)
+                                break;
                         }
-                        FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getWriteRpcTimeout());
-                    }
-                    catch (TimeoutException ex)
-                    {
-                        if (logger.isDebugEnabled())
-                            logger.debug("Range slice timeout: {}", ex.toString());
-                        throw ex;
-                    }
-                    catch (DigestMismatchException e)
-                    {
-                        throw new AssertionError(e); // no digests in range slices yet
+                        scanHandlers.clear(); //go back for more
                     }
                 }
-
-                // if we're done, great, otherwise, move to the next range
-                int count = nodeCmd.maxIsColumns ? columnsCount : rows.size();
-                if (count >= nodeCmd.maxResults)
-                    break;
             }
         }
         finally
