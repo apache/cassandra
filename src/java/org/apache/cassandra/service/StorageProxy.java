@@ -924,7 +924,7 @@ public class StorageProxy implements StorageProxyMBean
                                     columnsCount += row.getLiveColumnCount();
                                     logger.debug("range slices read {}", row.key);
                                 }
-                                FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getReadRpcTimeout());
+                                FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getRangeRpcTimeout());
                             }
                             catch (TimeoutException ex)
                             {
