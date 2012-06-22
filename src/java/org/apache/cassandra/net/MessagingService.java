@@ -318,12 +318,12 @@ public final class MessagingService implements MessagingServiceMBean
         };
         StorageService.scheduledTasks.scheduleWithFixedDelay(logDropped, LOG_DROPPED_INTERVAL_IN_MS, LOG_DROPPED_INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
 
-        Function<Pair<String, CallbackInfo>, ?> timeoutReporter = new Function<Pair<String, CallbackInfo>, Object>()
+        Function<Pair<String, ExpiringMap.CacheableObject<CallbackInfo>>, ?> timeoutReporter = new Function<Pair<String, ExpiringMap.CacheableObject<CallbackInfo>>, Object>()
         {
-            public Object apply(Pair<String, CallbackInfo> pair)
+            public Object apply(Pair<String, ExpiringMap.CacheableObject<CallbackInfo>> pair)
             {
-                CallbackInfo expiredCallbackInfo = pair.right;
-                maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, (double) expiredCallbackInfo.sentMessage.getTimeout());
+                CallbackInfo expiredCallbackInfo = pair.right.getValue();
+                maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, (double) pair.right.timeout);
                 totalTimeouts++;
                 String ip = expiredCallbackInfo.target.getHostAddress();
                 AtomicLong c = timeoutsPerHost.get(ip);

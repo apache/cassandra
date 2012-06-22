@@ -34,28 +34,28 @@ public class ExpiringMap<K, V>
     private static final Logger logger = LoggerFactory.getLogger(ExpiringMap.class);
     private volatile boolean shutdown;
 
-    private static class CacheableObject<T>
+    public static class CacheableObject<T>
     {
         private final T value;
         private final long createdAt;
-        private final long expiration;
+        public final long timeout;
 
-        CacheableObject(T o, long e)
+        private CacheableObject(T value, long timeout)
         {
-            assert o != null;
-            value = o;
-            expiration = e;
-            createdAt = System.currentTimeMillis();
+            assert value != null;
+            this.value = value;
+            this.timeout = timeout;
+            this.createdAt = System.currentTimeMillis();
         }
 
-        T getValue()
+        public T getValue()
         {
             return value;
         }
 
-        boolean isReadyToDieAt(long time)
+        private boolean isReadyToDieAt(long time)
         {
-            return ((time - createdAt) > expiration);
+            return ((time - createdAt) > timeout);
         }
     }
 
@@ -74,7 +74,7 @@ public class ExpiringMap<K, V>
      *
      * @param defaultExpiration the TTL for objects in the cache in milliseconds
      */
-    public ExpiringMap(long defaultExpiration, final Function<Pair<K,V>, ?> postExpireHook)
+    public ExpiringMap(long defaultExpiration, final Function<Pair<K,CacheableObject<V>>, ?> postExpireHook)
     {
         this.defaultExpiration = defaultExpiration;
 
@@ -96,7 +96,7 @@ public class ExpiringMap<K, V>
                         cache.remove(entry.getKey());
                         n++;
                         if (postExpireHook != null)
-                            postExpireHook.apply(new Pair<K, V>(entry.getKey(), entry.getValue().getValue()));
+                            postExpireHook.apply(new Pair<K, CacheableObject<V>>(entry.getKey(), entry.getValue()));
                     }
                 }
                 logger.trace("Expired {} entries", n);
