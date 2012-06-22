@@ -166,7 +166,7 @@ public class CompactionTask extends AbstractCompactionTask
                         }
                     }
                 }
-                if (!nni.hasNext() || newSSTableSegmentThresholdReached(writer, indexEntry.position))
+                if (!nni.hasNext() || newSSTableSegmentThresholdReached(writer))
                 {
                     SSTableReader toIndex = writer.closeAndOpenReader(getMaxDataAge(toCompact));
                     cachedKeyMap.put(toIndex, cachedKeys);
@@ -226,7 +226,7 @@ public class CompactionTask extends AbstractCompactionTask
     }
 
     //extensibility point for other strategies that may want to limit the upper bounds of the sstable segment size
-    protected boolean newSSTableSegmentThresholdReached(SSTableWriter writer, long position)
+    protected boolean newSSTableSegmentThresholdReached(SSTableWriter writer) throws IOException
     {
         return false;
     }

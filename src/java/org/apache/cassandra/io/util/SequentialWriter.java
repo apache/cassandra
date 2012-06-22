@@ -244,6 +244,18 @@ public class SequentialWriter extends OutputStream
         return current;
     }
 
+    /**
+     * Return the current file pointer of the underlying on-disk file.
+     * Note that since write works by buffering data, the value of this will increase by buffer
+     * size and not every write to the writer will modify this value.
+     * Furthermore, for compressed files, this value refers to compressed data, while the
+     * writer getFilePointer() refers to uncompressedFile
+     */
+    public long getOnDiskFilePointer() throws IOException
+    {
+        return getFilePointer();
+    }
+
     public long length() throws IOException
     {
         return Math.max(Math.max(current, out.length()), bufferOffset + validBufferBytes);

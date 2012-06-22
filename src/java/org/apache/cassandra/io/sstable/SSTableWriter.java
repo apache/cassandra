@@ -373,6 +373,11 @@ public class SSTableWriter extends SSTable
         return dataFile.getFilePointer();
     }
 
+    public long getOnDiskFilePointer() throws IOException
+    {
+        return dataFile.getOnDiskFilePointer();
+    }
+
     /**
      * Encapsulates writing the index and filter for an SSTable. The state of this object is not valid until it has been closed.
      */
