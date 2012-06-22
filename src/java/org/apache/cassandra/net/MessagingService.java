@@ -322,7 +322,7 @@ public final class MessagingService implements MessagingServiceMBean
         {
             public Object apply(Pair<String, ExpiringMap.CacheableObject<CallbackInfo>> pair)
             {
-                CallbackInfo expiredCallbackInfo = pair.right.getValue();
+                CallbackInfo expiredCallbackInfo = pair.right.value;
                 maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, (double) pair.right.timeout);
                 totalTimeouts++;
                 String ip = expiredCallbackInfo.target.getHostAddress();

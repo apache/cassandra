@@ -36,9 +36,9 @@ public class ExpiringMap<K, V>
 
     public static class CacheableObject<T>
     {
-        private final T value;
-        private final long createdAt;
+        public final T value;
         public final long timeout;
+        private final long createdAt;
 
         private CacheableObject(T value, long timeout)
         {
@@ -46,11 +46,6 @@ public class ExpiringMap<K, V>
             this.value = value;
             this.timeout = timeout;
             this.createdAt = System.currentTimeMillis();
-        }
-
-        public T getValue()
-        {
-            return value;
         }
 
         private boolean isReadyToDieAt(long time)
@@ -147,19 +142,19 @@ public class ExpiringMap<K, V>
             }
         }
         CacheableObject<V> previous = cache.put(key, new CacheableObject<V>(value, timeout));
-        return (previous == null) ? null : previous.getValue();
+        return (previous == null) ? null : previous.value;
     }
 
     public V get(K key)
     {
         CacheableObject<V> co = cache.get(key);
-        return co == null ? null : co.getValue();
+        return co == null ? null : co.value;
     }
 
     public V remove(K key)
     {
         CacheableObject<V> co = cache.remove(key);
-        return co == null ? null : co.getValue();
+        return co == null ? null : co.value;
     }
 
     public long getAge(K key)
