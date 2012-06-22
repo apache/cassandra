@@ -129,7 +129,7 @@ public final class CFMetaData
                                                                      + "caching text,"
                                                                      + "compaction_strategy_class text,"
                                                                      + "compression_parameters text,"
-                                                                     + "value_aliases text,"
+                                                                     + "value_alias text,"
                                                                      + "column_aliases text,"
                                                                      + "compaction_strategy_options text,"
                                                                      + "PRIMARY KEY (keyspace_name, columnfamily_name)"
