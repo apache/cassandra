@@ -69,6 +69,12 @@ public class CompressedSequentialWriter extends SequentialWriter
     }
 
     @Override
+    public long getOnDiskFilePointer() throws IOException
+    {
+        return out.getFilePointer();
+    }
+
+    @Override
     public void sync() throws IOException
     {
         throw new UnsupportedOperationException();
