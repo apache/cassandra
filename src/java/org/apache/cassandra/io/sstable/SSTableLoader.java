@@ -304,12 +304,6 @@ public class SSTableLoader
             DatabaseDescriptor.setPartitioner(partitioner);
         }
 
-        protected void setPartitioner(IPartitioner partitioner) throws ConfigurationException
-        {
-            this.partitioner = partitioner;
-            DatabaseDescriptor.setPartitioner(partitioner);
-        }
-
         public IPartitioner getPartitioner()
         {
             return partitioner;
