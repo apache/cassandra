@@ -67,7 +67,7 @@ public class SecondaryIndexManager
 
     public SecondaryIndexManager(ColumnFamilyStore baseCfs)
     {
-        indexesByColumn = new ConcurrentSkipListMap<ByteBuffer, SecondaryIndex>();
+        indexesByColumn = new ConcurrentSkipListMap<ByteBuffer, SecondaryIndex>(baseCfs.getComparator());
         rowLevelIndexMap = new HashMap<Class<? extends SecondaryIndex>, SecondaryIndex>();
 
         this.baseCfs = baseCfs;
