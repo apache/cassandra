@@ -128,7 +128,10 @@ public final class KSMetaData
           .append("{")
           .append(StringUtils.join(cfMetaData.values(), ", "))
           .append("}")
-          .append(", durable_writes: ").append(durableWrites);
+          .append(", strategy_options: ")
+          .append(strategyOptions.toString())
+          .append(", durable_writes: ")
+          .append(durableWrites);
         return sb.toString();
     }
 
