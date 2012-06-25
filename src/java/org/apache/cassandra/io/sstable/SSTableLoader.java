@@ -294,7 +294,18 @@ public class SSTableLoader
 
         protected void setPartitioner(String partclass) throws ConfigurationException
         {
-            this.partitioner = FBUtilities.newPartitioner(partclass);
+            setPartitioner(FBUtilities.newPartitioner(partclass));
+        }
+
+        protected void setPartitioner(IPartitioner partitioner) throws ConfigurationException
+        {
+            this.partitioner = partitioner;
+            DatabaseDescriptor.setPartitioner(partitioner);
+        }
+
+        protected void setPartitioner(IPartitioner partitioner) throws ConfigurationException
+        {
+            this.partitioner = partitioner;
             DatabaseDescriptor.setPartitioner(partitioner);
         }
 

@@ -3027,11 +3027,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             @Override
             public void init(String keyspace)
             {
-                for (Map.Entry<Range<Token>, List<InetAddress>> entry : StorageService.instance.getRangeToAddressMap(keyspace).entrySet())
+                try
                 {
-                    Range<Token> range = entry.getKey();
-                    for (InetAddress endpoint : entry.getValue())
-                        addRangeForEndpoint(range, endpoint);
+                    setPartitioner(DatabaseDescriptor.getPartitioner());
+                    for (Map.Entry<Range<Token>, List<InetAddress>> entry : StorageService.instance.getRangeToAddressMap(keyspace).entrySet())
+                    {
+                        Range<Token> range = entry.getKey();
+                        for (InetAddress endpoint : entry.getValue())
+                            addRangeForEndpoint(range, endpoint);
+                    }
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
                 }
             }
 

@@ -380,7 +380,7 @@ public class Table
                         if (cf.getColumnNames().contains(column) || cf.isMarkedForDelete())
                         {
                             if (mutatedIndexedColumns == null)
-                                mutatedIndexedColumns = new TreeSet<ByteBuffer>();
+                                mutatedIndexedColumns = new TreeSet<ByteBuffer>(cf.getComparator());
                             mutatedIndexedColumns.add(column);
                             if (logger.isDebugEnabled())
                             {
