@@ -475,7 +475,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (newSSTables.isEmpty())
         {
-            logger.info("No new SSTables where found for " + table.name + "/" + columnFamily);
+            logger.info("No new SSTables were found for " + table.name + "/" + columnFamily);
             return;
         }
 
