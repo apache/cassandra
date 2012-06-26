@@ -173,6 +173,13 @@ public class CustomTHsHaServer extends TNonblockingServer
                 {
                     select();
                 }
+            }
+            catch (Throwable t)
+            {
+                LOGGER.error("Uncaught Exception: ", t);
+            }
+            finally
+            {
                 try
                 {
                     selector.close(); // CASSANDRA-3867
@@ -181,10 +188,6 @@ public class CustomTHsHaServer extends TNonblockingServer
                 {
                     // ignore this exception.
                 }
-            }
-            catch (Throwable t)
-            {
-                LOGGER.error("Uncaught Exception: ", t);
             }
         }
 
@@ -197,21 +200,30 @@ public class CustomTHsHaServer extends TNonblockingServer
             {
                 SelectionKey key = keyIterator.next();
                 keyIterator.remove();
-                if (!key.isValid())
-                {
-                    // if invalid cleanup.
-                    cleanupSelectionkey(key);
-                    continue;
-                }
 
-                if (key.isAcceptable())
-                    handleAccept();
-                if (key.isReadable())
-                    handleRead(key);
-                else if (key.isWritable())
-                    handleWrite(key);
-                else
-                    LOGGER.debug("Unexpected state " + key.interestOps());
+                try
+                {
+                    if (!key.isValid())
+                    {
+                        // if invalid cleanup.
+                        cleanupSelectionkey(key);
+                        continue;
+                    }
+
+                    if (key.isAcceptable())
+                        handleAccept();
+                    if (key.isReadable())
+                        handleRead(key);
+                    else if (key.isWritable())
+                        handleWrite(key);
+                    else
+                        LOGGER.debug("Unexpected state " + key.interestOps());
+                }
+                catch (Exception io)
+                {
+                    // just ignore (?)
+                    cleanupSelectionkey(key);
+                }
             }
             // process the changes which are inserted after completion.
             processInterestChanges();
