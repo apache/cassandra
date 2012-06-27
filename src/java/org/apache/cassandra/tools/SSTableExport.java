@@ -233,14 +233,13 @@ public class SSTableExport
     /**
      * Enumerate row keys from an SSTableReader and write the result to a PrintStream.
      *
-     * @param ssTableFile the file to export the rows from
+     * @param desc the descriptor of the file to export the rows from
      * @param outs PrintStream to write the output to
      * @throws IOException on failure to read/write input/output
      */
-    public static void enumeratekeys(String ssTableFile, PrintStream outs)
+    public static void enumeratekeys(Descriptor desc, PrintStream outs)
     throws IOException
     {
-        Descriptor desc = Descriptor.fromFilename(ssTableFile);
         KeyIterator iter = new KeyIterator(desc);
         DecoratedKey lastKey = null;
         while (iter.hasNext())
@@ -261,15 +260,15 @@ public class SSTableExport
     /**
      * Export specific rows from an SSTable and write the resulting JSON to a PrintStream.
      *
-     * @param ssTableFile the SSTableScanner to export the rows from
+     * @param desc the descriptor of the sstable table to read from
      * @param outs PrintStream to write the output to
      * @param toExport the keys corresponding to the rows to export
      * @param excludes keys to exclude from export
      * @throws IOException on failure to read/write input/output
      */
-    public static void export(String ssTableFile, PrintStream outs, Collection<String> toExport, String[] excludes) throws IOException
+    public static void export(Descriptor desc, PrintStream outs, Collection<String> toExport, String[] excludes) throws IOException
     {
-        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(ssTableFile));
+        SSTableReader reader = SSTableReader.open(desc);
         SSTableScanner scanner = reader.getDirectScanner();
 
         IPartitioner<?> partitioner = reader.partitioner;
@@ -359,28 +358,28 @@ public class SSTableExport
     /**
      * Export an SSTable and write the resulting JSON to a PrintStream.
      *
-     * @param ssTableFile the SSTable to export
+     * @param desc the descriptor of the sstable table to read from
      * @param outs PrintStream to write the output to
      * @param excludes keys to exclude from export
      *
      * @throws IOException on failure to read/write input/output
      */
-    public static void export(String ssTableFile, PrintStream outs, String[] excludes) throws IOException
+    public static void export(Descriptor desc, PrintStream outs, String[] excludes) throws IOException
     {
-        export(SSTableReader.open(Descriptor.fromFilename(ssTableFile)), outs, excludes);
+        export(SSTableReader.open(desc), outs, excludes);
     }
 
     /**
      * Export an SSTable and write the resulting JSON to standard out.
      *
-     * @param ssTableFile SSTable to export
+     * @param desc the descriptor of the sstable table to read from
      * @param excludes keys to exclude from export
      *
      * @throws IOException on failure to read/write SSTable/standard out
      */
-    public static void export(String ssTableFile, String[] excludes) throws IOException
+    public static void export(Descriptor desc, String[] excludes) throws IOException
     {
-        export(ssTableFile, System.out, excludes);
+        export(desc, System.out, excludes);
     }
 
     /**
@@ -428,17 +427,24 @@ public class SSTableExport
             System.err.println(msg);
             throw new ConfigurationException(msg);
         }
+        Descriptor descriptor = Descriptor.fromFilename(ssTableFileName);
+        if (Schema.instance.getCFMetaData(descriptor) == null)
+        {
+            System.err.println(String.format("The provided column family is not part of this cassandra database: keysapce = %s, column family = %s",
+                                             descriptor.ksname, descriptor.cfname));
+            System.exit(1);
+        }
 
         if (cmd.hasOption(ENUMERATEKEYS_OPTION))
         {
-            enumeratekeys(ssTableFileName, System.out);
+            enumeratekeys(descriptor, System.out);
         }
         else
         {
             if ((keys != null) && (keys.length > 0))
-                export(ssTableFileName, System.out, Arrays.asList(keys), excludes);
+                export(descriptor, System.out, Arrays.asList(keys), excludes);
             else
-                export(ssTableFileName, excludes);
+                export(descriptor, excludes);
         }
 
         System.exit(0);

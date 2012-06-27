@@ -78,7 +78,7 @@ public class SSTableExportTest extends SchemaLoader
 
         // Enumerate and verify
         File temp = File.createTempFile("Standard1", ".txt");
-        SSTableExport.enumeratekeys(writer.getFilename(), new PrintStream(temp.getPath()));
+        SSTableExport.enumeratekeys(Descriptor.fromFilename(writer.getFilename()), new PrintStream(temp.getPath()));
 
 
         FileReader file = new FileReader(temp);
