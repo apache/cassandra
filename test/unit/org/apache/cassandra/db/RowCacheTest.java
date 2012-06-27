@@ -153,6 +153,6 @@ public class RowCacheTest extends SchemaLoader
         // empty the cache again to make sure values came from disk
         CacheService.instance.invalidateRowCache();
         assert CacheService.instance.rowCache.size() == 0;
-        assert CacheService.instance.rowCache.readSaved(KEYSPACE, COLUMN_FAMILY).size() == (keysToSave == Integer.MAX_VALUE ? totalKeys : keysToSave);
+        assert CacheService.instance.rowCache.loadSaved(store) == (keysToSave == Integer.MAX_VALUE ? totalKeys : keysToSave);
     }
 }
