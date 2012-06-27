@@ -639,11 +639,6 @@ public class DatabaseDescriptor
         return requestSchedulerId;
     }
 
-    public static String getJobTrackerAddress()
-    {
-        return conf.job_tracker_host;
-    }
-
     public static int getColumnIndexSize()
     {
         return conf.column_index_size_in_kb * 1024;
@@ -667,11 +662,6 @@ public class DatabaseDescriptor
     public static int getMaxStreamingRetries()
     {
         return conf.max_streaming_retries;
-    }
-
-    public static String getJobJarLocation()
-    {
-        return conf.job_jar_file_location;
     }
 
     public static int getStoragePort()
