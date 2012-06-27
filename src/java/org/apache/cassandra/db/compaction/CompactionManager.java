@@ -696,16 +696,19 @@ public class CompactionManager implements CompactionManagerMBean
         assert !cfs.isIndex();
         Table table = cfs.table;
         Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.name);
-        boolean isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
         if (ranges.isEmpty())
         {
             logger.info("Cleanup cannot run before a node has joined the ring");
             return;
         }
 
+        boolean isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
+        Collection<ByteBuffer> indexedColumns = cfs.indexManager.getIndexedColumns();
+
         for (SSTableReader sstable : sstables)
         {
-            if (!new Bounds<Token>(sstable.first.token, sstable.last.token).intersects(ranges))
+            if (indexedColumns.isEmpty()
+                && !new Bounds<Token>(sstable.first.token, sstable.last.token).intersects(ranges))
             {
                 cfs.replaceCompactedSSTables(Arrays.asList(sstable), Collections.<SSTableReader>emptyList(), OperationType.CLEANUP);
                 continue;
@@ -733,7 +736,6 @@ public class CompactionManager implements CompactionManagerMBean
 
             SSTableScanner scanner = sstable.getDirectScanner();
             long rowsRead = 0;
-            Collection<ByteBuffer> indexedColumns = cfs.indexManager.getIndexedColumns();
             List<IColumn> indexedColumnsInRow = null;
 
             CleanupInfo ci = new CleanupInfo(sstable, scanner);

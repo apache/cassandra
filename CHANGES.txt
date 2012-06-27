@@ -26,6 +26,7 @@
 
 
 1.1.2
+ * Fix cleanup not deleting index entries (CASSANDRA-4379)
  * Use correct partitioner when saving + loading caches (CASSANDRA-4331)
  * Check schema before trying to export sstable (CASSANDRA-2760)
  * Raise a meaningful exception instead of NPE when PFS encounters
@@ -46,6 +47,7 @@
  * Use CF comparator to sort indexed columns in SecondaryIndexManager
    (CASSANDRA-4365)
  * add strategy_options to the KSMetaData.toString() output (CASSANDRA-4248)
+ * (cql3) fix range queries containing unqueried results (CASSANDRA-4372)
 Merged from 1.0:
  * Set gc_grace on index CF to 0 (CASSANDRA-4314)
 

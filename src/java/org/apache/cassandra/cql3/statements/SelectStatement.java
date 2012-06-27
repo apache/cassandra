@@ -478,7 +478,7 @@ public class SelectStatement implements CQLStatement
         ColumnNameBuilder builder = cfDef.getColumnNameBuilder();
         for (Restriction r : columnRestrictions)
         {
-            if (r == null)
+            if (r == null || (!r.isEquality() && r.bound(b) == null))
             {
                 // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
                 // For composites, if there was preceding component and we're computing the end, we must change the last component
@@ -497,10 +497,8 @@ public class SelectStatement implements CQLStatement
             else
             {
                 Term t = r.bound(b);
-                if (t == null)
-                    return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-                else
-                    return builder.add(t, r.getRelation(b), variables).build();
+                assert t != null;
+                return builder.add(t, r.getRelation(b), variables).build();
             }
         }
         // Means no relation at all or everything was an equal
