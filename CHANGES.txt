@@ -1,4 +1,5 @@
 1.1.2
+ * Check schema before trying to export sstable (CASSANDRA-2760)
  * Raise a meaningful exception instead of NPE when PFS encounters
    an unconfigured node + no default (CASSANDRA-4349)
  * fix bug in sstable blacklisting with LCS (CASSANDRA-4343)
@@ -7,8 +8,8 @@
  * fix NPE in compactionstats (CASSANDRA-4318)
  * enforce 1m min keycache for auto (CASSANDRA-4306)
  * Have DeletedColumn.isMFD always return true (CASSANDRA-4307)
- * ex msg for cql3 order by constraints says primary filter can be an IN clause 
-   which is misleading (CASSANDRA-4319)
+ * (cql3) exeption message for ORDER BY constraints said primary filter can be
+    an IN clause, which is misleading (CASSANDRA-4319)
  * (cql3) Reject (not yet supported) creation of 2ndardy indexes on tables with
    composite primary keys (CASSANDRA-4328)
  * Set JVM stack size to 160k for java 7 (CASSANDRA-4275)
