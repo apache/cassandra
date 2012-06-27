@@ -13,20 +13,20 @@
  * (CLI) track elapsed time for `delete' operation (CASSANDRA-4060)
  * (CLI) jline version is bumped to 1.0 to properly  support
    'delete' key function (CASSANDRA-4132)
- * Save IndexSummary into new SSTable 'Summary' component (CASSANDRA-2392)
+ * Save IndexSummary into new SSTable 'Summary' component (CASSANDRA-2392, 4289)
  * Add support for range tombstones (CASSANDRA-3708)
  * Improve MessagingService efficiency (CASSANDRA-3617)
  * Avoid ID conflicts from concurrent schema changes (CASSANDRA-3794)
  * Set thrift HSHA server thread limit to unlimited by default (CASSANDRA-4277)
  * Avoids double serialization of CF id in RowMutation messages
    (CASSANDRA-4293)
- * fix Summary component and caches to use correct partitioner (CASSANDRA-4289)
  * stream compressed sstables directly with java nio (CASSANDRA-4297)
  * Support multiple ranges in SliceQueryFilter (CASSANDRA-3885)
  * Add column metadata to system column families (CASSANDRA-4018)
 
 
 1.1.2
+ * Use correct partitioner when saving + loading caches (CASSANDRA-4331)
  * Check schema before trying to export sstable (CASSANDRA-2760)
  * Raise a meaningful exception instead of NPE when PFS encounters
    an unconfigured node + no default (CASSANDRA-4349)
