@@ -36,12 +36,6 @@ public class Config
     public SeedProviderDef seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
 
-    /* Address where to run the job tracker */
-    public String job_tracker_host;
-
-    /* Job Jar Location */
-    public String job_jar_file_location;
-
     /* initial token in the ring */
     public String initial_token;
 
