@@ -36,6 +36,7 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.CacheService;
@@ -92,7 +93,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         }
     }
 
-    public Set<DecoratedKey> readSaved(String ksName, String cfName)
+    public Set<DecoratedKey> readSaved(String ksName, String cfName, IPartitioner partitioner)
     {
         File path = getCachePath(ksName, cfName);
         Set<DecoratedKey> keys = new TreeSet<DecoratedKey>();
@@ -114,7 +115,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                     DecoratedKey key;
                     try
                     {
-                        key = StorageService.getPartitioner().decorateKey(buffer);
+                        key = partitioner.decorateKey(buffer);
                     }
                     catch (Exception e)
                     {

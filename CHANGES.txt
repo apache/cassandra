@@ -1,4 +1,5 @@
 1.1.2
+ * Use correct partitioner when saving + loading caches (CASSANDRA-4331)
  * Check schema before trying to export sstable (CASSANDRA-2760)
  * Raise a meaningful exception instead of NPE when PFS encounters
    an unconfigured node + no default (CASSANDRA-4349)

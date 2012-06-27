@@ -228,7 +228,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data = new DataTracker(this);
         Set<DecoratedKey> savedKeys = caching == Caching.NONE || caching == Caching.ROWS_ONLY
                                        ? Collections.<DecoratedKey>emptySet()
-                                       : CacheService.instance.keyCache.readSaved(table.name, columnFamily);
+                                       : CacheService.instance.keyCache.readSaved(table.name, columnFamily, partitioner);
 
         Directories.SSTableLister sstables = directories.sstableLister().skipCompacted(true).skipTemporary(true);
         data.addInitialSSTables(SSTableReader.batchOpen(sstables.list().entrySet(), savedKeys, data, metadata, this.partitioner));
@@ -412,7 +412,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // results are sorted on read (via treeset) because there are few reads and many writes and reads only happen at startup
         int cachedRowsRead = 0;
-        for (DecoratedKey key : rowCache.readSaved(table.name, columnFamily))
+        for (DecoratedKey key : rowCache.readSaved(table.name, columnFamily, partitioner))
         {
             ColumnFamily data = getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(columnFamily)),
                                                    Integer.MIN_VALUE,
