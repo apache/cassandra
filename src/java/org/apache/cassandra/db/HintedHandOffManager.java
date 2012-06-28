@@ -404,8 +404,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         List<Row> rows = hintStore.getRangeSlice(null, range, Integer.MAX_VALUE, filter, null);
         for (Row row : rows)
         {
-            Token<?> token = StorageService.getPartitioner().getTokenFactory().fromByteArray(row.key.key);
-            InetAddress target = StorageService.instance.getTokenMetadata().getEndpoint(token);
+            UUID hostId = UUIDGen.getUUID(row.key.key);
+            InetAddress target = StorageService.instance.getTokenMetadata().getEndpointForHostId(hostId);
             // token may have since been removed (in which case we have just read back a tombstone)
             if (target != null)
                 scheduleHintDelivery(target);
