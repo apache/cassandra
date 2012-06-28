@@ -1,4 +1,3 @@
-package org.apache.cassandra.db.commitlog;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,6 +18,7 @@ package org.apache.cassandra.db.commitlog;
  * under the License.
  * 
  */
+package org.apache.cassandra.db.commitlog;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -75,6 +75,7 @@ public class CommitLogDescriptor
 
     public int getMessagingVersion()
     {
+        assert MessagingService.current_version == MessagingService.VERSION_12;
         switch (version)
         {
             case LEGACY_VERSION:

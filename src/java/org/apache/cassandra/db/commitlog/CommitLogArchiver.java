@@ -1,4 +1,3 @@
-package org.apache.cassandra.db.commitlog;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,6 +18,7 @@ package org.apache.cassandra.db.commitlog;
  * under the License.
  * 
  */
+package org.apache.cassandra.db.commitlog;
 
 import java.io.File;
 import java.io.IOException;
