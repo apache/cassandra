@@ -25,8 +25,6 @@ import java.nio.channels.FileChannel;
 import java.nio.MappedByteBuffer;
 import java.util.Collection;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.zip.Checksum;
 import java.util.HashMap;
 
@@ -51,10 +49,6 @@ public class CommitLogSegment
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLogSegment.class);
 
-    static final String FILENAME_PREFIX = "CommitLog-";
-    static final String FILENAME_EXTENSION = ".log";
-    private static final Pattern COMMIT_LOG_FILE_PATTERN = Pattern.compile(FILENAME_PREFIX + "(\\d+)" + FILENAME_EXTENSION);
-
     // The commit log entry overhead in bytes (int: length + long: head checksum + long: tail checksum)
     static final int ENTRY_OVERHEAD_SIZE = 4 + 8 + 8;
 
@@ -70,6 +64,8 @@ public class CommitLogSegment
 
     private final MappedByteBuffer buffer;
     private boolean closed;
+
+    public final CommitLogDescriptor descriptor;
 
     /**
      * @return a newly minted segment file
@@ -87,7 +83,8 @@ public class CommitLogSegment
     CommitLogSegment(String filePath)
     {
         id = System.nanoTime();
-        logFile = new File(DatabaseDescriptor.getCommitLogLocation(), FILENAME_PREFIX + id + FILENAME_EXTENSION);
+        descriptor = new CommitLogDescriptor(id);
+        logFile = new File(DatabaseDescriptor.getCommitLogLocation(), descriptor.fileName());
         boolean isCreating = true;
 
         try
@@ -124,37 +121,6 @@ public class CommitLogSegment
         {
             throw new IOError(e);
         }
-    }
-
-    /**
-     * Extracts the commit log ID from filename
-     *
-     * @param   filename  the filename of the commit log file
-     * @return the extracted commit log ID
-     */
-    public static long idFromFilename(String filename)
-    {
-        Matcher matcher = COMMIT_LOG_FILE_PATTERN.matcher(filename);
-        try
-        {
-            if (matcher.matches())
-                return Long.valueOf(matcher.group(1));
-            else
-                return -1L;
-        }
-        catch (NumberFormatException e)
-        {
-            return -1L;
-        }
-    }
-
-    /**
-     * @param   filename  the filename to check
-     * @return true if filename could be a commit log based on it's filename
-     */
-    public static boolean possibleCommitLogFile(String filename)
-    {
-        return COMMIT_LOG_FILE_PATTERN.matcher(filename).matches();
     }
 
     /**

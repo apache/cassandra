@@ -20,7 +20,6 @@ package org.apache.cassandra.config;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -34,6 +33,7 @@ import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.UnknownColumnFamilyException;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.utils.Pair;
@@ -347,12 +347,12 @@ public class Schema
         oldCfIdMap.put(oldId, newId);
     }
 
-    public UUID convertOldCfId(Integer oldCfId)
+    public UUID convertOldCfId(Integer oldCfId) throws UnknownColumnFamilyException
     {
         UUID cfId = oldCfIdMap.get(oldCfId);
 
         if (cfId == null)
-            throw new IllegalArgumentException("ColumnFamily identified by old " + oldCfId + " was not found.");
+            throw new UnknownColumnFamilyException("ColumnFamily identified by old " + oldCfId + " was not found.", null);
 
         return cfId;
     }

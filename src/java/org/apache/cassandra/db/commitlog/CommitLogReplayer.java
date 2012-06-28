@@ -39,7 +39,6 @@ import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.PureJavaCrc32;
@@ -59,7 +58,7 @@ public class CommitLogReplayer
     private final Set<Table> tablesRecovered;
     private final List<Future<?>> futures;
     private final Map<UUID, AtomicInteger> invalidMutations;
-private final AtomicInteger replayedCount;
+    private final AtomicInteger replayedCount;
     private final Map<UUID, ReplayPosition> cfPositions;
     private final ReplayPosition globalPosition;
     private final Checksum checksum;
@@ -113,7 +112,9 @@ private final AtomicInteger replayedCount;
     public void recover(File file) throws IOException
     {
         logger.info("Replaying " + file.getPath());
-        final long segment = CommitLogSegment.idFromFilename(file.getName());
+        CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
+        final long segment = desc.id;
+        int version = desc.getMessagingVersion();
         RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()), true);
         assert reader.length() <= Integer.MAX_VALUE;
         try
@@ -195,10 +196,12 @@ private final AtomicInteger replayedCount;
                 {
                     // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
                     // the current version. so do make sure the CL is drained prior to upgrading a node.
-                    rm = RowMutation.serializer.deserialize(new DataInputStream(bufIn), MessagingService.current_version, IColumnSerializer.Flag.LOCAL);
+                    rm = RowMutation.serializer.deserialize(new DataInputStream(bufIn), version, IColumnSerializer.Flag.LOCAL);
                 }
                 catch (UnknownColumnFamilyException ex)
                 {
+                    if (ex.cfId == null)
+                        continue;
                     AtomicInteger i = invalidMutations.get(ex.cfId);
                     if (i == null)
                     {

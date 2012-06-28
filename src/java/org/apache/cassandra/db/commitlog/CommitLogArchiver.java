@@ -20,7 +20,6 @@ package org.apache.cassandra.db.commitlog;
  * 
  */
 
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,7 +30,6 @@ import java.util.Properties;
 import java.util.concurrent.*;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -148,10 +146,7 @@ public class CommitLogArchiver
             File[] files = new File(dir).listFiles();
             for (File fromFile : files)
             {
-                File toFile = new File(DatabaseDescriptor.getCommitLogLocation(),
-                                       CommitLogSegment.FILENAME_PREFIX +
-                                       System.nanoTime() +
-                                       CommitLogSegment.FILENAME_EXTENSION);             
+                File toFile = new File(DatabaseDescriptor.getCommitLogLocation(), new CommitLogDescriptor(System.nanoTime()).fileName());            
                 String command = restoreCommand.replace("%from", fromFile.getPath());
                 command = command.replace("%to", toFile.getPath());       
                 exec(command);
