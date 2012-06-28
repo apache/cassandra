@@ -48,6 +48,7 @@
    (CASSANDRA-4365)
  * add strategy_options to the KSMetaData.toString() output (CASSANDRA-4248)
  * (cql3) fix range queries containing unqueried results (CASSANDRA-4372)
+ * (cql3) allow updating column_alias types (CASSANDRA-4041)
 Merged from 1.0:
  * Set gc_grace on index CF to 0 (CASSANDRA-4314)
 
