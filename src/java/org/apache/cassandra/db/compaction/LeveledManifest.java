@@ -194,12 +194,16 @@ public class LeveledManifest
         for (SSTableReader ssTableReader : added)
             add(ssTableReader, newLevel);
 
-        DecoratedKey last = null;
-        Collections.sort(generations[newLevel], SSTable.sstableComparator);
-        for (SSTableReader sstable : generations[newLevel])
+        if (newLevel != 0)
         {
-            assert last == null || sstable.first.compareTo(last) > 0;
-            last = sstable.last;
+            // Integerity check
+            DecoratedKey last = null;
+            Collections.sort(generations[newLevel], SSTable.sstableComparator);
+            for (SSTableReader sstable : generations[newLevel])
+            {
+                assert last == null || sstable.first.compareTo(last) > 0;
+                last = sstable.last;
+            }
         }
 
         serialize();
