@@ -423,7 +423,7 @@ public class DefsTable
         Schema.instance.setTableDefinition(ksm);
 
         if (!StorageService.instance.isClientMode())
-            Table.open(ksm.name).initCf(cfm.cfId, cfm.cfName);
+            Table.open(ksm.name).initCf(cfm.cfId, cfm.cfName, true);
     }
 
     private static void updateKeyspace(KSMetaData newState) throws IOException

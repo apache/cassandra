@@ -201,7 +201,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                               IPartitioner partitioner,
                               int generation,
                               CFMetaData metadata,
-                              Directories directories)
+                              Directories directories,
+                              boolean loadSSTables)
     {
         assert metadata != null : "null metadata for " + table + ":" + columnFamilyName;
 
@@ -222,8 +223,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // scan for sstables corresponding to this cf and load them
         data = new DataTracker(this);
-        Directories.SSTableLister sstables = directories.sstableLister().skipCompacted(true).skipTemporary(true);
-        data.addInitialSSTables(SSTableReader.batchOpen(sstables.list().entrySet(), data, metadata, this.partitioner));
+
+        if (loadSSTables)
+        {
+            Directories.SSTableLister sstables = directories.sstableLister().skipCompacted(true).skipTemporary(true);
+            data.addInitialSSTables(SSTableReader.batchOpen(sstables.list().entrySet(), data, metadata, this.partitioner));
+        }
+
         if (caching == Caching.ALL || caching == Caching.KEYS_ONLY)
             CacheService.instance.keyCache.loadSaved(this);
 
@@ -298,15 +304,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getMeanColumns();
     }
 
-    public static ColumnFamilyStore createColumnFamilyStore(Table table, String columnFamily)
+    public static ColumnFamilyStore createColumnFamilyStore(Table table, String columnFamily, boolean loadSSTables)
     {
-        return createColumnFamilyStore(table, columnFamily, StorageService.getPartitioner(), Schema.instance.getCFMetaData(table.name, columnFamily));
+        return createColumnFamilyStore(table, columnFamily, StorageService.getPartitioner(), Schema.instance.getCFMetaData(table.name, columnFamily), loadSSTables);
     }
 
-    public static synchronized ColumnFamilyStore createColumnFamilyStore(Table table,
+    public static ColumnFamilyStore createColumnFamilyStore(Table table, String columnFamily, IPartitioner partitioner, CFMetaData metadata)
+    {
+        return createColumnFamilyStore(table, columnFamily, partitioner, metadata, true);
+    }
+
+    private static synchronized ColumnFamilyStore createColumnFamilyStore(Table table,
                                                                          String columnFamily,
                                                                          IPartitioner partitioner,
-                                                                         CFMetaData metadata)
+                                                                         CFMetaData metadata,
+                                                                         boolean loadSSTables)
     {
         // get the max generation number, to prevent generation conflicts
         Directories directories = Directories.create(table.name, columnFamily);
@@ -322,7 +334,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Collections.sort(generations);
         int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
 
-        return new ColumnFamilyStore(table, columnFamily, partitioner, value, metadata, directories);
+        return new ColumnFamilyStore(table, columnFamily, partitioner, value, metadata, directories, loadSSTables);
     }
 
     /**

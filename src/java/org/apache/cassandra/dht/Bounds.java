@@ -58,6 +58,12 @@ public class Bounds<T extends RingPosition> extends AbstractBounds<T>
         return new Pair<AbstractBounds<T>, AbstractBounds<T>>(lb, rb);
     }
 
+    public boolean intersects(Bounds<T> that)
+    {
+        // We either contains one of the that bounds, or we are fully contained into that.
+        return contains(that.left) || contains(that.right) || that.contains(left);
+    }
+
     public List<? extends AbstractBounds<T>> unwrap()
     {
         // Bounds objects never wrap

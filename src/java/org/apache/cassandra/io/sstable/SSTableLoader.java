@@ -34,8 +34,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.streaming.*;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.*;
 
 /**
  * Cassandra SSTable bulk loader.
@@ -249,15 +248,6 @@ public class SSTableLoader
             future.latch.countDown();
             client.stop();
         }
-    }
-
-    public interface OutputHandler
-    {
-        // called when an important info need to be displayed
-        public void output(String msg);
-
-        // called when a less important info need to be displayed
-        public void debug(String msg);
     }
 
     public static abstract class Client

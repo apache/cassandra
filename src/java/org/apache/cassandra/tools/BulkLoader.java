@@ -29,6 +29,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.streaming.PendingFile;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.OutputHandler;
 import org.apache.commons.cli.*;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
@@ -54,7 +55,8 @@ public class BulkLoader
         LoaderOptions options = LoaderOptions.parseArgs(args);
         try
         {
-            SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(options, options.hosts, options.rpcPort), options);
+            OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
+            SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(handler, options.hosts, options.rpcPort), handler);
             DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
             SSTableLoader.LoaderFuture future = loader.stream(options.ignores);
 
@@ -173,11 +175,11 @@ public class BulkLoader
     static class ExternalClient extends SSTableLoader.Client
     {
         private final Map<String, Set<String>> knownCfs = new HashMap<String, Set<String>>();
-        private final SSTableLoader.OutputHandler outputHandler;
+        private final OutputHandler outputHandler;
         private final Set<InetAddress> hosts;
         private final int rpcPort;
 
-        public ExternalClient(SSTableLoader.OutputHandler outputHandler, Set<InetAddress> hosts, int port)
+        public ExternalClient(OutputHandler outputHandler, Set<InetAddress> hosts, int port)
         {
             super();
             this.outputHandler = outputHandler;
@@ -244,7 +246,7 @@ public class BulkLoader
         }
     }
 
-    static class LoaderOptions implements SSTableLoader.OutputHandler
+    static class LoaderOptions
     {
         public final File directory;
 
@@ -366,18 +368,6 @@ public class BulkLoader
             printUsage(options);
             System.exit(1);
         }
-
-        public void output(String msg)
-        {
-            System.out.println(msg);
-        }
-
-        public void debug(String msg)
-        {
-            if (verbose)
-                System.out.println(msg);
-        }
-
         private static CmdLineOptions getCmdLineOptions()
         {
             CmdLineOptions options = new CmdLineOptions();
@@ -408,7 +398,7 @@ public class BulkLoader
         }
     }
 
-    private static class CmdLineOptions extends Options
+    public static class CmdLineOptions extends Options
     {
         /**
          * Add option with argument and argument name

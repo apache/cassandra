@@ -30,10 +30,13 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CLibrary;
 
@@ -41,28 +44,32 @@ import static org.apache.cassandra.Util.column;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
+import java.util.*;
+
 public class ScrubTest extends SchemaLoader
 {
     public String TABLE = "Keyspace1";
     public String CF = "Standard1";
     public String CF2 = "Super5";
     public String CF3 = "Standard2";
-    public String  corruptSSTableName;
 
-
-    public void copySSTables() throws IOException
+    public String copySSTables(String cf) throws IOException
     {
         String root = System.getProperty("corrupt-sstable-root");
         assert root != null;
         File rootDir = new File(root);
         assert rootDir.isDirectory();
 
-        File destDir = Directories.create(TABLE, CF2).getDirectoryForNewSSTables(1);
+        File destDir = Directories.create(TABLE, cf).getDirectoryForNewSSTables(1);
+
+        String corruptSSTableName = null;
 
         FileUtils.createDirectory(destDir);
         for (File srcFile : rootDir.listFiles())
         {
             if (srcFile.getName().equals(".svn"))
+                continue;
+            if (!srcFile.getName().contains(cf))
                 continue;
             File destFile = new File(destDir, srcFile.getName());
             CLibrary.createHardLink(srcFile, destFile);
@@ -74,12 +81,13 @@ public class ScrubTest extends SchemaLoader
         }
 
         assert corruptSSTableName != null;
+        return corruptSSTableName;
     }
 
     @Test
     public void testScrubFile() throws Exception
     {
-        copySSTables();
+        copySSTables(CF2);
 
         Table table = Table.open(TABLE);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF2);
@@ -103,7 +111,6 @@ public class ScrubTest extends SchemaLoader
         rows = cfs.getRangeSlice(ByteBufferUtil.bytes("1"), Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(100, rows.size());
     }
-
 
     @Test
     public void testScrubOneRow() throws IOException, ExecutionException, InterruptedException, ConfigurationException
@@ -164,6 +171,57 @@ public class ScrubTest extends SchemaLoader
         // check data is still there
         rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(10, rows.size());
+    }
+
+    @Test
+    public void testScubOutOfOrder() throws Exception
+    {
+         CompactionManager.instance.disableAutoCompaction();
+         Table table = Table.open(TABLE);
+         String columnFamily = "Standard3";
+         ColumnFamilyStore cfs = table.getColumnFamilyStore(columnFamily);
+
+        /*
+         * Code used to generate an outOfOrder sstable. The test must be run without assertions for this to work.
+         * The test also assumes an ordered partitioner.
+         *
+         * ColumnFamily cf = ColumnFamily.create(TABLE, columnFamily);
+         * cf.addColumn(new Column(ByteBufferUtil.bytes("someName"), ByteBufferUtil.bytes("someValue"), 0L));
+
+         * SSTableWriter writer = cfs.createCompactionWriter((long)DatabaseDescriptor.getIndexInterval(), new File("."), Collections.<SSTableReader>emptyList());
+         * writer.append(Util.dk("a"), cf);
+         * writer.append(Util.dk("b"), cf);
+         * writer.append(Util.dk("z"), cf);
+         * writer.append(Util.dk("c"), cf);
+         * writer.append(Util.dk("y"), cf);
+         * writer.append(Util.dk("d"), cf);
+         * writer.closeAndOpenReader();
+         */
+
+        copySSTables(columnFamily);
+        cfs.loadNewSSTables();
+        assert cfs.getSSTables().size() > 0;
+
+        List<Row> rows;
+        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
+        assert !isRowOrdered(rows) : "'corrupt' test file actually was not";
+
+        CompactionManager.instance.performScrub(cfs);
+        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
+        assert isRowOrdered(rows) : "Scrub failed: " + rows;
+        assert rows.size() == 6: "Got " + rows.size();
+    }
+
+    private static boolean isRowOrdered(List<Row> rows)
+    {
+        DecoratedKey prev = null;
+        for (Row row : rows)
+        {
+            if (prev != null && prev.compareTo(row.key) > 0)
+                return false;
+            prev = row.key;
+        }
+        return true;
     }
 
     protected void fillCF(ColumnFamilyStore cfs, int rowsPerSSTable) throws ExecutionException, InterruptedException, IOException
