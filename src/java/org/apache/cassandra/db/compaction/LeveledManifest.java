@@ -27,13 +27,14 @@ import java.io.IOException;
 import java.util.*;
 
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -287,24 +288,6 @@ public class LeveledManifest
         return Collections.emptyList();
     }
 
-    /**
-     * Go through candidates collection and check if any of the SSTables are marked as suspected.
-     *
-     * @param candidates The SSTable collection to examine.
-     *
-     * @return true if collection has at least one SSTable marked as suspected, false otherwise.
-     */
-    private boolean hasSuspectSSTables(Collection<SSTableReader> candidates)
-    {
-        for (SSTableReader candidate : candidates)
-        {
-            if (candidate.isMarkedSuspect())
-                return true;
-        }
-
-        return false;
-    }
-
     public int getLevelSize(int i)
     {
         return generations.length > i ? generations[i].size() : 0;
@@ -350,16 +333,50 @@ public class LeveledManifest
         sstableGenerations.put(sstable, Integer.valueOf(level));
     }
 
-    private static Set<SSTableReader> overlapping(SSTableReader sstable, Iterable<SSTableReader> candidates)
+    private static Set<SSTableReader> overlapping(Collection<SSTableReader> candidates, Iterable<SSTableReader> others)
     {
-        Set<SSTableReader> overlapped = new HashSet<SSTableReader>();
-        overlapped.add(sstable);
-
-        Range<Token> promotedRange = new Range<Token>(sstable.first.token, sstable.last.token);
-        for (SSTableReader candidate : candidates)
+        assert !candidates.isEmpty();
+        /*
+         * Picking each sstable from others that overlap one of the sstable of candidates is not enough
+         * because you could have the following situation:
+         *   candidates = [ s1(a, c), s2(m, z) ]
+         *   others = [ s3(e, g) ]
+         * In that case, s2 overlaps none of s1 or s2, but if we compact s1 with s2, the resulting sstable will
+         * overlap s3, so we must return s3.
+         *
+         * Thus, the correct approach is to pick sstables overlapping anything between the first key in all
+         * the candidate sstables, and the last.
+         */
+        Iterator<SSTableReader> iter = candidates.iterator();
+        SSTableReader sstable = iter.next();
+        Token first = sstable.first.token;
+        Token last = sstable.last.token;
+        while (iter.hasNext())
         {
-            Range<Token> candidateRange = new Range<Token>(candidate.first.token, candidate.last.token);
-            if (candidateRange.intersects(promotedRange))
+            sstable = iter.next();
+            first = first.compareTo(sstable.first.token) <= 0 ? first : sstable.first.token;
+            last = last.compareTo(sstable.last.token) >= 0 ? last : sstable.last.token;
+        }
+        return overlapping(first, last, others);
+    }
+
+    private static Set<SSTableReader> overlapping(SSTableReader sstable, Iterable<SSTableReader> others)
+    {
+        return overlapping(sstable.first.token, sstable.last.token, others);
+    }
+
+    /**
+     * @return sstables from @param sstables that contain keys between @param start and @param end, inclusive.
+     */
+    private static Set<SSTableReader> overlapping(Token start, Token end, Iterable<SSTableReader> sstables)
+    {
+        assert start.compareTo(end) <= 0;
+        Set<SSTableReader> overlapped = new HashSet<SSTableReader>();
+        Bounds<Token> promotedBounds = new Bounds<Token>(start, end);
+        for (SSTableReader candidate : sstables)
+        {
+            Bounds<Token> candidateBounds = new Bounds<Token>(candidate.first.token, candidate.last.token);
+            if (candidateBounds.intersects(promotedBounds))
                 overlapped.add(candidate);
         }
         return overlapped;
@@ -394,7 +411,7 @@ public class LeveledManifest
                 if (candidates.contains(sstable))
                     continue;
 
-                for (SSTableReader newCandidate : overlapping(sstable, remaining))
+                for (SSTableReader newCandidate : Sets.union(Collections.singleton(sstable), overlapping(sstable, remaining)))
                 {
                     if (!newCandidate.isMarkedSuspect())
                     {
@@ -412,8 +429,7 @@ public class LeveledManifest
                     if (SSTable.getTotalBytes(candidates) > maxSSTableSizeInBytes)
                     {
                         // add sstables from L1 that overlap candidates
-                        for (SSTableReader candidate : new ArrayList<SSTableReader>(candidates))
-                            candidates.addAll(overlapping(candidate, generations[1]));
+                        candidates.addAll(overlapping(candidates, generations[1]));
                     }
                     return candidates;
                 }
@@ -421,8 +437,7 @@ public class LeveledManifest
                 if (SSTable.getTotalBytes(candidates) > maxSSTableSizeInBytes)
                 {
                     // add sstables from L1 that overlap candidates
-                    for (SSTableReader candidate : new ArrayList<SSTableReader>(candidates))
-                        candidates.addAll(overlapping(candidate, generations[1]));
+                    candidates.addAll(overlapping(candidates, generations[1]));
                     break;
                 }
             }
@@ -450,7 +465,7 @@ public class LeveledManifest
         while (true)
         {
             SSTableReader sstable = generations[level].get(i);
-            Set<SSTableReader> candidates = overlapping(sstable, generations[(level + 1)]);
+            Set<SSTableReader> candidates = Sets.union(Collections.singleton(sstable), overlapping(sstable, generations[(level + 1)]));
             for (SSTableReader candidate : candidates)
             {
                 if (candidate.isMarkedSuspect())
