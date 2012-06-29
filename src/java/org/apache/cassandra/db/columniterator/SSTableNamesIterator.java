@@ -202,11 +202,18 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         for (int i = 0; i < columns; i++)
         {
             OnDiskAtom column = atomSerializer.deserializeFromSSTable(file, sstable.descriptor.version);
-            if (columnNames.contains(column.name()))
+            if (column instanceof IColumn)
+            {
+                if (columnNames.contains(column.name()))
+                {
+                    result.add(column);
+                    if (n++ > filteredColumnNames.size())
+                        break;
+                }
+            }
+            else
             {
                 result.add(column);
-                if (n++ > filteredColumnNames.size())
-                    break;
             }
         }
     }
