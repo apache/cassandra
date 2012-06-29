@@ -119,9 +119,9 @@ private final AtomicInteger replayedCount;
         logger.info("Replaying " + file.getPath());
         final long segment = CommitLogSegment.idFromFilename(file.getName());
         RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()), true);
-        assert reader.length() <= Integer.MAX_VALUE;
         try
         {
+            assert reader.length() <= Integer.MAX_VALUE;
             int replayPosition;
             if (globalPosition.segment < segment)
                 replayPosition = 0;
