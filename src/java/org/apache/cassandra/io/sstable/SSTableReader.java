@@ -138,12 +138,28 @@ public class SSTableReader extends SSTable
         return open(desc, componentsFor(desc), metadata, p);
     }
 
+    public static SSTableReader openNoValidation(Descriptor descriptor, Set<Component> components, CFMetaData metadata) throws IOException
+    {
+        return open(descriptor, components, Collections.<DecoratedKey>emptySet(), null, metadata, StorageService.getPartitioner(), false);
+    }
+
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
         return open(descriptor, components, Collections.<DecoratedKey>emptySet(), null, metadata, partitioner);
     }
 
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, Set<DecoratedKey> savedKeys, DataTracker tracker, CFMetaData metadata, IPartitioner partitioner) throws IOException
+    {
+        return open(descriptor, components, savedKeys, tracker, metadata, partitioner, true);
+    }
+
+    private static SSTableReader open(Descriptor descriptor,
+                                      Set<Component> components,
+                                      Set<DecoratedKey> savedKeys,
+                                      DataTracker tracker,
+                                      CFMetaData metadata,
+                                      IPartitioner partitioner,
+                                      boolean validate) throws IOException
     {
         assert partitioner != null;
         // Minimum components without which we can't do anything
@@ -187,6 +203,10 @@ public class SSTableReader extends SSTable
             sstable.load(false, savedKeys);
             sstable.loadBloomFilter();
         }
+
+        if (validate)
+            sstable.validate();
+
         if (logger.isDebugEnabled())
             logger.debug("INDEX LOAD TIME for " + descriptor + ": " + (System.currentTimeMillis() - start) + " ms.");
 
@@ -409,11 +429,16 @@ public class SSTableReader extends SSTable
         }
         this.first = getMinimalKey(left);
         this.last = getMinimalKey(right);
-        assert this.first.compareTo(this.last) <= 0: String.format("SSTable first key %s > last key %s", this.first, this.last);
 
         // finalize the state of the reader
         ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
         dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
+    }
+
+    private void validate()
+    {
+        if (this.first.compareTo(this.last) > 0)
+            throw new IllegalStateException(String.format("SSTable first key %s > last key %s", this.first, this.last));
     }
 
     /** get the position in the index file to start scanning to find the given key (at most indexInterval keys away) */

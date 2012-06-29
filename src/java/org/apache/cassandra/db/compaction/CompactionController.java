@@ -66,6 +66,19 @@ public class CompactionController
 
     public CompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
     {
+        this(cfs,
+             gcBefore,
+             forceDeserialize || !allLatestVersion(sstables),
+             DataTracker.buildIntervalTree(cfs.getOverlappingSSTables(sstables)),
+             cfs.getCompactionStrategy().isKeyExistenceExpensive(ImmutableSet.copyOf(sstables)));
+    }
+
+    protected CompactionController(ColumnFamilyStore cfs,
+                                   int gcBefore,
+                                   boolean deserializeRequired,
+                                   IntervalTree<SSTableReader> overlappingTree,
+                                   boolean keyExistenceIsExpensive)
+    {
         assert cfs != null;
         this.cfs = cfs;
         this.gcBefore = gcBefore;
@@ -74,10 +87,9 @@ public class CompactionController
         // add 5 minutes to be sure we're on the safe side in terms of thread safety (though we should be fine in our
         // current 'stop all write during memtable switch' situation).
         this.mergeShardBefore = (int) ((cfs.oldestUnflushedMemtable() + 5 * 3600) / 1000);
-        deserializeRequired = forceDeserialize || !allLatestVersion(sstables);
-        Set<SSTableReader> overlappingSSTables = cfs.getOverlappingSSTables(sstables);
-        overlappingTree = DataTracker.buildIntervalTree(overlappingSSTables);
-        keyExistenceIsExpensive = cfs.getCompactionStrategy().isKeyExistenceExpensive(ImmutableSet.copyOf(sstables));
+        this.deserializeRequired = deserializeRequired;
+        this.overlappingTree = overlappingTree;
+        this.keyExistenceIsExpensive = keyExistenceIsExpensive;
     }
 
     public String getKeyspace()

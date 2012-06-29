@@ -85,11 +85,16 @@ public class LeveledManifest
 
     static LeveledManifest create(ColumnFamilyStore cfs, int maxSSTableSize)
     {
+        return create(cfs, maxSSTableSize, cfs.getSSTables());
+    }
+
+    public static LeveledManifest create(ColumnFamilyStore cfs, int maxSSTableSize, Iterable<SSTableReader> sstables)
+    {
         LeveledManifest manifest = new LeveledManifest(cfs, maxSSTableSize);
-        load(cfs, manifest);
+        load(cfs, manifest, sstables);
 
         // ensure all SSTables are in the manifest
-        for (SSTableReader ssTableReader : cfs.getSSTables())
+        for (SSTableReader ssTableReader : sstables)
         {
             if (manifest.levelOf(ssTableReader) < 0)
                 manifest.add(ssTableReader);
@@ -98,7 +103,7 @@ public class LeveledManifest
         return manifest;
     }
 
-    private static void load(ColumnFamilyStore cfs, LeveledManifest manifest)
+    private static void load(ColumnFamilyStore cfs, LeveledManifest manifest, Iterable<SSTableReader> sstables)
     {
         File manifestFile = tryGetManifest(cfs);
         if (manifestFile == null)
@@ -116,7 +121,7 @@ public class LeveledManifest
                 JsonNode generationValues = generation.get("members");
                 for (JsonNode generationValue : generationValues)
                 {
-                    for (SSTableReader ssTableReader : cfs.getSSTables())
+                    for (SSTableReader ssTableReader : sstables)
                     {
                         if (ssTableReader.descriptor.generation == generationValue.getIntValue())
                         {
@@ -213,6 +218,14 @@ public class LeveledManifest
         int level = remove(removed.iterator().next());
         if (!Iterables.isEmpty(added))
             add(added.iterator().next(), level);
+
+        serialize();
+    }
+
+    public synchronized void sendBackToL0(SSTableReader sstable)
+    {
+        remove(sstable);
+        add(sstable, 0);
 
         serialize();
     }

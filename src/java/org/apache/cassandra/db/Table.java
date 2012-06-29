@@ -94,10 +94,15 @@ public class Table
 
     public static Table open(String table)
     {
-        return open(table, Schema.instance);
+        return open(table, Schema.instance, true);
     }
 
-    public static Table open(String table, Schema schema)
+    public static Table openWithoutSSTables(String table)
+    {
+        return open(table, Schema.instance, false);
+    }
+
+    private static Table open(String table, Schema schema, boolean loadSSTables)
     {
         Table tableInstance = schema.getTableInstance(table);
 
@@ -111,7 +116,7 @@ public class Table
                 if (tableInstance == null)
                 {
                     // open and store the table
-                    tableInstance = new Table(table);
+                    tableInstance = new Table(table, loadSSTables);
                     schema.storeTableInstance(tableInstance);
 
                     // table has to be constructed and in the cache before cacheRow can be called
@@ -275,7 +280,7 @@ public class Table
         return list;
     }
 
-    private Table(String table)
+    private Table(String table, boolean loadSSTables)
     {
         name = table;
         KSMetaData ksm = Schema.instance.getKSMetaData(table);
@@ -296,9 +301,8 @@ public class Table
         for (CFMetaData cfm : new ArrayList<CFMetaData>(Schema.instance.getTableDefinition(table).cfMetaData().values()))
         {
             logger.debug("Initializing {}.{}", name, cfm.cfName);
-            initCf(cfm.cfId, cfm.cfName);
+            initCf(cfm.cfId, cfm.cfName, loadSSTables);
         }
-
     }
 
     public void createReplicationStrategy(KSMetaData ksm) throws ConfigurationException
@@ -343,7 +347,7 @@ public class Table
     }
 
     /** adds a cf to internal structures, ends up creating disk files). */
-    public void initCf(Integer cfId, String cfName)
+    public void initCf(Integer cfId, String cfName, boolean loadSSTables)
     {
         if (columnFamilyStores.containsKey(cfId))
         {
@@ -364,7 +368,7 @@ public class Table
         }
         else
         {
-            columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(this, cfName));
+            columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(this, cfName, loadSSTables));
         }
     }
 
