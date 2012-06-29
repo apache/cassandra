@@ -52,7 +52,7 @@ h3(#constants). Constants
 CQL defines 3 kinds of _implicitly-typed constants_: strings, numbers and uuids:
 * A string constant is an arbitrary sequence of characters characters enclosed by single-quote(@'@). One can include a single-quote in a string by repeating it, e.g. @'It''s raining today'@. Those are not to be confused with quoted identifiers that use double-quotes.
 * Numeric constants are either integer constant defined by @-?[0-9]+@ or a float constant defined by @-?[0-9]+.[0-9]*@.
-* A "UUID":http://en.wikipedia.org/wiki/Universally_unique_identifier constant is defined by @hex{8}-hex{4}-hex{4}-hex{12}@ where @hex@ is an hexadecimal character, e.g. @[0-9a-fA-F]@ and @{4}@ is the number of such characters.
+* A "UUID":http://en.wikipedia.org/wiki/Universally_unique_identifier constant is defined by @hex{8}-hex{4}-hex{4}-hex{4}-hex{12}@ where @hex@ is an hexadecimal character, e.g. @[0-9a-fA-F]@ and @{4}@ is the number of such characters.
 
 
 h3. Comments
