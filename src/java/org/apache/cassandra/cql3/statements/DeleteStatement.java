@@ -70,8 +70,8 @@ public class DeleteStatement extends ModificationStatement
             if (values == null || values.isEmpty())
             {
                 firstEmpty = name;
-                // For sparse, we must either have all component or none
-                if (cfDef.isComposite && !cfDef.isCompact && builder.componentCount() != 0)
+                // For composites, we must either have all component or none
+                if (cfDef.isComposite && builder.componentCount() != 0)
                     throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", name));
             }
             else if (firstEmpty != null)
@@ -129,8 +129,14 @@ public class DeleteStatement extends ModificationStatement
             }
             else
             {
-                // Delete specific columns
-                Iterator<ColumnIdentifier> iter = columns.iterator();
+                Iterator<ColumnIdentifier> iter;
+                if (columns.isEmpty())
+                    // It's a DELETE *, remove all columns individually (#3708 will replace that by a single range tombstone)
+                    iter = cfDef.metadata.keySet().iterator();
+                else
+                    // Delete specific columns
+                    iter = columns.iterator();
+
                 while (iter.hasNext())
                 {
                     ColumnIdentifier column = iter.next();
