@@ -332,7 +332,7 @@ public class CommitLogAllocator
         while (!queue.isEmpty())
             Thread.yield();
 
-        for (CommitLogSegment segment : activeSegments)
+        for (CommitLogSegment segment : Iterables.concat(activeSegments, availableSegments))
             segment.close();
 
         activeSegments.clear();

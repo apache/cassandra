@@ -116,9 +116,9 @@ public class CommitLogReplayer
         final long segment = desc.id;
         int version = desc.getMessagingVersion();
         RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()), true);
-        assert reader.length() <= Integer.MAX_VALUE;
         try
         {
+            assert reader.length() <= Integer.MAX_VALUE;
             int replayPosition;
             if (globalPosition.segment < segment)
                 replayPosition = 0;

@@ -327,6 +327,7 @@ public class CommitLog implements CommitLogMBean
     private void activateNextSegment() throws IOException
     {
         activeSegment = allocator.fetchSegment();
+        logger.debug("Active segment is now {}", activeSegment);
     }
 
     public List<String> getActiveSegmentNames()
