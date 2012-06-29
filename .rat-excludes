@@ -27,6 +27,7 @@ conf/schema-sample.txt
 drivers/txpy/txcql/cassandra/*
 drivers/py/cql/cassandra/*
 doc/cql/CQL*
+doc/cql3/CQL*
 build.properties.default
 test/data/legacy-sstables/**
 examples/pig/**

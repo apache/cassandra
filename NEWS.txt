@@ -42,6 +42,19 @@ Features
       on timeouts for different operation types
 
 
+1.1.2
+=====
+
+Upgrading
+---------
+    - Nothing specific to this release, but please see 1.1 if you are upgrading
+      from a previous version.
+
+Features
+--------
+    - cqlsh has a new COPY command to load data from CSV flat files
+
+
 1.1.1
 =====
 
