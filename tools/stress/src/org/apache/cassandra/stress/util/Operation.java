@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.stress.util;
 
+import static com.google.common.base.Charsets.UTF_8;
+
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -25,17 +27,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import static com.google.common.base.Charsets.UTF_8;
+import com.google.common.base.Function;
+import com.google.common.collect.Lists;
 
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.Stress;
-import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.Compression;
+import org.apache.cassandra.thrift.CqlPreparedResult;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.Hex;
+import org.apache.cassandra.utils.UUIDGen;
 
 public abstract class Operation
 {
@@ -61,7 +65,7 @@ public abstract class Operation
      * @param client Cassandra Thrift client connection
      * @throws IOException on any I/O error.
      */
-    public abstract void run(Cassandra.Client client) throws IOException;
+    public abstract void run(CassandraClient client) throws IOException;
 
     // Utility methods
 
@@ -226,13 +230,70 @@ public abstract class Operation
             System.err.println(message);
     }
 
-    protected String getQuotedCqlBlob(String term)
+    protected String getUnQuotedCqlBlob(String term)
     {
-        return getQuotedCqlBlob(term.getBytes());
+        return getUnQuotedCqlBlob(term.getBytes());
     }
 
-    protected String getQuotedCqlBlob(byte[] term)
+    protected String getUnQuotedCqlBlob(byte[] term)
     {
-        return String.format("'%s'", Hex.bytesToHex(term));
+        return Hex.bytesToHex(term);
+    }
+
+    protected List<ByteBuffer> queryParamsAsByteBuffer(List<String> queryParams)
+    {
+        return Lists.transform(queryParams, new Function<String, ByteBuffer>()
+        {
+            @Override
+            public ByteBuffer apply(String param)
+            {
+                return ByteBufferUtil.bytes(param);
+            }
+        });
+    }
+
+    /**
+     * Constructs a CQL query string by replacing instances of the character
+     * '?', with the corresponding parameter.
+     *
+     * @param query base query string to format
+     * @param parms sequence of string query parameters
+     * @return formatted CQL query string
+     */
+    protected static String formatCqlQuery(String query, List<String> parms)
+    {
+        int marker = 0, position = 0;
+        StringBuilder result = new StringBuilder();
+
+        if (-1 == (marker = query.indexOf('?')) || parms.size() == 0)
+            return query;
+
+        for (String parm : parms)
+        {
+            result.append(query.substring(position, marker));
+            result.append('\'').append(parm).append('\'');
+
+            position = marker + 1;
+            if (-1 == (marker = query.indexOf('?', position + 1)))
+                break;
+        }
+
+        if (position < query.length())
+            result.append(query.substring(position));
+
+        return result.toString();
+    }
+
+    protected static Integer getPreparedStatement(CassandraClient client, String cqlQuery) throws Exception
+    {
+        Integer statementId = client.preparedStatements.get(cqlQuery.hashCode());
+        if (statementId == null)
+        {
+            CqlPreparedResult response = client.prepare_cql_query(ByteBufferUtil.bytes(cqlQuery), Compression.NONE);
+            statementId = response.itemId;
+            client.preparedStatements.put(cqlQuery.hashCode(), statementId);
+        }
+
+        return statementId;
     }
 }

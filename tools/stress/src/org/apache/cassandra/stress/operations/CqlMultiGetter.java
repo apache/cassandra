@@ -24,8 +24,8 @@ package org.apache.cassandra.stress.operations;
 import java.io.IOException;
 
 import org.apache.cassandra.stress.Session;
+import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.thrift.Cassandra;
 
 public class CqlMultiGetter extends Operation
 {
@@ -34,7 +34,7 @@ public class CqlMultiGetter extends Operation
         super(client, idx);
     }
 
-    public void run(Cassandra.Client client) throws IOException
+    public void run(CassandraClient client) throws IOException
     {
         throw new RuntimeException("Multiget is not implemented for CQL");
     }

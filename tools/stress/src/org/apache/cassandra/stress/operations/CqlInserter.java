@@ -23,25 +23,27 @@ package org.apache.cassandra.stress.operations;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.stress.Session;
+import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.utils.UUIDGen;
 
 public class CqlInserter extends Operation
 {
     private static List<ByteBuffer> values;
+    private static String cqlQuery = null;
 
     public CqlInserter(Session client, int idx)
     {
         super(client, idx);
     }
 
-    public void run(Cassandra.Client client) throws IOException
+    public void run(CassandraClient client) throws IOException
     {
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
             throw new RuntimeException("Super columns are not implemented for CQL");
@@ -49,26 +51,39 @@ public class CqlInserter extends Operation
         if (values == null)
             values = generateValues();
 
-        StringBuilder query = new StringBuilder("UPDATE Standard1 USING CONSISTENCY ")
-                .append(session.getConsistencyLevel().toString()).append(" SET ");
+        // Construct a query string once.
+        if (cqlQuery == null)
+        {
+            StringBuilder query = new StringBuilder("UPDATE Standard1 USING CONSISTENCY ")
+                    .append(session.getConsistencyLevel().toString()).append(" SET ");
 
+            for (int i = 0; i < session.getColumnsPerKey(); i++)
+            {
+                if (i > 0) query.append(',');
+                query.append("?=?");
+            }
+
+            query.append(" WHERE KEY=?");
+            cqlQuery = query.toString();
+        }
+
+        List<String> queryParms = new ArrayList<String>();
         for (int i = 0; i < session.getColumnsPerKey(); i++)
         {
-            if (i > 0)
-                query.append(',');
-
             // Column name
             if (session.timeUUIDComparator)
-                query.append(UUIDGen.makeType1UUIDFromHost(Session.getLocalAddress()).toString());
+                queryParms.add(UUIDGen.makeType1UUIDFromHost(Session.getLocalAddress()).toString());
             else
-                query.append('C').append(i);
+                queryParms.add(new String("C" + i));
 
             // Column value
-            query.append('=').append(getQuotedCqlBlob(values.get(i % values.size()).array()));
+            queryParms.add(new String(getUnQuotedCqlBlob(values.get(i % values.size()).array())));
         }
 
         String key = String.format("%0" + session.getTotalKeysLength() + "d", index);
-        query.append(" WHERE KEY=").append(getQuotedCqlBlob(key));
+        queryParms.add(new String(getUnQuotedCqlBlob(key)));
+
+        String formattedQuery = null;
 
         long start = System.currentTimeMillis();
 
@@ -82,7 +97,18 @@ public class CqlInserter extends Operation
 
             try
             {
-                client.execute_cql_query(ByteBuffer.wrap(query.toString().getBytes()), Compression.NONE);
+                if (session.usePreparedStatements())
+                {
+                    Integer stmntId = getPreparedStatement(client, cqlQuery);
+                    client.execute_prepared_cql_query(stmntId, queryParamsAsByteBuffer(queryParms));
+                }
+                else
+                {
+                    if (formattedQuery == null)
+                        formattedQuery = formatCqlQuery(cqlQuery, queryParms);
+                    client.execute_cql_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE);
+                }
+
                 success = true;
             }
             catch (Exception e)

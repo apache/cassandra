@@ -18,6 +18,7 @@
 package org.apache.cassandra.stress.operations;
 
 import org.apache.cassandra.stress.Session;
+import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
@@ -33,7 +34,7 @@ public class CounterGetter extends Operation
         super(client, index);
     }
 
-    public void run(Cassandra.Client client) throws IOException
+    public void run(CassandraClient client) throws IOException
     {
         SliceRange sliceRange = new SliceRange();
 

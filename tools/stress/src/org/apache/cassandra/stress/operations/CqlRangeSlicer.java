@@ -23,30 +23,41 @@ package org.apache.cassandra.stress.operations;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.stress.Session;
+import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.thrift.CqlResult;
 
 public class CqlRangeSlicer extends Operation
 {
+    private static String cqlQuery = null;
+
     public CqlRangeSlicer(Session client, int idx)
     {
         super(client, idx);
     }
 
-    public void run(Cassandra.Client client) throws IOException
+    public void run(CassandraClient client) throws IOException
     {
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
             throw new RuntimeException("Super columns are not implemented for CQL");
 
+        if (cqlQuery == null)
+        {
+            StringBuilder query = new StringBuilder("SELECT FIRST ").append(session.getColumnsPerKey())
+                    .append(" ''..'' FROM Standard1 USING CONSISTENCY ").append(session.getConsistencyLevel().toString())
+                    .append(" WHERE KEY > ?");
+            cqlQuery = query.toString();
+        }
+
         String key = String.format("%0" +  session.getTotalKeysLength() + "d", index);
-        StringBuilder query = new StringBuilder("SELECT FIRST ").append(session.getColumnsPerKey())
-                .append(" ''..'' FROM Standard1 USING CONSISTENCY ").append(session.getConsistencyLevel().toString())
-                .append(" WHERE KEY > ").append(getQuotedCqlBlob(key));
+        String formattedQuery = null;
 
         long startTime = System.currentTimeMillis();
 
@@ -61,8 +72,21 @@ public class CqlRangeSlicer extends Operation
 
             try
             {
-                CqlResult result = client.execute_cql_query(ByteBuffer.wrap(query.toString().getBytes()),
-                                                            Compression.NONE);
+                CqlResult result = null;
+
+                if (session.usePreparedStatements())
+                {
+                    Integer stmntId = getPreparedStatement(client, cqlQuery);
+                    result = client.execute_prepared_cql_query(stmntId,
+                            Collections.singletonList(ByteBufferUtil.bytes(getUnQuotedCqlBlob(key))));
+                }
+                else
+                {
+                    if (formattedQuery == null)
+                        formattedQuery = formatCqlQuery(cqlQuery, Collections.singletonList(getUnQuotedCqlBlob(key)));
+                    result = client.execute_cql_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE);
+                }
+
                 rowCount = result.rows.size();
                 success = (rowCount != 0);
             }

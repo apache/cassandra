@@ -22,8 +22,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 
 import org.apache.cassandra.stress.operations.*;
+import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.thrift.Cassandra;
 
 public class StressAction extends Thread
 {
@@ -215,7 +215,7 @@ public class StressAction extends Thread
 
         public void run()
         {
-            Cassandra.Client connection = client.getClient();
+            CassandraClient connection = client.getClient();
 
             for (int i = 0; i < items; i++)
             {

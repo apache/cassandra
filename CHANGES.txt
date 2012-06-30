@@ -1,3 +1,7 @@
+1.1.3
+ * (stress) support for CQL prepared statements (CASSANDRA-3633)
+
+
 1.1.2
  * Fix cleanup not deleting index entries (CASSANDRA-4379)
  * Use correct partitioner when saving + loading caches (CASSANDRA-4331)

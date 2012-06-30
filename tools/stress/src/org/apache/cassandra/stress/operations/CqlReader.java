@@ -23,46 +23,60 @@ package org.apache.cassandra.stress.operations;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.stress.Session;
+import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.thrift.CqlResult;
 
 public class CqlReader extends Operation
 {
+    private static String cqlQuery = null;
+
     public CqlReader(Session client, int idx)
     {
         super(client, idx);
     }
 
-    public void run(Cassandra.Client client) throws IOException
+    public void run(CassandraClient client) throws IOException
     {
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
             throw new RuntimeException("Super columns are not implemented for CQL");
 
-        StringBuilder query = new StringBuilder("SELECT ");
+        if (cqlQuery == null)
+        {
+            StringBuilder query = new StringBuilder("SELECT ");
 
-        if (session.columnNames == null)
-        {
-            query.append("FIRST ").append(session.getColumnsPerKey()).append(" ''..''");
-        }
-        else
-        {
-            for (int i = 0; i < session.columnNames.size(); i++)
+            if (session.columnNames == null)
+                query.append("FIRST ").append(session.getColumnsPerKey()).append(" ''..''");
+            else
             {
-                if (i > 0)
-                    query.append(",");
-                query.append('\'').append(new String(session.columnNames.get(i).array())).append('\'');
+                for (int i = 0; i < session.columnNames.size(); i++)
+                {
+                    if (i > 0) query.append(",");
+                    query.append('?');
+                }
             }
+
+            query.append(" FROM Standard1 USING CONSISTENCY ").append(session.getConsistencyLevel().toString());
+            query.append(" WHERE KEY=?");
+
+            cqlQuery = query.toString();
         }
+
+        List<String> queryParams = new ArrayList<String>();
+        if (session.columnNames != null)
+            for (int i = 0; i < session.columnNames.size(); i++)
+                queryParams.add(getUnQuotedCqlBlob(session.columnNames.get(i).array()));
 
         byte[] key = generateKey();
+        queryParams.add(getUnQuotedCqlBlob(key));
 
-        query.append(" FROM Standard1 USING CONSISTENCY ").append(session.getConsistencyLevel().toString());
-        query.append(" WHERE KEY=").append(getQuotedCqlBlob(key));
+        String formattedQuery = null;
 
         long start = System.currentTimeMillis();
 
@@ -76,8 +90,21 @@ public class CqlReader extends Operation
 
             try
             {
-                CqlResult result = client.execute_cql_query(ByteBuffer.wrap(query.toString().getBytes()),
-                                                            Compression.NONE);
+                CqlResult result = null;
+
+                if (session.usePreparedStatements())
+                {
+                    Integer stmntId = getPreparedStatement(client, cqlQuery);
+                    result = client.execute_prepared_cql_query(stmntId, queryParamsAsByteBuffer(queryParams));
+                }
+                else
+                {
+                    if (formattedQuery == null)
+                        formattedQuery = formatCqlQuery(cqlQuery, queryParams);
+                    result = client.execute_cql_query(ByteBuffer.wrap(formattedQuery.getBytes()),
+                                                      Compression.NONE);
+                }
+
                 success = (result.rows.get(0).columns.size() != 0);
             }
             catch (Exception e)
