@@ -23,30 +23,29 @@ package org.apache.cassandra.stress.operations;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.stress.Session;
+import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.utils.Hex.bytesToHex;;
-
 public class CqlIndexedRangeSlicer extends Operation
 {
     private static List<ByteBuffer> values = null;
-    private static String clauseFragment = "KEY > '%s' LIMIT %d";
+    private static String cqlQuery = null;
 
     public CqlIndexedRangeSlicer(Session client, int idx)
     {
         super(client, idx);
     }
 
-    public void run(Cassandra.Client client) throws IOException
+    public void run(CassandraClient client) throws IOException
     {
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
             throw new RuntimeException("Super columns are not implemented for CQL");
@@ -54,12 +53,18 @@ public class CqlIndexedRangeSlicer extends Operation
         if (values == null)
             values = generateValues();
 
-        String format = "%0" + session.getTotalKeysLength() + "d";
+        if (cqlQuery == null)
+        {
+            StringBuilder query = new StringBuilder("SELECT FIRST ").append(session.getColumnsPerKey())
+                 .append(" ''..'' FROM Standard1 USING CONSISTENCY ").append(session.getConsistencyLevel())
+                 .append(" WHERE C1=").append(getUnQuotedCqlBlob(values.get(1).array()))
+                 .append(" AND KEY > ? LIMIT ").append(session.getKeysPerCall());
 
+            cqlQuery = query.toString();
+        }
+
+        String format = "%0" + session.getTotalKeysLength() + "d";
         String startOffset = String.format(format, 0);
-        StringBuilder query = new StringBuilder("SELECT FIRST ").append(session.getColumnsPerKey())
-                .append(" ''..'' FROM Standard1 USING CONSISTENCY ").append(session.getConsistencyLevel())
-                .append(" WHERE C1 = ").append(getQuotedCqlBlob(values.get(1).array())).append(" AND ");
 
         int expectedPerValue = session.getNumKeys() / values.size(), received = 0;
 
@@ -70,6 +75,8 @@ public class CqlIndexedRangeSlicer extends Operation
             boolean success = false;
             String exceptionMessage = null;
             CqlResult results = null;
+            String formattedQuery = null;
+            List<String> queryParms = Collections.singletonList(getUnQuotedCqlBlob(startOffset));
 
             for (int t = 0; t < session.getRetryTimes(); t++)
             {
@@ -78,8 +85,18 @@ public class CqlIndexedRangeSlicer extends Operation
 
                 try
                 {
-                    ByteBuffer queryBytes = ByteBuffer.wrap(makeQuery(query, startOffset).getBytes());
-                    results = client.execute_cql_query(queryBytes, Compression.NONE);
+                    if (session.usePreparedStatements())
+                    {
+                        Integer stmntId = getPreparedStatement(client, cqlQuery);
+                        results = client.execute_prepared_cql_query(stmntId, queryParamsAsByteBuffer(queryParms));
+                    }
+                    else
+                    {
+                        if (formattedQuery ==  null)
+                            formattedQuery = formatCqlQuery(cqlQuery, queryParms);
+                        results = client.execute_cql_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE);
+                    }
+
                     success = (results.rows.size() != 0);
                 }
                 catch (Exception e)
@@ -107,11 +124,6 @@ public class CqlIndexedRangeSlicer extends Operation
             session.keys.getAndAdd(results.rows.size());
             session.latency.getAndAdd(System.currentTimeMillis() - start);
         }
-    }
-
-    private String makeQuery(StringBuilder base, String startOffset)
-    {
-        return base.toString() + String.format(clauseFragment, bytesToHex(startOffset.getBytes()), session.getKeysPerCall());
     }
 
     /**
