@@ -23,6 +23,7 @@
  * stream compressed sstables directly with java nio (CASSANDRA-4297)
  * Support multiple ranges in SliceQueryFilter (CASSANDRA-3885)
  * Add column metadata to system column families (CASSANDRA-4018)
+ * (cql3) always use composite types by default (CASSANDRA-4329)
 
 
 1.1.3

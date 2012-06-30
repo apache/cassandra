@@ -49,6 +49,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NodeId;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
+
 public class SystemTable
 {
     private static final Logger logger = LoggerFactory.getLogger(SystemTable.class);
@@ -69,7 +71,7 @@ public class SystemTable
     @Deprecated
     public static final String OLD_HINTS_CF = "HintsColumnFamily";
 
-    private static final ByteBuffer LOCAL_KEY = ByteBufferUtil.bytes("local");
+    private static final String LOCAL_KEY = "local";
     private static final ByteBuffer CURRENT_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("CurrentLocal");
     private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
 
@@ -97,13 +99,12 @@ public class SystemTable
 
     private static void setupVersion() throws IOException
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCAL_KEY);
-        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, LOCAL_CF);
-        cf.addColumn(Column.create(FBUtilities.getReleaseVersionString(), FBUtilities.timestampMicros(), "release_version"));
-        cf.addColumn(Column.create(QueryProcessor.CQL_VERSION.toString(), FBUtilities.timestampMicros(), "cql_version"));
-        cf.addColumn(Column.create(Constants.VERSION, FBUtilities.timestampMicros(), "thrift_version"));
-        rm.add(cf);
-        rm.apply();
+        String req = "INSERT INTO system.%s (key, release_version, cql_version, thrift_version) VALUES ('%s', '%s', '%s', '%s')";
+        processInternal(String.format(req, LOCAL_CF,
+                                         LOCAL_KEY,
+                                         FBUtilities.getReleaseVersionString(),
+                                         QueryProcessor.CQL_VERSION.toString(),
+                                         Constants.VERSION));
     }
 
     /** if system data becomes incompatible across versions of cassandra, that logic (and associated purging) is managed here */
@@ -120,14 +121,11 @@ public class SystemTable
             ColumnFamily oldCf = oldStatusCfs.getColumnFamily(filter);
             Iterator<IColumn> oldColumns = oldCf.columns.iterator();
 
-            ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, LOCAL_CF);
-            cf.addColumn(Column.create(oldColumns.next().value(), FBUtilities.timestampMicros(), "cluster_name"));
-            cf.addColumn(Column.create(oldColumns.next().value(), FBUtilities.timestampMicros(), "token_bytes"));
+            String clusterName = ByteBufferUtil.string(oldColumns.next().value());
+            String tokenBytes = ByteBufferUtil.bytesToHex(oldColumns.next().value());
             // (assume that any node getting upgraded was bootstrapped, since that was stored in a separate row for no particular reason)
-            cf.addColumn(Column.create(true, FBUtilities.timestampMicros(), "bootstrapped"));
-            RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCAL_KEY);
-            rm.add(cf);
-            rm.apply();
+            String req = "INSERT INTO system.%s (key, cluster_name, token_bytes, bootstrapped) VALUES ('%s', '%s', '%s', true)";
+            processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, clusterName, tokenBytes));
 
             oldStatusCfs.truncate();
         }
@@ -152,18 +150,9 @@ public class SystemTable
         }
 
         IPartitioner p = StorageService.getPartitioner();
-        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, PEERS_CF);
-        cf.addColumn(Column.create(ep, FBUtilities.timestampMicros(), "peer"));
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, p.getTokenFactory().toByteArray(token));
-        rm.add(cf);
-        try
-        {
-            rm.apply();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        String req = "INSERT INTO system.%s (token_bytes, peer) VALUES ('%s', '%s')";
+        String tokenBytes = ByteBufferUtil.bytesToHex(p.getTokenFactory().toByteArray(token));
+        processInternal(String.format(req, PEERS_CF, tokenBytes, ep.getHostAddress()));
         forceBlockingFlush(PEERS_CF);
     }
 
@@ -173,16 +162,9 @@ public class SystemTable
     public static synchronized void removeToken(Token token)
     {
         IPartitioner p = StorageService.getPartitioner();
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, p.getTokenFactory().toByteArray(token));
-        rm.delete(new QueryPath(PEERS_CF, null, null), FBUtilities.timestampMicros());
-        try
-        {
-            rm.apply();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        String req = "DELETE FROM system.%s WHERE token_bytes = '%s'";
+        String tokenBytes = ByteBufferUtil.bytesToHex(p.getTokenFactory().toByteArray(token));
+        processInternal(String.format(req, PEERS_CF, tokenBytes));
         forceBlockingFlush(PEERS_CF);
     }
 
@@ -192,19 +174,9 @@ public class SystemTable
     public static synchronized void updateToken(Token token)
     {
         IPartitioner p = StorageService.getPartitioner();
-        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, LOCAL_CF);
-        cf.addColumn(Column.create(p.getTokenFactory().toByteArray(token), FBUtilities.timestampMicros(), "token_bytes"));
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCAL_KEY);
-        rm.add(cf);
-        try
-        {
-            rm.apply();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
-
+        String req = "INSERT INTO system.%s (key, token_bytes) VALUES ('%s', '%s')";
+        String tokenBytes = ByteBufferUtil.bytesToHex(p.getTokenFactory().toByteArray(token));
+        processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, tokenBytes));
         forceBlockingFlush(LOCAL_CF);
     }
 
@@ -233,7 +205,7 @@ public class SystemTable
         IPartitioner p = StorageService.getPartitioner();
 
         HashMap<Token, InetAddress> tokenMap = new HashMap<Token, InetAddress>();
-        for (UntypedResultSet.Row row : QueryProcessor.processInternal("SELECT * FROM system.peers"))
+        for (UntypedResultSet.Row row : processInternal("SELECT * FROM system." + PEERS_CF))
             tokenMap.put(p.getTokenFactory().fromByteArray(row.getBytes("token_bytes")), row.getInetAddress("peer"));
 
         return tokenMap;
@@ -260,52 +232,44 @@ public class SystemTable
             ex.initCause(err);
             throw ex;
         }
-
-        QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCAL_KEY),
-                                                        new QueryPath(LOCAL_CF),
-                                                        ImmutableSortedSet.<ByteBuffer>of(ByteBufferUtil.bytes("cluster_name")));
         ColumnFamilyStore cfs = table.getColumnFamilyStore(LOCAL_CF);
-        ColumnFamily cf = cfs.getColumnFamily(filter);
 
-        if (cf == null)
+        String req = "SELECT cluster_name FROM system.%s WHERE key='%s'";
+        UntypedResultSet result = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
+
+        if (result.isEmpty() || !result.one().has("cluster_name"))
         {
             // this is a brand new node
             if (!cfs.getSSTables().isEmpty())
                 throw new ConfigurationException("Found system table files, but they couldn't be loaded!");
 
             // no system files.  this is a new node.
-            RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCAL_KEY);
-            cf = ColumnFamily.create(Table.SYSTEM_TABLE, LOCAL_CF);
-            cf.addColumn(Column.create(ByteBufferUtil.bytes(DatabaseDescriptor.getClusterName()), FBUtilities.timestampMicros(), "cluster_name"));
-            rm.add(cf);
-            rm.apply();
-
+            req = "INSERT INTO system.%s (key, cluster_name) VALUES ('%s', '%s')";
+            processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, DatabaseDescriptor.getClusterName()));
             return;
         }
 
-
-        IColumn clusterCol = cf.columns.iterator().next();
-        String savedClusterName = ByteBufferUtil.string(clusterCol.value());
+        String savedClusterName = result.one().getString("cluster_name");
         if (!DatabaseDescriptor.getClusterName().equals(savedClusterName))
             throw new ConfigurationException("Saved cluster name " + savedClusterName + " != configured name " + DatabaseDescriptor.getClusterName());
     }
 
     public static Token getSavedToken()
     {
-        Table table = Table.open(Table.SYSTEM_TABLE);
-        QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCAL_KEY), new QueryPath(LOCAL_CF), ByteBufferUtil.bytes("token_bytes"));
-        ColumnFamily cf = table.getColumnFamilyStore(LOCAL_CF).getColumnFamily(filter);
-        return cf == null ? null : StorageService.getPartitioner().getTokenFactory().fromByteArray(cf.columns.iterator().next().value());
+        String req = "SELECT token_bytes FROM system.%s WHERE key='%s'";
+        UntypedResultSet result = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
+        return result.isEmpty() || !result.one().has("token_bytes")
+             ? null
+             : StorageService.getPartitioner().getTokenFactory().fromByteArray(result.one().getBytes("token_bytes"));
     }
 
     public static int incrementAndGetGeneration() throws IOException
     {
-        Table table = Table.open(Table.SYSTEM_TABLE);
-        QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCAL_KEY), new QueryPath(LOCAL_CF), ByteBufferUtil.bytes("gossip_generation"));
-        ColumnFamily cf = table.getColumnFamilyStore(LOCAL_CF).getColumnFamily(filter);
+        String req = "SELECT gossip_generation FROM system.%s WHERE key='%s'";
+        UntypedResultSet result = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
 
         int generation;
-        if (cf == null)
+        if (result.isEmpty() || !result.one().has("gossip_generation"))
         {
             // seconds-since-epoch isn't a foolproof new generation
             // (where foolproof is "guaranteed to be larger than the last one seen at this ip address"),
@@ -315,7 +279,7 @@ public class SystemTable
         else
         {
             // Other nodes will ignore gossip messages about a node that have a lower generation than previously seen.
-            final int storedGeneration = ByteBufferUtil.toInt(cf.columns.iterator().next().value()) + 1;
+            final int storedGeneration = result.one().getInt("gossip_generation") + 1;
             final int now = (int) (System.currentTimeMillis() / 1000);
             if (storedGeneration >= now)
             {
@@ -329,11 +293,8 @@ public class SystemTable
             }
         }
 
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCAL_KEY);
-        cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.LOCAL_CF);
-        cf.addColumn(Column.create(generation, FBUtilities.timestampMicros(), "gossip_generation"));
-        rm.add(cf);
-        rm.apply();
+        req = "INSERT INTO system.%s (key, gossip_generation) VALUES ('%s', %d)";
+        processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, generation));
         forceBlockingFlush(LOCAL_CF);
 
         return generation;
@@ -341,31 +302,18 @@ public class SystemTable
 
     public static boolean isBootstrapped()
     {
-        Table table = Table.open(Table.SYSTEM_TABLE);
-        QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCAL_KEY),
-                                                        new QueryPath(LOCAL_CF),
-                                                        ByteBufferUtil.bytes("bootstrapped"));
-        ColumnFamily cf = table.getColumnFamilyStore(LOCAL_CF).getColumnFamily(filter);
-        if (cf == null)
+        String req = "SELECT bootstrapped FROM system.%s WHERE key='%s'";
+        UntypedResultSet result = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
+
+        if (result.isEmpty() || !result.one().has("bootstrapped"))
             return false;
-        IColumn c = cf.iterator().next();
-        return c.value().get(c.value().position()) == 1;
+        return result.one().getBoolean("bootstrapped");
     }
 
     public static void setBootstrapped(boolean isBootstrapped)
     {
-        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, LOCAL_CF);
-        cf.addColumn(Column.create(isBootstrapped, FBUtilities.timestampMicros(), "bootstrapped"));
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCAL_KEY);
-        rm.add(cf);
-        try
-        {
-            rm.apply();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        String req = "INSERT INTO system.%s (key, bootstrapped) VALUES ('%s', '%b')";
+        processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, isBootstrapped));
     }
 
     public static boolean isIndexBuilt(String table, String indexName)
@@ -419,40 +367,21 @@ public class SystemTable
     {
         UUID hostId = null;
 
+        String req = "SELECT ring_id FROM system.%s WHERE key='%s'";
+        UntypedResultSet result = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
+
         // Look up the Host UUID (return it if found)
-        Table table = Table.open(Table.SYSTEM_TABLE);
-        QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCAL_KEY),
-                                                        new QueryPath(LOCAL_CF),
-                                                        ImmutableSortedSet.<ByteBuffer>of(ByteBufferUtil.bytes("ring_id")));
-        ColumnFamily cf = table.getColumnFamilyStore(LOCAL_CF).getColumnFamily(filter);
-        if (cf != null)
+        if (!result.isEmpty() && result.one().has("ring_id"))
         {
-            cf = ColumnFamilyStore.removeDeleted(cf, 0);
-            assert cf.getColumnCount() <= 1;
-            if (cf.getColumnCount() > 0)
-                return UUIDGen.getUUID(cf.iterator().next().value());
+            return result.one().getUUID("ring_id");
         }
 
         // ID not found, generate a new one, persist, and then return it.
         hostId = UUID.randomUUID();
-        long now = FBUtilities.timestampMicros();
-
         logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
 
-        cf = ColumnFamily.create(Table.SYSTEM_TABLE, LOCAL_CF);
-        cf.addColumn(Column.create(ByteBuffer.wrap(UUIDGen.decompose(hostId)), now, "ring_id"));
-
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCAL_KEY);
-        rm.add(cf);
-        try
-        {
-            rm.apply();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-
+        req = "INSERT INTO system.%s (key, ring_id) VALUES ('%s', '%s')";
+        processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, hostId));
         return hostId;
     }
 

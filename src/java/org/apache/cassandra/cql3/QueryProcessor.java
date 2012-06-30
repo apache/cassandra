@@ -126,6 +126,8 @@ public class QueryProcessor
         {
             ClientState state = new ClientState();
             CqlResult result = processStatement(getStatement(query, state).statement, state, Collections.<ByteBuffer>emptyList());
+            if (result.rows == null)
+                return null;
             return new UntypedResultSet(result.rows);
         }
         catch (UnavailableException e)

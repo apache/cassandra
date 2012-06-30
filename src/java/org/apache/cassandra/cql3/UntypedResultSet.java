@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import com.google.common.collect.AbstractIterator;
 
@@ -40,6 +41,16 @@ public class UntypedResultSet implements Iterable<UntypedResultSet.Row>
     public UntypedResultSet(List<CqlRow> cqlRows)
     {
         this.cqlRows = cqlRows;
+    }
+
+    public boolean isEmpty()
+    {
+        return cqlRows.isEmpty();
+    }
+
+    public int size()
+    {
+        return cqlRows.size();
     }
 
     public Row one()
@@ -108,6 +119,11 @@ public class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         public InetAddress getInetAddress(String column)
         {
             return InetAddressType.instance.compose(data.get(column));
+        }
+
+        public UUID getUUID(String column)
+        {
+            return UUIDType.instance.compose(data.get(column));
         }
 
         @Override

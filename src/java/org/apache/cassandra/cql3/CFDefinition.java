@@ -50,6 +50,10 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
     public final Map<ColumnIdentifier, Name> metadata = new TreeMap<ColumnIdentifier, Name>();
 
     public final boolean isComposite;
+    // Note that isCompact means here that no componet of the comparator correspond to the column names
+    // defined in the CREATE TABLE QUERY. This is not exactly equivalent to the 'WITH COMPACT STORAGE'
+    // option when creating a table in that "static CF" without a composite type will have isCompact == false
+    // even though one must use 'WITH COMPACT STORAGE' to declare them.
     public final boolean isCompact;
 
     public CFDefinition(CFMetaData cfm)

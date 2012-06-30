@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -176,7 +177,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                     throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", stmt.keyAlias));
 
                 // Handle column aliases
-                if (columnAliases != null && !columnAliases.isEmpty())
+                if (!columnAliases.isEmpty())
                 {
                     // If we use compact storage and have only one alias, it is a
                     // standard "dynamic" CF, otherwise it's a composite
@@ -210,20 +211,17 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                 }
                 else
                 {
-                    stmt.comparator = CFDefinition.definitionType;
+                    if (useCompactStorage)
+                        stmt.comparator = CFDefinition.definitionType;
+                    else
+                        stmt.comparator = CompositeType.getInstance(Collections.<AbstractType<?>>singletonList(CFDefinition.definitionType));
                 }
 
-                if (useCompactStorage)
-                {
-                    // There should at least have been one column alias
-                    if (stmt.columnAliases.isEmpty())
-                        throw new InvalidRequestException("COMPACT STORAGE requires at least one column part of the clustering key, none found");
-                    // There should be only one column definition remaining, which gives us the default validator.
-                    if (stmt.columns.isEmpty())
-                        throw new InvalidRequestException("COMPACT STORAGE requires one definition not part of the PRIMARY KEY, none found");
-                    if (stmt.columns.size() > 1)
-                        throw new InvalidRequestException(String.format("COMPACT STORAGE allows only one column not part of the PRIMARY KEY (got: %s)", StringUtils.join(stmt.columns.keySet(), ", ")));
+                if (stmt.columns.isEmpty())
+                    throw new InvalidRequestException("No definition found that is not part of the PRIMARY KEY");
 
+                if (useCompactStorage && stmt.columns.size() == 1)
+                {
                     Map.Entry<ColumnIdentifier, AbstractType> lastEntry = stmt.columns.entrySet().iterator().next();
                     stmt.defaultValidator = lastEntry.getValue();
                     stmt.valueAlias = lastEntry.getKey().key;
@@ -231,11 +229,11 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                 }
                 else
                 {
-                    if (stmt.columns.isEmpty())
-                        throw new InvalidRequestException("No definition found that is not part of the PRIMARY KEY");
+                    if (useCompactStorage && !columnAliases.isEmpty())
+                        throw new InvalidRequestException(String.format("COMPACT STORAGE with composite PRIMARY KEY allows only one column not part of the PRIMARY KEY (got: %s)", StringUtils.join(stmt.columns.keySet(), ", ")));
 
-                    // There is no way to insert/access a column that is not defined for non-compact
-                    // storage, so the actual validator don't matter much (except that we want to recognize counter CF as limitation apply to them).
+                    // There is no way to insert/access a column that is not defined for non-compact storage, so
+                    // the actual validator don't matter much (except that we want to recognize counter CF as limitation apply to them).
                     stmt.defaultValidator = (stmt.columns.values().iterator().next() instanceof CounterColumnType) ? CounterColumnType.instance : CFDefinition.definitionType;
                 }
 
