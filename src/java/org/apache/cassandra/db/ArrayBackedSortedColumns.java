@@ -295,7 +295,6 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         return new ColumnNamesSet();
     }
 
-    @Override
     public Iterator<IColumn> iterator()
     {
         return reversed ? reverseInternalIterator(size()) : columns.iterator();
