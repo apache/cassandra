@@ -117,7 +117,7 @@ public class Directories
         // Requesting GC has a chance to free space only if we're using mmap and a non SUN jvm
         if (path == null
             && (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap || DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
-            && !MmappedSegmentedFile.isCleanerAvailable())
+            && !FileUtils.isCleanerAvailable())
         {
             logger.info("Forcing GC to free up disk space.  Upgrade to the Oracle JVM to avoid this");
             StorageService.instance.requestGC();

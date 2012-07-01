@@ -41,7 +41,6 @@ import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -196,9 +195,6 @@ public class DatabaseDescriptor
                 indexAccessMode = conf.disk_access_mode;
                 logger.info("DiskAccessMode is " + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
             }
-            // We could enable cleaner for index only mmap but it probably doesn't matter much
-            if (conf.disk_access_mode == Config.DiskAccessMode.mmap)
-                MmappedSegmentedFile.initCleaner();
 
 	        logger.debug("page_cache_hinting is " + conf.populate_io_cache_on_flush);
 

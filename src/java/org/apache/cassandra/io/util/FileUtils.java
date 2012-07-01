@@ -19,6 +19,9 @@
 package org.apache.cassandra.io.util;
 
 import java.io.*;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.nio.MappedByteBuffer;
 import java.text.DecimalFormat;
 import java.util.Comparator;
 import java.util.List;
@@ -38,6 +41,22 @@ public class FileUtils
     private static final double mb_ = 1024*1024d;
     private static final double gb_ = 1024*1024*1024d;
     private static final double tb_ = 1024*1024*1024*1024d;
+
+    private static final Method cleanerMethod = initCleaner();
+
+    private static Method initCleaner()
+    {
+        try
+        {
+            return Class.forName("sun.nio.ch.DirectBuffer").getMethod("cleaner");
+        }
+        catch (Exception e)
+        {
+            // Perhaps a non-sun-derived JVM - contributions welcome
+            logger_.info("Cannot initialize un-mmaper.  (Are you using a non-SUN JVM?)  Compacted data files will not be removed promptly.  Consider using a SUN JVM or using standard disk access mode");
+            return null;
+        }
+    }
 
     public static void deleteWithConfirm(String file) throws IOException
     {
@@ -116,6 +135,32 @@ public class FileUtils
         }
         if (e != null)
             throw e;
+    }
+
+    public static boolean isCleanerAvailable()
+    {
+        return cleanerMethod != null;
+    }
+
+    public static void clean(MappedByteBuffer buffer)
+    {
+        try
+        {
+            Object cleaner = cleanerMethod.invoke(buffer);
+            cleaner.getClass().getMethod("clean").invoke(cleaner);
+        }
+        catch (IllegalAccessException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InvocationTargetException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (NoSuchMethodException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public static class FileComparator implements Comparator<File>
