@@ -1,4 +1,6 @@
 1.0.11
+ * allow dropping columns shadowed by not-yet-expired supercolumn or row
+   tombstones in PrecompactedRow (CASSANDRA-4396)
  * synchronize LCS getEstimatedTasks to avoid CME (CASSANDRA-4255)
  * ensure unique streaming session id's (CASSANDRA-4223)
  * kick off background compaction when min/max thresholds change 

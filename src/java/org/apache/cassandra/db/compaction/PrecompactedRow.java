@@ -67,7 +67,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         // taking this into account.
         Boolean shouldPurge = null;
 
-        if (cf.hasExpiredTombstones(controller.gcBefore))
+        if (cf.hasIrrelevantData(controller.gcBefore))
             shouldPurge = controller.shouldPurge(key);
         ColumnFamily compacted = shouldPurge != null && shouldPurge
                                ? ColumnFamilyStore.removeDeleted(cf, controller.gcBefore)

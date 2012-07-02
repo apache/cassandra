@@ -44,7 +44,7 @@ public interface IColumnContainer
 
     public boolean isMarkedForDelete();
     public long getMarkedForDeleteAt();
-    public boolean hasExpiredTombstones(int gcBefore);
+    public boolean hasIrrelevantData(int gcBefore);
 
     public AbstractType getComparator();
 
