@@ -72,7 +72,7 @@ public final class CFMetaData
     public final static String DEFAULT_COMPACTION_STRATEGY_CLASS = "SizeTieredCompactionStrategy";
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
     public final static Caching DEFAULT_CACHING_STRATEGY = Caching.KEYS_ONLY;
-    public final static Double DEFAULT_BF_FP_CHANCE = null;
+    public final static Double DEFAULT_BF_FP_CHANCE = 0.01;
 
     // Note that this is the default only for user created tables
     public final static String DEFAULT_COMPRESSOR = SnappyCompressor.isAvailable() ? SnappyCompressor.class.getCanonicalName() : null;
@@ -317,7 +317,6 @@ public final class CFMetaData
         minCompactionThreshold       = DEFAULT_MIN_COMPACTION_THRESHOLD;
         maxCompactionThreshold       = DEFAULT_MAX_COMPACTION_THRESHOLD;
         caching                      = DEFAULT_CACHING_STRATEGY;
-        bloomFilterFpChance          = DEFAULT_BF_FP_CHANCE;
 
         // Defaults strange or simple enough to not need a DEFAULT_T for
         defaultValidator = BytesType.instance;

@@ -35,6 +35,9 @@ Upgrading
       ByteOrderedPartitioner instead.
     - Global option hinted_handoff_throttle_delay_in_ms has been removed.
       hinted_handoff_throttle_in_kb has been added instead.
+    - The default bloom filter fp chance has been increased to 1%.
+      This will save about 30% of the memory used by the old default.
+      Existing columnfamilies will retain their old setting.
 
 Features
 --------
