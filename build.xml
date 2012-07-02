@@ -330,7 +330,7 @@
         <dependencyManagement>
           <dependency groupId="org.xerial.snappy" artifactId="snappy-java" version="1.0.4.1"/>
           <dependency groupId="com.ning" artifactId="compress-lzf" version="0.8.4"/>
-          <dependency groupId="com.google.guava" artifactId="guava" version="r08"/>
+          <dependency groupId="com.google.guava" artifactId="guava" version="12.0"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
           <dependency groupId="commons-codec" artifactId="commons-codec" version="1.2"/>
           <dependency groupId="commons-lang" artifactId="commons-lang" version="2.4"/>
