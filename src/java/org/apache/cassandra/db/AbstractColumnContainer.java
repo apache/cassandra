@@ -84,9 +84,11 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         columns.maybeResetDeletionTimes(gcBefore);
     }
 
-    /**
-     * We need to go through each column in the column container and resolve it before adding
-     */
+    public long addAllWithSizeDelta(AbstractColumnContainer cc, Allocator allocator, Function<IColumn, IColumn> transformation)
+    {
+        return columns.addAllWithSizeDelta(cc.columns, allocator, transformation);
+    }
+
     public void addAll(AbstractColumnContainer cc, Allocator allocator, Function<IColumn, IColumn> transformation)
     {
         columns.addAll(cc.columns, allocator, transformation);
