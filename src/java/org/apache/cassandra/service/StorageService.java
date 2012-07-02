@@ -34,6 +34,7 @@ import javax.management.ObjectName;
 import com.google.common.base.Supplier;
 import com.google.common.collect.*;
 
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
