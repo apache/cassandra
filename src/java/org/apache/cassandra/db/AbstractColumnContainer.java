@@ -193,13 +193,13 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         return columns.reverseIterator(slices);
     }
 
-    public boolean hasExpiredTombstones(int gcBefore)
+    public boolean hasIrrelevantData(int gcBefore)
     {
         if (deletionInfo().purge(gcBefore) == DeletionInfo.LIVE)
             return true;
 
         for (IColumn column : columns)
-            if (column.hasExpiredTombstones(gcBefore))
+            if (column.mostRecentLiveChangeAt() < deletionInfo().maxTimestamp() || column.hasIrrelevantData(gcBefore))
                 return true;
 
         return false;

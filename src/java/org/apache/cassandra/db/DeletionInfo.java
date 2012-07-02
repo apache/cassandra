@@ -26,6 +26,8 @@ import java.util.*;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Ordering;
+import com.google.common.primitives.Longs;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ISerializer;
@@ -91,7 +93,7 @@ public class DeletionInfo
      * Return whether a given column is deleted by the container having this
      * deletion info.
      *
-     * @param col the column to check.
+     * @param column the column to check.
      * @return true if the column is deleted, false otherwise
      */
     public boolean isDeleted(IColumn column)

@@ -292,7 +292,7 @@ public class Column implements IColumn
             valueValidator.validate(value());
     }
 
-    public boolean hasExpiredTombstones(int gcBefore)
+    public boolean hasIrrelevantData(int gcBefore)
     {
         return getLocalDeletionTime() < gcBefore;
     }

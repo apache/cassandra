@@ -73,7 +73,13 @@ public interface IColumn extends OnDiskAtom
     boolean isLive();
 
     /**
-     * @return true if the column or any its subcolumns expired before @param gcBefore
+     * For a standard column, this is the same as timestamp().
+     * For a super column, this is the max column timestamp of the sub columns.
      */
-    public boolean hasExpiredTombstones(int gcBefore);
+    public long maxTimestamp();
+
+    /**
+     * @return true if the column or any its subcolumns is no longer relevant after @param gcBefore
+     */
+    public boolean hasIrrelevantData(int gcBefore);
 }
