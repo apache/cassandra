@@ -67,7 +67,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         // taking this into account.
         Boolean shouldPurge = null;
 
-        if (cf.hasExpiredTombstones(controller.gcBefore))
+        if (cf.hasIrrelevantData(controller.gcBefore))
             shouldPurge = controller.shouldPurge(key);
         // We should only gc tombstone if shouldPurge == true. But otherwise,
         // it is still ok to collect column that shadowed by their (deleted)
