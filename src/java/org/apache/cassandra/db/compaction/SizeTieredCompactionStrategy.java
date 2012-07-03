@@ -107,7 +107,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
                         long keys = table.estimatedKeys();
                         Set<Range<Token>> ranges = new HashSet<Range<Token>>();
                         for (SSTableReader overlap : overlaps)
-                            ranges.add(new Range<Token>(overlap.first.token, overlap.last.token));
+                            ranges.add(new Range<Token>(overlap.first.token, overlap.last.token, overlap.partitioner));
                         long remainingKeys = keys - table.estimatedKeysForRanges(ranges);
                         // next, calculate what percentage of columns we have within those keys
                         double remainingKeysRatio = ((double) remainingKeys) / keys;
