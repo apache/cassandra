@@ -80,7 +80,7 @@ public class Memtable
     volatile static Memtable activelyMeasuring;
 
     private volatile boolean isFrozen;
-    private final AtomicLong currentThroughput = new AtomicLong(0);
+    private final AtomicLong currentSize = new AtomicLong(0);
     private final AtomicLong currentOperations = new AtomicLong(0);
 
     // We index the memtable by RowPosition only for the purpose of being able
@@ -120,12 +120,12 @@ public class Memtable
 
     public long getLiveSize()
     {
-        return (long) (currentThroughput.get() * cfs.liveRatio);
+        return (long) (currentSize.get() * cfs.liveRatio);
     }
 
     public long getSerializedSize()
     {
-        return currentThroughput.get();
+        return currentSize.get();
     }
 
     public long getOperations()
@@ -188,7 +188,7 @@ public class Memtable
                         deepSize += meter.measureDeep(entry.getKey()) + meter.measureDeep(entry.getValue());
                         objects += entry.getValue().getColumnCount();
                     }
-                    double newRatio = (double) deepSize / currentThroughput.get();
+                    double newRatio = (double) deepSize / currentSize.get();
 
                     if (newRatio < MIN_SANE_LIVE_RATIO)
                     {
@@ -224,12 +224,6 @@ public class Memtable
 
     private void resolve(DecoratedKey key, ColumnFamily cf)
     {
-        currentThroughput.addAndGet(cf.dataSize());
-        currentOperations.addAndGet((cf.getColumnCount() == 0)
-                                    ? cf.isMarkedForDelete() ? 1 : 0
-                                    : cf.getColumnCount());
-
-
         ColumnFamily previous = columnFamilies.get(key);
 
         if (previous == null)
@@ -242,7 +236,11 @@ public class Memtable
                 previous = empty;
         }
 
-        previous.addAll(cf, allocator, localCopyFunction);
+        long sizeDelta = previous.addAllWithSizeDelta(cf, allocator, localCopyFunction);
+        currentSize.addAndGet(sizeDelta);
+        currentOperations.addAndGet((cf.getColumnCount() == 0)
+                                    ? cf.isMarkedForDelete() ? 1 : 0
+                                    : cf.getColumnCount());
     }
 
     // for debugging
@@ -272,7 +270,7 @@ public class Memtable
         }
         long estimatedSize = (long) ((keySize // index entries
                                       + keySize // keys in data file
-                                      + currentThroughput.get()) // data
+                                      + currentSize.get()) // data
                                      * 1.2); // bloom filter and row index overhead
         SSTableReader ssTable;
         // errors when creating the writer that may leave empty temp files.
@@ -323,7 +321,7 @@ public class Memtable
     public String toString()
     {
         return String.format("Memtable-%s@%s(%s/%s serialized/live bytes, %s ops)",
-                             cfs.getColumnFamilyName(), hashCode(), currentThroughput, getLiveSize(), currentOperations);
+                             cfs.getColumnFamilyName(), hashCode(), currentSize, getLiveSize(), currentOperations);
     }
 
     /**

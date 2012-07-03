@@ -71,6 +71,13 @@ public interface ISortedColumns extends IIterableColumns
      *      add(c);
      *   </code>
      *  but is potentially faster.
+     *
+     *  @return the difference in size seen after merging the given columns
+     */
+    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation);
+
+    /**
+     * Adds the columns without necessarily computing the size delta
      */
     public void addAll(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation);
 
