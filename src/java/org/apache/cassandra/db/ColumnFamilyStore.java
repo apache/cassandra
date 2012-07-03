@@ -884,9 +884,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * Calculate expected file size of SSTable after compaction.
      *
-     * If operation type is {@code CLEANUP}, then we calculate expected file size
-     * with checking token range to be eliminated.
-     * Other than that, we just add up all the files' size, which is the worst case file
+     * If operation type is {@code CLEANUP} and we're not dealing with an index sstable,
+     * then we calculate expected file size with checking token range to be eliminated.
+     *
+     * Otherwise, we just add up all the files' size, which is the worst case file
      * size for compaction of all the list of files given.
      *
      * @param sstables SSTables to calculate expected compacted file size
@@ -895,21 +896,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public long getExpectedCompactedFileSize(Iterable<SSTableReader> sstables, OperationType operation)
     {
-        long expectedFileSize = 0;
-        if (operation == OperationType.CLEANUP)
+        if (operation != OperationType.CLEANUP || isIndex())
         {
-            Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.name);
-            for (SSTableReader sstable : sstables)
-            {
-                List<Pair<Long, Long>> positions = sstable.getPositionsForRanges(ranges);
-                for (Pair<Long, Long> position : positions)
-                    expectedFileSize += position.right - position.left;
-            }
+            return SSTable.getTotalBytes(sstables);
         }
-        else
+
+        long expectedFileSize = 0;
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.name);
+        for (SSTableReader sstable : sstables)
         {
-            for (SSTableReader sstable : sstables)
-                expectedFileSize += sstable.onDiskLength();
+            List<Pair<Long, Long>> positions = sstable.getPositionsForRanges(ranges);
+            for (Pair<Long, Long> position : positions)
+                expectedFileSize += position.right - position.left;
         }
         return expectedFileSize;
     }
