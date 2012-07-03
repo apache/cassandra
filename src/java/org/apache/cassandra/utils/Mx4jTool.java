@@ -65,7 +65,7 @@ public class Mx4jTool
         }
         catch (ClassNotFoundException e)
         {
-            logger.info("Will not load MX4J, mx4j-tools.jar is not in the classpath");
+            logger.debug("Will not load MX4J, mx4j-tools.jar is not in the classpath");
         }
         catch(Exception e)
         {
