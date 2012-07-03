@@ -117,8 +117,9 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
     /**
      * We need to go through each column in the column container and resolve it before adding
      */
-    protected void addAllColumns(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
+    public void addAll(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
     {
+        delete(cm.getDeletionInfo());
         for (IColumn column : cm.getSortedColumns())
             addColumn(transformation.apply(column), allocator);
     }

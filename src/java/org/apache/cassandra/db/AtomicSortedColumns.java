@@ -338,41 +338,30 @@ public class AtomicSortedColumns implements ISortedColumns
         long addColumn(IColumn column, Allocator allocator)
         {
             ByteBuffer name = column.name();
-            IColumn oldColumn;
-            long sizeDelta = 0;
             while (true)
             {
-                oldColumn = map.putIfAbsent(name, column);
+                IColumn oldColumn = map.putIfAbsent(name, column);
                 if (oldColumn == null)
-                {
-                    sizeDelta += column.dataSize();
-                    break;
-                }
+                    return column.dataSize();
 
                 if (oldColumn instanceof SuperColumn)
                 {
                     assert column instanceof SuperColumn;
                     long previousSize = oldColumn.dataSize();
                     ((SuperColumn) oldColumn).putColumn((SuperColumn)column, allocator);
-                    sizeDelta += oldColumn.dataSize() - previousSize;
-                    break;  // Delegated to SuperColumn
+                    return oldColumn.dataSize() - previousSize;
                 }
                 else
                 {
                     // calculate reconciled col from old (existing) col and new col
                     IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
                     if (map.replace(name, oldColumn, reconciledColumn))
-                    {
-                        sizeDelta += reconciledColumn.dataSize() - oldColumn.dataSize();
-                        break;
-                    }
+                        return reconciledColumn.dataSize() - oldColumn.dataSize();
 
                     // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
                     // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
                 }
             }
-
-            return sizeDelta;
         }
 
         void retainAll(ISortedColumns columns)
