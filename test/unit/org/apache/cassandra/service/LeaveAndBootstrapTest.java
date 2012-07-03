@@ -115,7 +115,7 @@ public class LeaveAndBootstrapTest
             {
                 int replicationFactor = strategy.getReplicationFactor();
 
-                HashSet<InetAddress> actual = new HashSet<InetAddress>(tmd.getWriteEndpoints(token, table, strategy.calculateNaturalEndpoints(token, tmd)));
+                HashSet<InetAddress> actual = new HashSet<InetAddress>(tmd.getWriteEndpoints(token, table, strategy.calculateNaturalEndpoints(token, tmd.cloneOnlyTokenMap())));
                 HashSet<InetAddress> expected = new HashSet<InetAddress>();
 
                 for (int i = 0; i < replicationFactor; i++)

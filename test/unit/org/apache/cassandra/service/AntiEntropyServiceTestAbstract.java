@@ -185,7 +185,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         Set<InetAddress> expected = new HashSet<InetAddress>();
         for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddress()))
         {
-            expected.addAll(ars.getRangeAddresses(tmd).get(replicaRange));
+            expected.addAll(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicaRange));
         }
         expected.remove(FBUtilities.getBroadcastAddress());
         Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(tablename);
