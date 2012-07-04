@@ -136,30 +136,6 @@ public class Term
         }
     }
 
-    public Token getAsToken(AbstractType<?> validator, List<ByteBuffer> variables, IPartitioner<?> p) throws InvalidRequestException
-    {
-        if (!(isToken || type == Type.STRING))
-            throw new InvalidRequestException("Invalid value for token (use a string literal of the token value or the token() function)");
-
-        try
-        {
-            if (isToken)
-            {
-                ByteBuffer value = getByteBuffer(validator, variables);
-                return p.getToken(value);
-            }
-            else
-            {
-                p.getTokenFactory().validate(text);
-                return p.getTokenFactory().fromString(text);
-            }
-        }
-        catch (ConfigurationException e)
-        {
-            throw new InvalidRequestException(e.getMessage());
-        }
-    }
-
     /**
      * Obtain the term's type.
      *

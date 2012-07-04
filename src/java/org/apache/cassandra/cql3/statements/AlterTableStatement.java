@@ -112,14 +112,21 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         AbstractType<?> newType = validator.getType();
                         if (newType instanceof CounterColumnType)
                             throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", columnName));
-                        cfm.keyValidator(newType);
+                        if (cfDef.hasCompositeKey)
+                        {
+                            List<AbstractType<?>> newTypes = new ArrayList<AbstractType<?>>(((CompositeType) cfm.getKeyValidator()).types);
+                            newTypes.set(name.position, newType);
+                            cfm.keyValidator(CompositeType.getInstance(newTypes));
+                        }
+                        else
+                        {
+                            cfm.keyValidator(newType);
+                        }
                         break;
                     case COLUMN_ALIAS:
                         assert cfDef.isComposite;
-
                         List<AbstractType<?>> newTypes = new ArrayList<AbstractType<?>>(((CompositeType) cfm.comparator).types);
                         newTypes.set(name.position, validator.getType());
-
                         cfm.comparator = CompositeType.getInstance(newTypes);
                         break;
                     case VALUE_ALIAS:

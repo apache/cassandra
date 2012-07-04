@@ -143,7 +143,7 @@ public class Avro
         //  Isn't AVRO supposed to handle stuff like this?
         if (cf.min_compaction_threshold != null) { newCFMD.minCompactionThreshold(cf.min_compaction_threshold); }
         if (cf.max_compaction_threshold != null) { newCFMD.maxCompactionThreshold(cf.max_compaction_threshold); }
-        if (cf.key_alias != null) { newCFMD.keyAlias(cf.key_alias); }
+        if (cf.key_alias != null) { newCFMD.keyAliases(Collections.<ByteBuffer>singletonList(cf.key_alias)); }
         if (cf.column_aliases != null)
             newCFMD.columnAliases(new ArrayList<ByteBuffer>(cf.column_aliases)); // fix avro stupidity
         if (cf.value_alias != null) { newCFMD.valueAlias(cf.value_alias); }

@@ -30,6 +30,7 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.*;
@@ -64,12 +65,15 @@ public class SelectStatement implements CQLStatement
     public final Parameters parameters;
     private final List<Pair<CFDefinition.Name, Selector>> selectedNames = new ArrayList<Pair<CFDefinition.Name, Selector>>(); // empty => wildcard
 
-    private Restriction keyRestriction;
+    private final Restriction[] keyRestrictions;
     private final Restriction[] columnRestrictions;
     private final Map<CFDefinition.Name, Restriction> metadataRestrictions = new HashMap<CFDefinition.Name, Restriction>();
     private Restriction sliceRestriction;
 
     private boolean isReversed;
+    private boolean onToken;
+    private boolean isKeyRange;
+    private boolean keyIsInRelation;
 
     private static enum Bound
     {
@@ -86,6 +90,7 @@ public class SelectStatement implements CQLStatement
     {
         this.cfDef = cfDef;
         this.boundTerms = boundTerms;
+        this.keyRestrictions = new Restriction[cfDef.keys.size()];
         this.columnRestrictions = new Restriction[cfDef.columns.size()];
         this.parameters = parameters;
     }
@@ -115,7 +120,7 @@ public class SelectStatement implements CQLStatement
         try
         {
             List<Row> rows;
-            if (isKeyRange())
+            if (isKeyRange)
             {
                 rows = multiRangeSlice(variables);
             }
@@ -221,7 +226,7 @@ public class SelectStatement implements CQLStatement
         IPartitioner<?> p = StorageService.getPartitioner();
         AbstractBounds<RowPosition> bounds;
 
-        if (keyRestriction != null && keyRestriction.onToken)
+        if (onToken)
         {
             Token startToken = getTokenBound(Bound.START, variables, p);
             Token endToken = getTokenBound(Bound.END, variables, p);
@@ -296,64 +301,82 @@ public class SelectStatement implements CQLStatement
         return sliceRestriction != null && !sliceRestriction.isInclusive(Bound.START) ? parameters.limit + 1 : parameters.limit;
     }
 
-    private boolean isKeyRange()
-    {
-        // If indexed columns or a token range, they always use getRangeSlices
-        if (!metadataRestrictions.isEmpty())
-            return true;
-
-        return keyRestriction == null || !keyRestriction.isEquality() || keyRestriction.onToken;
-    }
-
     private Collection<ByteBuffer> getKeys(final List<ByteBuffer> variables) throws InvalidRequestException
     {
-        assert keyRestriction != null && keyRestriction.isEquality();
-
-        List<ByteBuffer> keys = new ArrayList<ByteBuffer>(keyRestriction.eqValues.size());
-        for (Term t : keyRestriction.eqValues)
-            keys.add(t.getByteBuffer(cfDef.key.type, variables));
+        List<ByteBuffer> keys = new ArrayList<ByteBuffer>();
+        ColumnNameBuilder builder = cfDef.getKeyNameBuilder();
+        for (CFDefinition.Name name : cfDef.keys.values())
+        {
+            Restriction r = keyRestrictions[name.position];
+            assert r != null;
+            if (builder.remainingCount() == 1)
+            {
+                for (Term t : r.eqValues)
+                    keys.add(builder.copy().add(t, Relation.Type.EQ, variables).build());
+            }
+            else
+            {
+                if (r.eqValues.size() > 1)
+                    throw new InvalidRequestException("IN is only supported on the last column of the partition key");
+                builder.add(r.eqValues.get(0), Relation.Type.EQ, variables);
+            }
+        }
         return keys;
     }
 
     private ByteBuffer getKeyBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
     {
-        if (keyRestriction == null)
-        {
-            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        }
-        else if (keyRestriction.isEquality())
-        {
-            assert keyRestriction.eqValues.size() == 1;
-            return keyRestriction.eqValues.get(0).getByteBuffer(cfDef.key.type, variables);
-        }
-        else
-        {
-            Term bound = keyRestriction.bound(b);
-            return bound == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : bound.getByteBuffer(cfDef.key.type, variables);
-        }
+        return buildBound(b, keyRestrictions, cfDef.getKeyNameBuilder(), variables);
     }
 
     private Token getTokenBound(Bound b, List<ByteBuffer> variables, IPartitioner<?> p) throws InvalidRequestException
     {
-        assert keyRestriction != null;
-        if (keyRestriction.isEquality())
+        assert onToken;
+
+        Restriction keyRestriction = keyRestrictions[0];
+        Term t = keyRestriction.isEquality()
+               ? keyRestriction.eqValues.get(0)
+               : keyRestriction.bound(b);
+
+        if (t == null)
+            return p.getMinimumToken();
+
+        if (t.getType() == Term.Type.STRING)
         {
-            assert keyRestriction.eqValues.size() == 1;
-            return keyRestriction.eqValues.get(0).getAsToken(cfDef.key.type, variables, p);
+            try
+            {
+                String text = t.getText();
+                p.getTokenFactory().validate(text);
+                return p.getTokenFactory().fromString(text);
+            }
+            catch (ConfigurationException e)
+            {
+                throw new InvalidRequestException(e.getMessage());
+            }
         }
-        else
+
+        assert t.isToken;
+        ColumnNameBuilder builder = cfDef.getKeyNameBuilder();
+        // We know all keyRestriction must be set
+        for (CFDefinition.Name name : cfDef.keys.values())
         {
-            Term bound = keyRestriction.bound(b);
-            return bound == null ? p.getMinimumToken() : bound.getAsToken(cfDef.key.type, variables, p);
+            Restriction r = keyRestrictions[name.position];
+            builder.add(r.isEquality() ? r.eqValues.get(0) : r.bound(b), Relation.Type.EQ, variables);
         }
+        return p.getToken(builder.build());
     }
 
     private boolean includeKeyBound(Bound b)
     {
-        if (keyRestriction == null || keyRestriction.isEquality())
-            return true;
-        else
-            return keyRestriction.isInclusive(b);
+        for (Restriction r : keyRestrictions)
+        {
+            if (r == null)
+                return true;
+            else if (!r.isEquality())
+                return r.isInclusive(b);
+        }
+        // All equality
+        return true;
     }
 
     private boolean isColumnRange()
@@ -450,12 +473,9 @@ public class SelectStatement implements CQLStatement
         }
     }
 
-    private ByteBuffer getRequestedBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
+    private ByteBuffer buildBound(Bound b, Restriction[] restrictions, ColumnNameBuilder builder, List<ByteBuffer> variables) throws InvalidRequestException
     {
-        assert isColumnRange();
-
-        ColumnNameBuilder builder = cfDef.getColumnNameBuilder();
-        for (Restriction r : columnRestrictions)
+        for (Restriction r : restrictions)
         {
             if (r == null || (!r.isEquality() && r.bound(b) == null))
             {
@@ -482,6 +502,12 @@ public class SelectStatement implements CQLStatement
         }
         // Means no relation at all or everything was an equal
         return (b == Bound.END) ? builder.buildAsEndOfRange() : builder.build();
+    }
+
+    private ByteBuffer getRequestedBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
+    {
+        assert isColumnRange();
+        return buildBound(b, columnRestrictions, cfDef.getColumnNameBuilder(), variables);
     }
 
     private List<IndexExpression> getIndexExpressions(List<ByteBuffer> variables) throws InvalidRequestException
@@ -649,6 +675,16 @@ public class SelectStatement implements CQLStatement
             if (row.cf == null)
                 continue;
 
+            ByteBuffer[] keyComponents = null;
+            if (cfDef.hasCompositeKey)
+            {
+                keyComponents = ((CompositeType)cfDef.cfm.getKeyValidator()).split(row.key.key);
+            }
+            else
+            {
+                keyComponents = new ByteBuffer[]{ row.key.key };
+            }
+
             if (cfDef.isCompact)
             {
                 // One cqlRow per column
@@ -658,7 +694,6 @@ public class SelectStatement implements CQLStatement
                         continue;
 
                     ByteBuffer[] components = null;
-
                     if (cfDef.isComposite)
                     {
                         components = ((CompositeType)cfDef.cfm.comparator).split(c.name());
@@ -680,7 +715,7 @@ public class SelectStatement implements CQLStatement
                         switch (name.kind)
                         {
                             case KEY_ALIAS:
-                                cqlRows.addColumnValue(row.key.key);
+                                cqlRows.addColumnValue(keyComponents[name.position]);
                                 break;
                             case COLUMN_ALIAS:
                                 if (cfDef.isComposite)
@@ -723,7 +758,7 @@ public class SelectStatement implements CQLStatement
                 }
 
                 for (ColumnGroupMap group : builder.groups())
-                    handleGroup(selection, row.key.key, group, cqlRows);
+                    handleGroup(selection, row.key.key, keyComponents, group, cqlRows);
             }
             else
             {
@@ -738,7 +773,7 @@ public class SelectStatement implements CQLStatement
                     Selector selector = p.right;
                     if (name.kind == CFDefinition.Name.Kind.KEY_ALIAS)
                     {
-                        cqlRows.addColumnValue(row.key.key);
+                        cqlRows.addColumnValue(keyComponents[name.position]);
                         continue;
                     }
 
@@ -767,8 +802,8 @@ public class SelectStatement implements CQLStatement
         // There is nothing to do if
         //   a. there are no results,
         //   b. no ordering information where given,
-        //   c. key restriction wasn't given or it's not an IN expression
-        if (cqlRows.size() == 0 || parameters.orderings.isEmpty() || keyRestriction == null || keyRestriction.eqValues.size() < 2)
+        //   c. key restriction is a Range or not an IN expression
+        if (cqlRows.size() == 0 || parameters.orderings.isEmpty() || isKeyRange || !keyIsInRelation)
             return;
 
         // optimization when only *one* order condition was given
@@ -800,7 +835,7 @@ public class SelectStatement implements CQLStatement
         Collections.sort(cqlRows.rows, new CompositeComparator(startPosition, types));
     }
 
-    private void handleGroup(List<Pair<CFDefinition.Name, Selector>> selection, ByteBuffer key, ColumnGroupMap columns, ResultSet cqlRows)
+    private void handleGroup(List<Pair<CFDefinition.Name, Selector>> selection, ByteBuffer key, ByteBuffer[] keyComponents, ColumnGroupMap columns, ResultSet cqlRows)
     {
         // Respect requested order
         for (Pair<CFDefinition.Name, Selector> p : selection)
@@ -810,7 +845,7 @@ public class SelectStatement implements CQLStatement
             switch (name.kind)
             {
                 case KEY_ALIAS:
-                    cqlRows.addColumnValue(key);
+                    cqlRows.addColumnValue(keyComponents[name.position]);
                     break;
                 case COLUMN_ALIAS:
                     cqlRows.addColumnValue(columns.getKeyComponent(name.position));
@@ -914,8 +949,8 @@ public class SelectStatement implements CQLStatement
                 {
                     case KEY_ALIAS:
                         if (rel.operator() != Relation.Type.EQ && rel.operator() != Relation.Type.IN && !rel.onToken && !StorageService.getPartitioner().preservesOrder())
-                            throw new InvalidRequestException("Only EQ and IN relation are supported on first component of the PRIMARY KEY for RandomPartitioner (unless you use the token() function)");
-                        stmt.keyRestriction = updateRestriction(name, stmt.keyRestriction, rel);
+                            throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key for RandomPartitioner (unless you use the token() function)");
+                        stmt.keyRestrictions[name.position] = updateRestriction(name, stmt.keyRestrictions[name.position], rel);
                         break;
                     case COLUMN_ALIAS:
                         stmt.columnRestrictions[name.position] = updateRestriction(name, stmt.columnRestrictions[name.position], rel);
@@ -967,9 +1002,63 @@ public class SelectStatement implements CQLStatement
                 previous = cname;
             }
 
+            // If a component of the partition key is restricted by a non-EQ relation, all preceding
+            // components must have a EQ, and all following must have no restriction
+            shouldBeDone = false;
+            previous = null;
+            stmt.keyIsInRelation = false;
+            iter = cfDef.keys.values().iterator();
+            for (int i = 0; i < stmt.keyRestrictions.length; i++)
+            {
+                CFDefinition.Name cname = iter.next();
+                Restriction restriction = stmt.keyRestrictions[i];
+                if (restriction == null)
+                {
+                    if (stmt.onToken)
+                        throw new InvalidRequestException(String.format("The token() function must be applied to all partition key components or none of them"));
+
+                    stmt.isKeyRange = true;
+                    shouldBeDone = true;
+                }
+                else if (shouldBeDone)
+                {
+                    throw new InvalidRequestException(String.format("partition key part %s cannot be restricted (preceding part %s is either not restricted or by a non-EQ relation)", cname, previous));
+                }
+                else if (restriction.onToken)
+                {
+                    // If this is a query on tokens, it's necessary a range query (there can be more than one key per token), so reject IN queries (as we don't know how to do them)
+                    stmt.isKeyRange = true;
+                    stmt.onToken = true;
+
+                    if (restriction.isEquality() && restriction.eqValues.size() > 1)
+                        throw new InvalidRequestException("Select using the token() function don't support IN clause");
+                }
+                else if (stmt.onToken)
+                {
+                    throw new InvalidRequestException(String.format("The token() function must be applied to all partition key components or none of them"));
+                }
+                else if (restriction.isEquality())
+                {
+                    if (restriction.eqValues.size() > 1)
+                    {
+                        // We only support IN for the last name so far
+                        if (i != stmt.keyRestrictions.length - 1)
+                            throw new InvalidRequestException(String.format("partition KEY part %s cannot be restricted by IN relation (only the last part of the partition key can)", cname));
+                        stmt.keyIsInRelation = true;
+                    }
+                }
+                else
+                {
+                    stmt.isKeyRange = true;
+                    shouldBeDone = true;
+                }
+                previous = cname;
+            }
+
             // Deal with indexed columns
             if (!stmt.metadataRestrictions.isEmpty())
             {
+                stmt.isKeyRange = true;
                 boolean hasEq = false;
                 Set<ByteBuffer> indexed = Table.open(keyspace()).getColumnFamilyStore(columnFamily()).indexManager.getIndexedColumns();
 
@@ -985,7 +1074,7 @@ public class SelectStatement implements CQLStatement
                     throw new InvalidRequestException("No indexed columns present in by-columns clause with Equal operator");
 
                 // If we have indexed columns and the key = X clause, we will do a range query, but if it's a IN relation, we don't know how to handle it.
-                if (stmt.keyRestriction != null && stmt.keyRestriction.isEquality() && stmt.keyRestriction.eqValues.size() > 1)
+                if (stmt.keyIsInRelation)
                     throw new InvalidRequestException("Select on indexed columns and with IN clause for the PRIMARY KEY are not supported");
             }
 
@@ -1034,9 +1123,6 @@ public class SelectStatement implements CQLStatement
                 stmt.isReversed = isReversed;
             }
 
-            // If this is a query on tokens, it's necessary a range query (there can be more than one key per token), so reject IN queries (as we don't know how to do them)
-            if (stmt.keyRestriction != null && stmt.keyRestriction.onToken && stmt.keyRestriction.isEquality() && stmt.keyRestriction.eqValues.size() > 1)
-                throw new InvalidRequestException("Select using the token() function don't support IN clause");
 
             return new ParsedStatement.Prepared(stmt, Arrays.<ColumnSpecification>asList(names));
         }

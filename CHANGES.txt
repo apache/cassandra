@@ -32,6 +32,7 @@
  * (cql3) Add support for set, map and list (CASSANDRA-3647)
  * Validate date type correctly (CASSANDRA-4441)
  * (cql3) Allow definitions with only a PK (CASSANDRA-4361)
+ * (cql3) Add support for row key composites (CASSANDRA-4179)
 
 
 1.1.3

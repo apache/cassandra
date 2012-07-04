@@ -273,6 +273,11 @@ public class CompositeType extends AbstractCompositeType
             return components.size();
         }
 
+        public int remainingCount()
+        {
+            return composite.types.size() - components.size();
+        }
+
         public ByteBuffer build()
         {
             DataOutputBuffer out = new DataOutputBuffer(serializedSize);

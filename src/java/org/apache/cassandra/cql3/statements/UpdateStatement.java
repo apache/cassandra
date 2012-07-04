@@ -104,37 +104,10 @@ public class UpdateStatement extends ModificationStatement
     /** {@inheritDoc} */
     public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables) throws UnavailableException, TimeoutException, InvalidRequestException
     {
-        // Check key
-        List<Term> keys = processedKeys.get(cfDef.key.name);
-        if (keys == null || keys.isEmpty())
-            throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", cfDef.key));
+        List<ByteBuffer> keys = buildKeyNames(cfDef, processedKeys, variables);
 
         ColumnNameBuilder builder = cfDef.getColumnNameBuilder();
-        CFDefinition.Name firstEmpty = null;
-        for (CFDefinition.Name name : cfDef.columns.values())
-        {
-            List<Term> values = processedKeys.get(name.name);
-            if (values == null || values.isEmpty())
-            {
-                firstEmpty = name;
-                // For sparse, we must have all components
-                if (cfDef.isComposite && !cfDef.isCompact)
-                    throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", name));
-            }
-            else if (firstEmpty != null)
-            {
-                throw new InvalidRequestException(String.format("Missing PRIMARY KEY part %s since %s is set", firstEmpty.name, name.name));
-            }
-            else
-            {
-                assert values.size() == 1; // We only allow IN for row keys so far
-                builder.add(values.get(0), Relation.Type.EQ, variables);
-            }
-        }
-
-        List<ByteBuffer> rawKeys = new ArrayList<ByteBuffer>(keys.size());
-        for (Term key: keys)
-            rawKeys.add(key.getByteBuffer(cfDef.key.type, variables));
+        buildColumnNames(cfDef, processedKeys, builder, variables, true);
 
         // Lists SET operation incurs a read. Do that now. Note that currently,
         // if there is at least one list, we just read the whole "row" (in the CQL sense of
@@ -155,15 +128,68 @@ public class UpdateStatement extends ModificationStatement
             }
         }
 
-        Map<ByteBuffer, ColumnGroupMap> rows = needsReading ? readRows(rawKeys, builder, (CompositeType)cfDef.cfm.comparator) : null;
+        Map<ByteBuffer, ColumnGroupMap> rows = needsReading ? readRows(keys, builder, (CompositeType)cfDef.cfm.comparator) : null;
 
         List<IMutation> rowMutations = new LinkedList<IMutation>();
         UpdateParameters params = new UpdateParameters(variables, getTimestamp(clientState), timeToLive);
 
-        for (ByteBuffer key: rawKeys)
+        for (ByteBuffer key: keys)
             rowMutations.add(mutationForKey(cfDef, key, builder, params, rows == null ? null : rows.get(key)));
 
         return rowMutations;
+    }
+
+    // Returns the first empty component or null if none are
+    static CFDefinition.Name buildColumnNames(CFDefinition cfDef, Map<ColumnIdentifier, List<Term>> processed, ColumnNameBuilder builder, List<ByteBuffer> variables, boolean requireAllComponent)
+    throws InvalidRequestException
+    {
+        CFDefinition.Name firstEmpty = null;
+        for (CFDefinition.Name name : cfDef.columns.values())
+        {
+            List<Term> values = processed.get(name.name);
+            if (values == null || values.isEmpty())
+            {
+                firstEmpty = name;
+                if (requireAllComponent && cfDef.isComposite && !cfDef.isCompact)
+                    throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", name));
+            }
+            else if (firstEmpty != null)
+            {
+                throw new InvalidRequestException(String.format("Missing PRIMARY KEY part %s since %s is set", firstEmpty.name, name.name));
+            }
+            else
+            {
+                assert values.size() == 1; // We only allow IN for row keys so far
+                builder.add(values.get(0), Relation.Type.EQ, variables);
+            }
+        }
+        return firstEmpty;
+    }
+
+    static List<ByteBuffer> buildKeyNames(CFDefinition cfDef, Map<ColumnIdentifier, List<Term>> processed, List<ByteBuffer> variables)
+    throws InvalidRequestException
+    {
+        ColumnNameBuilder keyBuilder = cfDef.getKeyNameBuilder();
+        List<ByteBuffer> keys = new ArrayList<ByteBuffer>();
+        for (CFDefinition.Name name : cfDef.keys.values())
+        {
+            List<Term> values = processed.get(name.name);
+            if (values == null || values.isEmpty())
+                throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", name));
+
+            if (keyBuilder.remainingCount() == 1)
+            {
+                for (Term t : values)
+                    keys.add(keyBuilder.copy().add(t, Relation.Type.EQ, variables).build());
+            }
+            else
+            {
+                if (values.size() > 1)
+                    throw new InvalidRequestException("IN is only supported on the last column of the partition key");
+                keyBuilder.add(values.get(0), Relation.Type.EQ, variables);
+            }
+        }
+        return keys;
     }
 
     /**

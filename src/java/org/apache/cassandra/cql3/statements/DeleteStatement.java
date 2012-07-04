@@ -65,30 +65,12 @@ public class DeleteStatement extends ModificationStatement
 
     public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables) throws UnavailableException, TimeoutException, InvalidRequestException
     {
-        // Check key
-        List<Term> keys = processedKeys.get(cfDef.key.name);
-        if (keys == null || keys.isEmpty())
-            throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", cfDef.key.name));
+        // keys
+        List<ByteBuffer> keys = UpdateStatement.buildKeyNames(cfDef, processedKeys, variables);
 
+        // columns
         ColumnNameBuilder builder = cfDef.getColumnNameBuilder();
-        CFDefinition.Name firstEmpty = null;
-        for (CFDefinition.Name name : cfDef.columns.values())
-        {
-            List<Term> values = processedKeys.get(name.name);
-            if (values == null || values.isEmpty())
-            {
-                firstEmpty = name;
-            }
-            else if (firstEmpty != null)
-            {
-                throw new InvalidRequestException(String.format("Missing PRIMARY KEY part %s since %s is set", firstEmpty, name));
-            }
-            else
-            {
-                assert values.size() == 1; // We only allow IN for keys so far
-                builder.add(values.get(0), Relation.Type.EQ, variables);
-            }
-        }
+        CFDefinition.Name firstEmpty = UpdateStatement.buildColumnNames(cfDef, processedKeys, builder, variables, false);
 
         boolean fullKey = builder.componentCount() == cfDef.columns.size();
         boolean isRange = cfDef.isCompact ? !fullKey : (!fullKey || toRemove.isEmpty());
@@ -110,16 +92,12 @@ public class DeleteStatement extends ModificationStatement
             }
         }
 
-        List<ByteBuffer> rawKeys = new ArrayList<ByteBuffer>(keys.size());
-        for (Term key: keys)
-            rawKeys.add(key.getByteBuffer(cfDef.key.type, variables));
-
-        Map<ByteBuffer, ColumnGroupMap> rows = needsReading ? readRows(rawKeys, builder, (CompositeType)cfDef.cfm.comparator) : null;
+        Map<ByteBuffer, ColumnGroupMap> rows = needsReading ? readRows(keys, builder, (CompositeType)cfDef.cfm.comparator) : null;
 
         List<IMutation> rowMutations = new ArrayList<IMutation>(keys.size());
         UpdateParameters params = new UpdateParameters(variables, getTimestamp(clientState), -1);
 
-        for (ByteBuffer key : rawKeys)
+        for (ByteBuffer key : keys)
             rowMutations.add(mutationForKey(cfDef, key, builder, isRange, params, rows == null ? null : rows.get(key)));
 
         return rowMutations;

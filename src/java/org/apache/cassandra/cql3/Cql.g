@@ -200,7 +200,7 @@ selectCountClause returns [List<Selector> expr]
 
 whereClause returns [List<Relation> clause]
     @init{ $clause = new ArrayList<Relation>(); }
-    : first=relation { $clause.add(first); } (K_AND next=relation { $clause.add(next); })*
+    : relation[$clause] (K_AND relation[$clause])*
     ;
 
 orderByClause[Map<ColumnIdentifier, Boolean> orderings]
@@ -370,8 +370,13 @@ cfamDefinition[CreateColumnFamilyStatement.RawStatement expr]
     ;
 
 cfamColumns[CreateColumnFamilyStatement.RawStatement expr]
-    : k=cident v=comparatorType { $expr.addDefinition(k, v); } (K_PRIMARY K_KEY { $expr.setKeyAlias(k); })?
-    | K_PRIMARY K_KEY '(' k=cident { $expr.setKeyAlias(k); } (',' c=cident { $expr.addColumnAlias(c); } )* ')'
+    : k=cident v=comparatorType { $expr.addDefinition(k, v); } (K_PRIMARY K_KEY { $expr.addKeyAlias(k); })?
+    | K_PRIMARY K_KEY '(' pkDef[expr] (',' c=cident { $expr.addColumnAlias(c); } )* ')'
+    ;
+
+pkDef[CreateColumnFamilyStatement.RawStatement expr]
+    : k=cident { $expr.addKeyAlias(k); }
+    | '(' k1=cident { $expr.addKeyAlias(k1); } ( ',' kn=cident { $expr.addKeyAlias(kn); } )* ')'
     ;
 
 cfamProperty[CreateColumnFamilyStatement.RawStatement expr]
@@ -494,11 +499,6 @@ map_literal returns [Map<Term, Term> value]
        { $value = m; }
     ;
 
-extendedTerm returns [Term term]
-    : K_TOKEN '(' t=term ')' { $term = Term.tokenOf(t); }
-    | t=term                 { $term = t; }
-    ;
-
 term returns [Term term]
     : t=(STRING_LITERAL | UUID | INTEGER | FLOAT ) { $term = new Term($t.text, $t.type); }
     | t=QMARK                                      { $term = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
@@ -568,11 +568,35 @@ properties returns [Map<String, String> props]
     : k1=property '=' v1=propertyValue { $props.put(k1, v1); } (K_AND kn=property '=' vn=propertyValue { $props.put(kn, vn); } )*
     ;
 
-relation returns [Relation rel]
-    : name=cident type=('=' | '<' | '<=' | '>=' | '>') t=term { $rel = new Relation($name.id, $type.text, $t.term); }
-    | K_TOKEN '(' name=cident ')' type=('=' |'<' | '<=' | '>=' | '>') t=extendedTerm { $rel = new Relation($name.id, $type.text, $t.term, true); }
-    | name=cident K_IN { $rel = Relation.createInRelation($name.id); }
-      '(' f1=term { $rel.addInValue(f1); } (',' fN=term { $rel.addInValue(fN); } )* ')'
+// Either a string or a list of terms
+tokenDefinition returns [Pair<String, List<Term>> tkdef]
+    : K_TOKEN { List<Term> l = new ArrayList<Term>(); }
+         '(' t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )*  ')' { $tkdef = Pair.<String, List<Term>>create(null, l); }
+    | t=STRING_LITERAL { $tkdef = Pair.<String, List<Term>>create($t.text, null); }
+    ;
+
+relation[List<Relation> clauses]
+    : name=cident type=('=' | '<' | '<=' | '>=' | '>') t=term { $clauses.add(new Relation($name.id, $type.text, $t.term)); }
+    | K_TOKEN { List<ColumnIdentifier> l = new ArrayList<ColumnIdentifier>(); }
+       '(' name1=cident { l.add(name1); } ( ',' namen=cident { l.add(namen); })* ')'
+           type=('=' |'<' | '<=' | '>=' | '>') tkd=tokenDefinition
+       {
+           if (tkd.right != null && tkd.right.size() != l.size())
+           {
+               addRecognitionError("The number of arguments to the token() function don't match");
+           }
+           else
+           {
+               Term str = tkd.left == null ? null : new Term(tkd.left, Term.Type.STRING);
+               for (int i = 0; i < l.size(); i++)
+               {
+                   Term tt = str == null ? Term.tokenOf(tkd.right.get(i)) : str;
+                   $clauses.add(new Relation(l.get(i), $type.text, tt, true));
+               }
+           }
+       }
+    | name=cident K_IN { Relation rel = Relation.createInRelation($name.id); }
+       '(' f1=term { rel.addInValue(f1); } (',' fN=term { rel.addInValue(fN); } )* ')' { $clauses.add(rel); }
     ;
 
 comparatorType returns [ParsedType t]

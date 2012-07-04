@@ -120,7 +120,8 @@ public final class CFMetaData
                                                                      + "key_validator text,"
                                                                      + "min_compaction_threshold int,"
                                                                      + "max_compaction_threshold int,"
-                                                                     + "key_alias text,"
+                                                                     + "key_alias text," // that one is kept for compatibility sake
+                                                                     + "key_aliases text,"
                                                                      + "bloom_filter_fp_chance double,"
                                                                      + "caching text,"
                                                                      + "compaction_strategy_class text,"
@@ -205,7 +206,7 @@ public final class CFMetaData
     private AbstractType<?> keyValidator;             // default BytesType (no-op), use comparator types
     private int minCompactionThreshold;               // default 4
     private int maxCompactionThreshold;               // default 32
-    private ByteBuffer keyAlias;                      // default NULL
+    private List<ByteBuffer> keyAliases = new ArrayList<ByteBuffer>();
     private List<ByteBuffer> columnAliases = new ArrayList<ByteBuffer>();
     private ByteBuffer valueAlias;                    // default NULL
     private Double bloomFilterFpChance;               // default NULL
@@ -231,8 +232,7 @@ public final class CFMetaData
     public CFMetaData keyValidator(AbstractType<?> prop) {keyValidator = prop; updateCfDef(); return this;}
     public CFMetaData minCompactionThreshold(int prop) {minCompactionThreshold = prop; return this;}
     public CFMetaData maxCompactionThreshold(int prop) {maxCompactionThreshold = prop; return this;}
-    public CFMetaData keyAlias(ByteBuffer prop) {keyAlias = prop; updateCfDef(); return this;}
-    public CFMetaData keyAlias(String alias) { return keyAlias(ByteBufferUtil.bytes(alias)); }
+    public CFMetaData keyAliases(List<ByteBuffer> prop) {keyAliases = prop; updateCfDef(); return this;}
     public CFMetaData columnAliases(List<ByteBuffer> prop) {columnAliases = prop; updateCfDef(); return this;}
     public CFMetaData valueAlias(ByteBuffer prop) {valueAlias = prop; updateCfDef(); return this;}
     public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; updateCfDef(); return this;}
@@ -309,7 +309,6 @@ public final class CFMetaData
         defaultValidator = BytesType.instance;
         keyValidator = BytesType.instance;
         comment = "";
-        keyAlias = null; // This qualifies as a 'strange default'.
         valueAlias = null;
         column_metadata = new HashMap<ByteBuffer,ColumnDefinition>();
 
@@ -398,7 +397,7 @@ public final class CFMetaData
                       .keyValidator(oldCFMD.keyValidator)
                       .minCompactionThreshold(oldCFMD.minCompactionThreshold)
                       .maxCompactionThreshold(oldCFMD.maxCompactionThreshold)
-                      .keyAlias(oldCFMD.keyAlias)
+                      .keyAliases(new ArrayList<ByteBuffer>(oldCFMD.keyAliases))
                       .columnAliases(new ArrayList<ByteBuffer>(oldCFMD.columnAliases))
                       .valueAlias(oldCFMD.valueAlias)
                       .columnMetadata(clonedColumns)
@@ -468,14 +467,18 @@ public final class CFMetaData
         return maxCompactionThreshold;
     }
 
+    // Used by CQL2 only.
     public ByteBuffer getKeyName()
     {
-        return keyAlias == null ? DEFAULT_KEY_NAME : keyAlias;
+        if (keyAliases.size() > 1)
+            throw new IllegalStateException("Cannot acces column family with composite key from CQL < 3.0.0");
+
+        return keyAliases.isEmpty() ? DEFAULT_KEY_NAME : keyAliases.get(0);
     }
 
-    public ByteBuffer getKeyAlias()
+    public List<ByteBuffer> getKeyAliases()
     {
-        return keyAlias;
+        return keyAliases;
     }
 
     public List<ByteBuffer> getColumnAliases()
@@ -542,7 +545,7 @@ public final class CFMetaData
             .append(maxCompactionThreshold, rhs.maxCompactionThreshold)
             .append(cfId, rhs.cfId)
             .append(column_metadata, rhs.column_metadata)
-            .append(keyAlias, rhs.keyAlias)
+            .append(keyAliases, rhs.keyAliases)
             .append(columnAliases, rhs.columnAliases)
             .append(valueAlias, rhs.valueAlias)
             .append(compactionStrategyClass, rhs.compactionStrategyClass)
@@ -572,7 +575,7 @@ public final class CFMetaData
             .append(maxCompactionThreshold)
             .append(cfId)
             .append(column_metadata)
-            .append(keyAlias)
+            .append(keyAliases)
             .append(columnAliases)
             .append(valueAlias)
             .append(compactionStrategyClass)
@@ -641,7 +644,7 @@ public final class CFMetaData
         if (cf_def.isSetGc_grace_seconds()) { newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds); }
         if (cf_def.isSetMin_compaction_threshold()) { newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold); }
         if (cf_def.isSetMax_compaction_threshold()) { newCFMD.maxCompactionThreshold(cf_def.max_compaction_threshold); }
-        if (cf_def.isSetKey_alias()) { newCFMD.keyAlias(cf_def.key_alias); }
+        if (cf_def.isSetKey_alias()) { newCFMD.keyAliases(Collections.<ByteBuffer>singletonList(cf_def.key_alias)); }
         if (cf_def.isSetKey_validation_class()) { newCFMD.keyValidator(TypeParser.parse(cf_def.key_validation_class)); }
         if (cf_def.isSetCompaction_strategy())
             newCFMD.compactionStrategyClass = createCompactionStrategy(cf_def.compaction_strategy);
@@ -743,14 +746,25 @@ public final class CFMetaData
         keyValidator = cfm.keyValidator;
         minCompactionThreshold = cfm.minCompactionThreshold;
         maxCompactionThreshold = cfm.maxCompactionThreshold;
-        keyAlias = cfm.keyAlias;
 
-        // We don't want updates coming from thrift to erase columnAliases/valuAlias, which would be wrong, but those are not exposed throught thrift. So
-        // we just only override the value when the new has those set.
-        // Note that this doesn't remove feature on the CQL side since removing columnAliases/valuAlias is non-sensical and not allowed (actually, updating
-        // those is not allowed either but it would be possible to allow it through some ALTER RENAME later).
+        /*
+         * We don't allow changing the number of aliases (removal would be plain wrong and we've decided to no support addition since it would
+         * only make sense in very few cases).
+         * However, since thrift doesn't know about aliases (expect for the key aliases, but even then it doesn't support composite ones), we
+         * don't want to reject update that don't set the aliases at all.
+         */
+        if (!cfm.keyAliases.isEmpty())
+        {
+            if (keyAliases.size() != cfm.keyAliases.size())
+                throw new ConfigurationException("Cannot change the number of key aliases");
+            keyAliases = cfm.keyAliases;
+        }
         if (!cfm.columnAliases.isEmpty())
+        {
+            if (columnAliases.size() != cfm.columnAliases.size())
+                throw new ConfigurationException("Cannot change the number of column aliases");
             columnAliases = cfm.columnAliases;
+        }
         if (cfm.valueAlias != null)
             valueAlias = cfm.valueAlias;
         bloomFilterFpChance = cfm.bloomFilterFpChance;
@@ -835,7 +849,9 @@ public final class CFMetaData
         def.setKey_validation_class(keyValidator.toString());
         def.setMin_compaction_threshold(minCompactionThreshold);
         def.setMax_compaction_threshold(maxCompactionThreshold);
-        def.setKey_alias(keyAlias);
+        // We only return the alias if only one is set since thrift don't know about multiple key aliases
+        if (keyAliases.size() == 1)
+            def.setKey_alias(keyAliases.get(0));
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.thrift.ColumnDef>(column_metadata.size());
         for (ColumnDefinition cd : column_metadata.values())
         {
@@ -989,8 +1005,9 @@ public final class CFMetaData
         // check if any of the columns has name equal to the cf.key_alias
         for (ColumnDefinition columndef : column_metadata.values())
         {
-            if (keyAlias != null && keyAlias.equals(columndef.name))
-                throw new ConfigurationException("Cannot have key alias equals to a column name: " + UTF8Type.instance.compose(keyAlias));
+            for (ByteBuffer alias : keyAliases)
+                if (alias.equals(columndef.name))
+                    throw new ConfigurationException("Cannot have key alias equals to a column name: " + UTF8Type.instance.compose(alias));
 
             for (ByteBuffer alias : columnAliases)
                 if (alias.equals(columndef.name))
@@ -1000,7 +1017,8 @@ public final class CFMetaData
                 throw new ConfigurationException("Cannot have value alias equals to a column name: " + UTF8Type.instance.compose(valueAlias));
         }
 
-        validateAlias(keyAlias, "Key");
+        for (ByteBuffer alias : keyAliases)
+            validateAlias(alias, "Key");
         for (ByteBuffer alias : columnAliases)
             validateAlias(alias, "Column");
         validateAlias(valueAlias, "Value");
@@ -1202,8 +1220,7 @@ public final class CFMetaData
         cf.addColumn(Column.create(keyValidator.toString(), timestamp, cfName, "key_validator"));
         cf.addColumn(Column.create(minCompactionThreshold, timestamp, cfName, "min_compaction_threshold"));
         cf.addColumn(Column.create(maxCompactionThreshold, timestamp, cfName, "max_compaction_threshold"));
-        cf.addColumn(keyAlias == null ? DeletedColumn.create(ldt, timestamp, cfName, "key_alias")
-                                      : Column.create(keyAlias, timestamp, cfName, "key_alias"));
+        cf.addColumn(Column.create(json(aliasesAsStrings(keyAliases)), timestamp, cfName, "key_aliases"));
         cf.addColumn(bloomFilterFpChance == null ? DeletedColumn.create(ldt, timestamp, cfName, "bloomFilterFpChance")
                                                  : Column.create(bloomFilterFpChance, timestamp, cfName, "bloom_filter_fp_chance"));
         cf.addColumn(Column.create(caching.toString(), timestamp, cfName, "caching"));
@@ -1211,7 +1228,7 @@ public final class CFMetaData
         cf.addColumn(Column.create(json(compressionParameters.asThriftOptions()), timestamp, cfName, "compression_parameters"));
         cf.addColumn(valueAlias == null ? DeletedColumn.create(ldt, timestamp, cfName, "value_alias")
                                         : Column.create(valueAlias, timestamp, cfName, "value_alias"));
-        cf.addColumn(Column.create(json(columnAliasesAsStrings()), timestamp, cfName, "column_aliases"));
+        cf.addColumn(Column.create(json(aliasesAsStrings(columnAliases)), timestamp, cfName, "column_aliases"));
         cf.addColumn(Column.create(json(compactionStrategyOptions), timestamp, cfName, "compaction_strategy_options"));
     }
 
@@ -1239,14 +1256,21 @@ public final class CFMetaData
             cfm.maxCompactionThreshold(result.getInt("max_compaction_threshold"));
             if (result.has("comment"))
                 cfm.comment(result.getString("comment"));
-            if (result.has("key_alias"))
-                cfm.keyAlias(result.getBytes("key_alias"));
+            // We need support the old key_alias for compatibility sake
+            if (result.has("key_aliases"))
+            {
+                cfm.keyAliases(aliasesFromStrings(fromJsonList(result.getString("key_aliases"))));
+            }
+            else if (result.has("key_alias"))
+            {
+                cfm.keyAliases(Collections.<ByteBuffer>singletonList(result.getBytes("key_alias")));
+            }
             if (result.has("bloom_filter_fp_chance"))
                 cfm.bloomFilterFpChance(result.getDouble("bloom_filter_fp_chance"));
             cfm.caching(Caching.valueOf(result.getString("caching")));
             cfm.compactionStrategyClass(createCompactionStrategy(result.getString("compaction_strategy_class")));
             cfm.compressionParameters(CompressionParameters.create(fromJsonMap(result.getString("compression_parameters"))));
-            cfm.columnAliases(columnAliasesFromStrings(fromJsonList(result.getString("column_aliases"))));
+            cfm.columnAliases(aliasesFromStrings(fromJsonList(result.getString("column_aliases"))));
             if (result.has("value_alias"))
                 cfm.valueAlias(result.getBytes("value_alias"));
             cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
@@ -1278,15 +1302,15 @@ public final class CFMetaData
         return fromSchema(result);
     }
 
-    private List<String> columnAliasesAsStrings()
+    private List<String> aliasesAsStrings(List<ByteBuffer> rawAliases)
     {
-        List<String> aliases = new ArrayList<String>(columnAliases.size());
-        for (ByteBuffer rawAlias : columnAliases)
+        List<String> aliases = new ArrayList<String>(rawAliases.size());
+        for (ByteBuffer rawAlias : rawAliases)
             aliases.add(UTF8Type.instance.compose(rawAlias));
         return aliases;
     }
 
-    private static List<ByteBuffer> columnAliasesFromStrings(List<String> aliases)
+    private static List<ByteBuffer> aliasesFromStrings(List<String> aliases)
     {
         List<ByteBuffer> rawAliases = new ArrayList<ByteBuffer>(aliases.size());
         for (String alias : aliases)
@@ -1383,7 +1407,7 @@ public final class CFMetaData
             .append("keyValidator", keyValidator)
             .append("minCompactionThreshold", minCompactionThreshold)
             .append("maxCompactionThreshold", maxCompactionThreshold)
-            .append("keyAlias", keyAlias)
+            .append("keyAliases", keyAliases)
             .append("columnAliases", columnAliases)
             .append("valueAlias", valueAlias)
             .append("column_metadata", column_metadata)

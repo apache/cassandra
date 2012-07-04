@@ -52,6 +52,11 @@ public interface ColumnNameBuilder
     public int componentCount();
 
     /**
+     * @return the maximum number of component that can still be added to this Builder
+     */
+    public int remainingCount();
+
+    /**
      * Build the column name.
      * @return the built column name
      */

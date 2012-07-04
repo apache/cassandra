@@ -51,7 +51,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     private AbstractType<?> defaultValidator;
     private AbstractType<?> keyValidator;
 
-    private ByteBuffer keyAlias;
+    private final List<ByteBuffer> keyAliases = new ArrayList<ByteBuffer>();
     private final List<ByteBuffer> columnAliases = new ArrayList<ByteBuffer>();
     private ByteBuffer valueAlias;
 
@@ -121,7 +121,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         cfmd.defaultValidator(defaultValidator)
             .columnMetadata(getColumns())
             .keyValidator(keyValidator)
-            .keyAlias(keyAlias)
+            .keyAliases(keyAliases)
             .columnAliases(columnAliases)
             .valueAlias(valueAlias);
 
@@ -181,16 +181,20 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                     stmt.columns.put(id, pt.getType()); // we'll remove what is not a column below
                 }
 
-                // Ensure that exactly one key has been specified.
+                // Ensure that at least one key has been specified.
                 if (keyAliases.size() == 0)
                     throw new InvalidRequestException("You must specify a PRIMARY KEY");
-                else if (keyAliases.size() > 1)
-                    throw new InvalidRequestException("You may only specify one PRIMARY KEY");
 
-                stmt.keyAlias = keyAliases.get(0).key;
-                stmt.keyValidator = getTypeAndRemove(stmt.columns, keyAliases.get(0));
-                if (stmt.keyValidator instanceof CounterColumnType)
-                    throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", stmt.keyAlias));
+                List<AbstractType<?>> keyTypes = new ArrayList<AbstractType<?>>(keyAliases.size());
+                for (ColumnIdentifier alias : keyAliases)
+                {
+                    stmt.keyAliases.add(alias.key);
+                    AbstractType<?> t = getTypeAndRemove(stmt.columns, alias);
+                    if (t instanceof CounterColumnType)
+                        throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", alias));
+                    keyTypes.add(t);
+                }
+                stmt.keyValidator = keyTypes.size() == 1 ? keyTypes.get(0) : CompositeType.getInstance(keyTypes);
 
                 // Handle column aliases
                 if (columnAliases.isEmpty())
@@ -319,7 +323,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
             definitions.put(def, type);
         }
 
-        public void setKeyAlias(ColumnIdentifier alias)
+        public void addKeyAlias(ColumnIdentifier alias)
         {
             keyAliases.add(alias);
         }
