@@ -587,6 +587,14 @@ public class StorageProxy implements StorageProxyMBean
         };
     }
 
+    private static boolean systemTableQuery(List<ReadCommand> cmds)
+    {
+        for (ReadCommand cmd : cmds)
+            if (!cmd.table.equals(Table.SYSTEM_TABLE))
+                return false;
+        return true;
+    }
+
     /**
      * Performs the actual reading of a row out of the StorageService, fetching
      * a specific set of column names from a given column family.
@@ -594,7 +602,7 @@ public class StorageProxy implements StorageProxyMBean
     public static List<Row> read(List<ReadCommand> commands, ConsistencyLevel consistency_level)
             throws IOException, UnavailableException, TimeoutException, InvalidRequestException
     {
-        if (StorageService.instance.isBootstrapMode())
+        if (StorageService.instance.isBootstrapMode() && !systemTableQuery(commands))
         {
             ClientRequestMetrics.readUnavailables.inc();
             throw new UnavailableException();
