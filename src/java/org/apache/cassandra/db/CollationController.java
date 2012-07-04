@@ -126,7 +126,7 @@ public class CollationController
                     if (cf.isMarkedForDelete())
                     {
                         // track the most recent row level tombstone we encounter
-                        mostRecentRowTombstone = cf.deletionInfo().maxTimestamp();
+                        mostRecentRowTombstone = cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
                     }
 
                     container.delete(cf);
@@ -257,7 +257,7 @@ public class CollationController
                 {
                     ColumnFamily cf = iter.getColumnFamily();
                     if (cf.isMarkedForDelete())
-                        mostRecentRowTombstone = cf.deletionInfo().maxTimestamp();
+                        mostRecentRowTombstone = cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
 
                     returnCF.delete(cf);
                     sstablesIterated++;
