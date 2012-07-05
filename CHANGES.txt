@@ -33,6 +33,7 @@
  * restore pre-CASSANDRA-3862 approach to removing expired tombstones
    from row cache during compaction (CASSANDRA-4364)
  * (stress) support for CQL prepared statements (CASSANDRA-3633)
+ * Correctly catch exception when Snappy cannot be loaded (CASSANDRA-4400)
 Merged from 1.0:
  * allow dropping columns shadowed by not-yet-expired supercolumn or row
    tombstones in PrecompactedRow (CASSANDRA-4396)

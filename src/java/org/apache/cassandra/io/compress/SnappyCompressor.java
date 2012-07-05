@@ -25,6 +25,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xerial.snappy.Snappy;
+import org.xerial.snappy.SnappyError;
 
 public class SnappyCompressor implements ICompressor
 {
@@ -59,6 +60,14 @@ public class SnappyCompressor implements ICompressor
             return false;
         }
         catch (NoClassDefFoundError e)
+        {
+            return false;
+        }
+        catch (SnappyError e)
+        {
+            return false;
+        }
+        catch (UnsatisfiedLinkError e)
         {
             return false;
         }
