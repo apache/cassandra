@@ -40,3 +40,7 @@ Copyright 2009-2010 Ning, Inc.
 Alternative map implementation provided by SnapTree
 (https://github.com/nbronson/snaptree)
 Written by Nathan G. Bronson et al.
+
+CQL Native transport uses Netty
+(https://netty.io/)
+Copyright (C) 2011 The Netty Project
