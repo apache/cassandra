@@ -30,17 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.CounterColumn;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ExpiringColumn;
-import org.apache.cassandra.db.RangeSliceCommand;
-import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.db.SliceByNamesReadCommand;
-import org.apache.cassandra.db.SliceFromReadCommand;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -814,6 +804,8 @@ public class SelectStatement implements CQLStatement
             }
         }
 
+        orderResults(cqlRows);
+
         // Internal calls always return columns in the comparator order, even when reverse was set
         if (isReversed)
             Collections.reverse(cqlRows);
@@ -823,6 +815,48 @@ public class SelectStatement implements CQLStatement
 
         return cqlRows;
     }
+
+    /**
+     * Orders results when multiple keys are selected (using IN)
+     */
+    private void orderResults(List<CqlRow> cqlRows)
+    {
+        // There is nothing to do if
+        //   a. there are no results,
+        //   b. no ordering information where given,
+        //   c. key restriction wasn't given or it's not an IN expression
+        if (cqlRows.isEmpty() || parameters.orderings.isEmpty() || keyRestriction == null || keyRestriction.eqValues.size() < 2)
+            return;
+
+        // optimization when only *one* order condition was given
+        // because there is no point of using composite comparator if there is only one order condition
+        if (parameters.orderings.size() == 1)
+        {
+            CFDefinition.Name ordering = cfDef.get(parameters.orderings.keySet().iterator().next());
+            Collections.sort(cqlRows, new SingleColumnComparator(ordering.position + 1, ordering.type));
+            return;
+        }
+
+        // figures out where ordering would start in results (startPosition),
+        // builds a composite type for multi-column comparison from the comparators of the ordering components
+        // and passes collected position information and built composite comparator to CompositeComparator to do
+        // an actual comparison of the CQL rows.
+        int startPosition = -1;
+        List<AbstractType<?>> types = new ArrayList<AbstractType<?>>();
+
+        for (ColumnIdentifier identifier : parameters.orderings.keySet())
+        {
+            CFDefinition.Name orderingColumn = cfDef.get(identifier);
+
+            if (startPosition == -1)
+                startPosition = orderingColumn.position + 1;
+
+            types.add(orderingColumn.type);
+        }
+
+        Collections.sort(cqlRows, new CompositeComparator(startPosition, types));
+    }
+
 
     /**
      * For sparse composite, returns wheter two columns belong to the same
@@ -1036,6 +1070,9 @@ public class SelectStatement implements CQLStatement
 
             if (!stmt.parameters.orderings.isEmpty())
             {
+                if (whereClause.isEmpty())
+                    throw new InvalidRequestException("ORDER BY is only supported in combination with WHERE clause.");
+
                 Boolean[] reversedMap = new Boolean[cfDef.columns.size()];
                 int i = 0;
                 for (Map.Entry<ColumnIdentifier, Boolean> entry : stmt.parameters.orderings.entrySet())
@@ -1074,13 +1111,6 @@ public class SelectStatement implements CQLStatement
                 }
                 assert isReversed != null;
                 stmt.isReversed = isReversed;
-
-                // Only allow ordering if the row key restriction is an equality,
-                // since otherwise the order will be primarily on the row key.
-                // TODO: we could allow ordering for IN queries, as we can do the
-                // sorting post-query easily, but we will have to add it
-                if (stmt.keyRestriction == null || !stmt.keyRestriction.isEquality() || stmt.keyRestriction.eqValues.size() != 1)
-                    throw new InvalidRequestException("Ordering is only supported if the first part of the PRIMARY KEY is restricted by an Equal");
             }
 
             // If this is a query on tokens, it's necessary a range query (there can be more than one key per token), so reject IN queries (as we don't know how to do them)
@@ -1282,6 +1312,64 @@ public class SelectStatement implements CQLStatement
             this.limit = limit;
             this.orderings = orderings;
             this.isCount = isCount;
+        }
+    }
+
+    /**
+     * Used in orderResults(...) method when single 'ORDER BY' condition where given
+     */
+    private static class SingleColumnComparator implements Comparator<CqlRow>
+    {
+        private final int index;
+        private final AbstractType<?> comparator;
+
+        public SingleColumnComparator(int columnIndex, AbstractType<?> orderer)
+        {
+            index = columnIndex;
+            comparator = orderer;
+        }
+
+        public int compare(CqlRow a, CqlRow b)
+        {
+            Column columnA = a.getColumns().get(index);
+            Column columnB = b.getColumns().get(index);
+
+            return comparator.compare(columnA.bufferForValue(), columnB.bufferForValue());
+        }
+    }
+
+    /**
+     * Used in orderResults(...) method when multiple 'ORDER BY' conditions where given
+     */
+    private static class CompositeComparator implements Comparator<CqlRow>
+    {
+        private final int startColumnIndex;
+        private final List<AbstractType<?>> orderings;
+
+        private CompositeComparator(int startIndex, List<AbstractType<?>> orderComparators)
+        {
+            startColumnIndex = startIndex;
+            orderings = orderComparators;
+        }
+
+        public int compare(CqlRow a, CqlRow b)
+        {
+            int currentIndex = startColumnIndex;
+
+            for (AbstractType<?> comparator : orderings)
+            {
+                ByteBuffer aValue = a.getColumns().get(currentIndex).bufferForValue();
+                ByteBuffer bValue = b.getColumns().get(currentIndex).bufferForValue();
+
+                int comparison = comparator.compare(aValue, bValue);
+
+                if (comparison != 0)
+                    return comparison;
+
+                currentIndex++;
+            }
+
+            return 0;
         }
     }
 }
