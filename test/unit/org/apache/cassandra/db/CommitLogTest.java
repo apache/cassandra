@@ -30,6 +30,7 @@ import junit.framework.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogDescriptor;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -100,7 +101,7 @@ public class CommitLogTest extends SchemaLoader
         CommitLog.instance.resetUnsafe();
         // Roughly 32 MB mutation
         RowMutation rm = new RowMutation("Keyspace1", bytes("k"));
-        rm.add(new QueryPath("Standard1", null, bytes("c1")), ByteBuffer.allocate(32 * 1024 * 1024), 0);
+        rm.add(new QueryPath("Standard1", null, bytes("c1")), ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize()/4), 0);
 
         // Adding it 5 times
         CommitLog.instance.add(rm);
@@ -129,7 +130,7 @@ public class CommitLogTest extends SchemaLoader
         CommitLog.instance.resetUnsafe();
         // Roughly 32 MB mutation
         RowMutation rm = new RowMutation("Keyspace1", bytes("k"));
-        rm.add(new QueryPath("Standard1", null, bytes("c1")), ByteBuffer.allocate(32 * 1024 * 1024), 0);
+        rm.add(new QueryPath("Standard1", null, bytes("c1")), ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize()/4), 0);
 
         // Adding it twice (won't change segment)
         CommitLog.instance.add(rm);
@@ -145,7 +146,7 @@ public class CommitLogTest extends SchemaLoader
 
         // Adding new mutation on another CF, large enough (including CL entry overhead) that a new segment is created
         RowMutation rm2 = new RowMutation("Keyspace1", bytes("k"));
-        rm2.add(new QueryPath("Standard2", null, bytes("c1")), ByteBuffer.allocate(64 * 1024 * 1024), 0);
+        rm2.add(new QueryPath("Standard2", null, bytes("c1")), ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize()/2), 0);
         CommitLog.instance.add(rm2);
         // also forces a new segment, since each entry-with-overhead is just over half the CL size
         CommitLog.instance.add(rm2);
@@ -170,7 +171,7 @@ public class CommitLogTest extends SchemaLoader
         CommitLog.instance.resetUnsafe();
 
         RowMutation rm = new RowMutation("Keyspace1", bytes("k"));
-        rm.add(new QueryPath("Standard1", null, bytes("c1")), ByteBuffer.allocate((128 * 1024 * 1024) - 83), 0);
+        rm.add(new QueryPath("Standard1", null, bytes("c1")), ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()) - 83), 0);
         CommitLog.instance.add(rm);
     }
 
