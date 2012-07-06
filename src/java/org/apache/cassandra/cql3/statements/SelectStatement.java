@@ -770,13 +770,13 @@ public class SelectStatement implements CQLStatement
     /**
      * Orders results when multiple keys are selected (using IN)
      */
-    private void orderResults(List<CqlRow> cqlRows)
+    private void orderResults(ResultSet cqlRows)
     {
         // There is nothing to do if
         //   a. there are no results,
         //   b. no ordering information where given,
         //   c. key restriction wasn't given or it's not an IN expression
-        if (cqlRows.isEmpty() || parameters.orderings.isEmpty() || keyRestriction == null || keyRestriction.eqValues.size() < 2)
+        if (cqlRows.size() == 0 || parameters.orderings.isEmpty() || keyRestriction == null || keyRestriction.eqValues.size() < 2)
             return;
 
         // optimization when only *one* order condition was given
@@ -784,7 +784,7 @@ public class SelectStatement implements CQLStatement
         if (parameters.orderings.size() == 1)
         {
             CFDefinition.Name ordering = cfDef.get(parameters.orderings.keySet().iterator().next());
-            Collections.sort(cqlRows, new SingleColumnComparator(ordering.position + 1, ordering.type));
+            Collections.sort(cqlRows.rows, new SingleColumnComparator(ordering.position + 1, ordering.type));
             return;
         }
 
@@ -805,7 +805,7 @@ public class SelectStatement implements CQLStatement
             types.add(orderingColumn.type);
         }
 
-        Collections.sort(cqlRows, new CompositeComparator(startPosition, types));
+        Collections.sort(cqlRows.rows, new CompositeComparator(startPosition, types));
     }
 
 
@@ -1260,7 +1260,7 @@ public class SelectStatement implements CQLStatement
     /**
      * Used in orderResults(...) method when single 'ORDER BY' condition where given
      */
-    private static class SingleColumnComparator implements Comparator<CqlRow>
+    private static class SingleColumnComparator implements Comparator<List<ByteBuffer>>
     {
         private final int index;
         private final AbstractType<?> comparator;
@@ -1271,19 +1271,16 @@ public class SelectStatement implements CQLStatement
             comparator = orderer;
         }
 
-        public int compare(CqlRow a, CqlRow b)
+        public int compare(List<ByteBuffer> a, List<ByteBuffer> b)
         {
-            Column columnA = a.getColumns().get(index);
-            Column columnB = b.getColumns().get(index);
-
-            return comparator.compare(columnA.bufferForValue(), columnB.bufferForValue());
+            return comparator.compare(a.get(index), b.get(index));
         }
     }
 
     /**
      * Used in orderResults(...) method when multiple 'ORDER BY' conditions where given
      */
-    private static class CompositeComparator implements Comparator<CqlRow>
+    private static class CompositeComparator implements Comparator<List<ByteBuffer>>
     {
         private final int startColumnIndex;
         private final List<AbstractType<?>> orderings;
@@ -1294,16 +1291,13 @@ public class SelectStatement implements CQLStatement
             orderings = orderComparators;
         }
 
-        public int compare(CqlRow a, CqlRow b)
+        public int compare(List<ByteBuffer> a, List<ByteBuffer> b)
         {
             int currentIndex = startColumnIndex;
 
             for (AbstractType<?> comparator : orderings)
             {
-                ByteBuffer aValue = a.getColumns().get(currentIndex).bufferForValue();
-                ByteBuffer bValue = b.getColumns().get(currentIndex).bufferForValue();
-
-                int comparison = comparator.compare(aValue, bValue);
+                int comparison = comparator.compare(a.get(currentIndex), b.get(currentIndex));
 
                 if (comparison != 0)
                     return comparison;

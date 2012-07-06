@@ -124,7 +124,7 @@ public class SystemTable
             String clusterName = ByteBufferUtil.string(oldColumns.next().value());
             String tokenBytes = ByteBufferUtil.bytesToHex(oldColumns.next().value());
             // (assume that any node getting upgraded was bootstrapped, since that was stored in a separate row for no particular reason)
-            String req = "INSERT INTO system.%s (key, cluster_name, token_bytes, bootstrapped) VALUES ('%s', '%s', '%s', true)";
+            String req = "INSERT INTO system.%s (key, cluster_name, token_bytes, bootstrapped) VALUES ('%s', '%s', '%s', 'true')";
             processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, clusterName, tokenBytes));
 
             oldStatusCfs.truncate();
