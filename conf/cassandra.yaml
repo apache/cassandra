@@ -159,13 +159,16 @@ saved_caches_directory: /var/lib/cassandra/saved_caches
 commitlog_sync: periodic
 commitlog_sync_period_in_ms: 10000
 
-# Configure  the Size of the individual Commitlog file. The 
-# default is 128 MB, which is almost always fine, but if you are
-# archiving commitlog segments (see commitlog_archiving.properties),
-# then you probably want a finer granularity of archiving; 16 MB
-# is reasonable.
+# The size of the individual commitlog file segments.  A commitlog
+# segment may be archived, deleted, or recycled once all the data
+# in it (potentally from each columnfamily in the system) has been 
+# flushed to sstables.  
 #
-# commitlog_segment_size_in_mb: 128
+# The default size is 32, which is almost always fine, but if you are
+# archiving commitlog segments (see commitlog_archiving.properties),
+# then you probably want a finer granularity of archiving; 8 or 16 MB
+# is reasonable.
+commitlog_segment_size_in_mb: 32
 
 # any class that implements the SeedProvider interface and has a
 # constructor that takes a Map<String, String> of parameters will do.
@@ -222,10 +225,14 @@ concurrent_writes: 32
 # If omitted, Cassandra will set it to 1/3 of the heap.
 # memtable_total_space_in_mb: 2048
 
-# Total space to use for commitlogs. 
+# Total space to use for commitlogs.  Since commitlog segments are
+# mmapped, and hence use up address space, the default size is 32
+# on 32-bit JVMs, and 1024 on 64-bit JVMs.
+#
 # If space gets above this value (it will round up to the next nearest
 # segment multiple), Cassandra will flush every dirty CF in the oldest
-# segment and remove it.
+# segment and remove it.  So a small total commitlog space will tend
+# to cause more flush activity on less-active columnfamilies.
 # commitlog_total_space_in_mb: 4096
 
 # This sets the amount of memtable flush writer threads.  These will

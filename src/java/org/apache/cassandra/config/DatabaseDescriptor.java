@@ -144,6 +144,9 @@ public class DatabaseDescriptor
             Yaml yaml = new Yaml(new Loader(constructor));
             conf = (Config)yaml.load(input);
 
+            if (!System.getProperty("os.arch").contains("64"))
+                logger.info("32bit JVM detected.  It is recommended to run Cassandra on a 64bit JVM for better performance.");
+
             if (conf.commitlog_sync == null)
             {
                 throw new ConfigurationException("Missing required directive CommitLogSync");
@@ -173,6 +176,9 @@ public class DatabaseDescriptor
                 }
                 logger.debug("Syncing log with a period of " + conf.commitlog_sync_period_in_ms);
             }
+
+            if (conf.commitlog_total_space_in_mb == null)
+                conf.commitlog_total_space_in_mb = System.getProperty("os.arch").contains("64") ? 1024 : 32;
 
             /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
             if (conf.disk_access_mode == Config.DiskAccessMode.auto)

@@ -28,6 +28,8 @@
 
 
 1.1.3
+ * update default commitlog segment size to 32MB and total commitlog
+   size to 32/1024 MB for 32/64 bit JVMs, respectively (CASSANDRA-4422)
  * avoid using global partitioner to estimate ranges in index sstables
    (CASSANDRA-4403)
  * restore pre-CASSANDRA-3862 approach to removing expired tombstones
