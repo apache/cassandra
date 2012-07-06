@@ -1,4 +1,5 @@
 1.2-dev
+ * improve "nodetool ring" handling of multi-dc clusters (CASSANDRA-3047)
  * update NTS calculateNaturalEndpoints to be O(N log N) (CASSANDRA-3881)
  * add UseCondCardMark XX jvm settings on jdk 1.7 (CASSANDRA-4366)
  * split up rpc timeout by operation type (CASSANDRA-2819)

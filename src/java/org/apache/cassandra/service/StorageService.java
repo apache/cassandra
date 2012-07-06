@@ -25,17 +25,13 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import com.google.common.base.Supplier;
+import com.google.common.base.Function;
 import com.google.common.collect.*;
-
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -49,23 +45,21 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.DynamicEndpointSnitch;
-import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.*;
+import org.apache.cassandra.locator.*;
+import org.apache.cassandra.metrics.ClientRequestMetrics;
+import org.apache.cassandra.net.IAsyncResult;
+import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.ResponseVerbHandler;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.NodeId;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.OutputHandler;
-import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.*;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -956,25 +950,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             rangeToEndpointMap.put(range, Table.open(keyspace).getReplicationStrategy().getNaturalEndpoints(range.right));
         }
         return rangeToEndpointMap;
-    }
-
-    private Map<InetAddress, Collection<Range<Token>>> constructEndpointToRangeMap(String keyspace)
-    {
-        Multimap<InetAddress, Range<Token>> endpointToRangeMap = Multimaps.newListMultimap(new HashMap<InetAddress, Collection<Range<Token>>>(), new Supplier<List<Range<Token>>>()
-        {
-            public List<Range<Token>> get()
-            {
-                return Lists.newArrayList();
-            }
-        });
-
-        List<Range<Token>> ranges = getAllRanges(tokenMetadata.sortedTokens());
-        for (Range<Token> range : ranges)
-        {
-            for (InetAddress endpoint : Table.open(keyspace).getReplicationStrategy().getNaturalEndpoints(range.left))
-                endpointToRangeMap.put(endpoint, range);
-        }
-        return endpointToRangeMap.asMap();
     }
 
     /*
@@ -2759,22 +2734,35 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         StorageProxy.truncateBlocking(keyspace, columnFamily);
     }
 
-    public Map<String, Float> getOwnership()
+    public boolean isDcAwareReplicationStrategy(String keyspace)
     {
-        List<Token> sortedTokens = new ArrayList<Token>(tokenMetadata.getTokenToEndpointMapForReading().keySet());
-        Collections.sort(sortedTokens);
-        Map<Token, Float> token_map = getPartitioner().describeOwnership(sortedTokens);
-        Map<String, Float> string_map = new HashMap<String, Float>();
-        for(Map.Entry<Token, Float> entry : token_map.entrySet())
-        {
-            string_map.put(entry.getKey().toString(), entry.getValue());
-        }
-        return string_map;
+        return SimpleStrategy.class != Table.open(keyspace).getReplicationStrategy().getClass();
     }
 
-    public Map<String, Float> effectiveOwnership(String keyspace) throws ConfigurationException
+    public Map<InetAddress, Float> getOwnership()
     {
-        Map<String, Float> effective = Maps.newHashMap();
+        Map<Token, InetAddress> tokensToEndpoints = tokenMetadata.getTokenToEndpointMapForReading();
+        List<Token> sortedTokens = new ArrayList<Token>(tokensToEndpoints.keySet());
+        Collections.sort(sortedTokens);
+        // describeOwnership returns tokens in an unspecified order, let's re-order them
+        Map<Token, Float> tokenMap = new TreeMap<Token, Float>(getPartitioner().describeOwnership(sortedTokens));
+        Map<InetAddress, Float> stringMap = new LinkedHashMap<InetAddress, Float>();
+        for (Map.Entry<Token, Float> entry : tokenMap.entrySet())
+            stringMap.put(tokensToEndpoints.get(entry.getKey()), entry.getValue());
+        return stringMap;
+    }
+
+    /**
+     * Calculates ownership. If there are multiple DC's and the replication strategy is DC aware then ownership will be
+     * calculated per dc, i.e. each DC will have total ring ownership divided amongst its nodes. Without replication
+     * total ownership will be a multiple of the number of DC's and this value will then go up within each DC depending
+     * on the number of replicas within itself. For DC unaware replication strategies, ownership without replication
+     * will be 100%.
+     * 
+     * @throws ConfigurationException
+     */
+    public LinkedHashMap<InetAddress, Float> effectiveOwnership(String keyspace) throws ConfigurationException
+    {
         if (Schema.instance.getNonSystemTables().size() <= 0)
             throw new ConfigurationException("Couldn't find any Non System Keyspaces to infer replication topology");
         if (keyspace == null && !hasSameReplication(Schema.instance.getNonSystemTables()))
@@ -2783,21 +2771,64 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (keyspace == null)
             keyspace = Schema.instance.getNonSystemTables().get(0);
 
-        List<Token> sortedTokens = new ArrayList<Token>(tokenMetadata.getTokenToEndpointMapForReading().keySet());
-        Collections.sort(sortedTokens);
-        Map<Token, Float> ownership = getPartitioner().describeOwnership(sortedTokens);
+        final BiMap<InetAddress, Token> endpointsToTokens = ImmutableBiMap.copyOf(tokenMetadata.getTokenToEndpointMapForReading()).inverse();
 
-        for (Entry<InetAddress, Collection<Range<Token>>> ranges : constructEndpointToRangeMap(keyspace).entrySet())
+        Collection<Collection<InetAddress>> endpointsGroupedByDc = new ArrayList<Collection<InetAddress>>();
+        if (isDcAwareReplicationStrategy(keyspace))
         {
-            Token token = tokenMetadata.getToken(ranges.getKey());
-            for (Range<Token> range: ranges.getValue())
+            // mapping of dc's to nodes, use sorted map so that we get dcs sorted
+            SortedMap<String, Collection<InetAddress>> sortedDcsToEndpoints = new TreeMap<String, Collection<InetAddress>>();
+            sortedDcsToEndpoints.putAll(tokenMetadata.getTopology().getDatacenterEndpoints().asMap());
+            for (Collection<InetAddress> endpoints : sortedDcsToEndpoints.values())
+                endpointsGroupedByDc.add(endpoints);
+        }
+        else
+        {
+            endpointsGroupedByDc.add(endpointsToTokens.keySet());
+        }
+
+        LinkedHashMap<InetAddress, Float> finalOwnership = Maps.newLinkedHashMap();
+
+        // calculate ownership per dc
+        for (Collection<InetAddress> endpoints : endpointsGroupedByDc)
+        {
+            // sort the endpoints by their tokens
+            List<InetAddress> sortedEndpoints = Lists.newArrayListWithExpectedSize(endpoints.size());
+            sortedEndpoints.addAll(endpoints);
+
+            Collections.sort(sortedEndpoints, new Comparator<InetAddress>()
             {
-                float value = effective.get(token.toString()) == null ? 0.0F : effective.get(token.toString());
-                effective.put(token.toString(), value + ownership.get(range.left));
+                public int compare(InetAddress o1, InetAddress o2)
+                {
+                    return endpointsToTokens.get(o1).compareTo(endpointsToTokens.get(o2));
+                }
+            });
+
+            // calculate the ownership without replication
+            Function<InetAddress, Token> f = new Function<InetAddress, Token>()
+            {
+                public Token apply(InetAddress arg0)
+                {
+                    return endpointsToTokens.get(arg0);
+                }
+            };
+            Map<Token, Float> tokenOwnership = getPartitioner().describeOwnership(Lists.transform(sortedEndpoints, f));
+
+            // calculate the ownership with replication and add the endpoint to the final ownership map
+            for (InetAddress endpoint : endpoints)
+            {
+                float ownership = 0.0f;
+                for (Range<Token> range : getRangesForEndpoint(keyspace, endpoint))
+                {
+                    if (tokenOwnership.containsKey(range.left))
+                        ownership += tokenOwnership.get(range.left);
+                }
+                finalOwnership.put(endpoint, ownership);
             }
         }
-        return effective;
+        return finalOwnership;
     }
+
 
     private boolean hasSameReplication(List<String> list)
     {

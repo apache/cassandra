@@ -263,12 +263,12 @@ public class NodeProbe
         return ssProxy.getLoadMap();
     }
 
-    public Map<String, Float> getOwnership()
+    public Map<InetAddress, Float> getOwnership()
     {
         return ssProxy.getOwnership();
     }
 
-    public Map<String, Float> effectiveOwnership(String keyspace) throws ConfigurationException
+    public Map<InetAddress, Float> effectiveOwnership(String keyspace) throws ConfigurationException
     {
         return ssProxy.effectiveOwnership(keyspace);
     }
