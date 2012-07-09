@@ -2768,17 +2768,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (keyspace == null && !hasSameReplication(Schema.instance.getNonSystemTables()))
             throw new ConfigurationException("Non System keyspaces doesnt have the same topology");
 
+        TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap();
+        
         if (keyspace == null)
             keyspace = Schema.instance.getNonSystemTables().get(0);
 
-        final BiMap<InetAddress, Token> endpointsToTokens = ImmutableBiMap.copyOf(tokenMetadata.getTokenToEndpointMapForReading()).inverse();
+        final BiMap<InetAddress, Token> endpointsToTokens = ImmutableBiMap.copyOf(metadata.getTokenToEndpointMapForReading()).inverse();
 
         Collection<Collection<InetAddress>> endpointsGroupedByDc = new ArrayList<Collection<InetAddress>>();
         if (isDcAwareReplicationStrategy(keyspace))
         {
             // mapping of dc's to nodes, use sorted map so that we get dcs sorted
             SortedMap<String, Collection<InetAddress>> sortedDcsToEndpoints = new TreeMap<String, Collection<InetAddress>>();
-            sortedDcsToEndpoints.putAll(tokenMetadata.getTopology().getDatacenterEndpoints().asMap());
+            sortedDcsToEndpoints.putAll(metadata.getTopology().getDatacenterEndpoints().asMap());
             for (Collection<InetAddress> endpoints : sortedDcsToEndpoints.values())
                 endpointsGroupedByDc.add(endpoints);
         }

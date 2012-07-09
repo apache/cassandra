@@ -319,7 +319,7 @@ public class NodeCmd
                     ? loadMap.get(endpoint)
                     : "?";
             String owns = new DecimalFormat("##0.00%").format(entry.getValue());
-            outs.printf(format, entry.getKey(), rack, status, state, load, owns, token);
+            outs.printf(format, endpoint, rack, status, state, load, owns, token);
         }
         outs.println();
     }
