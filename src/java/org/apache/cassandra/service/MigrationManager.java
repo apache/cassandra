@@ -56,32 +56,29 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     
     private static volatile UUID highestKnown;
 
-    public void onJoin(InetAddress endpoint, EndpointState epState) { 
+    public void onJoin(InetAddress endpoint, EndpointState epState)
+    {
         VersionedValue value = epState.getApplicationState(ApplicationState.SCHEMA);
+
         if (value != null)
-        {
-            UUID theirVersion = UUID.fromString(value.value);
-            rectify(theirVersion, endpoint);
-        }
+            rectify(UUID.fromString(value.value), endpoint);
     }
 
     public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
     {
         if (state != ApplicationState.SCHEMA)
             return;
-        UUID theirVersion = UUID.fromString(value.value);
-        rectify(theirVersion, endpoint);
+
+        rectify(UUID.fromString(value.value), endpoint);
     }
 
     /** gets called after a this node joins a cluster */
     public void onAlive(InetAddress endpoint, EndpointState state)
     { 
         VersionedValue value = state.getApplicationState(ApplicationState.SCHEMA);
+
         if (value != null)
-        {
-            UUID theirVersion = UUID.fromString(value.value);
-            rectify(theirVersion, endpoint);
-        }
+            rectify(UUID.fromString(value.value), endpoint);
     }
 
     public void onDead(InetAddress endpoint, EndpointState state) { }
@@ -89,13 +86,22 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public void onRestart(InetAddress endpoint, EndpointState state) { }
 
     public void onRemove(InetAddress endpoint) { }
-    
+
     /** 
      * will either push or pull an updating depending on who is behind.
      * fat clients should never push their schemas (since they have no local storage).
      */
     public static void rectify(UUID theirVersion, InetAddress endpoint)
     {
+        if (theirVersion.version() != 1)
+        {
+            logger.warn("Can't merge remove schema because node operates in the mixed version cluster " +
+                        "(Please upgrade all nodes to >= 1.1 to be able to perform schema migrations).");
+
+            highestKnown = Schema.instance.getVersion();
+            return;
+        }
+
         updateHighestKnown(theirVersion);
         UUID myVersion = Schema.instance.getVersion();
         if (theirVersion.timestamp() < myVersion.timestamp()
