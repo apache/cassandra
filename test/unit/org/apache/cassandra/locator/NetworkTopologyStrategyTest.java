@@ -41,6 +41,9 @@ import org.apache.cassandra.dht.StringToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.Pair;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+
 public class NetworkTopologyStrategyTest
 {
     private String table = "Keyspace1";
@@ -105,7 +108,7 @@ public class NetworkTopologyStrategyTest
         DatabaseDescriptor.setEndpointSnitch(snitch);
         TokenMetadata metadata = new TokenMetadata();
         Map<String, String> configOptions = new HashMap<String, String>();
-        Set<Pair<Token, InetAddress>> tokens = new HashSet<Pair<Token, InetAddress>>();
+        Multimap<InetAddress, Token> tokens = HashMultimap.create();
 
         int totalRF = 0;
         for (int dc = 0; dc < dcRacks.length; ++dc)
@@ -120,7 +123,7 @@ public class NetworkTopologyStrategyTest
                     InetAddress address = InetAddress.getByAddress(ipBytes);
                     StringToken token = new StringToken(String.format("%02x%02x%02x", ep, rack, dc));
                     logger.debug("adding node " + address + " at " + token);
-                    tokens.add(new Pair<Token, InetAddress>(token, address));
+                    tokens.put(address, token);
                 }
             }
         }
