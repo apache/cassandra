@@ -18,7 +18,10 @@
 */
 package org.apache.cassandra.db.compaction;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -26,21 +29,22 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertNotNull;
-import static junit.framework.Assert.assertTrue;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static junit.framework.Assert.*;
 
 public class CompactionsTest extends SchemaLoader
 {
@@ -189,6 +193,43 @@ public class CompactionsTest extends SchemaLoader
 
         // make sure max timestamp of compacted sstables is recorded properly after compaction.
         assertMaxTimestamp(cfs, maxTimestampExpected);
+    }
+
+    @Test
+    public void testSuperColumnTombstones() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open(TABLE1);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore("Super1");
+        cfs.disableAutoCompaction();
+
+        DecoratedKey key = Util.dk("tskey");
+        ByteBuffer scName = ByteBufferUtil.bytes("TestSuperColumn");
+
+        // a subcolumn
+        RowMutation rm = new RowMutation(TABLE1, key.key);
+        rm.add(new QueryPath("Super1", scName, ByteBufferUtil.bytes(0)),
+               ByteBufferUtil.EMPTY_BYTE_BUFFER,
+               FBUtilities.timestampMicros());
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        // shadow the subcolumn with a supercolumn tombstone
+        rm = new RowMutation(TABLE1, key.key);
+        rm.delete(new QueryPath("Super1", scName), FBUtilities.timestampMicros());
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        CompactionManager.instance.performMaximal(cfs);
+        assertEquals(1, cfs.getSSTables().size());
+
+        // check that the shadowed column is gone
+        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableScanner scanner = sstable.getScanner(new QueryFilter(null, new QueryPath("Super1", scName), new IdentityQueryFilter()));
+        scanner.seekTo(key);
+        OnDiskAtomIterator iter = scanner.next();
+        assertEquals(key, iter.getKey());
+        SuperColumn sc = (SuperColumn) iter.next();
+        assert sc.getSubColumns().isEmpty();
     }
 
     public void assertMaxTimestamp(ColumnFamilyStore cfs, long maxTimestampExpected)

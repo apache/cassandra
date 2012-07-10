@@ -200,8 +200,9 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         if (deletionInfo().purge(gcBefore) == DeletionInfo.LIVE)
             return true;
 
+        long deletedAt = deletionInfo().maxTimestamp();
         for (IColumn column : columns)
-            if (column.mostRecentLiveChangeAt() < deletionInfo().maxTimestamp() || column.hasIrrelevantData(gcBefore))
+            if (column.mostRecentLiveChangeAt() <= deletedAt || column.hasIrrelevantData(gcBefore))
                 return true;
 
         return false;
