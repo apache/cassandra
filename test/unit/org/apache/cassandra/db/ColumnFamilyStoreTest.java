@@ -1354,7 +1354,6 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         // printRow(cfs, new String(row.key.key.array()), cols);
         String[] returnedColsNames = Iterables.toArray(Iterables.transform(cols, new Function<IColumn, String>()
         {
-            @Override
             public String apply(IColumn arg0)
             {
                 return new String(arg0.name().array());
@@ -1379,22 +1378,19 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         System.err.println("Row key: " + rowKey + " Cols: "
                 + Iterables.transform(cf.getSortedColumns(), new Function<IColumn, String>()
                 {
-                    @Override
                     public String apply(IColumn arg0)
                     {
                         return new String(arg0.name().array());
                     }
                 }));
         System.err.println("Filtered:");
-        System.err.println("Row key: " + rowKey + " Cols: "
-                + Iterables.transform(cols, new Function<IColumn, String>()
-                {
-                    @Override
-                    public String apply(IColumn arg0)
-                    {
-                        return new String(arg0.name().array());
-                    }
-                }));
+        Iterable<String> transformed = Iterables.transform(cols, new Function<IColumn, String>()
+        {
+            public String apply(IColumn arg0)
+            {
+                return new String(arg0.name().array());
+            }
+        });
+        System.err.println("Row key: " + rowKey + " Cols: " + transformed);
     }
-
 }
