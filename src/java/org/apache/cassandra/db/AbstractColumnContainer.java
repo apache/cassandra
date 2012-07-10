@@ -256,8 +256,9 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         if (isMarkedForDelete() && getLocalDeletionTime() < gcBefore)
             return true;
 
+        long deletedAt = getMarkedForDeleteAt();
         for (IColumn column : columns)
-            if (column.mostRecentLiveChangeAt() < getLocalDeletionTime() || column.hasIrrelevantData(gcBefore))
+            if (column.mostRecentLiveChangeAt() <= deletedAt || column.hasIrrelevantData(gcBefore))
                 return true;
 
         return false;
