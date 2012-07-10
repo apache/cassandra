@@ -36,6 +36,8 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -142,6 +144,43 @@ public class CompactionsTest extends SchemaLoader
 
         // make sure max timestamp of compacted sstables is recorded properly after compaction.
         assertMaxTimestamp(cfs, maxTimestampExpected);
+    }
+
+    @Test
+    public void testSuperColumnTombstones() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open(TABLE1);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore("Super1");
+        cfs.disableAutoCompaction();
+
+        DecoratedKey key = Util.dk("tskey");
+        ByteBuffer scName = ByteBufferUtil.bytes("TestSuperColumn");
+
+        // a subcolumn
+        RowMutation rm = new RowMutation(TABLE1, key.key);
+        rm.add(new QueryPath("Super1", scName, ByteBufferUtil.bytes(0)),
+               ByteBufferUtil.EMPTY_BYTE_BUFFER,
+               FBUtilities.timestampMicros());
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        // shadow the subcolumn with a supercolumn tombstone
+        rm = new RowMutation(TABLE1, key.key);
+        rm.delete(new QueryPath("Super1", scName), FBUtilities.timestampMicros());
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        CompactionManager.instance.performMaximal(cfs);
+        assertEquals(1, cfs.getSSTables().size());
+
+        // check that the shadowed column is gone
+        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableScanner scanner = sstable.getScanner(new QueryFilter(null, new QueryPath("Super1", scName), new IdentityQueryFilter()));
+        scanner.seekTo(key);
+        IColumnIterator iter = scanner.next();
+        assertEquals(key, iter.getKey());
+        SuperColumn sc = (SuperColumn) iter.next();
+        assert sc.getSubColumns().isEmpty();
     }
 
     public void assertMaxTimestamp(ColumnFamilyStore cfs, long maxTimestampExpected)
