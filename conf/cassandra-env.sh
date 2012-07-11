@@ -41,6 +41,12 @@ calculate_heap_sizes()
         ;;
     esac
 
+    # some systems like the raspberry pi don't report cores, use at least 1
+    if [ "$system_cpu_cores" -lt "1" ]
+    then
+        system_cpu_cores="1"
+    fi
+
     # set max heap size based on the following
     # max(min(1/2 ram, 1024MB), min(1/4 ram, 8GB))
     # calculate 1/2 ram and cap to 1024MB
