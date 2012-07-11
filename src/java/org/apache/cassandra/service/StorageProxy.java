@@ -112,7 +112,7 @@ public class StorageProxy implements StorageProxyMBean
                               IWriteResponseHandler responseHandler,
                               String localDataCenter,
                               ConsistencyLevel consistency_level)
-            throws IOException, TimeoutException
+            throws IOException, TimeoutException, UnavailableException
             {
                 assert mutation instanceof RowMutation;
                 sendToHintedEndpoints((RowMutation) mutation, targets, responseHandler, localDataCenter, consistency_level);
@@ -287,7 +287,7 @@ public class StorageProxy implements StorageProxyMBean
                                               IWriteResponseHandler responseHandler,
                                               String localDataCenter,
                                               ConsistencyLevel consistency_level)
-    throws IOException, TimeoutException
+    throws IOException, TimeoutException, UnavailableException
     {
         // Multimap that holds onto all the messages and addresses meant for a specific datacenter
         Map<String, Multimap<MessageOut, InetAddress>> dcMessages = new HashMap<String, Multimap<MessageOut, InetAddress>>(targets.size());
@@ -302,7 +302,7 @@ public class StorageProxy implements StorageProxyMBean
             if (totalHintsInProgress.get() > maxHintsInProgress
                 && (hintsInProgress.get(destination).get() > 0 && shouldHint(destination)))
             {
-                throw new TimeoutException();
+                throw new UnavailableException();
             }
 
             if (FailureDetector.instance.isAlive(destination))
@@ -576,7 +576,7 @@ public class StorageProxy implements StorageProxyMBean
                     // and we want to avoid blocking too much the MUTATION stage
                     StageManager.getStage(Stage.REPLICATE_ON_WRITE).execute(new DroppableRunnable(MessagingService.Verb.READ)
                     {
-                        public void runMayThrow() throws IOException, TimeoutException
+                        public void runMayThrow() throws IOException, TimeoutException, UnavailableException
                         {
                             // send mutation to other replica
                             sendToHintedEndpoints(cm.makeReplicationMutation(), targets, responseHandler, localDataCenter, consistency_level);
@@ -1254,7 +1254,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public interface WritePerformer
     {
-        public void apply(IMutation mutation, Collection<InetAddress> targets, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException, TimeoutException;
+        public void apply(IMutation mutation, Collection<InetAddress> targets, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException, TimeoutException, UnavailableException;
     }
 
     private static abstract class DroppableRunnable implements Runnable

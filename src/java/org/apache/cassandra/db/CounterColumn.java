@@ -366,7 +366,8 @@ public class CounterColumn extends Column
 
         StorageProxy.performWrite(rm, ConsistencyLevel.ANY, localDataCenter, new StorageProxy.WritePerformer()
         {
-            public void apply(IMutation mutation, Collection<InetAddress> targets, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException, TimeoutException
+            public void apply(IMutation mutation, Collection<InetAddress> targets, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level)
+            throws IOException, TimeoutException, UnavailableException
             {
                 // We should only send to the remote replica, not the local one
                 targets.remove(local);
