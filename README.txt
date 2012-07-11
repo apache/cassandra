@@ -1,3 +1,5 @@
+
+
 Cassandra is a highly scalable, eventually consistent, distributed, structured 
 key-value store. 
 
@@ -48,66 +50,54 @@ environment variable to the full path of prunsrv (e.g.,
 C:\procrun\prunsrv.exe), and run "bin\cassandra.bat install".
 Similarly, "uninstall" will remove the service.
 
-Now let's try to read and write some data using the command line client.
+Now let's try to read and write some data using the Cassandra Query Language:
 
-  * bin/cassandra-cli --host localhost
+  * bin/cqlsh --cql3
 
 The command line client is interactive so if everything worked you should
 be sitting in front of a prompt...
 
-  Connected to: "Test Cluster" on localhost/9160
-  Welcome to cassandra CLI.
+  Connected to Test Cluster at localhost:9160.
+  [cqlsh 2.2.0 | Cassandra 1.1.3 | CQL spec 3.0.0 | Thrift protocol 19.32.0]
+  Use HELP for help.
+  cqlsh> 
+ 
 
-  Type 'help;' or '?' for help. Type 'quit;' or 'exit;' to quit.
-  [default@unknown] 
-
-As the banner says, you can use 'help;' or '?' to see what the CLI has to
+As the banner says, you can use 'help;' or '?' to see what CQL has to
 offer, and 'quit;' or 'exit;' when you've had enough fun. But lets try
-something slightly more interesting...
+something slightly more interesting:
 
-  [default@unknown] create keyspace Keyspace1;
-  ece86bde-dc55-11df-8240-e700f669bcfc
-  [default@unknown] use Keyspace1;
-  Authenticated to keyspace: Keyspace1
-  [default@Keyspace1] create column family Users with comparator=UTF8Type and default_validation_class=UTF8Type and key_validation_class=UTF8Type;
-  737c7a71-dc56-11df-8240-e700f669bcfc
+  cqlsh> CREATE SCHEMA schema1 
+         WITH strategy_class = 'SimpleStrategy'
+         AND strategy_options:replication_factor='1';
+  cqlsh> USE schema1;
+  cqlsh:Schema1> CREATE TABLE users (
+                   user_id varchar PRIMARY KEY,
+                   first varchar,
+                   last varchar,
+                   age int
+                 );
+  cqlsh:Schema1> INSERT INTO users (user_id, first, last, age) 
+                 VALUES ('jsmith', 'John', 'Smith', 42);
+  cqlsh:Schema1> SELECT * FROM users;
+   user_id | age | first | last
+  ---------+-----+-------+-------
+    jsmith |  42 |  john | smith
 
-  [default@KS1] set Users[jsmith][first] = 'John';
-  Value inserted.
-  [default@KS1] set Users[jsmith][last] = 'Smith';
-  Value inserted.
-  [default@KS1] set Users[jsmith][age] = long(42);
-  Value inserted.
-  [default@KS1] get Users[jsmith];
-  => (column=last, value=Smith, timestamp=1287604215498000)
-  => (column=first, value=John, timestamp=1287604214111000)
-  => (column=age, value=42, timestamp=1287604216661000)
-  Returned 3 results.
+  cqlsh:Schema1> 
 
 If your session looks similar to what's above, congrats, your single node
-cluster is operational! But what exactly was all of that? Let's break it
-down into pieces and see.
+cluster is operational! 
 
-  set Users[jsmith][first] = 'John';
-        \      \        \          \
-         \      \_ key   \          \_ value
-          \               \_ column
-           \_ column family
-
-Data stored in Cassandra is associated with a column family (Users),
-which in turn is associated with a keyspace (Keyspace1). In the example
-above, we set the value 'John' in the 'first' column for key 'jsmith'.
-
-For more information on the Cassandra data model be sure to checkout 
-http://wiki.apache.org/cassandra/DataModel
+For more on what commands are supported by CQL, see 
+https://github.com/apache/cassandra/blob/trunk/doc/cql3/CQL.textile.  A
+reasonable way to think of it is as, "SQL minus joins and subqueries."
 
 Wondering where to go from here? 
 
-  * The wiki (http://wiki.apache.org/cassandra/) is the 
-    best source for additional information.
-  * Join us in #cassandra on irc.freenode.net and ask questions.
+  * Getting started: http://wiki.apache.org/cassandra/GettingStarted
+  * Join us in #cassandra on irc.freenode.net and ask questions
   * Subscribe to the Users mailing list by sending a mail to
     user-subscribe@cassandra.apache.org
-
-
-
+  * Planet Cassandra aggregates Cassandra articles and news:
+    http://planetcassandra.org/
