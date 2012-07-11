@@ -1187,7 +1187,7 @@ class Shell(cmd.Cmd):
             for cf in ksdef.cf_defs:
                 out.write('\n')
                 # yes, cf might be looked up again. oh well.
-                self.print_recreate_columnfamily(ksname, cf.name, out)
+                self.print_recreate_columnfamily(ksdef.name, cf.name, out)
 
     def print_recreate_columnfamily(self, ksname, cfname, out):
         """
@@ -1201,13 +1201,9 @@ class Shell(cmd.Cmd):
         """
 
         # no metainfo available from system.schema_* for system CFs, so we have
-        # to use cfdef-based description for those.  also, use cfdef-based
-        # description when the CF doesn't have a composite key.  that seems like
-        # an ok compromise between hiding "comparator",
-        # "default_validation_class", etc for cql3, and still allowing users
-        # to work with old cql2-style wide tables.
+        # to use cfdef-based description for those.
 
-        if cfname != 'system' \
+        if ksname != 'system' \
         and self.cqlver_atleast(3):
             try:
                 layout = self.get_columnfamily_layout(ksname, cfname)
@@ -1215,8 +1211,7 @@ class Shell(cmd.Cmd):
                 # most likely a 1.1 beta where cql3 is supported, but not system.schema_*
                 pass
             else:
-                if len(layout.key_components) > 1:
-                    return self.print_recreate_columnfamily_from_layout(layout, out)
+                return self.print_recreate_columnfamily_from_layout(layout, out)
 
         cfdef = self.get_columnfamily(cfname, ksname=ksname)
         return self.print_recreate_columnfamily_from_cfdef(cfdef, out)
