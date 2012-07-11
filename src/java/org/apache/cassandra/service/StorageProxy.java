@@ -283,10 +283,10 @@ public class StorageProxy implements StorageProxyMBean
      * @throws TimeoutException if the hints cannot be written/enqueued
      */
     public static void sendToHintedEndpoints(final RowMutation rm,
-                                              Collection<InetAddress> targets,
-                                              IWriteResponseHandler responseHandler,
-                                              String localDataCenter,
-                                              ConsistencyLevel consistency_level)
+                                             Collection<InetAddress> targets,
+                                             IWriteResponseHandler responseHandler,
+                                             String localDataCenter,
+                                             ConsistencyLevel consistency_level)
     throws IOException, TimeoutException, UnavailableException
     {
         // Multimap that holds onto all the messages and addresses meant for a specific datacenter
@@ -321,8 +321,8 @@ public class StorageProxy implements StorageProxyMBean
                     Multimap<MessageOut, InetAddress> messages = dcMessages.get(dc);
                     if (messages == null)
                     {
-                       messages = HashMultimap.create();
-                       dcMessages.put(dc, messages);
+                        messages = HashMultimap.create();
+                        dcMessages.put(dc, messages);
                     }
 
                     messages.put(rm.createMessage(), destination);
