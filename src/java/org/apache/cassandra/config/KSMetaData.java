@@ -220,7 +220,6 @@ public final class KSMetaData
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(name));
         ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_KEYSPACES_CF);
 
-        cf.addColumn(Column.create(name, timestamp, "name"));
         cf.addColumn(Column.create(durableWrites, timestamp, "durable_writes"));
         cf.addColumn(Column.create(strategyClass.getName(), timestamp, "strategy_class"));
         cf.addColumn(Column.create(json(strategyOptions), timestamp, "strategy_options"));
@@ -245,7 +244,7 @@ public final class KSMetaData
         UntypedResultSet.Row result = QueryProcessor.resultify("SELECT * FROM system.schema_keyspaces", row).one();
         try
         {
-            return new KSMetaData(result.getString("name"),
+            return new KSMetaData(result.getString("keyspace_name"),
                                   AbstractReplicationStrategy.getClass(result.getString("strategy_class")),
                                   fromJsonMap(result.getString("strategy_options")),
                                   result.getBoolean("durable_writes"),

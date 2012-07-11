@@ -103,7 +103,6 @@ public final class CFMetaData
     // new-style schema
     public static final CFMetaData SchemaKeyspacesCf = compile(8, "CREATE TABLE " + SystemTable.SCHEMA_KEYSPACES_CF + "("
                                                                  + "keyspace_name text PRIMARY KEY,"
-                                                                 + "name text," // TODO
                                                                  + "durable_writes boolean,"
                                                                  + "strategy_class text,"
                                                                  + "strategy_options text"
