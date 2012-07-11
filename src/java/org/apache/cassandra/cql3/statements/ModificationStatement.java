@@ -75,14 +75,7 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
 
     public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        try
-        {
-            StorageProxy.mutate(getMutations(state, variables), getConsistencyLevel());
-        }
-        catch (TimeoutException e)
-        {
-            throw new TimedOutException();
-        }
+        StorageProxy.mutate(getMutations(state, variables), getConsistencyLevel());
         return null;
     }
 

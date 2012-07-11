@@ -55,7 +55,7 @@ namespace rb CassandraThrift
 # An effort should be made not to break forward-client-compatibility either
 # (e.g. one should avoid removing obsolete fields from the IDL), but no
 # guarantees in this respect are made by the Cassandra project.
-const string VERSION = "19.32.0"
+const string VERSION = "19.33.0"
 
 
 #
@@ -140,6 +140,12 @@ exception UnavailableException {
 
 /** RPC timeout was exceeded.  either a node failed mid-operation, or load was too high, or the requested op was too large. */
 exception TimedOutException {
+    /** 
+     * if a write operation was acknowledged some replicas but not enough to 
+     * satisfy the required ConsistencyLevel, the number of successful 
+     * replies will be given here
+     */
+    1: optional i32 acknowledged_by
 }
 
 /** invalid authentication request (invalid keyspace, user does not exist, or credentials invalid) */

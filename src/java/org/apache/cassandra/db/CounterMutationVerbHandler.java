@@ -30,6 +30,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -52,13 +53,15 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
         }
         catch (UnavailableException e)
         {
-            // We check for UnavailableException in the coordinator not. It is
+            // We check for UnavailableException in the coordinator now. It is
             // hence reasonable to let the coordinator timeout in the very
             // unlikely case we arrive here
+            logger.debug("counter unavailable", e);
         }
-        catch (TimeoutException e)
+        catch (TimedOutException e)
         {
             // The coordinator node will have timeout itself so we let that goes
+            logger.debug("counter timeout", e);
         }
         catch (IOException e)
         {

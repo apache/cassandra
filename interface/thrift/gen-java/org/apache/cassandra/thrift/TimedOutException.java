@@ -48,11 +48,23 @@ import org.slf4j.LoggerFactory;
 public class TimedOutException extends Exception implements org.apache.thrift.TBase<TimedOutException, TimedOutException._Fields>, java.io.Serializable, Cloneable {
   private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("TimedOutException");
 
+  private static final org.apache.thrift.protocol.TField ACKNOWLEDGED_BY_FIELD_DESC = new org.apache.thrift.protocol.TField("acknowledged_by", org.apache.thrift.protocol.TType.I32, (short)1);
 
+  /**
+   * if a write operation was acknowledged some replicas but not enough to
+   * satisfy the required ConsistencyLevel, the number of successful
+   * replies will be given here
+   */
+  public int acknowledged_by; // required
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-;
+    /**
+     * if a write operation was acknowledged some replicas but not enough to
+     * satisfy the required ConsistencyLevel, the number of successful
+     * replies will be given here
+     */
+    ACKNOWLEDGED_BY((short)1, "acknowledged_by");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -67,6 +79,8 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
      */
     public static _Fields findByThriftId(int fieldId) {
       switch(fieldId) {
+        case 1: // ACKNOWLEDGED_BY
+          return ACKNOWLEDGED_BY;
         default:
           return null;
       }
@@ -105,9 +119,16 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
       return _fieldName;
     }
   }
+
+  // isset id assignments
+  private static final int __ACKNOWLEDGED_BY_ISSET_ID = 0;
+  private BitSet __isset_bit_vector = new BitSet(1);
+
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
     Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.ACKNOWLEDGED_BY, new org.apache.thrift.meta_data.FieldMetaData("acknowledged_by", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(TimedOutException.class, metaDataMap);
   }
@@ -119,6 +140,9 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
    * Performs a deep copy on <i>other</i>.
    */
   public TimedOutException(TimedOutException other) {
+    __isset_bit_vector.clear();
+    __isset_bit_vector.or(other.__isset_bit_vector);
+    this.acknowledged_by = other.acknowledged_by;
   }
 
   public TimedOutException deepCopy() {
@@ -127,15 +151,61 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
 
   @Override
   public void clear() {
+    setAcknowledged_byIsSet(false);
+    this.acknowledged_by = 0;
+  }
+
+  /**
+   * if a write operation was acknowledged some replicas but not enough to
+   * satisfy the required ConsistencyLevel, the number of successful
+   * replies will be given here
+   */
+  public int getAcknowledged_by() {
+    return this.acknowledged_by;
+  }
+
+  /**
+   * if a write operation was acknowledged some replicas but not enough to
+   * satisfy the required ConsistencyLevel, the number of successful
+   * replies will be given here
+   */
+  public TimedOutException setAcknowledged_by(int acknowledged_by) {
+    this.acknowledged_by = acknowledged_by;
+    setAcknowledged_byIsSet(true);
+    return this;
+  }
+
+  public void unsetAcknowledged_by() {
+    __isset_bit_vector.clear(__ACKNOWLEDGED_BY_ISSET_ID);
+  }
+
+  /** Returns true if field acknowledged_by is set (has been assigned a value) and false otherwise */
+  public boolean isSetAcknowledged_by() {
+    return __isset_bit_vector.get(__ACKNOWLEDGED_BY_ISSET_ID);
+  }
+
+  public void setAcknowledged_byIsSet(boolean value) {
+    __isset_bit_vector.set(__ACKNOWLEDGED_BY_ISSET_ID, value);
   }
 
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
+    case ACKNOWLEDGED_BY:
+      if (value == null) {
+        unsetAcknowledged_by();
+      } else {
+        setAcknowledged_by((Integer)value);
+      }
+      break;
+
     }
   }
 
   public Object getFieldValue(_Fields field) {
     switch (field) {
+    case ACKNOWLEDGED_BY:
+      return Integer.valueOf(getAcknowledged_by());
+
     }
     throw new IllegalStateException();
   }
@@ -147,6 +217,8 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
     }
 
     switch (field) {
+    case ACKNOWLEDGED_BY:
+      return isSetAcknowledged_by();
     }
     throw new IllegalStateException();
   }
@@ -164,12 +236,26 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
     if (that == null)
       return false;
 
+    boolean this_present_acknowledged_by = true && this.isSetAcknowledged_by();
+    boolean that_present_acknowledged_by = true && that.isSetAcknowledged_by();
+    if (this_present_acknowledged_by || that_present_acknowledged_by) {
+      if (!(this_present_acknowledged_by && that_present_acknowledged_by))
+        return false;
+      if (this.acknowledged_by != that.acknowledged_by)
+        return false;
+    }
+
     return true;
   }
 
   @Override
   public int hashCode() {
     HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_acknowledged_by = true && (isSetAcknowledged_by());
+    builder.append(present_acknowledged_by);
+    if (present_acknowledged_by)
+      builder.append(acknowledged_by);
 
     return builder.toHashCode();
   }
@@ -182,6 +268,16 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
     int lastComparison = 0;
     TimedOutException typedOther = (TimedOutException)other;
 
+    lastComparison = Boolean.valueOf(isSetAcknowledged_by()).compareTo(typedOther.isSetAcknowledged_by());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetAcknowledged_by()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.acknowledged_by, typedOther.acknowledged_by);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -199,6 +295,14 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
         break;
       }
       switch (field.id) {
+        case 1: // ACKNOWLEDGED_BY
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
+            this.acknowledged_by = iprot.readI32();
+            setAcknowledged_byIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
@@ -214,6 +318,11 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
+    if (isSetAcknowledged_by()) {
+      oprot.writeFieldBegin(ACKNOWLEDGED_BY_FIELD_DESC);
+      oprot.writeI32(this.acknowledged_by);
+      oprot.writeFieldEnd();
+    }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
@@ -223,6 +332,11 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
     StringBuilder sb = new StringBuilder("TimedOutException(");
     boolean first = true;
 
+    if (isSetAcknowledged_by()) {
+      sb.append("acknowledged_by:");
+      sb.append(this.acknowledged_by);
+      first = false;
+    }
     sb.append(")");
     return sb.toString();
   }
@@ -241,6 +355,8 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
 
   private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
     try {
+      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+      __isset_bit_vector = new BitSet(1);
       read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
     } catch (org.apache.thrift.TException te) {
       throw new java.io.IOException(te);

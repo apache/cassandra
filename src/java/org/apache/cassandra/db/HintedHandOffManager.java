@@ -125,7 +125,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         StorageService.optionalTasks.scheduleWithFixedDelay(runnable, 10, 10, TimeUnit.MINUTES);
     }
 
-    private static void sendMutation(InetAddress endpoint, MessageOut<?> message) throws TimeoutException
+    private static void sendMutation(InetAddress endpoint, MessageOut<?> message) throws TimedOutException
     {
         IWriteResponseHandler responseHandler = WriteResponseHandler.create(endpoint);
         MessagingService.instance().sendRR(message, endpoint, responseHandler);
@@ -364,7 +364,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                     }
                     deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
                 }
-                catch (TimeoutException e)
+                catch (TimedOutException e)
                 {
                     logger.info(String.format("Timed out replaying hints to %s; aborting further deliveries", endpoint));
                     break delivery;

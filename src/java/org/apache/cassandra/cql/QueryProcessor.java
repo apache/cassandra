@@ -264,10 +264,6 @@ public class QueryProcessor
         {
             throw new UnavailableException();
         }
-        catch (TimeoutException e)
-        {
-            throw new TimedOutException();
-        }
     }
 
     private static IFilter filterFromSelect(SelectStatement select, CFMetaData metadata, List<ByteBuffer> variables)
@@ -617,10 +613,6 @@ public class QueryProcessor
                 {
                     throw new UnavailableException();
                 }
-                catch (TimeoutException e)
-                {
-                    throw new TimedOutException();
-                }
 
                 result.type = CqlResultType.VOID;
                 return result;
@@ -664,14 +656,7 @@ public class QueryProcessor
                     validateKey(deletion.key());
                 }
 
-                try
-                {
-                    StorageProxy.mutate(deletions, delete.getConsistencyLevel());
-                }
-                catch (TimeoutException e)
-                {
-                    throw new TimedOutException();
-                }
+                StorageProxy.mutate(deletions, delete.getConsistencyLevel());
 
                 result.type = CqlResultType.VOID;
                 return result;

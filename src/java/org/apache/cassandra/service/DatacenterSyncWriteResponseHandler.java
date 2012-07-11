@@ -79,12 +79,24 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
 
         for (AtomicInteger i : responses.values())
         {
-            if (0 < i.get())
+            if (i.get() > 0)
                 return;
         }
 
         // all the quorum conditions are met
         condition.signal();
+    }
+
+    protected int ackCount()
+    {
+        int n = 0;
+        for (Map.Entry<String, AtomicInteger> entry : responses.entrySet())
+        {
+            String dc = entry.getKey();
+            AtomicInteger i = entry.getValue();
+            n += (strategy.getReplicationFactor(dc) / 2) + 1 - i.get();
+        }
+        return n;
     }
 
     public void assureSufficientLiveNodes() throws UnavailableException
