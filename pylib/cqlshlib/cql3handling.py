@@ -41,6 +41,17 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'compact', 'storage', 'order', 'by', 'asc', 'desc', 'clustering', 'token'
     ))
 
+    columnfamily_options = (
+        # (CQL option name, Thrift option name (or None if same))
+        ('comment', None),
+        ('comparator', 'comparator_type'),
+        ('read_repair_chance', None),
+        ('gc_grace_seconds', None),
+        ('default_validation', 'default_validation_class'),
+        ('replicate_on_write', None),
+        ('compaction_strategy_class', 'compaction_strategy'),
+    )
+
     columnfamily_layout_options = (
         'comment',
         'bloom_filter_fp_chance',
@@ -48,8 +59,6 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'read_repair_chance',
         # 'local_read_repair_chance',   -- not yet a valid cql option
         'gc_grace_seconds',
-        'min_compaction_threshold',
-        'max_compaction_threshold',
         'replicate_on_write',
         'compaction_strategy_class',
     )
@@ -90,7 +99,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
     def cql3_escape_name(name):
         return '"%s"' % name.replace('"', '""')
 
-    valid_cql3_word_re = re.compile(r'^[a-z][0-9a-z_]*$', re.I)
+    valid_cql3_word_re = re.compile(r'^[a-z][0-9a-z_]*$')
 
     @classmethod
     def is_valid_cql3_name(cls, s):
