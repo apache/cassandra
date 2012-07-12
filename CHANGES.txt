@@ -10,6 +10,7 @@
  * Oversize integer in CQL throws NumberFormatException (CASSANDRA-4291)
  * Set gc_grace on index CF to 0 (CASSANDRA-4314)
  * fix 1.0.x node join to mixed version cluster, other nodes >= 1.1 (CASSANDRA-4195)
+ * Fix LCS splitting sstable base on uncompressed size (CASSANDRA-4419)
 
 
 1.0.10
