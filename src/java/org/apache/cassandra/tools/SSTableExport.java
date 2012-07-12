@@ -17,29 +17,54 @@
  */
 package org.apache.cassandra.tools;
 
+import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
+import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.AbstractColumnContainer;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.CounterColumn;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletedColumn;
+import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.ExpiringColumn;
+import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.OnDiskAtom;
+import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
-
-import org.apache.commons.cli.*;
-
-import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.KeyIterator;
+import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
+import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.map.ObjectMapper;
-
-import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
-import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
 
 /**
  * Export SSTables to JSON format.
@@ -84,6 +109,56 @@ public class SSTableExport
     {
         writeJSON(out, value);
         out.print(": ");
+    }
+
+    /**
+     * JSON ColumnFamily metadata serializer.</br> Serializes:
+     * <ul>
+     * <li>column family deletion info (if present)</li>
+     * </ul>
+     *
+     * @param out
+     *            The output steam to write data
+     * @param columnFamily
+     *            to which the metadata belongs
+     */
+    private static void writeMeta(PrintStream out, AbstractColumnContainer columnContainer)
+    {
+        if (columnContainer instanceof ColumnFamily)
+        {
+            ColumnFamily columnFamily = (ColumnFamily) columnContainer;
+            if (!columnFamily.deletionInfo().equals(DeletionInfo.LIVE))
+            {
+                // begin meta
+                writeKey(out, "metadata");
+                writeDeletionInfo(out, columnFamily.deletionInfo().getTopLevelDeletion());
+                out.print(",");
+            }
+            return;
+        }
+
+        if (columnContainer instanceof SuperColumn)
+        {
+            SuperColumn superColumn = (SuperColumn) columnContainer;
+            DeletionInfo deletionInfo = new DeletionInfo(superColumn.getMarkedForDeleteAt(),
+                    superColumn.getLocalDeletionTime());
+            if (!deletionInfo.equals(DeletionInfo.LIVE))
+            {
+                writeKey(out, "metadata");
+                writeDeletionInfo(out, deletionInfo.getTopLevelDeletion());
+                out.print(",");
+            }
+            return;
+        }
+    }
+
+    private static void writeDeletionInfo(PrintStream out, DeletionTime deletionTime)
+    {
+        out.print("{");
+        writeKey(out, "deletionInfo");
+        // only store topLevelDeletion (serializeForSSTable only uses this)
+        writeJSON(out, deletionTime);
+        out.print("}");
     }
 
     /**
@@ -196,21 +271,26 @@ public class SSTableExport
         CFMetaData cfMetaData = columnFamily.metadata();
         AbstractType<?> comparator = columnFamily.getComparator();
 
-        writeKey(out, bytesToHex(key.key));
+        out.print("{");
+        writeKey(out, "key");
+        writeJSON(out, bytesToHex(key.key));
+        out.print(",");
+
+        writeMeta(out, columnFamily);
+
+        writeKey(out, "columns");
         out.print(isSuperCF ? "{" : "[");
 
         if (isSuperCF)
         {
             while (row.hasNext())
             {
-                OnDiskAtom scol = row.next();
+                SuperColumn scol = (SuperColumn)row.next();
                 assert scol instanceof IColumn;
                 IColumn column = (IColumn)scol;
                 writeKey(out, comparator.getString(column.name()));
                 out.print("{");
-                writeKey(out, "deletedAt");
-                out.print(column.getMarkedForDeleteAt());
-                out.print(", ");
+                writeMeta(out, scol);
                 writeKey(out, "subColumns");
                 out.print("[");
                 serializeIColumns(column.getSubColumns().iterator(), out, columnFamily.getSubComparator(), cfMetaData);
@@ -227,7 +307,7 @@ public class SSTableExport
         }
 
         out.print(isSuperCF ? "}" : "]");
-
+        out.print("}");
     }
 
     /**
@@ -276,7 +356,7 @@ public class SSTableExport
         if (excludes != null)
             toExport.removeAll(Arrays.asList(excludes));
 
-        outs.println("{");
+        outs.println("[");
 
         int i = 0;
 
@@ -309,7 +389,7 @@ public class SSTableExport
             i++;
         }
 
-        outs.println("\n}");
+        outs.println("\n]");
         outs.flush();
 
         scanner.close();
@@ -328,7 +408,7 @@ public class SSTableExport
         SSTableIdentityIterator row;
         SSTableScanner scanner = reader.getDirectScanner();
 
-        outs.println("{");
+        outs.println("[");
 
         int i = 0;
 
@@ -349,7 +429,7 @@ public class SSTableExport
             i++;
         }
 
-        outs.println("\n}");
+        outs.println("\n]");
         outs.flush();
 
         scanner.close();

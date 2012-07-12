@@ -18,35 +18,34 @@
 */
 package org.apache.cassandra.tools;
 
+import static junit.framework.Assert.assertEquals;
+import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
+import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collections;
 
+import org.junit.Test;
+
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.DeletedColumn;
+import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.SuperColumn;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
-
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
-
-import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
-import org.apache.cassandra.Util;
-
 import org.json.simple.parser.ParseException;
-import org.junit.Test;
 
 public class SSTableImportTest extends SchemaLoader
 {
@@ -56,7 +55,7 @@ public class SSTableImportTest extends SchemaLoader
         // Import JSON to temp SSTable file
         String jsonUrl = resourcePath("SimpleCF.json");
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
-        SSTableImport.importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
+        new SSTableImport(true).importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
 
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
@@ -85,7 +84,7 @@ public class SSTableImportTest extends SchemaLoader
         // Import JSON to temp SSTable file
         String jsonUrl = resourcePath("SimpleCF.oldformat.json");
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
-        SSTableImport.importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
+        new SSTableImport(true).importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
 
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
@@ -106,7 +105,7 @@ public class SSTableImportTest extends SchemaLoader
     {
         String jsonUrl = resourcePath("SuperCF.json");
         File tempSS = tempSSTableFile("Keyspace1", "Super4");
-        SSTableImport.importJson(jsonUrl, "Keyspace1", "Super4", tempSS.getPath());
+        new SSTableImport(true).importJson(jsonUrl, "Keyspace1", "Super4", tempSS.getPath());
 
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
@@ -114,6 +113,8 @@ public class SSTableImportTest extends SchemaLoader
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         qf.collateOnDiskAtom(cf, Collections.singletonList(qf.getSSTableColumnIterator(reader)), Integer.MIN_VALUE);
         IColumn superCol = cf.getColumn(ByteBufferUtil.bytes("superA"));
+        assertEquals("supercolumn deletion time did not match the expected time", new DeletionInfo(0, 0),
+                ((SuperColumn) superCol).deletionInfo());
         assert superCol != null;
         assert superCol.getSubColumns().size() > 0;
         IColumn subColumn = superCol.getSubColumn(ByteBufferUtil.bytes("636f6c4141"));
@@ -121,17 +122,59 @@ public class SSTableImportTest extends SchemaLoader
     }
 
     @Test
-    public void testImportUnsortedMode() throws IOException, URISyntaxException
+    public void testImportUnsortedDataWithSortedOptionFails() throws IOException, URISyntaxException
     {
         String jsonUrl = resourcePath("UnsortedSuperCF.json");
         File tempSS = tempSSTableFile("Keyspace1", "Super4");
 
-        ColumnFamily columnFamily = ColumnFamily.create("Keyspace1", "Super4");
-        IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
-
-        SSTableImport.setKeyCountToImport(3);
-        int result = SSTableImport.importSorted(jsonUrl, columnFamily, tempSS.getPath(), partitioner);
+        int result = new SSTableImport(3,true).importJson(jsonUrl, "Keyspace1","Super4", tempSS.getPath());
         assert result == -1;
+    }
+
+    @Test
+    public void testImportUnsortedMode() throws IOException, URISyntaxException
+    {
+        String jsonUrl = resourcePath("UnsortedCF.json");
+        File tempSS = tempSSTableFile("Keyspace1", "Standard1");
+
+        new SSTableImport().importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
+
+        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
+        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), new QueryPath("Standard1"));
+        OnDiskAtomIterator iter = qf.getSSTableColumnIterator(reader);
+        ColumnFamily cf = iter.getColumnFamily();
+        while (iter.hasNext())
+            cf.addAtom(iter.next());
+        assert cf.getColumn(ByteBufferUtil.bytes("colAA")).value().equals(hexToBytes("76616c4141"));
+        assert !(cf.getColumn(ByteBufferUtil.bytes("colAA")) instanceof DeletedColumn);
+        IColumn expCol = cf.getColumn(ByteBufferUtil.bytes("colAC"));
+        assert expCol.value().equals(hexToBytes("76616c4143"));
+        assert expCol instanceof ExpiringColumn;
+        assert ((ExpiringColumn) expCol).getTimeToLive() == 42 && expCol.getLocalDeletionTime() == 2000000000;
+    }
+
+    @Test
+    public void testImportWithDeletionInfoMetadata() throws IOException, URISyntaxException
+    {
+        // Import JSON to temp SSTable file
+        String jsonUrl = resourcePath("SimpleCFWithDeletionInfo.json");
+        File tempSS = tempSSTableFile("Keyspace1", "Standard1");
+        new SSTableImport(true).importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
+
+        // Verify results
+        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
+        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), new QueryPath("Standard1"));
+        OnDiskAtomIterator iter = qf.getSSTableColumnIterator(reader);
+        ColumnFamily cf = iter.getColumnFamily();
+        assertEquals(cf.deletionInfo(), new DeletionInfo(0, 0));
+        while (iter.hasNext())
+            cf.addAtom(iter.next());
+        assert cf.getColumn(ByteBufferUtil.bytes("colAA")).value().equals(hexToBytes("76616c4141"));
+        assert !(cf.getColumn(ByteBufferUtil.bytes("colAA")) instanceof DeletedColumn);
+        IColumn expCol = cf.getColumn(ByteBufferUtil.bytes("colAC"));
+        assert expCol.value().equals(hexToBytes("76616c4143"));
+        assert expCol instanceof ExpiringColumn;
+        assert ((ExpiringColumn) expCol).getTimeToLive() == 42 && expCol.getLocalDeletionTime() == 2000000000;
     }
 
     @Test
@@ -140,7 +183,7 @@ public class SSTableImportTest extends SchemaLoader
         // Import JSON to temp SSTable file
         String jsonUrl = resourcePath("CounterCF.json");
         File tempSS = tempSSTableFile("Keyspace1", "Counter1");
-        SSTableImport.importJson(jsonUrl, "Keyspace1", "Counter1", tempSS.getPath());
+        new SSTableImport(true).importJson(jsonUrl, "Keyspace1", "Counter1", tempSS.getPath());
 
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
