@@ -132,7 +132,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     {
         return limit;
     }
-    
+
     public Tuple getNextWide() throws IOException
     {
         CfDef cfDef = getCfDef(loadSignature);
@@ -224,10 +224,10 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 
             // output tuple, will hold the key, each indexed column in a tuple, then a bag of the rest
             // NOTE: we're setting the tuple size here only for the key so we can use setTupleValue on it
-            Tuple tuple = TupleFactory.getInstance().newTuple(1);
+
+            Tuple tuple = keyToTuple(key, cfDef, parseType(cfDef.getKey_validation_class()));
             DefaultDataBag bag = new DefaultDataBag();
-            // set the key
-            setTupleValue(tuple, 0, getDefaultMarshallers(cfDef).get(2).compose(key));
+
             // we must add all the indexed columns first to match the schema
             Map<ByteBuffer, Boolean> added = new HashMap<ByteBuffer, Boolean>();
             // take care to iterate these in the same order as the schema does
@@ -282,6 +282,20 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
 
         return t;
+    }
+
+    private Tuple keyToTuple(ByteBuffer key, CfDef cfDef, AbstractType comparator) throws IOException
+    {
+        Tuple tuple = TupleFactory.getInstance().newTuple(1);
+        if( comparator instanceof AbstractCompositeType )
+        {
+            setTupleValue(tuple, 0, composeComposite((AbstractCompositeType)comparator,key));
+        }
+        else
+        {
+            setTupleValue(tuple, 0, getDefaultMarshallers(cfDef).get(2).compose(key));
+        }
+        return tuple;
     }
 
     private Tuple columnToTuple(IColumn col, CfDef cfDef, AbstractType comparator) throws IOException
@@ -826,6 +840,28 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             return DoubleType.instance.decompose((Double)o);
         if (o instanceof UUID)
             return ByteBuffer.wrap(UUIDGen.decompose((UUID) o));
+        if(o instanceof Tuple) {
+            List<Object> objects = ((Tuple)o).getAll();
+            List<ByteBuffer> serialized = new ArrayList<ByteBuffer>(objects.size());
+            int totalLength = 0;
+            for(Object sub : objects)
+            {
+                ByteBuffer buffer = objToBB(sub);
+                serialized.add(buffer);
+                totalLength += 2 + buffer.remaining() + 1;
+            }
+            ByteBuffer out = ByteBuffer.allocate(totalLength);
+            for (ByteBuffer bb : serialized)
+            {
+                int length = bb.remaining();
+                out.put((byte) ((length >> 8) & 0xFF));
+                out.put((byte) (length & 0xFF));
+                out.put(bb);
+                out.put((byte) 0);
+            }
+            out.flip();
+            return out;
+        }
 
         return ByteBuffer.wrap(((DataByteArray) o).get());
     }
