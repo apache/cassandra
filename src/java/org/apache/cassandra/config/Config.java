@@ -65,7 +65,7 @@ public class Config
     public String listen_address;
     public String broadcast_address;
 
-    public Boolean start_rpc = false;
+    public Boolean start_rpc = true;
     public String rpc_address;
     public Integer rpc_port = 9160;
     public String rpc_server_type = "sync";
