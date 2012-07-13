@@ -23,11 +23,11 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.*;
+import com.google.common.primitives.Doubles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -110,13 +110,22 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         }
 
         Collection<SSTableReader> sstables = manifest.getCompactionCandidates();
+        OperationType op = OperationType.COMPACTION;
         if (sstables.isEmpty())
         {
-            logger.debug("No compaction necessary for {}", this);
-            return null;
+            // if there is no sstable to compact in standard way, try compacting based on droppable tombstone ratio
+            SSTableReader sstable = findDroppableSSTable(gcBefore);
+            if (sstable == null)
+            {
+                logger.debug("No compaction necessary for {}", this);
+                return null;
+            }
+            sstables = Collections.singleton(sstable);
+            op = OperationType.TOMBSTONE_COMPACTION;
         }
 
         LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, sstables, gcBefore, this.maxSSTableSizeInMB);
+        newTask.setCompactionType(op);
         return task.compareAndSet(currentTask, newTask)
                ? newTask
                : null;
@@ -148,6 +157,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
                 case CLEANUP:
                 case SCRUB:
                 case UPGRADE_SSTABLES:
+                case TOMBSTONE_COMPACTION: // Also when performing tombstone removal.
                     manifest.replace(listChangedNotification.removed, listChangedNotification.added);
                     break;
                 default:
@@ -279,5 +289,34 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     public String toString()
     {
         return String.format("LCS@%d(%s)", hashCode(), cfs.columnFamily);
+    }
+
+    private SSTableReader findDroppableSSTable(final int gcBefore)
+    {
+        level:
+        for (int i = manifest.getLevelCount(); i >= 0; i--)
+        {
+            // sort sstables by droppable ratio in descending order
+            SortedSet<SSTableReader> sstables = manifest.getLevelSorted(i, new Comparator<SSTableReader>()
+            {
+                public int compare(SSTableReader o1, SSTableReader o2)
+                {
+                    double r1 = o1.getEstimatedDroppableTombstoneRatio(gcBefore);
+                    double r2 = o2.getEstimatedDroppableTombstoneRatio(gcBefore);
+                    return -1 * Doubles.compare(r1, r2);
+                }
+            });
+            if (sstables.isEmpty())
+                continue;
+
+            for (SSTableReader sstable : sstables)
+            {
+                if (sstable.getEstimatedDroppableTombstoneRatio(gcBefore) <= tombstoneThreshold)
+                    continue level;
+                else if (!sstable.isMarkedSuspect() && worthDroppingTombstones(sstable, gcBefore))
+                    return sstable;
+            }
+        }
+        return null;
     }
 }

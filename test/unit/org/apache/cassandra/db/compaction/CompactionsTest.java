@@ -107,7 +107,7 @@ public class CompactionsTest extends SchemaLoader
      * Test to see if sstable has enough expired columns, it is compacted itself.
      */
     @Test
-    public void testSingleSSTableCompaction() throws Exception
+    public void testSingleSSTableCompactionWithSizeTieredCompaction() throws Exception
     {
         Table table = Table.open(TABLE1);
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
@@ -151,6 +151,57 @@ public class CompactionsTest extends SchemaLoader
 
         // make sure max timestamp of compacted sstables is recorded properly after compaction.
         assertMaxTimestamp(store, timestamp);
+    }
+
+    @Test
+    public void testSingleSSTableCompactionWithLeveledCompaction() throws Exception
+    {
+        Table table = Table.open(TABLE1);
+        ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
+        store.clearUnsafe();
+        store.metadata.gcGraceSeconds(1);
+        store.setCompactionStrategyClass(LeveledCompactionStrategy.class.getCanonicalName());
+
+        LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) store.getCompactionStrategy();
+
+        // disable compaction while flushing
+        store.disableAutoCompaction();
+
+        long timestamp = System.currentTimeMillis();
+        for (int i = 0; i < 10; i++)
+        {
+            DecoratedKey key = Util.dk(Integer.toString(i));
+            RowMutation rm = new RowMutation(TABLE1, key.key);
+            for (int j = 0; j < 10; j++)
+                rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(Integer.toString(j))),
+                              ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                              timestamp,
+                              j > 0 ? 3 : 0); // let first column never expire, since deleting all columns does not produce sstable
+            rm.apply();
+        }
+        store.forceBlockingFlush();
+        assertEquals(1, store.getSSTables().size());
+        long originalSize = store.getSSTables().iterator().next().uncompressedLength();
+
+        // wait enough to force single compaction
+        TimeUnit.SECONDS.sleep(5);
+
+        store.setMinimumCompactionThreshold(2);
+        store.setMaximumCompactionThreshold(4);
+        FBUtilities.waitOnFuture(CompactionManager.instance.submitBackground(store));
+        while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0)
+            TimeUnit.SECONDS.sleep(1);
+
+        // and sstable with ttl should be compacted
+        assertEquals(1, store.getSSTables().size());
+        long size = store.getSSTables().iterator().next().uncompressedLength();
+        assertTrue("should be less than " + originalSize + ", but was " + size, size < originalSize);
+
+        // make sure max timestamp of compacted sstables is recorded properly after compaction.
+        assertMaxTimestamp(store, timestamp);
+
+        // tombstone removal compaction should not promote level
+        assert strategy.getLevelSize(0) == 1;
     }
 
     @Test

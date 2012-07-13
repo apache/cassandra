@@ -24,8 +24,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.Pair;
@@ -34,12 +32,9 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(SizeTieredCompactionStrategy.class);
     protected static final long DEFAULT_MIN_SSTABLE_SIZE = 50L * 1024L * 1024L;
-    protected static final float DEFAULT_TOMBSTONE_THRESHOLD = 0.2f;
     protected static final String MIN_SSTABLE_SIZE_KEY = "min_sstable_size";
-    protected static final String TOMBSTONE_THRESHOLD_KEY = "tombstone_threshold";
     protected long minSSTableSize;
     protected volatile int estimatedRemainingTasks;
-    protected float tombstoneThreshold;
 
     public SizeTieredCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -49,8 +44,6 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         minSSTableSize = (null != optionValue) ? Long.parseLong(optionValue) : DEFAULT_MIN_SSTABLE_SIZE;
         cfs.setMaximumCompactionThreshold(cfs.metadata.getMaxCompactionThreshold());
         cfs.setMinimumCompactionThreshold(cfs.metadata.getMinCompactionThreshold());
-        optionValue = options.get(TOMBSTONE_THRESHOLD_KEY);
-        tombstoneThreshold = (null != optionValue) ? Float.parseFloat(optionValue) : DEFAULT_TOMBSTONE_THRESHOLD;
     }
 
     public AbstractCompactionTask getNextBackgroundTask(final int gcBefore)
@@ -90,34 +83,8 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             {
                 for (SSTableReader table : bucket)
                 {
-                    double droppableRatio = table.getEstimatedDroppableTombstoneRatio(gcBefore);
-                    if (droppableRatio <= tombstoneThreshold)
-                        continue;
-
-                    Set<SSTableReader> overlaps = cfs.getOverlappingSSTables(Collections.singleton(table));
-                    if (overlaps.isEmpty())
-                    {
-                        // there is no overlap, tombstones are safely droppable
+                    if (worthDroppingTombstones(table, gcBefore))
                         prunedBuckets.add(Collections.singletonList(table));
-                    }
-                    else
-                    {
-                        // what percentage of columns do we expect to compact outside of overlap?
-                        // first, calculate estimated keys that do not overlap
-                        long keys = table.estimatedKeys();
-                        Set<Range<Token>> ranges = new HashSet<Range<Token>>();
-                        for (SSTableReader overlap : overlaps)
-                            ranges.add(new Range<Token>(overlap.first.token, overlap.last.token, overlap.partitioner));
-                        long remainingKeys = keys - table.estimatedKeysForRanges(ranges);
-                        // next, calculate what percentage of columns we have within those keys
-                        double remainingKeysRatio = ((double) remainingKeys) / keys;
-                        long columns = table.getEstimatedColumnCount().percentile(remainingKeysRatio) * remainingKeys;
-                        double remainingColumnsRatio = ((double) columns) / (table.getEstimatedColumnCount().count() * table.getEstimatedColumnCount().mean());
-
-                        // if we still expect to have droppable tombstones in rest of columns, then try compacting it
-                        if (remainingColumnsRatio * droppableRatio > tombstoneThreshold)
-                            prunedBuckets.add(Collections.singletonList(table));
-                    }
                 }
             }
 

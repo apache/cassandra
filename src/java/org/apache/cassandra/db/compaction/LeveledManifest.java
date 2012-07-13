@@ -22,6 +22,7 @@ import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
 
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
@@ -566,6 +567,11 @@ public class LeveledManifest
                 return i;
         }
         return 0;
+    }
+
+    public synchronized SortedSet<SSTableReader> getLevelSorted(int level, Comparator<SSTableReader> comparator)
+    {
+        return ImmutableSortedSet.copyOf(comparator, generations[level]);
     }
 
     public List<SSTableReader> getLevel(int i)

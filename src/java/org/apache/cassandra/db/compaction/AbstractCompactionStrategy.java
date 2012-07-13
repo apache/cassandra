@@ -38,14 +38,22 @@ import org.apache.cassandra.service.StorageService;
  */
 public abstract class AbstractCompactionStrategy
 {
+    protected static final float DEFAULT_TOMBSTONE_THRESHOLD = 0.2f;
+    protected static final String TOMBSTONE_THRESHOLD_KEY = "tombstone_threshold";
+
     protected final ColumnFamilyStore cfs;
     protected final Map<String, String> options;
+
+    protected float tombstoneThreshold;
 
     protected AbstractCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
         assert cfs != null;
         this.cfs = cfs;
         this.options = options;
+
+        String optionValue = options.get(TOMBSTONE_THRESHOLD_KEY);
+        tombstoneThreshold = (null != optionValue) ? Float.parseFloat(optionValue) : DEFAULT_TOMBSTONE_THRESHOLD;
 
         // start compactions in five minutes (if no flushes have occurred by then to do so)
         Runnable runnable = new Runnable()
@@ -145,5 +153,41 @@ public abstract class AbstractCompactionStrategy
     public List<ICompactionScanner> getScanners(Collection<SSTableReader> toCompact) throws IOException
     {
         return getScanners(toCompact, null);
+    }
+
+    /**
+     * @param sstable SSTable to check
+     * @param gcBefore time to drop tombstones
+     * @return true if given sstable's tombstones are expected to be removed
+     */
+    protected boolean worthDroppingTombstones(SSTableReader sstable, int gcBefore)
+    {
+        double droppableRatio = sstable.getEstimatedDroppableTombstoneRatio(gcBefore);
+        if (droppableRatio <= tombstoneThreshold)
+            return false;
+
+        Set<SSTableReader> overlaps = cfs.getOverlappingSSTables(Collections.singleton(sstable));
+        if (overlaps.isEmpty())
+        {
+            // there is no overlap, tombstones are safely droppable
+            return true;
+        }
+        else
+        {
+            // what percentage of columns do we expect to compact outside of overlap?
+            // first, calculate estimated keys that do not overlap
+            long keys = sstable.estimatedKeys();
+            Set<Range<Token>> ranges = new HashSet<Range<Token>>();
+            for (SSTableReader overlap : overlaps)
+                ranges.add(new Range<Token>(overlap.first.token, overlap.last.token, overlap.partitioner));
+            long remainingKeys = keys - sstable.estimatedKeysForRanges(ranges);
+            // next, calculate what percentage of columns we have within those keys
+            double remainingKeysRatio = ((double) remainingKeys) / keys;
+            long columns = sstable.getEstimatedColumnCount().percentile(remainingKeysRatio) * remainingKeys;
+            double remainingColumnsRatio = ((double) columns) / (sstable.getEstimatedColumnCount().count() * sstable.getEstimatedColumnCount().mean());
+
+            // return if we still expect to have droppable tombstones in rest of columns
+            return remainingColumnsRatio * droppableRatio > tombstoneThreshold;
+        }
     }
 }
