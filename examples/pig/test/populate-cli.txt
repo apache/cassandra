@@ -112,3 +112,23 @@ set CompoInt['clock']['1:0'] = 'z';
 set CompoInt['clock']['1:30'] = 'zzzz';
 set CompoInt['clock']['2:30'] = 'daddy?';
 set CompoInt['clock']['6:30'] = 'coffee...';
+
+create column family CompoIntCopy
+    with key_validation_class = UTF8Type
+    and default_validation_class = UTF8Type
+    and comparator = 'CompositeType(LongType,LongType)';
+
+create column family CompoKey
+    with key_validation_class = 'CompositeType(UTF8Type,LongType)'
+    and default_validation_class = UTF8Type
+    and comparator = LongType;
+
+set CompoKey['clock:10']['1'] = 'z';
+set CompoKey['clock:20']['1'] = 'zzzz';
+set CompoKey['clock:30']['2'] = 'daddy?';
+set CompoKey['clock:40']['6'] = 'coffee...';
+
+create column family CompoKeyCopy
+    with key_validation_class = 'CompositeType(UTF8Type,LongType)'
+    and default_validation_class = UTF8Type
+    and comparator = LongType;

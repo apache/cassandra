@@ -68,3 +68,18 @@ night = foreach night generate (int)columns::name.$0+(double)columns::name.$1/60
 darkest = filter night by hour > 2 and hour < 5;
 
 dump darkest;
+
+compo_int_rows = LOAD 'cassandra://PigTest/CompoInt' USING CassandraStorage();
+STORE compo_int_rows INTO 'cassandra://PigTest/CompoIntCopy' USING CassandraStorage();
+
+--
+--  Test CompositeKey
+--
+
+compokeys = load 'cassandra://PigTest/CompoKey' using CassandraStorage();
+compokeys = filter compokeys by key.$1 == 40;
+
+dump compokeys;
+
+compo_key_rows = LOAD 'cassandra://PigTest/CompoKey' USING CassandraStorage();
+STORE compo_key_rows INTO 'cassandra://PigTest/CompoKeyCopy' USING CassandraStorage();
