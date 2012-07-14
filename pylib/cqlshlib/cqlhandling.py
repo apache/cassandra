@@ -576,7 +576,7 @@ syntax_rules += r'''
                  ;
 <selectStatement> ::= "SELECT" <whatToSelect>
                         "FROM" cf=<columnFamilyName>
-                          ("USING" "CONSISTENCY" <consistencylevel>)?
+                          ("USING" "CONSISTENCY" selcl=<consistencylevel>)?
                           ("WHERE" <selectWhereClause>)?
                           ("LIMIT" <integer>)?
                     ;
@@ -591,6 +591,10 @@ syntax_rules += r'''
                  | "COUNT" countparens="(" "*" ")"
                  ;
 '''
+
+@completer_for('selectStatement', 'selcl')
+def select_statement_consistencylevel(ctxt, cass):
+    return [cl for cl in CqlRuleSet.consistency_levels if cl != 'ANY']
 
 @completer_for('selectWhereClause', 'keyname')
 def select_where_keyname_completer(ctxt, cass):
