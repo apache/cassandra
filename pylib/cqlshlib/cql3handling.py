@@ -205,15 +205,15 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                           | <alterTableStatement>
                           ;
 
-<consistencylevel> ::= <K_ONE>
-                     | <K_QUORUM>
-                     | <K_ALL>
-                     | <K_ANY>
-                     | <K_LOCAL_QUORUM>
-                     | <K_EACH_QUORUM>
-                     | <K_TWO>
-                     | <K_THREE>
-                     ;
+<consistencylevel> ::= cl=( <K_ONE>
+                          | <K_QUORUM>
+                          | <K_ALL>
+                          | <K_ANY>
+                          | <K_LOCAL_QUORUM>
+                          | <K_EACH_QUORUM>
+                          | <K_TWO>
+                          | <K_THREE> )
+                          ;
 
 <storageType> ::= typename=( <identifier> | <stringLiteral> ) ;
 
@@ -238,6 +238,10 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                         | <consistencylevel> )
                       ;
 '''
+
+@completer_for('consistencylevel', 'cl')
+def consistencylevel_cl_completer(ctxt, cass):
+    return CqlRuleSet.consistency_levels
 
 @completer_for('extendedTerm', 'token')
 def token_word_completer(ctxt, cass):
@@ -285,7 +289,7 @@ syntax_rules += r'''
                  ;
 <selectStatement> ::= "SELECT" <selectClause>
                         "FROM" cf=<columnFamilyName>
-                          ("USING" "CONSISTENCY" <consistencylevel>)?
+                          ("USING" "CONSISTENCY" selcl=<consistencylevel>)?
                           ("WHERE" <whereClause>)?
                           ("ORDER" "BY" <orderByClause> ( "," <orderByClause> )* )?
                           ("LIMIT" <wholenumber>)?
@@ -303,6 +307,10 @@ syntax_rules += r'''
 <orderByClause> ::= [ordercol]=<cident> ( "ASC" | "DESC" )?
                   ;
 '''
+
+@completer_for('selectStatement', 'selcl')
+def select_statement_consistencylevel(ctxt, cass):
+    return [cl for cl in CqlRuleSet.consistency_levels if cl != 'ANY']
 
 @completer_for('orderByClause', 'ordercol')
 def select_order_column_completer(ctxt, cass):
