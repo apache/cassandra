@@ -108,7 +108,7 @@ public class DateType extends AbstractType<Date>
       {
           try
           {
-              millis = DateUtils.parseDate(source, iso8601Patterns).getTime();
+              millis = DateUtils.parseDateStrictly(source, iso8601Patterns).getTime();
           }
           catch (ParseException e1)
           {
