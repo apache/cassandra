@@ -182,20 +182,20 @@ public class ScrubTest extends SchemaLoader
          ColumnFamilyStore cfs = table.getColumnFamilyStore(columnFamily);
 
         /*
-         * Code used to generate an outOfOrder sstable. The test must be run without assertions for this to work.
+         * Code used to generate an outOfOrder sstable. The test for out-of-order key in SSTableWriter must also be commented out.
          * The test also assumes an ordered partitioner.
          *
-         * ColumnFamily cf = ColumnFamily.create(TABLE, columnFamily);
-         * cf.addColumn(new Column(ByteBufferUtil.bytes("someName"), ByteBufferUtil.bytes("someValue"), 0L));
+         *  ColumnFamily cf = ColumnFamily.create(TABLE, columnFamily);
+         *  cf.addColumn(new Column(ByteBufferUtil.bytes("someName"), ByteBufferUtil.bytes("someValue"), 0L));
 
-         * SSTableWriter writer = cfs.createCompactionWriter((long)DatabaseDescriptor.getIndexInterval(), new File("."), Collections.<SSTableReader>emptyList());
-         * writer.append(Util.dk("a"), cf);
-         * writer.append(Util.dk("b"), cf);
-         * writer.append(Util.dk("z"), cf);
-         * writer.append(Util.dk("c"), cf);
-         * writer.append(Util.dk("y"), cf);
-         * writer.append(Util.dk("d"), cf);
-         * writer.closeAndOpenReader();
+         *  SSTableWriter writer = cfs.createCompactionWriter((long)DatabaseDescriptor.getIndexInterval(), new File("."), Collections.<SSTableReader>emptyList());
+         *  writer.append(Util.dk("a"), cf);
+         *  writer.append(Util.dk("b"), cf);
+         *  writer.append(Util.dk("z"), cf);
+         *  writer.append(Util.dk("c"), cf);
+         *  writer.append(Util.dk("y"), cf);
+         *  writer.append(Util.dk("d"), cf);
+         *  writer.closeAndOpenReader();
          */
 
         copySSTables(columnFamily);
