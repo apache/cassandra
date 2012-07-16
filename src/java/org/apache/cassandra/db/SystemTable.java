@@ -69,6 +69,13 @@ public class SystemTable
     private static final ByteBuffer CURRENT_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("CurrentLocal");
     private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
 
+    public enum BootstrapState
+    {
+        NEEDS_BOOTSTRAP, // ordered for boolean backward compatibility, false
+        COMPLETED, // true
+        IN_PROGRESS
+    }
+
     private static DecoratedKey decorate(ByteBuffer key)
     {
         return StorageService.getPartitioner().decorateKey(key);
@@ -352,7 +359,7 @@ public class SystemTable
         return generation;
     }
 
-    public static boolean isBootstrapped()
+    public static BootstrapState getBootstrapState()
     {
         Table table = Table.open(Table.SYSTEM_TABLE);
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(BOOTSTRAP_KEY),
@@ -360,16 +367,26 @@ public class SystemTable
                                                         BOOTSTRAP);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
         if (cf == null)
-            return false;
+            return BootstrapState.NEEDS_BOOTSTRAP;
         IColumn c = cf.getColumn(BOOTSTRAP);
-        return c.value().get(c.value().position()) == 1;
+        return BootstrapState.values()[c.value().get(c.value().position())];
     }
 
-    public static void setBootstrapped(boolean isBootstrapped)
+    public static boolean bootstrapComplete()
+    {
+        return getBootstrapState() == BootstrapState.COMPLETED;
+    }
+
+    public static boolean bootstrapInProgress()
+    {
+        return getBootstrapState() == BootstrapState.IN_PROGRESS;
+    }
+
+    public static void setBootstrapState(BootstrapState state)
     {
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
         cf.addColumn(new Column(BOOTSTRAP,
-                                ByteBuffer.wrap(new byte[] { (byte) (isBootstrapped ? 1 : 0) }),
+                                ByteBuffer.wrap(new byte[] { (byte) (state.ordinal()) }),
                                 FBUtilities.timestampMicros()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, BOOTSTRAP_KEY);
         rm.add(cf);
