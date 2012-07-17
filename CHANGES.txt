@@ -1,4 +1,6 @@
 1.1.3
+ * flush based on data size, not throughput; overwritten columns no 
+   longer artificially inflate liveRatio (CASSANDRA-4399)
  * update default commitlog segment size to 32MB and total commitlog
    size to 32/1024 MB for 32/64 bit JVMs, respectively (CASSANDRA-4422)
  * avoid using global partitioner to estimate ranges in index sstables
