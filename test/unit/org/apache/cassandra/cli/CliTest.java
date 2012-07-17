@@ -39,6 +39,14 @@ public class CliTest extends SchemaLoader
     // please add new statements here so they could be auto-runned by this test.
     private String[] statements = {
         "use TestKeySpace;",
+        "create column family SecondaryIndicesWithoutIdxName" +
+                " with comparator = UTF8Type" +
+                " and default_validation_class = UTF8Type" +
+                " and column_metadata = [{column_name: profileId, validation_class: UTF8Type, index_type: KEYS}];",
+        "update column family SecondaryIndicesWithoutIdxName" +
+                " with column_metadata = " +
+                "[{column_name: profileId, validation_class: UTF8Type, index_type: KEYS}," +
+                 "{column_name: postedDate, validation_class: LongType}];",
         "create column family 123 with comparator=UTF8Type and column_metadata=[{ column_name:world, validation_class:IntegerType, index_type:0, index_name:IdxName }, " +
                                                                                "{ column_name:world2, validation_class:LongType, index_type:KEYS, index_name:LongIdxName}, " +
                                                                                "{ column_name:617070, validation_class:UTF8Type, index_type:KEYS }, " +
