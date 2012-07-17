@@ -29,6 +29,7 @@
  * Add column metadata to system column families (CASSANDRA-4018)
  * (cql3) Always use composite types by default (CASSANDRA-4329)
  * (cql3) Add support for set, map and list (CASSANDRA-3647)
+ * Validate date type correctly (CASSANDRA-4441)
 
 
 1.1.3
