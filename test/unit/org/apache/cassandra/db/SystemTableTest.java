@@ -23,24 +23,36 @@ package org.apache.cassandra.db;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
-import com.google.common.base.Charsets;
 import org.junit.Test;
 
 import org.apache.cassandra.dht.BytesToken;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SystemTableTest
 {
     @Test
-    public void testLocalToken()
+    public void testLocalTokens()
     {
-        SystemTable.updateToken(new BytesToken(ByteBufferUtil.bytes("token")));
-        assert new String(((BytesToken) SystemTable.getSavedToken()).token, Charsets.UTF_8).equals("token");
+        // Remove all existing tokens
+        SystemTable.updateTokens(Collections.<Token> emptySet());
 
-        SystemTable.updateToken(new BytesToken(ByteBufferUtil.bytes("token2")));
-        assert new String(((BytesToken) SystemTable.getSavedToken()).token, Charsets.UTF_8).equals("token2");
+        List<Token> tokens = new ArrayList<Token>()
+        {{
+            for (int i = 0; i < 9; i++)
+                add(new BytesToken(ByteBufferUtil.bytes(String.format("token%d", i))));
+        }};
+
+        SystemTable.updateTokens(tokens);
+        int count = 0;
+
+        for (Token tok : SystemTable.getSavedTokens())
+            assert tokens.get(count++).equals(tok);
     }
 
     @Test
@@ -48,10 +60,10 @@ public class SystemTableTest
     {
         BytesToken token = new BytesToken(ByteBufferUtil.bytes("token3"));
         InetAddress address = InetAddress.getByName("127.0.0.2");
-        SystemTable.updateToken(address, token);
-        assert SystemTable.loadTokens().get(token).equals(address);
-        SystemTable.removeToken(token);
-        assert !SystemTable.loadTokens().containsKey(token);
+        SystemTable.updateTokens(address, Collections.<Token>singletonList(token));
+        assert SystemTable.loadTokens().get(address).contains(token);
+        SystemTable.removeTokens(Collections.<Token>singletonList(token));
+        assert !SystemTable.loadTokens().containsValue(token);
     }
 
     @Test

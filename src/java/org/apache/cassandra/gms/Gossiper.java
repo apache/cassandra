@@ -412,7 +412,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         InetAddress endpoint = InetAddress.getByName(address);
         EndpointState epState = endpointStateMap.get(endpoint);
-        Token token = null;
+        Collection<Token> tokens = null;
         logger.warn("Assassinating {} via gossip", endpoint);
         if (epState == null)
         {
@@ -422,7 +422,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             try
             {
-                token = StorageService.instance.getTokenMetadata().getToken(endpoint);
+                tokens = StorageService.instance.getTokenMetadata().getTokens(endpoint);
             }
             catch (AssertionError e)
             {
@@ -444,10 +444,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             epState.updateTimestamp(); // make sure we don't evict it too soon
             epState.getHeartBeatState().forceNewerGenerationUnsafe();
         }
-        if (token == null)
-            token = StorageService.instance.getBootstrapToken();
+        if (tokens == null)
+            tokens = Arrays.asList(StorageService.instance.getBootstrapToken());
         // do not pass go, do not collect 200 dollars, just gtfo
-        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(token, computeExpireTime()));
+        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
         handleMajorStateChange(endpoint, epState);
         try
         {

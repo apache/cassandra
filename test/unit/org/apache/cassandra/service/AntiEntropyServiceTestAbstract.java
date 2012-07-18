@@ -94,7 +94,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         aes = AntiEntropyService.instance;
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         tmd.clearUnsafe();
-        StorageService.instance.setToken(StorageService.getPartitioner().getRandomToken());
+        StorageService.instance.setTokens(Collections.singleton(StorageService.getPartitioner().getRandomToken()));
         tmd.updateNormalToken(StorageService.getPartitioner().getMinimumToken(), REMOTE);
         assert tmd.isMember(REMOTE);
 

@@ -19,6 +19,7 @@
 package org.apache.cassandra.gms;
 
 import org.apache.cassandra.AbstractSerializationsTester;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Test;
@@ -28,6 +29,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,7 +114,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         private static EndpointState EndpointSt = new EndpointState(HeartbeatSt);
         private static VersionedValue.VersionedValueFactory vvFact = new VersionedValue.VersionedValueFactory(StorageService.getPartitioner());
         private static VersionedValue vv0 = vvFact.load(23d);
-        private static VersionedValue vv1 = vvFact.bootstrapping(StorageService.getPartitioner().getRandomToken(), UUID.randomUUID());
+        private static VersionedValue vv1 = vvFact.bootstrapping(Collections.<Token>singleton(StorageService.getPartitioner().getRandomToken()),
+                                                                 UUID.randomUUID());
         private static List<GossipDigest> Digests = new ArrayList<GossipDigest>();
 
         {

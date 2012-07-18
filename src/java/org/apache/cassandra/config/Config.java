@@ -38,6 +38,7 @@ public class Config
 
     /* initial token in the ring */
     public String initial_token;
+    public Integer num_tokens = 1;
 
     public Long rpc_timeout_in_ms = new Long(10000);
 

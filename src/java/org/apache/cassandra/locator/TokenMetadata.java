@@ -296,14 +296,15 @@ public class TokenMetadata
         }
     }
 
-    public void removeBootstrapToken(Token token)
+    public void removeBootstrapTokens(Collection<Token> tokens)
     {
-        assert token != null;
+        assert tokens != null && !tokens.isEmpty();
 
         lock.writeLock().lock();
         try
         {
-            bootstrapTokens.remove(token);
+            for (Token token : tokens)
+                bootstrapTokens.remove(token);
         }
         finally
         {
@@ -845,6 +846,23 @@ public class TokenMetadata
         }
 
         return endpoints;
+    }
+
+    /** @return an endpoint to token multimap representation of tokenToEndpointMap (a copy) */
+    public Multimap<InetAddress, Token> getEndpointToTokenMapForReading()
+    {
+        lock.readLock().lock();
+        try
+        {
+            Multimap<InetAddress, Token> cloned = HashMultimap.<InetAddress, Token>create();
+            for (Map.Entry<Token, InetAddress> entry : tokenToEndpointMap.entrySet())
+                cloned.put(entry.getValue(), entry.getKey());
+            return cloned;
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
     }
 
     /**

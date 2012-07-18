@@ -45,6 +45,9 @@ Features
       as well as other updates
     - rpc_timeout has been split up to allow finer-grained control
       on timeouts for different operation types
+    - num_tokens can now be specified in cassandra.yaml. This defines the
+      number of tokens assigned to the host on the ring (default: 1).
+      Also specifying initial_token will override any num_tokens setting.
 
 
 1.1.2

@@ -24,8 +24,11 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Multimap;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -122,7 +125,9 @@ public class SystemTable
             Iterator<IColumn> oldColumns = oldCf.columns.iterator();
 
             String clusterName = ByteBufferUtil.string(oldColumns.next().value());
-            String tokenBytes = ByteBufferUtil.bytesToHex(oldColumns.next().value());
+            // serialize the old token as a collection of (one )tokens.
+            Token token = StorageService.getPartitioner().getTokenFactory().fromByteArray(oldColumns.next().value());
+            String tokenBytes = ByteBufferUtil.bytesToHex(serializeTokens(Collections.singleton(token)));
             // (assume that any node getting upgraded was bootstrapped, since that was stored in a separate row for no particular reason)
             String req = "INSERT INTO system.%s (key, cluster_name, token_bytes, bootstrapped) VALUES ('%s', '%s', '%s', 'true')";
             processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, clusterName, tokenBytes));
@@ -139,45 +144,100 @@ public class SystemTable
     }
 
     /**
-     * Record token being used by another node
+     * Record tokens being used by another node
      */
-    public static synchronized void updateToken(InetAddress ep, Token token)
+    public static synchronized void updateTokens(InetAddress ep, Collection<Token> tokens)
     {
         if (ep.equals(FBUtilities.getBroadcastAddress()))
         {
-            removeToken(token);
+            removeTokens(tokens);
             return;
         }
 
         IPartitioner p = StorageService.getPartitioner();
-        String req = "INSERT INTO system.%s (token_bytes, peer) VALUES ('%s', '%s')";
-        String tokenBytes = ByteBufferUtil.bytesToHex(p.getTokenFactory().toByteArray(token));
-        processInternal(String.format(req, PEERS_CF, tokenBytes, ep.getHostAddress()));
+        for (Token token : tokens)
+        {
+            String req = "INSERT INTO system.%s (token_bytes, peer) VALUES ('%s', '%s')";
+            String tokenBytes = ByteBufferUtil.bytesToHex(p.getTokenFactory().toByteArray(token));
+            processInternal(String.format(req, PEERS_CF, tokenBytes, ep.getHostAddress()));   
+        }
         forceBlockingFlush(PEERS_CF);
     }
 
     /**
-     * Remove stored token being used by another node
+     * Remove stored tokens being used by another node
      */
-    public static synchronized void removeToken(Token token)
+    public static synchronized void removeTokens(Collection<Token> tokens)
     {
         IPartitioner p = StorageService.getPartitioner();
-        String req = "DELETE FROM system.%s WHERE token_bytes = '%s'";
-        String tokenBytes = ByteBufferUtil.bytesToHex(p.getTokenFactory().toByteArray(token));
-        processInternal(String.format(req, PEERS_CF, tokenBytes));
+
+        for (Token token : tokens)
+        {
+            String req = "DELETE FROM system.%s WHERE token_bytes = '%s'";
+            String tokenBytes = ByteBufferUtil.bytesToHex(p.getTokenFactory().toByteArray(token));
+            processInternal(String.format(req, PEERS_CF, tokenBytes));   
+        }
         forceBlockingFlush(PEERS_CF);
     }
 
     /**
-     * This method is used to update the System Table with the new token for this node
+     * This method is used to update the System Table with the new tokens for this node
     */
-    public static synchronized void updateToken(Token token)
+    public static synchronized void updateTokens(Collection<Token> tokens)
     {
         IPartitioner p = StorageService.getPartitioner();
+
         String req = "INSERT INTO system.%s (key, token_bytes) VALUES ('%s', '%s')";
-        String tokenBytes = ByteBufferUtil.bytesToHex(p.getTokenFactory().toByteArray(token));
+        String tokenBytes = ByteBufferUtil.bytesToHex(serializeTokens(tokens));
         processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, tokenBytes));
         forceBlockingFlush(LOCAL_CF);
+    }
+
+    /** Serialize a collection of tokens to bytes */
+    private static ByteBuffer serializeTokens(Collection<Token> tokens)
+    {
+        // Guesstimate the total number of bytes needed
+        int estCapacity = (tokens.size() * 16) + (tokens.size() * 2);
+        ByteBuffer toks = ByteBuffer.allocate(estCapacity);
+        IPartitioner p = StorageService.getPartitioner();
+
+        for (Token token : tokens)
+        {
+            ByteBuffer tokenBytes = p.getTokenFactory().toByteArray(token);
+
+            // If we blow the buffer, grow it by double
+            if (toks.remaining() < (2 + tokenBytes.remaining()))
+            {
+                estCapacity = estCapacity * 2;
+                ByteBuffer newToks = ByteBuffer.allocate(estCapacity);
+                toks.flip();
+                newToks.put(toks);
+                toks = newToks;
+            }
+            
+            toks.putShort((short)tokenBytes.remaining());
+            toks.put(tokenBytes);
+        }
+        
+        toks.flip();
+        return toks;
+    }
+    
+    private static Collection<Token> deserializeTokens(ByteBuffer tokenBytes)
+    {
+        List<Token> tokens = new ArrayList<Token>();
+        IPartitioner p = StorageService.getPartitioner();
+
+        while(tokenBytes.hasRemaining())
+        {
+            short len = tokenBytes.getShort();
+            ByteBuffer dup = tokenBytes.slice();
+            dup.limit(len);
+            tokenBytes.position(tokenBytes.position() + len);
+            tokens.add(p.getTokenFactory().fromByteArray(dup));
+        }
+
+        return tokens;
     }
 
     private static void forceBlockingFlush(String cfname)
@@ -200,13 +260,13 @@ public class SystemTable
      * Return a map of stored tokens to IP addresses
      *
      */
-    public static HashMap<Token, InetAddress> loadTokens()
+    public static Multimap<InetAddress, Token> loadTokens()
     {
         IPartitioner p = StorageService.getPartitioner();
 
-        HashMap<Token, InetAddress> tokenMap = new HashMap<Token, InetAddress>();
+        Multimap<InetAddress, Token> tokenMap = HashMultimap.create();
         for (UntypedResultSet.Row row : processInternal("SELECT * FROM system." + PEERS_CF))
-            tokenMap.put(p.getTokenFactory().fromByteArray(row.getBytes("token_bytes")), row.getInetAddress("peer"));
+            tokenMap.put(row.getInetAddress("peer"), p.getTokenFactory().fromByteArray(row.getBytes("token_bytes")));
 
         return tokenMap;
     }
@@ -254,13 +314,13 @@ public class SystemTable
             throw new ConfigurationException("Saved cluster name " + savedClusterName + " != configured name " + DatabaseDescriptor.getClusterName());
     }
 
-    public static Token getSavedToken()
+    public static Collection<Token> getSavedTokens()
     {
         String req = "SELECT token_bytes FROM system.%s WHERE key='%s'";
         UntypedResultSet result = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
         return result.isEmpty() || !result.one().has("token_bytes")
-             ? null
-             : StorageService.getPartitioner().getTokenFactory().fromByteArray(result.one().getBytes("token_bytes"));
+             ? Collections.<Token>emptyList()
+             : deserializeTokens(result.one().getBytes("token_bytes"));
     }
 
     public static int incrementAndGetGeneration() throws IOException

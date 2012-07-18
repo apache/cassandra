@@ -136,7 +136,7 @@ public class MoveTest
         }
 
         // moving endpoint back to the normal state
-        ss.onChange(hosts.get(MOVING_NODE), ApplicationState.STATUS, valueFactory.normal(newToken, hostIds.get(MOVING_NODE)));
+        ss.onChange(hosts.get(MOVING_NODE), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(newToken), hostIds.get(MOVING_NODE)));
     }
 
     /*
@@ -182,10 +182,14 @@ public class MoveTest
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
         InetAddress boot1 = InetAddress.getByName("127.0.1.1");
         Gossiper.instance.initializeNodeUnsafe(boot1, 1);
-        ss.onChange(boot1, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(5), UUID.randomUUID()));
+        ss.onChange(boot1,
+                    ApplicationState.STATUS,
+                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(5)), UUID.randomUUID()));
         InetAddress boot2 = InetAddress.getByName("127.0.1.2");
         Gossiper.instance.initializeNodeUnsafe(boot2, 1);
-        ss.onChange(boot2, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(7), UUID.randomUUID()));
+        ss.onChange(boot2,
+                    ApplicationState.STATUS,
+                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(7)), UUID.randomUUID()));
 
         // don't require test update every time a new keyspace is added to test/conf/cassandra.yaml
         Map<String, AbstractReplicationStrategy> tableStrategyMap = new HashMap<String, AbstractReplicationStrategy>();
@@ -471,7 +475,9 @@ public class MoveTest
         // all moving nodes are back to the normal state
         for (Integer movingIndex : MOVING)
         {
-            ss.onChange(hosts.get(movingIndex), ApplicationState.STATUS, valueFactory.normal(newTokens.get(movingIndex), hostIds.get(movingIndex)));
+            ss.onChange(hosts.get(movingIndex),
+                        ApplicationState.STATUS,
+                        valueFactory.normal(Collections.singleton(newTokens.get(movingIndex)), hostIds.get(movingIndex)));
         }
     }
 
@@ -500,7 +506,8 @@ public class MoveTest
         assertTrue(tmd.getToken(hosts.get(2)).equals(endpointTokens.get(2)));
 
         // back to normal
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(newToken, hostIds.get(2)));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(newToken),
+                                                                               hostIds.get(2)));
 
         assertTrue(tmd.getMovingEndpoints().isEmpty());
         assertTrue(tmd.getToken(hosts.get(2)).equals(newToken));
@@ -508,7 +515,8 @@ public class MoveTest
         newToken = positionToken(8);
         // node 2 goes through leave and left and then jumps to normal at its new token
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.moving(newToken));
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(newToken, hostIds.get(2)));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(newToken),
+                                                                               hostIds.get(2)));
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
         assertTrue(tmd.getMovingEndpoints().isEmpty());

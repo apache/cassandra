@@ -9,7 +9,22 @@
 # one logical cluster from joining another.
 cluster_name: 'Test Cluster'
 
-# You should always specify InitialToken when setting up a production
+# This defines the number of tokens randomly assigned to this node on the ring
+# The more tokens, relative to other nodes, the larger the proportion of data
+# that this node will store. You probably want all nodes to have the same number
+# of tokens assuming they have equal hardware capability.
+#
+# If you leave this unspecified, Cassandra will use the default of 1 token for legacy compatibility,
+# and will use the initial_token as described below.
+#
+# Specifying initial_token will override this setting.
+#
+# If you already have a cluster with 1 token per node, and wish to migrate to 
+# multiple tokens per node, see http://wiki.apache.org/cassandra/Operations
+# num_tokens: 256
+
+# If you haven't specified num_tokens, or have set it to the default of 1 then
+# you should always specify InitialToken when setting up a production
 # cluster for the first time, and often when adding capacity later.
 # The principle is that each node should be given an equal slice of
 # the token ring; see http://wiki.apache.org/cassandra/Operations

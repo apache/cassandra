@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Set;
@@ -105,7 +106,7 @@ public class BootStrapperTest extends SchemaLoader
             assert range.contains(token);
             ss.onChange(bootstrapAddrs[i],
                         ApplicationState.STATUS,
-                        StorageService.instance.valueFactory.bootstrapping(token, bootstrapHostIds[i]));
+                        StorageService.instance.valueFactory.bootstrapping(Collections.<Token>singleton(token), bootstrapHostIds[i]));
         }
 
         // any further attempt to bootsrtap should fail since every node in the cluster is splitting.
@@ -124,7 +125,7 @@ public class BootStrapperTest extends SchemaLoader
         Token token = StorageService.getPartitioner().midpoint(range.left, range.right);
         ss.onChange(bootstrapAddrs[2],
                     ApplicationState.STATUS,
-                    StorageService.instance.valueFactory.normal(token, bootstrapHostIds[2]));
+                    StorageService.instance.valueFactory.normal(Collections.singleton(token), bootstrapHostIds[2]));
         load.put(bootstrapAddrs[2], 0d);
         InetAddress addr = BootStrapper.getBootstrapSource(ss.getTokenMetadata(), load);
         assert addr != null && addr.equals(addrs[2]);
@@ -158,7 +159,7 @@ public class BootStrapperTest extends SchemaLoader
         assert range5.contains(fakeToken);
         ss.onChange(myEndpoint,
                     ApplicationState.STATUS,
-                    StorageService.instance.valueFactory.bootstrapping(fakeToken, UUID.randomUUID()));
+                    StorageService.instance.valueFactory.bootstrapping(Collections.<Token>singleton(fakeToken), UUID.randomUUID()));
         tmd = ss.getTokenMetadata();
 
         InetAddress source4 = BootStrapper.getBootstrapSource(tmd, load);
