@@ -877,6 +877,9 @@ public final class CFMetaData
 
                 String oldIndexName = cfm.column_metadata.get(entry.getKey()).getIndexName();
 
+                if (oldIndexName == null)
+                    continue;
+
                 if (newDef.getIndexName() != null && !oldIndexName.equals(newDef.getIndexName()))
                     throw new ConfigurationException("Can't modify index name: was '" + oldIndexName + "' changed to '" + newDef.getIndexName() + "'.");
 
