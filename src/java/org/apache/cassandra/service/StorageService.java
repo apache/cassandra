@@ -621,7 +621,58 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
             else
             {
-                logger.info("Using saved token " + tokens);
+                // if we were already bootstrapped with 1 token but num_tokens is set higher in the config,
+                // then we need to migrate to multi-token
+                if (tokens.size() == 1 && DatabaseDescriptor.getNumTokens() > 1)
+                {
+                    // wait for ring info
+                    logger.info("Sleeping for ring delay (" + delay + "ms)");
+                    try
+                    {
+                        Thread.sleep(delay);
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new AssertionError(e);
+                    }
+                    logger.info("Calculating new tokens");
+                    // calculate num_tokens tokens evenly spaced in the range (left, right]
+                    Token right = tokens.iterator().next();
+                    TokenMetadata clone = tokenMetadata.cloneOnlyTokenMap();
+                    clone.updateNormalToken(right, FBUtilities.getBroadcastAddress());
+                    Token left = clone.getPredecessor(right);
+
+                    // get (num_tokens - 1) tokens spaced evenly, and the last token will be our current token (right)
+                    for (int tok = 1; tok < DatabaseDescriptor.getNumTokens(); ++tok)
+                    {
+                        Token l = left;
+                        Token r = right;
+                        // iteratively calculate the location of the token using midpoint
+                        // num iterations is number of bits in IEE754 mantissa (including implicit leading 1)
+                        // we stop early for terminating fractions
+                        // TODO: alternatively we could add an interpolate() method to IPartitioner
+                        double frac = (double)tok / (double)DatabaseDescriptor.getNumTokens();
+                        Token midpoint = getPartitioner().midpoint(l, r);
+                        for (int i = 0; i < 53; ++i)
+                        {
+                            frac *= 2;
+                            if (frac == 1.0) /* not a bug */
+                                break;
+                            else if (frac > 1.0)
+                            {
+                                l = midpoint;
+                                frac -= 1.0;
+                            }
+                            else
+                                r = midpoint;
+                            midpoint = getPartitioner().midpoint(l, r);
+                        }
+                        tokens.add(midpoint);
+                    }
+                    logger.info("Split previous range (" + left + ", " + right + "] into " + tokens);
+                }
+                else
+                    logger.info("Using saved token " + tokens);
             }
         }
 
