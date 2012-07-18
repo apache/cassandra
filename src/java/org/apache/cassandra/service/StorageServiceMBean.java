@@ -72,11 +72,19 @@ public interface StorageServiceMBean
     public List<String> getMovingNodes();
 
     /**
-     * Fetch a string representation of the token.
+     * Fetch string representations of the tokens for this node.
      *
-     * @return a string token
+     * @return a collection of tokens formatted as strings
      */
-    public String getToken();
+    public List<String> getTokens();
+
+    /**
+     * Fetch string representations of the tokens for a specified node.
+     *
+     * @param endpoint string representation of an node
+     * @return a collection of tokens formatted as strings
+     */
+    public List<String> getTokens(String endpoint) throws UnknownHostException;
 
     /**
      * Fetch a string representation of the Cassandra version.

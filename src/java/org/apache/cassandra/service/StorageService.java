@@ -1726,9 +1726,22 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     /* These methods belong to the MBean interface */
 
-    public String getToken()
+    public List<String> getTokens()
     {
-        return getLocalTokens().iterator().next().toString();
+        return getTokens(FBUtilities.getBroadcastAddress());
+    }
+
+    public List<String> getTokens(String endpoint) throws UnknownHostException
+    {
+        return getTokens(InetAddress.getByName(endpoint));
+    }
+
+    private List<String> getTokens(InetAddress endpoint)
+    {
+        List<String> strTokens = new ArrayList<String>();
+        for (Token tok : getTokenMetadata().getTokens(endpoint))
+            strTokens.add(tok.toString());
+        return strTokens;
     }
 
     public String getReleaseVersion()
@@ -2432,6 +2445,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         // address of the current node
         InetAddress localAddress = FBUtilities.getBroadcastAddress();
+
+        // This doesn't make any sense in a vnodes environment.
+        if (getTokenMetadata().getTokens(localAddress).size() > 1)
+        {
+            logger.error("Invalid request to move(Token); This node has more than one token and cannot be moved thusly.");
+            throw new UnsupportedOperationException("This node has more than one token and cannot be moved thusly.");
+        }
+        
         List<String> tablesToProcess = Schema.instance.getNonSystemTables();
 
         // checking if data is moving to this node
@@ -2861,39 +2882,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // calculate ownership per dc
         for (Collection<InetAddress> endpoints : endpointsGroupedByDc)
         {
-            // sort the endpoints by their tokens
-            List<InetAddress> sortedEndpoints = Lists.newArrayListWithExpectedSize(endpoints.size());
-            sortedEndpoints.addAll(endpoints);
-
-            Collections.sort(sortedEndpoints, new Comparator<InetAddress>()
-            {
-                public int compare(InetAddress o1, InetAddress o2)
-                {
-                    byte[] b1 = o1.getAddress();
-                    byte[] b2 = o2.getAddress();
-
-                    if(b1.length < b2.length) return -1;
-                    if(b1.length > b2.length) return 1;
-
-                    for(int i = 0; i < b1.length; i++)
-                    {
-                        int left = (int)b1[i] & 0xFF;
-                        int right = (int)b2[i] & 0xFF;
-                        if (left < right)       return -1;
-                        else if (left > right)  return 1;
-                    }
-                    return 0;
-                }
-            });
-
             // calculate the ownership with replication and add the endpoint to the final ownership map
             for (InetAddress endpoint : endpoints)
             {
                 float ownership = 0.0f;
                 for (Range<Token> range : getRangesForEndpoint(keyspace, endpoint))
                 {
-                    if (tokenOwnership.containsKey(range.left))
-                        ownership += tokenOwnership.get(range.left);
+                    if (tokenOwnership.containsKey(range.right))
+                        ownership += tokenOwnership.get(range.right);
                 }
                 finalOwnership.put(endpoint, ownership);
             }

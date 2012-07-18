@@ -308,9 +308,21 @@ public class NodeProbe
       return compactionProxy;
     }
 
-    public String getToken()
+    public List<String> getTokens()
     {
-        return ssProxy.getToken();
+        return ssProxy.getTokens();
+    }
+
+    public List<String> getTokens(String endpoint)
+    {
+        try
+        {
+            return ssProxy.getTokens(endpoint);
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public String getLocalHostId()
@@ -572,7 +584,7 @@ public class NodeProbe
     {
         // Try to find the endpoint using the local token, doing so in a crazy manner
         // to maintain backwards compatibility with the MBean interface
-        String stringToken = ssProxy.getToken();
+        String stringToken = ssProxy.getTokens().get(0);
         Map<String, String> tokenToEndpoint = ssProxy.getTokenToEndpointMap();
 
         for (Map.Entry<String, String> pair : tokenToEndpoint.entrySet())
