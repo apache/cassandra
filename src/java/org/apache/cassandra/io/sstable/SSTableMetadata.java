@@ -19,12 +19,8 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.DataOutput;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +38,7 @@ import org.apache.cassandra.utils.EstimatedHistogram;
  *  - max column timestamp
  *  - compression ratio
  *  - partitioner
+ *  - generations of sstables from which this sstable was compacted, if any
  *
  * An SSTableMetadata should be instantiated via the Collector, openFromDescriptor()
  * or createDefaultInstance()
@@ -58,6 +55,7 @@ public class SSTableMetadata
     public final long maxTimestamp;
     public final double compressionRatio;
     public final String partitioner;
+    public final Set<Integer> ancestors;
 
     private SSTableMetadata()
     {
@@ -66,10 +64,11 @@ public class SSTableMetadata
              ReplayPosition.NONE,
              Long.MIN_VALUE,
              Double.MIN_VALUE,
-             null);
+             null,
+             Collections.<Integer>emptySet());
     }
 
-    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long maxTimestamp, double cr, String partitioner)
+    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long maxTimestamp, double cr, String partitioner, Set<Integer> ancestors)
     {
         this.estimatedRowSize = rowSizes;
         this.estimatedColumnCount = columnCounts;
@@ -77,6 +76,7 @@ public class SSTableMetadata
         this.maxTimestamp = maxTimestamp;
         this.compressionRatio = cr;
         this.partitioner = partitioner;
+        this.ancestors = ancestors;
     }
 
     public static SSTableMetadata createDefaultInstance()
@@ -108,6 +108,7 @@ public class SSTableMetadata
         protected ReplayPosition replayPosition = ReplayPosition.NONE;
         protected long maxTimestamp = Long.MIN_VALUE;
         protected double compressionRatio = Double.MIN_VALUE;
+        protected Set<Integer> ancestors = new HashSet<Integer>();
 
         public void addRowSize(long rowSize)
         {
@@ -140,7 +141,8 @@ public class SSTableMetadata
                                        replayPosition,
                                        maxTimestamp,
                                        compressionRatio,
-                                       partitioner);
+                                       partitioner,
+                                       ancestors);
         }
 
         public Collector estimatedRowSize(EstimatedHistogram estimatedRowSize)
@@ -160,6 +162,12 @@ public class SSTableMetadata
             this.replayPosition = replayPosition;
             return this;
         }
+
+        public Collector addAncestor(int generation)
+        {
+            this.ancestors.add(generation);
+            return this;
+        }
     }
 
     public static class SSTableMetadataSerializer
@@ -176,6 +184,9 @@ public class SSTableMetadata
             dos.writeLong(sstableStats.maxTimestamp);
             dos.writeDouble(sstableStats.compressionRatio);
             dos.writeUTF(sstableStats.partitioner);
+            dos.writeInt(sstableStats.ancestors.size());
+            for (Integer g : sstableStats.ancestors)
+                dos.writeInt(g);
         }
 
         public SSTableMetadata deserialize(Descriptor descriptor) throws IOException
@@ -213,7 +224,11 @@ public class SSTableMetadata
                                     ? dis.readDouble()
                                     : Double.MIN_VALUE;
             String partitioner = desc.hasPartitioner ? dis.readUTF() : null;
-            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp, compressionRatio, partitioner);
+            int nbAncestors = desc.hasAncestors ? dis.readInt() : 0;
+            Set<Integer> ancestors = new HashSet<Integer>(nbAncestors);
+            for (int i = 0; i < nbAncestors; i++)
+                ancestors.add(dis.readInt());
+            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp, compressionRatio, partitioner, ancestors);
         }
     }
 }
