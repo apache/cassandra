@@ -151,7 +151,10 @@ public final class CFMetaData
                                                          + "message_version int,"
                                                          + "mutation blob,"
                                                          + "PRIMARY KEY (target_id, hint_id, message_version)"
-                                                         + ") WITH COMPACT STORAGE AND COMMENT='hints awaiting delivery'");
+                                                         + ") WITH COMPACT STORAGE "
+                                                         + "AND COMPACTION_STRATEGY_OPTIONS:MIN_COMPACTION_THRESHOLD=0 "
+                                                         + "AND COMPACTION_STRATEGY_OPTIONS:MAX_COMPACTION_THRESHOLD=0 "
+                                                         + "AND COMMENT='hints awaiting delivery'");
 
     public static final CFMetaData PeersCf = compile(12, "CREATE TABLE " + SystemTable.PEERS_CF + " ("
                                                          + "token_bytes blob PRIMARY KEY,"
