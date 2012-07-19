@@ -159,7 +159,7 @@ public class SystemTable
         {
             String req = "INSERT INTO system.%s (token_bytes, peer) VALUES ('%s', '%s')";
             String tokenBytes = ByteBufferUtil.bytesToHex(p.getTokenFactory().toByteArray(token));
-            processInternal(String.format(req, PEERS_CF, tokenBytes, ep.getHostAddress()));   
+            processInternal(String.format(req, PEERS_CF, tokenBytes, ep.getHostAddress()));
         }
         forceBlockingFlush(PEERS_CF);
     }
@@ -175,7 +175,7 @@ public class SystemTable
         {
             String req = "DELETE FROM system.%s WHERE token_bytes = '%s'";
             String tokenBytes = ByteBufferUtil.bytesToHex(p.getTokenFactory().toByteArray(token));
-            processInternal(String.format(req, PEERS_CF, tokenBytes));   
+            processInternal(String.format(req, PEERS_CF, tokenBytes));
         }
         forceBlockingFlush(PEERS_CF);
     }
@@ -185,8 +185,6 @@ public class SystemTable
     */
     public static synchronized void updateTokens(Collection<Token> tokens)
     {
-        IPartitioner p = StorageService.getPartitioner();
-
         String req = "INSERT INTO system.%s (key, token_bytes) VALUES ('%s', '%s')";
         String tokenBytes = ByteBufferUtil.bytesToHex(serializeTokens(tokens));
         processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, tokenBytes));
@@ -214,15 +212,15 @@ public class SystemTable
                 newToks.put(toks);
                 toks = newToks;
             }
-            
+
             toks.putShort((short)tokenBytes.remaining());
             toks.put(tokenBytes);
         }
-        
+
         toks.flip();
         return toks;
     }
-    
+
     private static Collection<Token> deserializeTokens(ByteBuffer tokenBytes)
     {
         List<Token> tokens = new ArrayList<Token>();
