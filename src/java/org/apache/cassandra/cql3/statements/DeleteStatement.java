@@ -23,6 +23,10 @@ import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.cql3.operations.ListOperation;
+import org.apache.cassandra.cql3.operations.MapOperation;
+import org.apache.cassandra.cql3.operations.Operation;
+import org.apache.cassandra.cql3.operations.SetOperation;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.IMutation;
@@ -160,9 +164,12 @@ public class DeleteStatement extends ModificationStatement
                     {
                         Pair<CFDefinition.Name, Term> p = iter.next();
                         CFDefinition.Name column = p.left;
-                        if (column.type instanceof CollectionType)
+
+                        if (column.type.isCollection())
                         {
+                            CollectionType validator = (CollectionType) column.type;
                             Term keySelected = p.right;
+
                             if (keySelected == null)
                             {
                                 // Delete the whole collection
@@ -175,13 +182,25 @@ public class DeleteStatement extends ModificationStatement
                             else
                             {
                                 builder.add(column.name.key);
-                                CollectionType.Function fct = CollectionType.Function.DISCARD_KEY;
                                 List<Term> args = Collections.singletonList(keySelected);
 
-                                if (column.type instanceof ListType)
-                                    ((ListType)column.type).execute(cf, builder, fct, args, params, group == null ? null : group.getCollection(column.name.key));
-                                else
-                                    ((CollectionType)column.type).executeFunction(cf, builder, fct, args, params);
+                                Operation op;
+                                switch (validator.kind)
+                                {
+                                    case LIST:
+                                        op = ListOperation.DiscardKey(args);
+                                        break;
+                                    case SET:
+                                        op = SetOperation.Discard(args);
+                                        break;
+                                    case MAP:
+                                        op = MapOperation.DiscardKey(keySelected);
+                                        break;
+                                    default:
+                                        throw new InvalidRequestException("Unknown collection type: " + validator.kind);
+                                }
+
+                                op.execute(cf, builder, validator, params, group == null ? null : group.getCollection(column.name.key));
                             }
                         }
                         else

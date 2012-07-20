@@ -245,12 +245,16 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                     if (useCompactStorage)
                     {
                         if (definedCollections != null)
-                            throw new InvalidRequestException("Collection types are not supported with non composite PRIMARY KEY");
+                            throw new InvalidRequestException("Collection types are not supported with COMPACT STORAGE");
                         stmt.comparator = CFDefinition.definitionType;
                     }
                     else
                     {
-                        stmt.comparator = CompositeType.getInstance(Collections.<AbstractType<?>>singletonList(CFDefinition.definitionType));
+                        List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(definedCollections == null ? 1 : 2);
+                        types.add(CFDefinition.definitionType);
+                        if (definedCollections != null)
+                            types.add(ColumnToCollectionType.getInstance(definedCollections));
+                        stmt.comparator = CompositeType.getInstance(types);
                     }
                 }
 

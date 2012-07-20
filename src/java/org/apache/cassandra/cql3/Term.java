@@ -34,7 +34,7 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
 /** A term parsed from a CQL statement. */
-public class Term implements Value
+public class Term
 {
     public enum Type
     {

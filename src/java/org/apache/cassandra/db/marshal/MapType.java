@@ -19,19 +19,13 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import org.apache.cassandra.cql3.ColumnNameBuilder;
-import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.cql3.UpdateParameters;
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -72,12 +66,12 @@ public class MapType extends CollectionType
         this.values = values;
     }
 
-    protected AbstractType<?> nameComparator()
+    public AbstractType<?> nameComparator()
     {
         return keys;
     }
 
-    protected AbstractType<?> valueComparator()
+    public AbstractType<?> valueComparator()
     {
         return values;
     }
@@ -85,39 +79,6 @@ public class MapType extends CollectionType
     protected void appendToStringBuilder(StringBuilder sb)
     {
         sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Arrays.asList(keys, values)));
-    }
-
-    public void executeFunction(ColumnFamily cf, ColumnNameBuilder fullPath, Function fct, List<Term> args, UpdateParameters params) throws InvalidRequestException
-    {
-        switch (fct)
-        {
-            case SET:
-                doPut(cf, fullPath, args, params);
-                break;
-            case DISCARD_KEY:
-                doDiscard(cf, fullPath, args.get(0), params);
-                break;
-            default:
-                throw new AssertionError("Unsupported function " + fct);
-        }
-    }
-
-    private void doPut(ColumnFamily cf, ColumnNameBuilder builder, List<Term> args, UpdateParameters params) throws InvalidRequestException
-    {
-        assert args.size() % 2 == 0;
-        Iterator<Term> iter = args.iterator();
-        while (iter.hasNext())
-        {
-            ByteBuffer name = builder.copy().add(iter.next().getByteBuffer(keys, params.variables)).build();
-            ByteBuffer value = iter.next().getByteBuffer(values, params.variables);
-            cf.addColumn(params.makeColumn(name, value));
-        }
-    }
-
-    private void doDiscard(ColumnFamily cf, ColumnNameBuilder builder, Term value, UpdateParameters params) throws InvalidRequestException
-    {
-        ByteBuffer name = builder.add(value.getByteBuffer(keys, params.variables)).build();
-        cf.addColumn(params.makeTombstone(name));
     }
 
     public ByteBuffer serializeForThrift(List<Pair<ByteBuffer, IColumn>> columns)

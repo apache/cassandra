@@ -196,7 +196,6 @@ public class CompositeType extends AbstractCompositeType
     public static class Builder implements ColumnNameBuilder
     {
         private final CompositeType composite;
-        private int current;
 
         private final List<ByteBuffer> components;
         private final byte[] endOfComponents;
@@ -219,15 +218,15 @@ public class CompositeType extends AbstractCompositeType
         private Builder(Builder b)
         {
             this(b.composite, new ArrayList<ByteBuffer>(b.components), Arrays.copyOf(b.endOfComponents, b.endOfComponents.length));
-            this.current = b.current;
             this.serializedSize = b.serializedSize;
         }
 
         public Builder add(Term t, Relation.Type op, List<ByteBuffer> variables) throws InvalidRequestException
         {
-            if (current >= composite.types.size())
+            if (components.size() >= composite.types.size())
                 throw new IllegalStateException("Composite column is already fully constructed");
 
+            int current = components.size();
             AbstractType currentType = composite.types.get(current);
             ByteBuffer buffer = t.getByteBuffer(currentType, variables);
             components.add(buffer);
@@ -254,23 +253,23 @@ public class CompositeType extends AbstractCompositeType
                     endOfComponents[current] = (byte) 0;
                     break;
             }
-            ++current;
             return this;
         }
 
         public Builder add(ByteBuffer bb)
         {
+            int current = components.size();
             if (current >= composite.types.size())
                 throw new IllegalStateException("Composite column is already fully constructed");
 
             components.add(bb);
-            endOfComponents[current++] = (byte) 0;
+            endOfComponents[current] = (byte) 0;
             return this;
         }
 
         public int componentCount()
         {
-            return current;
+            return components.size();
         }
 
         public ByteBuffer build()
@@ -286,10 +285,10 @@ public class CompositeType extends AbstractCompositeType
 
         public ByteBuffer buildAsEndOfRange()
         {
-            if (current >= composite.types.size())
+            if (components.size() >= composite.types.size())
                 throw new IllegalStateException("Composite column is already fully constructed");
 
-            if (current == 0)
+            if (components.isEmpty())
                 return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
             ByteBuffer bb = build();

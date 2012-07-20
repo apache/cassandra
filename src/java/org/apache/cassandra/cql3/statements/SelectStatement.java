@@ -272,7 +272,7 @@ public class SelectStatement implements CQLStatement
         {
             // For sparse, we used to ask for 'defined columns' * 'asked limit' to account for the grouping of columns.
             // Since that doesn't work for maps/sets/lists, we use the compositesToGroup option of SliceQueryFilter.
-            // But we must preserver backward compatibility too.
+            // But we must preserve backward compatibility too.
             int multiplier = cfDef.isCompact ? 1 : cfDef.metadata.size();
             int toGroup = cfDef.isCompact ? -1 : cfDef.columns.size();
             ColumnSlice slice = new ColumnSlice(getRequestedBound(isReversed ? Bound.END : Bound.START, variables),
@@ -419,6 +419,10 @@ public class SelectStatement implements CQLStatement
         }
         else
         {
+            // Collections require doing a slice query because a given collection is a
+            // non-know set of columns, so we shouldn't get there
+            assert !cfDef.hasCollections;
+
             // Adds all columns (even if the user selected a few columns, we
             // need to query all columns to know if the row exists or not).
             // Note that when we allow IS NOT NULL in queries and if all
@@ -702,7 +706,12 @@ public class SelectStatement implements CQLStatement
                 ColumnGroupMap.Builder builder = new ColumnGroupMap.Builder(composite, cfDef.hasCollections);
 
                 for (IColumn c : row.cf)
+                {
+                    if (c.isMarkedForDelete())
+                        continue;
+
                     builder.add(c);
+                }
 
                 for (ColumnGroupMap group : builder.groups())
                     handleGroup(selection, row.key.key, group, cqlRows);
@@ -801,9 +810,13 @@ public class SelectStatement implements CQLStatement
                     // This should not happen for SPARSE
                     throw new AssertionError();
                 case COLUMN_METADATA:
-                    if (name.type instanceof CollectionType)
+                    if (name.type.isCollection())
                     {
-                         cqlRows.addColumnValue(((CollectionType)name.type).serializeForThrift(columns.getCollection(name.name.key)));
+                        List<Pair<ByteBuffer, IColumn>> collection = columns.getCollection(name.name.key);
+                        if (collection == null)
+                            cqlRows.addColumnValue(null);
+                        else
+                            cqlRows.addColumnValue(((CollectionType)name.type).serializeForThrift(collection));
                         break;
                     }
                     IColumn c = columns.getSimple(name.name.key);

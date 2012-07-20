@@ -34,6 +34,7 @@ options {
     import java.util.List;
     import java.util.Map;
 
+    import org.apache.cassandra.cql3.operations.*;
     import org.apache.cassandra.cql3.statements.*;
     import org.apache.cassandra.config.ConfigurationException;
     import org.apache.cassandra.db.marshal.CollectionType;
@@ -221,15 +222,15 @@ insertStatement returns [UpdateStatement expr]
     @init {
         Attributes attrs = new Attributes();
         List<ColumnIdentifier> columnNames  = new ArrayList<ColumnIdentifier>();
-        List<Value> columnValues = new ArrayList<Value>();
+        List<Operation> columnOperations = new ArrayList<Operation>();
     }
     : K_INSERT K_INTO cf=columnFamilyName
           '(' c1=cident { columnNames.add(c1); }  ( ',' cn=cident { columnNames.add(cn); } )+ ')'
         K_VALUES
-          '(' v1=value { columnValues.add(v1); } ( ',' vn=value { columnValues.add(vn); } )+ ')'
+          '(' v1=set_operation { columnOperations.add(v1); } ( ',' vn=set_operation { columnOperations.add(vn); } )+ ')'
         ( usingClause[attrs] )?
       {
-          $expr = new UpdateStatement(cf, attrs, columnNames, columnValues);
+          $expr = new UpdateStatement(cf, attrs, columnNames, columnOperations);
       }
     ;
 
@@ -471,29 +472,25 @@ cfOrKsName[CFName name, boolean isKs]
     | k=unreserved_keyword { if (isKs) $name.setKeyspace(k, false); else $name.setColumnFamily(k, false); }
     ;
 
-// Values (includes prepared statement markers)
-value returns [Value value]
-    : t=term               { $value = t; }
-    | c=collection_literal { $value = c; }
+set_operation returns [Operation op]
+    : t=term         { $op = ColumnOperation.Set(t); }
+    | m=map_literal  { $op = MapOperation.Set(m);  }
+    | l=list_literal { $op = ListOperation.Set(l); }
+    | s=set_literal  { $op = SetOperation.Set(s);  }
     ;
 
-collection_literal returns [Value value]
-    : ll=list_literal { $value = ll; }
-    | sl=set_literal  { $value = sl; }
-    | ml=map_literal  { $value = ml; }
+list_literal returns [List<Term> value]
+    : '[' { List<Term> l = new ArrayList<Term>(); } ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']' { $value = l; }
     ;
 
-list_literal returns [Value.ListLiteral value]
-    : '[' { Value.ListLiteral l = new Value.ListLiteral(); } ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']' { $value = l; }
+set_literal returns [List<Term> value]
+    : '{' { List<Term> s = new ArrayList<Term>(); } ( t1=term { s.add(t1); } ( ',' tn=term { s.add(tn); } )* )? '}'  { $value = s; }
     ;
 
-set_literal returns [Value.SetLiteral value]
-    : '{' { Value.SetLiteral s = new Value.SetLiteral(); } ( t1=term { s.add(t1); } ( ',' tn=term { s.add(tn); } )* )? '}'  { $value = s; }
-    ;
-
-map_literal returns [Value.MapLiteral value]
+map_literal returns [Map<Term, Term> value]
     // Note that we have an ambiguity between maps and set for "{}". So we force it to a set, and deal with it later based on the type of the column
-    : '{' { Value.MapLiteral m = new Value.MapLiteral(); } k1=term ':' v1=term { m.put(k1, v1); } ( ',' kn=term ':' vn=term { m.put(kn, vn); } )* '}'
+    : '{' { Map<Term, Term> m = new HashMap<Term, Term>(); }
+          k1=term ':' v1=term { m.put(k1, v1); } ( ',' kn=term ':' vn=term { m.put(kn, vn); } )* '}'
        { $value = m; }
     ;
 
@@ -514,7 +511,7 @@ intTerm returns [Term integer]
 
 termPairWithOperation[List<Pair<ColumnIdentifier, Operation>> columns]
     : key=cident '='
-        ( v=value { columns.add(Pair.<ColumnIdentifier, Operation>create(key, new Operation.Set(v))); }
+        (set_op = set_operation { columns.add(Pair.<ColumnIdentifier, Operation>create(key, set_op)); }
         | c=cident op=operation
           {
               if (!key.equals(c))
@@ -525,32 +522,35 @@ termPairWithOperation[List<Pair<ColumnIdentifier, Operation>> columns]
           {
               if (!key.equals(c))
                   addRecognitionError("Only expressions like X = <value> + X are supported.");
-              columns.add(Pair.<ColumnIdentifier, Operation>create(key, new Operation.Function(CollectionType.Function.PREPEND, ll)));
+              columns.add(Pair.<ColumnIdentifier, Operation>create(key, ListOperation.Prepend(ll)));
           }
         )
     | key=cident '[' t=term ']' '=' vv=term
       {
-          List<Term> args = Arrays.asList(t, vv);
-          columns.add(Pair.<ColumnIdentifier, Operation>create(key, new Operation.Function(CollectionType.Function.SET, args)));
+          Operation setOp = (t.getType() == Term.Type.INTEGER)
+                             ? ListOperation.SetIndex(Arrays.asList(t, vv))
+                             : MapOperation.Put(t, vv);
+
+          columns.add(Pair.<ColumnIdentifier, Operation>create(key, setOp));
       }
     ;
 
 operation returns [Operation op]
-    : '+' v=intTerm { $op = new Operation.Counter(v, false); }
+    : '+' v=intTerm { $op = ColumnOperation.CounterInc(v); }
     | sign='-'? v=intTerm
       {
           validateMinusSupplied(sign, v, input);
           if (sign == null)
               v = new Term(-(Long.valueOf(v.getText())), v.getType());
-          $op = new Operation.Counter(v, true);
+          $op = ColumnOperation.CounterDec(v);
       }
-    | '+' ll=list_literal { $op = new Operation.Function(CollectionType.Function.APPEND, ll); }
-    | '-' ll=list_literal { $op = new Operation.Function(CollectionType.Function.DISCARD_LIST, ll); }
+    | '+' ll=list_literal { $op = ListOperation.Append(ll); }
+    | '-' ll=list_literal { $op = ListOperation.Discard(ll); }
 
-    | '+' sl=set_literal { $op = new Operation.Function(CollectionType.Function.ADD, sl.asList()); }
-    | '-' sl=set_literal { $op = new Operation.Function(CollectionType.Function.DISCARD_SET, sl.asList()); }
+    | '+' sl=set_literal { $op = SetOperation.Add(sl); }
+    | '-' sl=set_literal { $op = SetOperation.Discard(sl); }
 
-    | '+' ml=map_literal { $op = new Operation.Function(CollectionType.Function.SET, ml.asList()); }
+    | '+' ml=map_literal { $op = MapOperation.Put(ml); }
     ;
 
 property returns [String str]

@@ -27,13 +27,8 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cql3.ColumnNameBuilder;
-import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.cql3.UpdateParameters;
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -73,12 +68,12 @@ public class SetType extends CollectionType
         this.elements = elements;
     }
 
-    protected AbstractType<?> nameComparator()
+    public AbstractType<?> nameComparator()
     {
         return elements;
     }
 
-    protected AbstractType<?> valueComparator()
+    public AbstractType<?> valueComparator()
     {
         return EmptyType.instance;
     }
@@ -86,41 +81,6 @@ public class SetType extends CollectionType
     protected void appendToStringBuilder(StringBuilder sb)
     {
         sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Collections.<AbstractType<?>>singletonList(elements)));
-    }
-
-    public void executeFunction(ColumnFamily cf, ColumnNameBuilder fullPath, Function fct, List<Term> args, UpdateParameters params) throws InvalidRequestException
-    {
-        switch (fct)
-        {
-            case ADD:
-                doAdd(cf, fullPath, args, params);
-                break;
-            case DISCARD_SET:
-                doDiscard(cf, fullPath, args, params);
-                break;
-            default:
-                throw new AssertionError("Unsupported function " + fct);
-        }
-    }
-
-    public void doAdd(ColumnFamily cf, ColumnNameBuilder builder, List<Term> values, UpdateParameters params) throws InvalidRequestException
-    {
-        for (int i = 0; i < values.size(); ++i)
-        {
-            ColumnNameBuilder b = i == values.size() - 1 ? builder : builder.copy();
-            ByteBuffer name = b.add(values.get(i).getByteBuffer(elements, params.variables)).build();
-            cf.addColumn(params.makeColumn(name, ByteBufferUtil.EMPTY_BYTE_BUFFER));
-        }
-    }
-
-    public void doDiscard(ColumnFamily cf, ColumnNameBuilder builder, List<Term> values, UpdateParameters params) throws InvalidRequestException
-    {
-        for (int i = 0; i < values.size(); ++i)
-        {
-            ColumnNameBuilder b = i == values.size() - 1 ? builder : builder.copy();
-            ByteBuffer name = b.add(values.get(i).getByteBuffer(elements, params.variables)).build();
-            cf.addColumn(params.makeTombstone(name));
-        }
     }
 
     public ByteBuffer serializeForThrift(List<Pair<ByteBuffer, IColumn>> columns)

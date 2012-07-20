@@ -45,26 +45,6 @@ public abstract class CollectionType extends AbstractType<ByteBuffer>
         MAP, SET, LIST
     }
 
-    public enum Function
-    {
-        APPEND       (false, Kind.LIST),
-        PREPEND      (false, Kind.LIST),
-        SET          ( true, Kind.LIST, Kind.MAP),
-        ADD          (false, Kind.SET),
-        DISCARD_LIST ( true, Kind.LIST),
-        DISCARD_SET  (false, Kind.SET),
-        DISCARD_KEY  ( true, Kind.LIST, Kind.MAP);
-
-        public final boolean needsReading;
-        public final EnumSet<Kind> validReceivers;
-
-        private Function(boolean needsReading, Kind ... validReceivers)
-        {
-            this.needsReading = needsReading;
-            this.validReceivers = EnumSet.copyOf(Arrays.asList(validReceivers));
-        }
-    }
-
     public final Kind kind;
 
     protected CollectionType(Kind kind)
@@ -72,19 +52,10 @@ public abstract class CollectionType extends AbstractType<ByteBuffer>
         this.kind = kind;
     }
 
-    protected abstract AbstractType<?> nameComparator();
-    protected abstract AbstractType<?> valueComparator();
+    public abstract AbstractType<?> nameComparator();
+    public abstract AbstractType<?> valueComparator();
+
     protected abstract void appendToStringBuilder(StringBuilder sb);
-
-    public void execute(ColumnFamily cf, ColumnNameBuilder fullPath, Function fct, List<Term> args, UpdateParameters params) throws InvalidRequestException
-    {
-        if (!fct.validReceivers.contains(kind))
-            throw new InvalidRequestException(String.format("Invalid operation %s for %s collection", fct, kind));
-
-        executeFunction(cf, fullPath, fct, args, params);
-    }
-
-    public abstract void executeFunction(ColumnFamily cf, ColumnNameBuilder fullPath, Function fct, List<Term> args, UpdateParameters params) throws InvalidRequestException;
 
     public abstract ByteBuffer serializeForThrift(List<Pair<ByteBuffer, IColumn>> columns);
 
@@ -131,5 +102,10 @@ public abstract class CollectionType extends AbstractType<ByteBuffer>
     public void validate(ByteBuffer bytes)
     {
         valueComparator().validate(bytes);
+    }
+
+    public boolean isCollection()
+    {
+        return true;
     }
 }

@@ -226,6 +226,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         validate(bytes);
     }
 
+    public boolean isCollection()
+    {
+        return false;
+    }
+
     /**
      * This must be overriden by subclasses if necessary so that for any
      * AbstractType, this == TypeParser.parse(toString()).
