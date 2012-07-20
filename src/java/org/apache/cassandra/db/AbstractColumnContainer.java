@@ -197,12 +197,13 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
 
     public boolean hasIrrelevantData(int gcBefore)
     {
-        if (deletionInfo().purge(gcBefore) == DeletionInfo.LIVE)
+        // Do we have gcable deletion infos?
+        if (!deletionInfo().purge(gcBefore).equals(deletionInfo()))
             return true;
 
-        long deletedAt = deletionInfo().maxTimestamp();
+        // Do we have colums that are either deleted by the container or gcable tombstone?
         for (IColumn column : columns)
-            if (column.mostRecentLiveChangeAt() <= deletedAt || column.hasIrrelevantData(gcBefore))
+            if (deletionInfo().isDeleted(column) || column.hasIrrelevantData(gcBefore))
                 return true;
 
         return false;
