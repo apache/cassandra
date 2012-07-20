@@ -151,19 +151,18 @@ if [ "x$CASSANDRA_HEAPDUMP_DIR" != "x" ]; then
     JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s`-pid$$.hprof"
 fi
 
-java_version=`"${JAVA:-java}" -version 2>&1 | awk '/version/ {print $3}' | egrep -o '[0-9]+\.[0-9]+'`
 
 if [ "`uname`" = "Linux" ] ; then
-    # try to determine JVM stack minimum by using too-small stack
-    # (note that 16k causes segfault and smaller prints invalid size error)
-    java_min_stack=`"${JAVA:-java}" -Xss32k 2>&1 | sed -nr 's/The stack size specified is too small, Specify at least ([0-9]+k)/\1/p'`
+    java_version=`"${JAVA:-java}" -version 2>&1 | awk '/version/ {print $3}' | egrep -o '[0-9]+\.[0-9]+'`
     # reduce the per-thread stack size to minimize the impact of Thrift
     # thread-per-client.  (Best practice is for client connections to
     # be pooled anyway.) Only do so on Linux where it is known to be
     # supported.
-    if [ -n "$java_min_stack" ]
+    if [ "$java_version" = "1.7" ]
     then
-        JVM_OPTS="$JVM_OPTS -Xss$java_min_stack"
+        JVM_OPTS="$JVM_OPTS -Xss160k"
+    else
+        JVM_OPTS="$JVM_OPTS -Xss128k"
     fi
 fi
 echo "xss = $JVM_OPTS"
