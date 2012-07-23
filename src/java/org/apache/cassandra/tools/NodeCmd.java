@@ -46,7 +46,6 @@ import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
-import org.apache.rat.document.UnreadableArchiveException;
 
 public class NodeCmd
 {
