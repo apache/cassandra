@@ -139,6 +139,7 @@ launch_service()
     else
         exec $NUMACTL "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class" <&- &
         [ ! -z "$pidpath" ] && printf "%d" $! > "$pidpath"
+        true
     fi
 
     return $?
