@@ -205,7 +205,6 @@ public class SecondaryIndexManager
             return null;
 
         assert cdef.getIndexType() != null;
-        logger.info("Creating new index : {}",cdef);
 
         SecondaryIndex index;
         try
@@ -231,6 +230,7 @@ public class SecondaryIndexManager
             {
                 index = currentIndex;
                 index.addColumnDef(cdef);
+                logger.info("Creating new index : {}",cdef);
             }
         }
         else
