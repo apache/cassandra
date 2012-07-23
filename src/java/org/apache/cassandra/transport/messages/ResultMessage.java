@@ -57,7 +57,7 @@ public abstract class ResultMessage extends Message.Response
         }
     };
 
-    private enum Kind
+    public enum Kind
     {
         VOID         (1, Void.subcodec),
         ROWS         (2, Rows.subcodec),
@@ -97,7 +97,7 @@ public abstract class ResultMessage extends Message.Response
         }
     }
 
-    private final Kind kind;
+    public final Kind kind;
 
     protected ResultMessage(Kind kind)
     {
