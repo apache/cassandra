@@ -513,17 +513,26 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         if (DatabaseDescriptor.isAutoBootstrap()
                 && DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress())
-                && !SystemTable.isBootstrapped())
+                && !SystemTable.bootstrapComplete())
             logger.info("This node will not auto bootstrap because it is configured to be a seed node.");
 
         Set<InetAddress> current = new HashSet<InetAddress>();
-        // first startup is only chance to bootstrap
         Collection<Token> tokens;
+        // we can bootstrap at startup, or if we detect a previous attempt that failed, which is to say:
+        // DD.isAutoBootstrap must be true AND:
+        //  bootstrap is not recorded as complete, OR
+        //  DD.getSeeds does not contain our BCA, OR
+        //  we do not have non-system tables already
+        // OR:
+        //  we detect that we were previously trying to bootstrap (ST.bootstrapInProgress is true)
         if (DatabaseDescriptor.isAutoBootstrap()
-            && !(SystemTable.isBootstrapped()
-                 || DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress())
-                 || !Schema.instance.getNonSystemTables().isEmpty()))
+                && !(SystemTable.bootstrapComplete() || DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()) || !Schema.instance.getNonSystemTables().isEmpty())
+                || SystemTable.bootstrapInProgress())
         {
+            if (SystemTable.bootstrapInProgress())
+                logger.warn("Detected previous bootstrap failure; retrying");
+            else
+                SystemTable.setBootstrapState(SystemTable.BootstrapState.IN_PROGRESS);
             setMode(Mode.JOINING, "waiting for ring and schema information", true);
             // first sleep the delay to make sure we see the schema
             try
@@ -679,7 +688,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (!isSurveyMode)
         {
             // start participating in the ring.
-            SystemTable.setBootstrapped(true);
+            SystemTable.setBootstrapState(SystemTable.BootstrapState.COMPLETED);
             setTokens(tokens);
             // remove the existing info about the replaced node.
             if (!current.isEmpty())
@@ -704,7 +713,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         else if (isSurveyMode)
         {
             setTokens(SystemTable.getSavedTokens());
-            SystemTable.setBootstrapped(true);
+            SystemTable.setBootstrapState(SystemTable.BootstrapState.COMPLETED);
             isSurveyMode = false;
             logger.info("Leaving write survey mode and joining ring at operator request");
             assert tokenMetadata.sortedTokens().size() > 0;
@@ -2423,7 +2432,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     private void leaveRing()
     {
-        SystemTable.setBootstrapped(false);
+        SystemTable.setBootstrapState(SystemTable.BootstrapState.NEEDS_BOOTSTRAP);
         tokenMetadata.removeEndpoint(FBUtilities.getBroadcastAddress());
         calculatePendingRanges();
 

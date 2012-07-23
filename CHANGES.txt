@@ -33,6 +33,8 @@
 
 
 1.1.3
+ * flush based on data size, not throughput; overwritten columns no 
+   longer artificially inflate liveRatio (CASSANDRA-4399)
  * update default commitlog segment size to 32MB and total commitlog
    size to 32/1024 MB for 32/64 bit JVMs, respectively (CASSANDRA-4422)
  * avoid using global partitioner to estimate ranges in index sstables
@@ -45,11 +47,15 @@
  * (cql3) delete "component_index" column on DROP TABLE call (CASSANDRA-4420)
  * change nanoTime() to currentTimeInMillis() in schema related code (CASSANDRA-4432)
  * add a token generation tool (CASSANDRA-3709)
+ * Fix LCS bug with sstable containing only 1 row (CASSANDRA-4411)
+ * fix "Can't Modify Index Name" problem on CF update (CASSANDRA-4439)
 Merged from 1.0:
  * allow dropping columns shadowed by not-yet-expired supercolumn or row
    tombstones in PrecompactedRow (CASSANDRA-4396)
  * fix 1.0.x node join to mixed version cluster, other nodes >= 1.1 (CASSANDRA-4195)
  * Fix LCS splitting sstable base on uncompressed size (CASSANDRA-4419)
+ * Bootstraps that fail are detected upon restart and will retry safely without
+   needing to delete existing data first (CASSANDRA-4427)
 
 
 1.1.2

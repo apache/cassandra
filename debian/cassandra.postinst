@@ -38,7 +38,15 @@ case "$1" in
             chown -R cassandra: /var/lib/cassandra
             chown -R cassandra: /var/log/cassandra
         fi
-        sysctl -p /etc/sysctl.d/cassandra.conf
+        if ! sysctl -p /etc/sysctl.d/cassandra.conf; then
+            echo >&2
+            echo "Warning: unable to set vm.max_map_count; is this an OpenVZ" >&2
+            echo "instance? If so, it is highly recommended that you set" >&2
+            echo "vm.max_map_count to 1048575 in the host." >&2
+            echo >&2
+            echo "Deleting the local sysctl.d/cassandra.conf." >&2
+            rm -v /etc/sysctl.d/cassandra.conf
+        fi
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

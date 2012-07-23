@@ -43,7 +43,10 @@ public class Bounds<T extends RingPosition> extends AbstractBounds<T>
 
     public boolean contains(T position)
     {
-        return Range.contains(left, right, position) || left.equals(position);
+        // Range.contains doesnt work correctly if left == right (unless both
+        // are minimum) because for Range that means a wrapping range that select
+        // the whole ring. So we must explicitely handle this case
+        return left.equals(position) || ((right.isMinimum(partitioner) || !left.equals(right)) && Range.contains(left, right, position));
     }
 
     public Pair<AbstractBounds<T>, AbstractBounds<T>> split(T position)

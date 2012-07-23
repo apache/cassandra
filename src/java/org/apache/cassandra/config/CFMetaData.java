@@ -885,6 +885,31 @@ public final class CFMetaData
      */
     public void addDefaultIndexNames() throws ConfigurationException
     {
+        // if this is ColumnFamily update we need to add previously defined index names to the existing columns first
+        Integer cfId = Schema.instance.getId(ksName, cfName);
+        if (cfId != null)
+        {
+            CFMetaData cfm = Schema.instance.getCFMetaData(cfId);
+
+            for (Map.Entry<ByteBuffer, ColumnDefinition> entry : column_metadata.entrySet())
+            {
+                ColumnDefinition newDef = entry.getValue();
+
+                if (!cfm.column_metadata.containsKey(entry.getKey()) || newDef.getIndexType() == null)
+                    continue;
+
+                String oldIndexName = cfm.column_metadata.get(entry.getKey()).getIndexName();
+
+                if (oldIndexName == null)
+                    continue;
+
+                if (newDef.getIndexName() != null && !oldIndexName.equals(newDef.getIndexName()))
+                    throw new ConfigurationException("Can't modify index name: was '" + oldIndexName + "' changed to '" + newDef.getIndexName() + "'.");
+
+                newDef.setIndexName(oldIndexName);
+            }
+        }
+
         Set<String> existingNames = existingIndexNames(null);
         for (ColumnDefinition column : column_metadata.values())
         {

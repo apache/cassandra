@@ -78,6 +78,13 @@ public class SystemTable
     private static final ByteBuffer CURRENT_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("CurrentLocal");
     private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
 
+    public enum BootstrapState
+    {
+        NEEDS_BOOTSTRAP, // ordered for boolean backward compatibility, false
+        COMPLETED, // true
+        IN_PROGRESS
+    }
+
     private static DecoratedKey decorate(ByteBuffer key)
     {
         return StorageService.getPartitioner().decorateKey(key);
@@ -358,20 +365,31 @@ public class SystemTable
         return generation;
     }
 
-    public static boolean isBootstrapped()
+    public static BootstrapState getBootstrapState()
     {
         String req = "SELECT bootstrapped FROM system.%s WHERE key='%s'";
         UntypedResultSet result = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
 
         if (result.isEmpty() || !result.one().has("bootstrapped"))
-            return false;
-        return result.one().getBoolean("bootstrapped");
+            return BootstrapState.NEEDS_BOOTSTRAP;
+        return BootstrapState.values()[result.one().getInt("bootstrapped")];
     }
 
-    public static void setBootstrapped(boolean isBootstrapped)
+    public static boolean bootstrapComplete()
+    {
+        return getBootstrapState() == BootstrapState.COMPLETED;
+    }
+
+    public static boolean bootstrapInProgress()
+    {
+        return getBootstrapState() == BootstrapState.IN_PROGRESS;
+    }
+
+    public static void setBootstrapState(BootstrapState state)
     {
         String req = "INSERT INTO system.%s (key, bootstrapped) VALUES ('%s', '%b')";
-        processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, isBootstrapped));
+        processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, getBootstrapState()));
+        forceBlockingFlush(LOCAL_CF);
     }
 
     public static boolean isIndexBuilt(String table, String indexName)

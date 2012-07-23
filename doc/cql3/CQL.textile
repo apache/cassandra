@@ -596,8 +596,6 @@ The @<where-clause>@ specifies which rows must be queried. It is composed of rel
 
 Not all relations are allowed in a query. For instance, non-equal relations (where @IN@ is considered as an equal relation) on a partition key is only supported if the partitioner for the keyspace is an ordered one. Moreover, for a given partition key, the clustering keys induce an ordering of rows and relations on them is restricted to the relations that allow to select a *contiguous* (for the ordering) set of rows. For instance, given
 
-When specifying relations, the @TOKEN@ function can be used on the @PARTITION KEY@ column to query. In that case, rows will be selected based on the token of their @PARTITION_KEY@ rather than on the value (note that the token of a key depends on the partitioner in use).
-
 bc(sample). 
 CREATE TABLE posts (
     userid text,
@@ -619,6 +617,11 @@ But the following one is not, as it does not select a contiguous set of rows (an
 bc(sample). 
 // Needs a blog_title to be set to select ranges of posted_at
 SELECT entry_title, content FROM posts WHERE userid='john doe' AND posted_at >= 2012-01-01 AND posted_at < 2012-01-31
+
+When specifying relations, the @TOKEN@ function can be used on the @PARTITION KEY@ column to query. In that case, rows will be selected based on the token of their @PARTITION_KEY@ rather than on the value (note that the token of a key depends on the partitioner in use, and that in particular the RandomPartitioner won't yeld a meaningful order). Example:
+
+bc(sample). 
+SELECT * FROM posts WHERE token(userid) > token('tom') AND token(userid) < token('bob')
 
 h4(#selectOrderBy). @<order-by>@
 
