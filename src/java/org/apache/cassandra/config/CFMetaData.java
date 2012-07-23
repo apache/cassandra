@@ -886,7 +886,7 @@ public final class CFMetaData
     public void addDefaultIndexNames() throws ConfigurationException
     {
         // if this is ColumnFamily update we need to add previously defined index names to the existing columns first
-        Integer cfId = Schema.instance.getId(ksName, cfName);
+        UUID cfId = Schema.instance.getId(ksName, cfName);
         if (cfId != null)
         {
             CFMetaData cfm = Schema.instance.getCFMetaData(cfId);
