@@ -844,7 +844,29 @@ public class CompactionManager implements CompactionManagerMBean
         {
             super(OperationType.VALIDATION,
                   cfs.getCompactionStrategy().getScanners(sstables, range),
-                  new CompactionController(cfs, sstables, getDefaultGcBefore(cfs), true));
+                  new ValidationCompactionController(cfs, sstables));
+        }
+    }
+
+    /*
+     * Controller for validation compaction that never purges.
+     * Note that we should not call cfs.getOverlappingSSTables on the provided
+     * sstables because those sstables are not guaranteed to be active sstables
+     * (since we can run repair on a snapshot).
+     */
+    private static class ValidationCompactionController extends CompactionController
+    {
+        public ValidationCompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
+        {
+            super(cfs,
+                  Integer.MAX_VALUE,
+                  null);
+        }
+
+        @Override
+        public boolean shouldPurge(DecoratedKey key)
+        {
+            return false;
         }
     }
 
