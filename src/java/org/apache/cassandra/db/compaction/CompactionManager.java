@@ -55,6 +55,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
+import com.google.common.collect.ImmutableSet;
 
 /**
  * A singleton which manages a private executor of ongoing compactions. A readwrite lock
@@ -833,7 +834,31 @@ public class CompactionManager implements CompactionManagerMBean
         {
             super(OperationType.VALIDATION,
                   cfs.getCompactionStrategy().getScanners(sstables, range),
-                  new CompactionController(cfs, sstables, getDefaultGcBefore(cfs), true));
+                  new ValidationCompactionController(cfs, sstables));
+        }
+    }
+
+    /*
+     * Controller for validation compaction that never purges.
+     * Note that we should not call cfs.getOverlappingSSTables on the provided
+     * sstables because those sstables are not guaranteed to be active sstables
+     * (since we can run repair on a snapshot).
+     */
+    private static class ValidationCompactionController extends CompactionController
+    {
+        public ValidationCompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
+        {
+            super(cfs,
+                  Integer.MAX_VALUE,
+                  true,
+                  null,
+                  cfs.getCompactionStrategy().isKeyExistenceExpensive(ImmutableSet.copyOf(sstables)));
+        }
+
+        @Override
+        public boolean shouldPurge(DecoratedKey key)
+        {
+            return false;
         }
     }
 
