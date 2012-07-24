@@ -270,10 +270,11 @@ public class SelectStatement implements CQLStatement
     {
         if (isColumnRange())
         {
-            // For sparse, we used to ask for 'defined columns' * 'asked limit' to account for the grouping of columns.
-            // Since that doesn't work for maps/sets/lists, we use the compositesToGroup option of SliceQueryFilter.
-            // But we must preserve backward compatibility too.
-            int multiplier = cfDef.isCompact ? 1 : cfDef.metadata.size();
+            // For sparse, we used to ask for 'defined columns' * 'asked limit' (where defined columns includes the row marker)
+            // to account for the grouping of columns.
+            // Since that doesn't work for maps/sets/lists, we now use the compositesToGroup option of SliceQueryFilter.
+            // But we must preserve backward compatibility too (for mixed version cluster that is).
+            int multiplier = cfDef.isCompact ? 1 : (cfDef.metadata.size() + 1);
             int toGroup = cfDef.isCompact ? -1 : cfDef.columns.size();
             ColumnSlice slice = new ColumnSlice(getRequestedBound(isReversed ? Bound.END : Bound.START, variables),
                                                 getRequestedBound(isReversed ? Bound.START : Bound.END, variables));
@@ -395,6 +396,7 @@ public class SelectStatement implements CQLStatement
             assert r != null && r.isEquality();
             if (r.eqValues.size() > 1)
             {
+                assert cfDef.isCompact;
                 // We have a IN. We only support this for the last column, so just create all columns and return.
                 SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfDef.cfm.comparator);
                 Iterator<Term> iter = r.eqValues.iterator();
@@ -423,19 +425,31 @@ public class SelectStatement implements CQLStatement
             // non-know set of columns, so we shouldn't get there
             assert !cfDef.hasCollections;
 
-            // Adds all columns (even if the user selected a few columns, we
-            // need to query all columns to know if the row exists or not).
-            // Note that when we allow IS NOT NULL in queries and if all
-            // selected name are request 'not null', we will allow to only
-            // query those.
             SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfDef.cfm.comparator);
-            Iterator<ColumnIdentifier> iter = cfDef.metadata.keySet().iterator();
-            while (iter.hasNext())
+
+            // We need to query the selected column as well as the marker
+            // column (for the case where the row exists but has no columns outside the PK)
+            // One exception is "static CF" (non-composite non-compact CF) that
+            // don't have marker and for which we must query all columns instead
+            if (cfDef.isComposite)
             {
-                ColumnIdentifier name = iter.next();
-                ColumnNameBuilder b = iter.hasNext() ? builder.copy() : builder;
-                ByteBuffer cname = b.add(name.key).build();
-                columns.add(cname);
+                // marker
+                columns.add(builder.copy().add(ByteBufferUtil.EMPTY_BYTE_BUFFER).build());
+
+                // selected columns
+                for (Pair<CFDefinition.Name, Selector> p : getExpandedSelection())
+                    columns.add(builder.copy().add(p.right.id().key).build());
+            }
+            else
+            {
+                Iterator<ColumnIdentifier> iter = cfDef.metadata.keySet().iterator();
+                while (iter.hasNext())
+                {
+                    ColumnIdentifier name = iter.next();
+                    ColumnNameBuilder b = iter.hasNext() ? builder.copy() : builder;
+                    ByteBuffer cname = b.add(name.key).build();
+                    columns.add(cname);
+                }
             }
             return columns;
         }
@@ -948,10 +962,11 @@ public class SelectStatement implements CQLStatement
                     if (!cfDef.isComposite && (!restriction.isInclusive(Bound.START) || !restriction.isInclusive(Bound.END)))
                         stmt.sliceRestriction = restriction;
                 }
-                // We only support IN for the last name so far
-                else if (restriction.eqValues.size() > 1 && i != stmt.columnRestrictions.length - 1)
+                // We only support IN for the last name and for compact storage so far
+                // TODO: #3885 allows us to extend to non compact as well, but that remains to be done
+                else if (cfDef.isCompact && restriction.eqValues.size() > 1 && i != stmt.columnRestrictions.length - 1)
                 {
-                    throw new InvalidRequestException(String.format("PRIMARY KEY part %s cannot be restricted by IN relation (only the first and last parts can)", cname));
+                    throw new InvalidRequestException(String.format("PRIMARY KEY part %s cannot be restricted by IN relation", cname));
                 }
 
                 previous = cname;

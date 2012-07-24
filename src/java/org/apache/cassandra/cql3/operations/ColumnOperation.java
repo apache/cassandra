@@ -36,6 +36,17 @@ public class ColumnOperation implements Operation
 {
     enum Kind { SET, COUNTER_INC, COUNTER_DEC }
 
+    private static final Operation setToEmptyOperation = new ColumnOperation(null, Kind.SET)
+    {
+        @Override
+        protected void doSet(ColumnFamily cf, ColumnNameBuilder builder, AbstractType<?> validator, UpdateParameters params) throws InvalidRequestException
+        {
+            ByteBuffer colName = builder.build();
+            QueryProcessor.validateColumnName(colName);
+            cf.addColumn(params.makeColumn(colName, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        }
+    };
+
     private final Term value;
     private final Kind kind;
 
@@ -69,7 +80,7 @@ public class ColumnOperation implements Operation
         throw new InvalidRequestException("Column operations are only supported on simple types, but " + validator + " given.");
     }
 
-    private void doSet(ColumnFamily cf, ColumnNameBuilder builder, AbstractType<?> validator, UpdateParameters params) throws InvalidRequestException
+    protected void doSet(ColumnFamily cf, ColumnNameBuilder builder, AbstractType<?> validator, UpdateParameters params) throws InvalidRequestException
     {
         ByteBuffer colName = builder.build();
         QueryProcessor.validateColumnName(colName);
@@ -132,5 +143,10 @@ public class ColumnOperation implements Operation
     public static Operation CounterDec(Term value)
     {
         return new ColumnOperation(value, Kind.COUNTER_DEC);
+    }
+
+    public static Operation SetToEmpty()
+    {
+        return setToEmptyOperation;
     }
 }

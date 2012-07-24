@@ -1080,8 +1080,6 @@ public final class CFMetaData
     {
         if (alias != null)
         {
-            if (!alias.hasRemaining())
-                throw new ConfigurationException(msg + " alias may not be empty");
             try
             {
                 UTF8Type.instance.validate(alias);
@@ -1259,9 +1257,9 @@ public final class CFMetaData
             cfm.caching(Caching.valueOf(result.getString("caching")));
             cfm.compactionStrategyClass(createCompactionStrategy(result.getString("compaction_strategy_class")));
             cfm.compressionParameters(CompressionParameters.create(fromJsonMap(result.getString("compression_parameters"))));
+            cfm.columnAliases(columnAliasesFromStrings(fromJsonList(result.getString("column_aliases"))));
             if (result.has("value_alias"))
                 cfm.valueAlias(result.getBytes("value_alias"));
-            cfm.columnAliases(columnAliasesFromStrings(fromJsonList(result.getString("column_aliases"))));
             cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
 
             return cfm;

@@ -148,12 +148,6 @@ public class ColumnGroupMap
          */
         private boolean isSameGroup(ByteBuffer[] c)
         {
-            // Cql don't allow to insert columns who doesn't have all component of
-            // the composite set for sparse composite. Someone coming from thrift
-            // could hit that though. But since we have no way to handle this
-            // correctly, better fail here and tell whomever may hit that (if
-            // someone ever do) to change the definition to a dense composite.
-            assert c.length >= idx && previous.length >= idx : "Sparse composite should not have partial column names";
             for (int i = 0; i < idx; i++)
             {
                 if (!c[i].equals(previous[i]))

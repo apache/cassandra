@@ -25,12 +25,14 @@ import com.google.common.collect.ArrayListMultimap;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.cql3.operations.ColumnOperation;
 import org.apache.cassandra.cql3.operations.Operation;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql.QueryProcessor.validateKey;
@@ -182,16 +184,41 @@ public class UpdateStatement extends ModificationStatement
         RowMutation rm = new RowMutation(cfDef.cfm.ksName, key);
         ColumnFamily cf = rm.addOrGet(cfDef.cfm.cfName);
 
+        // Inserting the CQL row marker (see #4361)
+        // We always need to insert a marker, because of the following situation:
+        //   CREATE TABLE t ( k int PRIMARY KEY, c text );
+        //   INSERT INTO t(k, c) VALUES (1, 1)
+        //   DELETE c FROM t WHERE k = 1;
+        //   SELECT * FROM t;
+        // The last query should return one row (but with c == null). Adding
+        // the marker with the insert make sure the semantic is correct (while making sure a
+        // 'DELETE FROM t WHERE k = 1' does remove the row entirely)
+        if (cfDef.isComposite && !cfDef.isCompact)
+        {
+            ByteBuffer name = builder.copy().add(ByteBufferUtil.EMPTY_BYTE_BUFFER).build();
+            cf.addColumn(params.makeColumn(name, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        }
+
         if (cfDef.isCompact)
         {
             if (builder.componentCount() == 0)
                 throw new InvalidRequestException(String.format("Missing PRIMARY KEY part %s", cfDef.columns.values().iterator().next()));
 
-            List<Operation> operation = processedColumns.get(cfDef.value);
-            if (operation.isEmpty())
-                throw new InvalidRequestException(String.format("Missing mandatory column %s", cfDef.value));
-            assert operation.size() == 1;
-            hasCounterColumn = addToMutation(cf, builder, cfDef.value, operation.get(0), params, null);
+            Operation operation;
+            if (cfDef.value == null)
+            {
+                // No value was defined, we set to the empty value
+                operation = ColumnOperation.SetToEmpty();
+            }
+            else
+            {
+                List<Operation> operations = processedColumns.get(cfDef.value);
+                if (operations.isEmpty())
+                    throw new InvalidRequestException(String.format("Missing mandatory column %s", cfDef.value));
+                assert operations.size() == 1;
+                operation = operations.get(0);
+            }
+            hasCounterColumn = addToMutation(cf, builder, cfDef.value, operation, params, null);
         }
         else
         {
@@ -212,15 +239,15 @@ public class UpdateStatement extends ModificationStatement
                                   UpdateParameters params,
                                   List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
     {
-
         Operation.Type type = valueOperation.getType();
 
         if (type == Operation.Type.COLUMN || type == Operation.Type.COUNTER)
         {
-            if (valueDef.type.isCollection())
+            if (valueDef != null && valueDef.type.isCollection())
                 throw new InvalidRequestException("Can't apply operation on column with " + valueDef.type + " type.");
 
-            valueOperation.execute(cf, builder.copy(), valueDef.type, params);
+            AbstractType<?> validator = valueDef == null ? null : valueDef.type;
+            valueOperation.execute(cf, builder.copy(), validator, params);
         }
         else
         {

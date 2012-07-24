@@ -51,8 +51,8 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
     public final Map<ColumnIdentifier, Name> metadata = new TreeMap<ColumnIdentifier, Name>();
 
     public final boolean isComposite;
-    // Note that isCompact means here that no componet of the comparator correspond to the column names
-    // defined in the CREATE TABLE QUERY. This is not exactly equivalent to the 'WITH COMPACT STORAGE'
+    // Note that isCompact means here that no component of the comparator correspond to the column names
+    // defined in the CREATE TABLE QUERY. This is not exactly equivalent to using the 'WITH COMPACT STORAGE'
     // option when creating a table in that "static CF" without a composite type will have isCompact == false
     // even though one must use 'WITH COMPACT STORAGE' to declare them.
     public final boolean isCompact;
@@ -66,7 +66,7 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
         {
             this.isComposite = true;
             CompositeType composite = (CompositeType)cfm.comparator;
-            if (cfm.getColumn_metadata().isEmpty())
+            if (cfm.getColumnAliases().size() == composite.types.size())
             {
                 // "dense" composite
                 this.isCompact = true;
@@ -76,7 +76,7 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
                     ColumnIdentifier id = getColumnId(cfm, i);
                     this.columns.put(id, new Name(cfm.ksName, cfm.cfName, id, Name.Kind.COLUMN_ALIAS, i, composite.types.get(i)));
                 }
-                this.value = new Name(cfm.ksName, cfm.cfName, getValueId(cfm), Name.Kind.VALUE_ALIAS, cfm.getDefaultValidator());
+                this.value = createValue(cfm);
             }
             else
             {
@@ -114,14 +114,14 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
         {
             this.isComposite = false;
             this.hasCollections = false;
-            if (cfm.getColumn_metadata().isEmpty())
+            if (!cfm.getColumnAliases().isEmpty() || cfm.getColumn_metadata().isEmpty())
             {
                 // dynamic CF
                 this.isCompact = true;
                 ColumnIdentifier id = getColumnId(cfm, 0);
                 Name name = new Name(cfm.ksName, cfm.cfName, id, Name.Kind.COLUMN_ALIAS, 0, cfm.comparator);
                 this.columns.put(id, name);
-                this.value = new Name(cfm.ksName, cfm.cfName, getValueId(cfm), Name.Kind.VALUE_ALIAS, cfm.getDefaultValidator());
+                this.value = createValue(cfm);
             }
             else
             {
@@ -169,6 +169,16 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
 
         CompositeType composite = (CompositeType)cfm.comparator;
         return (ColumnToCollectionType)composite.types.get(composite.types.size() - 1);
+    }
+
+    private static Name createValue(CFMetaData cfm)
+    {
+        ColumnIdentifier alias = getValueId(cfm);
+        // That's how we distinguish between 'no value alias because coming from thrift' and 'I explicitely did not
+        // define a value' (see CreateColumnFamilyStatement)
+        return alias.key.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER)
+               ? null
+               : new Name(cfm.ksName, cfm.cfName, alias, Name.Kind.VALUE_ALIAS, cfm.getDefaultValidator());
     }
 
     public Name get(ColumnIdentifier name)
