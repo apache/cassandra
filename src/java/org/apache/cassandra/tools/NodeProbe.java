@@ -462,8 +462,7 @@ public class NodeProbe
     public void setCompactionThreshold(String ks, String cf, int minimumCompactionThreshold, int maximumCompactionThreshold)
     {
         ColumnFamilyStoreMBean cfsProxy = getCfsProxy(ks, cf);
-        cfsProxy.setMinimumCompactionThreshold(minimumCompactionThreshold);
-        cfsProxy.setMaximumCompactionThreshold(maximumCompactionThreshold);
+        cfsProxy.setCompactionThresholds(minimumCompactionThreshold, maximumCompactionThreshold);
     }
 
     public void setCacheCapacities(String tableName, String cfName, int keyCacheCapacity, int rowCacheCapacity)

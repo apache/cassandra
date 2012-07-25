@@ -294,8 +294,7 @@ public class CompactionsTest extends SchemaLoader
     private void forceCompactions(ColumnFamilyStore cfs) throws ExecutionException, InterruptedException
     {
         // re-enable compaction with thresholds low enough to force a few rounds
-        cfs.setMinimumCompactionThreshold(2);
-        cfs.setMaximumCompactionThreshold(4);
+        cfs.setCompactionThresholds(2, 4);
 
         // loop submitting parallel compactions until they all return 0
         do

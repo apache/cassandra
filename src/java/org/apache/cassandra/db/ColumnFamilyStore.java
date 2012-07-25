@@ -1833,6 +1833,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return compactionStrategy;
     }
 
+    public void setCompactionThresholds(int minThreshold, int maxThreshold)
+    {
+        validateCompactionThresholds(minThreshold, maxThreshold);
+
+        minCompactionThreshold.set(minThreshold);
+        maxCompactionThreshold.set(maxThreshold);
+
+        // this is called as part of CompactionStrategy constructor; avoid circular dependency by checking for null
+        if (compactionStrategy != null)
+            CompactionManager.instance.submitBackground(this);
+    }
+
     public int getMinimumCompactionThreshold()
     {
         return minCompactionThreshold.value();
@@ -1840,14 +1852,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void setMinimumCompactionThreshold(int minCompactionThreshold)
     {
-        if ((minCompactionThreshold > this.maxCompactionThreshold.value()) && this.maxCompactionThreshold.value() != 0)
-            throw new RuntimeException("The min_compaction_threshold cannot be larger than the max.");
-
+        validateCompactionThresholds(minCompactionThreshold, maxCompactionThreshold.value());
         this.minCompactionThreshold.set(minCompactionThreshold);
-
-        // this is called as part of CompactionStrategy constructor; avoid circular dependency by checking for null
-        if (compactionStrategy != null)
-            CompactionManager.instance.submitBackground(this);
     }
 
     public int getMaximumCompactionThreshold()
@@ -1857,14 +1863,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void setMaximumCompactionThreshold(int maxCompactionThreshold)
     {
-        if (maxCompactionThreshold > 0 && maxCompactionThreshold < this.minCompactionThreshold.value())
-            throw new RuntimeException("The max_compaction_threshold cannot be smaller than the min.");
-
+        validateCompactionThresholds(minCompactionThreshold.value(), maxCompactionThreshold);
         this.maxCompactionThreshold.set(maxCompactionThreshold);
+    }
 
-        // this is called as part of CompactionStrategy constructor; avoid circular dependency by checking for null
-        if (compactionStrategy != null)
-            CompactionManager.instance.submitBackground(this);
+    private void validateCompactionThresholds(int minThreshold, int maxThreshold)
+    {
+        if (minThreshold > maxThreshold && maxThreshold != 0)
+            throw new RuntimeException(String.format("The min_compaction_threshold cannot be larger than the max_compaction_threshold. " +
+                                                     "Min is '%d', Max is '%d'.", minThreshold, maxThreshold));
     }
 
     public boolean isCompactionDisabled()

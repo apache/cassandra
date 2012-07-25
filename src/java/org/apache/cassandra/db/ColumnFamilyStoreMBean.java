@@ -182,6 +182,11 @@ public interface ColumnFamilyStoreMBean
     public int getMaximumCompactionThreshold();
 
     /**
+     * Sets the maximum and maximum number of SSTables in queue before compaction kicks off
+     */
+    public void setCompactionThresholds(int minThreshold, int maxThreshold);
+
+    /**
      * Sets the maximum number of sstables in queue before compaction kicks off
      */
     public void setMaximumCompactionThreshold(int threshold);
