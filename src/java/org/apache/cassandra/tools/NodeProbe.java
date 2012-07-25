@@ -717,9 +717,9 @@ public class NodeProbe
         ssProxy.rebuild(sourceDc);
     }
 
-    public List<String> getRangeKeySample()
+    public List<String> sampleKeyRange()
     {
-        return ssProxy.getRangeKeySample();
+        return ssProxy.sampleKeyRange();
     }
 
     public void resetLocalSchema() throws IOException
