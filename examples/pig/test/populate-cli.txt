@@ -8,7 +8,7 @@ column_metadata =
 [
     {column_name: name, validation_class: UTF8Type, index_type: KEYS},
     {column_name: vote_type, validation_class: UTF8Type},
-    {column_name: rating, validation_class: IntegerType},
+    {column_name: rating, validation_class: Int32Type},
     {column_name: score, validation_class: LongType},
     {column_name: percent, validation_class: FloatType},
     {column_name: atomic_weight, validation_class: DoubleType},
@@ -23,7 +23,7 @@ column_metadata =
 [
     {column_name: name, validation_class: UTF8Type, index_type: KEYS},
     {column_name: vote_type, validation_class: UTF8Type},
-    {column_name: rating, validation_class: IntegerType},
+    {column_name: rating, validation_class: Int32Type},
     {column_name: score, validation_class: LongType},
     {column_name: percent, validation_class: FloatType},
     {column_name: atomic_weight, validation_class: DoubleType},

@@ -671,7 +671,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     {
         if (type instanceof LongType || type instanceof DateType) // DateType is bad and it should feel bad
             return DataType.LONG;
-        else if (type instanceof IntegerType)
+        else if (type instanceof IntegerType || type instanceof Int32Type) // IntegerType will overflow at 2**31, but is kept for compatibility until pig has a BigInteger
             return DataType.INTEGER;
         else if (type instanceof AsciiType)
             return DataType.CHARARRAY;
