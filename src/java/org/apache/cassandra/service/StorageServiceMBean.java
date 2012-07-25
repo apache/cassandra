@@ -406,7 +406,7 @@ public interface StorageServiceMBean
      *
      * @return set of Tokens as Strings
      */
-    public List<String> getRangeKeySample();
+    public List<String> sampleKeyRange();
 
     /**
      * rebuild the specified indexes

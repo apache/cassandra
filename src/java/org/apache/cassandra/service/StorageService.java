@@ -3080,7 +3080,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /**
      * #{@inheritDoc}
      */
-    public List<String> getRangeKeySample()
+    public List<String> sampleKeyRange() // do not rename to getter - see CASSANDRA-4452 for details
     {
         List<DecoratedKey> keys = keySamples(ColumnFamilyStore.allUserDefined(), getLocalPrimaryRange());
 

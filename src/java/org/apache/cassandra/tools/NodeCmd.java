@@ -922,7 +922,7 @@ public class NodeCmd
     private void printRangeKeySample(PrintStream outs)
     {
         outs.println("RangeKeySample: ");
-        List<String> tokenStrings = this.probe.getRangeKeySample();
+        List<String> tokenStrings = this.probe.sampleKeyRange();
         for (String tokenString : tokenStrings)
         {
             outs.println("\t" + tokenString);
