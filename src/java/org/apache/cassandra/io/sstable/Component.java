@@ -44,6 +44,8 @@ public class Component
         // serialized bloom filter for the row keys in the sstable
         FILTER("Filter.db"),
         // 0-length file that is created when an sstable is ready to be deleted
+        // @deprecated: deletion of compacted file is based on the lineag information stored in the compacted sstabl
+        // metadata. This ensure we can guarantee never using a sstable and some of its parents, even in case of failure.
         COMPACTED_MARKER("Compacted"),
         // file to hold information about uncompressed data length, chunk offsets etc.
         COMPRESSION_INFO("CompressionInfo.db"),

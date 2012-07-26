@@ -66,7 +66,7 @@ public class StandaloneScrubber
             String snapshotName = "pre-scrub-" + System.currentTimeMillis();
 
             OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
-            Directories.SSTableLister lister = cfs.directories.sstableLister().skipCompacted(true).skipTemporary(true);
+            Directories.SSTableLister lister = cfs.directories.sstableLister().skipTemporary(true);
 
             List<SSTableReader> sstables = new ArrayList<SSTableReader>();
 

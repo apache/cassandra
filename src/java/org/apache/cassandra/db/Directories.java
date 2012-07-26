@@ -185,7 +185,6 @@ public class Directories
 
     public class SSTableLister
     {
-        private boolean skipCompacted;
         private boolean skipTemporary;
         private boolean includeBackups;
         private boolean onlyBackups;
@@ -193,14 +192,6 @@ public class Directories
         private final Map<Descriptor, Set<Component>> components = new HashMap<Descriptor, Set<Component>>();
         private boolean filtered;
         private String snapshotName;
-
-        public SSTableLister skipCompacted(boolean b)
-        {
-            if (filtered)
-                throw new IllegalStateException("list() has already been called");
-            skipCompacted = b;
-            return this;
-        }
 
         public SSTableLister skipTemporary(boolean b)
         {
@@ -294,8 +285,6 @@ public class Directories
                     if (pair == null)
                         return false;
 
-                    if (skipCompacted && new File(pair.left.filenameFor(Component.COMPACTED_MARKER)).exists())
-                        return false;
                     if (skipTemporary && pair.left.temporary)
                         return false;
 

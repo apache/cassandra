@@ -60,6 +60,7 @@ public class Descriptor
         // hb (1.0.3): records compression ration in metadata component
         // hc (1.0.4): records partitioner in metadata component
         // hd (1.0.10): includes row tombstones in maxtimestamp
+        // he (1.1.3): includes ancestors generation in metadata component
         // ia (1.2.0): column indexes are promoted to the index file
         //             records estimated histogram of deletion times in tombstones
         //             bloom filter (keys and columns) upgraded to Murmur3
@@ -79,6 +80,7 @@ public class Descriptor
         public final boolean tracksTombstones;
         public final boolean hasPromotedIndexes;
         public final FilterFactory.Type filterType;
+        public final boolean hasAncestors;
 
         public Version(String version)
         {
@@ -99,6 +101,7 @@ public class Descriptor
                 filterType = FilterFactory.Type.MURMUR2;
             else
                 filterType = FilterFactory.Type.MURMUR3;
+            hasAncestors = version.compareTo("he") >= 0;
         }
 
         /**
@@ -189,6 +192,11 @@ public class Descriptor
         this.generation = generation;
         temporary = temp;
         hashCode = Objects.hashCode(directory, generation, ksname, cfname);
+    }
+
+    public Descriptor withGeneration(int newGeneration)
+    {
+        return new Descriptor(version, directory, ksname, cfname, newGeneration, temporary);
     }
 
     public String filenameFor(Component component)

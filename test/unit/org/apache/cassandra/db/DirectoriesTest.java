@@ -66,34 +66,27 @@ public class DirectoriesTest
             File dir = cfDir(cf);
             dir.mkdirs();
 
-            createFakeSSTable(dir, cf, 1, false, false, fs);
-            createFakeSSTable(dir, cf, 2, true, false, fs);
-            createFakeSSTable(dir, cf, 3, false, true, fs);
+            createFakeSSTable(dir, cf, 1, false, fs);
+            createFakeSSTable(dir, cf, 2, true, fs);
             // leveled manifest
             new File(dir, cf + LeveledManifest.EXTENSION).createNewFile();
 
             File backupDir = new File(dir, Directories.BACKUPS_SUBDIR);
             backupDir.mkdir();
-            createFakeSSTable(backupDir, cf, 1, false, false, fs);
+            createFakeSSTable(backupDir, cf, 1, false, fs);
 
             File snapshotDir = new File(dir, Directories.SNAPSHOT_SUBDIR + File.separator + "42");
             snapshotDir.mkdirs();
-            createFakeSSTable(snapshotDir, cf, 1, false, false, fs);
+            createFakeSSTable(snapshotDir, cf, 1, false, fs);
         }
     }
 
-    private static void createFakeSSTable(File dir, String cf, int gen, boolean temp, boolean compacted, List<File> addTo) throws IOException
+    private static void createFakeSSTable(File dir, String cf, int gen, boolean temp, List<File> addTo) throws IOException
     {
         Descriptor desc = new Descriptor(dir, KS, cf, gen, temp);
         for (Component c : new Component[]{ Component.DATA, Component.PRIMARY_INDEX, Component.FILTER })
         {
             File f = new File(desc.filenameFor(c));
-            f.createNewFile();
-            addTo.add(f);
-        }
-        if (compacted)
-        {
-            File f = new File(desc.filenameFor(Component.COMPACTED_MARKER));
             f.createNewFile();
             addTo.add(f);
         }
@@ -153,15 +146,13 @@ public class DirectoriesTest
             }
 
             // Skip temporary and compacted
-            lister = directories.sstableLister().skipTemporary(true).skipCompacted(true);
+            lister = directories.sstableLister().skipTemporary(true);
             listed = new HashSet<File>(lister.listFiles());
             for (File f : files.get(cf))
             {
                 if (f.getPath().contains(Directories.SNAPSHOT_SUBDIR) || f.getPath().contains(Directories.BACKUPS_SUBDIR))
                     assert !listed.contains(f) : f + " should not be listed";
                 else if (f.getName().contains("-tmp-"))
-                    assert !listed.contains(f) : f + " should not be listed";
-                else if (f.getName().endsWith("Compacted") || new File(f.getPath().replaceFirst("-[a-zA-Z]+.db", "-Compacted")).exists())
                     assert !listed.contains(f) : f + " should not be listed";
                 else
                     assert listed.contains(f) : f + " is missing";
