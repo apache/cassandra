@@ -36,7 +36,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class SecondaryIndexColumSizeTest
+public class SecondaryIndexColumnSizeTest
 {
     @Test
     public void test64kColumn()
