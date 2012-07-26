@@ -31,6 +31,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -558,5 +559,11 @@ public class SecondaryIndexManager
         
         
         return indexSearchers.get(0).search(clause, range, dataFilter);
+    }
+    
+    public boolean validate(Column column)
+    {
+        SecondaryIndex index = getIndexForColumn(column.name);
+        return index != null ? index.validate(column) : true;
     }
 }

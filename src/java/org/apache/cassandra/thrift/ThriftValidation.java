@@ -428,13 +428,13 @@ public class ThriftValidation
                                                             (isSubColumn ? metadata.subcolumnComparator : metadata.comparator).getString(column.name)));
         }
 
-        // Indexed column values cannot be larger than 64K.  See CASSANDRA-3057 for more details
-        if (columnDef != null && columnDef.getIndexType() != null && column.value.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
-            throw new InvalidRequestException(String.format("Can't index column value of size %d for index %s in CF %s of KS %s",
-                                                            column.value.remaining(),
-                                                            columnDef.getIndexName(),
-                                                            metadata.cfName,
-                                                            metadata.ksName));
+        // Indexed column values cannot be larger than 64K.  See CASSANDRA-3057/4240 for more details       
+        if (!Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validate(column))
+                    throw new InvalidRequestException(String.format("Can't index column value of size %d for index %s in CF %s of KS %s",
+                                                                     column.value.remaining(),
+                                                                     columnDef.getIndexName(),
+                                                                     metadata.cfName,
+                                                                     metadata.ksName));
     }
 
     /**

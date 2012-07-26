@@ -11,7 +11,7 @@
  * Set gc_grace on index CF to 0 (CASSANDRA-4314)
  * fix 1.0.x node join to mixed version cluster, other nodes >= 1.1 (CASSANDRA-4195)
  * Fix LCS splitting sstable base on uncompressed size (CASSANDRA-4419)
-
+ * Push the validation of secondary index values to the SecondaryIndexManager (CASSANDRA-4240)
 
 1.0.10
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)
