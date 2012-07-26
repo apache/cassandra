@@ -17,8 +17,6 @@
 * under the License.
 */
 package org.apache.cassandra.db;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -26,17 +24,20 @@ import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
 
+import org.junit.Test;
+
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.index.PerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.PerRowSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.junit.Test;
 
-public class SecondaryIndexColumSizeTest 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+public class SecondaryIndexColumSizeTest
 {
-    
     @Test
     public void test64kColumn()
     {
@@ -55,11 +56,11 @@ public class SecondaryIndexColumSizeTest
         buffer.flip(); 
         column.value = buffer;
 
-        SolrIndex solrIndex = new SolrIndex();
-        ColumnIndex perColumnIndex = new ColumnIndex();
+        MockRowIndex mockRowIndex = new MockRowIndex();
+        MockColumnIndex mockColumnIndex = new MockColumnIndex();
         
-        assertTrue(solrIndex.validate(column));
-        assertFalse(perColumnIndex.validate(column));
+        assertTrue(mockRowIndex.validate(column));
+        assertFalse(mockColumnIndex.validate(column));
         
         // test less than 64k value
         buffer.flip();
@@ -67,13 +68,12 @@ public class SecondaryIndexColumSizeTest
         buffer.putInt(20);
         buffer.flip();
         
-        assertTrue(solrIndex.validate(column));
-        assertTrue(perColumnIndex.validate(column));        
+        assertTrue(mockRowIndex.validate(column));
+        assertTrue(mockColumnIndex.validate(column));
     }
 
-    public class SolrIndex extends PerRowSecondaryIndex
+    private class MockRowIndex extends PerRowSecondaryIndex
     {
-
         @Override
         public void applyIndexUpdates(ByteBuffer rowKey, ColumnFamily cf, SortedSet<ByteBuffer> mutatedIndexedColumns, ColumnFamily oldIndexedColumns) throws IOException 
         {
@@ -141,9 +141,8 @@ public class SecondaryIndexColumSizeTest
     }
     
     
-    public class ColumnIndex extends PerColumnSecondaryIndex
+    private class MockColumnIndex extends PerColumnSecondaryIndex
     {
-
         @Override
         public void init() 
         {

@@ -21,8 +21,6 @@ package org.apache.cassandra.thrift;
  */
 
 
-import java.nio.ByteBuffer;
-
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
@@ -33,7 +31,6 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class ThriftValidationTest extends CleanupHelper
 {
@@ -47,12 +44,6 @@ public class ThriftValidationTest extends CleanupHelper
     public void testValidateCommutativeWithCounter() throws InvalidRequestException
     {
         ThriftValidation.validateColumnFamily("Keyspace1", "Counter1", true);
-    }
-
-    @Test
-    public void testColumnValueSizeForIndexedColumn() throws ConfigurationException, InvalidRequestException
-    {
-       //Replaced by SecondaryIndexColumnSizeTest
     }
 
     @Test
