@@ -77,7 +77,7 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
             T opt = fromId(body.readUnsignedShort());
             Object value = opt.readValue(body);
             if (options.containsKey(opt))
-                throw new ProtocolException(String.format("Duplicate option %d in message", opt));
+                throw new ProtocolException(String.format("Duplicate option %s in message", opt.name()));
             options.put(opt, value);
         }
         return options;
