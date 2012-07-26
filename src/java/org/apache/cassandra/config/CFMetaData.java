@@ -166,7 +166,7 @@ public final class CFMetaData
                                                          + "token_bytes blob,"
                                                          + "cluster_name text,"
                                                          + "gossip_generation int,"
-                                                         + "bootstrapped boolean,"
+                                                         + "bootstrapped text,"
                                                          + "ring_id uuid,"
                                                          + "release_version text,"
                                                          + "thrift_version text,"

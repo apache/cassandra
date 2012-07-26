@@ -80,8 +80,8 @@ public class SystemTable
 
     public enum BootstrapState
     {
-        NEEDS_BOOTSTRAP, // ordered for boolean backward compatibility, false
-        COMPLETED, // true
+        NEEDS_BOOTSTRAP,
+        COMPLETED,
         IN_PROGRESS
     }
 
@@ -136,8 +136,8 @@ public class SystemTable
             Token token = StorageService.getPartitioner().getTokenFactory().fromByteArray(oldColumns.next().value());
             String tokenBytes = ByteBufferUtil.bytesToHex(serializeTokens(Collections.singleton(token)));
             // (assume that any node getting upgraded was bootstrapped, since that was stored in a separate row for no particular reason)
-            String req = "INSERT INTO system.%s (key, cluster_name, token_bytes, bootstrapped) VALUES ('%s', '%s', '%s', 'true')";
-            processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, clusterName, tokenBytes));
+            String req = "INSERT INTO system.%s (key, cluster_name, token_bytes, bootstrapped) VALUES ('%s', '%s', '%s', '%s')";
+            processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, clusterName, tokenBytes, BootstrapState.COMPLETED.name()));
 
             oldStatusCfs.truncate();
         }
@@ -372,7 +372,8 @@ public class SystemTable
 
         if (result.isEmpty() || !result.one().has("bootstrapped"))
             return BootstrapState.NEEDS_BOOTSTRAP;
-        return BootstrapState.values()[result.one().getInt("bootstrapped")];
+
+        return BootstrapState.valueOf(result.one().getString("bootstrapped"));
     }
 
     public static boolean bootstrapComplete()
@@ -387,8 +388,8 @@ public class SystemTable
 
     public static void setBootstrapState(BootstrapState state)
     {
-        String req = "INSERT INTO system.%s (key, bootstrapped) VALUES ('%s', '%b')";
-        processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, getBootstrapState()));
+        String req = "INSERT INTO system.%s (key, bootstrapped) VALUES ('%s', '%s')";
+        processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, state.name()));
         forceBlockingFlush(LOCAL_CF);
     }
 
