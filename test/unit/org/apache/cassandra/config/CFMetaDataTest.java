@@ -46,9 +46,6 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-import java.util.Map;
-import java.nio.ByteBuffer;
-
 public class CFMetaDataTest extends SchemaLoader
 {
     private static String KEYSPACE = "Keyspace1";

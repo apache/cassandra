@@ -46,8 +46,6 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.*;
 
-import static org.junit.Assert.assertEquals;
-
 public class BootStrapperTest extends SchemaLoader
 {
     @Test

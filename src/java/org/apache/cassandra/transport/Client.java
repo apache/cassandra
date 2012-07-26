@@ -20,28 +20,13 @@ package org.apache.cassandra.transport;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.util.concurrent.Executors;
 import java.util.*;
 
 import com.google.common.base.Splitter;
 
-import org.jboss.netty.bootstrap.ClientBootstrap;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
-import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
-
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.utils.SimpleCondition;
 
 public class Client extends SimpleClient
 {

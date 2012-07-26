@@ -28,7 +28,6 @@ import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-import com.google.common.base.Function;
 import com.google.common.base.Functions;
 
 import org.apache.cassandra.utils.ByteBufferUtil;

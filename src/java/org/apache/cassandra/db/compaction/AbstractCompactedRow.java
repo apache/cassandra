@@ -19,7 +19,6 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.List;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.db.DecoratedKey;

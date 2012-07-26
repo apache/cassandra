@@ -25,7 +25,6 @@ import org.jboss.netty.buffer.ChannelBuffers;
 
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
-import org.apache.cassandra.utils.SemanticVersion;
 
 /**
  * Message to indicate that the server is ready to receive requests.

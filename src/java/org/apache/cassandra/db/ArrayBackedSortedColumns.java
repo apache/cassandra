@@ -27,7 +27,6 @@ import com.google.common.collect.Lists;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * A ISortedColumns backed by an ArrayList.

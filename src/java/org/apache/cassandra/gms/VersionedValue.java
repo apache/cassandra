@@ -21,7 +21,6 @@ import java.io.*;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -200,7 +199,7 @@ public class VersionedValue implements Comparable<VersionedValue>
         {
             return new VersionedValue(FBUtilities.getReleaseVersionString());
         }
-        
+
         public VersionedValue networkVersion()
         {
             return new VersionedValue(String.valueOf(MessagingService.current_version));
@@ -210,7 +209,7 @@ public class VersionedValue implements Comparable<VersionedValue>
         {
             return new VersionedValue(private_ip);
         }
-        
+
         public VersionedValue severity(double value)
         {
             return new VersionedValue(String.valueOf(value));

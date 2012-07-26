@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3;
 
 import java.util.Locale;
-import java.nio.charset.CharacterCodingException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.marshal.AbstractType;

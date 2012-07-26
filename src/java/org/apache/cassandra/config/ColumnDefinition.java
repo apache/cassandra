@@ -18,7 +18,6 @@
 package org.apache.cassandra.config;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 import com.google.common.collect.Maps;

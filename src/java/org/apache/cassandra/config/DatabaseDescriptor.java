@@ -870,7 +870,7 @@ public class DatabaseDescriptor
     }
 
     /**
-     * size of commitlog segments to allocate 
+     * size of commitlog segments to allocate
      */
     public static int getCommitLogSegmentSize()
     {

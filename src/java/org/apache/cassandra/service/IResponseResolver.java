@@ -19,7 +19,6 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 
-import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.net.MessageIn;
 
 public interface IResponseResolver<TMessage, TResolved> {

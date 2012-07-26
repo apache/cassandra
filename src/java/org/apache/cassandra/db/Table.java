@@ -35,7 +35,6 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.NodeId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

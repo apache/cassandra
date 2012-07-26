@@ -18,11 +18,8 @@
 package org.apache.cassandra.transport.messages;
 
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.transport.CBUtil;
-import org.apache.cassandra.transport.FrameCompressor;
 import org.apache.cassandra.transport.Message;
 
 /**

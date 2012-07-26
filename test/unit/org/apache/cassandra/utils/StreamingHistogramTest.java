@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-import com.google.common.io.ByteArrayDataOutput;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;

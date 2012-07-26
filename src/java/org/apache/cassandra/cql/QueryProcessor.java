@@ -21,14 +21,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cli.CliUtils;
 import org.apache.cassandra.db.CounterColumn;
@@ -926,17 +921,17 @@ public class QueryProcessor
             CqlLexer lexer = new CqlLexer(stream);
             TokenStream tokenStream = new CommonTokenStream(lexer);
             CqlParser parser = new CqlParser(tokenStream);
-            
+
             // Parse the query string to a statement instance
             CQLStatement statement = parser.query();
-            
+
             // The lexer and parser queue up any errors they may have encountered
             // along the way, if necessary, we turn them into exceptions here.
             lexer.throwLastRecognitionError();
             parser.throwLastRecognitionError();
-            
+
             return statement;
-        } 
+        }
         catch (RuntimeException re)
         {
             InvalidRequestException ire = new InvalidRequestException("Failed parsing statement: [" + queryStr + "] reason: " + re.getClass().getSimpleName() + " " + re.getMessage());

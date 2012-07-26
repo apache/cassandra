@@ -21,7 +21,6 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
 public abstract class ParsedStatement

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.io.IOException;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.service.ClientState;

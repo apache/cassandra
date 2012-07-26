@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.transport.messages;
 
-import java.util.EnumMap;
 import java.util.Map;
 
 import com.google.common.base.Charsets;

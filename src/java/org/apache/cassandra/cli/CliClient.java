@@ -55,7 +55,6 @@ import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
-import org.codehaus.jackson.type.TypeReference;
 import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.Loader;
 import org.yaml.snakeyaml.TypeDescription;
@@ -1528,14 +1527,14 @@ public class CliClient
 
         // Could be UTF8Type, IntegerType, LexicalUUIDType etc.
         String defaultType = CliUtils.unescapeSQLString(statement.getChild(2).getText());
-        
+
         if (applyAssumption(cfName, assumptionElement, defaultType))
         {
             assumptions.addAssumption(keySpace, cfName, assumptionElement, defaultType);
             sessionState.out.println(String.format("Assumption for column family '%s' added successfully.", cfName));
         }
     }
-    
+
     private boolean applyAssumption(String cfName, String assumptionElement, String defaultType)
     {
         CfDef columnFamily;
@@ -1551,7 +1550,7 @@ public class CliClient
 
         // used to store in this.cfKeysComparator
         AbstractType<?> comparator;
-        
+
         try
         {
             comparator = TypeParser.parse(defaultType);
@@ -2145,7 +2144,7 @@ public class CliClient
             return;
 
         int argCount = statement.getChildCount();
-        
+
         keyspacesMap.remove(keySpace);
         KsDef currentKeySpace = getKSMetaData(keySpace);
 
@@ -2961,14 +2960,14 @@ public class CliClient
     {
         sessionState.out.println("Elapsed time: " + (System.currentTimeMillis() - startTime) + " msec(s).");
     }
-    
+
     class CfAssumptions
     {
         //Map<KeySpace, Map<ColumnFamily, Map<Property, Value>>>
         private Map<String, Map<String, Map<String, String>>> assumptions;
         private boolean assumptionsChanged;
         private File assumptionDirectory;
-        
+
         public CfAssumptions()
         {
             assumptions = new HashMap<String, Map<String, Map<String, String>>>();
@@ -2976,7 +2975,7 @@ public class CliClient
             assumptionDirectory = new File(System.getProperty("user.home"), ".cassandra-cli");
             assumptionDirectory.mkdirs();
         }
-        
+
         public void addAssumption(String keyspace, String columnFamily, String property, String value)
         {
             Map<String, Map<String, String>> ksAssumes = assumptions.get(keyspace);
@@ -2985,23 +2984,23 @@ public class CliClient
                 ksAssumes = new HashMap<String, Map<String, String>>();
                 assumptions.put(keyspace, ksAssumes);
             }
-            
+
             Map<String, String> cfAssumes = ksAssumes.get(columnFamily);
             if (cfAssumes == null)
             {
                 cfAssumes = new HashMap<String, String>();
                 ksAssumes.put(columnFamily, cfAssumes);
             }
-            
+
             cfAssumes.put(property, value);
             assumptionsChanged = true;
         }
-        
+
         public void replayAssumptions(String keyspace)
         {
             if (!CliMain.isConnected() || !hasKeySpace())
                 return;
-            
+
             Map<String, Map<String, String>> cfAssumes = assumptions.get(keyspace);
             if (cfAssumes != null)
             {
@@ -3009,7 +3008,7 @@ public class CliClient
                 {
                     String columnFamily = cfEntry.getKey();
                     Map<String, String> props = cfEntry.getValue();
-                    
+
                     for (Map.Entry<String, String> propEntry : props.entrySet())
                     {
                         applyAssumption(columnFamily, propEntry.getKey(), propEntry.getValue());
@@ -3017,7 +3016,7 @@ public class CliClient
                 }
             }
         }
-        
+
         private void readAssumptions()
         {
             File assumptionFile = new File(assumptionDirectory, "assumptions.json");
@@ -3051,7 +3050,7 @@ public class CliClient
                                         cfAssumes = new HashMap<String, String>();
                                         ksAssumes.put(columnFamily, cfAssumes);
                                     }
-                                    
+
                                     token = p.nextToken();
                                     while (token != JsonToken.END_ARRAY)
                                     {
@@ -3062,7 +3061,7 @@ public class CliClient
                                             String value = p.getText();
                                             cfAssumes.put(prop, value);
                                         }
-                                        
+
                                         token = p.nextToken();
                                     }
                                 }
@@ -3079,7 +3078,7 @@ public class CliClient
                 }
             }
         }
-        
+
         private void writeAssumptions()
         {
             if (assumptionsChanged)

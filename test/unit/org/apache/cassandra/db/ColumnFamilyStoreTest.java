@@ -74,7 +74,6 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public class ColumnFamilyStoreTest extends SchemaLoader
@@ -1029,7 +1028,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
             k += " " + ByteBufferUtil.string(r.key.key);
         return k;
     }
-    
+
     @SuppressWarnings("unchecked")
     @Test
     public void testMultiRangeIndexed() throws Throwable

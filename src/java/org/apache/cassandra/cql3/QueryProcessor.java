@@ -30,7 +30,6 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;

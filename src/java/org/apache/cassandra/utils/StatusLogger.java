@@ -30,7 +30,6 @@ import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.cache.RowCacheKey;
-import org.apache.cassandra.db.ColumnFamily;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

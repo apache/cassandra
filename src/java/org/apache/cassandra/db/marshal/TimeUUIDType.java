@@ -18,17 +18,12 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.text.ParseException;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.cql.jdbc.JdbcTimeUUID;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
-import org.apache.commons.lang.time.DateUtils;
-
-import static org.apache.cassandra.cql.jdbc.JdbcDate.iso8601Patterns;
 
 public class TimeUUIDType extends AbstractType<UUID>
 {

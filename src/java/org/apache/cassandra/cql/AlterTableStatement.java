@@ -20,8 +20,6 @@ package org.apache.cassandra.cql;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.io.compress.CompressionParameters;
-import org.apache.cassandra.thrift.CfDef;
-import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
 import java.nio.ByteBuffer;

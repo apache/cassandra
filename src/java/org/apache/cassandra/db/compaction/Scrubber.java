@@ -28,7 +28,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.IntervalTree.*;
 import org.apache.cassandra.utils.OutputHandler;
 
 public class Scrubber implements Closeable

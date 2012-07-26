@@ -17,15 +17,10 @@
  */
 package org.apache.cassandra.transport.messages;
 
-import java.util.EnumMap;
-import java.util.Map;
-
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.transport.*;
-import org.apache.cassandra.thrift.InvalidRequestException;
 
 public class PrepareMessage extends Message.Request
 {

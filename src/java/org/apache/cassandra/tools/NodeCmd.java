@@ -38,7 +38,6 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.CacheServiceMBean;
@@ -215,7 +214,7 @@ public class NodeCmd
 
     /**
      * Write a textual representation of the Cassandra ring.
-     * 
+     *
      * @param outs
      *            the stream to write to
      */
@@ -262,7 +261,7 @@ public class NodeCmd
             throw new RuntimeException(e);
         }
     }
-    
+
     private void printDc(PrintStream outs, String format, String dc, LinkedHashMultimap<String, String> endpointsToTokens,
             boolean keyspaceSelected, Map<InetAddress, Float> filteredOwnerships)
     {
@@ -287,7 +286,7 @@ public class NodeCmd
             lastToken = tokens.get(tokens.size() - 1);
             totalReplicas += entry.getValue();
         }
-        
+
 
         if (keyspaceSelected)
             outs.print("Replicas: " + (int) totalReplicas + "\n\n");
@@ -313,22 +312,22 @@ public class NodeCmd
                 {
                     rack = "Unknown";
                 }
-    
+
                 String status = liveNodes.contains(endpoint)
                         ? "Up"
                         : deadNodes.contains(endpoint)
                                 ? "Down"
                                 : "?";
-    
+
                 String state = "Normal";
-    
+
                 if (joiningNodes.contains(endpoint))
                     state = "Joining";
                 else if (leavingNodes.contains(endpoint))
                     state = "Leaving";
                 else if (movingNodes.contains(endpoint))
                     state = "Moving";
-    
+
                 String load = loadMap.containsKey(endpoint)
                         ? loadMap.get(endpoint)
                         : "?";
@@ -690,11 +689,11 @@ public class NodeCmd
                 remainingBytes += (new Long(c.get("total")) - new Long(c.get("completed")));
         }
         long remainingTimeInSecs = compactionThroughput == 0 || remainingBytes == 0
-                        ? -1 
+                        ? -1
                         : (remainingBytes) / (long) (1024L * 1024L * compactionThroughput);
-        String remainingTime = remainingTimeInSecs < 0 
+        String remainingTime = remainingTimeInSecs < 0
                         ? "n/a"
-                        : String.format("%dh%02dm%02ds", remainingTimeInSecs / 3600, (remainingTimeInSecs % 3600) / 60, (remainingTimeInSecs % 60)); 
+                        : String.format("%dh%02dm%02ds", remainingTimeInSecs / 3600, (remainingTimeInSecs % 3600) / 60, (remainingTimeInSecs % 60));
 
         outs.printf("%25s%10s%n", "Active compaction remaining time : ", remainingTime);
     }
@@ -826,7 +825,7 @@ public class NodeCmd
                                          (i < ecch.length ? ecch[i] : "")));
         }
     }
-    
+
     private void printProxyHistograms(PrintStream output)
     {
         StorageProxyMBean sp = this.probe.getSpProxy();

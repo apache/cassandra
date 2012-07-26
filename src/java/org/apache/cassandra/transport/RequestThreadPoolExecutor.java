@@ -20,8 +20,6 @@ package org.apache.cassandra.transport;
 import java.util.concurrent.TimeUnit;
 
 import org.jboss.netty.handler.execution.OrderedMemoryAwareThreadPoolExecutor;
-import org.jboss.netty.util.DefaultObjectSizeEstimator;
-import org.jboss.netty.util.ObjectSizeEstimator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;

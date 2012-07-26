@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.util.concurrent.TimeoutException;
-
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;

@@ -43,8 +43,6 @@ import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 
-import static org.apache.cassandra.db.compaction.AbstractCompactionStrategy.filterSuspectSSTables;
-
 public class LeveledManifest
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledManifest.class);

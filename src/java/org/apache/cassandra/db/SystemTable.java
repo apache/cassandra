@@ -25,8 +25,6 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Multimap;
 
 import org.slf4j.Logger;
@@ -46,11 +44,9 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Constants;
-import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NodeId;
-import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
 

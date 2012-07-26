@@ -39,7 +39,6 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.StringToken;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.utils.Pair;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;

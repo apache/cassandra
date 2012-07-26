@@ -24,7 +24,6 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class QueryPath
 {

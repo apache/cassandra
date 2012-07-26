@@ -23,8 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.*;
 import java.util.*;
 
-import com.google.common.base.Splitter;
-
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.Channels;
@@ -39,9 +37,7 @@ import org.jboss.netty.logging.InternalLoggerFactory;
 import org.jboss.netty.logging.Slf4JLoggerFactory;
 
 import org.apache.cassandra.transport.messages.*;
-import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.utils.SimpleCondition;
 
 public class SimpleClient
 {

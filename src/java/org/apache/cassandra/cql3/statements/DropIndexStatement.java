@@ -17,13 +17,10 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.io.IOException;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.CfDef;
-import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
 public class DropIndexStatement extends SchemaAlteringStatement

@@ -18,7 +18,6 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 
 /**
  * An endpoint snitch tells Cassandra information about network topology that it can use to route
