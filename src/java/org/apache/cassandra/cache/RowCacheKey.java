@@ -76,6 +76,6 @@ public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
     @Override
     public String toString()
     {
-        return String.format("RowCacheKey(cfId:%d, key:%s)", cfId, Arrays.toString(key));
+        return String.format("RowCacheKey(cfId:%s, key:%s)", cfId, Arrays.toString(key));
     }
 }
