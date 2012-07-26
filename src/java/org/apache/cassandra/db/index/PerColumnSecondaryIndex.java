@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Base class for Secondary indexes that implement a unique index per column
@@ -59,5 +61,11 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
     public String getNameForSystemTable(ByteBuffer column)
     {
         return getIndexName();
+    }
+    
+    @Override
+    public boolean validate(Column column)
+    {
+        return column.value.remaining() < FBUtilities.MAX_UNSIGNED_SHORT;
     }
 }

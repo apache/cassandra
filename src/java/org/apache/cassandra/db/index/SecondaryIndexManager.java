@@ -20,7 +20,14 @@ package org.apache.cassandra.db.index;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
@@ -31,11 +38,9 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Manages all the indexes associated with a given CFS
@@ -605,5 +610,11 @@ public class SecondaryIndexManager
     {
         for (ByteBuffer colName : indexes)
             indexesByColumn.get(colName).setIndexRemoved(colName);
+    }
+    
+    public boolean validate(Column column)
+    {
+        SecondaryIndex index = getIndexForColumn(column.name);
+        return index != null ? index.validate(column) : true;
     }
 }

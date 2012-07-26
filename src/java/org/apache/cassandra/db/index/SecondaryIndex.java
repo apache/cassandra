@@ -30,6 +30,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.index.keys.KeysIndex;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -329,4 +330,6 @@ public abstract class SecondaryIndex
 
         return index;
     }
+    
+    public abstract boolean validate(Column column);
 }
