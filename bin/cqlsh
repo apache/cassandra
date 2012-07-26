@@ -329,6 +329,9 @@ class NoKeyspaceError(Exception):
 class KeyspaceNotFound(Exception):
     pass
 
+class ColumnFamilyNotFound(Exception):
+    pass
+
 class VersionNotSupported(Exception):
     pass
 
@@ -678,6 +681,8 @@ class Shell(cmd.Cmd):
 
     def fetchdict(self):
         row = self.cursor.fetchone()
+        if row is None:
+            return None
         desc = self.cursor.description
         return dict(zip([d[0] for d in desc], row))
 
@@ -705,7 +710,7 @@ class Shell(cmd.Cmd):
         for c in cf_defs:
             if c.name == cfname:
                 return c
-        raise KeyError("Unconfigured column family %r" % (cfname,))
+        raise ColumnFamilyNotFound("Unconfigured column family %r" % (cfname,))
 
     def get_columnfamily_names(self, ksname=None):
         return [c.name for c in self.get_columnfamilies(ksname)]
@@ -800,6 +805,8 @@ class Shell(cmd.Cmd):
                                 where "keyspace"=:ks and "columnfamily"=:cf""",
                             {'ks': ksname, 'cf': cfname})
         layout = self.fetchdict()
+        if layout is None:
+            raise ColumnFamilyNotFound("Column family %r not found" % cfname)
         self.cursor.execute("""select * from system.schema_columns
                                 where "keyspace"=:ks and "columnfamily"=:cf""",
                             {'ks': ksname, 'cf': cfname})
