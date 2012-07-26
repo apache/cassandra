@@ -58,7 +58,7 @@ public class Descriptor
     // hb (1.0.3): records compression ration in metadata component
     // hc (1.0.4): records partitioner in metadata component
     // hd (1.0.10): includes row tombstones in maxtimestamp
-    // he (1.0.11): includes row tombstones in maxtimestamp
+    // he (1.1.3): includes ancestors generation in metadata component
     public static final String CURRENT_VERSION = "he";
 
     public final File directory;
