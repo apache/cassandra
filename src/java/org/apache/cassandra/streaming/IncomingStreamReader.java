@@ -23,6 +23,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.Collections;
 
+import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +41,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.compress.CompressedInputStream;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.BytesReadTracker;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import com.ning.compress.lzf.LZFInputStream;
 
@@ -176,7 +176,7 @@ public class IncomingStreamReader
             if (e instanceof IOException)
                 throw (IOException) e;
             else
-                throw FBUtilities.unchecked(e);
+                throw Throwables.propagate(e);
         }
     }
 
