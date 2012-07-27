@@ -12,6 +12,7 @@
  * fix 1.0.x node join to mixed version cluster, other nodes >= 1.1 (CASSANDRA-4195)
  * Fix LCS splitting sstable base on uncompressed size (CASSANDRA-4419)
  * Push the validation of secondary index values to the SecondaryIndexManager (CASSANDRA-4240)
+ * Don't purge columns during upgradesstables (CASSANDRA-4462)
 
 1.0.10
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)
