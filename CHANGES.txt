@@ -201,6 +201,11 @@ Merged from 1.0:
  * Oversize integer in CQL throws NumberFormatException (CASSANDRA-4291)
  * fix 1.0.x node join to mixed version cluster, other nodes >= 1.1 (CASSANDRA-4195)
  * Fix LCS splitting sstable base on uncompressed size (CASSANDRA-4419)
+ * Push the validation of secondary index values to the SecondaryIndexManager (CASSANDRA-4240)
+ * Don't purge columns during upgradesstables (CASSANDRA-4462)
+ * Make cqlsh work with piping (CASSANDRA-4113)
+ * Validate arguments for nodetool decommission (CASSANDRA-4061)
+ * Report thrift status in nodetool info (CASSANDRA-4010)
 
 
 1.1.0-final
