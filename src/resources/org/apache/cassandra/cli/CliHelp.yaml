@@ -39,9 +39,9 @@ help: |
     del                     Delete a column, super column or row.
     decr                    Decrements a counter column.
     describe cluster        Describe the cluster configuration.
-    describe                Describe a keyspace and it's column families or column family in current keyspace.
-    drop column family      Remove a column family and it's data.
-    drop keyspace           Remove a keyspace and it's data.
+    describe                Describe a keyspace and its column families or column family in current keyspace.
+    drop column family      Remove a column family and its data.
+    drop keyspace           Remove a keyspace and its data.
     drop index              Remove an existing index from specific column.
     get                     Get rows and columns.
     incr                    Increments a counter column.
