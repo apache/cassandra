@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.index;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.DecoratedKey;
@@ -38,7 +37,7 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
      * @param rowKey the underlying row key which is indexed
      * @param col all the column info
      */
-    public abstract void deleteColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col) throws IOException;
+    public abstract void deleteColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col);
 
     /**
      * insert a column to the index
@@ -47,7 +46,7 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
      * @param rowKey the underlying row key which is indexed
      * @param col all the column info
      */
-    public abstract void insertColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col) throws IOException;
+    public abstract void insertColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col);
 
     /**
      * update a column from the index
@@ -56,7 +55,7 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
      * @param rowKey the underlying row key which is indexed
      * @param col all the column info
      */
-    public abstract void updateColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col) throws IOException;
+    public abstract void updateColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col);
 
     public String getNameForSystemTable(ByteBuffer column)
     {

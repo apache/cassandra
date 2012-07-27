@@ -18,7 +18,6 @@
 package org.apache.cassandra.utils;
 
 import java.io.IOException;
-import java.io.IOError;
 import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
@@ -61,7 +60,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
             }
             catch (IOException e)
             {
-                throw new IOError(e);
+                throw new RuntimeException(e);
             }
         }
 

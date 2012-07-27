@@ -17,10 +17,6 @@
  */
 package org.apache.cassandra.streaming;
 
-
-import java.io.IOError;
-import java.io.IOException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,42 +29,35 @@ public class StreamReplyVerbHandler implements IVerbHandler<StreamReply>
 
     public void doVerb(MessageIn<StreamReply> message, String id)
     {
-        try
+        StreamReply reply = message.payload;
+        logger.debug("Received StreamReply {}", reply);
+        StreamOutSession session = StreamOutSession.get(message.from, reply.sessionId);
+        if (session == null)
         {
-            StreamReply reply = message.payload;
-            logger.debug("Received StreamReply {}", reply);
-            StreamOutSession session = StreamOutSession.get(message.from, reply.sessionId);
-            if (session == null)
-            {
-                logger.debug("Received stream action " + reply.action + " for an unknown session from " + message.from);
-                return;
-            }
-
-            switch (reply.action)
-            {
-                case FILE_FINISHED:
-                    logger.info("Successfully sent {} to {}", reply.file, message.from);
-                    session.validateCurrentFile(reply.file);
-                    session.startNext();
-                    break;
-                case FILE_RETRY:
-                    session.validateCurrentFile(reply.file);
-                    logger.info("Need to re-stream file {} to {}", reply.file, message.from);
-                    session.retry();
-                    break;
-                case SESSION_FINISHED:
-                    session.close(true);
-                    break;
-                case SESSION_FAILURE:
-                    session.close(false);
-                    break;
-                default:
-                    throw new RuntimeException("Cannot handle FileStatus.Action: " + reply.action);
-            }
+            logger.debug("Received stream action " + reply.action + " for an unknown session from " + message.from);
+            return;
         }
-        catch (IOException ex)
+
+        switch (reply.action)
         {
-            throw new IOError(ex);
+            case FILE_FINISHED:
+                logger.info("Successfully sent {} to {}", reply.file, message.from);
+                session.validateCurrentFile(reply.file);
+                session.startNext();
+                break;
+            case FILE_RETRY:
+                session.validateCurrentFile(reply.file);
+                logger.info("Need to re-stream file {} to {}", reply.file, message.from);
+                session.retry();
+                break;
+            case SESSION_FINISHED:
+                session.close(true);
+                break;
+            case SESSION_FAILURE:
+                session.close(false);
+                break;
+            default:
+                throw new RuntimeException("Cannot handle FileStatus.Action: " + reply.action);
         }
     }
 }

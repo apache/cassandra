@@ -24,13 +24,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.collect.*;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
@@ -38,7 +38,6 @@ import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
-import org.apache.cassandra.utils.WrappedRunnable;
 
 public class DataTracker
 {
@@ -159,12 +158,12 @@ public class DataTracker
         if (!DatabaseDescriptor.isIncrementalBackupsEnabled())
             return;
 
-        Runnable runnable = new WrappedRunnable()
+        Runnable runnable = new Runnable()
         {
-            protected void runMayThrow() throws Exception
+            public void run()
             {
                 File backupsDir = Directories.getBackupsDirectory(sstable.descriptor);
-                sstable.createLinks(backupsDir.getCanonicalPath());
+                sstable.createLinks(FileUtils.getCanonicalPath(backupsDir));
             }
         };
         StorageService.tasks.execute(runnable);

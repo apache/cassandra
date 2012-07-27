@@ -19,7 +19,6 @@ package org.apache.cassandra.cache;
 
 import java.io.DataInput;
 import java.io.DataOutput;
-import java.io.IOError;
 import java.io.IOException;
 
 import org.apache.cassandra.db.ColumnFamily;
@@ -37,21 +36,15 @@ public class SerializingCacheProvider implements IRowCacheProvider
     // Package protected for tests
     static class RowCacheSerializer implements ISerializer<IRowCacheEntry>
     {
-        public void serialize(IRowCacheEntry cf, DataOutput out)
+        public void serialize(IRowCacheEntry entry, DataOutput out) throws IOException
         {
-            assert cf != null; // unlike CFS we don't support nulls, since there is no need for that in the cache
-            try
-            {
-                out.writeBoolean(cf instanceof RowCacheSentinel);
-                if (cf instanceof RowCacheSentinel)
-                    out.writeLong(((RowCacheSentinel) cf).sentinelId);
-                else
-                    ColumnFamily.serializer.serialize((ColumnFamily) cf, out, MessagingService.current_version);
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
+            assert entry != null; // unlike CFS we don't support nulls, since there is no need for that in the cache
+            boolean isSentinel = entry instanceof RowCacheSentinel;
+            out.writeBoolean(isSentinel);
+            if (isSentinel)
+                out.writeLong(((RowCacheSentinel) entry).sentinelId);
+            else
+                ColumnFamily.serializer.serialize((ColumnFamily) entry, out, MessagingService.current_version);
         }
 
         public IRowCacheEntry deserialize(DataInput in) throws IOException
@@ -62,13 +55,13 @@ public class SerializingCacheProvider implements IRowCacheProvider
             return ColumnFamily.serializer.deserialize(in, MessagingService.current_version);
         }
 
-        public long serializedSize(IRowCacheEntry cf, TypeSizes typeSizes)
+        public long serializedSize(IRowCacheEntry entry, TypeSizes typeSizes)
         {
             int size = typeSizes.sizeof(true);
-            if (cf instanceof RowCacheSentinel)
-                size += typeSizes.sizeof(((RowCacheSentinel) cf).sentinelId);
+            if (entry instanceof RowCacheSentinel)
+                size += typeSizes.sizeof(((RowCacheSentinel) entry).sentinelId);
             else
-                size += ColumnFamily.serializer.serializedSize((ColumnFamily) cf, typeSizes, MessagingService.current_version);
+                size += ColumnFamily.serializer.serializedSize((ColumnFamily) entry, typeSizes, MessagingService.current_version);
             return size;
         }
     }

@@ -335,19 +335,12 @@ public class ByteBufferUtil
         }
     }
 
-    public static void writeWithShortLength(ByteBuffer buffer, DataOutput out)
+    public static void writeWithShortLength(ByteBuffer buffer, DataOutput out) throws IOException
     {
         int length = buffer.remaining();
         assert 0 <= length && length <= FBUtilities.MAX_UNSIGNED_SHORT : length;
-        try
-        {
-            out.writeShort(length);
-            write(buffer, out); // writing data bytes to output source
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        out.writeShort(length);
+        write(buffer, out); // writing data bytes to output source
     }
 
     public static ByteBuffer readWithLength(DataInput in) throws IOException
@@ -455,7 +448,7 @@ public class ByteBufferUtil
 
         return new InputStream()
         {
-            public int read() throws IOException
+            public int read()
             {
                 if (!copy.hasRemaining())
                     return -1;
@@ -464,7 +457,7 @@ public class ByteBufferUtil
             }
 
             @Override
-            public int read(byte[] bytes, int off, int len) throws IOException
+            public int read(byte[] bytes, int off, int len)
             {
                 if (!copy.hasRemaining())
                     return -1;
@@ -475,7 +468,7 @@ public class ByteBufferUtil
             }
 
             @Override
-            public int available() throws IOException
+            public int available()
             {
                 return copy.remaining();
             }

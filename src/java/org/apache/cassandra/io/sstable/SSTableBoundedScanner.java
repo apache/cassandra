@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -43,15 +42,7 @@ public class SSTableBoundedScanner extends SSTableScanner
         if (rangeIterator.hasNext())
         {
             currentRange = rangeIterator.next();
-            try
-            {
-                dfile.seek(currentRange.left);
-            }
-            catch (IOException e)
-            {
-                sstable.markSuspect();
-                throw new RuntimeException(e);
-            }
+            dfile.seek(currentRange.left);
         }
         else
         {

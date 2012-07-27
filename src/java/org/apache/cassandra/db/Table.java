@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -25,6 +24,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -34,12 +38,6 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Function;
-import com.google.common.collect.Iterables;
 
 /**
  * It represents a Keyspace.
@@ -63,16 +61,7 @@ public class Table
     static
     {
         if (!StorageService.instance.isClientMode())
-        {
-            try
-            {
-                DatabaseDescriptor.createAllDirectories();
-            }
-            catch (IOException ex)
-            {
-                throw new IOError(ex);
-            }
-        }
+            DatabaseDescriptor.createAllDirectories();
     }
 
     /* Table name. */
@@ -221,7 +210,7 @@ public class Table
      * @param snapshotName the user supplied snapshot name. It empty or null,
      * all the snapshots will be cleaned
      */
-    public void clearSnapshot(String snapshotName) throws IOException
+    public void clearSnapshot(String snapshotName)
     {
         for (ColumnFamilyStore cfStore : columnFamilyStores.values())
         {
@@ -316,15 +305,8 @@ public class Table
             ColumnFamilyStore cfs = columnFamilyStores.get(cfId);
             assert cfs.getColumnFamilyName().equals(cfName);
 
-            try
-            {
-                cfs.metadata.reload();
-                cfs.reload();
-            }
-            catch (IOException e)
-            {
-                throw FBUtilities.unchecked(e);
-            }
+            cfs.metadata.reload();
+            cfs.reload();
         }
         else
         {
@@ -332,14 +314,14 @@ public class Table
         }
     }
 
-    public Row getRow(QueryFilter filter) throws IOException
+    public Row getRow(QueryFilter filter)
     {
         ColumnFamilyStore cfStore = getColumnFamilyStore(filter.getColumnFamilyName());
         ColumnFamily columnFamily = cfStore.getColumnFamily(filter, ArrayBackedSortedColumns.factory());
         return new Row(filter.key, columnFamily);
     }
 
-    public void apply(RowMutation mutation, boolean writeCommitLog) throws IOException
+    public void apply(RowMutation mutation, boolean writeCommitLog)
     {
         apply(mutation, writeCommitLog, true);
     }
@@ -351,9 +333,8 @@ public class Table
      *                 may happen concurrently, depending on the CL Executor type.
      * @param writeCommitLog false to disable commitlog append entirely
      * @param updateIndexes false to disable index updates (used by CollationController "defragmenting")
-     * @throws IOException
      */
-    public void apply(RowMutation mutation, boolean writeCommitLog, boolean updateIndexes) throws IOException
+    public void apply(RowMutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
         if (logger.isDebugEnabled())
             logger.debug("applying mutation of row {}", ByteBufferUtil.bytesToHex(mutation.key()));
@@ -501,14 +482,7 @@ public class Table
             {
                 ColumnFamily cf = readCurrentIndexedColumns(key, cfs, indexedColumns);
                 if (cf != null)
-                    try
-                    {
-                        cfs.indexManager.applyIndexUpdates(key.key, cf, cf.getColumnNames(), null);
-                    }
-                    catch (IOException e)
-                    {
-                        throw new IOError(e);
-                    }
+                    cfs.indexManager.applyIndexUpdates(key.key, cf, cf.getColumnNames(), null);
             }
         }
         finally
@@ -522,7 +496,7 @@ public class Table
         return indexLocks[Math.abs(key.hashCode() % indexLocks.length)];
     }
 
-    public List<Future<?>> flush() throws IOException
+    public List<Future<?>> flush()
     {
         List<Future<?>> futures = new ArrayList<Future<?>>();
         for (UUID cfId : columnFamilyStores.keySet())

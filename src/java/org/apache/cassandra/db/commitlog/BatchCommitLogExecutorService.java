@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.*;
 
@@ -93,14 +92,7 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService
         }
 
         // now sync and set the tasks' values (which allows thread calling get() to proceed)
-        try
-        {
-            CommitLog.instance.sync();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        CommitLog.instance.sync();
         for (int i = 0; i < incompleteTasks.size(); i++)
         {
             incompleteTasks.get(i).set(taskValues.get(i));
@@ -153,7 +145,7 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService
     {
         new Thread(new WrappedRunnable()
         {
-            public void runMayThrow() throws InterruptedException, IOException
+            public void runMayThrow() throws InterruptedException
             {
                 while (!queue.isEmpty())
                     Thread.sleep(100);

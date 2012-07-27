@@ -75,7 +75,7 @@ public class SecondaryIndexColumnSizeTest
     private class MockRowIndex extends PerRowSecondaryIndex
     {
         @Override
-        public void applyIndexUpdates(ByteBuffer rowKey, ColumnFamily cf, SortedSet<ByteBuffer> mutatedIndexedColumns, ColumnFamily oldIndexedColumns) throws IOException
+        public void applyIndexUpdates(ByteBuffer rowKey, ColumnFamily cf, SortedSet<ByteBuffer> mutatedIndexedColumns, ColumnFamily oldIndexedColumns)
         {
         }
 
@@ -102,7 +102,7 @@ public class SecondaryIndexColumnSizeTest
         }
 
         @Override
-        public void forceBlockingFlush() throws IOException
+        public void forceBlockingFlush()
         {
         }
 
@@ -119,7 +119,7 @@ public class SecondaryIndexColumnSizeTest
         }
 
         @Override
-        public void removeIndex(ByteBuffer columnName) throws IOException
+        public void removeIndex(ByteBuffer columnName)
         {
         }
 
@@ -166,7 +166,7 @@ public class SecondaryIndexColumnSizeTest
         }
 
         @Override
-        public void forceBlockingFlush() throws IOException
+        public void forceBlockingFlush()
         {
         }
 
@@ -183,7 +183,7 @@ public class SecondaryIndexColumnSizeTest
         }
 
         @Override
-        public void removeIndex(ByteBuffer columnName) throws IOException
+        public void removeIndex(ByteBuffer columnName)
         {
         }
 
@@ -198,17 +198,17 @@ public class SecondaryIndexColumnSizeTest
         }
 
         @Override
-        public void deleteColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col) throws IOException
+        public void deleteColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col)
         {
         }
 
         @Override
-        public void insertColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col) throws IOException
+        public void insertColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col)
         {
         }
 
         @Override
-        public void updateColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col) throws IOException
+        public void updateColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col)
         {
         }
     }

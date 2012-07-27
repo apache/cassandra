@@ -23,6 +23,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.utils.CLibrary;
 
 public class SequentialWriter extends OutputStream
@@ -60,9 +61,16 @@ public class SequentialWriter extends OutputStream
     public final DataOutputStream stream;
     private MessageDigest digest;
 
-    public SequentialWriter(File file, int bufferSize, boolean skipIOCache) throws IOException
+    public SequentialWriter(File file, int bufferSize, boolean skipIOCache)
     {
-        out = new RandomAccessFile(file, "rw");
+        try
+        {
+            out = new RandomAccessFile(file, "rw");
+        }
+        catch (FileNotFoundException e)
+        {
+            throw new RuntimeException(e);
+        }
 
         filePath = file.getAbsolutePath();
 
@@ -70,22 +78,31 @@ public class SequentialWriter extends OutputStream
         this.skipIOCache = skipIOCache;
         this.trickleFsync = DatabaseDescriptor.getTrickleFsync();
         this.trickleFsyncByteInterval = DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024;
-        fd = CLibrary.getfd(out.getFD());
+
+        try
+        {
+            fd = CLibrary.getfd(out.getFD());
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e); // shouldn't happen
+        }
+
         directoryFD = CLibrary.tryOpenDirectory(file.getParent());
         stream = new DataOutputStream(this);
     }
 
-    public static SequentialWriter open(File file) throws IOException
+    public static SequentialWriter open(File file)
     {
         return open(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, false);
     }
 
-    public static SequentialWriter open(File file, boolean skipIOCache) throws IOException
+    public static SequentialWriter open(File file, boolean skipIOCache)
     {
         return open(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, skipIOCache);
     }
 
-    public static SequentialWriter open(File file, int bufferSize, boolean skipIOCache) throws IOException
+    public static SequentialWriter open(File file, int bufferSize, boolean skipIOCache)
     {
         return new SequentialWriter(file, bufferSize, skipIOCache);
     }

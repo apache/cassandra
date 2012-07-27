@@ -19,8 +19,6 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.File;
 
-import java.io.IOError;
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
@@ -183,15 +181,8 @@ public class CommitLogAllocator
                 || CommitLogDescriptor.fromFileName(file.getName()).getMessagingVersion() != MessagingService.current_version)
         {
             // (don't decrease managed size, since this was never a "live" segment)
-            try
-            {
-                logger.debug("(Unopened) segment {} is no longer needed and will be deleted now", file);
-                FileUtils.deleteWithConfirm(file);
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
+            logger.debug("(Unopened) segment {} is no longer needed and will be deleted now", file);
+            FileUtils.deleteWithConfirm(file);
             return;
         }
 

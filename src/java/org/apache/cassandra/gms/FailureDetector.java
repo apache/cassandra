@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.BoundedStatsDeque;
 import org.apache.cassandra.utils.FBUtilities;
@@ -110,16 +111,17 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
      */
     public void dumpInterArrivalTimes()
     {
+        File file = FileUtils.createTempFile("failuredetector-", ".dat");
+
         OutputStream os = null;
         try
         {
-            File file = File.createTempFile("failuredetector-", ".dat");
             os = new BufferedOutputStream(new FileOutputStream(file, true));
             os.write(toString().getBytes());
         }
         catch (IOException e)
         {
-            throw new IOError(e);
+            throw new FSWriteError(e, file);
         }
         finally
         {

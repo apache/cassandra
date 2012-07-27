@@ -23,8 +23,14 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.SynchronousQueue;
+
+import com.google.common.base.Throwables;
+
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.TreeMapBackedSortedColumns;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.compress.CompressionParameters;
@@ -69,7 +75,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                                        AbstractType<?> comparator,
                                        AbstractType<?> subComparator,
                                        int bufferSizeInMB,
-                                       CompressionParameters compressParameters) throws IOException
+                                       CompressionParameters compressParameters)
     {
         super(directory, new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator).compressionParameters(compressParameters), partitioner);
         this.bufferSize = bufferSizeInMB * 1024L * 1024L;
@@ -82,7 +88,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                                        String columnFamily,
                                        AbstractType<?> comparator,
                                        AbstractType<?> subComparator,
-                                       int bufferSizeInMB) throws IOException
+                                       int bufferSizeInMB)
     {
         this(directory, partitioner, keyspace, columnFamily, comparator, subComparator, bufferSizeInMB, new CompressionParameters(null));
     }
@@ -143,6 +149,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         catch (InterruptedException e)
         {
             throw new RuntimeException(e);
+
         }
         buffer = new Buffer();
         currentSize = 0;
@@ -156,7 +163,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
             if (diskWriter.exception instanceof IOException)
                 throw (IOException) diskWriter.exception;
             else
-                throw new RuntimeException(diskWriter.exception);
+                throw Throwables.propagate(diskWriter.exception);
         }
     }
 
@@ -165,7 +172,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
     private class DiskWriter extends Thread
     {
-        volatile Exception exception = null;
+        volatile Throwable exception = null;
 
         public void run()
         {
@@ -184,7 +191,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                     writer.closeAndOpenReader();
                 }
             }
-            catch (Exception e)
+            catch (Throwable e)
             {
                 if (writer != null)
                     writer.abort();

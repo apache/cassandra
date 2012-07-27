@@ -48,7 +48,7 @@ public abstract class AbstractSSTableSimpleWriter
         DatabaseDescriptor.setPartitioner(partitioner);
     }
 
-    protected SSTableWriter getWriter() throws IOException
+    protected SSTableWriter getWriter()
     {
         return new SSTableWriter(
             makeFilename(directory, metadata.ksName, metadata.cfName),

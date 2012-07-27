@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra;
 
 import java.io.File;
@@ -24,8 +23,12 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-
 import com.google.common.base.Charsets;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -41,11 +44,6 @@ import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class SchemaLoader
 {
@@ -348,7 +346,7 @@ public class SchemaLoader
         return cfmd;
     }
 
-    public static void cleanupAndLeaveDirs() throws IOException
+    public static void cleanupAndLeaveDirs()
     {
         mkdirs();
         cleanup();
@@ -356,7 +354,7 @@ public class SchemaLoader
         CommitLog.instance.resetUnsafe(); // cleanup screws w/ CommitLog, this brings it back to safe state
     }
 
-    public static void cleanup() throws IOException
+    public static void cleanup()
     {
         // clean up commitlog
         String[] directoryNames = { DatabaseDescriptor.getCommitLogLocation(), };
@@ -382,14 +380,7 @@ public class SchemaLoader
 
     public static void mkdirs()
     {
-        try
-        {
-            DatabaseDescriptor.createAllDirectories();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        DatabaseDescriptor.createAllDirectories();
     }
 
     protected void insertData(String keyspace, String columnFamily, int offset, int numberOfRows) throws IOException

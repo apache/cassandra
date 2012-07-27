@@ -129,7 +129,7 @@ public abstract class SSTable
      *
      * @return true if the file was deleted
      */
-    public static boolean delete(Descriptor desc, Set<Component> components) throws IOException
+    public static boolean delete(Descriptor desc, Set<Component> components)
     {
         // remove the DATA component first if it exists
         if (components.contains(Component.DATA))

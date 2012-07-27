@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.File;
-import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
@@ -142,7 +141,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /** ops count last time we computed liveRatio */
     private final AtomicLong liveRatioComputedAt = new AtomicLong(32);
 
-    public void reload() throws IOException
+    public void reload()
     {
         // metadata object has been mutated directly. make all the members jibe with new settings.
 
@@ -371,14 +370,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             if (components.contains(Component.COMPACTED_MARKER) || desc.temporary)
             {
-                try
-                {
-                    SSTable.delete(desc, components);
-                }
-                catch (IOException e)
-                {
-                    throw new IOError(e);
-                }
+                SSTable.delete(desc, components);
                 continue;
             }
 
@@ -391,14 +383,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger.warn("Removing orphans for {}: {}", desc, components);
             for (Component component : components)
             {
-                try
-                {
-                    FileUtils.deleteWithConfirm(desc.filenameFor(component));
-                }
-                catch (IOException e)
-                {
-                    throw new IOError(e);
-                }
+                FileUtils.deleteWithConfirm(desc.filenameFor(component));
             }
         }
 
@@ -516,10 +501,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             indexManager.maybeBuildSecondaryIndexes(newSSTables, indexManager.getIndexedColumns());
         }
-        catch (IOException e)
-        {
-           throw new IOError(e);
-        }
         finally
         {
             SSTableReader.releaseReferences(newSSTables);
@@ -546,10 +527,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger.info(String.format("User Requested secondary index re-build for %s/%s indexes", ksName, cfName));
             cfs.indexManager.maybeBuildSecondaryIndexes(sstables, indexes);
             cfs.indexManager.setIndexBuilt(indexes);
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
         }
         finally
         {
@@ -578,7 +555,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getTempSSTablePath(location, version);
     }
 
-    public String getTempSSTablePath(File directory, Descriptor.Version version)
+    private String getTempSSTablePath(File directory)
+    {
+        return getTempSSTablePath(directory, Descriptor.Version.CURRENT);
+    }
+
+    private String getTempSSTablePath(File directory, Descriptor.Version version)
     {
         Descriptor desc = new Descriptor(version,
                                          directory,
@@ -587,11 +569,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                          fileIndexGenerator.incrementAndGet(),
                                          true);
         return desc.filenameFor(Component.DATA);
-    }
-
-    public String getTempSSTablePath(File directory)
-    {
-        return getTempSSTablePath(directory, Descriptor.Version.CURRENT);
     }
 
     /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
@@ -655,7 +632,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
             return postFlushExecutor.submit(new WrappedRunnable()
             {
-                public void runMayThrow() throws InterruptedException, IOException, ExecutionException
+                public void runMayThrow() throws InterruptedException, ExecutionException
                 {
                     latch.await();
 
@@ -1392,14 +1369,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 public void close() throws IOException
                 {
                     SSTableReader.releaseReferences(view.sstables);
-                    try
-                    {
-                        iterator.close();
-                    }
-                    catch (IOException e)
-                    {
-                        throw new IOError(e);
-                    }
+                    iterator.close();
                 }
             };
         }
@@ -1477,7 +1447,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             catch (IOException e)
             {
-                throw new IOError(e);
+                throw new RuntimeException(e);
             }
         }
     }
@@ -1498,9 +1468,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 for (SSTableReader ssTable : currentView.sstables)
                 {
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
-
-                    // hard links
-                    ssTable.createLinks(snapshotDirectory.getPath());
+                    ssTable.createLinks(snapshotDirectory.getPath()); // hard links
                     if (logger.isDebugEnabled())
                         logger.debug("Snapshot for " + table + " keyspace data file " + ssTable.getFilename() +
                                      " created in " + snapshotDirectory);
@@ -1508,10 +1476,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 if (cfs.compactionStrategy instanceof LeveledCompactionStrategy)
                     cfs.directories.snapshotLeveledManifest(snapshotName);
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
             }
             finally
             {
@@ -1557,7 +1521,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return directories.snapshotExists(snapshotName);
     }
 
-    public void clearSnapshot(String snapshotName) throws IOException
+    public void clearSnapshot(String snapshotName)
     {
         directories.clearSnapshot(snapshotName);
     }
@@ -1708,7 +1672,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return a Future to the delete operation. Call the future's get() to make
      * sure the column family has been deleted
      */
-    public Future<?> truncate() throws IOException, ExecutionException, InterruptedException
+    public Future<?> truncate() throws ExecutionException, InterruptedException
     {
         // We have two goals here:
         // - truncate should delete everything written before truncate was invoked
@@ -1951,17 +1915,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return intern(name);
     }
 
-    public SSTableWriter createFlushWriter(long estimatedRows, long estimatedSize, ReplayPosition context) throws IOException
+    public SSTableWriter createFlushWriter(long estimatedRows, long estimatedSize, ReplayPosition context)
     {
         SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector().replayPosition(context);
-        return new SSTableWriter(getFlushPath(estimatedSize, Descriptor.Version.CURRENT),
-                                 estimatedRows,
-                                 metadata,
-                                 partitioner,
-                                 sstableMetadataCollector);
+        String filename = getFlushPath(estimatedSize, Descriptor.Version.CURRENT);
+        return new SSTableWriter(filename, estimatedRows, metadata, partitioner, sstableMetadataCollector);
     }
 
-    public SSTableWriter createCompactionWriter(long estimatedRows, File location, Collection<SSTableReader> sstables) throws IOException
+    public SSTableWriter createCompactionWriter(long estimatedRows, File location, Collection<SSTableReader> sstables)
     {
         ReplayPosition rp = ReplayPosition.getReplayPosition(sstables);
         SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector().replayPosition(rp);

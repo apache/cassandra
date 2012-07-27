@@ -148,17 +148,9 @@ public class StreamingRepairTask implements Runnable
             public void onSuccess()
             {
                 if (outstanding.decrementAndGet() > 0)
-                    // waiting on more calls
-                    return;
+                    return; // waiting on more calls
 
-                try
-                {
-                    StreamingRepairResponse.reply(taskOwner, taskId);
-                }
-                catch (IOException e)
-                {
-                    throw new IOError(e);
-                }
+                StreamingRepairResponse.reply(taskOwner, taskId);
             }
 
             public void onFailure() {}
@@ -222,7 +214,7 @@ public class StreamingRepairTask implements Runnable
                 task.callback.onSuccess();
         }
 
-        private static void reply(InetAddress remote, UUID taskid) throws IOException
+        private static void reply(InetAddress remote, UUID taskid)
         {
             logger.info(String.format("[streaming task #%s] task suceed, forwarding response to %s", taskid, remote));
             MessageOut<UUID> message = new MessageOut<UUID>(MessagingService.Verb.STREAMING_REPAIR_RESPONSE, taskid, UUIDGen.serializer);

@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -31,9 +30,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DataTracker;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.WrappedRunnable;
 
-public class SSTableDeletingTask extends WrappedRunnable
+public class SSTableDeletingTask implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableDeletingTask.class);
 
@@ -65,7 +63,7 @@ public class SSTableDeletingTask extends WrappedRunnable
         StorageService.tasks.submit(this);
     }
 
-    protected void runMayThrow() throws IOException
+    public void run()
     {
         // If we can't successfully delete the DATA component, set the task to be retried later: see above
         File datafile = new File(desc.filenameFor(Component.DATA));

@@ -256,14 +256,13 @@ public class RowMutation implements IMutation
      * This is equivalent to calling commit. Applies the changes to
      * to the table that is obtained by calling Table.open().
      */
-    public void apply() throws IOException
+    public void apply()
     {
         KSMetaData ksm = Schema.instance.getTableDefinition(getTable());
-
         Table.open(table).apply(this, ksm.durableWrites);
     }
 
-    public void applyUnsafe() throws IOException
+    public void applyUnsafe()
     {
         Table.open(table).apply(this, false);
     }

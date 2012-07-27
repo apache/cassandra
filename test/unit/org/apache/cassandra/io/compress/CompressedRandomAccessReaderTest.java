@@ -20,16 +20,15 @@ package org.apache.cassandra.io.compress;
 
 import java.io.*;
 import java.util.Random;
-import java.util.concurrent.Callable;
 
 import org.junit.Test;
 
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.util.*;
 
 import static org.junit.Assert.assertEquals;
-
-import static org.apache.cassandra.Util.expectException;
+import static org.junit.Assert.assertNotNull;
 
 public class CompressedRandomAccessReaderTest
 {
@@ -145,13 +144,18 @@ public class CompressedRandomAccessReaderTest
 
                 final RandomAccessReader r = CompressedRandomAccessReader.open(file.getPath(), meta, false);
 
-                expectException(new Callable<String>()
+                Throwable exception = null;
+                try
                 {
-                    public String call() throws Exception
-                    {
-                        return r.readLine();
-                    }
-                }, CorruptedBlockException.class);
+                    r.readLine();
+                }
+                catch (Throwable t)
+                {
+                    exception = t;
+                }
+                assertNotNull(exception);
+                assertEquals(exception.getClass(), CorruptSSTableException.class);
+                assertEquals(exception.getCause().getClass(), CorruptBlockException.class);
 
                 r.close();
             }

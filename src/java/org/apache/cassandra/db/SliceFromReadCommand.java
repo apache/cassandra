@@ -23,14 +23,15 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.RepairCallback;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class SliceFromReadCommand extends ReadCommand
 {
@@ -61,7 +62,7 @@ public class SliceFromReadCommand extends ReadCommand
         return readCommand;
     }
 
-    public Row getRow(Table table) throws IOException
+    public Row getRow(Table table)
     {
         DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
         return table.getRow(new QueryFilter(dk, queryPath, filter));

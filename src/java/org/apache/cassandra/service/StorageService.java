@@ -18,7 +18,6 @@
 package org.apache.cassandra.service;
 
 import java.io.File;
-import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
@@ -354,9 +353,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             Thread.sleep(delay);
         }
-        catch (Exception ex)
+        catch (InterruptedException e)
         {
-            throw new IOError(ex);
+            throw new AssertionError(e);
         }
 
         Schema.instance.updateVersionAndAnnounce();
@@ -703,7 +702,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
     }
 
-    public synchronized void joinRing() throws IOException, org.apache.cassandra.config.ConfigurationException
+    public synchronized void joinRing() throws IOException, ConfigurationException
     {
         if (!joined)
         {
@@ -1846,34 +1845,22 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return stringify(Gossiper.instance.getUnreachableMembers());
     }
 
-    private static String getCanonicalPath(String filename)
-    {
-        try
-        {
-            return new File(filename).getCanonicalPath();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
-    }
-
     public String[] getAllDataFileLocations()
     {
         String[] locations = DatabaseDescriptor.getAllDataFileLocations();
         for (int i = 0; i < locations.length; i++)
-            locations[i] = getCanonicalPath(locations[i]);
+            locations[i] = FileUtils.getCanonicalPath(locations[i]);
         return locations;
     }
 
     public String getCommitLogLocation()
     {
-        return getCanonicalPath(DatabaseDescriptor.getCommitLogLocation());
+        return FileUtils.getCanonicalPath(DatabaseDescriptor.getCommitLogLocation());
     }
 
     public String getSavedCachesLocation()
     {
-        return getCanonicalPath(DatabaseDescriptor.getSavedCachesLocation());
+        return FileUtils.getCanonicalPath(DatabaseDescriptor.getSavedCachesLocation());
     }
 
     private List<String> stringify(Iterable<InetAddress> endpoints)

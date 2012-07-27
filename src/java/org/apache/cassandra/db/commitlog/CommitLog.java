@@ -23,19 +23,19 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.net.MessagingService;
 
 /*
  * Commit Log tracks every write operation into the system. The aim of the commit log is to be able to
@@ -60,17 +60,10 @@ public class CommitLog implements CommitLogMBean
 
     private CommitLog()
     {
-        try
-        {
-            DatabaseDescriptor.createAllDirectories();
+        DatabaseDescriptor.createAllDirectories();
 
-            allocator = new CommitLogAllocator();
-            activateNextSegment();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        allocator = new CommitLogAllocator();
+        activateNextSegment();
 
         executor = DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.batch
                  ? new BatchCommitLogExecutorService()
@@ -90,7 +83,7 @@ public class CommitLog implements CommitLogMBean
     /**
      * FOR TESTING PURPOSES. See CommitLogAllocator.
      */
-    public void resetUnsafe() throws IOException
+    public void resetUnsafe()
     {
         allocator.resetUnsafe();
         activateNextSegment();
@@ -165,7 +158,7 @@ public class CommitLog implements CommitLogMBean
     {
         Callable<ReplayPosition> task = new Callable<ReplayPosition>()
         {
-            public ReplayPosition call() throws Exception
+            public ReplayPosition call()
             {
                 return activeSegment.getContext();
             }
@@ -188,7 +181,7 @@ public class CommitLog implements CommitLogMBean
      *
      * @param rm the RowMutation to add to the log
      */
-    public void add(RowMutation rm) throws IOException
+    public void add(RowMutation rm)
     {
         long totalSize = RowMutation.serializer.serializedSize(rm, MessagingService.current_version) + CommitLogSegment.ENTRY_OVERHEAD_SIZE;
         if (totalSize > DatabaseDescriptor.getCommitLogSegmentSize())
@@ -207,11 +200,11 @@ public class CommitLog implements CommitLogMBean
      * @param cfId    the column family ID that was flushed
      * @param context the replay position of the flush
      */
-    public void discardCompletedSegments(final UUID cfId, final ReplayPosition context) throws IOException
+    public void discardCompletedSegments(final UUID cfId, final ReplayPosition context)
     {
         Callable task = new Callable()
         {
-            public Object call() throws IOException
+            public Object call()
             {
                 logger.debug("discard completed log segments for {}, column family {}", context, cfId);
 
@@ -266,7 +259,7 @@ public class CommitLog implements CommitLogMBean
     /**
      * Forces a disk flush on the commit log files that need it.
      */
-    public void sync() throws IOException
+    public void sync()
     {
         for (CommitLogSegment segment : allocator.getActiveSegments())
         {
@@ -307,7 +300,7 @@ public class CommitLog implements CommitLogMBean
 
         Callable<?> task = new Callable()
         {
-            public Object call() throws IOException
+            public Object call()
             {
                 if (activeSegment.position() > 0)
                     activateNextSegment();
@@ -324,7 +317,7 @@ public class CommitLog implements CommitLogMBean
      *
      * @return the newly activated segment
      */
-    private void activateNextSegment() throws IOException
+    private void activateNextSegment()
     {
         activeSegment = allocator.fetchSegment();
         logger.debug("Active segment is now {}", activeSegment);
@@ -367,25 +360,25 @@ public class CommitLog implements CommitLogMBean
 
         public void run()
         {
+            if (!activeSegment.hasCapacityFor(rowMutation))
+            {
+                CommitLogSegment oldSegment = activeSegment;
+                activateNextSegment();
+                // Now we can run the user defined command just before switching to the new commit log.
+                // (Do this here instead of in the recycle call so we can get a head start on the archive.)
+                archiver.maybeArchive(oldSegment.getPath(), oldSegment.getName());
+            }
             try
             {
-                if (!activeSegment.hasCapacityFor(rowMutation))
-                {
-                    CommitLogSegment oldSegment = activeSegment;
-                    activateNextSegment();
-                    // Now we can run the user defined command just before switching to the new commit log.
-                    // (Do this here instead of in the recycle call so we can get a head start on the archive.)
-                    archiver.maybeArchive(oldSegment.getPath(), oldSegment.getName());
-                }
                 activeSegment.write(rowMutation);
             }
             catch (IOException e)
             {
-                throw new IOError(e);
+                throw new FSWriteError(e, activeSegment.getPath());
             }
         }
 
-        public Object call() throws Exception
+        public Object call()
         {
             run();
             return null;

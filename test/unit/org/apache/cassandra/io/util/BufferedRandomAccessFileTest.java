@@ -241,14 +241,14 @@ public class BufferedRandomAccessFileTest
         assertEquals(file.bytesRemaining(), file.length() - 20);
 
         // trying to seek past the end of the file should produce EOFException
-        expectEOF(new Callable<Object>()
+        expectException(new Callable<Object>()
         {
-            public Object call() throws Exception
+            public Object call()
             {
                 file.seek(file.length() + 30);
                 return null;
             }
-        });
+        }, IllegalArgumentException.class);
 
         expectException(new Callable<Object>()
         {
@@ -433,11 +433,11 @@ public class BufferedRandomAccessFileTest
 
         expectException(new Callable<Object>()
         {
-            public Object call() throws IOException
+            public Object call()
             {
                 return r.read();
             }
-        }, ClosedChannelException.class);
+        }, AssertionError.class);
 
         expectException(new Callable<Object>()
         {
@@ -524,14 +524,14 @@ public class BufferedRandomAccessFileTest
         assertTrue(copy.bytesRemaining() == 0 && copy.isEOF());
 
         // can't seek past the end of the file for read-only files
-        expectEOF(new Callable<Object>()
+        expectException(new Callable<Object>()
         {
-            public Object call() throws IOException
+            public Object call()
             {
                 copy.seek(copy.length() + 1);
                 return null;
             }
-        });
+        }, IllegalArgumentException.class);
 
         // Any write() call should fail
         expectException(new Callable<Object>()

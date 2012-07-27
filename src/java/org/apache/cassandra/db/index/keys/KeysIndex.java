@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.db.index.keys;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -34,8 +36,6 @@ import org.apache.cassandra.db.marshal.LocalByPartionerType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Implements a secondary index for a column family using a second column family
@@ -125,12 +125,12 @@ public class KeysIndex extends PerColumnSecondaryIndex
         insertColumn(valueKey, rowKey, col);
     }
 
-    public void removeIndex(ByteBuffer columnName) throws IOException
+    public void removeIndex(ByteBuffer columnName)
     {
         indexCfs.invalidate();
     }
 
-    public void forceBlockingFlush() throws IOException
+    public void forceBlockingFlush()
     {
         try
         {
@@ -138,11 +138,11 @@ public class KeysIndex extends PerColumnSecondaryIndex
         }
         catch (ExecutionException e)
         {
-            throw new IOException(e);
+            throw new RuntimeException(e);
         }
         catch (InterruptedException e)
         {
-            throw new IOException(e);
+            throw new AssertionError(e);
         }
     }
 

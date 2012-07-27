@@ -25,9 +25,15 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
+
+import com.google.common.base.Predicates;
+import com.google.common.base.Throwables;
+import com.google.common.collect.Iterators;
+import com.google.common.primitives.Longs;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
@@ -47,12 +53,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Predicates;
-import com.google.common.collect.Iterators;
-import com.google.common.primitives.Longs;
 
 /**
  * A singleton which manages a private executor of ongoing compactions. A readwrite lock
@@ -119,9 +119,9 @@ public class CompactionManager implements CompactionManagerMBean
                      new Object[] {cfs.table.name,
                                    cfs.columnFamily,
                                    cfs.getCompactionStrategy().getClass().getSimpleName()});
-        Runnable runnable = new WrappedRunnable()
+        Runnable runnable = new Runnable()
         {
-            protected void runMayThrow() throws IOException
+            public void run()
             {
                 compactionLock.readLock().lock();
                 try
@@ -228,7 +228,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         performAllSSTableOperation(cfStore, new AllSSTablesOperation()
         {
-            public void perform(ColumnFamilyStore cfs, Collection<SSTableReader> sstables) throws IOException
+            public void perform(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
             {
                 assert !cfs.isIndex();
                 for (final SSTableReader sstable : sstables)
@@ -623,11 +623,11 @@ public class CompactionManager implements CompactionManagerMBean
                 if (writer != null)
                     newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
             }
-            catch (Exception e)
+            catch (Throwable e)
             {
                 if (writer != null)
                     writer.abort();
-                throw FBUtilities.unchecked(e);
+                throw Throwables.propagate(e);
             }
             finally
             {
@@ -655,8 +655,11 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    public static SSTableWriter maybeCreateWriter(ColumnFamilyStore cfs, File compactionFileLocation, int expectedBloomFilterSize, SSTableWriter writer, Collection<SSTableReader> sstables)
-    throws IOException
+    public static SSTableWriter maybeCreateWriter(ColumnFamilyStore cfs,
+                                                  File compactionFileLocation,
+                                                  int expectedBloomFilterSize,
+                                                  SSTableWriter writer,
+                                                  Collection<SSTableReader> sstables)
     {
         if (writer == null)
         {
@@ -777,9 +780,9 @@ public class CompactionManager implements CompactionManagerMBean
 
     public Future<?> submitCacheWrite(final AutoSavingCache.Writer writer)
     {
-        Runnable runnable = new WrappedRunnable()
+        Runnable runnable = new Runnable()
         {
-            public void runMayThrow() throws IOException
+            public void run()
             {
                 if (!AutoSavingCache.flushInProgress.compareAndSet(false, true))
                 {
@@ -809,9 +812,9 @@ public class CompactionManager implements CompactionManagerMBean
 
     public Future<?> submitTruncate(final ColumnFamilyStore main, final long truncatedAt)
     {
-        Runnable runnable = new WrappedRunnable()
+        Runnable runnable = new Runnable()
         {
-            public void runMayThrow() throws InterruptedException, IOException
+            public void run()
             {
                 compactionLock.writeLock().lock();
 
@@ -841,7 +844,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     private static class ValidationCompactionIterable extends CompactionIterable
     {
-        public ValidationCompactionIterable(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Range<Token> range) throws IOException
+        public ValidationCompactionIterable(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Range<Token> range)
         {
             super(OperationType.VALIDATION,
                   cfs.getCompactionStrategy().getScanners(sstables, range),

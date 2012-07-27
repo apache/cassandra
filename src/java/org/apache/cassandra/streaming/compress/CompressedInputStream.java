@@ -89,7 +89,7 @@ public class CompressedInputStream extends InputStream
         return ((int) buffer[(int) (current++ - bufferOffset)]) & 0xff;
     }
 
-    public void position(long position) throws IOException
+    public void position(long position)
     {
         assert position >= current : "stream can only read forward.";
         current = position;

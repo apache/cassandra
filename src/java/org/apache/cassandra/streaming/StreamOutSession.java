@@ -17,19 +17,18 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.StringUtils;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Pair;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
  * This class manages the streaming of multiple files one after the other.
@@ -115,7 +114,7 @@ public class StreamOutSession extends AbstractStreamSession
         MessagingService.instance().stream(new StreamHeader(table, getSessionId(), pf), getHost());
     }
 
-    public void startNext() throws IOException
+    public void startNext()
     {
         assert files.containsKey(currentFile);
         files.get(currentFile).sstable.releaseReference();

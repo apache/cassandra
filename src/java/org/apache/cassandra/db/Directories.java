@@ -19,22 +19,21 @@ package org.apache.cassandra.db;
 
 import java.io.File;
 import java.io.FileFilter;
-import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
 
-import org.apache.commons.lang.StringUtils;
 import com.google.common.collect.ImmutableMap;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.compaction.LeveledManifest;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -98,15 +97,8 @@ public class Directories
 
         if (!StorageService.instance.isClientMode())
         {
-            try
-            {
-                for (File dir : sstableDirectories)
-                    FileUtils.createDirectory(dir);
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
+            for (File dir : sstableDirectories)
+                FileUtils.createDirectory(dir);
         }
     }
 
@@ -325,13 +317,14 @@ public class Directories
         return manifestFile;
     }
 
-    public void snapshotLeveledManifest(String snapshotName) throws IOException
+    public void snapshotLeveledManifest(String snapshotName)
     {
         File manifest = tryGetLeveledManifest();
         if (manifest != null)
         {
             File snapshotDirectory = getOrCreate(manifest.getParentFile(), SNAPSHOT_SUBDIR, snapshotName);
-            CLibrary.createHardLink(manifest, new File(snapshotDirectory, manifest.getName()));
+            File target = new File(snapshotDirectory, manifest.getName());
+            FileUtils.createHardLink(manifest, target);
         }
     }
 
@@ -346,7 +339,7 @@ public class Directories
         return false;
     }
 
-    public void clearSnapshot(String snapshotName) throws IOException
+    public void clearSnapshot(String snapshotName)
     {
         // If snapshotName is empty or null, we will delete the entire snapshot directory
         String tag = snapshotName == null ? "" : snapshotName;
@@ -368,11 +361,11 @@ public class Directories
         if (dir.exists())
         {
             if (!dir.isDirectory())
-                throw new IOError(new IOException(String.format("Invalid directory path %s: path exists but is not a directory", dir)));
+                throw new AssertionError(String.format("Invalid directory path %s: path exists but is not a directory", dir));
         }
         else if (!dir.mkdirs())
         {
-            throw new IOError(new IOException("Unable to create directory " + dir));
+            throw new FSWriteError(new IOException("Unable to create directory " + dir), dir);
         }
         return dir;
     }
@@ -410,15 +403,8 @@ public class Directories
 
         // Check whether the migration might create too long a filename
         int longestLocation = -1;
-        try
-        {
-            for (File loc : dataFileLocations)
-                longestLocation = Math.max(longestLocation, loc.getCanonicalPath().length());
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        for (File loc : dataFileLocations)
+            longestLocation = Math.max(longestLocation, FileUtils.getCanonicalPath(loc).length());
 
         // Check that migration won't error out halfway through from too-long paths.  For Windows, we need to check
         // total path length <= 255 (see http://msdn.microsoft.com/en-us/library/aa365247.aspx and discussion on CASSANDRA-2749);
@@ -519,29 +505,22 @@ public class Directories
 
     private static void migrateFile(File file, File ksDir, String additionalPath)
     {
-        try
-        {
-            if (file.isDirectory())
-                return;
+        if (file.isDirectory())
+            return;
 
-            String name = file.getName();
-            boolean isManifest = name.endsWith(LeveledManifest.EXTENSION);
-            String cfname = isManifest
-                          ? name.substring(0, name.length() - LeveledManifest.EXTENSION.length())
-                          : name.substring(0, name.indexOf(Component.separator));
+        String name = file.getName();
+        boolean isManifest = name.endsWith(LeveledManifest.EXTENSION);
+        String cfname = isManifest
+                      ? name.substring(0, name.length() - LeveledManifest.EXTENSION.length())
+                      : name.substring(0, name.indexOf(Component.separator));
 
-            int idx = cfname.indexOf(SECONDARY_INDEX_NAME_SEPARATOR); // idx > 0 => secondary index
-            String dirname = idx > 0 ? cfname.substring(0, idx) : cfname;
-            File destDir = getOrCreate(ksDir, dirname, additionalPath);
+        int idx = cfname.indexOf(SECONDARY_INDEX_NAME_SEPARATOR); // idx > 0 => secondary index
+        String dirname = idx > 0 ? cfname.substring(0, idx) : cfname;
+        File destDir = getOrCreate(ksDir, dirname, additionalPath);
 
-            File destFile = new File(destDir, isManifest ? name : ksDir.getName() + Component.separator + name);
-            logger.debug(String.format("[upgrade to 1.1] Moving %s to %s", file, destFile));
-            FileUtils.renameWithConfirm(file, destFile);
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        File destFile = new File(destDir, isManifest ? name : ksDir.getName() + Component.separator + name);
+        logger.debug(String.format("[upgrade to 1.1] Moving %s to %s", file, destFile));
+        FileUtils.renameWithConfirm(file, destFile);
     }
 
     // Hack for tests, don't use otherwise

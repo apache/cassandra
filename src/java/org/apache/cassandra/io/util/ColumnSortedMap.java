@@ -252,7 +252,7 @@ class ColumnIterator implements Iterator<Map.Entry<ByteBuffer, IColumn>>
         }
         catch (IOException e)
         {
-            throw new IOError(e);
+            throw new IOError(e); // can't throw more detailed error. can't rethrow IOException - Iterator interface next().
         }
     }
 

@@ -380,23 +380,16 @@ class SuperColumnSerializer implements IColumnSerializer
         return comparator;
     }
 
-    public void serialize(IColumn column, DataOutput dos)
+    public void serialize(IColumn column, DataOutput dos) throws IOException
     {
         SuperColumn superColumn = (SuperColumn)column;
         ByteBufferUtil.writeWithShortLength(superColumn.name(), dos);
-        try
+        DeletionInfo.serializer().serialize(superColumn.deletionInfo(), dos, MessagingService.VERSION_10);
+        Collection<IColumn> columns = superColumn.getSubColumns();
+        dos.writeInt(columns.size());
+        for (IColumn subColumn : columns)
         {
-            DeletionInfo.serializer().serialize(superColumn.deletionInfo(), dos, MessagingService.VERSION_10);
-            Collection<IColumn> columns = superColumn.getSubColumns();
-            dos.writeInt(columns.size());
-            for (IColumn subColumn : columns)
-            {
-                Column.serializer().serialize(subColumn, dos);
-            }
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
+            Column.serializer().serialize(subColumn, dos);
         }
     }
 

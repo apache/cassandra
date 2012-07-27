@@ -51,7 +51,7 @@ public class DirectoriesTest
     }
 
     @AfterClass
-    public static void afterClass() throws IOException
+    public static void afterClass()
     {
         Directories.resetDataDirectoriesAfterTest();
         FileUtils.deleteRecursive(tempDataDir);

@@ -19,7 +19,6 @@ package org.apache.cassandra.io.util;
 
 import java.io.DataInput;
 import java.io.DataOutput;
-import java.io.IOError;
 import java.io.IOException;
 import java.nio.MappedByteBuffer;
 import java.util.Iterator;
@@ -27,6 +26,7 @@ import java.util.NoSuchElementException;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -164,7 +164,7 @@ public abstract class SegmentedFile
             }
             catch (IOException e)
             {
-                throw new IOError(e);
+                throw new FSReadError(e, path);
             }
             return segment;
         }

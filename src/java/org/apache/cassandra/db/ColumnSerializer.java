@@ -19,13 +19,13 @@ package org.apache.cassandra.db;
 
 import java.io.DataInput;
 import java.io.DataOutput;
-import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -40,7 +40,7 @@ public class ColumnSerializer implements IColumnSerializer
     public final static int COUNTER_UPDATE_MASK  = 0x08;
     public final static int RANGE_TOMBSTONE_MASK = 0x10;
 
-    public void serialize(IColumn column, DataOutput dos)
+    public void serialize(IColumn column, DataOutput dos) throws IOException
     {
         assert column.name().remaining() > 0;
         ByteBufferUtil.writeWithShortLength(column.name(), dos);
@@ -138,15 +138,17 @@ public class ColumnSerializer implements IColumnSerializer
             String details = "";
             if (dis instanceof FileDataInput)
             {
+                FileDataInput fdis = (FileDataInput)dis;
+                long remaining;
                 try
                 {
-                    FileDataInput fdis = (FileDataInput)dis;
-                    details = String.format(" (%s, %d bytes remaining)", fdis.getPath(), fdis.bytesRemaining());
+                    remaining = fdis.bytesRemaining();
                 }
                 catch (IOException e)
                 {
-                    throw new IOError(e);
+                    throw new FSReadError(e, fdis.getPath());
                 }
+                details = String.format(" (%s, %d bytes remaining)", fdis.getPath(), remaining);
             }
             return new CorruptColumnException(String.format(format, name.remaining(), details));
         }

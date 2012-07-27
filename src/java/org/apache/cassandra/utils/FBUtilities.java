@@ -227,19 +227,6 @@ public class FBUtilities
         return messageDigest.digest();
     }
 
-    public static void renameWithConfirm(String tmpFilename, String filename) throws IOException
-    {
-        if (!new File(tmpFilename).renameTo(new File(filename)))
-        {
-            throw new IOException("rename failed of " + filename);
-        }
-    }
-
-    public static void renameWithOutConfirm(String tmpFilename, String filename) throws IOException
-    {
-        new File(tmpFilename).renameTo(new File(filename));
-    }
-
     @Deprecated
     public static void serialize(TSerializer serializer, TBase struct, DataOutput out)
     throws IOException
@@ -611,7 +598,7 @@ public class FBUtilities
         return buffer.getData();
     }
 
-    public static RuntimeException unchecked(Exception e)
+    public static RuntimeException unchecked(Throwable e)
     {
         return e instanceof RuntimeException ? (RuntimeException) e : new RuntimeException(e);
     }

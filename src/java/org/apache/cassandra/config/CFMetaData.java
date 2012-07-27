@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.config;
 
-import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
@@ -682,12 +681,12 @@ public final class CFMetaData
         }
     }
 
-    public void reload() throws IOException
+    public void reload()
     {
         Row cfDefRow = SystemTable.readSchemaRow(ksName, cfName);
 
         if (cfDefRow.cf == null || cfDefRow.cf.isEmpty())
-            throw new IOException(String.format("%s not found in the schema definitions table.", ksName + ":" + cfName));
+            throw new RuntimeException(String.format("%s not found in the schema definitions table.", ksName + ":" + cfName));
 
         try
         {
@@ -695,7 +694,7 @@ public final class CFMetaData
         }
         catch (ConfigurationException e)
         {
-            throw new IOException(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -1272,8 +1271,6 @@ public final class CFMetaData
      * Deserialize CF metadata from low-level representation
      *
      * @return Thrift-based metadata deserialized from schema
-     *
-     * @throws IOException on any I/O related error
      */
     public static CFMetaData fromSchema(UntypedResultSet.Row result)
     {

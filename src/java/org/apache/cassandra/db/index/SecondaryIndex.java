@@ -17,10 +17,14 @@
  */
 package org.apache.cassandra.db.index;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.*;
+
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
@@ -32,9 +36,6 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Abstract base class for different types of secondary indexes.
@@ -116,9 +117,8 @@ public abstract class SecondaryIndex
 
     /**
      * Forces this indexes in memory data to disk
-     * @throws IOException
      */
-    public abstract void forceBlockingFlush() throws IOException;
+    public abstract void forceBlockingFlush();
 
     /**
      * Get current amount of memory this index is consuming (in bytes)
@@ -136,7 +136,7 @@ public abstract class SecondaryIndex
      * Delete all files and references to this index
      * @param columnName the indexed column to remove
      */
-    public abstract void removeIndex(ByteBuffer columnName) throws IOException;
+    public abstract void removeIndex(ByteBuffer columnName);
 
     /**
      * Remove the index and unregisters this index's mbean if one exists
@@ -154,7 +154,7 @@ public abstract class SecondaryIndex
      * Builds the index using the data in the underlying CFS
      * Blocks till it's complete
      */
-    protected void buildIndexBlocking() throws IOException
+    protected void buildIndexBlocking()
     {
         logger.info(String.format("Submitting index build of %s for data in %s",
                 getIndexName(), StringUtils.join(baseCfs.getSSTables(), ", ")));
@@ -191,7 +191,11 @@ public abstract class SecondaryIndex
         }
         catch (ExecutionException e)
         {
-            throw new IOException(e);
+            throw new RuntimeException(e);
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new RuntimeException(e);
         }
         finally
         {
@@ -232,6 +236,7 @@ public abstract class SecondaryIndex
                 try
                 {
                     baseCfs.forceBlockingFlush();
+                    buildIndexBlocking();
                 }
                 catch (ExecutionException e)
                 {
@@ -240,15 +245,6 @@ public abstract class SecondaryIndex
                 catch (InterruptedException e)
                 {
                     throw new AssertionError(e);
-                }
-
-                try
-                {
-                    buildIndexBlocking();
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
                 }
             }
         };

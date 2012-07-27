@@ -20,7 +20,6 @@ package org.apache.cassandra.cache;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
-
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
@@ -35,12 +34,12 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.Pair;
 
 public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K, V>
@@ -82,9 +81,9 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         }
         if (savePeriodInSeconds > 0)
         {
-            Runnable runnable = new WrappedRunnable()
+            Runnable runnable = new Runnable()
             {
-                public void runMayThrow()
+                public void run()
                 {
                     submitWrite(keysToSave);
                 }
@@ -209,7 +208,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             return info.forProgress(keysWritten, Math.max(keysWritten, keys.size()));
         }
 
-        public void saveCache() throws IOException
+        public void saveCache()
         {
             logger.debug("Deleting old {} files.", cacheType);
             deleteOldCacheFiles();
@@ -236,7 +235,16 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                         writer = tempCacheFile(path);
                         writers.put(path, writer);
                     }
-                    cacheLoader.serialize(key, writer.stream);
+
+                    try
+                    {
+                        cacheLoader.serialize(key, writer.stream);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new FSWriteError(e, writer.getPath());
+                    }
+
                     keysWritten++;
                 }
             }
@@ -262,11 +270,10 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             logger.info(String.format("Saved %s (%d items) in %d ms", cacheType, keys.size(), System.currentTimeMillis() - start));
         }
 
-        private SequentialWriter tempCacheFile(Pair<String, String> pathInfo) throws IOException
+        private SequentialWriter tempCacheFile(Pair<String, String> pathInfo)
         {
             File path = getCachePath(pathInfo.left, pathInfo.right, CURRENT_VERSION);
-            File tmpFile = File.createTempFile(path.getName(), null, path.getParentFile());
-
+            File tmpFile = FileUtils.createTempFile(path.getName(), null, path.getParentFile());
             return SequentialWriter.open(tmpFile, true);
         }
 

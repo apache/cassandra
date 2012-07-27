@@ -15,19 +15,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+package org.apache.cassandra.io;
 
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessagingService;
+import java.io.File;
 
-public class ReadRepairVerbHandler implements IVerbHandler<RowMutation>
+import org.apache.cassandra.io.sstable.Descriptor;
+
+public class FSReadError extends FSError
 {
-    public void doVerb(MessageIn<RowMutation> message, String id)
+    public FSReadError(Throwable cause, File path)
     {
-        RowMutation rm = message.payload;
-        rm.apply();
-        WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
-        MessagingService.instance().sendReply(response.createMessage(), id, message.from);
+        super(cause, path);
+    }
+
+    public FSReadError(Throwable cause, String path)
+    {
+        this(cause, new File(path));
+    }
+
+    public FSReadError(Throwable cause, Descriptor descriptor)
+    {
+        this(cause, descriptor.baseFilename());
     }
 }

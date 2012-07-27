@@ -40,6 +40,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -599,31 +600,39 @@ public class DatabaseDescriptor
 
     /**
      * Creates all storage-related directories.
-     * @throws IOException when a disk problem is encountered.
      */
-    public static void createAllDirectories() throws IOException
+    public static void createAllDirectories()
     {
-        try {
+        try
+        {
             if (conf.data_file_directories.length == 0)
-            {
                 throw new ConfigurationException("At least one DataFileDirectory must be specified");
-            }
-            for ( String dataFileDirectory : conf.data_file_directories )
+
+            for (String dataFileDirectory : conf.data_file_directories)
+            {
                 FileUtils.createDirectory(dataFileDirectory);
+            }
+
             if (conf.commitlog_directory == null)
-            {
                 throw new ConfigurationException("commitlog_directory must be specified");
-            }
+
             FileUtils.createDirectory(conf.commitlog_directory);
+
             if (conf.saved_caches_directory == null)
-            {
                 throw new ConfigurationException("saved_caches_directory must be specified");
-            }
+
             FileUtils.createDirectory(conf.saved_caches_directory);
         }
-        catch (ConfigurationException ex) {
-            logger.error("Fatal error: " + ex.getMessage());
+        catch (ConfigurationException e)
+        {
+            logger.error("Fatal error: " + e.getMessage());
             System.err.println("Bad configuration; unable to start server");
+            System.exit(1);
+        }
+        catch (FSWriteError e)
+        {
+            logger.error("Fatal error: " + e.getMessage());
+            System.err.println(e.getCause().getMessage() + "; unable to start server");
             System.exit(1);
         }
     }

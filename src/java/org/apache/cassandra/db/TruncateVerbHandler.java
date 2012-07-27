@@ -17,12 +17,10 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOError;
-import java.io.IOException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
@@ -33,34 +31,29 @@ public class TruncateVerbHandler implements IVerbHandler<Truncation>
 
     public void doVerb(MessageIn<Truncation> message, String id)
     {
+        Truncation t = message.payload;
+        logger.debug("Applying {}", t);
         try
         {
-            Truncation t = message.payload;
-            logger.debug("Applying {}", t);
-
-            try
-            {
-                ColumnFamilyStore cfs = Table.open(t.keyspace).getColumnFamilyStore(t.columnFamily);
-                cfs.truncate().get();
-            }
-            catch (Exception e)
-            {
-                logger.error("Error in truncation", e);
-                respondError(t, message);
-            }
-            logger.debug("Truncate operation succeeded at this host");
-
-            TruncateResponse response = new TruncateResponse(t.keyspace, t.columnFamily, true);
-            logger.debug("{} applied.  Sending response to {}@{} ", new Object[]{ t, id, message.from });
-            MessagingService.instance().sendReply(response.createMessage(), id, message.from);
+            ColumnFamilyStore cfs = Table.open(t.keyspace).getColumnFamilyStore(t.columnFamily);
+            cfs.truncate().get();
         }
-        catch (IOException e)
+        catch (Exception e)
         {
-            throw new IOError(e);
+            logger.error("Error in truncation", e);
+            respondError(t, message);
+
+            if (FSError.findNested(e) != null)
+                throw FSError.findNested(e);
         }
+        logger.debug("Truncate operation succeeded at this host");
+
+        TruncateResponse response = new TruncateResponse(t.keyspace, t.columnFamily, true);
+        logger.debug("{} applied.  Sending response to {}@{} ", new Object[]{ t, id, message.from });
+        MessagingService.instance().sendReply(response.createMessage(), id, message.from);
     }
 
-    private static void respondError(Truncation t, MessageIn truncateRequestMessage) throws IOException
+    private static void respondError(Truncation t, MessageIn truncateRequestMessage)
     {
         TruncateResponse response = new TruncateResponse(t.keyspace, t.columnFamily, false);
         MessagingService.instance().sendOneWay(response.createMessage(), truncateRequestMessage.from);

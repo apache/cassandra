@@ -250,7 +250,7 @@ public class Util
         return CompactionManager.instance.submitUserDefined(cfs, descriptors, Integer.MAX_VALUE);
     }
 
-    public static void compact(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, boolean forceDeserialize) throws IOException
+    public static void compact(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, boolean forceDeserialize)
     {
         CompactionTask task = new CompactionTask(cfs, sstables, (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds());
         task.isUserDefined(forceDeserialize);
@@ -270,7 +270,7 @@ public class Util
         {
             callable.call();
         }
-        catch (Exception e)
+        catch (Throwable e)
         {
             assert e.getClass().equals(exception) : e.getClass().getName() + " is not " + exception.getName();
             thrown = true;

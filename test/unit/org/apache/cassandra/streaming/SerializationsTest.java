@@ -205,14 +205,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         {
             RowMutation rm = new RowMutation(t.name, ByteBufferUtil.bytes(Long.toString(System.nanoTime())));
             rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("cola")), ByteBufferUtil.bytes("value"), 0);
-            try
-            {
-                rm.apply();
-            }
-            catch (IOException ex)
-            {
-                throw new RuntimeException(ex);
-            }
+            rm.apply();
         }
         try
         {

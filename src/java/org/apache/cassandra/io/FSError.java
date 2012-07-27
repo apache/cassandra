@@ -15,19 +15,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+package org.apache.cassandra.io;
 
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessagingService;
+import java.io.File;
+import java.io.IOError;
 
-public class ReadRepairVerbHandler implements IVerbHandler<RowMutation>
+public abstract class FSError extends IOError
 {
-    public void doVerb(MessageIn<RowMutation> message, String id)
+    public final File path;
+
+    public FSError(Throwable cause, File path)
     {
-        RowMutation rm = message.payload;
-        rm.apply();
-        WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
-        MessagingService.instance().sendReply(response.createMessage(), id, message.from);
+        super(cause);
+        this.path = path;
+    }
+
+    /**
+     * Unwraps the Throwable cause chain looking for an FSError instance
+     * @param top the top-level Throwable to unwrap
+     * @return FSError if found any, null otherwise
+     */
+    public static FSError findNested(Throwable top)
+    {
+        for (Throwable t = top; t != null; t = t.getCause())
+        {
+            if (t instanceof FSError)
+                return (FSError) t;
+        }
+
+        return null;
     }
 }

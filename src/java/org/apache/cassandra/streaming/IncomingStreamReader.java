@@ -23,7 +23,6 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.Collections;
 
-import com.ning.compress.lzf.LZFInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,14 +34,15 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.PrecompactedRow;
 import org.apache.cassandra.io.IColumnSerializer;
-import org.apache.cassandra.streaming.compress.CompressedInputStream;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.compress.CompressedInputStream;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.BytesReadTracker;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import com.ning.compress.lzf.LZFInputStream;
 
 public class IncomingStreamReader
 {
@@ -82,6 +82,9 @@ public class IncomingStreamReader
         }
     }
 
+    /**
+     * @throws IOException if reading the remote sstable fails. Will throw an RTE if local write fails.
+     */
     public void read() throws IOException
     {
         if (remoteFile != null)
@@ -111,6 +114,9 @@ public class IncomingStreamReader
         session.closeIfFinished();
     }
 
+    /**
+     * @throws IOException if reading the remote sstable fails. Will throw an RTE if local write fails.
+     */
     private SSTableReader streamIn(DataInput input, PendingFile localFile, PendingFile remoteFile) throws IOException
     {
         ColumnFamilyStore cfs = Table.open(localFile.desc.ksname).getColumnFamilyStore(localFile.desc.cfname);
@@ -139,7 +145,7 @@ public class IncomingStreamReader
                     {
                         // need to update row cache
                         // Note: Because we won't just echo the columns, there is no need to use the PRESERVE_SIZE flag, contrarily to what appendFromStream does below
-                        SSTableIdentityIterator iter = new SSTableIdentityIterator(cfs.metadata, in, key, 0, dataSize, IColumnSerializer.Flag.FROM_REMOTE);
+                        SSTableIdentityIterator iter = new SSTableIdentityIterator(cfs.metadata, in, localFile.desc.baseFilename(), key, 0, dataSize, IColumnSerializer.Flag.FROM_REMOTE);
                         PrecompactedRow row = new PrecompactedRow(controller, Collections.singletonList(iter));
                         // We don't expire anything so the row shouldn't be empty
                         assert !row.isEmpty();
@@ -164,7 +170,7 @@ public class IncomingStreamReader
             }
             return writer.closeAndOpenReader();
         }
-        catch (Exception e)
+        catch (Throwable e)
         {
             writer.abort();
             if (e instanceof IOException)
@@ -174,7 +180,7 @@ public class IncomingStreamReader
         }
     }
 
-    private void retry() throws IOException
+    private void retry()
     {
         /* Ask the source node to re-stream this file. */
         session.retry(remoteFile);

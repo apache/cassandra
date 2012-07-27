@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.columniterator;
 
-import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -29,6 +28,7 @@ import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -86,7 +86,7 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
         catch (IOException e)
         {
             sstable.markSuspect();
-            throw new IOError(e);
+            throw new CorruptSSTableException(e, sstable.descriptor);
         }
     }
 
@@ -103,7 +103,7 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
         }
         catch (IOException e)
         {
-            throw new RuntimeException("error reading " + i + " of " + columns, e);
+            throw new CorruptSSTableException(e, file.getPath());
         }
         if (finishColumn.remaining() > 0 && comparator.compare(column.name(), finishColumn) > 0)
             return endOfData();

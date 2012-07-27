@@ -19,14 +19,14 @@ package org.apache.cassandra.io.compress;
 
 import java.io.IOException;
 
-public class CorruptedBlockException extends IOException
+public class CorruptBlockException extends IOException
 {
-    public CorruptedBlockException(String filePath, CompressionMetadata.Chunk chunk)
+    public CorruptBlockException(String filePath, CompressionMetadata.Chunk chunk)
     {
         this(filePath, chunk.offset, chunk.length);
     }
 
-    public CorruptedBlockException(String filePath, long offset, int length)
+    public CorruptBlockException(String filePath, long offset, int length)
     {
         super(String.format("(%s): corruption detected, chunk at %d of length %d.", filePath, offset, length));
     }

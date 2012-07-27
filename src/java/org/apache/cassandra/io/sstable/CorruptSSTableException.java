@@ -15,19 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+package org.apache.cassandra.io.sstable;
 
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessagingService;
+import java.io.File;
 
-public class ReadRepairVerbHandler implements IVerbHandler<RowMutation>
+public class CorruptSSTableException extends RuntimeException
 {
-    public void doVerb(MessageIn<RowMutation> message, String id)
+    public final File path;
+
+    public CorruptSSTableException(Exception cause, File path)
     {
-        RowMutation rm = message.payload;
-        rm.apply();
-        WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
-        MessagingService.instance().sendReply(response.createMessage(), id, message.from);
+        super(cause);
+        this.path = path;
+    }
+
+    public CorruptSSTableException(Exception cause, String path)
+    {
+        this(cause, new File(path));
+    }
+
+    public CorruptSSTableException(Exception cause, Descriptor descriptor)
+    {
+        this(cause, descriptor.baseFilename());
     }
 }

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.config;
 
-import java.io.IOException;
 import java.util.*;
 
 import org.apache.commons.lang.ObjectUtils;
@@ -195,12 +194,12 @@ public final class KSMetaData
     }
 
 
-    public KSMetaData reloadAttributes() throws IOException
+    public KSMetaData reloadAttributes()
     {
         Row ksDefRow = SystemTable.readSchemaRow(name);
 
         if (ksDefRow.cf == null)
-            throw new IOException(String.format("%s not found in the schema definitions table (%s).", name, SystemTable.SCHEMA_KEYSPACES_CF));
+            throw new RuntimeException(String.format("%s not found in the schema definitions table (%s).", name, SystemTable.SCHEMA_KEYSPACES_CF));
 
         return fromSchema(ksDefRow, Collections.<CFMetaData>emptyList());
     }
@@ -236,10 +235,8 @@ public final class KSMetaData
      * @param row Keyspace attributes in serialized form
      *
      * @return deserialized keyspace without cf_defs
-     *
-     * @throws IOException if deserialization failed
      */
-    public static KSMetaData fromSchema(Row row, Iterable<CFMetaData> cfms) throws IOException
+    public static KSMetaData fromSchema(Row row, Iterable<CFMetaData> cfms)
     {
         UntypedResultSet.Row result = QueryProcessor.resultify("SELECT * FROM system.schema_keyspaces", row).one();
         try
@@ -263,10 +260,8 @@ public final class KSMetaData
      * @param serializedCFs Collection of the serialized ColumnFamilies
      *
      * @return deserialized keyspace with cf_defs
-     *
-     * @throws IOException if deserialization failed
      */
-    public static KSMetaData fromSchema(Row serializedKs, Row serializedCFs) throws IOException
+    public static KSMetaData fromSchema(Row serializedKs, Row serializedCFs)
     {
         Map<String, CFMetaData> cfs = deserializeColumnFamilies(serializedCFs);
         return fromSchema(serializedKs, cfs.values());

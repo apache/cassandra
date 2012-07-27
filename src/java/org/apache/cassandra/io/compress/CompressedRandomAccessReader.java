@@ -17,32 +17,43 @@
  */
 package org.apache.cassandra.io.compress;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import com.google.common.primitives.Ints;
-
-import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.utils.FBUtilities;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.utils.FBUtilities;
 
 // TODO refactor this to separate concept of "buffer to avoid lots of read() syscalls" and "compression buffer"
 public class CompressedRandomAccessReader extends RandomAccessReader
 {
     private static final Logger logger = LoggerFactory.getLogger(CompressedRandomAccessReader.class);
 
-    public static RandomAccessReader open(String dataFilePath, CompressionMetadata metadata) throws IOException
+    public static RandomAccessReader open(String dataFilePath, CompressionMetadata metadata)
     {
         return open(dataFilePath, metadata, false);
     }
 
-    public static RandomAccessReader open(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache) throws IOException
+    public static RandomAccessReader open(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache)
     {
-        return new CompressedRandomAccessReader(dataFilePath, metadata, skipIOCache);
+        try
+        {
+            return new CompressedRandomAccessReader(dataFilePath, metadata, skipIOCache);
+        }
+        catch (FileNotFoundException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     private final CompressionMetadata metadata;
@@ -58,7 +69,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     private final FileInputStream source;
     private final FileChannel channel;
 
-    public CompressedRandomAccessReader(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache) throws IOException
+    public CompressedRandomAccessReader(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache) throws FileNotFoundException
     {
         super(new File(dataFilePath), metadata.chunkLength(), skipIOCache);
         this.metadata = metadata;
@@ -66,14 +77,34 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         // can't use super.read(...) methods
         // that is why we are allocating special InputStream to read data from disk
         // from already open file descriptor
-        source = new FileInputStream(getFD());
+        try
+        {
+            source = new FileInputStream(getFD());
+        }
+        catch (IOException e)
+        {
+            // fd == null, Not Supposed To Happen
+            throw new RuntimeException(e);
+        }
+
         channel = source.getChannel(); // for position manipulation
     }
 
     @Override
-    protected void reBuffer() throws IOException
+    protected void reBuffer()
     {
-        decompressChunk(metadata.chunkFor(current));
+        try
+        {
+            decompressChunk(metadata.chunkFor(current));
+        }
+        catch (CorruptBlockException e)
+        {
+            throw new CorruptSSTableException(e, getPath());
+        }
+        catch (IOException e)
+        {
+            throw new FSReadError(e, getPath());
+        }
     }
 
     private void decompressChunk(CompressionMetadata.Chunk chunk) throws IOException
@@ -85,16 +116,23 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             compressed = new byte[chunk.length];
 
         if (source.read(compressed, 0, chunk.length) != chunk.length)
-            throw new IOException(String.format("(%s) failed to read %d bytes from offset %d.", getPath(), chunk.length, chunk.offset));
+            throw new CorruptBlockException(getPath(), chunk);
 
-        validBufferBytes = metadata.compressor().uncompress(compressed, 0, chunk.length, buffer, 0);
+        try
+        {
+            validBufferBytes = metadata.compressor().uncompress(compressed, 0, chunk.length, buffer, 0);
+        }
+        catch (IOException e)
+        {
+            throw new CorruptBlockException(getPath(), chunk);
+        }
 
         if (metadata.parameters.crcChance > FBUtilities.threadLocalRandom().nextDouble())
         {
             checksum.update(buffer, 0, validBufferBytes);
 
             if (checksum(chunk) != (int) checksum.getValue())
-                throw new CorruptedBlockException(getPath(), chunk);
+                throw new CorruptBlockException(getPath(), chunk);
 
             // reset checksum object back to the original (blank) state
             checksum.reset();
@@ -109,16 +147,13 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         assert channel.position() == chunk.offset + chunk.length;
 
         if (source.read(checksumBytes, 0, checksumBytes.length) != checksumBytes.length)
-            throw new IOException(String.format("(%s) failed to read checksum of the chunk at %d of length %d.",
-                                                getPath(),
-                                                chunk.offset,
-                                                chunk.length));
+            throw new CorruptBlockException(getPath(), chunk);
 
         return Ints.fromByteArray(checksumBytes);
     }
 
     @Override
-    public long length() throws IOException
+    public long length()
     {
         return metadata.dataLength;
     }

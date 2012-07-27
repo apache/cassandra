@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.File;
-import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
 
@@ -34,6 +33,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -536,19 +536,23 @@ public class LeveledManifest
             g.writeEndArray(); // for field generations
             g.writeEndObject(); // write global object
             g.close();
-
-            if (oldFile.exists() && manifestFile.exists())
-                FileUtils.deleteWithConfirm(oldFile);
-            if (manifestFile.exists())
-                FileUtils.renameWithConfirm(manifestFile, oldFile);
-            assert tmpFile.exists();
-            FileUtils.renameWithConfirm(tmpFile, manifestFile);
-            logger.debug("Saved manifest {}", manifestFile);
         }
         catch (IOException e)
         {
-            throw new IOError(e);
+            throw new FSWriteError(e, tmpFile);
         }
+
+        if (oldFile.exists() && manifestFile.exists())
+            FileUtils.deleteWithConfirm(oldFile);
+
+        if (manifestFile.exists())
+            FileUtils.renameWithConfirm(manifestFile, oldFile);
+
+        assert tmpFile.exists();
+
+        FileUtils.renameWithConfirm(tmpFile, manifestFile);
+
+        logger.debug("Saved manifest {}", manifestFile);
     }
 
     @Override

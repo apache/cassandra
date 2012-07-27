@@ -24,12 +24,11 @@ import java.net.Socket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.xerial.snappy.SnappyInputStream;
-
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.streaming.IncomingStreamReader;
 import org.apache.cassandra.streaming.StreamHeader;
+import org.xerial.snappy.SnappyInputStream;
 
 public class IncomingTcpConnection extends Thread
 {
@@ -76,7 +75,7 @@ public class IncomingTcpConnection extends Thread
         }
         catch (IOException e)
         {
-            logger.debug("IOError reading from socket; closing", e);
+            logger.debug("IOException reading from socket; closing", e);
         }
         finally
         {

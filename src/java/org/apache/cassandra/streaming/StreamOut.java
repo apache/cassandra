@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.io.IOError;
-import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.Future;
@@ -90,11 +88,10 @@ public class StreamOut
      * Flushes matching column families from the given keyspace, or all columnFamilies
      * if the cf list is empty.
      */
-    private static void flushSSTables(Iterable<ColumnFamilyStore> stores) throws IOException
+    private static void flushSSTables(Iterable<ColumnFamilyStore> stores)
     {
         logger.info("Flushing memtables for {}...", stores);
-        List<Future<?>> flushes;
-        flushes = new ArrayList<Future<?>>();
+        List<Future<?>> flushes = new ArrayList<Future<?>>();
         for (ColumnFamilyStore cfstore : stores)
         {
             Future<?> flush = cfstore.forceFlush();
@@ -110,28 +107,20 @@ public class StreamOut
     public static void transferRanges(StreamOutSession session, Iterable<ColumnFamilyStore> cfses, Collection<Range<Token>> ranges, OperationType type)
     {
         assert ranges.size() > 0;
-
         logger.info("Beginning transfer to {}", session.getHost());
         logger.debug("Ranges are {}", StringUtils.join(ranges, ","));
-        try
-        {
-            flushSSTables(cfses);
-            Iterable<SSTableReader> sstables = Collections.emptyList();
-            for (ColumnFamilyStore cfStore : cfses)
-                sstables = Iterables.concat(sstables, cfStore.markCurrentSSTablesReferenced());
-            transferSSTables(session, sstables, ranges, type);
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        flushSSTables(cfses);
+        Iterable<SSTableReader> sstables = Collections.emptyList();
+        for (ColumnFamilyStore cfStore : cfses)
+            sstables = Iterables.concat(sstables, cfStore.markCurrentSSTablesReferenced());
+        transferSSTables(session, sstables, ranges, type);
     }
 
     /**
      * Low-level transfer of matching portions of a group of sstables from a single table to the target endpoint.
      * You should probably call transferRanges instead. This moreover assumes that references have been acquired on the sstables.
      */
-    public static void transferSSTables(StreamOutSession session, Iterable<SSTableReader> sstables, Collection<Range<Token>> ranges, OperationType type) throws IOException
+    public static void transferSSTables(StreamOutSession session, Iterable<SSTableReader> sstables, Collection<Range<Token>> ranges, OperationType type)
     {
         List<PendingFile> pending = createPendingFiles(sstables, ranges, type);
 

@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.DataOutput;
-import java.io.IOError;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.Iterator;
@@ -26,18 +25,18 @@ import java.util.List;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
-import org.apache.cassandra.io.sstable.ColumnStats;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.utils.StreamingHistogram;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.ICountableColumnIterator;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.sstable.ColumnStats;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.MergeIterator;
+import org.apache.cassandra.utils.StreamingHistogram;
 
 /**
  * LazilyCompactedRow only computes the row bloom filter and column index in memory
@@ -88,8 +87,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         }
         catch (IOException e)
         {
-            // Since we don't write on disk this time, we should get this
-            throw new AssertionError();
+            throw new RuntimeException(e);
         }
         // reach into the reducer used during iteration to get column count, size, max column timestamp
         // (however, if there are zero columns, iterator() will not be called by ColumnIndexer and reducer will be null)
@@ -149,7 +147,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         }
         catch (IOException e)
         {
-            throw new IOError(e);
+            throw new AssertionError(e);
         }
 
         Iterator<OnDiskAtom> iter = iterator();
@@ -205,7 +203,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
             }
             catch (IOException e)
             {
-                throw new IOError(e);
+                throw new RuntimeException(e);
             }
         }
         closed = true;

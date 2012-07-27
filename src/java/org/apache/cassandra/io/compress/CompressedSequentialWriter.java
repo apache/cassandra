@@ -28,7 +28,11 @@ import org.apache.cassandra.io.util.SequentialWriter;
 
 public class CompressedSequentialWriter extends SequentialWriter
 {
-    public static SequentialWriter open(String dataFilePath, String indexFilePath, boolean skipIOCache, CompressionParameters parameters, Collector sstableMetadataCollector) throws IOException
+    public static SequentialWriter open(String dataFilePath,
+                                        String indexFilePath,
+                                        boolean skipIOCache,
+                                        CompressionParameters parameters,
+                                        Collector sstableMetadataCollector)
     {
         return new CompressedSequentialWriter(new File(dataFilePath), indexFilePath, skipIOCache, parameters, sstableMetadataCollector);
     }
@@ -53,7 +57,11 @@ public class CompressedSequentialWriter extends SequentialWriter
 
     private final Collector sstableMetadataCollector;
 
-    public CompressedSequentialWriter(File file, String indexFilePath, boolean skipIOCache, CompressionParameters parameters, Collector sstableMetadataCollector) throws IOException
+    public CompressedSequentialWriter(File file,
+                                      String indexFilePath,
+                                      boolean skipIOCache,
+                                      CompressionParameters parameters,
+                                      Collector sstableMetadataCollector)
     {
         super(file, parameters.chunkLength(), skipIOCache);
         this.compressor = parameters.sstableCompressor;
@@ -62,8 +70,9 @@ public class CompressedSequentialWriter extends SequentialWriter
         compressed = new ICompressor.WrappedArray(new byte[compressor.initialCompressedBufferLength(buffer.length)]);
 
         /* Index File (-CompressionInfo.db component) and it's header */
-        metadataWriter = new CompressionMetadata.Writer(indexFilePath);
+        metadataWriter = CompressionMetadata.Writer.open(indexFilePath);
         metadataWriter.writeHeader(parameters);
+
         this.sstableMetadataCollector = sstableMetadataCollector;
     }
 
@@ -161,7 +170,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         checksum.update(buffer, 0, validBytes);
 
         if (out.readInt() != (int) checksum.getValue())
-            throw new CorruptedBlockException(getPath(), chunkOffset, chunkSize);
+            throw new CorruptBlockException(getPath(), chunkOffset, chunkSize);
 
         checksum.reset();
 

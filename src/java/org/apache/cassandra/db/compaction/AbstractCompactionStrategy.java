@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -142,7 +141,7 @@ public abstract class AbstractCompactionStrategy
      * allow for a more memory efficient solution if we know the sstable don't overlap (see
      * LeveledCompactionStrategy for instance).
      */
-    public List<ICompactionScanner> getScanners(Collection<SSTableReader> sstables, Range<Token> range) throws IOException
+    public List<ICompactionScanner> getScanners(Collection<SSTableReader> sstables, Range<Token> range)
     {
         ArrayList<ICompactionScanner> scanners = new ArrayList<ICompactionScanner>();
         for (SSTableReader sstable : sstables)
@@ -150,7 +149,7 @@ public abstract class AbstractCompactionStrategy
         return scanners;
     }
 
-    public List<ICompactionScanner> getScanners(Collection<SSTableReader> toCompact) throws IOException
+    public List<ICompactionScanner> getScanners(Collection<SSTableReader> toCompact)
     {
         return getScanners(toCompact, null);
     }

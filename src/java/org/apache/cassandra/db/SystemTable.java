@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
@@ -26,7 +25,6 @@ import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -103,7 +101,7 @@ public class SystemTable
         }
     }
 
-    private static void setupVersion() throws IOException
+    private static void setupVersion()
     {
         String req = "INSERT INTO system.%s (key, release_version, cql_version, thrift_version) VALUES ('%s', '%s', '%s', '%s')";
         processInternal(String.format(req, LOCAL_CF,
@@ -279,9 +277,9 @@ public class SystemTable
      * 3. files are present but you can't read them: bad
      * @throws ConfigurationException
      */
-    public static void checkHealth() throws ConfigurationException, IOException
+    public static void checkHealth() throws ConfigurationException
     {
-        Table table = null;
+        Table table;
         try
         {
             table = Table.open(Table.SYSTEM_TABLE);
@@ -324,7 +322,7 @@ public class SystemTable
              : deserializeTokens(result.one().getBytes("token_bytes"));
     }
 
-    public static int incrementAndGetGeneration() throws IOException
+    public static int incrementAndGetGeneration()
     {
         String req = "SELECT gossip_generation FROM system.%s WHERE key='%s'";
         UntypedResultSet result = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
@@ -404,15 +402,7 @@ public class SystemTable
         cf.addColumn(new Column(ByteBufferUtil.bytes(indexName), ByteBufferUtil.EMPTY_BYTE_BUFFER, FBUtilities.timestampMicros()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes(table));
         rm.add(cf);
-        try
-        {
-            rm.apply();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
-
+        rm.apply();
         forceBlockingFlush(INDEX_CF);
     }
 
@@ -420,15 +410,7 @@ public class SystemTable
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes(table));
         rm.delete(new QueryPath(INDEX_CF, null, ByteBufferUtil.bytes(indexName)), FBUtilities.timestampMicros());
-        try
-        {
-            rm.apply();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
-
+        rm.apply();
         forceBlockingFlush(INDEX_CF);
     }
 
@@ -511,15 +493,8 @@ public class SystemTable
         RowMutation rmAll = new RowMutation(Table.SYSTEM_TABLE, ALL_LOCAL_NODE_ID_KEY);
         rmCurrent.add(cf2);
         rmAll.add(cf);
-        try
-        {
-            rmCurrent.apply();
-            rmAll.apply();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        rmCurrent.apply();
+        rmAll.apply();
     }
 
     public static List<NodeId.NodeIdRecord> getOldLocalNodeIds()

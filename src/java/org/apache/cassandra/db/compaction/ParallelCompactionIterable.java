@@ -55,7 +55,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
     private final int maxInMemorySize;
 
-    public ParallelCompactionIterable(OperationType type, List<ICompactionScanner> scanners, CompactionController controller) throws IOException
+    public ParallelCompactionIterable(OperationType type, List<ICompactionScanner> scanners, CompactionController controller)
     {
         this(type, scanners, controller, DatabaseDescriptor.getInMemoryCompactionLimit() / scanners.size());
     }

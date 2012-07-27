@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.io.File;
-import java.io.IOError;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
@@ -36,6 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.PureJavaCrc32;
@@ -119,7 +119,7 @@ public class CommitLogSegment
         }
         catch (IOException e)
         {
-            throw new IOError(e);
+            throw new FSWriteError(e, logFile);
         }
     }
 
@@ -130,15 +130,8 @@ public class CommitLogSegment
     {
         // TODO shouldn't we close the file when we're done writing to it, which comes (potentially) much earlier than it's eligible for recyling?
         close();
-        try
-        {
-            if (deleteFile)
-                FileUtils.deleteWithConfirm(logFile);
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        if (deleteFile)
+            FileUtils.deleteWithConfirm(logFile);
     }
 
     /**
@@ -157,10 +150,10 @@ public class CommitLogSegment
         {
             sync();
         }
-        catch (IOException e)
+        catch (FSWriteError e)
         {
-            // This is a best effort thing anyway
-            logger.warn("I/O error flushing " + this + " " + e);
+            logger.error("I/O error flushing " + this + " " + e);
+            throw e;
         }
 
         close();
@@ -235,11 +228,18 @@ public class CommitLogSegment
     /**
      * Forces a disk flush for this segment file.
      */
-    public void sync() throws IOException
+    public void sync()
     {
         if (needsSync)
         {
-            buffer.force();
+            try
+            {
+                buffer.force();
+            }
+            catch (Exception e) // MappedByteBuffer.force() does not declare IOException but can actually throw it
+            {
+                throw new FSWriteError(e, getPath());
+            }
             needsSync = false;
         }
     }
@@ -283,7 +283,7 @@ public class CommitLogSegment
         }
         catch (IOException e)
         {
-            throw new IOError(e);
+            throw new FSWriteError(e, getPath());
         }
     }
 

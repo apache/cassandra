@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -171,16 +170,8 @@ public class CollationController
                 && cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
             {
                 RowMutation rm = new RowMutation(cfs.table.name, new Row(filter.key, returnCF.cloneMe()));
-                try
-                {
-                    // skipping commitlog and index updates is fine since we're just de-fragmenting existing data
-                    Table.open(rm.getTable()).apply(rm, false, false);
-                }
-                catch (IOException e)
-                {
-                    // log and allow the result to be returned
-                    logger.error("Error re-writing read results", e);
-                }
+                // skipping commitlog and index updates is fine since we're just de-fragmenting existing data
+                Table.open(rm.getTable()).apply(rm, false, false);
             }
 
             // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:

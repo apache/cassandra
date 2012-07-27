@@ -17,12 +17,7 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.File;
-import java.io.IOError;
-import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.io.*;
 import java.lang.reflect.Method;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -32,6 +27,8 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.FSReadError;
 
 public class MmappedSegmentedFile extends SegmentedFile
 {
@@ -83,17 +80,10 @@ public class MmappedSegmentedFile extends SegmentedFile
         }
 
         // not mmap'd: open a braf covering the segment
-        try
-        {
-            // FIXME: brafs are unbounded, so this segment will cover the rest of the file, rather than just the row
-            RandomAccessReader file = RandomAccessReader.open(new File(path));
-            file.seek(position);
-            return file;
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        // FIXME: brafs are unbounded, so this segment will cover the rest of the file, rather than just the row
+        RandomAccessReader file = RandomAccessReader.open(new File(path));
+        file.seek(position);
+        return file;
     }
 
     public static void initCleaner()
@@ -205,10 +195,19 @@ public class MmappedSegmentedFile extends SegmentedFile
         {
             int segcount = boundaries.size() - 1;
             Segment[] segments = new Segment[segcount];
-            RandomAccessFile raf = null;
+            RandomAccessFile raf;
+
             try
             {
                 raf = new RandomAccessFile(path, "r");
+            }
+            catch (FileNotFoundException e)
+            {
+                throw new RuntimeException(e);
+            }
+
+            try
+            {
                 for (int i = 0; i < segcount; i++)
                 {
                     long start = boundaries.get(i);
@@ -221,7 +220,7 @@ public class MmappedSegmentedFile extends SegmentedFile
             }
             catch (IOException e)
             {
-                throw new IOError(e);
+                throw new FSReadError(e, path);
             }
             finally
             {

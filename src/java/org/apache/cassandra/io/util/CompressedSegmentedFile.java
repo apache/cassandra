@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.IOError;
-import java.io.IOException;
-
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 
@@ -57,16 +54,9 @@ public class CompressedSegmentedFile extends SegmentedFile
 
     public FileDataInput getSegment(long position)
     {
-        try
-        {
-            RandomAccessReader file = CompressedRandomAccessReader.open(path, metadata);
-            file.seek(position);
-            return file;
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        RandomAccessReader file = CompressedRandomAccessReader.open(path, metadata);
+        file.seek(position);
+        return file;
     }
 
     public void cleanup()

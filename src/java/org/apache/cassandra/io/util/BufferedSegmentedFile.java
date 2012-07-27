@@ -18,8 +18,6 @@
 package org.apache.cassandra.io.util;
 
 import java.io.File;
-import java.io.IOError;
-import java.io.IOException;
 
 public class BufferedSegmentedFile extends SegmentedFile
 {
@@ -53,16 +51,9 @@ public class BufferedSegmentedFile extends SegmentedFile
 
     public FileDataInput getSegment(long position)
     {
-        try
-        {
-            RandomAccessReader file = RandomAccessReader.open(new File(path));
-            file.seek(position);
-            return file;
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        RandomAccessReader file = RandomAccessReader.open(new File(path));
+        file.seek(position);
+        return file;
     }
 
     public void cleanup()
