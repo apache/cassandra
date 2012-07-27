@@ -22,6 +22,7 @@ Features
     - the cqlsh COPY command can now export to CSV flat files
     - added a new tools/bin/token-generator to facilitate generating evenly distributed tokens
 
+
 1.1.2
 =====
 
