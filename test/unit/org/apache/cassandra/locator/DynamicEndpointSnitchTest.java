@@ -48,9 +48,9 @@ public class DynamicEndpointSnitchTest
         // first, make all hosts equal
         for (int i = 0; i < 5; i++)
         {
-            dsnitch.receiveTiming(host1, 1.0);
-            dsnitch.receiveTiming(host2, 1.0);
-            dsnitch.receiveTiming(host3, 1.0);
+            dsnitch.receiveTiming(host1, 1L);
+            dsnitch.receiveTiming(host2, 1L);
+            dsnitch.receiveTiming(host3, 1L);
         }
 
         Thread.sleep(sleeptime);
@@ -61,9 +61,9 @@ public class DynamicEndpointSnitchTest
         assert dsnitch.getSortedListByProximity(self, order).equals(order);
 
         // make host1 a little worse
-        dsnitch.receiveTiming(host1, 2.0);
-        dsnitch.receiveTiming(host2, 1.0);
-        dsnitch.receiveTiming(host3, 1.0);
+        dsnitch.receiveTiming(host1, 2L);
+        dsnitch.receiveTiming(host2, 1L);
+        dsnitch.receiveTiming(host3, 1L);
         Thread.sleep(sleeptime);
 
         order.clear();
@@ -73,9 +73,9 @@ public class DynamicEndpointSnitchTest
         assert dsnitch.getSortedListByProximity(self, order).equals(order);
 
         // make host2 as bad as host1
-        dsnitch.receiveTiming(host2, 2.0);
-        dsnitch.receiveTiming(host1, 1.0);
-        dsnitch.receiveTiming(host3, 1.0);
+        dsnitch.receiveTiming(host2, 2L);
+        dsnitch.receiveTiming(host1, 1L);
+        dsnitch.receiveTiming(host3, 1L);
         Thread.sleep(sleeptime);
 
         order.clear();
@@ -87,9 +87,9 @@ public class DynamicEndpointSnitchTest
         // make host3 the worst
         for (int i = 0; i < 2; i++)
         {
-            dsnitch.receiveTiming(host1, 1.0);
-            dsnitch.receiveTiming(host2, 1.0);
-            dsnitch.receiveTiming(host3, 2.0);
+            dsnitch.receiveTiming(host1, 1L);
+            dsnitch.receiveTiming(host2, 1L);
+            dsnitch.receiveTiming(host3, 2L);
         }
         Thread.sleep(sleeptime);
 
@@ -102,9 +102,9 @@ public class DynamicEndpointSnitchTest
         // make host3 equal to the others
         for (int i = 0; i < 2; i++)
         {
-            dsnitch.receiveTiming(host1, 1.0);
-            dsnitch.receiveTiming(host2, 1.0);
-            dsnitch.receiveTiming(host3, 1.0);
+            dsnitch.receiveTiming(host1, 1L);
+            dsnitch.receiveTiming(host2, 1L);
+            dsnitch.receiveTiming(host3, 1L);
         }
         Thread.sleep(sleeptime);
 

@@ -26,7 +26,7 @@ public class ResponseVerbHandler implements IVerbHandler
 
     public void doVerb(MessageIn message, String id)
     {
-        double age = System.currentTimeMillis() - MessagingService.instance().getRegisteredCallbackAge(id);
+        long latency = System.currentTimeMillis() - MessagingService.instance().getRegisteredCallbackAge(id);
         CallbackInfo callbackInfo = MessagingService.instance().removeRegisteredCallback(id);
         if (callbackInfo == null)
         {
@@ -35,7 +35,7 @@ public class ResponseVerbHandler implements IVerbHandler
         }
 
         IMessageCallback cb = callbackInfo.callback;
-        MessagingService.instance().maybeAddLatency(cb, message.from, age);
+        MessagingService.instance().maybeAddLatency(cb, message.from, latency);
 
         if (cb instanceof IAsyncCallback)
         {

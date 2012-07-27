@@ -21,5 +21,5 @@ import java.net.InetAddress;
 
 public interface ILatencySubscriber
 {
-    public void receiveTiming(InetAddress address, Double latency);
+    public void receiveTiming(InetAddress address, long latency);
 }

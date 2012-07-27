@@ -33,6 +33,7 @@
  * Validate date type correctly (CASSANDRA-4441)
  * (cql3) Allow definitions with only a PK (CASSANDRA-4361)
  * (cql3) Add support for row key composites (CASSANDRA-4179)
+ * improve DynamicEndpointSnitch by using reservoir sampling (CASSANDRA-4038)
 
 
 1.1.3

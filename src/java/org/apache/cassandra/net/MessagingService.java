@@ -323,7 +323,7 @@ public final class MessagingService implements MessagingServiceMBean
             public Object apply(Pair<String, ExpiringMap.CacheableObject<CallbackInfo>> pair)
             {
                 CallbackInfo expiredCallbackInfo = pair.right.value;
-                maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, (double) pair.right.timeout);
+                maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, pair.right.timeout);
                 totalTimeouts++;
                 String ip = expiredCallbackInfo.target.getHostAddress();
                 AtomicLong c = timeoutsPerHost.get(ip);
@@ -368,13 +368,13 @@ public final class MessagingService implements MessagingServiceMBean
      * @param address the host that replied to the message
      * @param latency
      */
-    public void maybeAddLatency(IMessageCallback cb, InetAddress address, double latency)
+    public void maybeAddLatency(IMessageCallback cb, InetAddress address, long latency)
     {
         if (cb.isLatencyForSnitch())
             addLatency(address, latency);
     }
 
-    public void addLatency(InetAddress address, double latency)
+    public void addLatency(InetAddress address, long latency)
     {
         for (ILatencySubscriber subscriber : subscribers)
             subscriber.receiveTiming(address, latency);

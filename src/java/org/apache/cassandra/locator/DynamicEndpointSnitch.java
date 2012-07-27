@@ -24,22 +24,22 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.BoundedStatsDeque;
 import org.apache.cassandra.utils.FBUtilities;
+
+import com.yammer.metrics.stats.ExponentiallyDecayingSample;
 
 /**
  * A dynamic snitch that sorts endpoints by latency with an adapted phi failure detector
  */
 public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILatencySubscriber, DynamicEndpointSnitchMBean
 {
-    private static final int UPDATES_PER_INTERVAL = 10000;
+    private static final double ALPHA = 0.75; // set to 0.75 to make EDS more biased to towards the newer values
     private static final int WINDOW_SIZE = 100;
 
     private int UPDATE_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicUpdateInterval();
@@ -50,8 +50,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 
     private final ConcurrentHashMap<InetAddress, Double> scores = new ConcurrentHashMap<InetAddress, Double>();
     private final ConcurrentHashMap<InetAddress, Long> lastReceived = new ConcurrentHashMap<InetAddress, Long>();
-    private final ConcurrentHashMap<InetAddress, BoundedStatsDeque> windows = new ConcurrentHashMap<InetAddress, BoundedStatsDeque>();
-    private final AtomicInteger intervalupdates = new AtomicInteger(0);
+    private final ConcurrentHashMap<InetAddress, ExponentiallyDecayingSample> samples = new ConcurrentHashMap<InetAddress, ExponentiallyDecayingSample>();
 
     public final IEndpointSnitch subsnitch;
 
@@ -183,13 +182,13 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         if (scored1 == null)
         {
             scored1 = 0.0;
-            receiveTiming(a1, 0.0);
+            receiveTiming(a1, 0);
         }
 
         if (scored2 == null)
         {
             scored2 = 0.0;
-            receiveTiming(a2, 0.0);
+            receiveTiming(a2, 0);
         }
 
         if (scored1.equals(scored2))
@@ -200,21 +199,19 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             return 1;
     }
 
-    public void receiveTiming(InetAddress host, Double latency) // this is cheap
+    public void receiveTiming(InetAddress host, long latency) // this is cheap
     {
         lastReceived.put(host, System.currentTimeMillis());
-        if (intervalupdates.intValue() >= UPDATES_PER_INTERVAL)
-            return;
-        BoundedStatsDeque deque = windows.get(host);
-        if (deque == null)
+
+        ExponentiallyDecayingSample sample = samples.get(host);
+        if (sample == null)
         {
-            BoundedStatsDeque maybeNewDeque = new BoundedStatsDeque(WINDOW_SIZE);
-            deque = windows.putIfAbsent(host, maybeNewDeque);
-            if (deque == null)
-                deque = maybeNewDeque;
+            ExponentiallyDecayingSample maybeNewSample = new ExponentiallyDecayingSample(WINDOW_SIZE, ALPHA);
+            sample = samples.putIfAbsent(host, maybeNewSample);
+            if (sample == null)
+                sample = maybeNewSample;
         }
-        deque.add(latency);
-        intervalupdates.getAndIncrement();
+        sample.update(latency);
     }
 
     private void updateScores() // this is expensive
@@ -233,9 +230,9 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         double maxLatency = 1;
         long maxPenalty = 1;
         HashMap<InetAddress, Long> penalties = new HashMap<InetAddress, Long>();
-        for (Map.Entry<InetAddress, BoundedStatsDeque> entry : windows.entrySet())
+        for (Map.Entry<InetAddress, ExponentiallyDecayingSample> entry : samples.entrySet())
         {
-            double mean = entry.getValue().mean();
+            double mean = entry.getValue().getSnapshot().getMedian();
             if (mean > maxLatency)
                 maxLatency = mean;
             long timePenalty = lastReceived.containsKey(entry.getKey()) ? lastReceived.get(entry.getKey()) : System.currentTimeMillis();
@@ -245,9 +242,9 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             if (timePenalty > maxPenalty)
                 maxPenalty = timePenalty;
         }
-        for (Map.Entry<InetAddress, BoundedStatsDeque> entry: windows.entrySet())
+        for (Map.Entry<InetAddress, ExponentiallyDecayingSample> entry: samples.entrySet())
         {
-            double score = entry.getValue().mean() / maxLatency;
+            double score = entry.getValue().getSnapshot().getMedian() / maxLatency;
             if (penalties.containsKey(entry.getKey()))
                 score += penalties.get(entry.getKey()) / ((double) maxPenalty);
             else
@@ -255,16 +252,13 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             score += StorageService.instance.getSeverity(entry.getKey());
             scores.put(entry.getKey(), score);            
         }
-        intervalupdates.set(0);
     }
 
 
     private void reset()
     {
-        for (BoundedStatsDeque deque : windows.values())
-        {
-            deque.clear();
-        }
+        for (ExponentiallyDecayingSample sample : samples.values())
+            sample.clear();
     }
 
     public Map<InetAddress, Double> getScores()
@@ -293,13 +287,11 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     {
         InetAddress host = InetAddress.getByName(hostname);
         ArrayList<Double> timings = new ArrayList<Double>();
-        BoundedStatsDeque window = windows.get(host);
-        if (window != null)
+        ExponentiallyDecayingSample sample = samples.get(host);
+        if (sample != null)
         {
-            for (double time: window)
-            {
+            for (double time: sample.getSnapshot().getValues())
                 timings.add(time);
-            }
         }
         return timings;
     }
