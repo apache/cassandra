@@ -24,7 +24,8 @@ import java.security.MessageDigest;
 import java.util.concurrent.TimeoutException;
 import java.util.Collection;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -46,7 +47,7 @@ import org.apache.cassandra.utils.*;
  */
 public class CounterColumn extends Column
 {
-    private static final Logger logger = Logger.getLogger(CounterColumn.class);
+    private static final Logger logger = LoggerFactory.getLogger(CounterColumn.class);
 
     protected static final CounterContext contextManager = CounterContext.instance();
 
