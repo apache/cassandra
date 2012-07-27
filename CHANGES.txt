@@ -64,6 +64,8 @@ Merged from 1.0:
  * Bootstraps that fail are detected upon restart and will retry safely without
    needing to delete existing data first (CASSANDRA-4427)
  * (cqlsh) add a COPY TO command to copy a CF to a CSV file (CASSANDRA-4434)
+ * Don't purge columns during upgradesstables (CASSANDRA-4462)
+ * Push the validation of secondary index values to the SecondaryIndexManager (CASSANDRA-4240)
 
 
 1.1.2
