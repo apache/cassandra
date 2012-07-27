@@ -72,6 +72,9 @@ public class CompactionManager implements CompactionManagerMBean
     private static final Logger logger = LoggerFactory.getLogger(CompactionManager.class);
     public static final CompactionManager instance;
 
+    public static final int NO_GC = Integer.MIN_VALUE;
+    public static final int GC_ALL = Integer.MAX_VALUE;
+
     /**
      * compactionLock has two purposes:
      * - "Special" compactions will acquire writelock instead of readlock to make sure that all
@@ -235,7 +238,7 @@ public class CompactionManager implements CompactionManagerMBean
                 {
                     // SSTables are marked by the caller
                     // NOTE: it is important that the task create one and only one sstable, even for Leveled compaction (see LeveledManifest.replace())
-                    CompactionTask task = new CompactionTask(cfs, Collections.singletonList(sstable), Integer.MAX_VALUE);
+                    CompactionTask task = new CompactionTask(cfs, Collections.singletonList(sstable), NO_GC);
                     task.isUserDefined(true);
                     task.setCompactionType(OperationType.UPGRADE_SSTABLES);
                     task.execute(executor);
@@ -824,7 +827,7 @@ public class CompactionManager implements CompactionManagerMBean
     static int getDefaultGcBefore(ColumnFamilyStore cfs)
     {
         return cfs.isIndex()
-               ? Integer.MAX_VALUE
+               ? GC_ALL
                : (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
     }
 
@@ -849,7 +852,7 @@ public class CompactionManager implements CompactionManagerMBean
         public ValidationCompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
         {
             super(cfs,
-                  Integer.MAX_VALUE,
+                  NO_GC,
                   true,
                   null,
                   cfs.getCompactionStrategy().isKeyExistenceExpensive(ImmutableSet.copyOf(sstables)));
