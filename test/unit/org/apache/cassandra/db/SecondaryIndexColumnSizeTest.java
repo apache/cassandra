@@ -43,31 +43,31 @@ public class SecondaryIndexColumnSizeTest
     {
         Column column = new Column();
         column.name = ByteBufferUtil.bytes("test");
-     
+
         // a byte buffer more than 64k
         ByteBuffer buffer = ByteBuffer.allocate(1024 * 65);
         buffer.clear();
-        
+
         //read more than 64k
         for (int i=0; i<1024*64/4 + 1; i++)
             buffer.putInt(0);
-        
+
         // for read
-        buffer.flip(); 
+        buffer.flip();
         column.value = buffer;
 
         MockRowIndex mockRowIndex = new MockRowIndex();
         MockColumnIndex mockColumnIndex = new MockColumnIndex();
-        
+
         assertTrue(mockRowIndex.validate(column));
         assertFalse(mockColumnIndex.validate(column));
-        
+
         // test less than 64k value
         buffer.flip();
         buffer.clear();
         buffer.putInt(20);
         buffer.flip();
-        
+
         assertTrue(mockRowIndex.validate(column));
         assertTrue(mockColumnIndex.validate(column));
     }
@@ -75,141 +75,141 @@ public class SecondaryIndexColumnSizeTest
     private class MockRowIndex extends PerRowSecondaryIndex
     {
         @Override
-        public void applyIndexUpdates(ByteBuffer rowKey, ColumnFamily cf, SortedSet<ByteBuffer> mutatedIndexedColumns, ColumnFamily oldIndexedColumns) throws IOException 
+        public void applyIndexUpdates(ByteBuffer rowKey, ColumnFamily cf, SortedSet<ByteBuffer> mutatedIndexedColumns, ColumnFamily oldIndexedColumns) throws IOException
         {
         }
 
         @Override
-        public void init() 
-        {           
-        }
-
-        @Override
-        public void validateOptions() throws ConfigurationException 
+        public void init()
         {
         }
 
         @Override
-        public String getIndexName() 
+        public void validateOptions() throws ConfigurationException
         {
-            return null;
         }
 
         @Override
-        protected SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns) 
+        public String getIndexName()
         {
             return null;
         }
 
         @Override
-        public void forceBlockingFlush() throws IOException 
+        protected SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns)
+        {
+            return null;
+        }
+
+        @Override
+        public void forceBlockingFlush() throws IOException
         {
         }
 
         @Override
-        public long getLiveSize() 
+        public long getLiveSize()
         {
             return 0;
         }
 
         @Override
-        public ColumnFamilyStore getIndexCfs() 
+        public ColumnFamilyStore getIndexCfs()
         {
             return null;
         }
 
         @Override
-        public void removeIndex(ByteBuffer columnName) throws IOException 
+        public void removeIndex(ByteBuffer columnName) throws IOException
         {
         }
 
         @Override
-        public void invalidate() 
+        public void invalidate()
         {
         }
 
         @Override
-        public void truncate(long truncatedAt) 
+        public void truncate(long truncatedAt)
         {
         }
 
         @Override
-        public void deleteFromIndex(DecoratedKey<?> key, List<IColumn> indexedColumnsInRow)
-        {  
+        public void deleteFromIndex(DecoratedKey key, List<IColumn> indexedColumnsInRow)
+        {
         }
-        
+
     }
-    
-    
+
+
     private class MockColumnIndex extends PerColumnSecondaryIndex
     {
         @Override
-        public void init() 
+        public void init()
         {
         }
 
         @Override
-        public void validateOptions() throws ConfigurationException 
+        public void validateOptions() throws ConfigurationException
         {
         }
 
         @Override
-        public String getIndexName() 
-        {
-            return null;
-        }
-
-        @Override
-        protected SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns) 
+        public String getIndexName()
         {
             return null;
         }
 
         @Override
-        public void forceBlockingFlush() throws IOException 
+        protected SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns)
+        {
+            return null;
+        }
+
+        @Override
+        public void forceBlockingFlush() throws IOException
         {
         }
 
         @Override
-        public long getLiveSize() 
+        public long getLiveSize()
         {
             return 0;
         }
 
         @Override
-        public ColumnFamilyStore getIndexCfs() 
+        public ColumnFamilyStore getIndexCfs()
         {
             return null;
         }
 
         @Override
-        public void removeIndex(ByteBuffer columnName) throws IOException 
+        public void removeIndex(ByteBuffer columnName) throws IOException
         {
         }
 
         @Override
-        public void invalidate() 
+        public void invalidate()
         {
         }
 
         @Override
-        public void truncate(long truncatedAt) 
+        public void truncate(long truncatedAt)
         {
         }
 
         @Override
         public void deleteColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col) throws IOException
-        {  
+        {
         }
 
         @Override
         public void insertColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col) throws IOException
-        {  
+        {
         }
 
         @Override
         public void updateColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col) throws IOException
         {
-        }    
+        }
     }
 }
