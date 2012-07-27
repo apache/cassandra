@@ -13,6 +13,10 @@
  * Fix LCS splitting sstable base on uncompressed size (CASSANDRA-4419)
  * Push the validation of secondary index values to the SecondaryIndexManager (CASSANDRA-4240)
  * Don't purge columns during upgradesstables (CASSANDRA-4462)
+ * Make cqlsh work with piping (CASSANDRA-4113)
+ * Validate arguments for nodetool decommission (CASSANDRA-4061)
+ * Report thrift status in nodetool info (CASSANDRA-4010)
+
 
 1.0.10
  * fix maxTimestamp to include row tombstones (CASSANDRA-4116)
