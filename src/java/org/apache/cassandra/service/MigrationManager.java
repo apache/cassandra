@@ -236,7 +236,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public static void passiveAnnounce(UUID version)
     {
         assert Gossiper.instance.isEnabled();
-        Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.migration(version));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(version));
         logger.debug("Gossiping my schema version " + version);
     }
 
@@ -403,7 +403,6 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
             IAsyncCallback cb = new IAsyncCallback()
             {
-                @Override
                 public void response(Message message)
                 {
                     try
@@ -420,7 +419,6 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
                     }
                 }
 
-                @Override
                 public boolean isLatencyForSnitch()
                 {
                     return false;
