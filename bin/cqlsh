@@ -1440,11 +1440,13 @@ class Shell(cmd.Cmd):
         r"""
         COPY [cqlsh only]
 
-          Imports CSV data into a Cassandra table.
+          COPY x FROM: Imports CSV data into a Cassandra table
+          COPY x TO: Exports data from a Cassandra table in CSV format.
 
         COPY <table_name> [ ( column [, ...] ) ]
              FROM ( '<filename>' | STDIN )
              [ WITH <option>='value' [AND ...] ];
+
         COPY <table_name> [ ( column [, ...] ) ]
              TO ( '<filename>' | STDOUT )
              [ WITH <option>='value' [AND ...] ];
