@@ -55,7 +55,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         if (options != null)
         {
             String value = options.containsKey(SSTABLE_SIZE_OPTION) ? options.get(SSTABLE_SIZE_OPTION) : null;
-            if (null != value)
+            if (value != null)
             {
                 try
                 {

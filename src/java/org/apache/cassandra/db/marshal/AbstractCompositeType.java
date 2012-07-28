@@ -61,7 +61,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
-        if (null == o1)
+        if (o1 == null)
             return null == o2 ? 0 : -1;
 
         ByteBuffer bb1 = o1.duplicate();

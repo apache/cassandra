@@ -30,7 +30,7 @@ public class SocketSessionManagementService
     public ClientState get(SocketAddress key)
     {
         ClientState retval = null;
-        if (null != key)
+        if (key != null)
         {
             retval = activeSocketSessions.get(key);
         }
@@ -39,7 +39,7 @@ public class SocketSessionManagementService
 
     public void put(SocketAddress key, ClientState value)
     {
-        if (null != key && null != value)
+        if (key != null && value != null)
         {
             activeSocketSessions.put(key, value);
         }

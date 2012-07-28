@@ -58,7 +58,7 @@ public class SimpleAuthenticator implements IAuthenticator
         String pmode_plain = System.getProperty(PMODE_PROPERTY);
         PasswordMode mode = PasswordMode.PLAIN;
 
-        if (null != pmode_plain)
+        if (pmode_plain != null)
         {
             try
             {
@@ -80,14 +80,14 @@ public class SimpleAuthenticator implements IAuthenticator
 
         String username = null;
         CharSequence user = credentials.get(USERNAME_KEY);
-        if (null == user) 
+        if (user == null)
             throw new AuthenticationException("Authentication request was missing the required key '" + USERNAME_KEY + "'");
         else
             username = user.toString();
 
         String password = null;
         CharSequence pass = credentials.get(PASSWORD_KEY);
-        if (null == pass) 
+        if (pass == null)
             throw new AuthenticationException("Authentication request was missing the required key '" + PASSWORD_KEY + "'");
         else
             password = pass.toString();
@@ -102,7 +102,7 @@ public class SimpleAuthenticator implements IAuthenticator
             props.load(in);
 
             // note we keep the message here and for the wrong password exactly the same to prevent attackers from guessing what users are valid
-            if (null == props.getProperty(username)) throw new AuthenticationException(authenticationErrorMessage(mode, username));
+            if (props.getProperty(username) == null) throw new AuthenticationException(authenticationErrorMessage(mode, username));
             switch (mode)
             {
                 case PLAIN:

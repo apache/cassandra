@@ -91,7 +91,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
         if (endpoint.equals(FBUtilities.getBroadcastAddress()))
             return ec2zone;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (null == state || null == state.getApplicationState(ApplicationState.RACK))
+        if (state == null || state.getApplicationState(ApplicationState.RACK) == null)
             return DEFAULT_RACK;
         return state.getApplicationState(ApplicationState.RACK).value;
     }

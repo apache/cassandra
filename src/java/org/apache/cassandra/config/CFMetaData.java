@@ -99,11 +99,11 @@ public final class CFMetaData
 
     // new-style schema
     public static final CFMetaData SchemaKeyspacesCf = compile(8, "CREATE TABLE " + SystemTable.SCHEMA_KEYSPACES_CF + "("
-                                                                 + "keyspace_name text PRIMARY KEY,"
-                                                                 + "durable_writes boolean,"
-                                                                 + "strategy_class text,"
-                                                                 + "strategy_options text"
-                                                                 + ") WITH COMPACT STORAGE AND COMMENT='keyspace definitions' AND gc_grace_seconds=8640");
+                                                                  + "keyspace_name text PRIMARY KEY,"
+                                                                  + "durable_writes boolean,"
+                                                                  + "strategy_class text,"
+                                                                  + "strategy_options text"
+                                                                  + ") WITH COMPACT STORAGE AND COMMENT='keyspace definitions' AND gc_grace_seconds=8640");
     public static final CFMetaData SchemaColumnFamiliesCf = compile(9, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNFAMILIES_CF + "("
                                                                      + "keyspace_name text,"
                                                                      + "columnfamily_name text,"
@@ -614,9 +614,9 @@ public final class CFMetaData
             cf_def.setMin_compaction_threshold(CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD);
         if (!cf_def.isSetMax_compaction_threshold())
             cf_def.setMax_compaction_threshold(CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD);
-        if (null == cf_def.compaction_strategy)
+        if (cf_def.compaction_strategy == null)
             cf_def.compaction_strategy = DEFAULT_COMPACTION_STRATEGY_CLASS;
-        if (null == cf_def.compaction_strategy_options)
+        if (cf_def.compaction_strategy_options == null)
             cf_def.compaction_strategy_options = Collections.emptyMap();
         if (!cf_def.isSetCompression_options())
         {
