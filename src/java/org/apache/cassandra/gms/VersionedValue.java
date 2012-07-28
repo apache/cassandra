@@ -137,7 +137,7 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(String.valueOf(load));
         }
 
-        public VersionedValue migration(UUID newVersion)
+        public VersionedValue schema(UUID newVersion)
         {
             return new VersionedValue(newVersion.toString());
         }

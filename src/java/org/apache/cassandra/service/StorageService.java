@@ -510,30 +510,47 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         HintedHandOffManager.instance.start();
 
-        if (DatabaseDescriptor.isAutoBootstrap()
-                && DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress())
-                && !SystemTable.bootstrapComplete())
-            logger.info("This node will not auto bootstrap because it is configured to be a seed node.");
+        boolean schemaPresent = false;
+        if (DatabaseDescriptor.isAutoBootstrap() && !SystemTable.bootstrapComplete() && delay > 0)
+        {
+            // wait a couple gossip rounds so our schema check has something to go by
+            FBUtilities.sleep(2 * Gossiper.intervalInMillis);
+        }
+        for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.getEndpointStates())
+        {
+            if (entry.getKey().equals(FBUtilities.getBroadcastAddress()))
+            {
+                // skip ourselves to avoid confusing the tests, which always load a schema first thing
+                continue;
+            }
 
+            if (!entry.getValue().getApplicationState(ApplicationState.SCHEMA).value.equals(Schema.emptyVersion.toString()))
+            {
+                schemaPresent = true;
+                break;
+            }
+        }
+
+        // We can bootstrap at startup, or if we detect a previous attempt that failed.  Either way, if the user
+        // manually sets auto_bootstrap to false, we'll skip streaming data from other nodes and jump directly
+        // into the ring.
+        //
+        // The one exception is if after the above sleep we still have no schema information, we'll assume
+        // we're part of a fresh cluster start, and also skip bootstrap.  This is less confusing for new users,
+        // as well as avoiding the nonsensical state of trying to stream from cluster with no active peers.
         Set<InetAddress> current = new HashSet<InetAddress>();
         Collection<Token> tokens;
-        // we can bootstrap at startup, or if we detect a previous attempt that failed, which is to say:
-        // DD.isAutoBootstrap must be true AND:
-        //  bootstrap is not recorded as complete, OR
-        //  DD.getSeeds does not contain our BCA, OR
-        //  we do not have non-system tables already
-        // OR:
-        //  we detect that we were previously trying to bootstrap (ST.bootstrapInProgress is true)
+        logger.debug("Bootstrap variables: %s %s %s %s",
+                      new Object[] {DatabaseDescriptor.isAutoBootstrap(), SystemTable.bootstrapInProgress(), SystemTable.bootstrapComplete(), schemaPresent});
         if (DatabaseDescriptor.isAutoBootstrap()
-                && !(SystemTable.bootstrapComplete() || DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()) || !Schema.instance.getNonSystemTables().isEmpty())
-                || SystemTable.bootstrapInProgress())
+            && (SystemTable.bootstrapInProgress() || (!SystemTable.bootstrapComplete() && schemaPresent)))
         {
             if (SystemTable.bootstrapInProgress())
                 logger.warn("Detected previous bootstrap failure; retrying");
             else
                 SystemTable.setBootstrapState(SystemTable.BootstrapState.IN_PROGRESS);
-            setMode(Mode.JOINING, "waiting for ring and schema information", true);
-            // first sleep the delay to make sure we see the schema
+            setMode(Mode.JOINING, "waiting for ring information", true);
+            // first sleep the delay to make sure we see all our peers
             try
             {
                 Thread.sleep(delay);
@@ -542,7 +559,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 throw new AssertionError(e);
             }
-            // now if our schema hasn't matched, keep sleeping until it does
+            // if our schema hasn't matched yet, keep sleeping until it does
+            // (post CASSANDRA-1391 we don't expect this to be necessary very often, but it doesn't hurt to be careful)
             while (!MigrationManager.isReadyForBootstrap())
             {
                 setMode(Mode.JOINING, "waiting for schema information to complete", true);
@@ -591,7 +609,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 for (Token token : tokens)
                 {
                     InetAddress existing = tokenMetadata.getEndpoint(token);
-                    if (null != existing)
+                    if (existing != null)
                     {
                         if (Gossiper.instance.getEndpointStateForEndpoint(existing).getUpdateTimestamp() > (System.currentTimeMillis() - delay))
                             throw new UnsupportedOperationException("Cannnot replace a token for a Live node... ");
