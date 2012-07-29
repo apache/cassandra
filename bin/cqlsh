@@ -1526,14 +1526,14 @@ class Shell(cmd.Cmd):
         try:
             if header:
                 linesource.next()
-            prepq = self.prep_import_insert(ks, cf, columns)
+            numcol, prepq = self.prep_import_insert(ks, cf, columns)
             rownum = -1
             reader = csv.reader(linesource, **dialect_options)
             for rownum, row in enumerate(reader):
-                if len(row) != len(columns):
+                if len(row) != numcol:
                     self.printerr("Record #%d (line %d) has the wrong number of fields "
                                   "(%d instead of %d)."
-                                  % (rownum, reader.line_num, len(row), len(columns)))
+                                  % (rownum, reader.line_num, len(row), numcol))
                     return rownum
                 if not self.do_import_insert(prepq, row):
                     self.printerr("Aborting import at record #%d (line %d). "
@@ -1557,7 +1557,7 @@ class Shell(cmd.Cmd):
         # values already, reading them from text just like the various
         # Cassandra cql types do. Better just to submit them all as intact
         # CQL string literals and let Cassandra do its thing.
-        return 'INSERT INTO %s.%s (%s) VALUES (%%s)' % (
+        return len(columns), 'INSERT INTO %s.%s (%s) VALUES (%%s)' % (
             self.cql_protect_name(ks),
             self.cql_protect_name(cf),
             ', '.join(map(self.cql_protect_name, columns))
