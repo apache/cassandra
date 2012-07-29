@@ -524,7 +524,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 continue;
             }
 
-            if (!entry.getValue().getApplicationState(ApplicationState.SCHEMA).value.equals(Schema.emptyVersion.toString()))
+            VersionedValue schemaValue = entry.getValue().getApplicationState(ApplicationState.SCHEMA);
+            if (schemaValue != null && !schemaValue.value.equals(Schema.emptyVersion.toString()))
             {
                 schemaPresent = true;
                 break;
