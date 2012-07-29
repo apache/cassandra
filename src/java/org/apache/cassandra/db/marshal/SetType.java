@@ -24,9 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -35,8 +32,6 @@ import org.apache.cassandra.utils.Pair;
 
 public class SetType extends CollectionType
 {
-    private static final Logger logger = LoggerFactory.getLogger(SetType.class);
-
     // interning instances
     private static final Map<AbstractType<?>, SetType> instances = new HashMap<AbstractType<?>, SetType>();
 

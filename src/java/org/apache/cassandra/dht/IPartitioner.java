@@ -84,5 +84,5 @@ public interface IPartitioner<T extends Token>
      */
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens);
 
-    public <T extends RingPosition> T minValue(Class<T> klass);
+    public <R extends RingPosition> R minValue(Class<R> klass);
 }

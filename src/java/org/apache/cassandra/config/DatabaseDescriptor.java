@@ -71,7 +71,7 @@ public class DatabaseDescriptor
     private static SeedProvider seedProvider;
 
     /* Hashing strategy Random or OPHF */
-    private static IPartitioner partitioner;
+    private static IPartitioner<?> partitioner;
 
     private static Config.DiskAccessMode indexAccessMode;
 
@@ -356,7 +356,7 @@ public class DatabaseDescriptor
                     {
                         requestSchedulerOptions = new RequestSchedulerOptions();
                     }
-                    Class cls = Class.forName(conf.request_scheduler);
+                    Class<?> cls = Class.forName(conf.request_scheduler);
                     requestScheduler = (IRequestScheduler) cls.getConstructor(RequestSchedulerOptions.class).newInstance(requestSchedulerOptions);
                 }
                 catch (ClassNotFoundException e)
@@ -473,7 +473,7 @@ public class DatabaseDescriptor
             }
             try
             {
-                Class seedProviderClass = Class.forName(conf.seed_provider.class_name);
+                Class<?> seedProviderClass = Class.forName(conf.seed_provider.class_name);
                 seedProvider = (SeedProvider)seedProviderClass.getConstructor(Map.class).newInstance(conf.seed_provider.parameters);
             }
             // there are about 5 checked exceptions that could be thrown here.
@@ -637,13 +637,13 @@ public class DatabaseDescriptor
         }
     }
 
-    public static IPartitioner getPartitioner()
+    public static IPartitioner<?> getPartitioner()
     {
         return partitioner;
     }
 
     /* For tests ONLY, don't use otherwise or all hell will break loose */
-    public static void setPartitioner(IPartitioner newPartitioner)
+    public static void setPartitioner(IPartitioner<?> newPartitioner)
     {
         partitioner = newPartitioner;
     }
@@ -893,7 +893,7 @@ public class DatabaseDescriptor
 
     public static Set<InetAddress> getSeeds()
     {
-        return Collections.unmodifiableSet(new HashSet(seedProvider.getSeeds()));
+        return Collections.unmodifiableSet(new HashSet<InetAddress>(seedProvider.getSeeds()));
     }
 
     public static InetAddress getListenAddress()

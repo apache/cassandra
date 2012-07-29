@@ -199,13 +199,13 @@ public class NodeId implements Comparable<NodeId>
                 logger.info("No saved local node id, using newly generated: {}", id);
                 SystemTable.writeCurrentLocalNodeId(null, id, FBUtilities.timestampMicros());
                 current = new AtomicReference<NodeId>(id);
-                olds = new CopyOnWriteArrayList();
+                olds = new CopyOnWriteArrayList<NodeIdRecord>();
             }
             else
             {
                 logger.info("Saved local node id: {}", id);
                 current = new AtomicReference<NodeId>(id);
-                olds = new CopyOnWriteArrayList(SystemTable.getOldLocalNodeIds());
+                olds = new CopyOnWriteArrayList<NodeIdRecord>(SystemTable.getOldLocalNodeIds());
             }
         }
 

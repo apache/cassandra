@@ -28,10 +28,6 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.*;
@@ -609,7 +605,7 @@ public class SecondaryIndexManager
         for (ByteBuffer colName : indexes)
             indexesByColumn.get(colName).setIndexRemoved(colName);
     }
-    
+
     public boolean validate(Column column)
     {
         SecondaryIndex index = getIndexForColumn(column.name);

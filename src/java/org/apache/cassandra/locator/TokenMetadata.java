@@ -101,7 +101,7 @@ public class TokenMetadata
             return ByteBuffer.wrap(o1.getAddress()).compareTo(ByteBuffer.wrap(o2.getAddress()));
         }
     };
-    
+
     public TokenMetadata()
     {
         this(SortedBiMultiValMap.<Token, InetAddress>create(null, inetaddressCmp), new Topology());
@@ -271,7 +271,7 @@ public class TokenMetadata
         lock.writeLock().lock();
         try
         {
-            
+
             InetAddress oldEndpoint;
 
             for (Token token : tokens)
@@ -279,7 +279,7 @@ public class TokenMetadata
                 oldEndpoint = bootstrapTokens.get(token);
                 if (oldEndpoint != null && !oldEndpoint.equals(endpoint))
                     throw new RuntimeException("Bootstrap Token collision between " + oldEndpoint + " and " + endpoint + " (token " + token);
-    
+
                 oldEndpoint = tokenToEndpointMap.get(token);
                 if (oldEndpoint != null && !oldEndpoint.equals(endpoint))
                     throw new RuntimeException("Bootstrap Token collision between " + oldEndpoint + " and " + endpoint + " (token " + token);

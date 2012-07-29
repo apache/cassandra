@@ -26,9 +26,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
@@ -39,7 +36,6 @@ import org.apache.cassandra.utils.HeapAllocator;
 
 public class CounterMutation implements IMutation
 {
-    private static final Logger logger = LoggerFactory.getLogger(CounterMutation.class);
     public static final CounterMutationSerializer serializer = new CounterMutationSerializer();
 
     private final RowMutation rowMutation;

@@ -22,8 +22,6 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import com.google.common.collect.AbstractIterator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.net.IAsyncResult;
@@ -38,8 +36,6 @@ import org.apache.cassandra.utils.MergeIterator;
  */
 public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceReply, Iterable<Row>>
 {
-    private static final Logger logger = LoggerFactory.getLogger(RangeSliceResponseResolver.class);
-
     private static final Comparator<Pair<Row,InetAddress>> pairComparator = new Comparator<Pair<Row, InetAddress>>()
     {
         public int compare(Pair<Row, InetAddress> o1, Pair<Row, InetAddress> o2)

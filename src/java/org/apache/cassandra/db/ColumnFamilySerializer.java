@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.util.UUID;
 
 import org.apache.cassandra.config.Schema;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -35,8 +33,6 @@ import org.apache.cassandra.utils.UUIDGen;
 
 public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily>, ISSTableSerializer<ColumnFamily>
 {
-    private static final Logger logger = LoggerFactory.getLogger(ColumnFamilySerializer.class);
-
     /*
      * Serialized ColumnFamily format:
      *

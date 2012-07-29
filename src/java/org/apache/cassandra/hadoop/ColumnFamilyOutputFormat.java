@@ -24,9 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.thrift.*;
 import org.apache.hadoop.conf.Configuration;
@@ -59,8 +56,6 @@ import org.apache.thrift.transport.TSocket;
 public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutation>>
     implements org.apache.hadoop.mapred.OutputFormat<ByteBuffer,List<Mutation>>
 {
-    private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyOutputFormat.class);
-
     public static final String BATCH_THRESHOLD = "mapreduce.output.columnfamilyoutputformat.batch.threshold";
     public static final String QUEUE_SIZE = "mapreduce.output.columnfamilyoutputformat.queue.size";
 

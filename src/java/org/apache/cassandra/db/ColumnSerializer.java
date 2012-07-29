@@ -22,9 +22,6 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -32,8 +29,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnSerializer implements IColumnSerializer
 {
-    private static final Logger logger = LoggerFactory.getLogger(ColumnSerializer.class);
-
     public final static int DELETION_MASK        = 0x01;
     public final static int EXPIRATION_MASK      = 0x02;
     public final static int COUNTER_MASK         = 0x04;

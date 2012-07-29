@@ -26,8 +26,6 @@ import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import com.google.common.primitives.Ints;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
@@ -37,8 +35,6 @@ import org.apache.cassandra.utils.FBUtilities;
 // TODO refactor this to separate concept of "buffer to avoid lots of read() syscalls" and "compression buffer"
 public class CompressedRandomAccessReader extends RandomAccessReader
 {
-    private static final Logger logger = LoggerFactory.getLogger(CompressedRandomAccessReader.class);
-
     public static RandomAccessReader open(String dataFilePath, CompressionMetadata metadata)
     {
         return open(dataFilePath, metadata, false);

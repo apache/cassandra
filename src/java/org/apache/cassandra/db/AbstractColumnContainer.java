@@ -24,8 +24,6 @@ import java.util.SortedSet;
 
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -35,8 +33,6 @@ import org.apache.cassandra.utils.HeapAllocator;
 
 public abstract class AbstractColumnContainer implements IColumnContainer, IIterableColumns
 {
-    private static final Logger logger = LoggerFactory.getLogger(AbstractColumnContainer.class);
-
     protected final ISortedColumns columns;
 
     protected AbstractColumnContainer(ISortedColumns columns)

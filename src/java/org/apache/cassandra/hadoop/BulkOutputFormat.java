@@ -21,8 +21,6 @@ package org.apache.cassandra.hadoop;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.thrift.Mutation;
 import org.apache.hadoop.conf.Configuration;
@@ -31,8 +29,6 @@ import org.apache.hadoop.mapreduce.*;
 public class BulkOutputFormat extends OutputFormat<ByteBuffer,List<Mutation>>
     implements org.apache.hadoop.mapred.OutputFormat<ByteBuffer,List<Mutation>>
 {
-    private static final Logger logger = LoggerFactory.getLogger(BulkOutputFormat.class);
-
     @Override
     public void checkOutputSpecs(JobContext context)
     {

@@ -25,9 +25,6 @@ import java.util.Map;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /*
  * The encoding of a DynamicCompositeType column name should be:
  *   <component><component><component> ...
@@ -49,8 +46,6 @@ import org.slf4j.LoggerFactory;
  */
 public class DynamicCompositeType extends AbstractCompositeType
 {
-    private static final Logger logger = LoggerFactory.getLogger(DynamicCompositeType.class);
-
     private final Map<Byte, AbstractType<?>> aliases;
 
     // interning instances

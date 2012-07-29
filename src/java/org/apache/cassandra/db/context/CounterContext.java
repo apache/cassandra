@@ -589,7 +589,6 @@ public class CounterContext implements IContext
         NodeId.NodeIdRecord currRecord = recordIterator.hasNext() ? recordIterator.next() : null;
 
         ContextState state = new ContextState(context, hlength);
-        ContextState foundState = null;
 
         List<NodeId> toMerge = new ArrayList<NodeId>();
         long mergeTotal = 0;

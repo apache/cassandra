@@ -19,15 +19,10 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.utils.CloseableIterator;
 
 public abstract class AbstractCompactionIterable extends CompactionInfo.Holder implements Iterable<AbstractCompactedRow>
 {
-    private static final Logger logger = LoggerFactory.getLogger(AbstractCompactionIterable.class);
-
     protected final OperationType type;
     protected final CompactionController controller;
     protected final long totalBytes;

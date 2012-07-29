@@ -21,9 +21,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
@@ -36,8 +33,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SSTableScanner implements ICompactionScanner
 {
-    private static final Logger logger = LoggerFactory.getLogger(SSTableScanner.class);
-
     protected final RandomAccessReader dfile;
     protected final RandomAccessReader ifile;
     public final SSTableReader sstable;

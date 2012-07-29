@@ -22,9 +22,6 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
@@ -36,8 +33,6 @@ import org.apache.cassandra.utils.HeapAllocator;
  */
 public class PrecompactedRow extends AbstractCompactedRow
 {
-    private static final Logger logger = LoggerFactory.getLogger(PrecompactedRow.class);
-
     private final ColumnFamily compactedCf;
     private ColumnIndex columnIndex;
 

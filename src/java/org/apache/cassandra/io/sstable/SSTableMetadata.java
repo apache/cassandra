@@ -45,8 +45,6 @@ import org.apache.cassandra.utils.EstimatedHistogram;
  */
 public class SSTableMetadata
 {
-    private static final Logger logger = LoggerFactory.getLogger(SSTableMetadata.class);
-
     public static final SSTableMetadataSerializer serializer = new SSTableMetadataSerializer();
 
     public final EstimatedHistogram estimatedRowSize;

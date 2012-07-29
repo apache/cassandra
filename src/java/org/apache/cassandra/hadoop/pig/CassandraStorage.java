@@ -456,7 +456,6 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private void setLocationFromUri(String location) throws IOException
     {
         // parse uri into keyspace and columnfamily
-        String names[];
         try
         {
             if (!location.startsWith("cassandra://"))

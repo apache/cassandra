@@ -112,8 +112,6 @@ public class EndpointState
 
 class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
 {
-    private static final Logger logger = LoggerFactory.getLogger(EndpointStateSerializer.class);
-
     public void serialize(EndpointState epState, DataOutput dos, int version) throws IOException
     {
         /* serialize the HeartBeatState */
