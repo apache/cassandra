@@ -165,12 +165,12 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
         return maxKeyBound(StorageService.getPartitioner());
     }
 
-    public <T extends RingPosition> T upperBound(Class<T> klass)
+    public <R extends RingPosition> R upperBound(Class<R> klass)
     {
         if (klass.equals(getClass()))
-            return (T)this;
+            return (R)this;
         else
-            return (T)maxKeyBound();
+            return (R)maxKeyBound();
     }
 
     public static class KeyBound extends RowPosition
