@@ -83,23 +83,23 @@ calculate_heap_sizes()
 
 # Determine the sort of JVM we'll be running on.
 
-java_ver_output=$("${JAVA:-java}" -version 2>&1)
+java_ver_output=`"${JAVA:-java}" -version 2>&1`
 
-jvmver=$(echo "$java_ver_output" | awk -F'"' 'NR==1 {print $2}')
+jvmver=`echo "$java_ver_output" | awk -F'"' 'NR==1 {print $2}'`
 JVM_VERSION=${jvmver%_*}
 JVM_PATCH_VERSION=${jvmver#*_}
 
-jvm=$(echo "$java_ver_output" | awk 'NR==2 {print $1}')
+jvm=`echo "$java_ver_output" | awk 'NR==2 {print $1}'`
 case "$jvm" in
     OpenJDK)
         JVM_VENDOR=OpenJDK
         # this will be "64-Bit" or "32-Bit"
-        JVM_ARCH=$(echo "$java_ver_output" | awk 'NR==3 {print $2}')
+        JVM_ARCH=`echo "$java_ver_output" | awk 'NR==3 {print $2}'`
         ;;
     "Java(TM)")
         JVM_VENDOR=Oracle
         # this will be "64-Bit" or "32-Bit"
-        JVM_ARCH=$(echo "$java_ver_output" | awk 'NR==3 {print $3}')
+        JVM_ARCH=`echo "$java_ver_output" | awk 'NR==3 {print $3}'`
         ;;
     *)
         # Help fill in other JVM values
@@ -149,8 +149,8 @@ JMX_PORT="7199"
 JVM_OPTS="$JVM_OPTS -ea"
 
 # add the jamm javaagent
-if [[ "$JVM_VENDOR" != "OpenJDK" || "$JVM_VERSION" > "1.6.0"
-      || ( "$JVM_VERSION" = "1.6.0" && "$JVM_PATCH_VERSION" -ge 23 ) ]]
+if [ "$JVM_VENDOR" != "OpenJDK" -o "$JVM_VERSION" > "1.6.0" ] \
+      || [ "$JVM_VERSION" = "1.6.0" -a "$JVM_PATCH_VERSION" -ge 23 ]
 then
     JVM_OPTS="$JVM_OPTS -javaagent:$CASSANDRA_HOME/lib/jamm-0.2.5.jar"
 fi
@@ -177,12 +177,14 @@ if [ "x$CASSANDRA_HEAPDUMP_DIR" != "x" ]; then
 fi
 
 
+startswith () [ "${1#$2}" != "$1" ]
+
 if [ "`uname`" = "Linux" ] ; then
     # reduce the per-thread stack size to minimize the impact of Thrift
     # thread-per-client.  (Best practice is for client connections to
     # be pooled anyway.) Only do so on Linux where it is known to be
     # supported.
-    if [[ "$JVM_VERSION" == 1.7.* ]]
+    if startswith "$JVM_VERSION" '1.7.'
     then
         JVM_OPTS="$JVM_OPTS -Xss160k"
     else
