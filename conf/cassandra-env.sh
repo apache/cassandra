@@ -20,18 +20,15 @@ calculate_heap_sizes()
         Linux)
             system_memory_in_mb=`free -m | awk '/Mem:/ {print $2}'`
             system_cpu_cores=`egrep -c 'processor([[:space:]]+):.*' /proc/cpuinfo`
-            break
         ;;
         FreeBSD)
             system_memory_in_bytes=`sysctl hw.physmem | awk '{print $2}'`
             system_memory_in_mb=`expr $system_memory_in_bytes / 1024 / 1024`
             system_cpu_cores=`sysctl hw.ncpu | awk '{print $2}'`
-            break
         ;;
         SunOS)
             system_memory_in_mb=`prtconf | awk '/Memory size:/ {print $3}'`
             system_cpu_cores=`psrinfo | wc -l`
-            break
         ;;
         *)
             # assume reasonable defaults for e.g. a modern desktop or
@@ -84,6 +81,34 @@ calculate_heap_sizes()
     fi
 }
 
+# Determine the sort of JVM we'll be running on.
+
+java_ver_output=$("${JAVA:-java}" -version 2>&1)
+
+jvmver=$(echo "$java_ver_output" | awk -F'"' 'NR==1 {print $2}')
+JVM_VERSION=${jvmver%_*}
+JVM_PATCH_VERSION=${jvmver#*_}
+
+jvm=$(echo "$java_ver_output" | awk 'NR==2 {print $1}')
+case "$jvm" in
+    OpenJDK)
+        JVM_VENDOR=OpenJDK
+        # this will be "64-Bit" or "32-Bit"
+        JVM_ARCH=$(echo "$java_ver_output" | awk 'NR==3 {print $2}')
+        ;;
+    "Java(TM)")
+        JVM_VENDOR=Oracle
+        # this will be "64-Bit" or "32-Bit"
+        JVM_ARCH=$(echo "$java_ver_output" | awk 'NR==3 {print $3}')
+        ;;
+    *)
+        # Help fill in other JVM values
+        JVM_VENDOR=other
+        JVM_ARCH=unknown
+        ;;
+esac
+
+
 # Override these to set the amount of memory to allocate to the JVM at
 # start-up. For production use you almost certainly want to adjust
 # this for your environment. MAX_HEAP_SIZE is the total amount of
@@ -124,8 +149,8 @@ JMX_PORT="7199"
 JVM_OPTS="$JVM_OPTS -ea"
 
 # add the jamm javaagent
-check_openjdk=`"${JAVA:-java}" -version 2>&1 | awk '{if (NR == 2) {print $1}}'`
-if [ "$check_openjdk" != "OpenJDK" ]
+if [[ "$JVM_VENDOR" != "OpenJDK" || "$JVM_VERSION" > "1.6.0"
+      || ( "$JVM_VERSION" = "1.6.0" && "$JVM_PATCH_VERSION" -ge 23 ) ]]
 then
     JVM_OPTS="$JVM_OPTS -javaagent:$CASSANDRA_HOME/lib/jamm-0.2.5.jar"
 fi
@@ -153,12 +178,11 @@ fi
 
 
 if [ "`uname`" = "Linux" ] ; then
-    java_version=`"${JAVA:-java}" -version 2>&1 | awk '/version/ {print $3}' | egrep -o '[0-9]+\.[0-9]+'`
     # reduce the per-thread stack size to minimize the impact of Thrift
     # thread-per-client.  (Best practice is for client connections to
     # be pooled anyway.) Only do so on Linux where it is known to be
     # supported.
-    if [ "$java_version" = "1.7" ]
+    if [[ "$JVM_VERSION" == 1.7.* ]]
     then
         JVM_OPTS="$JVM_OPTS -Xss160k"
     else
