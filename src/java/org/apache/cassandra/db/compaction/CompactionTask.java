@@ -234,7 +234,7 @@ public class CompactionTask extends AbstractCompactionTask
     }
 
     //extensibility point for other strategies that may want to limit the upper bounds of the sstable segment size
-    protected boolean newSSTableSegmentThresholdReached(SSTableWriter writer) throws IOException
+    protected boolean newSSTableSegmentThresholdReached(SSTableWriter writer)
     {
         return false;
     }

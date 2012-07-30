@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.*;
+import java.nio.channels.ClosedChannelException;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -114,8 +115,7 @@ public class SSTableWriter extends SSTable
         iwriter.mark();
     }
 
-    // NOT necessarily an FS error - not throwing FSWE.
-    public void resetAndTruncate() throws IOException
+    public void resetAndTruncate()
     {
         dataFile.resetAndTruncate(dataMark);
         iwriter.resetAndTruncate();
@@ -149,21 +149,21 @@ public class SSTableWriter extends SSTable
 
     public RowIndexEntry append(AbstractCompactedRow row)
     {
+        long currentPosition = beforeAppend(row.key);
         try
         {
-            long currentPosition = beforeAppend(row.key);
             ByteBufferUtil.writeWithShortLength(row.key.key, dataFile.stream);
             long dataStart = dataFile.getFilePointer();
             long dataSize = row.write(dataFile.stream);
             assert dataSize == dataFile.getFilePointer() - (dataStart + 8)
                     : "incorrect row data size " + dataSize + " written to " + dataFile.getPath() + "; correct is " + (dataFile.getFilePointer() - (dataStart + 8));
-            sstableMetadataCollector.update(dataFile.getFilePointer() - currentPosition, row.columnStats());
-            return afterAppend(row.key, currentPosition, row.deletionInfo(), row.index());
         }
         catch (IOException e)
         {
             throw new FSWriteError(e, dataFile.getPath());
         }
+        sstableMetadataCollector.update(dataFile.getFilePointer() - currentPosition, row.columnStats());
+        return afterAppend(row.key, currentPosition, row.deletionInfo(), row.index());
     }
 
     public void append(DecoratedKey decoratedKey, ColumnFamily cf)
@@ -190,12 +190,12 @@ public class SSTableWriter extends SSTable
             dataFile.stream.writeInt(builder.writtenAtomCount());
             dataFile.stream.write(buffer.getData(), 0, buffer.getLength());
             afterAppend(decoratedKey, startPosition, cf.deletionInfo(), index);
-            sstableMetadataCollector.update(dataFile.getFilePointer() - startPosition, cf.getColumnStats());
         }
         catch (IOException e)
         {
             throw new FSWriteError(e, dataFile.getPath());
         }
+        sstableMetadataCollector.update(dataFile.getFilePointer() - startPosition, cf.getColumnStats());
     }
 
     /**
@@ -318,17 +318,8 @@ public class SSTableWriter extends SSTable
     {
         // index and filter
         iwriter.close();
-
-        try
-        {
-            // main data, close will truncate if necessary
-            dataFile.close();
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, dataFile.getPath());
-        }
-
+        // main data, close will truncate if necessary
+        dataFile.close();
         // write sstable statistics
         SSTableMetadata sstableMetadata = sstableMetadataCollector.finalizeMetadata(partitioner.getClass().getCanonicalName());
         writeMetadata(descriptor, sstableMetadata);
@@ -373,12 +364,12 @@ public class SSTableWriter extends SSTable
         try
         {
             out.write(String.format("%s  %s", Hex.bytesToHex(digest), dataFileName).getBytes());
-            out.close();
         }
-        catch (IOException e)
+        catch (ClosedChannelException e)
         {
-            throw new FSWriteError(e, out.getPath());
+            throw new AssertionError(); // can't happen.
         }
+        out.close();
     }
 
     private static void writeMetadata(Descriptor desc, SSTableMetadata sstableMetadata)
@@ -387,12 +378,12 @@ public class SSTableWriter extends SSTable
         try
         {
             SSTableMetadata.serializer.serialize(sstableMetadata, out.stream);
-            out.close();
         }
         catch (IOException e)
         {
             throw new FSWriteError(e, out.getPath());
         }
+        out.close();
     }
 
     static Descriptor rename(Descriptor tmpdesc, Set<Component> components)
@@ -421,7 +412,7 @@ public class SSTableWriter extends SSTable
         return dataFile.getFilePointer();
     }
 
-    public long getOnDiskFilePointer() throws IOException
+    public long getOnDiskFilePointer()
     {
         return dataFile.getOnDiskFilePointer();
     }
@@ -491,16 +482,16 @@ public class SSTableWriter extends SSTable
                 stream.flush();
                 fos.getFD().sync();
                 stream.close();
-
-                // index
-                long position = indexFile.getFilePointer();
-                indexFile.close(); // calls force
-                FileUtils.truncate(indexFile.getPath(), position);
             }
             catch (IOException e)
             {
                 throw new FSWriteError(e, path);
             }
+
+            // index
+            long position = indexFile.getFilePointer();
+            indexFile.close(); // calls force
+            FileUtils.truncate(indexFile.getPath(), position);
 
             // finalize in-memory index state
             summary.complete();
@@ -511,7 +502,7 @@ public class SSTableWriter extends SSTable
             mark = indexFile.mark();
         }
 
-        public void resetAndTruncate() throws IOException
+        public void resetAndTruncate()
         {
             // we can't un-set the bloom filter addition, but extra keys in there are harmless.
             // we can't reset dbuilder either, but that is the last thing called in afterappend so

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -62,7 +61,7 @@ public class LeveledCompactionTask extends CompactionTask
     }
 
     @Override
-    protected boolean newSSTableSegmentThresholdReached(SSTableWriter writer) throws IOException
+    protected boolean newSSTableSegmentThresholdReached(SSTableWriter writer)
     {
         return writer.getOnDiskFilePointer() > sstableSizeInMB * 1024L * 1024L;
     }

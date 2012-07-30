@@ -17,11 +17,15 @@
  */
 package org.apache.cassandra.io.compress;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.SSTableMetadata.Collector;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -77,30 +81,46 @@ public class CompressedSequentialWriter extends SequentialWriter
     }
 
     @Override
-    public long getOnDiskFilePointer() throws IOException
+    public long getOnDiskFilePointer()
     {
-        return out.getFilePointer();
+        try
+        {
+            return out.getFilePointer();
+        }
+        catch (IOException e)
+        {
+            throw new FSReadError(e, getPath());
+        }
     }
 
     @Override
-    public void sync() throws IOException
+    public void sync()
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void flush() throws IOException
+    public void flush()
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    protected void flushData() throws IOException
+    protected void flushData()
     {
         seekToChunkStart();
 
-        // compressing data with buffer re-use
-        int compressedLength = compressor.compress(buffer, 0, validBufferBytes, compressed, 0);
+
+        int compressedLength;
+        try
+        {
+            // compressing data with buffer re-use
+            compressedLength = compressor.compress(buffer, 0, validBufferBytes, compressed, 0);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Compression exception", e); // shouldn't happen
+        }
 
         originalSize += validBufferBytes;
         compressedSize += compressedLength;
@@ -108,16 +128,23 @@ public class CompressedSequentialWriter extends SequentialWriter
         // update checksum
         checksum.update(buffer, 0, validBufferBytes);
 
-        // write an offset of the newly written chunk to the index file
-        metadataWriter.writeLong(chunkOffset);
-        chunkCount++;
+        try
+        {
+            // write an offset of the newly written chunk to the index file
+            metadataWriter.writeLong(chunkOffset);
+            chunkCount++;
 
-        assert compressedLength <= compressed.buffer.length;
+            assert compressedLength <= compressed.buffer.length;
 
-        // write data itself
-        out.write(compressed.buffer, 0, compressedLength);
-        // write corresponding checksum
-        out.writeInt((int) checksum.getValue());
+            // write data itself
+            out.write(compressed.buffer, 0, compressedLength);
+            // write corresponding checksum
+            out.writeInt((int) checksum.getValue());
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, getPath());
+        }
 
         // reset checksum object to the blank state for re-use
         checksum.reset();
@@ -133,11 +160,11 @@ public class CompressedSequentialWriter extends SequentialWriter
     }
 
     @Override
-    public synchronized void resetAndTruncate(FileMark mark) throws IOException
+    public synchronized void resetAndTruncate(FileMark mark)
     {
         assert mark instanceof CompressedFileWriterMark;
 
-        CompressedFileWriterMark realMark = ((CompressedFileWriterMark) mark);
+        CompressedFileWriterMark realMark = (CompressedFileWriterMark) mark;
 
         // reset position
         current = realMark.uncDataOffset;
@@ -161,16 +188,39 @@ public class CompressedSequentialWriter extends SequentialWriter
         if (compressed.buffer.length < chunkSize)
             compressed.buffer = new byte[chunkSize];
 
-        out.seek(chunkOffset);
-        out.readFully(compressed.buffer, 0, chunkSize);
+        try
+        {
+            out.seek(chunkOffset);
+            out.readFully(compressed.buffer, 0, chunkSize);
 
-        // decompress data chunk and store its length
-        int validBytes = compressor.uncompress(compressed.buffer, 0, chunkSize, buffer, 0);
+            int validBytes;
+            try
+            {
+                // decompress data chunk and store its length
+                validBytes = compressor.uncompress(compressed.buffer, 0, chunkSize, buffer, 0);
+            }
+            catch (IOException e)
+            {
+                throw new CorruptBlockException(getPath(), chunkOffset, chunkSize);
+            }
 
-        checksum.update(buffer, 0, validBytes);
+            checksum.update(buffer, 0, validBytes);
 
-        if (out.readInt() != (int) checksum.getValue())
-            throw new CorruptBlockException(getPath(), chunkOffset, chunkSize);
+            if (out.readInt() != (int) checksum.getValue())
+                throw new CorruptBlockException(getPath(), chunkOffset, chunkSize);
+        }
+        catch (CorruptBlockException e)
+        {
+            throw new CorruptSSTableException(e, getPath());
+        }
+        catch (EOFException e)
+        {
+            throw new CorruptSSTableException(new CorruptBlockException(getPath(), chunkOffset, chunkSize), getPath());
+        }
+        catch (IOException e)
+        {
+            throw new FSReadError(e, getPath());
+        }
 
         checksum.reset();
 
@@ -186,17 +236,24 @@ public class CompressedSequentialWriter extends SequentialWriter
 
     /**
      * Seek to the offset where next compressed data chunk should be stored.
-     *
-     * @throws IOException on any I/O error.
      */
-    private void seekToChunkStart() throws IOException
+    private void seekToChunkStart()
     {
-        if (out.getFilePointer() != chunkOffset)
-            out.seek(chunkOffset);
+        if (getOnDiskFilePointer() != chunkOffset)
+        {
+            try
+            {
+                out.seek(chunkOffset);
+            }
+            catch (IOException e)
+            {
+                throw new FSReadError(e, getPath());
+            }
+        }
     }
 
     @Override
-    public void close() throws IOException
+    public void close()
     {
         if (buffer == null)
             return; // already closed
@@ -204,7 +261,14 @@ public class CompressedSequentialWriter extends SequentialWriter
         super.close();
         sstableMetadataCollector.addCompressionRatio(compressedSize, originalSize);
         metadataWriter.finalizeHeader(current, chunkCount);
-        metadataWriter.close();
+        try
+        {
+            metadataWriter.close();
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, getPath());
+        }
     }
 
     /**
