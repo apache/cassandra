@@ -21,6 +21,8 @@ package org.apache.cassandra.thrift;
  */
 
 
+import java.util.Arrays;
+
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -54,7 +56,7 @@ public class ThriftValidationTest extends SchemaLoader
         boolean gotException = false;
 
         // add a key_alias = "id"
-        newMetadata.keyAlias(AsciiType.instance.decompose("id"));
+        newMetadata.keyAliases(Arrays.asList(AsciiType.instance.decompose("id")));
 
         // should not throw IRE here
         try
