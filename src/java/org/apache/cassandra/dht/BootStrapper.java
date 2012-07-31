@@ -26,7 +26,8 @@ package org.apache.cassandra.dht;
 
  import com.google.common.base.Charsets;
  import org.apache.cassandra.config.Schema;
- import org.apache.cassandra.gms.Gossiper;
+ import org.apache.cassandra.gms.*;
+
  import org.apache.commons.lang.ArrayUtils;
  import org.slf4j.Logger;
  import org.slf4j.LoggerFactory;
@@ -34,7 +35,6 @@ package org.apache.cassandra.dht;
  import org.apache.cassandra.config.ConfigurationException;
  import org.apache.cassandra.config.DatabaseDescriptor;
  import org.apache.cassandra.db.Table;
- import org.apache.cassandra.gms.FailureDetector;
  import org.apache.cassandra.locator.AbstractReplicationStrategy;
  import org.apache.cassandra.locator.TokenMetadata;
  import org.apache.cassandra.net.IAsyncCallback;
@@ -92,6 +92,7 @@ public class BootStrapper
      */
     public static Token getBootstrapToken(final TokenMetadata metadata, final Map<InetAddress, Double> load) throws IOException, ConfigurationException
     {
+        // if user specified a token, use that
         if (DatabaseDescriptor.getInitialToken() != null)
         {
             logger.debug("token manually specified as " + DatabaseDescriptor.getInitialToken());
@@ -101,7 +102,23 @@ public class BootStrapper
             return token;
         }
 
-        return getBalancedToken(metadata, load);
+        // if there is a schema, then we're joining an existing cluster so get a "balanced" token
+        for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.getEndpointStates())
+        {
+            if (entry.getKey().equals(FBUtilities.getBroadcastAddress()))
+            {
+                // skip ourselves to avoid confusing the tests, which always load a schema first thing
+                continue;
+            }
+
+            VersionedValue schemaValue = entry.getValue().getApplicationState(ApplicationState.SCHEMA);
+            if (schemaValue != null && !schemaValue.value.equals(Schema.emptyVersion.toString()))
+                return getBalancedToken(metadata, load);
+        }
+
+        // no schema; pick a random token (so multiple non-seeds starting up simultaneously in a new cluster
+        // don't get the same token; see CASSANDRA-3219)
+        return StorageService.getPartitioner().getRandomToken();
     }
 
     public static Token getBalancedToken(TokenMetadata metadata, Map<InetAddress, Double> load)
