@@ -50,6 +50,20 @@ Features
       Also specifying initial_token will override any num_tokens setting.
 
 
+1.1.3
+=====
+
+Upgrading
+---------
+    - Nothing specific to this release, but please see 1.1 if you are upgrading
+      from a previous version.
+
+Features
+--------
+    - the cqlsh COPY command can now export to CSV flat files
+    - added a new tools/bin/token-generator to facilitate generating evenly distributed tokens
+
+
 1.1.2
 =====
 

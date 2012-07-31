@@ -278,6 +278,7 @@ public class CommitLogSegment
 
         try
         {
+            FileUtils.clean(buffer);
             logFileAccessor.close();
             closed = true;
         }

@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.util;
 
 import java.io.*;
-import java.lang.reflect.Method;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
@@ -36,8 +35,6 @@ public class MmappedSegmentedFile extends SegmentedFile
 
     // in a perfect world, MAX_SEGMENT_SIZE would be final, but we need to test with a smaller size to stay sane.
     public static long MAX_SEGMENT_SIZE = Integer.MAX_VALUE;
-
-    private static Method cleanerMethod = null;
 
     /**
      * Sorted array of segment offsets and MappedByteBuffers for segments. If mmap is completely disabled, or if the
@@ -86,27 +83,9 @@ public class MmappedSegmentedFile extends SegmentedFile
         return file;
     }
 
-    public static void initCleaner()
-    {
-        try
-        {
-            cleanerMethod = Class.forName("sun.nio.ch.DirectBuffer").getMethod("cleaner");
-        }
-        catch (Exception e)
-        {
-            // Perhaps a non-sun-derived JVM - contributions welcome
-            logger.info("Cannot initialize un-mmaper.  (Are you using a non-SUN JVM?)  Compacted data files will not be removed promptly.  Consider using a SUN JVM or using standard disk access mode");
-        }
-    }
-
-    public static boolean isCleanerAvailable()
-    {
-        return cleanerMethod != null;
-    }
-
     public void cleanup()
     {
-        if (cleanerMethod == null)
+        if (!FileUtils.isCleanerAvailable())
             return;
 
         /*
@@ -120,9 +99,7 @@ public class MmappedSegmentedFile extends SegmentedFile
             {
                 if (segment.right == null)
                     continue;
-
-                Object cleaner = cleanerMethod.invoke(segment.right);
-                cleaner.getClass().getMethod("clean").invoke(cleaner);
+                FileUtils.clean(segment.right);
             }
             logger.debug("All segments have been unmapped successfully");
         }
