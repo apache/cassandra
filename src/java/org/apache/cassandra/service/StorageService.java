@@ -510,41 +510,25 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         HintedHandOffManager.instance.start();
 
-        boolean schemaPresent = false;
-        if (DatabaseDescriptor.isAutoBootstrap() && !SystemTable.bootstrapComplete() && delay > 0)
-        {
-            // wait a couple gossip rounds so our schema check has something to go by
-            FBUtilities.sleep(2 * Gossiper.intervalInMillis);
-        }
-        for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.getEndpointStates())
-        {
-            if (entry.getKey().equals(FBUtilities.getBroadcastAddress()))
-            {
-                // skip ourselves to avoid confusing the tests, which always load a schema first thing
-                continue;
-            }
-
-            VersionedValue schemaValue = entry.getValue().getApplicationState(ApplicationState.SCHEMA);
-            if (schemaValue != null && !schemaValue.value.equals(Schema.emptyVersion.toString()))
-            {
-                schemaPresent = true;
-                break;
-            }
-        }
-
-        // We can bootstrap at startup, or if we detect a previous attempt that failed.  Either way, if the user
-        // manually sets auto_bootstrap to false, we'll skip streaming data from other nodes and jump directly
-        // into the ring.
+        // We bootstrap if we haven't successfully bootstrapped before, as long as we are not a seed.
+        // If we are a seed, or if the user manually sets auto_bootstrap to false,
+        // we'll skip streaming data from other nodes and jump directly into the ring.
         //
-        // The one exception is if after the above sleep we still have no schema information, we'll assume
-        // we're part of a fresh cluster start, and also skip bootstrap.  This is less confusing for new users,
-        // as well as avoiding the nonsensical state of trying to stream from cluster with no active peers.
+        // The seed check allows us to skip the RING_DELAY sleep for the single-node cluster case,
+        // which is useful for both new users and testing.
+        //
+        // We attempted to replace this with a schema-presence check, but you need a meaningful sleep
+        // to get schema info from gossip which defeats the purpose.  See CASSANDRA-4427 for the gory details.
         Set<InetAddress> current = new HashSet<InetAddress>();
         Collection<Token> tokens;
-        logger.debug(String.format("Bootstrap variables: %s %s %s %s",
-                      DatabaseDescriptor.isAutoBootstrap(), SystemTable.bootstrapInProgress(), SystemTable.bootstrapComplete(), schemaPresent));
+        logger.debug("Bootstrap variables: {} {} {} {}",
+                      new Object[]{ DatabaseDescriptor.isAutoBootstrap(),
+                                    SystemTable.bootstrapInProgress(),
+                                    SystemTable.bootstrapComplete(),
+                                    DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress())});
         if (DatabaseDescriptor.isAutoBootstrap()
-            && (SystemTable.bootstrapInProgress() || (!SystemTable.bootstrapComplete() && schemaPresent)))
+            && !SystemTable.bootstrapComplete()
+            && !DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()))
         {
             if (SystemTable.bootstrapInProgress())
                 logger.warn("Detected previous bootstrap failure; retrying");
@@ -552,13 +536,22 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 SystemTable.setBootstrapState(SystemTable.BootstrapState.IN_PROGRESS);
             setMode(Mode.JOINING, "waiting for ring information", true);
             // first sleep the delay to make sure we see all our peers
-            try
+            for (int i = 0; i < delay; i += 1000)
             {
-                Thread.sleep(delay);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
+                // if we see schema, we can proceed to the next check directly
+                if (!Schema.instance.getVersion().equals(Schema.emptyVersion))
+                {
+                    logger.debug("got schema: {}", Schema.instance.getVersion());
+                    break;
+                }
+                try
+                {
+                    Thread.sleep(1000);
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
             }
             // if our schema hasn't matched yet, keep sleeping until it does
             // (post CASSANDRA-1391 we don't expect this to be necessary very often, but it doesn't hurt to be careful)
@@ -567,7 +560,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 setMode(Mode.JOINING, "waiting for schema information to complete", true);
                 try
                 {
-                    Thread.sleep(delay);
+                    Thread.sleep(1000);
                 }
                 catch (InterruptedException e)
                 {
