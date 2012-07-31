@@ -66,6 +66,7 @@ public class Schema
 
     private volatile UUID version;
 
+    // 59adb24e-f3cd-3e02-97f0-5b395827453f
     public static final UUID emptyVersion;
 
     static
