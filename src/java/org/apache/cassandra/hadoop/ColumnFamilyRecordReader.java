@@ -302,22 +302,20 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 KeySlice lastRow = rows.get(rows.size() - 1);
                 ByteBuffer rowkey = lastRow.key;
                 startToken = partitioner.getTokenFactory().toString(partitioner.getToken(rowkey));
-                
+
                 // remove ghosts when fetching all columns
                 if (isEmptyPredicate)
                 {
                     Iterator<KeySlice> it = rows.iterator();
-                    
-                    while(it.hasNext())
+                    while (it.hasNext())
                     {
                         KeySlice ks = it.next();
-                        
                         if (ks.getColumnsSize() == 0)
                         {
-                           it.remove();
+                            it.remove();
                         }
                     }
-                
+
                     // all ghosts, spooky
                     if (rows.isEmpty())
                     {
@@ -325,7 +323,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                         return;
                     }
                 }
-                
+
                 // reset to iterate through this new batch
                 i = 0;             
             }
