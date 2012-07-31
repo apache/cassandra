@@ -1,3 +1,8 @@
+1.0.12
+ * (Hadoop) fix iterating through a resultset consisting entirely
+   of tombstoned rows (CASSANDRA-4466)
+
+
 1.0.11
  * allow dropping columns shadowed by not-yet-expired supercolumn or row
    tombstones in PrecompactedRow (CASSANDRA-4396)
