@@ -588,8 +588,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // as well as avoiding the nonsensical state of trying to stream from cluster with no active peers.
         Token<?> token;
         InetAddress current = null;
-        logger_.debug("Bootstrap variables: %s %s %s %s",
-                      new Object[] {DatabaseDescriptor.isAutoBootstrap(), SystemTable.bootstrapInProgress(), SystemTable.bootstrapComplete(), schemaPresent});
+        logger_.debug(String.format("Bootstrap variables: %s %s %s %s",
+                      DatabaseDescriptor.isAutoBootstrap(), SystemTable.bootstrapInProgress(), SystemTable.bootstrapComplete(), schemaPresent));
         if (DatabaseDescriptor.isAutoBootstrap()
             && (SystemTable.bootstrapInProgress() || (!SystemTable.bootstrapComplete() && schemaPresent)))
         {
