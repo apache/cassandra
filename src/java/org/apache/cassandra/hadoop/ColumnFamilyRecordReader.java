@@ -372,18 +372,21 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 if (isEmptyPredicate)
                 {
                     Iterator<KeySlice> it = rows.iterator();
-                    while (it.hasNext())
+                    KeySlice ks;
+                    do
                     {
-                        KeySlice ks = it.next();
+                        ks = it.next();
                         if (ks.getColumnsSize() == 0)
                         {
                             it.remove();
                         }
-                    }
+                    } while (it.hasNext());
 
                     // all ghosts, spooky
                     if (rows.isEmpty())
                     {
+                        // maybeInit assumes it can get the start-with key from the rows collection, so add back the last
+                        rows.add(ks);
                         maybeInit();
                         return;
                     }
