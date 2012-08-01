@@ -39,7 +39,7 @@ Table of Contents
 
       0         8        16        24        32
       +---------+---------+---------+---------+
-      | version |  flags  |      opcode       |
+      | version |  flags  | stream  | opcode  |
       +---------+---------+---------+---------+
       |                length                 |
       +---------+---------+---------+---------+
@@ -50,7 +50,7 @@ Table of Contents
       +----------------------------------------
 
   Each frame contains a fixed size header (8 bytes) followed by a variable size
-  body.  The header is described in Section 2. The content of the body depends
+  body. The header is described in Section 2. The content of the body depends
   on the header opcode value (the body can in particular be empty for some
   opcode values). The list of allowed opcode is defined Section 2.3 and the
   details of each corresponding message is described Section 4.
@@ -94,21 +94,41 @@ Table of Contents
   through the Startup message (which thus cannot be compressed; Section 4.1.1).
   The rest of the flags is kept for future use.
 
+2.3. stream
 
-2.3. opcode
+  A frame has a stream id (one signed byte). When sending request messages, this
+  stream id must be set by the client to a positive byte (negative stream id
+  are reserved for future stream initiated by the server). If a client sends a
+  request message with the stream id X, it is guaranteed that the stream id of
+  the response to that message will be X.
 
-  A 2 byte integer that distinguish the actual message:
-    0x0000    ERROR
-    0x0001    STARTUP
-    0x0002    READY
-    0x0003    AUTHENTICATE
-    0x0004    CREDENTIALS
-    0x0005    OPTIONS
-    0x0006    SUPPORTED
-    0x0007    QUERY
-    0x0008    RESULT
-    0x0009    PREPARE
-    0x000A    EXECUTE
+  This allow to deal with the asynchronous nature of the protocol. If a client
+  sends multiple messages simultaneously (without waiting for responses), there
+  is no guarantee on the order of the responses. For instance, if the client
+  writes REQ_1, REQ_2, REQ_3 on the wire (in that order), the server might
+  respond to REQ_3 (or REQ_2) first. Assigning different stream id to these 3
+  requests allows the client to distinguish to which request an received answer
+  respond to. As there can only be 128 different simultaneous stream, it is up
+  to the client to reuse stream id.
+
+  Note that clients are free to use the protocol synchronously (i.e.  wait for
+  the response to REQ_N before sending REQ_N+1). In that case, the stream id
+  can be safely set to 0.
+
+2.4. opcode
+
+  An integer byte that distinguish the actual message:
+    0x00    ERROR
+    0x01    STARTUP
+    0x02    READY
+    0x03    AUTHENTICATE
+    0x04    CREDENTIALS
+    0x05    OPTIONS
+    0x06    SUPPORTED
+    0x07    QUERY
+    0x08    RESULT
+    0x09    PREPARE
+    0x0A    EXECUTE
 
   Messages are described in Section 4.
 

@@ -42,7 +42,7 @@ public class Frame
      *
      *   0         8        16        24        32
      *   +---------+---------+---------+---------+
-     *   | version |  flags  |      opcode       |
+     *   | version |  flags  | stream  | opcode  |
      *   +---------+---------+---------+---------+
      *   |                length                 |
      *   +---------+---------+---------+---------+
@@ -62,7 +62,8 @@ public class Frame
 
         int version = fullFrame.readByte();
         int flags = fullFrame.readByte();
-        int opcode = fullFrame.readUnsignedShort();
+        int streamId = fullFrame.readByte();
+        int opcode = fullFrame.readByte();
         int length = fullFrame.readInt();
         assert length == fullFrame.readableBytes();
 
@@ -70,14 +71,14 @@ public class Frame
         Message.Direction direction = Message.Direction.extractFromVersion(version);
         version = version & 0x7F;
 
-        Header header = new Header(version, flags, Message.Type.fromOpcode(opcode, direction));
+        Header header = new Header(version, flags, streamId, Message.Type.fromOpcode(opcode, direction));
         return new Frame(header, fullFrame, connection);
     }
 
-    public static Frame create(Message.Type type, ChannelBuffer body, Connection connection)
+    public static Frame create(Message.Type type, int streamId, ChannelBuffer body, Connection connection)
     {
         EnumSet<Header.Flag> flags = EnumSet.noneOf(Header.Flag.class);
-        Header header = new Header(Header.CURRENT_VERSION, flags, type);
+        Header header = new Header(Header.CURRENT_VERSION, flags, streamId, type);
         return new Frame(header, body, connection);
     }
 
@@ -88,17 +89,19 @@ public class Frame
 
         public final int version;
         public final EnumSet<Flag> flags;
+        public final int streamId;
         public final Message.Type type;
 
-        private Header(int version, int flags, Message.Type type)
+        private Header(int version, int flags, int streamId, Message.Type type)
         {
-            this(version, Flag.deserialize(flags), type);
+            this(version, Flag.deserialize(flags), streamId, type);
         }
 
-        private Header(int version, EnumSet<Flag> flags, Message.Type type)
+        private Header(int version, EnumSet<Flag> flags, int streamId, Message.Type type)
         {
             this.version = version;
             this.flags = flags;
+            this.streamId = streamId;
             this.type = type;
         }
 
@@ -187,7 +190,8 @@ public class Frame
             Message.Type type = frame.header.type;
             header.writeByte(type.direction.addToVersion(frame.header.version));
             header.writeByte(Header.Flag.serialize(frame.header.flags));
-            header.writeShort(type.opcode);
+            header.writeByte(frame.header.streamId);
+            header.writeByte(type.opcode);
             header.writeInt(frame.body.readableBytes());
 
             return ChannelBuffers.wrappedBuffer(header, frame.body);

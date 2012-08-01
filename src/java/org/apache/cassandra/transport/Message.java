@@ -107,6 +107,7 @@ public abstract class Message
 
     public final Type type;
     protected Connection connection;
+    protected int streamId;
 
     protected Message(Type type)
     {
@@ -121,6 +122,16 @@ public abstract class Message
     public Connection connection()
     {
         return connection;
+    }
+
+    public void setStreamId(int streamId)
+    {
+        this.streamId = streamId;
+    }
+
+    public int getStreamId()
+    {
+        return streamId;
     }
 
     public abstract ChannelBuffer encode();
@@ -157,6 +168,7 @@ public abstract class Message
 
             Frame frame = (Frame)msg;
             Message message = frame.header.type.codec.decode(frame.body);
+            message.setStreamId(frame.header.streamId);
             if (message instanceof Request)
                 ((Request)message).attach(frame.connection);
             return message;
@@ -170,7 +182,7 @@ public abstract class Message
             assert msg instanceof Message : "Expecting message, got " + msg;
 
             Message message = (Message)msg;
-            return Frame.create(message.type, message.encode(), message.connection());
+            return Frame.create(message.type, message.getStreamId(), message.encode(), message.connection());
         }
     }
 
@@ -191,6 +203,7 @@ public abstract class Message
             logger.debug("Received: " + request);
 
             Response response = request.execute();
+            response.setStreamId(request.getStreamId());
             response.attach(connection);
             response.connection().applyStateTransition(request.type, response.type);
 
