@@ -102,7 +102,7 @@ public class PrecompactedRow extends AbstractCompactedRow
             }
             catch (IOException e)
             {
-                throw new RuntimeException(e);
+                throw new RuntimeException("Failed merge of rows on row with key: " + row.getKey(), e);
             }
 
             if (cf == null)
