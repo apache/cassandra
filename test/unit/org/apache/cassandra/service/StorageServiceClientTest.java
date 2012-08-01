@@ -20,7 +20,7 @@
 package org.apache.cassandra.service;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.junit.Test;
 import static org.junit.Assert.assertFalse;

@@ -33,13 +33,14 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.context.IContext.ContextRelationship;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.service.IWriteResponseHandler;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.*;
 
 /**
@@ -357,7 +358,7 @@ public class CounterColumn extends Column
         return new CounterColumn(name, contextManager.markDeltaToBeCleared(value), timestamp, timestampOfLastDelete);
     }
 
-    private static void sendToOtherReplica(DecoratedKey key, ColumnFamily cf) throws UnavailableException, TimeoutException, IOException
+    private static void sendToOtherReplica(DecoratedKey key, ColumnFamily cf) throws RequestExecutionException, IOException
     {
         RowMutation rm = new RowMutation(cf.metadata().ksName, key.key);
         rm.add(cf);
@@ -368,7 +369,7 @@ public class CounterColumn extends Column
         StorageProxy.performWrite(rm, ConsistencyLevel.ANY, localDataCenter, new StorageProxy.WritePerformer()
         {
             public void apply(IMutation mutation, Collection<InetAddress> targets, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level)
-            throws IOException, UnavailableException
+            throws IOException, OverloadedException
             {
                 // We should only send to the remote replica, not the local one
                 targets.remove(local);

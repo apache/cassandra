@@ -22,11 +22,12 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
@@ -402,6 +403,10 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                 {
                     throw new IOException(e);
                 }
+                catch (SyntaxException e)
+                {
+                    throw new IOException(e);
+                }
             }
         }
         return validators;
@@ -417,6 +422,10 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             return TypeParser.parse(type);
         }
         catch (ConfigurationException e)
+        {
+            throw new IOException(e);
+        }
+        catch (SyntaxException e)
         {
             throw new IOException(e);
         }

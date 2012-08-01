@@ -34,6 +34,7 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.marshal.InetAddressType;
@@ -42,9 +43,6 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -177,7 +175,7 @@ public class Tracing
 
             StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
             {
-                public void runMayThrow() throws TimedOutException, UnavailableException
+                public void runMayThrow() throws Exception
                 {
                     ColumnFamily cf = ColumnFamily.create(CFMetaData.TraceSessionsCf);
                     addColumn(cf,
@@ -212,7 +210,7 @@ public class Tracing
 
         StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
         {
-            public void runMayThrow() throws TimedOutException, UnavailableException
+            public void runMayThrow() throws Exception
             {
                 ColumnFamily cf = ColumnFamily.create(CFMetaData.TraceSessionsCf);
                 addColumn(cf,

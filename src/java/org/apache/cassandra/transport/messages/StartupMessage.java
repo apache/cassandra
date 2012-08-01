@@ -24,8 +24,8 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.*;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.SemanticVersion;
 
 /**
@@ -133,12 +133,12 @@ public class StartupMessage extends Message.Request
                 if (compression.equals("snappy"))
                 {
                     if (FrameCompressor.SnappyCompressor.instance == null)
-                        throw new InvalidRequestException("This instance does not support Snappy compression");
+                        throw new ProtocolException("This instance does not support Snappy compression");
                     connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
                 }
                 else
                 {
-                    throw new InvalidRequestException(String.format("Unknown compression algorithm: %s", compression));
+                    throw new ProtocolException(String.format("Unknown compression algorithm: %s", compression));
                 }
             }
 
@@ -149,7 +149,7 @@ public class StartupMessage extends Message.Request
         }
         catch (InvalidRequestException e)
         {
-            return ErrorMessage.fromException(e);
+            return ErrorMessage.fromException(new ProtocolException(e.getMessage()));
         }
     }
 

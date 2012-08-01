@@ -17,9 +17,10 @@
  */
 package org.apache.cassandra.cql3;
 
-import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 
 public interface ParsedType
 {
@@ -67,9 +68,9 @@ public interface ParsedType
     {
         private final AbstractType<?> type;
 
-        public Custom(String className) throws ConfigurationException
+        public Custom(String className) throws SyntaxException, ConfigurationException
         {
-            this.type =  TypeParser.parse(className);
+            this.type = TypeParser.parse(className);
         }
 
         public boolean isCollection()

@@ -21,7 +21,6 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
@@ -29,14 +28,12 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.thrift.RequestType;
 import org.apache.cassandra.thrift.ThriftValidation;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
 
 /**
  * Abstract class for statements that apply on a given column family.
@@ -62,7 +59,7 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
         this.timeToLive = timeToLive;
     }
 
-    public void checkAccess(ClientState state) throws InvalidRequestException
+    public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
         state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.WRITE);
     }
@@ -72,20 +69,13 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
         if (timeToLive < 0)
             throw new InvalidRequestException("A TTL must be greater or equal to 0");
 
-        ThriftValidation.validateConsistencyLevel(keyspace(), getConsistencyLevel(), RequestType.WRITE);
+        getConsistencyLevel().validateForWrite(keyspace());
     }
 
-    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, UnavailableException, TimedOutException
+    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
     {
-        try
-        {
-            StorageProxy.mutate(getMutations(state, variables), getConsistencyLevel());
-            return null;
-        }
-        catch (TimeoutException e)
-        {
-            throw new TimedOutException();
-        }
+        StorageProxy.mutate(getMutations(state, variables), getConsistencyLevel());
+        return null;
     }
 
     public ConsistencyLevel getConsistencyLevel()
@@ -118,7 +108,8 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
         return timeToLive;
     }
 
-    public Map<ByteBuffer, ColumnGroupMap> readRows(List<ByteBuffer> keys, ColumnNameBuilder builder, CompositeType composite) throws UnavailableException, TimeoutException, InvalidRequestException
+    public Map<ByteBuffer, ColumnGroupMap> readRows(List<ByteBuffer> keys, ColumnNameBuilder builder, CompositeType composite)
+    throws RequestExecutionException, RequestValidationException
     {
         List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
         for (ByteBuffer key : keys)
@@ -167,7 +158,8 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
      * @return list of the mutations
      * @throws InvalidRequestException on invalid requests
      */
-    public abstract List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables) throws UnavailableException, TimeoutException, InvalidRequestException;
+    public abstract List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables)
+    throws RequestExecutionException, RequestValidationException;
 
     public abstract ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException;
 }

@@ -25,8 +25,8 @@ import org.jboss.netty.buffer.ChannelBuffer;
 
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.*;
-import org.apache.cassandra.thrift.InvalidRequestException;
 
 public class ExecuteMessage extends Message.Request
 {

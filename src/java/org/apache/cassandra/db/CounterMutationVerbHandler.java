@@ -23,12 +23,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
@@ -48,17 +47,10 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
             WriteResponse response = new WriteResponse();
             MessagingService.instance().sendReply(response.createMessage(), id, message.from);
         }
-        catch (UnavailableException e)
+        catch (RequestExecutionException e)
         {
-            // We check for UnavailableException in the coordinator now. It is
-            // hence reasonable to let the coordinator timeout in the very
-            // unlikely case we arrive here
-            logger.debug("counter unavailable", e);
-        }
-        catch (TimedOutException e)
-        {
-            // The coordinator node will have timeout itself so we let that goes
-            logger.debug("counter timeout", e);
+            // The coordinator will timeout on itself, so let that go
+            logger.debug("counter error", e);
         }
         catch (IOException e)
         {

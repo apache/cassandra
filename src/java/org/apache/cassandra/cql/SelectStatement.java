@@ -24,7 +24,7 @@ import java.util.Set;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.db.ConsistencyLevel;
 
 /**
  * Encapsulates a completely parsed SELECT query, including the target

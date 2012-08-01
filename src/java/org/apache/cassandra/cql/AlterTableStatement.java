@@ -19,8 +19,8 @@ package org.apache.cassandra.cql;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.compress.CompressionParameters;
-import org.apache.cassandra.thrift.InvalidRequestException;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -63,7 +63,7 @@ public class AlterTableStatement
         }
     }
 
-    public CFMetaData getCFMetaData(String keyspace) throws ConfigurationException, InvalidRequestException
+    public CFMetaData getCFMetaData(String keyspace) throws ConfigurationException, InvalidRequestException, SyntaxException
     {
         CFMetaData meta = Schema.instance.getCFMetaData(keyspace, columnFamily);
         CFMetaData cfm = meta.clone();
@@ -171,7 +171,7 @@ public class AlterTableStatement
             {
                 cfm.defaultValidator(cfProps.getValidator());
             }
-            catch (ConfigurationException e)
+            catch (RequestValidationException e)
             {
                 throw new InvalidRequestException(String.format("Invalid validation type %s",
                                                                 cfProps.getProperty(CFPropDefs.KW_DEFAULTVALIDATION)));

@@ -26,10 +26,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -45,7 +45,7 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
     protected WriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
         super(writeEndpoints, consistencyLevel);
-        blockFor = determineBlockFor(table);
+        blockFor = consistencyLevel.blockFor(table);
         responses = new AtomicInteger(blockFor);
     }
 
@@ -77,25 +77,9 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
         return blockFor - responses.get();
     }
 
-    protected int determineBlockFor(String table)
+    protected int blockFor()
     {
-        switch (consistencyLevel)
-        {
-            case ONE:
-                return 1;
-            case ANY:
-                return 1;
-            case TWO:
-                return 2;
-            case THREE:
-                return 3;
-            case QUORUM:
-                return (Table.open(table).getReplicationStrategy().getReplicationFactor() / 2) + 1;
-            case ALL:
-                return Table.open(table).getReplicationStrategy().getReplicationFactor();
-            default:
-                throw new UnsupportedOperationException("invalid consistency level: " + consistencyLevel.toString());
-        }
+        return blockFor;
     }
 
     public void assureSufficientLiveNodes() throws UnavailableException
@@ -106,7 +90,7 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
             // Thus we include the local node (coordinator) as a valid replica if it is there already.
             int effectiveEndpoints = writeEndpoints.contains(FBUtilities.getBroadcastAddress()) ? writeEndpoints.size() : writeEndpoints.size() + 1;
             if (effectiveEndpoints < responses.get())
-                throw new UnavailableException();
+                throw new UnavailableException(consistencyLevel, responses.get(), effectiveEndpoints);
             return;
         }
 
@@ -119,7 +103,7 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
         }
         if (liveNodes < responses.get())
         {
-            throw new UnavailableException();
+            throw new UnavailableException(consistencyLevel, responses.get(), liveNodes);
         }
     }
 

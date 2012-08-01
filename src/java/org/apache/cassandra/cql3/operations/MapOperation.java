@@ -30,7 +30,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.Pair;
 
 public class MapOperation implements Operation

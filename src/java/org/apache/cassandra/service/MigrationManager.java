@@ -34,7 +34,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.AlreadyExistsException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
@@ -111,7 +112,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         ksm.validate();
 
         if (Schema.instance.getTableDefinition(ksm.name) != null)
-            throw new ConfigurationException(String.format("Cannot add already existing keyspace '%s'.", ksm.name));
+            throw new AlreadyExistsException(ksm.name);
 
         logger.info(String.format("Create new Keyspace: %s", ksm));
         announce(ksm.toSchema(FBUtilities.timestampMicros()));
@@ -125,7 +126,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         if (ksm == null)
             throw new ConfigurationException(String.format("Cannot add column family '%s' to non existing keyspace '%s'.", cfm.cfName, cfm.ksName));
         else if (ksm.cfMetaData().containsKey(cfm.cfName))
-            throw new ConfigurationException(String.format("Cannot add already existing column family '%s' to keyspace '%s'.", cfm.cfName, cfm.ksName));
+            throw new AlreadyExistsException(cfm.cfName, cfm.ksName);
 
         logger.info(String.format("Create new ColumnFamily: %s", cfm));
         announce(cfm.toSchema(FBUtilities.timestampMicros()));

@@ -22,7 +22,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.RangeTombstone;
@@ -174,7 +174,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         return false;
     }
 
-    public static AbstractType<?> parseDefaultParameters(AbstractType<?> baseType, TypeParser parser) throws ConfigurationException
+    public static AbstractType<?> parseDefaultParameters(AbstractType<?> baseType, TypeParser parser) throws SyntaxException
     {
         Map<String, String> parameters = parser.getKeyValueParameters();
         String reversed = parameters.get("reversed");

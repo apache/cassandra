@@ -15,17 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.config;
+package org.apache.cassandra.exceptions;
 
-public class ConfigurationException extends Exception
+import java.nio.ByteBuffer;
+
+public abstract class CassandraException extends Exception implements TransportException
 {
-    public ConfigurationException(String message)
+    private final ExceptionCode code;
+
+    protected CassandraException(ExceptionCode code, String msg)
     {
-        super(message);
+        super(msg);
+        this.code = code;
     }
 
-    public ConfigurationException(String message, Exception e)
+    protected CassandraException(ExceptionCode code, String msg, Throwable cause)
     {
-        super(message, e);
+        super(msg, cause);
+        this.code = code;
+    }
+
+    public ExceptionCode code()
+    {
+        return code;
     }
 }

@@ -21,7 +21,7 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 
 public abstract class ParsedStatement
 {
@@ -38,7 +38,7 @@ public abstract class ParsedStatement
         this.boundTerms = boundTerms;
     }
 
-    public abstract Prepared prepare() throws InvalidRequestException;
+    public abstract Prepared prepare() throws RequestValidationException;
 
     public static class Prepared
     {

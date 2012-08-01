@@ -20,7 +20,7 @@ package org.apache.cassandra.cql;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /** A <code>CREATE KEYSPACE</code> statement parsed from a CQL query. */
 public class CreateKeyspaceStatement

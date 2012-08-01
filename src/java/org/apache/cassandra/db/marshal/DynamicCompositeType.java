@@ -22,7 +22,8 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /*
@@ -51,7 +52,7 @@ public class DynamicCompositeType extends AbstractCompositeType
     // interning instances
     private static final Map<Map<Byte, AbstractType<?>>, DynamicCompositeType> instances = new HashMap<Map<Byte, AbstractType<?>>, DynamicCompositeType>();
 
-    public static synchronized DynamicCompositeType getInstance(TypeParser parser) throws ConfigurationException
+    public static synchronized DynamicCompositeType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
         return getInstance(parser.getAliasParameters());
     }
@@ -92,6 +93,10 @@ public class DynamicCompositeType extends AbstractCompositeType
             throw new RuntimeException(e);
         }
         catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (SyntaxException e)
         {
             throw new RuntimeException(e);
         }
@@ -152,6 +157,10 @@ public class DynamicCompositeType extends AbstractCompositeType
             throw new RuntimeException(e);
         }
         catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (SyntaxException e)
         {
             throw new RuntimeException(e);
         }
@@ -258,6 +267,10 @@ public class DynamicCompositeType extends AbstractCompositeType
                     t = TypeParser.parse(comparatorName);
                 }
                 type = t;
+            }
+            catch (SyntaxException e)
+            {
+                throw new IllegalArgumentException(e);
             }
             catch (ConfigurationException e)
             {

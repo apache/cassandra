@@ -22,9 +22,10 @@ import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.InvalidRequestException;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -75,7 +76,7 @@ public class BatchStatement
     }
 
     public List<IMutation> getMutations(String keyspace, ClientState clientState, List<ByteBuffer> variables)
-    throws InvalidRequestException
+    throws InvalidRequestException, UnauthorizedException
     {
         List<IMutation> batch = new LinkedList<IMutation>();
 

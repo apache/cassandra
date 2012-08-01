@@ -30,8 +30,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.thrift.AuthenticationException;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SemanticVersion;
 
@@ -185,7 +186,7 @@ public class ClientState
     /**
      * Confirms that the client thread has the given Permission for the Keyspace list.
      */
-    public void hasKeyspaceSchemaAccess(Permission perm) throws InvalidRequestException
+    public void hasKeyspaceSchemaAccess(Permission perm) throws UnauthorizedException, InvalidRequestException
     {
         validateLogin();
 
@@ -195,7 +196,7 @@ public class ClientState
         hasAccess(user, perms, perm, resource);
     }
 
-    public void hasColumnFamilySchemaAccess(Permission perm) throws InvalidRequestException
+    public void hasColumnFamilySchemaAccess(Permission perm) throws UnauthorizedException, InvalidRequestException
     {
         hasColumnFamilySchemaAccess(keyspace, perm);
     }
@@ -204,14 +205,14 @@ public class ClientState
      * Confirms that the client thread has the given Permission for the ColumnFamily list of
      * the provided keyspace.
      */
-    public void hasColumnFamilySchemaAccess(String keyspace, Permission perm) throws InvalidRequestException
+    public void hasColumnFamilySchemaAccess(String keyspace, Permission perm) throws UnauthorizedException, InvalidRequestException
     {
         validateLogin();
         validateKeyspace(keyspace);
 
         // hardcode disallowing messing with system keyspace
         if (keyspace.equalsIgnoreCase(Table.SYSTEM_KS) && perm == Permission.WRITE)
-            throw new InvalidRequestException("system keyspace is not user-modifiable");
+            throw new UnauthorizedException("system keyspace is not user-modifiable");
 
         resourceClear();
         resource.add(keyspace);
@@ -224,12 +225,12 @@ public class ClientState
      * Confirms that the client thread has the given Permission in the context of the given
      * ColumnFamily and the current keyspace.
      */
-    public void hasColumnFamilyAccess(String columnFamily, Permission perm) throws InvalidRequestException
+    public void hasColumnFamilyAccess(String columnFamily, Permission perm) throws UnauthorizedException, InvalidRequestException
     {
         hasColumnFamilyAccess(keyspace, columnFamily, perm);
     }
 
-    public void hasColumnFamilyAccess(String keyspace, String columnFamily, Permission perm) throws InvalidRequestException
+    public void hasColumnFamilyAccess(String keyspace, String columnFamily, Permission perm) throws UnauthorizedException, InvalidRequestException
     {
         validateLogin();
         validateKeyspace(keyspace);
@@ -259,14 +260,14 @@ public class ClientState
             throw new InvalidRequestException("You have not set a keyspace for this session");
     }
 
-    private static void hasAccess(AuthenticatedUser user, Set<Permission> perms, Permission perm, List<Object> resource) throws InvalidRequestException
+    private static void hasAccess(AuthenticatedUser user, Set<Permission> perms, Permission perm, List<Object> resource) throws UnauthorizedException
     {
         if (perms.contains(perm))
             return;
-        throw new InvalidRequestException(String.format("%s does not have permission %s for %s",
-                                                        user,
-                                                        perm,
-                                                        Resources.toString(resource)));
+        throw new UnauthorizedException(String.format("%s does not have permission %s for %s",
+                                                      user,
+                                                      perm,
+                                                       Resources.toString(resource)));
     }
 
     /**

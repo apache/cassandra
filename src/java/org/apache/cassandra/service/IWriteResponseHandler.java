@@ -18,11 +18,11 @@
 package org.apache.cassandra.service;
 
 import org.apache.cassandra.net.IAsyncCallback;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.exceptions.UnavailableException;
 
 public interface IWriteResponseHandler extends IAsyncCallback
 {
-    public void get() throws TimedOutException;
+    public void get() throws WriteTimeoutException;
     public void assureSufficientLiveNodes() throws UnavailableException;
 }

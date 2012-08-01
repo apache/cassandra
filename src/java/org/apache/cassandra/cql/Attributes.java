@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.cql;
 
-import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.db.ConsistencyLevel;
 
 /**
  * Class to contain attributes for statements

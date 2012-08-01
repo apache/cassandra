@@ -23,7 +23,8 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnToCollectionType extends AbstractType<ByteBuffer>
@@ -33,7 +34,7 @@ public class ColumnToCollectionType extends AbstractType<ByteBuffer>
 
     public final Map<ByteBuffer, CollectionType> defined;
 
-    public static ColumnToCollectionType getInstance(TypeParser parser) throws ConfigurationException
+    public static ColumnToCollectionType getInstance(TypeParser parser) throws SyntaxException, ConfigurationException
     {
         return getInstance(parser.getCollectionsParameters());
     }

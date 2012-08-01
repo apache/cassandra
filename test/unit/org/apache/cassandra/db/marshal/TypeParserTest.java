@@ -21,12 +21,13 @@ package org.apache.cassandra.db.marshal;
 import org.junit.Test;
 import static org.junit.Assert.fail;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 
 public class TypeParserTest
 {
     @Test
-    public void testParse() throws ConfigurationException
+    public void testParse() throws ConfigurationException, SyntaxException
     {
         AbstractType type;
 
@@ -61,7 +62,7 @@ public class TypeParserTest
     }
 
     @Test
-    public void testParseError() throws ConfigurationException
+    public void testParseError()
     {
         try
         {
@@ -69,6 +70,7 @@ public class TypeParserTest
             fail("Should not pass");
         }
         catch (ConfigurationException e) {}
+        catch (SyntaxException e) {}
 
         try
         {
@@ -76,5 +78,6 @@ public class TypeParserTest
             fail("Should not pass");
         }
         catch (ConfigurationException e) {}
+        catch (SyntaxException e) {}
     }
 }

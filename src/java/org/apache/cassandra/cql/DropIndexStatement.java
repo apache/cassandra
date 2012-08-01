@@ -20,9 +20,10 @@ package org.apache.cassandra.cql;
 import java.io.IOException;
 
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
-import org.apache.cassandra.thrift.InvalidRequestException;
 
 public class DropIndexStatement
 {

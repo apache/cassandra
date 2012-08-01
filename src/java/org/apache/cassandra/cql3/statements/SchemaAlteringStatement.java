@@ -24,12 +24,14 @@ import java.util.Map;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.thrift.InvalidRequestException;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Maps;
@@ -67,9 +69,9 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
         return new Prepared(this);
     }
 
-    public abstract void announceMigration() throws InvalidRequestException, ConfigurationException;
+    public abstract void announceMigration() throws RequestValidationException;
 
-    public void checkAccess(ClientState state) throws InvalidRequestException
+    public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
         if (isColumnFamilyLevel)
             state.hasColumnFamilySchemaAccess(keyspace(), Permission.WRITE);
@@ -78,10 +80,10 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
     }
 
     @Override
-    public void validate(ClientState state) throws InvalidRequestException
+    public void validate(ClientState state) throws RequestValidationException
     {}
 
-    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException
+    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws RequestValidationException
     {
         try
         {
@@ -93,7 +95,6 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
             ex.initCause(e);
             throw ex;
         }
-
         return null;
     }
 }

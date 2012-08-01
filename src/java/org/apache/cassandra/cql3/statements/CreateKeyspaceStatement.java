@@ -20,15 +20,16 @@ package org.apache.cassandra.cql3.statements;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.ThriftValidation;
 
 /** A <code>CREATE KEYSPACE</code> statement parsed from a CQL query. */
@@ -64,7 +65,7 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
      * @throws InvalidRequestException if arguments are missing or unacceptable
      */
     @Override
-    public void validate(ClientState state) throws InvalidRequestException
+    public void validate(ClientState state) throws RequestValidationException
     {
         super.validate(state);
         ThriftValidation.validateKeyspaceNotSystem(name);
@@ -94,24 +95,16 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
         }
 
         // trial run to let ARS validate class + per-class options
-        try
-        {
-            AbstractReplicationStrategy.createReplicationStrategy(name,
-                                                                  AbstractReplicationStrategy.getClass(strategyClass),
-                                                                  StorageService.instance.getTokenMetadata(),
-                                                                  DatabaseDescriptor.getEndpointSnitch(),
-                                                                  strategyOptions);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new InvalidRequestException(e.getMessage());
-        }
+        AbstractReplicationStrategy.createReplicationStrategy(name,
+                                                              AbstractReplicationStrategy.getClass(strategyClass),
+                                                              StorageService.instance.getTokenMetadata(),
+                                                              DatabaseDescriptor.getEndpointSnitch(),
+                                                              strategyOptions);
     }
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
         KSMetaData ksm = KSMetaData.newKeyspace(name, strategyClass, strategyOptions);
-        ThriftValidation.validateKeyspaceNotYetExisting(name);
         MigrationManager.announceNewKeyspace(ksm);
     }
 }

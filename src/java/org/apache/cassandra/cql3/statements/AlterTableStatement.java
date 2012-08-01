@@ -27,8 +27,8 @@ import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ColumnToCollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.InvalidRequestException;
 
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 

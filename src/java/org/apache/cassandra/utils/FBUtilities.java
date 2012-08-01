@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.IRowCacheProvider;
 import org.apache.cassandra.concurrent.CreationTimeAwareFuture;
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;

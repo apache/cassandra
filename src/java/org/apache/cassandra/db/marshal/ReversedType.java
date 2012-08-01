@@ -22,7 +22,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 
 public class ReversedType<T> extends AbstractType<T>
 {
@@ -32,7 +33,7 @@ public class ReversedType<T> extends AbstractType<T>
     // package protected for unit tests sake
     final AbstractType<T> baseType;
 
-    public static <T> ReversedType<T> getInstance(TypeParser parser) throws ConfigurationException
+    public static <T> ReversedType<T> getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
         List<AbstractType<?>> types = parser.getTypeParameters();
         if (types.size() != 1)

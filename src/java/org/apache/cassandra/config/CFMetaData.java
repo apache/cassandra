@@ -40,11 +40,14 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.thrift.IndexType;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -287,11 +290,7 @@ public final class CFMetaData
             statement.applyPropertiesTo(cfmd);
             return cfmd;
         }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (ConfigurationException e)
+        catch (RequestValidationException e)
         {
             throw new RuntimeException(e);
         }
@@ -658,40 +657,44 @@ public final class CFMetaData
 
         applyImplicitDefaults(cf_def);
 
-        CFMetaData newCFMD = new CFMetaData(cf_def.keyspace,
-                                            cf_def.name,
-                                            cfType,
-                                            TypeParser.parse(cf_def.comparator_type),
-                                            cf_def.subcomparator_type == null ? null : TypeParser.parse(cf_def.subcomparator_type));
-
-        if (cf_def.isSetGc_grace_seconds()) { newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds); }
-        if (cf_def.isSetMin_compaction_threshold()) { newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold); }
-        if (cf_def.isSetMax_compaction_threshold()) { newCFMD.maxCompactionThreshold(cf_def.max_compaction_threshold); }
-        if (cf_def.isSetKey_alias()) { newCFMD.keyAliases(Collections.<ByteBuffer>singletonList(cf_def.key_alias)); }
-        if (cf_def.isSetKey_validation_class()) { newCFMD.keyValidator(TypeParser.parse(cf_def.key_validation_class)); }
-        if (cf_def.isSetCompaction_strategy())
-            newCFMD.compactionStrategyClass = createCompactionStrategy(cf_def.compaction_strategy);
-        if (cf_def.isSetCompaction_strategy_options())
-            newCFMD.compactionStrategyOptions(new HashMap<String, String>(cf_def.compaction_strategy_options));
-        if (cf_def.isSetBloom_filter_fp_chance())
-            newCFMD.bloomFilterFpChance(cf_def.bloom_filter_fp_chance);
-        if (cf_def.isSetCaching())
-            newCFMD.caching(Caching.fromString(cf_def.caching));
-        if (cf_def.isSetRead_repair_chance())
-            newCFMD.readRepairChance(cf_def.read_repair_chance);
-        if (cf_def.isSetDclocal_read_repair_chance())
-            newCFMD.dcLocalReadRepairChance(cf_def.dclocal_read_repair_chance);
-
-        CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
-
         try
         {
+            CFMetaData newCFMD = new CFMetaData(cf_def.keyspace,
+                    cf_def.name,
+                    cfType,
+                    TypeParser.parse(cf_def.comparator_type),
+                    cf_def.subcomparator_type == null ? null : TypeParser.parse(cf_def.subcomparator_type));
+
+            if (cf_def.isSetGc_grace_seconds()) { newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds); }
+            if (cf_def.isSetMin_compaction_threshold()) { newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold); }
+            if (cf_def.isSetMax_compaction_threshold()) { newCFMD.maxCompactionThreshold(cf_def.max_compaction_threshold); }
+            if (cf_def.isSetKey_alias()) { newCFMD.keyAliases(Collections.<ByteBuffer>singletonList(cf_def.key_alias)); }
+            if (cf_def.isSetKey_validation_class()) { newCFMD.keyValidator(TypeParser.parse(cf_def.key_validation_class)); }
+            if (cf_def.isSetCompaction_strategy())
+                newCFMD.compactionStrategyClass = createCompactionStrategy(cf_def.compaction_strategy);
+            if (cf_def.isSetCompaction_strategy_options())
+                newCFMD.compactionStrategyOptions(new HashMap<String, String>(cf_def.compaction_strategy_options));
+            if (cf_def.isSetBloom_filter_fp_chance())
+                newCFMD.bloomFilterFpChance(cf_def.bloom_filter_fp_chance);
+            if (cf_def.isSetCaching())
+                newCFMD.caching(Caching.fromString(cf_def.caching));
+            if (cf_def.isSetRead_repair_chance())
+                newCFMD.readRepairChance(cf_def.read_repair_chance);
+            if (cf_def.isSetDclocal_read_repair_chance())
+                newCFMD.dcLocalReadRepairChance(cf_def.dclocal_read_repair_chance);
+
+            CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
+
             return newCFMD.comment(cf_def.comment)
                           .replicateOnWrite(cf_def.replicate_on_write)
                           .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
                           .keyValidator(TypeParser.parse(cf_def.key_validation_class))
                           .columnMetadata(ColumnDefinition.fromThrift(cf_def.column_metadata))
                           .compressionParameters(cp);
+        }
+        catch (SyntaxException e)
+        {
+            throw new ConfigurationException(e.getMessage());
         }
         catch (MarshalException e)
         {
@@ -1300,6 +1303,10 @@ public final class CFMetaData
             cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
 
             return cfm;
+        }
+        catch (SyntaxException e)
+        {
+            throw new RuntimeException(e);
         }
         catch (ConfigurationException e)
         {

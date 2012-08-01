@@ -26,13 +26,13 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.index.composites.CompositesIndex;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.IndexType;
-import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.thrift.ThriftValidation;
 
 /** A <code>CREATE INDEX</code> statement parsed from a CQL query. */

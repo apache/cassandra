@@ -26,7 +26,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.commons.cli.*;
 
@@ -142,7 +143,7 @@ public class Session implements Serializable
     public final boolean timeUUIDComparator;
     public double traceProbability = 0.0;
 
-    public Session(String[] arguments) throws IllegalArgumentException
+    public Session(String[] arguments) throws IllegalArgumentException, SyntaxException
     {
         float STDev = 0.1f;
         CommandLineParser parser = new PosixParser();

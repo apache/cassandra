@@ -17,13 +17,23 @@
  */
 package org.apache.cassandra.transport;
 
+import java.nio.ByteBuffer;
+
+import org.apache.cassandra.exceptions.ExceptionCode;
+import org.apache.cassandra.exceptions.TransportException;
+
 /**
- * Exceptions thrown when a client didn't not respect the protocol.
+ * Exceptions thrown when a client didn't respect the protocol.
  */
-public class ProtocolException extends RuntimeException
+public class ProtocolException extends RuntimeException implements TransportException
 {
     public ProtocolException(String msg)
     {
         super(msg);
+    }
+
+    public ExceptionCode code()
+    {
+        return ExceptionCode.PROTOCOL_ERROR;
     }
 }

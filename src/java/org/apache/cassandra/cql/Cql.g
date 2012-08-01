@@ -33,9 +33,9 @@ options {
     import java.util.Collections;
     import java.util.List;
     import java.util.ArrayList;
+    import org.apache.cassandra.exceptions.SyntaxException;
     import org.apache.cassandra.utils.Pair;
-    import org.apache.cassandra.thrift.ConsistencyLevel;
-    import org.apache.cassandra.thrift.InvalidRequestException;
+    import org.apache.cassandra.db.ConsistencyLevel;
 
     import static org.apache.cassandra.cql.AlterTableStatement.OperationType;
 }
@@ -56,10 +56,10 @@ options {
         return recognitionErrors;
     }
     
-    public void throwLastRecognitionError() throws InvalidRequestException
+    public void throwLastRecognitionError() throws SyntaxException
     {
         if (recognitionErrors.size() > 0)
-            throw new InvalidRequestException(recognitionErrors.get((recognitionErrors.size()-1)));
+            throw new SyntaxException(recognitionErrors.get((recognitionErrors.size()-1)));
     }
 
     // used by UPDATE of the counter columns to validate if '-' was supplied by user
@@ -72,7 +72,7 @@ options {
 
 @lexer::header {
     package org.apache.cassandra.cql;
-    import org.apache.cassandra.thrift.InvalidRequestException;
+    import org.apache.cassandra.exceptions.SyntaxException;
 }
 
 @lexer::members {
@@ -104,10 +104,10 @@ options {
         return recognitionErrors;
     }
     
-    public void throwLastRecognitionError() throws InvalidRequestException
+    public void throwLastRecognitionError() throws SyntaxException
     {
         if (recognitionErrors.size() > 0)
-            throw new InvalidRequestException(recognitionErrors.get((recognitionErrors.size()-1)));
+            throw new SyntaxException(recognitionErrors.get((recognitionErrors.size()-1)));
     }
 }
 

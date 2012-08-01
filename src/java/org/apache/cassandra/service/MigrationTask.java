@@ -24,7 +24,7 @@ import java.util.Collection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.gms.FailureDetector;

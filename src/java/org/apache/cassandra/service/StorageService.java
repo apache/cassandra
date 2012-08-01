@@ -33,6 +33,7 @@ import javax.management.ObjectName;
 
 import static com.google.common.base.Charsets.ISO_8859_1;
 import com.google.common.collect.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -47,6 +48,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -483,7 +485,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
     }
 
-    private void joinTokenRing(int delay) throws IOException, org.apache.cassandra.config.ConfigurationException
+    private void joinTokenRing(int delay) throws IOException, ConfigurationException
     {
         logger.info("Starting up server gossip");
         joined = true;
@@ -2883,7 +2885,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return old;
     }
 
-    public void truncate(String keyspace, String columnFamily) throws UnavailableException, TimeoutException, IOException
+    public void truncate(String keyspace, String columnFamily)
+    throws org.apache.cassandra.exceptions.UnavailableException, TimeoutException, IOException
     {
         StorageProxy.truncateBlocking(keyspace, columnFamily);
     }

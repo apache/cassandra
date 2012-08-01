@@ -36,11 +36,12 @@ options {
 
     import org.apache.cassandra.cql3.operations.*;
     import org.apache.cassandra.cql3.statements.*;
-    import org.apache.cassandra.config.ConfigurationException;
     import org.apache.cassandra.db.marshal.CollectionType;
+    import org.apache.cassandra.exceptions.ConfigurationException;
+    import org.apache.cassandra.exceptions.InvalidRequestException;
+    import org.apache.cassandra.exceptions.SyntaxException;
     import org.apache.cassandra.utils.Pair;
-    import org.apache.cassandra.thrift.ConsistencyLevel;
-    import org.apache.cassandra.thrift.InvalidRequestException;
+    import org.apache.cassandra.db.ConsistencyLevel;
 }
 
 @members {
@@ -64,10 +65,10 @@ options {
         return recognitionErrors;
     }
 
-    public void throwLastRecognitionError() throws InvalidRequestException
+    public void throwLastRecognitionError() throws SyntaxException
     {
         if (recognitionErrors.size() > 0)
-            throw new InvalidRequestException(recognitionErrors.get((recognitionErrors.size()-1)));
+            throw new SyntaxException(recognitionErrors.get((recognitionErrors.size()-1)));
     }
 
     // used by UPDATE of the counter columns to validate if '-' was supplied by user
@@ -101,7 +102,7 @@ options {
 @lexer::header {
     package org.apache.cassandra.cql3;
 
-    import org.apache.cassandra.thrift.InvalidRequestException;
+    import org.apache.cassandra.exceptions.SyntaxException;
 }
 
 @lexer::members {
@@ -135,10 +136,10 @@ options {
         return recognitionErrors;
     }
 
-    public void throwLastRecognitionError() throws InvalidRequestException
+    public void throwLastRecognitionError() throws SyntaxException
     {
         if (recognitionErrors.size() > 0)
-            throw new InvalidRequestException(recognitionErrors.get((recognitionErrors.size()-1)));
+            throw new SyntaxException(recognitionErrors.get((recognitionErrors.size()-1)));
     }
 }
 
@@ -627,8 +628,10 @@ comparatorType returns [ParsedType t]
       {
         try {
             $t = new ParsedType.Custom($s.text);
-        } catch (ConfigurationException e) {
+        } catch (SyntaxException e) {
             addRecognitionError("Cannot parse type " + $s.text + ": " + e.getMessage());
+        } catch (ConfigurationException e) {
+            addRecognitionError("Errot setting type " + $s.text + ": " + e.getMessage());
         }
       }
     ;

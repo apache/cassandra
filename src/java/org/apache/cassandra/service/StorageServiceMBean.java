@@ -26,9 +26,9 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.UnavailableException;
 
 
 public interface StorageServiceMBean
@@ -385,7 +385,7 @@ public interface StorageServiceMBean
     public boolean isNativeTransportRunning();
 
     // allows a node that have been started without joining the ring to join it
-    public void joinRing() throws IOException, org.apache.cassandra.config.ConfigurationException;
+    public void joinRing() throws IOException, ConfigurationException;
     public boolean isJoined();
 
     public int getExceptionCount();

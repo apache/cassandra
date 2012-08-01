@@ -19,13 +19,14 @@ package org.apache.cassandra.cql;
 
 import com.google.common.collect.Sets;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.SnappyCompressor;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -204,14 +205,14 @@ public class CFPropDefs {
      * knows what they are doing (a custom comparator/validator for example), and pass it on as-is.
      */
 
-    public AbstractType<?> getComparator() throws ConfigurationException
+    public AbstractType<?> getComparator() throws ConfigurationException, SyntaxException
     {
         return TypeParser.parse((comparators.get(getPropertyString(KW_COMPARATOR, "text")) != null)
                                   ? comparators.get(getPropertyString(KW_COMPARATOR, "text"))
                                   : getPropertyString(KW_COMPARATOR, "text"));
     }
 
-    public AbstractType<?> getValidator() throws ConfigurationException
+    public AbstractType<?> getValidator() throws ConfigurationException, SyntaxException
     {
         return TypeParser.parse((comparators.get(getPropertyString(KW_DEFAULTVALIDATION, "text")) != null)
                                   ? comparators.get(getPropertyString(KW_DEFAULTVALIDATION, "text"))

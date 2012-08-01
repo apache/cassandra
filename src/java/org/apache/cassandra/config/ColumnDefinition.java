@@ -27,6 +27,7 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
@@ -115,7 +116,7 @@ public class ColumnDefinition
         return cd;
     }
 
-    public static ColumnDefinition fromThrift(ColumnDef thriftColumnDef) throws ConfigurationException
+    public static ColumnDefinition fromThrift(ColumnDef thriftColumnDef) throws SyntaxException, ConfigurationException
     {
         return new ColumnDefinition(ByteBufferUtil.clone(thriftColumnDef.name),
                                     TypeParser.parse(thriftColumnDef.validation_class),
@@ -125,7 +126,7 @@ public class ColumnDefinition
                                     null);
     }
 
-    public static Map<ByteBuffer, ColumnDefinition> fromThrift(List<ColumnDef> thriftDefs) throws ConfigurationException
+    public static Map<ByteBuffer, ColumnDefinition> fromThrift(List<ColumnDef> thriftDefs) throws SyntaxException, ConfigurationException
     {
         if (thriftDefs == null)
             return new HashMap<ByteBuffer,ColumnDefinition>();
@@ -231,7 +232,7 @@ public class ColumnDefinition
                                              index_name,
                                              componentIndex));
             }
-            catch (ConfigurationException e)
+            catch (RequestValidationException e)
             {
                 throw new RuntimeException(e);
             }

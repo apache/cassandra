@@ -10,11 +10,9 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -37,7 +35,7 @@ public class TracingAppender extends AppenderSkeleton
         final String threadName = event.getThreadName();
         StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
         {
-            public void runMayThrow() throws TimedOutException, UnavailableException
+            public void runMayThrow() throws Exception
             {
                 ByteBuffer eventId = ByteBufferUtil.bytes(UUIDGen.makeType1UUIDFromHost(FBUtilities
                         .getBroadcastAddress()));

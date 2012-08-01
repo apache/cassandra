@@ -22,8 +22,9 @@ import java.util.List;
 
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 
 public abstract class AbstractModification
 {
@@ -102,7 +103,7 @@ public abstract class AbstractModification
      * @throws InvalidRequestException on the wrong request
      */
     public abstract List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, List<ByteBuffer> variables)
-            throws org.apache.cassandra.thrift.InvalidRequestException;
+    throws InvalidRequestException, UnauthorizedException;
 
     /**
      * Convert statement into a list of mutations to apply on the server
@@ -116,5 +117,5 @@ public abstract class AbstractModification
      * @throws InvalidRequestException on the wrong request
      */
     public abstract List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp, List<ByteBuffer> variables)
-            throws org.apache.cassandra.thrift.InvalidRequestException;
+    throws InvalidRequestException, UnauthorizedException;
 }

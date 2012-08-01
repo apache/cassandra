@@ -27,12 +27,13 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.cql3.Relation;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /*
@@ -62,7 +63,7 @@ public class CompositeType extends AbstractCompositeType
     // interning instances
     private static final Map<List<AbstractType<?>>, CompositeType> instances = new HashMap<List<AbstractType<?>>, CompositeType>();
 
-    public static CompositeType getInstance(TypeParser parser) throws ConfigurationException
+    public static CompositeType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
         return getInstance(parser.getTypeParameters());
     }

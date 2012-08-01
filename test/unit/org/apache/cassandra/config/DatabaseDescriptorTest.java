@@ -19,10 +19,11 @@
 package org.apache.cassandra.config;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.InvalidRequestException;
 
 import org.junit.Test;
 

@@ -29,7 +29,7 @@ import java.security.MessageDigest;
 import java.util.Map;
 import java.util.Properties;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.utils.FBUtilities;

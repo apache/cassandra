@@ -22,12 +22,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.thrift.protocol.TMessage;
 
 /**
@@ -67,13 +67,6 @@ public class DatacenterReadCallback<TMessage, TResolved> extends ReadCallback<TM
     }
 
     @Override
-    public int determineBlockFor(ConsistencyLevel consistency_level, String table)
-    {
-        NetworkTopologyStrategy stategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
-        return (stategy.getReplicationFactor(localdc) / 2) + 1;
-    }
-
-    @Override
     public void assureSufficientLiveNodes() throws UnavailableException
     {
         int localEndpoints = 0;
@@ -97,7 +90,7 @@ public class DatacenterReadCallback<TMessage, TResolved> extends ReadCallback<TM
                 logger.debug(builder.toString());
             }
 
-            throw new UnavailableException();
+            throw new UnavailableException(consistencyLevel, blockfor, localEndpoints);
         }
     }
 }

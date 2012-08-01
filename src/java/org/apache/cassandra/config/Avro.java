@@ -26,6 +26,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.migration.avro.CfDef;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
@@ -211,7 +213,7 @@ public class Avro
             AbstractType<?> validatorType = TypeParser.parse(cd.validation_class);
             return new ColumnDefinition(ByteBufferUtil.clone(cd.name), validatorType, index_type, ColumnDefinition.getStringMap(cd.index_options), index_name, null);
         }
-        catch (ConfigurationException e)
+        catch (RequestValidationException e)
         {
             throw new RuntimeException(e);
         }

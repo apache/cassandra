@@ -18,10 +18,10 @@
 package org.apache.cassandra.cql3.statements;
 
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.ThriftValidation;
 
 public class DropKeyspaceStatement extends SchemaAlteringStatement
@@ -35,7 +35,7 @@ public class DropKeyspaceStatement extends SchemaAlteringStatement
     }
 
     @Override
-    public void validate(ClientState state) throws InvalidRequestException
+    public void validate(ClientState state) throws RequestValidationException
     {
         super.validate(state);
         ThriftValidation.validateKeyspaceNotSystem(keyspace);

@@ -29,7 +29,7 @@ import java.util.Map;
 
 import org.apache.commons.lang.StringUtils;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -60,7 +60,7 @@ public class TypeParser
     /**
      * Parse a string containing an type definition.
      */
-    public static AbstractType<?> parse(String str) throws ConfigurationException
+    public static AbstractType<?> parse(String str) throws SyntaxException, ConfigurationException
     {
         if (str == null)
             return BytesType.instance;
@@ -93,7 +93,7 @@ public class TypeParser
         return type;
     }
 
-    public static AbstractType<?> parse(CharSequence compareWith) throws ConfigurationException
+    public static AbstractType<?> parse(CharSequence compareWith) throws SyntaxException, ConfigurationException
     {
         return parse(compareWith == null ? null : compareWith.toString());
     }
@@ -106,7 +106,7 @@ public class TypeParser
     /**
      * Parse an AbstractType from current position of this parser.
      */
-    public AbstractType<?> parse() throws ConfigurationException
+    public AbstractType<?> parse() throws SyntaxException, ConfigurationException
     {
         skipBlank();
         String name = readNextIdentifier();
@@ -118,7 +118,7 @@ public class TypeParser
             return getAbstractType(name);
     }
 
-    public Map<String, String> getKeyValueParameters() throws ConfigurationException
+    public Map<String, String> getKeyValueParameters() throws SyntaxException
     {
         Map<String, String> map = new HashMap<String, String>();
 
@@ -153,10 +153,10 @@ public class TypeParser
             }
             map.put(k, v);
         }
-        throw new ConfigurationException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
+        throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
     }
 
-    public List<AbstractType<?>> getTypeParameters() throws ConfigurationException
+    public List<AbstractType<?>> getTypeParameters() throws SyntaxException, ConfigurationException
     {
         List<AbstractType<?>> list = new ArrayList<AbstractType<?>>();
 
@@ -180,17 +180,17 @@ public class TypeParser
             {
                 list.add(parse());
             }
-            catch (ConfigurationException e)
+            catch (SyntaxException e)
             {
-                ConfigurationException ex = new ConfigurationException(String.format("Exception while parsing '%s' around char %d", str, idx));
+                SyntaxException ex = new SyntaxException(String.format("Exception while parsing '%s' around char %d", str, idx));
                 ex.initCause(e);
                 throw ex;
             }
         }
-        throw new ConfigurationException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
+        throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
     }
 
-    public Map<Byte, AbstractType<?>> getAliasParameters() throws ConfigurationException
+    public Map<Byte, AbstractType<?>> getAliasParameters() throws SyntaxException, ConfigurationException
     {
         Map<Byte, AbstractType<?>> map = new HashMap<Byte, AbstractType<?>>();
 
@@ -228,17 +228,17 @@ public class TypeParser
             {
                 map.put((byte)aliasChar, parse());
             }
-            catch (ConfigurationException e)
+            catch (SyntaxException e)
             {
-                ConfigurationException ex = new ConfigurationException(String.format("Exception while parsing '%s' around char %d", str, idx));
+                SyntaxException ex = new SyntaxException(String.format("Exception while parsing '%s' around char %d", str, idx));
                 ex.initCause(e);
                 throw ex;
             }
         }
-        throw new ConfigurationException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
+        throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
     }
 
-    public Map<ByteBuffer, CollectionType> getCollectionsParameters() throws ConfigurationException
+    public Map<ByteBuffer, CollectionType> getCollectionsParameters() throws SyntaxException, ConfigurationException
     {
         Map<ByteBuffer, CollectionType> map = new HashMap<ByteBuffer, CollectionType>();
 
@@ -279,17 +279,17 @@ public class TypeParser
             {
                 AbstractType<?> type = parse();
                 if (!(type instanceof CollectionType))
-                    throw new ConfigurationException(type.toString() + " is not a collection type");
+                    throw new SyntaxException(type.toString() + " is not a collection type");
                 map.put(bb, (CollectionType)type);
             }
-            catch (ConfigurationException e)
+            catch (SyntaxException e)
             {
-                ConfigurationException ex = new ConfigurationException(String.format("Exception while parsing '%s' around char %d", str, idx));
+                SyntaxException ex = new SyntaxException(String.format("Exception while parsing '%s' around char %d", str, idx));
                 ex.initCause(e);
                 throw ex;
             }
         }
-        throw new ConfigurationException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
+        throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
     }
 
     private static AbstractType<?> getAbstractType(String compareWith) throws ConfigurationException
@@ -313,7 +313,7 @@ public class TypeParser
         }
     }
 
-    private static AbstractType<?> getAbstractType(String compareWith, TypeParser parser) throws ConfigurationException
+    private static AbstractType<?> getAbstractType(String compareWith, TypeParser parser) throws SyntaxException, ConfigurationException
     {
         String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
         Class<? extends AbstractType<?>> typeClass = FBUtilities.<AbstractType<?>>classForName(className, "abstract-type");
@@ -382,9 +382,9 @@ public class TypeParser
         }
     }
 
-    private void throwSyntaxError(String msg) throws ConfigurationException
+    private void throwSyntaxError(String msg) throws SyntaxException
     {
-        throw new ConfigurationException(String.format("Syntax error parsing '%s' at char %d: %s", str, idx, msg));
+        throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: %s", str, idx, msg));
     }
 
     private boolean isEOS()

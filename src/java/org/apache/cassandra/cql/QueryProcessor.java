@@ -36,12 +36,24 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.thrift.CqlMetadata;
+import org.apache.cassandra.thrift.CqlResult;
+import org.apache.cassandra.thrift.CqlResultType;
+import org.apache.cassandra.thrift.CqlRow;
+import org.apache.cassandra.thrift.CqlPreparedResult;
+import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.thrift.IndexOperator;
+import org.apache.cassandra.thrift.IndexType;
+import org.apache.cassandra.thrift.RequestType;
+import org.apache.cassandra.thrift.SchemaDisagreementException;
+import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -65,7 +77,7 @@ public class QueryProcessor
     public static final String DEFAULT_KEY_NAME = bufferToString(CFMetaData.DEFAULT_KEY_NAME);
 
     private static List<org.apache.cassandra.db.Row> getSlice(CFMetaData metadata, SelectStatement select, List<ByteBuffer> variables)
-    throws InvalidRequestException, TimedOutException, UnavailableException
+    throws InvalidRequestException, ReadTimeoutException, UnavailableException, IsBootstrappingException
     {
         QueryPath queryPath = new QueryPath(select.getColumnFamily());
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
@@ -111,10 +123,6 @@ public class QueryProcessor
         {
             return StorageProxy.read(commands, select.getConsistencyLevel());
         }
-        catch (TimeoutException e)
-        {
-            throw new TimedOutException();
-        }
         catch (IOException e)
         {
             throw new RuntimeException(e);
@@ -137,7 +145,7 @@ public class QueryProcessor
     }
 
     private static List<org.apache.cassandra.db.Row> multiRangeSlice(CFMetaData metadata, SelectStatement select, List<ByteBuffer> variables)
-    throws TimedOutException, UnavailableException, InvalidRequestException
+    throws ReadTimeoutException, UnavailableException, InvalidRequestException
     {
         List<org.apache.cassandra.db.Row> rows;
         IPartitioner<?> p = StorageService.getPartitioner();
@@ -197,14 +205,6 @@ public class QueryProcessor
         {
             throw new RuntimeException(e);
         }
-        catch (org.apache.cassandra.thrift.UnavailableException e)
-        {
-            throw new UnavailableException();
-        }
-        catch (TimeoutException e)
-        {
-            throw new TimedOutException();
-        }
 
         // if start key was set and relation was "greater than"
         if (select.getKeyStart() != null && !select.includeStartKey() && !rows.isEmpty())
@@ -225,7 +225,7 @@ public class QueryProcessor
     }
 
     private static void batchUpdate(ClientState clientState, List<UpdateStatement> updateStatements, ConsistencyLevel consistency, List<ByteBuffer> variables )
-    throws InvalidRequestException, UnavailableException, TimedOutException
+    throws RequestValidationException, RequestExecutionException
     {
         String globalKeyspace = clientState.getKeyspace();
         List<IMutation> rowMutations = new ArrayList<IMutation>(updateStatements.size());
@@ -250,14 +250,7 @@ public class QueryProcessor
             validateKey(mutation.key());
         }
 
-        try
-        {
-            StorageProxy.mutate(rowMutations, consistency);
-        }
-        catch (org.apache.cassandra.thrift.UnavailableException e)
-        {
-            throw new UnavailableException();
-        }
+        StorageProxy.mutate(rowMutations, consistency);
     }
 
     private static IFilter filterFromSelect(SelectStatement select, CFMetaData metadata, List<ByteBuffer> variables)
@@ -279,7 +272,7 @@ public class QueryProcessor
     /* Test for SELECT-specific taboos */
     private static void validateSelect(String keyspace, SelectStatement select, List<ByteBuffer> variables) throws InvalidRequestException
     {
-        ThriftValidation.validateConsistencyLevel(keyspace, select.getConsistencyLevel(), RequestType.READ);
+        select.getConsistencyLevel().validateForRead(keyspace);
 
         // Finish key w/o start key (KEY < foo)
         if (!select.isKeyRange() && (select.getKeyFinish() != null))
@@ -405,7 +398,7 @@ public class QueryProcessor
     }
 
     public static CqlResult processStatement(CQLStatement statement,ClientState clientState, List<ByteBuffer> variables )
-    throws  UnavailableException, InvalidRequestException, TimedOutException
+    throws RequestExecutionException, RequestValidationException
     {
         String keyspace = null;
 
@@ -564,14 +557,14 @@ public class QueryProcessor
             case INSERT: // insert uses UpdateStatement
             case UPDATE:
                 UpdateStatement update = (UpdateStatement)statement.statement;
-                ThriftValidation.validateConsistencyLevel(keyspace, update.getConsistencyLevel(), RequestType.WRITE);
+                update.getConsistencyLevel().validateForWrite(keyspace);
                 batchUpdate(clientState, Collections.singletonList(update), update.getConsistencyLevel(), variables);
                 result.type = CqlResultType.VOID;
                 return result;
 
             case BATCH:
                 BatchStatement batch = (BatchStatement) statement.statement;
-                ThriftValidation.validateConsistencyLevel(keyspace, batch.getConsistencyLevel(), RequestType.WRITE);
+                batch.getConsistencyLevel().validateForWrite(keyspace);
 
                 if (batch.getTimeToLive() != 0)
                     throw new InvalidRequestException("Global TTL on the BATCH statement is not supported.");
@@ -593,14 +586,7 @@ public class QueryProcessor
                     validateKey(mutation.key());
                 }
 
-                try
-                {
-                    StorageProxy.mutate(mutations, batch.getConsistencyLevel());
-                }
-                catch (org.apache.cassandra.thrift.UnavailableException e)
-                {
-                    throw new UnavailableException();
-                }
+                StorageProxy.mutate(mutations, batch.getConsistencyLevel());
 
                 result.type = CqlResultType.VOID;
                 return result;
@@ -624,11 +610,11 @@ public class QueryProcessor
                 }
                 catch (TimeoutException e)
                 {
-                    throw (UnavailableException) new UnavailableException().initCause(e);
+                    throw new TruncateException(e);
                 }
                 catch (IOException e)
                 {
-                    throw (UnavailableException) new UnavailableException().initCause(e);
+                    throw new RuntimeException(e);
                 }
 
                 result.type = CqlResultType.VOID;
@@ -819,14 +805,14 @@ public class QueryProcessor
     }
 
     public static CqlResult process(String queryString, ClientState clientState)
-    throws UnavailableException, InvalidRequestException, TimedOutException
+    throws RequestValidationException, RequestExecutionException
     {
         logger.trace("CQL QUERY: {}", queryString);
         return processStatement(getStatement(queryString), clientState, new ArrayList<ByteBuffer>(0));
     }
 
     public static CqlPreparedResult prepare(String queryString, ClientState clientState)
-    throws InvalidRequestException
+    throws InvalidRequestException, SyntaxException
     {
         logger.trace("CQL QUERY: {}", queryString);
 
@@ -843,7 +829,7 @@ public class QueryProcessor
     }
 
     public static CqlResult processPrepared(CQLStatement statement, ClientState clientState, List<ByteBuffer> variables)
-    throws UnavailableException, InvalidRequestException, TimedOutException
+    throws RequestValidationException, RequestExecutionException
     {
         // Check to see if there are any bound variables to verify
         if (!(variables.isEmpty() && (statement.boundTerms == 0)))
@@ -891,7 +877,7 @@ public class QueryProcessor
         return keyString;
     }
 
-    private static CQLStatement getStatement(String queryStr) throws InvalidRequestException
+    private static CQLStatement getStatement(String queryStr) throws SyntaxException
     {
         try
         {
@@ -913,14 +899,12 @@ public class QueryProcessor
         }
         catch (RuntimeException re)
         {
-            InvalidRequestException ire = new InvalidRequestException("Failed parsing statement: [" + queryStr + "] reason: " + re.getClass().getSimpleName() + " " + re.getMessage());
-            ire.initCause(re);
+            SyntaxException ire = new SyntaxException("Failed parsing statement: [" + queryStr + "] reason: " + re.getClass().getSimpleName() + " " + re.getMessage());
             throw ire;
         }
         catch (RecognitionException e)
         {
-            InvalidRequestException ire = new InvalidRequestException("Invalid or malformed CQL query string");
-            ire.initCause(e);
+            SyntaxException ire = new SyntaxException("Invalid or malformed CQL query string: " + e.getMessage());
             throw ire;
         }
     }

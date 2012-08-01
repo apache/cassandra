@@ -29,7 +29,8 @@ import static org.junit.Assert.fail;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -200,6 +201,7 @@ public class CompositeTypeTest extends SchemaLoader
             fail("Shouldn't work");
         }
         catch (ConfigurationException e) {}
+        catch (SyntaxException e) {}
 
         try
         {
@@ -207,6 +209,7 @@ public class CompositeTypeTest extends SchemaLoader
             fail("Shouldn't work");
         }
         catch (ConfigurationException e) {}
+        catch (SyntaxException e) {}
     }
 
     @Test

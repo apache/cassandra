@@ -19,7 +19,7 @@ package org.apache.cassandra.cql3;
 
 import com.google.common.collect.Sets;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.slf4j.Logger;

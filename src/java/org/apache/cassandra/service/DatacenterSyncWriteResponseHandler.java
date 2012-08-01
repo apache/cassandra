@@ -25,12 +25,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -46,6 +46,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
     }
 
+    private final String table;
     private final NetworkTopologyStrategy strategy;
     private final HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
 
@@ -55,6 +56,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         super(writeEndpoints, consistencyLevel);
         assert consistencyLevel == ConsistencyLevel.EACH_QUORUM;
 
+        this.table = table;
         strategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
 
         for (String dc : strategy.getDatacenters())
@@ -85,6 +87,11 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
 
         // all the quorum conditions are met
         condition.signal();
+    }
+
+    protected int blockFor()
+    {
+        return consistencyLevel.blockFor(table);
     }
 
     protected int ackCount()
@@ -119,7 +126,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         for (String dc: strategy.getDatacenters())
         {
             if (dcEndpoints.get(dc).get() < responses.get(dc).get())
-                throw new UnavailableException();
+                throw new UnavailableException(consistencyLevel, responses.get(dc).get(), dcEndpoints.get(dc).get());
         }
     }
 

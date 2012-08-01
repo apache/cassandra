@@ -20,7 +20,7 @@ package org.apache.cassandra.auth;
 import java.util.EnumSet;
 import java.util.List;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 
 /**
  * Cassandra's resource hierarchy looks something like:

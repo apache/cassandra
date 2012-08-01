@@ -21,8 +21,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.Schema;
@@ -37,13 +37,14 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SimpleCondition;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -63,6 +64,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
     protected final int blockfor;
     final List<InetAddress> endpoints;
     private final IReadCommand command;
+    protected final ConsistencyLevel consistencyLevel;
     protected final AtomicInteger received = new AtomicInteger(0);
 
     /**
@@ -71,9 +73,10 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
     public ReadCallback(IResponseResolver<TMessage, TResolved> resolver, ConsistencyLevel consistencyLevel, IReadCommand command, List<InetAddress> endpoints)
     {
         this.command = command;
-        this.blockfor = determineBlockFor(consistencyLevel, command.getKeyspace());
+        this.blockfor = consistencyLevel.blockFor(command.getKeyspace());
         this.resolver = resolver;
         this.startTime = System.currentTimeMillis();
+        this.consistencyLevel = consistencyLevel;
         sortForConsistencyLevel(endpoints);
         this.endpoints = resolver instanceof RowRepairResolver ? endpoints : filterEndpoints(endpoints);
         if (logger.isDebugEnabled())
@@ -127,7 +130,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         return ep.subList(0, Math.min(ep.size(), blockfor));
     }
 
-    public TResolved get() throws TimeoutException, DigestMismatchException, IOException
+    public TResolved get() throws ReadTimeoutException, DigestMismatchException, IOException
     {
         long timeout = command.getTimeout() - (System.currentTimeMillis() - startTime);
         boolean success;
@@ -141,12 +144,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         }
 
         if (!success)
-        {
-            StringBuilder sb = new StringBuilder("");
-            for (MessageIn message : resolver.getMessages())
-                sb.append(message.from).append(", ");
-            throw new TimeoutException("Operation timed out - received only " + received.get() + " responses from " + sb.toString() + " .");
-        }
+            throw new ReadTimeoutException(consistencyLevel, received.get(), blockfor, resolver.isDataPresent());
 
         return blockfor == 1 ? resolver.getData() : resolver.resolve();
     }
@@ -195,32 +193,13 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         }
     }
 
-    public int determineBlockFor(ConsistencyLevel consistencyLevel, String table)
-    {
-        switch (consistencyLevel)
-        {
-            case ONE:
-                return 1;
-            case TWO:
-                return 2;
-            case THREE:
-                return 3;
-            case QUORUM:
-                return (Table.open(table).getReplicationStrategy().getReplicationFactor() / 2) + 1;
-            case ALL:
-                return Table.open(table).getReplicationStrategy().getReplicationFactor();
-            default:
-                throw new UnsupportedOperationException("invalid consistency level: " + consistencyLevel);
-        }
-    }
-
     public void assureSufficientLiveNodes() throws UnavailableException
     {
         if (endpoints.size() < blockfor)
         {
             logger.debug("Live nodes {} do not satisfy ConsistencyLevel ({} required)",
                          StringUtils.join(endpoints, ", "), blockfor);
-            throw new UnavailableException();
+            throw new UnavailableException(consistencyLevel, blockfor, endpoints.size());
         }
     }
 

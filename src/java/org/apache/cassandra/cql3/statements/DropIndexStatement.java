@@ -20,8 +20,8 @@ package org.apache.cassandra.cql3.statements;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.InvalidRequestException;
 
 public class DropIndexStatement extends SchemaAlteringStatement
 {

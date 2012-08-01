@@ -22,12 +22,12 @@ import java.util.Collection;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -55,14 +55,6 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     }
 
     @Override
-    protected int determineBlockFor(String table)
-    {
-        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
-        return (strategy.getReplicationFactor(localdc) / 2) + 1;
-    }
-
-
-    @Override
     public void response(MessageIn message)
     {
         if (message == null || localdc.equals(snitch.getDatacenter(message.from)))
@@ -84,7 +76,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
 
         if (liveNodes < responses.get())
         {
-            throw new UnavailableException();
+            throw new UnavailableException(consistencyLevel, responses.get(), liveNodes);
         }
     }
 

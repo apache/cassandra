@@ -24,6 +24,7 @@ import java.util.*;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;

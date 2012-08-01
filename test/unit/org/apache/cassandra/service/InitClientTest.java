@@ -4,7 +4,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one

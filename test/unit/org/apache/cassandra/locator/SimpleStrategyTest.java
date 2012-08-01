@@ -30,7 +30,7 @@ import org.apache.cassandra.config.Schema;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.*;

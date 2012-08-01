@@ -26,11 +26,12 @@ import java.util.Map;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
-import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.io.compress.CompressionParameters;
 
@@ -66,6 +67,10 @@ public class CreateColumnFamilyStatement
             comparator = cfProps.getComparator();
         }
         catch (ConfigurationException e)
+        {
+            throw new InvalidRequestException(e.toString());
+        }
+        catch (SyntaxException e)
         {
             throw new InvalidRequestException(e.toString());
         }
@@ -139,6 +144,12 @@ public class CreateColumnFamilyStatement
                 ex.initCause(e);
                 throw ex;
             }
+            catch (SyntaxException e)
+            {
+                InvalidRequestException ex = new InvalidRequestException(e.toString());
+                ex.initCause(e);
+                throw ex;
+            }
         }
 
         return columnDefs;
@@ -188,6 +199,10 @@ public class CreateColumnFamilyStatement
                 newCFMD.keyAliases(Collections.<ByteBuffer>singletonList(keyAlias));
         }
         catch (ConfigurationException e)
+        {
+            throw new InvalidRequestException(e.toString());
+        }
+        catch (SyntaxException e)
         {
             throw new InvalidRequestException(e.toString());
         }

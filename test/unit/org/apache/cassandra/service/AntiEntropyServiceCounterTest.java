@@ -26,7 +26,7 @@ import java.util.LinkedList;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.db.ConsistencyLevel;
 
 public class AntiEntropyServiceCounterTest extends AntiEntropyServiceTestAbstract
 {

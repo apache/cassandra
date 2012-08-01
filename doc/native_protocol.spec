@@ -255,8 +255,9 @@ Table of Contents
 4.2.1. ERROR
 
   Indicates an error processing a request. The body of the message will be an
-  error code ([int]) followed by a [string] error message. The error codes are
-  defined in Section 6.
+  error code ([int]) followed by a [string] error message. Then, depending on
+  the exception, more content may follow. The error codes are defined in
+  Section 6, along with their additional content if any.
 
 
 4.2.2. READY
@@ -404,11 +405,70 @@ Table of Contents
 
 6. Error codes
 
-  The currently supported errors are:
-    0x0000    Server error
-    0x0001    Protocol error
-    0x0002    Authentication error
-    0x0100    Unavailable exception
-    0x0101    Timeout exception
-    0x0102    Schema disagreement exception
-    0x0200    Request exception
+  The supported error codes are described below:
+    0x0000    Server error: something unexpected happened. This indicates a
+              server-side bug.
+    0x000A    Protocol error: some client message triggered a protocol
+              violation (for instance a QUERY message is sent before a STARTUP
+              one has been sent)
+
+    0x1000    Unavailable exception. The rest of the ERROR message body will be
+                <cl><required><alive>
+              where:
+                <cl> is a [string] representing the consistency level of the
+                     query having triggered the exception.
+                <required> is an [int] representing the number of node that
+                           should be alive to respect <cl>
+                <alive> is an [int] representing the number of replica that
+                        were known to be alive when the request has been
+                        processed (since an unavailable exception has been
+                        triggered, there will be <alive> < <required>)
+    0x1001    Overloaded: the request cannot be processed because the
+              coordinator node is overloaded
+    0x1002    Is_bootstrapping: the request was a read request but the
+              coordinator node is bootstrapping
+    0x1003    Truncate_error: error during a truncation error.
+    0x1100    Write_timeout: Timeout exception during a write request. The rest
+              of the ERROR message body will be
+                <cl><received><blockfor>
+              where:
+                <cl> is a [string] representing the consistency level of the
+                     query having triggered the exception.
+                <received> is an [int] representing the number of nodes having
+                           acknowledged the request.
+                <blockfor> is the number of replica whose acknowledgement is
+                           required to achieve <cl>.
+    0x1200    Read_timeout: Timeout exception during a read request. The rest
+              of the ERROR message body will be
+                <cl><received><blockfor><data_present>
+              where:
+                <cl> is a [string] representing the consistency level of the
+                     query having triggered the exception.
+                <received> is an [int] representing the number of nodes having
+                           answered the request.
+                <blockfor> is the number of replica whose response is
+                           required to achieve <cl>. Please note that it is
+                           possible to have <received> >= <blockfor> if
+                           <data_present> is false. And also in the (unlikely)
+                           case were <cl> is achieved but the coordinator node
+                           timeout while waiting for read-repair
+                           acknowledgement.
+                <data_present> is a single byte. If its value is 0, it means
+                               the replica that was asked for data has not
+                               responded. Otherwise, the value is != 0.
+
+    0x2000    Syntax_error: The submitted query has a syntax error.
+    0x2100    Unauthorized: The logged user doesn't have the right to perform
+              the query.
+    0x2200    Invalid: The query is syntactically correct but invalid.
+    0x2300    Config_error: The query is invalid because of some configuration issue
+    0x2400    Already_exists: The query attempted to create a keyspace or a
+              table that was already existing. The rest of the ERROR message
+              body will be <ks><table> where:
+                <ks> is a [string] representing either the keyspace that
+                     already exists, or the keyspace in which the table that
+                     already exists is.
+                <table> is a [string] representing the name of the table that
+                        already exists. If the query was attempting to create a
+                        keyspace, <table> will be present but will be the empty
+                        string.

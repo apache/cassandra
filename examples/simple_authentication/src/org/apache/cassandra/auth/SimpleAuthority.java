@@ -29,7 +29,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Properties;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class SimpleAuthority implements IAuthority

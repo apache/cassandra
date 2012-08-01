@@ -26,11 +26,10 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.CounterMutation;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.RequestType;
 import org.apache.cassandra.thrift.ThriftValidation;
-import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -63,7 +62,7 @@ public class BatchStatement extends ModificationStatement
     }
 
     @Override
-    public void checkAccess(ClientState state) throws InvalidRequestException
+    public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
         Set<String> cfamsSeen = new HashSet<String>();
         for (ModificationStatement statement : statements)
@@ -93,12 +92,12 @@ public class BatchStatement extends ModificationStatement
             if (statement.getTimeToLive() < 0)
                 throw new InvalidRequestException("A TTL must be greater or equal to 0");
 
-            ThriftValidation.validateConsistencyLevel(statement.keyspace(), getConsistencyLevel(), RequestType.WRITE);
+            getConsistencyLevel().validateForWrite(statement.keyspace());
         }
     }
 
     public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables)
-    throws UnavailableException, TimeoutException, InvalidRequestException
+    throws RequestExecutionException, RequestValidationException
     {
         Map<Pair<String, ByteBuffer>, RowAndCounterMutation> mutations = new HashMap<Pair<String, ByteBuffer>, RowAndCounterMutation>();
         for (ModificationStatement statement : statements)

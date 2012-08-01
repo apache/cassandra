@@ -37,7 +37,7 @@ import javax.management.remote.JMXServiceURL;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
@@ -49,8 +49,6 @@ import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.streaming.StreamingServiceMBean;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.UnavailableException;
 
 /**
  * JMX client operations for Cassandra.

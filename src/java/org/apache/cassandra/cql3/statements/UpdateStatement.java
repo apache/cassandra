@@ -29,16 +29,14 @@ import org.apache.cassandra.cql3.operations.ColumnOperation;
 import org.apache.cassandra.cql3.operations.Operation;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql.QueryProcessor.validateKey;
 
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
-import static org.apache.cassandra.thrift.ThriftValidation.validateCommutativeForWrite;
 
 /**
  * An <code>UPDATE</code> statement parsed from a CQL query statement.
@@ -102,7 +100,8 @@ public class UpdateStatement extends ModificationStatement
 
 
     /** {@inheritDoc} */
-    public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables) throws UnavailableException, TimeoutException, InvalidRequestException
+    public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables)
+    throws RequestExecutionException, RequestValidationException
     {
         List<ByteBuffer> keys = buildKeyNames(cfDef, processedKeys, variables);
 
@@ -305,7 +304,7 @@ public class UpdateStatement extends ModificationStatement
         // Deal here with the keyspace overwrite thingy to avoid mistake
         CFMetaData metadata = validateColumnFamily(keyspace(), columnFamily(), hasCommutativeOperation);
         if (hasCommutativeOperation)
-            validateCommutativeForWrite(metadata, cLevel);
+            cLevel.validateCounterForWrite(metadata);
 
         cfDef = metadata.getCfDef();
 

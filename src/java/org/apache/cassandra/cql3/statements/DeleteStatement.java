@@ -35,9 +35,8 @@ import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.utils.Pair;
 
@@ -63,7 +62,8 @@ public class DeleteStatement extends ModificationStatement
         this.toRemove = new ArrayList<Pair<CFDefinition.Name, Term>>(columns.size());
     }
 
-    public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables) throws UnavailableException, TimeoutException, InvalidRequestException
+    public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables)
+    throws RequestExecutionException, RequestValidationException
     {
         // keys
         List<ByteBuffer> keys = UpdateStatement.buildKeyNames(cfDef, processedKeys, variables);

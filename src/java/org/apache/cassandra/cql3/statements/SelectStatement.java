@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.statements;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.TimeoutException;
 
 import com.google.common.collect.AbstractIterator;
 import org.slf4j.Logger;
@@ -31,7 +30,7 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.*;
@@ -39,17 +38,15 @@ import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.RequestType;
-import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.ThriftValidation;
-import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -103,7 +100,7 @@ public class SelectStatement implements CQLStatement
         return boundTerms;
     }
 
-    public void checkAccess(ClientState state) throws InvalidRequestException
+    public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
         state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.READ);
     }
@@ -113,34 +110,27 @@ public class SelectStatement implements CQLStatement
         // Nothing to do, all validation has been done by RawStatement.prepare()
     }
 
-    public ResultMessage.Rows execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, UnavailableException, TimedOutException
+    public ResultMessage.Rows execute(ClientState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
     {
         return new ResultMessage.Rows(executeInternal(state, variables));
     }
 
-    public ResultSet executeInternal(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, UnavailableException, TimedOutException
+    public ResultSet executeInternal(ClientState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
     {
-        try
+        List<Row> rows;
+        if (isKeyRange)
         {
-            List<Row> rows;
-            if (isKeyRange)
-            {
-                rows = multiRangeSlice(variables);
-            }
-            else
-            {
-                rows = getSlice(variables);
-            }
+            rows = multiRangeSlice(variables);
+        }
+        else
+        {
+            rows = getSlice(variables);
+        }
 
-            // Even for count, we need to process the result as it'll group some column together in sparse column families
-            ResultSet rset = process(rows, variables);
-            rset = parameters.isCount ? rset.makeCountResult() : rset;
-            return rset;
-        }
-        catch (TimeoutException e)
-        {
-            throw new TimedOutException();
-        }
+        // Even for count, we need to process the result as it'll group some column together in sparse column families
+        ResultSet rset = process(rows, variables);
+        rset = parameters.isCount ? rset.makeCountResult() : rset;
+        return rset;
     }
 
     public ResultSet process(List<Row> rows) throws InvalidRequestException
@@ -159,7 +149,7 @@ public class SelectStatement implements CQLStatement
         return cfDef.cfm.cfName;
     }
 
-    private List<Row> getSlice(List<ByteBuffer> variables) throws InvalidRequestException, TimeoutException, UnavailableException
+    private List<Row> getSlice(List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
     {
         QueryPath queryPath = new QueryPath(columnFamily());
         Collection<ByteBuffer> keys = getKeys(variables);
@@ -198,7 +188,7 @@ public class SelectStatement implements CQLStatement
         }
     }
 
-    private List<Row> multiRangeSlice(List<ByteBuffer> variables) throws InvalidRequestException, TimeoutException, UnavailableException
+    private List<Row> multiRangeSlice(List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
     {
         List<Row> rows;
         IFilter filter = makeFilter(variables);
@@ -896,7 +886,7 @@ public class SelectStatement implements CQLStatement
         public ParsedStatement.Prepared prepare() throws InvalidRequestException
         {
             CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
-            ThriftValidation.validateConsistencyLevel(keyspace(), parameters.consistencyLevel, RequestType.READ);
+            parameters.consistencyLevel.validateForRead(keyspace());
 
             if (parameters.limit <= 0)
                 throw new InvalidRequestException("LIMIT must be strictly positive");

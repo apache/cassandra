@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.service.MigrationManager;
 

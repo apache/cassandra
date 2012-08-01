@@ -22,10 +22,10 @@ import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.UnavailableException;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.SimpleCondition;
 
 public abstract class AbstractWriteResponseHandler implements IWriteResponseHandler
@@ -42,7 +42,7 @@ public abstract class AbstractWriteResponseHandler implements IWriteResponseHand
         this.writeEndpoints = writeEndpoints;
     }
 
-    public void get() throws TimedOutException
+    public void get() throws WriteTimeoutException
     {
         long timeout = DatabaseDescriptor.getWriteRpcTimeout() - (System.currentTimeMillis() - startTime);
 
@@ -57,12 +57,12 @@ public abstract class AbstractWriteResponseHandler implements IWriteResponseHand
         }
 
         if (!success)
-        {
-            throw new TimedOutException().setAcknowledged_by(ackCount());
-        }
+            throw new WriteTimeoutException(consistencyLevel, ackCount(), blockFor());
     }
 
     protected abstract int ackCount();
+
+    protected abstract int blockFor();
 
     /** null message means "response from local write" */
     public abstract void response(MessageIn msg);

@@ -19,7 +19,7 @@ package org.apache.cassandra.auth;
 
 import java.util.Map;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.thrift.AuthenticationException;
 
 public class AllowAllAuthenticator implements IAuthenticator
