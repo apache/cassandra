@@ -644,7 +644,7 @@ public final class MessagingService implements MessagingServiceMBean
 
         for (DebuggableThreadPoolExecutor e : streamExecutors.values())
         {
-            if (e.awaitTermination(24, TimeUnit.HOURS))
+            if (!e.awaitTermination(24, TimeUnit.HOURS))
                 logger.error("Stream took more than 24H to complete; skipping");
         }
     }
