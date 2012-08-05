@@ -434,6 +434,7 @@ class Shell(cmd.Cmd):
                 tempcurs.execute('USE %s;' % self.cql_protect_name(keyspace))
                 tempcurs.close()
         self.cursor = self.conn.cursor()
+        self.get_connection_versions()
 
         self.current_keyspace = keyspace
 
@@ -470,6 +471,9 @@ class Shell(cmd.Cmd):
     def cqlver_atleast(self, major, minor=0, patch=0):
         return self.cql_ver_tuple[:3] >= (major, minor, patch)
 
+    def cassandraver_atleast(self, major, minor=0, patch=0):
+        return self.cass_ver_tuple[:3] >= (major, minor, patch)
+
     def myformat_value(self, val, casstype, **kwargs):
         if isinstance(val, DecodeError):
             self.decoding_errors.append(val)
@@ -491,7 +495,7 @@ class Shell(cmd.Cmd):
                 self.port)
 
     def show_version(self):
-        vers = self.get_cluster_versions()
+        vers = self.connection_versions.copy()
         vers['shver'] = version
         # system.Versions['cql'] apparently does not reflect changes with
         # set_cql_version.
@@ -524,7 +528,22 @@ class Shell(cmd.Cmd):
                           % (cf, colname, cql_typename(vtype))
         print
 
-    def get_cluster_versions(self):
+    def get_connection_versions(self):
+        try:
+            self.cursor.execute("select * from system.local where key = 'local'")
+        except cql.ProgrammingError:
+            vers = self.get_connection_versions_fallback()
+        else:
+            result = self.fetchdict()
+            vers = {
+                'build': result['release_version'],
+                'thrift': result['thrift_version'],
+                'cql': result['cql_version'],
+            }
+        self.connection_versions = vers
+        self.cass_ver_tuple = tuple(map(int, vers['build'].split('-', 1)[0].split('.', 2)))
+
+    def get_connection_versions_fallback(self):
         if self.cqlver_atleast(3):
             query = 'select component, version from system."Versions"'
         else:
@@ -660,15 +679,21 @@ class Shell(cmd.Cmd):
     def get_columnfamily_layout(self, ksname, cfname):
         if ksname is None:
             ksname = self.current_keyspace
-        self.cursor.execute("""select * from system.schema_columnfamilies
-                                where "keyspace"=:ks and "columnfamily"=:cf""",
-                            {'ks': ksname, 'cf': cfname})
+        if self.cassandraver_atleast(1, 2):
+            cf_q = """select * from system.schema_columnfamilies
+                       where keyspace_name=:ks and columnfamily_name=:cf"""
+            col_q = """select * from system.schema_columns
+                        where keyspace_name=:ks and columnfamily_name=:cf"""
+        else:
+            cf_q = """select * from system.schema_columnfamilies
+                       where "keyspace"=:ks and "columnfamily"=:cf"""
+            col_q = """select * from system.schema_columns
+                        where "keyspace"=:ks and "columnfamily"=:cf"""
+        self.cursor.execute(cf_q, {'ks': ksname, 'cf': cfname})
         layout = self.fetchdict()
         if layout is None:
             raise ColumnFamilyNotFound("Column family %r not found" % cfname)
-        self.cursor.execute("""select * from system.schema_columns
-                                where "keyspace"=:ks and "columnfamily"=:cf""",
-                            {'ks': ksname, 'cf': cfname})
+        self.cursor.execute(col_q, {'ks': ksname, 'cf': cfname})
         cols = self.fetchdict_all()
         return cql3handling.CqlTableDef.from_layout(layout, cols)
 
@@ -1544,6 +1569,7 @@ class Shell(cmd.Cmd):
 
         showwhat = parsed.get_binding('what').lower()
         if showwhat == 'version':
+            self.get_connection_versions()
             self.show_version()
         elif showwhat == 'host':
             self.show_host()

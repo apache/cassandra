@@ -692,7 +692,11 @@ class CqlColumnDef:
 
     @classmethod
     def from_layout(cls, layout):
-        c = cls(layout[u'column'], cql_typename(layout[u'validator']))
+        try:
+            colname = layout[u'column_name']
+        except KeyError:
+            colname = layout[u'column']
+        c = cls(colname, cql_typename(layout[u'validator']))
         c.index_name = layout[u'index_name']
         return c
 
@@ -716,7 +720,11 @@ class CqlTableDef:
 
     @classmethod
     def from_layout(cls, layout, coldefs):
-        cf = cls(name=layout[u'columnfamily'])
+        try:
+            cfname = layout[u'columnfamily_name']
+        except KeyError:
+            cfname = layout[u'columnfamily']
+        cf = cls(name=cfname)
         for attr, val in layout.items():
             setattr(cf, attr.encode('ascii'), val)
         for attr in cls.json_attrs:
