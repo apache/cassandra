@@ -503,11 +503,11 @@ public class TypeParser
         boolean first = true;
         for (Map.Entry<ByteBuffer, CollectionType> entry : collections.entrySet())
         {
-            if (first)
+            if (!first)
             {
                 sb.append(',');
-                first = false;
             }
+            first = false;
             sb.append(ByteBufferUtil.bytesToHex(entry.getKey())).append(":");
             entry.getValue().appendToStringBuilder(sb);
         }
