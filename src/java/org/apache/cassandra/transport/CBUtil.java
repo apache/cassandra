@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.transport;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
@@ -180,6 +183,32 @@ public abstract class CBUtil
     {
         int length = cb.readInt();
         return length < 0 ? null : cb.readSlice(length).toByteBuffer();
+    }
+
+    public static InetSocketAddress readInet(ChannelBuffer cb)
+    {
+        int addrSize = cb.readByte();
+        byte[] address = new byte[addrSize];
+        cb.readBytes(address);
+        int port = cb.readInt();
+        try
+        {
+            return new InetSocketAddress(InetAddress.getByAddress(address), port);
+        }
+        catch (UnknownHostException e)
+        {
+            throw new ProtocolException(String.format("Invalid IP address (%d.%d.%d.%d) while deserializing inet address", address[0], address[1], address[2], address[3]));
+        }
+    }
+
+    public static ChannelBuffer inetToCB(InetSocketAddress inet)
+    {
+        byte[] address = inet.getAddress().getAddress();
+        ChannelBuffer cb = ChannelBuffers.buffer(1 + address.length + 4);
+        cb.writeByte(address.length);
+        cb.writeBytes(address);
+        cb.writeInt(inet.getPort());
+        return cb;
     }
 
     public static class BufferBuilder

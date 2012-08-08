@@ -83,12 +83,13 @@ public class ExecuteMessage extends Message.Request
     {
         try
         {
-            CQLStatement statement = connection.clientState().getCQL3Prepared().get(statementId);
+            ServerConnection c = (ServerConnection)connection;
+            CQLStatement statement = c.clientState().getCQL3Prepared().get(statementId);
 
             if (statement == null)
                 throw new InvalidRequestException(String.format("Prepared query with ID %d not found", statementId));
 
-            return QueryProcessor.processPrepared(statement, connection.clientState(), values);
+            return QueryProcessor.processPrepared(statement, c.clientState(), values);
         }
         catch (Exception e)
         {

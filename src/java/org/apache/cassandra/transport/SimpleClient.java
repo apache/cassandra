@@ -50,15 +50,15 @@ public class SimpleClient
     public final int port;
 
     protected final ResponseHandler responseHandler = new ResponseHandler();
-    protected final ClientConnection connection = new ClientConnection();
     protected final Connection.Tracker tracker = new ConnectionTracker();
+    protected final Connection connection = new Connection(tracker);
     protected ClientBootstrap bootstrap;
     protected Channel channel;
     protected ChannelFuture lastWriteFuture;
 
     private final Connection.Factory connectionFactory = new Connection.Factory()
     {
-        public Connection newConnection()
+        public Connection newConnection(Connection.Tracker tracker)
         {
             return connection;
         }
@@ -162,18 +162,6 @@ public class SimpleClient
         {
             throw new RuntimeException(e);
         }
-    }
-
-    protected static class ClientConnection extends Connection
-    {
-        public ClientState clientState()
-        {
-            return null;
-        }
-
-        public void validateNewMessage(Message.Type type) {}
-
-        public void applyStateTransition(Message.Type requestType, Message.Type responseType) {}
     }
 
     // Stateless handlers

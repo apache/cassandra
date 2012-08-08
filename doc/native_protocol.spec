@@ -8,8 +8,9 @@ Table of Contents
   2. Frame header
     2.1. version
     2.2. flags
-    2.3. opcode
-    2.4. length
+    2.3. stream
+    2.4. opcode
+    2.5. length
   3. Notations
   4. Messages
     4.1. Requests
@@ -19,6 +20,7 @@ Table of Contents
       4.1.4. QUERY
       4.1.5. PREPARE
       4.1.6. EXECUTE
+      4.1.7. REGISTER
     4.2. Responses
       4.2.1. ERROR
       4.2.2. READY
@@ -29,6 +31,7 @@ Table of Contents
         4.2.5.2. Rows
         4.2.5.3. Set_keyspace
         4.2.5.4. Prepared
+      4.2.6. EVENT
   5. Compression
   6. Error codes
 
@@ -100,9 +103,10 @@ Table of Contents
 
   A frame has a stream id (one signed byte). When sending request messages, this
   stream id must be set by the client to a positive byte (negative stream id
-  are reserved for future stream initiated by the server). If a client sends a
-  request message with the stream id X, it is guaranteed that the stream id of
-  the response to that message will be X.
+  are reserved for streams initiated by the server; currently all EVENT messages
+  (section 4.2.6) have a streamId of -1). If a client sends a request message
+  with the stream id X, it is guaranteed that the stream id of the response to
+  that message will be X.
 
   This allow to deal with the asynchronous nature of the protocol. If a client
   sends multiple messages simultaneously (without waiting for responses), there
@@ -131,11 +135,13 @@ Table of Contents
     0x08    RESULT
     0x09    PREPARE
     0x0A    EXECUTE
+    0x0B    REGISTER
+    0x0C    EVENT
 
   Messages are described in Section 4.
 
 
-2.4. length
+2.5. length
 
   A 4 byte integer representing the length of the body of the frame (note:
   currently a frame is limited to 256MB in length).
@@ -160,6 +166,11 @@ Table of Contents
                    of size 0). The supported id (and the corresponding <value>)
                    will be described when this is used.
     [option list]  A [short] n, followed by n [option].
+    [inet]         An address (ip and port) to a node. It consists of one
+                   [byte] n, that represents the address size, followed by n
+                   [byte] repesenting the IP address (in practice n can only be
+                   either 4 (IPv4) or 16 (IPv6)), following by one [int]
+                   representing the port.
 
     [string map]      A [short] n, followed by n pair <k><v> where <k> and <v>
                       are [string].
@@ -245,6 +256,21 @@ Table of Contents
       prepared query.
 
   The response from the server will be a RESULT message.
+
+
+4.1.7. REGISTER
+
+  Register this connection to receive some type of events. The body of the
+  message is a [string list] representing the event types to register to. See
+  section 4.2.6 for the list of valid event types.
+
+  The response to a REGISTER message will be a READY message.
+
+  Please note that if a client driver maintains multiple connections to a
+  Cassandra node and/or connections to multiple nodes, it is advised to
+  dedicate a handful of connections to receive events, but to *not* register
+  for events on all connections, as this would only result in receiving
+  multiple times the same event messages, wasting bandwidth.
 
 
 4.2. Responses
@@ -386,6 +412,27 @@ Table of Contents
   where:
     - <id> is an [int] representing the prepared query ID.
     - <metadata> is defined exactly as for a Rows RESULT (See section 4.2.5.2).
+
+
+4.2.6. EVENT
+
+  And event pushed by the server. A client will only receive events for the
+  type it has REGISTER to. The body of an EVENT message will start by a
+  [string] representing the event type. The rest of the message depends on the
+  event type. The valid event types are:
+    - "TOPOLOGY_CHANGE": events related to change in the cluster topology.
+      Currently, events are sent when new nodes are added to the cluster, and
+      when nodes are removed. The body of the message (after the event type)
+      consists of a [string] and an [inet], corresponding respectively to the
+      type of change ("NEW_NODE" or "REMOVED_NODE") followed by the address of
+      the new/removed node.
+    - "STATUS_CHANGE": events related to change of node status. Currently,
+      up/down events are sent. The body of the message (after the event type)
+      consists of a [string] and an [inet], corresponding respectively to the
+      type of status change ("UP" or "DOWN") followed by the address of the
+      concerned node.
+
+  All EVENT message have a streamId of -1 (Section 2.3).
 
 
 5. Compression

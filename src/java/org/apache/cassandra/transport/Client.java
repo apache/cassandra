@@ -150,6 +150,19 @@ public class Client extends SimpleClient
             }
             return msg;
         }
+        else if (msgType.equals("REGISTER"))
+        {
+            String type = line.substring(9).toUpperCase();
+            try
+            {
+                return new RegisterMessage(Collections.singletonList(Enum.valueOf(Event.Type.class, type)));
+            }
+            catch (IllegalArgumentException e)
+            {
+                System.err.println("[ERROR] Unknown event type: " + type);
+                return null;
+            }
+        }
         return null;
     }
 

@@ -25,6 +25,7 @@ import org.jboss.netty.buffer.ChannelBuffers;
 
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.ServerConnection;
 import org.apache.cassandra.thrift.AuthenticationException;
 
 /**
@@ -77,7 +78,7 @@ public class CredentialsMessage extends Message.Request
     {
         try
         {
-            connection.clientState().login(credentials);
+            ((ServerConnection)connection).clientState().login(credentials);
             return new ReadyMessage();
         }
         catch (AuthenticationException e)

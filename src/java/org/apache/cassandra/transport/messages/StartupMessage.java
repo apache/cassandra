@@ -69,12 +69,15 @@ public class StartupMessage extends Message.Request
     {
         try
         {
+            assert connection instanceof ServerConnection;
+            ServerConnection c = (ServerConnection)connection;
+
             String cqlVersion = options.get(CQL_VERSION);
             if (cqlVersion == null)
                 throw new ProtocolException("Missing value CQL_VERSION in STARTUP message");
 
-            connection.clientState().setCQLVersion(cqlVersion);
-            if (connection.clientState().getCQLVersion().compareTo(new SemanticVersion("2.99.0")) < 0)
+            c.clientState().setCQLVersion(cqlVersion);
+            if (c.clientState().getCQLVersion().compareTo(new SemanticVersion("2.99.0")) < 0)
                 throw new ProtocolException(String.format("CQL version %s is not support by the binary protocol (supported version are >= 3.0.0)", cqlVersion));
 
             if (options.containsKey(COMPRESSION))
@@ -92,7 +95,7 @@ public class StartupMessage extends Message.Request
                 }
             }
 
-            if (connection.clientState().isLogged())
+            if (c.clientState().isLogged())
                 return new ReadyMessage();
             else
                 return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());

@@ -61,7 +61,7 @@ public class QueryMessage extends Message.Request
     {
         try
         {
-            return QueryProcessor.process(query, connection.clientState());
+            return QueryProcessor.process(query, ((ServerConnection)connection).clientState());
         }
         catch (Exception e)
         {

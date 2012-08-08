@@ -18,32 +18,33 @@
 package org.apache.cassandra.transport.messages;
 
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
 
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.transport.*;
+import org.apache.cassandra.transport.Event;
+import org.apache.cassandra.transport.Message;
 
-public class PrepareMessage extends Message.Request
+public class EventMessage extends Message.Response
 {
-    public static final Message.Codec<PrepareMessage> codec = new Message.Codec<PrepareMessage>()
+    public static final Message.Codec<EventMessage> codec = new Message.Codec<EventMessage>()
     {
-        public PrepareMessage decode(ChannelBuffer body)
+        public EventMessage decode(ChannelBuffer body)
         {
-            String query = CBUtil.readLongString(body);
-            return new PrepareMessage(query);
+            return new EventMessage(Event.deserialize(body));
         }
 
-        public ChannelBuffer encode(PrepareMessage msg)
+        public ChannelBuffer encode(EventMessage msg)
         {
-            return CBUtil.longStringToCB(msg.query);
+            return msg.event.serialize();
         }
     };
 
-    private final String query;
+    public final Event event;
 
-    public PrepareMessage(String query)
+    public EventMessage(Event event)
     {
-        super(Message.Type.PREPARE);
-        this.query = query;
+        super(Message.Type.EVENT);
+        this.event = event;
+        this.setStreamId(-1);
     }
 
     public ChannelBuffer encode()
@@ -51,21 +52,9 @@ public class PrepareMessage extends Message.Request
         return codec.encode(this);
     }
 
-    public Message.Response execute()
-    {
-        try
-        {
-            return QueryProcessor.prepare(query, ((ServerConnection)connection).clientState());
-        }
-        catch (Exception e)
-        {
-            return ErrorMessage.fromException(e);
-        }
-    }
-
     @Override
     public String toString()
     {
-        return "PREPARE " + query;
+        return "EVENT " + event;
     }
 }

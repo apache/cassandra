@@ -140,21 +140,19 @@ public class Frame
     public static class Decoder extends LengthFieldBasedFrameDecoder
     {
         private static final int MAX_FRAME_LENTH = 256 * 1024 * 1024; // 256 MB
-        private final Connection.Tracker tracker;
         private final Connection connection;
 
         public Decoder(Connection.Tracker tracker, Connection.Factory factory)
         {
             super(MAX_FRAME_LENTH, 4, 4);
-            this.tracker = tracker;
-            this.connection = factory.newConnection();
+            this.connection = factory.newConnection(tracker);
         }
 
         @Override
         public void channelOpen(ChannelHandlerContext ctx, ChannelStateEvent e)
         throws Exception
         {
-            tracker.addConnection(e.getChannel(), connection);
+            connection.registerChannel(e.getChannel());
         }
 
         @Override

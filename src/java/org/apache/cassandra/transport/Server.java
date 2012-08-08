@@ -19,6 +19,7 @@ package org.apache.cassandra.transport;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.EnumMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -33,7 +34,9 @@ import org.jboss.netty.logging.Slf4JLoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.gms.*;
 import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.transport.messages.EventMessage;
 
 public class Server implements CassandraDaemon.Server
 {
@@ -55,6 +58,7 @@ public class Server implements CassandraDaemon.Server
     public Server(InetSocketAddress socket)
     {
         this.socket = socket;
+        Gossiper.instance.register(new EventNotifier(this));
     }
 
     public Server(String hostname, int port)
@@ -115,15 +119,36 @@ public class Server implements CassandraDaemon.Server
         executionHandler = null;
     }
 
-    private static class ConnectionTracker implements Connection.Tracker
+    public static class ConnectionTracker implements Connection.Tracker
     {
-        public final ChannelLocal<Connection> openedConnections = new ChannelLocal<Connection>(true);
         public final ChannelGroup allChannels = new DefaultChannelGroup();
+        private final EnumMap<Event.Type, ChannelGroup> groups = new EnumMap<Event.Type, ChannelGroup>(Event.Type.class);
+
+        public ConnectionTracker()
+        {
+            for (Event.Type type : Event.Type.values())
+                groups.put(type, new DefaultChannelGroup(type.toString()));
+        }
 
         public void addConnection(Channel ch, Connection connection)
         {
             allChannels.add(ch);
-            openedConnections.set(ch, connection);
+        }
+
+        public void register(Event.Type type, Channel ch)
+        {
+            groups.get(type).add(ch);
+        }
+
+        public void unregister(Channel ch)
+        {
+            for (ChannelGroup group : groups.values())
+                group.remove(ch);
+        }
+
+        public void send(Event event)
+        {
+            groups.get(event.type).write(new EventMessage(event));
         }
 
         public void closeAll()
@@ -155,7 +180,7 @@ public class Server implements CassandraDaemon.Server
 
             //pipeline.addLast("debug", new LoggingHandler());
 
-            pipeline.addLast("frameDecoder", new Frame.Decoder(server.connectionTracker, Connection.SERVER_FACTORY));
+            pipeline.addLast("frameDecoder", new Frame.Decoder(server.connectionTracker, ServerConnection.FACTORY));
             pipeline.addLast("frameEncoder", frameEncoder);
 
             pipeline.addLast("frameDecompressor", frameDecompressor);
@@ -170,5 +195,46 @@ public class Server implements CassandraDaemon.Server
 
             return pipeline;
       }
+    }
+
+    private static class EventNotifier implements IEndpointStateChangeSubscriber
+    {
+        private final Server server;
+
+        private EventNotifier(Server server)
+        {
+            this.server = server;
+        }
+
+        public void onJoin(InetAddress endpoint, EndpointState epState)
+        {
+            // TODO: we don't gossip the native protocol ip/port yet, so use the
+            // endpoint address and ip on which this server is listening instead.
+            server.connectionTracker.send(Event.TopologyChange.newNode(endpoint, server.socket.getPort()));
+        }
+
+        public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
+        {
+        }
+
+        public void onAlive(InetAddress endpoint, EndpointState state)
+        {
+            server.connectionTracker.send(Event.StatusChange.nodeUp(endpoint, server.socket.getPort()));
+        }
+
+        public void onDead(InetAddress endpoint, EndpointState state)
+        {
+            server.connectionTracker.send(Event.StatusChange.nodeDown(endpoint, server.socket.getPort()));
+        }
+
+        public void onRemove(InetAddress endpoint)
+        {
+            server.connectionTracker.send(Event.TopologyChange.removedNode(endpoint, server.socket.getPort()));
+        }
+
+        public void onRestart(InetAddress endpoint, EndpointState state)
+        {
+            server.connectionTracker.send(Event.StatusChange.nodeUp(endpoint, server.socket.getPort()));
+        }
     }
 }

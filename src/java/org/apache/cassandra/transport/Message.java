@@ -62,7 +62,9 @@ public abstract class Message
         QUERY        (7,  Direction.REQUEST,  QueryMessage.codec),
         RESULT       (8,  Direction.RESPONSE, ResultMessage.codec),
         PREPARE      (9,  Direction.REQUEST,  PrepareMessage.codec),
-        EXECUTE      (10, Direction.REQUEST,  ExecuteMessage.codec);
+        EXECUTE      (10, Direction.REQUEST,  ExecuteMessage.codec),
+        REGISTER     (11, Direction.REQUEST,  RegisterMessage.codec),
+        EVENT        (12, Direction.RESPONSE, EventMessage.codec);
 
         public final int opcode;
         public final Direction direction;
@@ -201,7 +203,8 @@ public abstract class Message
 
             try
             {
-                Connection connection = request.connection();
+                assert request.connection() instanceof ServerConnection;
+                ServerConnection connection = (ServerConnection)request.connection();
                 connection.validateNewMessage(request.type);
 
                 logger.debug("Received: " + request);
@@ -209,7 +212,7 @@ public abstract class Message
                 Response response = request.execute();
                 response.setStreamId(request.getStreamId());
                 response.attach(connection);
-                response.connection().applyStateTransition(request.type, response.type);
+                connection.applyStateTransition(request.type, response.type);
 
                 logger.debug("Responding: " + response);
 

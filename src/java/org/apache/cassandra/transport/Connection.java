@@ -19,19 +19,16 @@ package org.apache.cassandra.transport;
 
 import org.jboss.netty.channel.Channel;
 
-import org.apache.cassandra.service.ClientState;
-
-public abstract class Connection
+public class Connection
 {
-    public static final Factory SERVER_FACTORY = new Factory()
-    {
-        public Connection newConnection()
-        {
-            return new ServerConnection();
-        }
-    };
+    private volatile FrameCompressor frameCompressor;
+    private volatile Channel channel;
+    private final Tracker tracker;
 
-    private FrameCompressor frameCompressor;
+    public Connection(Tracker tracker)
+    {
+        this.tracker = tracker;
+    }
 
     public void setCompressor(FrameCompressor compressor)
     {
@@ -43,77 +40,25 @@ public abstract class Connection
         return frameCompressor;
     }
 
-    public abstract void validateNewMessage(Message.Type type);
-    public abstract void applyStateTransition(Message.Type requestType, Message.Type responseType);
-    public abstract ClientState clientState();
+    public Tracker getTracker()
+    {
+        return tracker;
+    }
+
+    public void registerChannel(Channel ch)
+    {
+        channel = ch;
+        tracker.addConnection(ch, this);
+    }
+
+    public Channel channel()
+    {
+        return channel;
+    }
 
     public interface Factory
     {
-        public Connection newConnection();
-    }
-
-    private static class ServerConnection extends Connection
-    {
-        private enum State { UNINITIALIZED, AUTHENTICATION, READY; }
-
-        private final ClientState clientState;
-        private State state;
-
-        public ServerConnection()
-        {
-            this.clientState = new ClientState();
-            this.state = State.UNINITIALIZED;
-        }
-
-        public ClientState clientState()
-        {
-            return clientState;
-        }
-
-        public void validateNewMessage(Message.Type type)
-        {
-            switch (state)
-            {
-                case UNINITIALIZED:
-                    if (type != Message.Type.STARTUP && type != Message.Type.OPTIONS)
-                        throw new ProtocolException(String.format("Unexpected message %s, expecting STARTUP or OPTIONS", type));
-                    break;
-                case AUTHENTICATION:
-                    if (type != Message.Type.CREDENTIALS)
-                        throw new ProtocolException(String.format("Unexpected message %s, needs authentication through CREDENTIALS message", type));
-                    break;
-                case READY:
-                    if (type == Message.Type.STARTUP)
-                        throw new ProtocolException("Unexpected message STARTUP, the connection is already initialized");
-                    break;
-                default:
-                    throw new AssertionError();
-            }
-        }
-
-        public void applyStateTransition(Message.Type requestType, Message.Type responseType)
-        {
-            switch (state)
-            {
-                case UNINITIALIZED:
-                    if (requestType == Message.Type.STARTUP)
-                    {
-                        if (responseType == Message.Type.AUTHENTICATE)
-                            state = State.AUTHENTICATION;
-                        else if (responseType == Message.Type.READY)
-                            state = State.READY;
-                    }
-                    break;
-                case AUTHENTICATION:
-                    assert requestType == Message.Type.CREDENTIALS;
-                    if (responseType == Message.Type.READY)
-                        state = State.READY;
-                case READY:
-                    break;
-                default:
-                    throw new AssertionError();
-            }
-        }
+        public Connection newConnection(Tracker tracker);
     }
 
     public interface Tracker
