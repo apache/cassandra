@@ -86,14 +86,12 @@ public final class CFMetaData
     public static final CFMetaData IndexCf = compile(5, "CREATE TABLE \"" + SystemTable.INDEX_CF + "\" ("
                                                         + "table_name text,"
                                                         + "index_name text,"
-                                                        + "blank blob," // TODO r/m when CASSANDRA-4212 is done
                                                         + "PRIMARY KEY (table_name, index_name)"
                                                         + ") WITH COMPACT STORAGE AND COMMENT='indexes that have been completed'");
 
     public static final CFMetaData NodeIdCf = compile(6, "CREATE TABLE \"" + SystemTable.NODE_ID_CF + "\" ("
                                                          + "key text,"
                                                          + "id timeuuid,"
-                                                         + "blank blob," // TODO r/m when CASSANDRA-4212 is done
                                                          + "PRIMARY KEY (key, id)"
                                                          + ") WITH COMPACT STORAGE AND COMMENT='counter node IDs'");
 
