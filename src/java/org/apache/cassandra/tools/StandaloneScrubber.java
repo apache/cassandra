@@ -178,7 +178,7 @@ public class StandaloneScrubber
             {
                 SSTableReader current = iter.next();
 
-                if (previous.last.compareTo(current.first) > 0)
+                if (previous.last.compareTo(current.first) >= 0)
                 {
                     System.err.println(String.format("At level %d, %s [%s, %s] overlaps %s [%s, %s]", i,
                                                      previous, previous.first, previous.last,
