@@ -211,7 +211,7 @@ public class Scrubber implements Closeable
                             }
                             else
                             {
-                                if (prevRow != null && acrComparator.compare(prevRow, compactedRow) > 0)
+                                if (prevRow != null && acrComparator.compare(prevRow, compactedRow) >= 0)
                                 {
                                     outOfOrderRows.add(compactedRow);
                                     outputHandler.warn(String.format("Out of order row detected (%s found after %s)", compactedRow.key, prevRow.key));
