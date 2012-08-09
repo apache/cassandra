@@ -36,6 +36,10 @@
  * improve DynamicEndpointSnitch by using reservoir sampling (CASSANDRA-4038)
 
 
+1.1.4
+ * fix offline scrub to catch >= out of order rows (CASSANDRA-4411)
+
+
 1.1.3
  * munmap commitlog segments before rename (CASSANDRA-4337)
  * (JMX) rename getRangeKeySample to sampleKeyRange to avoid returning
