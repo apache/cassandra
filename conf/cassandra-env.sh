@@ -177,7 +177,7 @@ if [ "x$CASSANDRA_HEAPDUMP_DIR" != "x" ]; then
 fi
 
 
-startswith () [ "${1#$2}" != "$1" ]
+startswith() { [ "${1#$2}" != "$1" ]; }
 
 if [ "`uname`" = "Linux" ] ; then
     # reduce the per-thread stack size to minimize the impact of Thrift
