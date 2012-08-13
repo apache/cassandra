@@ -1,5 +1,7 @@
 1.1.4
  * fix offline scrub to catch >= out of order rows (CASSANDRA-4411)
+ * fix cassandra-env.sh on RHEL and other non-dash-based systems 
+   (CASSANDRA-4494)
 
 
 1.1.3
