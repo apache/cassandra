@@ -112,7 +112,7 @@ public class ResultSet
         {
             ByteBuffer colName = ByteBufferUtil.bytes(name.toString());
             schema.name_types.put(colName, UTF8);
-            schema.value_types.put(colName, TypeParser.getShortName(name.type));
+            schema.value_types.put(colName, name.type.toString());
         }
 
         List<CqlRow> cqlRows = new ArrayList<CqlRow>(rows.size());
@@ -122,10 +122,7 @@ public class ResultSet
             for (int i = 0; i < metadata.names.size(); i++)
             {
                 Column col = new Column(ByteBufferUtil.bytes(metadata.names.get(i).toString()));
-                if (row.get(i) != null && metadata.names.get(i).type.isCollection())
-                    col.setValue(ByteBufferUtil.bytes(FBUtilities.json(metadata.names.get(i).type.compose(row.get(i)))));
-                else
-                    col.setValue(row.get(i));
+                col.setValue(row.get(i));
                 thriftCols.add(col);
             }
             // The key of CqlRow shoudn't be needed in CQL3
