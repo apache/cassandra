@@ -204,7 +204,6 @@ public class ResultSet
 
     public static class Metadata
     {
-        private static OptionCodec<DataType> dataTypeCodec = new OptionCodec<DataType>(DataType.class);
         public static final CBCodec<Metadata> codec = new Codec();
 
         public final EnumSet<Flag> flags;
@@ -277,7 +276,7 @@ public class ResultSet
                     String ksName = globalTablesSpec ? globalKsName : CBUtil.readString(body);
                     String cfName = globalTablesSpec ? globalCfName : CBUtil.readString(body);
                     ColumnIdentifier colName = new ColumnIdentifier(CBUtil.readString(body), true);
-                    AbstractType type = DataType.toType(dataTypeCodec.decodeOne(body));
+                    AbstractType type = DataType.toType(DataType.codec.decodeOne(body));
                     names.add(new ColumnSpecification(ksName, cfName, colName, type));
                 }
                 return new Metadata(flags, names);
@@ -309,7 +308,7 @@ public class ResultSet
                         builder.addString(name.cfName);
                     }
                     builder.addString(name.toString());
-                    builder.add(dataTypeCodec.encodeOne(DataType.fromType(name.type)));
+                    builder.add(DataType.codec.encodeOne(DataType.fromType(name.type)));
                 }
                 return builder.build();
             }

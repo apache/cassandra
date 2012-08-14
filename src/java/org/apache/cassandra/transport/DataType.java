@@ -17,8 +17,11 @@
  */
 package org.apache.cassandra.transport;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 
 import com.google.common.base.Charsets;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -44,7 +47,12 @@ public enum DataType implements OptionCodec.Codecable<DataType>
     UUID     (12, UUIDType.instance),
     VARCHAR  (13, UTF8Type.instance),
     VARINT   (14, IntegerType.instance),
-    TIMEUUID (15, TimeUUIDType.instance);
+    TIMEUUID (15, TimeUUIDType.instance),
+    LIST     (32, null),
+    MAP      (33, null),
+    SET      (34, null);
+
+    public static final OptionCodec<DataType> codec = new OptionCodec<DataType>(DataType.class);
 
     private final int id;
     private final AbstractType type;
@@ -75,6 +83,15 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         {
             case CUSTOM:
                 return CBUtil.readString(cb);
+            case LIST:
+                return DataType.toType(codec.decodeOne(cb));
+            case SET:
+                return DataType.toType(codec.decodeOne(cb));
+            case MAP:
+                List<AbstractType> l = new ArrayList<AbstractType>(2);
+                l.add(DataType.toType(codec.decodeOne(cb)));
+                l.add(DataType.toType(codec.decodeOne(cb)));
+                return l;
             default:
                 return null;
         }
@@ -88,6 +105,17 @@ public enum DataType implements OptionCodec.Codecable<DataType>
                 assert value instanceof String;
                 cb.writeBytes(CBUtil.stringToCB((String)value));
                 break;
+            case LIST:
+                cb.writeBytes(codec.encodeOne(DataType.fromType((AbstractType)value)));
+                break;
+            case SET:
+                cb.writeBytes(codec.encodeOne(DataType.fromType((AbstractType)value)));
+                break;
+            case MAP:
+                List<AbstractType> l = (List<AbstractType>)value;
+                cb.writeBytes(codec.encodeOne(DataType.fromType(l.get(0))));
+                cb.writeBytes(codec.encodeOne(DataType.fromType(l.get(1))));
+                break;
         }
     }
 
@@ -97,6 +125,15 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         {
             case CUSTOM:
                 return 2 + ((String)value).getBytes(Charsets.UTF_8).length;
+            case LIST:
+            case SET:
+                return codec.oneSerializedSize(DataType.fromType((AbstractType)value));
+            case MAP:
+                List<AbstractType> l = (List<AbstractType>)value;
+                int s = 0;
+                s += codec.oneSerializedSize(DataType.fromType(l.get(0)));
+                s += codec.oneSerializedSize(DataType.fromType(l.get(1)));
+                return s;
             default:
                 return 0;
         }
@@ -106,19 +143,50 @@ public enum DataType implements OptionCodec.Codecable<DataType>
     {
         DataType dt = dataTypeMap.get(type);
         if (dt == null)
+        {
+            if (type.isCollection())
+            {
+                if (type instanceof ListType)
+                {
+                    return Pair.<DataType, Object>create(LIST, ((ListType)type).elements);
+                }
+                else if (type instanceof MapType)
+                {
+                    MapType mt = (MapType)type;
+                    return Pair.<DataType, Object>create(MAP, Arrays.asList(mt.keys, mt.values));
+                }
+                else
+                {
+                    assert type instanceof SetType;
+                    return Pair.<DataType, Object>create(LIST, ((SetType)type).elements);
+                }
+            }
             return Pair.<DataType, Object>create(CUSTOM, type.toString());
+        }
         else
+        {
             return Pair.create(dt, null);
+        }
     }
 
     public static AbstractType toType(Pair<DataType, Object> entry)
     {
         try
         {
-            if (entry.left == CUSTOM)
-                return TypeParser.parse((String)entry.right);
-            else
-                return entry.left.type;
+            switch (entry.left)
+            {
+                case CUSTOM:
+                    return TypeParser.parse((String)entry.right);
+                case LIST:
+                    return ListType.getInstance((AbstractType)entry.right);
+                case SET:
+                    return SetType.getInstance((AbstractType)entry.right);
+                case MAP:
+                    List<AbstractType> l = (List<AbstractType>)entry.right;
+                    return MapType.getInstance(l.get(0), l.get(1));
+                default:
+                    return entry.left.type;
+            }
         }
         catch (ConfigurationException e)
         {

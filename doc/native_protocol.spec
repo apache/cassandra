@@ -49,6 +49,8 @@ Table of Contents
       .                                       .
       +----------------------------------------
 
+  The protocol is big-endian (network byte order).
+
   Each frame contains a fixed size header (8 bytes) followed by a variable size
   body. The header is described in Section 2. The content of the body depends
   on the header opcode value (the body can in particular be empty for some
@@ -355,6 +357,12 @@ Table of Contents
             0x000D    Varchar
             0x000E    Varint
             0x000F    Timeuuid
+            0x0020    List: the value is an [option], representing the type
+                            of the elements of the list.
+            0x0021    Map: the value is two [option], representing the types of the
+                           keys and values of the map
+            0x0022    Set: the value is an [option], representing the type
+                            of the elements of the set
     - <rows_count> is an [int] representing the number of rows present in this
       result. Those rows are serialized in the <rows_content> part.
     - <rows_content> is composed of <row_1>...<row_m> where m is <rows_count>.
