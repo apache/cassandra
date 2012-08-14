@@ -531,7 +531,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         {
             key.clear();
             key.put(this.getCurrentKey());
-            key.rewind();
+            key.flip();
 
             value.clear();
             value.putAll(this.getCurrentValue());

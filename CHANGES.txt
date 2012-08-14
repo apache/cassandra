@@ -39,6 +39,10 @@
 
 1.1.4
  * fix offline scrub to catch >= out of order rows (CASSANDRA-4411)
+ * fix cassandra-env.sh on RHEL and other non-dash-based systems 
+   (CASSANDRA-4494)
+Merged from 1.0:
+ * (Hadoop) fix setting key length for old-style mapred api (CASSANDRA-4534)
 
 
  * munmap commitlog segments before rename (CASSANDRA-4337)
@@ -67,6 +71,8 @@ Merged from 1.0:
  * Push the validation of secondary index values to the SecondaryIndexManager (CASSANDRA-4240)
  * (Hadoop) fix iterating through a resultset consisting entirely
    of tombstoned rows (CASSANDRA-4466)
+ * allow dropping columns shadowed by not-yet-expired supercolumn or row
+   tombstones in PrecompactedRow (CASSANDRA-4396)
 
 
 1.1.2
