@@ -863,7 +863,7 @@ public class SelectStatement implements CQLStatement
                         if (collection == null)
                             cqlRows.addColumnValue(null);
                         else
-                            cqlRows.addColumnValue(((CollectionType)name.type).serializeForThrift(collection));
+                            cqlRows.addColumnValue(((CollectionType)name.type).serialize(collection));
                         break;
                     }
                     IColumn c = columns.getSimple(name.name.key);

@@ -30,7 +30,7 @@ import org.apache.cassandra.utils.Pair;
  * Please note that this comparator shouldn't be used "manually" (through thrift for instance).
  *
  */
-public abstract class CollectionType extends AbstractType<ByteBuffer>
+public abstract class CollectionType<T> extends AbstractType<T>
 {
     public enum Kind
     {
@@ -49,7 +49,7 @@ public abstract class CollectionType extends AbstractType<ByteBuffer>
 
     protected abstract void appendToStringBuilder(StringBuilder sb);
 
-    public abstract ByteBuffer serializeForThrift(List<Pair<ByteBuffer, IColumn>> columns);
+    public abstract ByteBuffer serialize(List<Pair<ByteBuffer, IColumn>> columns);
 
     @Override
     public String toString()
@@ -62,16 +62,6 @@ public abstract class CollectionType extends AbstractType<ByteBuffer>
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         throw new UnsupportedOperationException("CollectionType should not be use directly as a comparator");
-    }
-
-    public ByteBuffer compose(ByteBuffer bytes)
-    {
-        return BytesType.instance.compose(bytes);
-    }
-
-    public ByteBuffer decompose(ByteBuffer value)
-    {
-        return BytesType.instance.decompose(value);
     }
 
     public String getString(ByteBuffer bytes)
@@ -99,5 +89,18 @@ public abstract class CollectionType extends AbstractType<ByteBuffer>
     public boolean isCollection()
     {
         return true;
+    }
+
+    // Utilitary method
+    protected ByteBuffer pack(List<ByteBuffer> buffers, int elements, int size)
+    {
+        ByteBuffer result = ByteBuffer.allocate(2 + size);
+        result.putShort((short)elements);
+        for (ByteBuffer bb : buffers)
+        {
+            result.putShort((short)bb.remaining());
+            result.put(bb.duplicate());
+        }
+        return (ByteBuffer)result.flip();
     }
 }

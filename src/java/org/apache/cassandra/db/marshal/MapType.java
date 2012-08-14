@@ -18,11 +18,7 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.config.ConfigurationException;
@@ -30,15 +26,15 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
-public class MapType extends CollectionType
+public class MapType<K, V> extends CollectionType<Map<K, V>>
 {
     // interning instances
     private static final Map<Pair<AbstractType<?>, AbstractType<?>>, MapType> instances = new HashMap<Pair<AbstractType<?>, AbstractType<?>>, MapType>();
 
-    public final AbstractType<?> keys;
-    public final AbstractType<?> values;
+    public final AbstractType<K> keys;
+    public final AbstractType<V> values;
 
-    public static MapType getInstance(TypeParser parser) throws ConfigurationException
+    public static MapType<?, ?> getInstance(TypeParser parser) throws ConfigurationException
     {
         List<AbstractType<?>> l = parser.getTypeParameters();
         if (l.size() != 2)
@@ -47,7 +43,7 @@ public class MapType extends CollectionType
         return getInstance(l.get(0), l.get(1));
     }
 
-    public static synchronized MapType getInstance(AbstractType<?> keys, AbstractType<?> values)
+    public static synchronized <K, V> MapType<K, V> getInstance(AbstractType<K> keys, AbstractType<V> values)
     {
         Pair<AbstractType<?>, AbstractType<?>> p = Pair.<AbstractType<?>, AbstractType<?>>create(keys, values);
         MapType t = instances.get(p);
@@ -59,21 +55,64 @@ public class MapType extends CollectionType
         return t;
     }
 
-    private MapType(AbstractType<?> keys, AbstractType<?> values)
+    private MapType(AbstractType<K> keys, AbstractType<V> values)
     {
         super(Kind.MAP);
         this.keys = keys;
         this.values = values;
     }
 
-    public AbstractType<?> nameComparator()
+    public AbstractType<K> nameComparator()
     {
         return keys;
     }
 
-    public AbstractType<?> valueComparator()
+    public AbstractType<V> valueComparator()
     {
         return values;
+    }
+
+    public Map<K, V> compose(ByteBuffer bytes)
+    {
+        ByteBuffer input = bytes.duplicate();
+        int n = input.getShort();
+        Map<K, V> m = new LinkedHashMap<K, V>(n);
+        for (int i = 0; i < n; i++)
+        {
+            int sk = input.getShort();
+            byte[] datak = new byte[sk];
+            input.get(datak);
+
+            int sv = input.getShort();
+            byte[] datav = new byte[sv];
+            input.get(datav);
+            m.put(keys.compose(ByteBuffer.wrap(datak)), values.compose(ByteBuffer.wrap(datav)));
+        }
+        return m;
+    }
+
+    /**
+     * Layout is: {@code <n><sk_1><k_1><sv_1><v_1>...<sk_n><k_n><sv_n><v_n> }
+     * where:
+     *   n is the number of elements
+     *   sk_i is the number of bytes composing the ith key k_i
+     *   k_i is the sk_i bytes composing the ith key
+     *   sv_i is the number of bytes composing the ith value v_i
+     *   v_i is the sv_i bytes composing the ith value
+     */
+    public ByteBuffer decompose(Map<K, V> value)
+    {
+        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(2 * value.size());
+        int size = 0;
+        for (Map.Entry<K, V> entry : value.entrySet())
+        {
+            ByteBuffer bbk = keys.decompose(entry.getKey());
+            ByteBuffer bbv = values.decompose(entry.getValue());
+            bbs.add(bbk);
+            bbs.add(bbv);
+            size += 4 + bbk.remaining() + bbv.remaining();
+        }
+        return pack(bbs, value.size(), size);
     }
 
     protected void appendToStringBuilder(StringBuilder sb)
@@ -81,11 +120,19 @@ public class MapType extends CollectionType
         sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Arrays.asList(keys, values)));
     }
 
-    public ByteBuffer serializeForThrift(List<Pair<ByteBuffer, IColumn>> columns)
+    /**
+     * Creates the same output than decompose, but from the internal representation.
+     */
+    public ByteBuffer serialize(List<Pair<ByteBuffer, IColumn>> columns)
     {
-        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(2 * columns.size());
+        int size = 0;
         for (Pair<ByteBuffer, IColumn> p : columns)
-            m.put(keys.getString(p.left), values.compose(p.right.value()));
-        return ByteBufferUtil.bytes(FBUtilities.json(m));
+        {
+            bbs.add(p.left);
+            bbs.add(p.right.value());
+            size += 4 + p.left.remaining() + p.right.value().remaining();
+        }
+        return pack(bbs, columns.size(), size);
     }
 }

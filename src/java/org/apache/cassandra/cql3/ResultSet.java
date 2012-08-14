@@ -33,6 +33,7 @@ import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlResultType;
 import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class ResultSet
 {
@@ -121,7 +122,10 @@ public class ResultSet
             for (int i = 0; i < metadata.names.size(); i++)
             {
                 Column col = new Column(ByteBufferUtil.bytes(metadata.names.get(i).toString()));
-                col.setValue(row.get(i));
+                if (row.get(i) != null && metadata.names.get(i).type.isCollection())
+                    col.setValue(ByteBufferUtil.bytes(FBUtilities.json(metadata.names.get(i).type.compose(row.get(i)))));
+                else
+                    col.setValue(row.get(i));
                 thriftCols.add(col);
             }
             // The key of CqlRow shoudn't be needed in CQL3

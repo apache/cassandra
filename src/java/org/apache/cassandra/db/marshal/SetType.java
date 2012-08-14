@@ -18,11 +18,7 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.config.ConfigurationException;
@@ -30,14 +26,14 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
-public class SetType extends CollectionType
+public class SetType<T> extends CollectionType<Set<T>>
 {
     // interning instances
     private static final Map<AbstractType<?>, SetType> instances = new HashMap<AbstractType<?>, SetType>();
 
-    public final AbstractType<?> elements;
+    public final AbstractType<T> elements;
 
-    public static SetType getInstance(TypeParser parser) throws ConfigurationException
+    public static SetType<?> getInstance(TypeParser parser) throws ConfigurationException
     {
         List<AbstractType<?>> l = parser.getTypeParameters();
         if (l.size() != 1)
@@ -46,7 +42,7 @@ public class SetType extends CollectionType
         return getInstance(l.get(0));
     }
 
-    public static synchronized SetType getInstance(AbstractType<?> elements)
+    public static synchronized <T> SetType getInstance(AbstractType<T> elements)
     {
         SetType t = instances.get(elements);
         if (t == null)
@@ -57,13 +53,13 @@ public class SetType extends CollectionType
         return t;
     }
 
-    public SetType(AbstractType<?> elements)
+    public SetType(AbstractType<T> elements)
     {
         super(Kind.SET);
         this.elements = elements;
     }
 
-    public AbstractType<?> nameComparator()
+    public AbstractType<T> nameComparator()
     {
         return elements;
     }
@@ -73,17 +69,55 @@ public class SetType extends CollectionType
         return EmptyType.instance;
     }
 
+    public Set<T> compose(ByteBuffer bytes)
+    {
+        ByteBuffer input = bytes.duplicate();
+        int n = input.getShort();
+        Set<T> l = new LinkedHashSet<T>(n);
+        for (int i = 0; i < n; i++)
+        {
+            int s = input.getShort();
+            byte[] data = new byte[s];
+            input.get(data);
+            l.add(elements.compose(ByteBuffer.wrap(data)));
+        }
+        return l;
+    }
+
+    /**
+     * Layout is: {@code <n><s_1><b_1>...<s_n><b_n> }
+     * where:
+     *   n is the number of elements
+     *   s_i is the number of bytes composing the ith element
+     *   b_i is the s_i bytes composing the ith element
+     */
+    public ByteBuffer decompose(Set<T> value)
+    {
+        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(value.size());
+        int size = 0;
+        for (T elt : value)
+        {
+            ByteBuffer bb = elements.decompose(elt);
+            bbs.add(bb);
+            size += 2 + bb.remaining();
+        }
+        return pack(bbs, value.size(), size);
+    }
+
     protected void appendToStringBuilder(StringBuilder sb)
     {
         sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Collections.<AbstractType<?>>singletonList(elements)));
     }
 
-    public ByteBuffer serializeForThrift(List<Pair<ByteBuffer, IColumn>> columns)
+    public ByteBuffer serialize(List<Pair<ByteBuffer, IColumn>> columns)
     {
-        // We're using a list for now, since json doesn't have maps
-        List<Object> l = new ArrayList<Object>(columns.size());
+        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(columns.size());
+        int size = 0;
         for (Pair<ByteBuffer, IColumn> p : columns)
-            l.add(elements.compose(p.left));
-        return ByteBufferUtil.bytes(FBUtilities.json(l));
+        {
+            bbs.add(p.left);
+            size += 2 + p.left.remaining();
+        }
+        return pack(bbs, columns.size(), size);
     }
 }

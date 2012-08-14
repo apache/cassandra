@@ -26,14 +26,14 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
-public class ListType extends CollectionType
+public class ListType<T> extends CollectionType<List<T>>
 {
     // interning instances
     private static final Map<AbstractType<?>, ListType> instances = new HashMap<AbstractType<?>, ListType>();
 
-    public final AbstractType<?> elements;
+    public final AbstractType<T> elements;
 
-    public static ListType getInstance(TypeParser parser) throws ConfigurationException
+    public static ListType<?> getInstance(TypeParser parser) throws ConfigurationException
     {
         List<AbstractType<?>> l = parser.getTypeParameters();
         if (l.size() != 1)
@@ -42,7 +42,7 @@ public class ListType extends CollectionType
         return getInstance(l.get(0));
     }
 
-    public static synchronized ListType getInstance(AbstractType<?> elements)
+    public static synchronized <T> ListType<T> getInstance(AbstractType<T> elements)
     {
         ListType t = instances.get(elements);
         if (t == null)
@@ -53,20 +53,55 @@ public class ListType extends CollectionType
         return t;
     }
 
-    private ListType(AbstractType<?> elements)
+    private ListType(AbstractType<T> elements)
     {
         super(Kind.LIST);
         this.elements = elements;
     }
 
-    public AbstractType<?> nameComparator()
+    public AbstractType<UUID> nameComparator()
     {
         return TimeUUIDType.instance;
     }
 
-    public AbstractType<?> valueComparator()
+    public AbstractType<T> valueComparator()
     {
         return elements;
+    }
+
+    public List<T> compose(ByteBuffer bytes)
+    {
+        ByteBuffer input = bytes.duplicate();
+        int n = input.getShort();
+        List<T> l = new ArrayList<T>(n);
+        for (int i = 0; i < n; i++)
+        {
+            int s = input.getShort();
+            byte[] data = new byte[s];
+            input.get(data);
+            l.add(elements.compose(ByteBuffer.wrap(data)));
+        }
+        return l;
+    }
+
+    /**
+     * Layout is: {@code <n><s_1><b_1>...<s_n><b_n> }
+     * where:
+     *   n is the number of elements
+     *   s_i is the number of bytes composing the ith element
+     *   b_i is the s_i bytes composing the ith element
+     */
+    public ByteBuffer decompose(List<T> value)
+    {
+        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(value.size());
+        int size = 0;
+        for (T elt : value)
+        {
+            ByteBuffer bb = elements.decompose(elt);
+            bbs.add(bb);
+            size += 2 + bb.remaining();
+        }
+        return pack(bbs, value.size(), size);
     }
 
     protected void appendToStringBuilder(StringBuilder sb)
@@ -74,11 +109,15 @@ public class ListType extends CollectionType
         sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Collections.<AbstractType<?>>singletonList(elements)));
     }
 
-    public ByteBuffer serializeForThrift(List<Pair<ByteBuffer, IColumn>> columns)
+    public ByteBuffer serialize(List<Pair<ByteBuffer, IColumn>> columns)
     {
-        List<Object> l = new ArrayList<Object>(columns.size());
+        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(columns.size());
+        int size = 0;
         for (Pair<ByteBuffer, IColumn> p : columns)
-            l.add(elements.compose(p.right.value()));
-        return ByteBufferUtil.bytes(FBUtilities.json(l));
+        {
+            bbs.add(p.right.value());
+            size += 2 + p.right.value().remaining();
+        }
+        return pack(bbs, columns.size(), size);
     }
 }
