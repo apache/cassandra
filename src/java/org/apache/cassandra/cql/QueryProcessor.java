@@ -62,8 +62,6 @@ public class QueryProcessor
 
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
 
-    private static final long timeLimitForSchemaAgreement = 10 * 1000;
-
     public static final String DEFAULT_KEY_NAME = bufferToString(CFMetaData.DEFAULT_KEY_NAME);
 
     private static List<org.apache.cassandra.db.Row> getSlice(CFMetaData metadata, SelectStatement select, List<ByteBuffer> variables)
@@ -399,13 +397,6 @@ public class QueryProcessor
             throw new InvalidRequestException("range finish must come after start in traversal order");
     }
 
-    // Copypasta from CassandraServer (where it is private).
-    private static void validateSchemaAgreement() throws SchemaDisagreementException
-    {
-       if (describeSchemaVersions().size() > 1)
-            throw new SchemaDisagreementException();
-    }
-
     private static Map<String, List<String>> describeSchemaVersions()
     {
         // unreachable hosts don't count towards disagreement
@@ -414,7 +405,7 @@ public class QueryProcessor
     }
 
     public static CqlResult processStatement(CQLStatement statement,ClientState clientState, List<ByteBuffer> variables )
-    throws  UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
+    throws  UnavailableException, InvalidRequestException, TimedOutException
     {
         String keyspace = null;
 
@@ -663,7 +654,6 @@ public class QueryProcessor
                 create.validate();
                 ThriftValidation.validateKeyspaceNotSystem(create.getName());
                 clientState.hasKeyspaceSchemaAccess(Permission.WRITE);
-                validateSchemaAgreement();
 
                 try
                 {
@@ -672,7 +662,6 @@ public class QueryProcessor
                                                             create.getStrategyOptions());
                     ThriftValidation.validateKeyspaceNotYetExisting(ksm.name);
                     MigrationManager.announceNewKeyspace(ksm);
-                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {
@@ -687,12 +676,10 @@ public class QueryProcessor
             case CREATE_COLUMNFAMILY:
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
                 clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
-                validateSchemaAgreement();
 
                 try
                 {
                     MigrationManager.announceNewColumnFamily(createCf.getCFMetaData(keyspace, variables));
-                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {
@@ -707,7 +694,6 @@ public class QueryProcessor
             case CREATE_INDEX:
                 CreateIndexStatement createIdx = (CreateIndexStatement)statement.statement;
                 clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
-                validateSchemaAgreement();
                 CFMetaData oldCfm = Schema.instance.getCFMetaData(keyspace, createIdx.getColumnFamily());
                 if (oldCfm == null)
                     throw new InvalidRequestException("No such column family: " + createIdx.getColumnFamily());
@@ -737,7 +723,6 @@ public class QueryProcessor
                 {
                     cfm.addDefaultIndexNames();
                     MigrationManager.announceColumnFamilyUpdate(cfm);
-                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {
@@ -752,12 +737,10 @@ public class QueryProcessor
             case DROP_INDEX:
                 DropIndexStatement dropIdx = (DropIndexStatement)statement.statement;
                 clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
-                validateSchemaAgreement();
 
                 try
                 {
                     MigrationManager.announceColumnFamilyUpdate(dropIdx.generateCFMetadataUpdate(clientState.getKeyspace()));
-                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {
@@ -779,12 +762,10 @@ public class QueryProcessor
                 String deleteKeyspace = (String)statement.statement;
                 ThriftValidation.validateKeyspaceNotSystem(deleteKeyspace);
                 clientState.hasKeyspaceSchemaAccess(Permission.WRITE);
-                validateSchemaAgreement();
 
                 try
                 {
                     MigrationManager.announceKeyspaceDrop(deleteKeyspace);
-                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {
@@ -799,12 +780,10 @@ public class QueryProcessor
             case DROP_COLUMNFAMILY:
                 String deleteColumnFamily = (String)statement.statement;
                 clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
-                validateSchemaAgreement();
 
                 try
                 {
                     MigrationManager.announceColumnFamilyDrop(keyspace, deleteColumnFamily);
-                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {
@@ -821,12 +800,10 @@ public class QueryProcessor
 
                 validateColumnFamily(keyspace, alterTable.columnFamily);
                 clientState.hasColumnFamilyAccess(alterTable.columnFamily, Permission.WRITE);
-                validateSchemaAgreement();
 
                 try
                 {
                     MigrationManager.announceColumnFamilyUpdate(alterTable.getCFMetaData(keyspace));
-                    validateSchemaIsSettled();
                 }
                 catch (ConfigurationException e)
                 {
@@ -842,7 +819,7 @@ public class QueryProcessor
     }
 
     public static CqlResult process(String queryString, ClientState clientState)
-    throws UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
+    throws UnavailableException, InvalidRequestException, TimedOutException
     {
         logger.trace("CQL QUERY: {}", queryString);
         return processStatement(getStatement(queryString), clientState, new ArrayList<ByteBuffer>(0));
@@ -866,7 +843,7 @@ public class QueryProcessor
     }
 
     public static CqlResult processPrepared(CQLStatement statement, ClientState clientState, List<ByteBuffer> variables)
-    throws UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
+    throws UnavailableException, InvalidRequestException, TimedOutException
     {
         // Check to see if there are any bound variables to verify
         if (!(variables.isEmpty() && (statement.boundTerms == 0)))
@@ -946,27 +923,6 @@ public class QueryProcessor
             ire.initCause(e);
             throw ire;
         }
-    }
-
-    private static void validateSchemaIsSettled() throws SchemaDisagreementException
-    {
-        long limit = System.currentTimeMillis() + timeLimitForSchemaAgreement;
-
-        outer:
-        while (limit - System.currentTimeMillis() >= 0)
-        {
-            String currentVersionId = Schema.instance.getVersion().toString();
-            for (String version : describeSchemaVersions().keySet())
-            {
-                if (!version.equals(currentVersionId))
-                    continue outer;
-            }
-
-            // schemas agree
-            return;
-        }
-
-        throw new SchemaDisagreementException();
     }
 
     private static void validateCountOperation(SelectStatement select) throws InvalidRequestException

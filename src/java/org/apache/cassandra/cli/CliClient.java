@@ -198,7 +198,7 @@ public class CliClient
     }
 
     // Execute a CLI Statement
-    public void executeCLIStatement(String statement) throws CharacterCodingException, TException, TimedOutException, NotFoundException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException, ClassNotFoundException, SchemaDisagreementException
+    public void executeCLIStatement(String statement) throws CharacterCodingException, TException, TimedOutException, NotFoundException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException, ClassNotFoundException
     {
         Tree tree = CliCompiler.compileQuery(statement);
         try
@@ -1006,7 +1006,6 @@ public class CliClient
         {
             String mySchemaVersion = thriftClient.system_add_keyspace(updateKsDefAttributes(statement, ksDef));
             sessionState.out.println(mySchemaVersion);
-            validateSchemaIsSettled(mySchemaVersion);
 
             keyspacesMap.put(keyspaceName, thriftClient.describe_keyspace(keyspaceName));
         }
@@ -1037,7 +1036,6 @@ public class CliClient
         {
             String mySchemaVersion = thriftClient.system_add_column_family(updateCfDefAttributes(statement, cfDef));
             sessionState.out.println(mySchemaVersion);
-            validateSchemaIsSettled(mySchemaVersion);
             keyspacesMap.put(keySpace, thriftClient.describe_keyspace(keySpace));
         }
         catch (InvalidRequestException e)
@@ -1068,7 +1066,6 @@ public class CliClient
 
             String mySchemaVersion = thriftClient.system_update_keyspace(updatedKsDef);
             sessionState.out.println(mySchemaVersion);
-            validateSchemaIsSettled(mySchemaVersion);
             keyspacesMap.remove(keyspaceName);
             getKSMetaData(keySpace);
         }
@@ -1103,7 +1100,6 @@ public class CliClient
 
             String mySchemaVersion = thriftClient.system_update_column_family(updateCfDefAttributes(statement, cfDef));
             sessionState.out.println(mySchemaVersion);
-            validateSchemaIsSettled(mySchemaVersion);
             keyspacesMap.put(keySpace, thriftClient.describe_keyspace(keySpace));
         }
         catch (InvalidRequestException e)
@@ -1293,7 +1289,6 @@ public class CliClient
         String keyspaceName = CliCompiler.getKeySpace(statement, thriftClient.describe_keyspaces());
         String version = thriftClient.system_drop_keyspace(keyspaceName);
         sessionState.out.println(version);
-        validateSchemaIsSettled(version);
 
         if (keyspaceName.equals(keySpace)) //we just deleted the keyspace we were authenticated too
             keySpace = null;
@@ -1316,7 +1311,6 @@ public class CliClient
         String cfName = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
         String mySchemaVersion = thriftClient.system_drop_column_family(cfName);
         sessionState.out.println(mySchemaVersion);
-        validateSchemaIsSettled(mySchemaVersion);
     }
 
     private void executeList(Tree statement)
@@ -1466,7 +1460,6 @@ public class CliClient
 
         String mySchemaVersion = thriftClient.system_update_column_family(cfDef);
         sessionState.out.println(mySchemaVersion);
-        validateSchemaIsSettled(mySchemaVersion);
         keyspacesMap.put(keySpace, thriftClient.describe_keyspace(keySpace));
     }
 
@@ -2896,46 +2889,6 @@ public class CliClient
         {
             return a.name.compareTo(b.name);
         }
-    }
-
-    /** validates schema is propagated to all nodes */
-    private void validateSchemaIsSettled(String currentVersionId)
-    {
-        sessionState.out.println("Waiting for schema agreement...");
-        Map<String, List<String>> versions = null;
-
-        long limit = System.currentTimeMillis() + sessionState.schema_mwt;
-        boolean inAgreement = false;
-        outer:
-        while (limit - System.currentTimeMillis() >= 0 && !inAgreement)
-        {
-            try
-            {
-                versions = thriftClient.describe_schema_versions(); // getting schema version for nodes of the ring
-            }
-            catch (Exception e)
-            {
-                sessionState.err.println((e instanceof InvalidRequestException) ? ((InvalidRequestException) e).getWhy() : e.getMessage());
-                continue;
-            }
-
-            for (String version : versions.keySet())
-            {
-                if (!version.equals(currentVersionId) && !version.equals(StorageProxy.UNREACHABLE))
-                    continue outer;
-            }
-            inAgreement = true;
-        }
-
-        if (versions.containsKey(StorageProxy.UNREACHABLE))
-            sessionState.err.printf("Warning: unreachable nodes %s", Joiner.on(", ").join(versions.get(StorageProxy.UNREACHABLE)));
-        if (!inAgreement)
-        {
-            sessionState.err.printf("The schema has not settled in %d seconds; further migrations are ill-advised until it does.%nVersions are %s%n",
-                                    sessionState.schema_mwt / 1000, FBUtilities.toString(versions));
-            System.exit(-1);
-        }
-        sessionState.out.println("... schemas agree across the cluster");
     }
 
     private static class CfDefNamesComparator implements Comparator<CfDef>

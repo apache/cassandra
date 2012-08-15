@@ -30,7 +30,6 @@ import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.SchemaDisagreementException;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Maps;
@@ -79,12 +78,10 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
     }
 
     @Override
-    public void validate(ClientState state) throws InvalidRequestException, SchemaDisagreementException
-    {
-        validateSchemaAgreement();
-    }
+    public void validate(ClientState state) throws InvalidRequestException
+    {}
 
-    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, SchemaDisagreementException
+    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException
     {
         try
         {
@@ -96,42 +93,7 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
             ex.initCause(e);
             throw ex;
         }
-        validateSchemaIsSettled();
+
         return null;
-    }
-
-    // Copypasta from CassandraServer (where it is private).
-    private static void validateSchemaAgreement() throws SchemaDisagreementException
-    {
-       if (describeSchemaVersions().size() > 1)
-            throw new SchemaDisagreementException();
-    }
-
-    private static Map<String, List<String>> describeSchemaVersions()
-    {
-        // unreachable hosts don't count towards disagreement
-        return Maps.filterKeys(StorageProxy.describeSchemaVersions(),
-                               Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
-    }
-
-    private static void validateSchemaIsSettled() throws SchemaDisagreementException
-    {
-        long limit = System.currentTimeMillis() + timeLimitForSchemaAgreement;
-
-        outer:
-        while (limit - System.currentTimeMillis() >= 0)
-        {
-            String currentVersionId = Schema.instance.getVersion().toString();
-            for (String version : describeSchemaVersions().keySet())
-            {
-                if (!version.equals(currentVersionId))
-                    continue outer;
-            }
-
-            // schemas agree
-            return;
-        }
-
-        throw new SchemaDisagreementException();
     }
 }

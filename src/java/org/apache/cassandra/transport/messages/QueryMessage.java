@@ -22,7 +22,6 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
 
@@ -68,8 +67,7 @@ public class QueryMessage extends Message.Request
         {
             if (!((e instanceof UnavailableException)
                || (e instanceof InvalidRequestException)
-               || (e instanceof TimedOutException)
-               || (e instanceof SchemaDisagreementException)))
+               || (e instanceof TimedOutException)))
             {
                 logger.error("Unexpected error during query", e);
             }

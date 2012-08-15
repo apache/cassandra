@@ -100,7 +100,7 @@ public class QueryProcessor
     }
 
     private static ResultMessage processStatement(CQLStatement statement, ClientState clientState, List<ByteBuffer> variables)
-    throws  UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
+    throws  UnavailableException, InvalidRequestException, TimedOutException
     {
         statement.checkAccess(clientState);
         statement.validate(clientState);
@@ -109,7 +109,7 @@ public class QueryProcessor
     }
 
     public static ResultMessage process(String queryString, ClientState clientState)
-    throws UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
+    throws UnavailableException, InvalidRequestException, TimedOutException
     {
         logger.trace("CQL QUERY: {}", queryString);
         return processStatement(getStatement(queryString, clientState).statement, clientState, Collections.<ByteBuffer>emptyList());
@@ -135,10 +135,6 @@ public class QueryProcessor
             throw new AssertionError(e);
         }
         catch (TimedOutException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (SchemaDisagreementException e)
         {
             throw new RuntimeException(e);
         }
@@ -175,7 +171,7 @@ public class QueryProcessor
     }
 
     public static ResultMessage processPrepared(CQLStatement statement, ClientState clientState, List<ByteBuffer> variables)
-    throws UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
+    throws UnavailableException, InvalidRequestException, TimedOutException
     {
         // Check to see if there are any bound variables to verify
         if (!(variables.isEmpty() && (statement.getBoundsTerms() == 0)))

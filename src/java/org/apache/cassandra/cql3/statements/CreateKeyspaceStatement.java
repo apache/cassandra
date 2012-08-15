@@ -29,7 +29,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.thrift.ThriftValidation;
 
 /** A <code>CREATE KEYSPACE</code> statement parsed from a CQL query. */
@@ -62,7 +61,7 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
      * @throws InvalidRequestException if arguments are missing or unacceptable
      */
     @Override
-    public void validate(ClientState state) throws InvalidRequestException, SchemaDisagreementException
+    public void validate(ClientState state) throws InvalidRequestException
     {
         super.validate(state);
         ThriftValidation.validateKeyspaceNotSystem(name);

@@ -158,7 +158,12 @@ exception AuthorizationException {
     1: required string why
 }
 
-/** schemas are not in agreement across all nodes */
+/**
+ * NOTE: This up outdated exception left for backward compatibility reasons,
+ * no actual schema agreement validation is done starting from Cassandra 1.2
+ *
+ * schemas are not in agreement across all nodes
+ */
 exception SchemaDisagreementException {
 }
 

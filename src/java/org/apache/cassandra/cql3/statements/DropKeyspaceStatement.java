@@ -22,7 +22,6 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.thrift.ThriftValidation;
 
 public class DropKeyspaceStatement extends SchemaAlteringStatement
@@ -36,7 +35,7 @@ public class DropKeyspaceStatement extends SchemaAlteringStatement
     }
 
     @Override
-    public void validate(ClientState state) throws InvalidRequestException, SchemaDisagreementException
+    public void validate(ClientState state) throws InvalidRequestException
     {
         super.validate(state);
         ThriftValidation.validateKeyspaceNotSystem(keyspace);

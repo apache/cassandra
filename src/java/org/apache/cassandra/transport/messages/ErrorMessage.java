@@ -27,7 +27,6 @@ import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
 
@@ -40,7 +39,6 @@ import org.apache.cassandra.thrift.UnavailableException;
  *   0x0002: Authentication error
  *   0x0100: Unavailable exception
  *   0x0101: Timeout exception
- *   0x0102: Schema disagreement exception
  *   0x0200: Request exception
  */
 public class ErrorMessage extends Message.Response
@@ -81,8 +79,6 @@ public class ErrorMessage extends Message.Response
             return new ErrorMessage(0x0101, msg);
         else if (t instanceof UnavailableException)
             return new ErrorMessage(0x0100, msg);
-        else if (t instanceof SchemaDisagreementException)
-            return new ErrorMessage(0x0102, msg);
         else if (t instanceof InvalidRequestException)
             return new ErrorMessage(0x0200, msg);
         else if (t instanceof ProtocolException)

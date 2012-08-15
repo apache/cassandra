@@ -23,7 +23,6 @@ import java.util.List;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
 
@@ -47,7 +46,7 @@ public interface CQLStatement
      *
      * @param state the current client state
      */
-    public void validate(ClientState state) throws InvalidRequestException, SchemaDisagreementException;
+    public void validate(ClientState state) throws InvalidRequestException;
 
     /**
      * Execute the statement and return the resulting result or null if there is no result.
@@ -56,5 +55,5 @@ public interface CQLStatement
      * @param variables the values for bounded variables. The implementation
      * can assume that each bound term have a corresponding value.
      */
-    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException;
+    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, UnavailableException, TimedOutException;
 }

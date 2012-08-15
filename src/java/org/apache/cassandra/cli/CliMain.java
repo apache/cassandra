@@ -206,7 +206,7 @@ public class CliMain
         completer.setCandidateStrings(strs);
     }
 
-    public static void processStatement(String query) throws CharacterCodingException, ClassNotFoundException, TException, TimedOutException, SchemaDisagreementException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException
+    public static void processStatement(String query) throws CharacterCodingException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException
     {
         cliClient.executeCLIStatement(query);
     }
