@@ -370,13 +370,13 @@ cfamDefinition[CreateColumnFamilyStatement.RawStatement expr]
     ;
 
 cfamColumns[CreateColumnFamilyStatement.RawStatement expr]
-    : k=cident v=comparatorType { $expr.addDefinition(k, v); } (K_PRIMARY K_KEY { $expr.addKeyAlias(k); })?
+    : k=cident v=comparatorType { $expr.addDefinition(k, v); } (K_PRIMARY K_KEY { $expr.addKeyAliases(Collections.singletonList(k)); })?
     | K_PRIMARY K_KEY '(' pkDef[expr] (',' c=cident { $expr.addColumnAlias(c); } )* ')'
     ;
 
 pkDef[CreateColumnFamilyStatement.RawStatement expr]
-    : k=cident { $expr.addKeyAlias(k); }
-    | '(' k1=cident { $expr.addKeyAlias(k1); } ( ',' kn=cident { $expr.addKeyAlias(kn); } )* ')'
+    : k=cident { $expr.addKeyAliases(Collections.singletonList(k)); }
+    | '(' { List<ColumnIdentifier> l = new ArrayList<ColumnIdentifier>(); } k1=cident { l.add(k1); } ( ',' kn=cident { l.add(kn); } )* ')' { $expr.addKeyAliases(l); }
     ;
 
 cfamProperty[CreateColumnFamilyStatement.RawStatement expr]

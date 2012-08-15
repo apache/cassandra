@@ -35,6 +35,7 @@
  * (cql3) Add support for row key composites (CASSANDRA-4179)
  * improve DynamicEndpointSnitch by using reservoir sampling (CASSANDRA-4038)
  * (cql3) Add support for 2ndary indexes (CASSANDRA-3680)
+ * (cql3) fix defining more than one PK to be invalid (CASSANDRA-4477)
 
 
 1.1.4
