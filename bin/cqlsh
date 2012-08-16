@@ -457,6 +457,7 @@ def unix_time_from_uuid1(u):
 
 def format_value(val, casstype, output_encoding, addcolor=False, time_format='',
                  float_precision=3, colormap=DEFAULT_VALUE_COLORS, nullval='null'):
+    casstype = trim_if_present(casstype, 'org.apache.cassandra.db.marshal.')
     color = colormap['default']
     coloredval = None
     displaywidth = None
@@ -498,6 +499,7 @@ def format_value(val, casstype, output_encoding, addcolor=False, time_format='',
         color = colormap['hex']
     else:
         # AsciiType is the only other one known right now, but handle others
+        val = str(val)
         escapedval = val.replace('\\', '\\\\')
         bval = controlchars_re.sub(_show_control_chars, escapedval)
         if addcolor:
@@ -775,8 +777,8 @@ class Shell(cmd.Cmd):
     def get_keyspace(self, ksname):
         try:
             return self.make_hacktastic_thrift_call('describe_keyspace', ksname)
-        except cql.cassandra.ttypes.NotFoundException, e:
-            raise KeyspaceNotFound('Keyspace %s not found.' % e)
+        except cql.cassandra.ttypes.NotFoundException:
+            raise KeyspaceNotFound('Keyspace %r not found.' % ksname)
 
     def get_keyspaces(self):
         return self.make_hacktastic_thrift_call('describe_keyspaces')
