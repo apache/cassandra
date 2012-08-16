@@ -334,7 +334,6 @@ public class CacheService implements CacheServiceMBean
             return new Pair<RowCacheKey, IRowCacheEntry>(new RowCacheKey(cfs.metadata.cfId, key), data);
         }
 
-        @Override
         public void load(Set<ByteBuffer> buffers, ColumnFamilyStore cfs)
         {
             for (ByteBuffer key : buffers)
@@ -390,7 +389,6 @@ public class CacheService implements CacheServiceMBean
             return null;
         }
 
-        @Override
         public void load(Set<ByteBuffer> buffers, ColumnFamilyStore cfs)
         {
             for (ByteBuffer key : buffers)

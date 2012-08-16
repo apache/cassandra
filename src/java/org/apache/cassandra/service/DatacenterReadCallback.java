@@ -67,14 +67,6 @@ public class DatacenterReadCallback<TMessage, TResolved> extends ReadCallback<TM
     }
 
     @Override
-    protected boolean waitingFor(ReadResponse response)
-    {
-        // cheat and leverage our knowledge that a local read is the only way the ReadResponse
-        // version of this method gets called
-        return true;
-    }
-
-    @Override
     public int determineBlockFor(ConsistencyLevel consistency_level, String table)
     {
         NetworkTopologyStrategy stategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
