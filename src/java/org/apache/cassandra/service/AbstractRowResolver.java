@@ -51,17 +51,6 @@ public abstract class AbstractRowResolver implements IResponseResolver<ReadRespo
         replies.add(message);
     }
 
-    /** hack so local reads don't force de/serialization of an extra real Message */
-    public void injectPreProcessed(ReadResponse result)
-    {
-        MessageIn<ReadResponse> message = MessageIn.create(FBUtilities.getBroadcastAddress(),
-                                                           result,
-                                                           Collections.<String, byte[]>emptyMap(),
-                                                           MessagingService.Verb.INTERNAL_RESPONSE,
-                                                           MessagingService.current_version);
-        replies.add(message);
-    }
-
     public Iterable<MessageIn<ReadResponse>> getMessages()
     {
         return replies;

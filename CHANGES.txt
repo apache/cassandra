@@ -1,4 +1,5 @@
 1.2-dev
+ * run local range scans on the read stage (CASSANDRA-3687)
  * clean up ioexceptions (CASSANDRA-2116)
  * Introduce new json format with row level deletion (CASSANDRA-4054)
  * remove redundant "name" column from schema_keyspaces (CASSANDRA-4433)

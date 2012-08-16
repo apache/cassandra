@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -165,32 +166,20 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
 
     /**
      * @return true if the message counts towards the blockfor threshold
-     * TODO turn the Message into a response so we don't need two versions of this method
      */
     protected boolean waitingFor(MessageIn message)
     {
         return true;
     }
 
-    /**
-     * @return true if the response counts towards the blockfor threshold
-     */
-    protected boolean waitingFor(ReadResponse response)
+    public void response(TMessage result)
     {
-        return true;
-    }
-
-    public void response(ReadResponse result)
-    {
-        ((RowDigestResolver) resolver).injectPreProcessed(result);
-        int n = waitingFor(result)
-              ? received.incrementAndGet()
-              : received.get();
-        if (n >= blockfor && resolver.isDataPresent())
-        {
-            condition.signal();
-            maybeResolveForRepair();
-        }
+        MessageIn<TMessage> message = MessageIn.create(FBUtilities.getBroadcastAddress(),
+                                                       result,
+                                                       Collections.<String, byte[]>emptyMap(),
+                                                       MessagingService.Verb.INTERNAL_RESPONSE,
+                                                       MessagingService.current_version);
+        response(message);
     }
 
     /**
