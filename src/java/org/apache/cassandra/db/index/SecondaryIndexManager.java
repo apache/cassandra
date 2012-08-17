@@ -273,8 +273,8 @@ public class SecondaryIndexManager
      */
     public void invalidate()
     {
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-            entry.getValue().invalidate();
+        for (SecondaryIndex index : indexesByColumn.values())
+            index.invalidate();
     }
 
     /**
@@ -284,8 +284,8 @@ public class SecondaryIndexManager
      */
     public void flushIndexesBlocking() throws IOException
     {
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-            entry.getValue().forceBlockingFlush();
+        for (SecondaryIndex index : indexesByColumn.values())
+            index.forceBlockingFlush();
     }
 
     /**
@@ -337,10 +337,9 @@ public class SecondaryIndexManager
     {
         ArrayList<ColumnFamilyStore> cfsList = new ArrayList<ColumnFamilyStore>();
 
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
+        for (SecondaryIndex index: indexesByColumn.values())
         {
-            ColumnFamilyStore cfs = entry.getValue().getIndexCfs();
-
+            ColumnFamilyStore cfs = index.getIndexCfs();
             if (cfs != null)
                 cfsList.add(cfs);
         }
@@ -353,19 +352,12 @@ public class SecondaryIndexManager
      */
     public Collection<SecondaryIndex> getIndexesNotBackedByCfs()
     {
-        // we use identity map because per row indexes use same instance
-        // across many columns
-        IdentityHashMap<SecondaryIndex, Object> indexList = new IdentityHashMap<SecondaryIndex, Object>();
-
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-        {
-            ColumnFamilyStore cfs = entry.getValue().getIndexCfs();
-
-            if (cfs == null)
-                indexList.put(entry.getValue(), null);
-        }
-
-        return indexList.keySet();
+        // we use identity map because per row indexes use same instance across many columns
+        Set<SecondaryIndex> indexes = Collections.newSetFromMap(new IdentityHashMap<SecondaryIndex, Boolean>());
+        for (SecondaryIndex index: indexesByColumn.values())
+            if (index.getIndexCfs() == null)
+                indexes.add(index);
+        return indexes;
     }
 
     /**
@@ -374,12 +366,9 @@ public class SecondaryIndexManager
     public Collection<SecondaryIndex> getIndexes()
     {
         // we use identity map because per row indexes use same instance across many columns
-        IdentityHashMap<SecondaryIndex, Object> indexList = new IdentityHashMap<SecondaryIndex, Object>();
-
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-            indexList.put(entry.getValue(), null);
-
-        return indexList.keySet();
+        Set<SecondaryIndex> indexes = Collections.newSetFromMap(new IdentityHashMap<SecondaryIndex, Boolean>());
+        indexes.addAll(indexesByColumn.values());
+        return indexes;
     }
 
     /**
@@ -388,19 +377,8 @@ public class SecondaryIndexManager
     public long getTotalLiveSize()
     {
         long total = 0;
-
-        // we use identity map because per row indexes use same instance
-        // across many columns
-        IdentityHashMap<SecondaryIndex, Object> indexList = new IdentityHashMap<SecondaryIndex, Object>();
-
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-        {
-            SecondaryIndex index = entry.getValue();
-
-            if (indexList.put(index, index) == null)
-                total += index.getLiveSize();
-        }
-
+        for (SecondaryIndex index : getIndexes())
+            total += index.getLiveSize();
         return total;
     }
 
@@ -568,10 +546,8 @@ public class SecondaryIndexManager
         List<SecondaryIndexSearcher> indexSearchers = new ArrayList<SecondaryIndexSearcher>(groupByIndexType.size());
 
         //create searcher per type
-        for (Map.Entry<String, Set<ByteBuffer>> entry : groupByIndexType.entrySet())
-        {
-            indexSearchers.add( getIndexForColumn(entry.getValue().iterator().next()).createSecondaryIndexSearcher(entry.getValue()) );
-        }
+        for (Set<ByteBuffer> column : groupByIndexType.values())
+            indexSearchers.add(getIndexForColumn(column.iterator().next()).createSecondaryIndexSearcher(column));
 
         return indexSearchers;
     }
