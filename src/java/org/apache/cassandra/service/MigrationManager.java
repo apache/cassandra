@@ -123,6 +123,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         if (Schema.instance.getTableDefinition(ksm.name) != null)
             throw new ConfigurationException(String.format("Cannot add already existing keyspace '%s'.", ksm.name));
 
+        logger.info(String.format("Create new Keyspace: %s", ksm));
         announce(ksm.toSchema(FBUtilities.timestampMicros()));
     }
 
@@ -136,6 +137,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         else if (ksm.cfMetaData().containsKey(cfm.cfName))
             throw new ConfigurationException(String.format("Cannot add already existing column family '%s' to keyspace '%s'.", cfm.cfName, cfm.ksName));
 
+        logger.info(String.format("Create new ColumnFamily: %s", cfm));
         announce(cfm.toSchema(FBUtilities.timestampMicros()));
     }
 
@@ -147,6 +149,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         if (oldKsm == null)
             throw new ConfigurationException(String.format("Cannot update non existing keyspace '%s'.", ksm.name));
 
+        logger.info(String.format("Update Keyspace '%s' From %s To %s", ksm.name, oldKsm, ksm));
         announce(oldKsm.toSchemaUpdate(ksm, FBUtilities.timestampMicros()));
     }
 
@@ -158,6 +161,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         if (oldCfm == null)
             throw new ConfigurationException(String.format("Cannot update non existing column family '%s' in keyspace '%s'.", cfm.cfName, cfm.ksName));
 
+        logger.info(String.format("Update ColumnFamily '%s/%s' From %s To %s", cfm.ksName, cfm.cfName, oldCfm, cfm));
         announce(oldCfm.toSchemaUpdate(cfm, FBUtilities.timestampMicros()));
     }
 
@@ -167,6 +171,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         if (oldKsm == null)
             throw new ConfigurationException(String.format("Cannot drop non existing keyspace '%s'.", ksName));
 
+        logger.info(String.format("Drop Keyspace '%s'", oldKsm.name));
         announce(oldKsm.dropFromSchema(FBUtilities.timestampMicros()));
     }
 
@@ -176,6 +181,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         if (oldCfm == null)
             throw new ConfigurationException(String.format("Cannot drop non existing column family '%s' in keyspace '%s'.", cfName, ksName));
 
+        logger.info(String.format("Drop ColumnFamily '%s/%s'", oldCfm.ksName, oldCfm.cfName));
         announce(oldCfm.dropFromSchema(FBUtilities.timestampMicros()));
     }
 
