@@ -137,6 +137,9 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 while (in.available() > 0)
                 {
                     Pair<K, V> entry = cacheLoader.deserialize(in, cfs);
+                    // Key cache entry can return null, if the SSTable doesn't exist.
+                    if (entry == null)
+                        continue;
                     put(entry.left, entry.right);
                     count++;
                 }
