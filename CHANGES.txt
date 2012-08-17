@@ -40,6 +40,10 @@
  * remove schema agreement checking from all external APIs (Thrift, CQL and CQL3) (CASSANDRA-4487)
 
 
+1.1.5
+ * Log(info) schema changes (CASSANDRA-4547)
+
+
 1.1.4
  * fix offline scrub to catch >= out of order rows (CASSANDRA-4411)
  * fix cassandra-env.sh on RHEL and other non-dash-based systems 
