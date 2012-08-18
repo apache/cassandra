@@ -555,6 +555,9 @@ public class ThriftValidation
                                                                 me.getMessage()));
             }
 
+            if (expression.value.remaining() > 0xFFFF)
+                throw new InvalidRequestException("Index expression values may not be larger than 64K");
+
             AbstractType<?> valueValidator = Schema.instance.getValueValidator(metadata.ksName, metadata.cfName, expression.column_name);
             try
             {

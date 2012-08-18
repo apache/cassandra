@@ -528,6 +528,8 @@ public class SelectStatement implements CQLStatement
                 for (Term t : restriction.eqValues)
                 {
                     ByteBuffer value = t.getByteBuffer(name.type, variables);
+                    if (value.remaining() > 0xFFFF)
+                        throw new InvalidRequestException("Index expression values may not be larger than 64K");
                     expressions.add(new IndexExpression(name.name.key, IndexOperator.EQ, value));
                 }
             }
@@ -538,6 +540,8 @@ public class SelectStatement implements CQLStatement
                     if (restriction.bound(b) != null)
                     {
                         ByteBuffer value = restriction.bound(b).getByteBuffer(name.type, variables);
+                        if (value.remaining() > 0xFFFF)
+                            throw new InvalidRequestException("Index expression values may not be larger than 64K");
                         expressions.add(new IndexExpression(name.name.key, restriction.getIndexOperator(b), value));
                     }
                 }

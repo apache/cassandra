@@ -233,7 +233,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                     {
                         ByteBufferUtil.writeWithShortLength(expr.column_name, dos);
                         dos.writeInt(expr.op.getValue());
-                        ByteBufferUtil.writeWithLength(expr.value, dos);
+                        ByteBufferUtil.writeWithShortLength(expr.value, dos);
                     }
                 }
             }
