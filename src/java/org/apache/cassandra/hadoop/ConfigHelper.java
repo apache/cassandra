@@ -40,10 +40,11 @@ import org.apache.thrift.TBase;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
-import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
+
+import javax.security.auth.login.LoginException;
 
 
 public class ConfigHelper
@@ -73,6 +74,8 @@ public class ConfigHelper
     private static final String WRITE_CONSISTENCY_LEVEL = "cassandra.consistencylevel.write";
     private static final String OUTPUT_COMPRESSION_CLASS = "cassandra.output.compression.class";
     private static final String OUTPUT_COMPRESSION_CHUNK_LENGTH = "cassandra.output.compression.length";
+    private static final String INPUT_TRANSPORT_FACTORY_CLASS = "cassandra.input.transport.factory.class";
+    private static final String OUTPUT_TRANSPORT_FACTORY_CLASS = "cassandra.output.transport.factory.class";
 
     private static final Logger logger = LoggerFactory.getLogger(ConfigHelper.class);
 
@@ -462,7 +465,7 @@ public class ConfigHelper
         return getClientFromAddressList(conf, ConfigHelper.getInputInitialAddress(conf).split(","), ConfigHelper.getInputRpcPort(conf));
     }
 
-        public static Cassandra.Client getClientFromOutputAddressList(Configuration conf) throws IOException
+    public static Cassandra.Client getClientFromOutputAddressList(Configuration conf) throws IOException
     {
         return getClientFromAddressList(conf, ConfigHelper.getOutputInitialAddress(conf).split(","), ConfigHelper.getOutputRpcPort(conf));
     }
@@ -475,7 +478,7 @@ public class ConfigHelper
         {
             try
             {
-                client = createConnection(address, port, true);
+                client = createConnection(conf, address, port);
                 break;
             }
             catch (IOException ioe)
@@ -495,19 +498,53 @@ public class ConfigHelper
         return client;
     }
 
-    public static Cassandra.Client createConnection(String host, Integer port, boolean framed)
+    public static Cassandra.Client createConnection(Configuration conf, String host, Integer port)
             throws IOException
     {
-        TSocket socket = new TSocket(host, port);
-        TTransport trans = framed ? new TFramedTransport(socket) : socket;
         try
         {
-            trans.open();
+            TSocket socket = new TSocket(host, port);
+            TTransport transport = getInputTransportFactory(conf).openTransport(socket);
+            return new Cassandra.Client(new TBinaryProtocol(transport));
+        }
+        catch (LoginException e)
+        {
+            throw new IOException("Unable to login to server " + host + ":" + port, e);
         }
         catch (TTransportException e)
         {
-            throw new IOException("unable to connect to server", e);
+            throw new IOException("Unable to connect to server " + host + ":" + port, e);
         }
-        return new Cassandra.Client(new TBinaryProtocol(trans));
+    }
+
+    public static ITransportFactory getInputTransportFactory(Configuration conf)
+    {
+        return getTransportFactory(conf.get(INPUT_TRANSPORT_FACTORY_CLASS, TFramedTransportFactory.class.getName()));
+    }
+
+    public static void setInputTransportFactoryClass(Configuration conf, String classname)
+    {
+        conf.set(INPUT_TRANSPORT_FACTORY_CLASS, classname);
+    }
+
+    public static ITransportFactory getOutputTransportFactory(Configuration conf)
+    {
+        return getTransportFactory(conf.get(OUTPUT_TRANSPORT_FACTORY_CLASS, TFramedTransportFactory.class.getName()));
+    }
+
+    public static void setOutputTransportFactoryClass(Configuration conf, String classname)
+    {
+        conf.set(OUTPUT_TRANSPORT_FACTORY_CLASS, classname);
+    }
+
+    private static ITransportFactory getTransportFactory(String factoryClassName) {
+        try
+        {
+            return (ITransportFactory) Class.forName(factoryClassName).newInstance();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to instantiate transport factory:" + factoryClassName, e);
+        }
     }
 }
