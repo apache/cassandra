@@ -554,7 +554,7 @@ class Shell(cmd.Cmd):
         except cql.ProgrammingError:
             # older Cassandra; doesn't have system.Versions
             thrift_ver = self.get_thrift_version()
-            return {'build': 'unknown', 'cql': 'unknown', 'thrift': thrift_ver}
+            return {'build': '0.0.0', 'cql': 'unknown', 'thrift': thrift_ver}
         return vers
 
     def fetchdict(self):
@@ -1188,19 +1188,28 @@ class Shell(cmd.Cmd):
         cfname = self.cql_protect_name(layout.name)
         out.write("CREATE TABLE %s (\n" % cfname)
         keycol = layout.columns[0]
-        out.write("  %s %s" % (self.cql_protect_name(keycol.name), keycol.cqltype))
-        if len(layout.key_components) == 1:
+        out.write("  %s %s" % (self.cql_protect_name(keycol.name),
+                               keycol.cqltype.cql_parameterized_type()))
+        if len(layout.primary_key_components) == 1:
             out.write(" PRIMARY KEY")
 
         indexed_columns = []
         for col in layout.columns[1:]:
             colname = self.cql_protect_name(col.name)
-            out.write(",\n  %s %s" % (colname, col.cqltype))
+            out.write(",\n  %s %s" % (colname, col.cqltype.cql_parameterized_type()))
             if col.index_name is not None:
                 indexed_columns.append(col)
 
-        if len(layout.key_components) > 1:
-            out.write(",\n  PRIMARY KEY (%s)" % ', '.join(map(self.cql_protect_name, layout.key_components)))
+        if len(layout.primary_key_components) > 1:
+            out.write(",\n  PRIMARY KEY (")
+            partkeynames = map(self.cql_protect_name, layout.partition_key_components)
+            if len(partkeynames) > 1:
+                partkey = "(%s)" % ', '.join(partkeynames)
+            else:
+                partkey = partkeynames[0]
+            pk_parts = [partkey] + map(self.cql_protect_name, layout.column_aliases)
+            out.write(', '.join(pk_parts) + ')')
+
         out.write("\n)")
         joiner = 'WITH'
 
