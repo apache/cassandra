@@ -33,6 +33,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.*;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 
 import javax.security.auth.login.LoginException;
 
@@ -62,6 +63,8 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
 {
     public static final String BATCH_THRESHOLD = "mapreduce.output.columnfamilyoutputformat.batch.threshold";
     public static final String QUEUE_SIZE = "mapreduce.output.columnfamilyoutputformat.queue.size";
+    private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyOutputFormat.class);
+
 
     /**
      * Check for validity of the output-specification for the job.
