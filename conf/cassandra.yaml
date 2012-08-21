@@ -70,6 +70,8 @@ authority: org.apache.cassandra.auth.AllowAllAuthority
 # 
 # - RandomPartitioner distributes rows across the cluster evenly by md5.
 #   When in doubt, this is the best option.
+# - Murmur3Partitioner is similar to RandomPartioner but uses Murmur3_128
+#   Hash Function instead of md5
 # - ByteOrderedPartitioner orders rows lexically by key bytes.  BOP allows
 #   scanning rows in key order, but the ordering can generate hot spots
 #   for sequential insertion workloads.
@@ -81,7 +83,7 @@ authority: org.apache.cassandra.auth.AllowAllAuthority
 #
 # See http://wiki.apache.org/cassandra/Operations for more on
 # partitioners and token selection.
-partitioner: org.apache.cassandra.dht.RandomPartitioner
+partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 
 # directories where Cassandra should store data on disk.
 data_file_directories:

@@ -38,6 +38,7 @@
  * (cql3) Add support for 2ndary indexes (CASSANDRA-3680)
  * (cql3) fix defining more than one PK to be invalid (CASSANDRA-4477)
  * remove schema agreement checking from all external APIs (Thrift, CQL and CQL3) (CASSANDRA-4487)
+ * add Murmur3Partitioner and make it default for new installations (CASSANDRA-3772)
 
 
 1.1.5
