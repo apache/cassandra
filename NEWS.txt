@@ -55,8 +55,8 @@ Features
 
 Upgrading
 ---------
-    - Nothing specific to this release, but please see 1.1 if you are upgrading
-      from a previous version.
+    - Running "nodetool upgradesstables" after upgrading is recommended
+      if you use Counter columnfamilies.
 
 Features
 --------
