@@ -38,6 +38,9 @@ Upgrading
     - The default bloom filter fp chance has been increased to 1%.
       This will save about 30% of the memory used by the old default.
       Existing columnfamilies will retain their old setting.
+    - The default partitioner was changed from RandomPartitioner to
+      Murmur3Partitioner which provides faster hashing as well as
+      improved performance with secondary indexes.
 
 Features
 --------
