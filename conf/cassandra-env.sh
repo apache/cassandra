@@ -186,7 +186,7 @@ if [ "`uname`" = "Linux" ] ; then
     # supported.
     if startswith "$JVM_VERSION" '1.7.'
     then
-        JVM_OPTS="$JVM_OPTS -Xss160k"
+        JVM_OPTS="$JVM_OPTS -Xss180k"
     else
         JVM_OPTS="$JVM_OPTS -Xss128k"
     fi
