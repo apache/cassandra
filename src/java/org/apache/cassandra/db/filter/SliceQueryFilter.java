@@ -148,15 +148,19 @@ public class SliceQueryFilter implements IFilter
 
         while (reducedColumns.hasNext())
         {
-            if (columnCounter.count() >= count)
+            if (columnCounter.live() >= count)
+            {
+                logger.debug("Read %s live columns and %s tombstoned",
+                             columnCounter.live(), columnCounter.ignored());
                 break;
+            }
 
             IColumn column = reducedColumns.next();
-            if (logger.isDebugEnabled())
-                logger.debug(String.format("collecting %s of %s: %s",
-                                           columnCounter.count(), count, column.getString(comparator)));
+            if (logger.isTraceEnabled())
+                logger.trace(String.format("collecting %s of %s: %s",
+                                           columnCounter.live(), count, column.getString(comparator)));
 
-            columnCounter.countColum(column, container);
+            columnCounter.count(column, container);
 
             // but we need to add all non-gc-able columns to the result for read repair:
             if (QueryFilter.isRelevant(column, container, gcBefore))
@@ -182,7 +186,7 @@ public class SliceQueryFilter implements IFilter
 
     public int lastCounted()
     {
-        return columnCounter == null ? 0 : columnCounter.count();
+        return columnCounter == null ? 0 : columnCounter.live();
     }
 
     @Override

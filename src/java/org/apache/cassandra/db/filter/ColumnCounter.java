@@ -29,12 +29,15 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnCounter
 {
-    protected int count;
+    protected int live;
+    protected int ignored;
 
-    public void countColum(IColumn column, IColumnContainer container)
+    public void count(IColumn column, IColumnContainer container)
     {
-        if (isLive(column, container))
-            count++;
+        if (!isLive(column, container))
+            ignored++;
+        else
+            live++;
     }
 
     protected static boolean isLive(IColumn column, IColumnContainer container)
@@ -42,9 +45,14 @@ public class ColumnCounter
         return column.isLive() && (!container.deletionInfo().isDeleted(column));
     }
 
-    public int count()
+    public int live()
     {
-        return count;
+        return live;
+    }
+
+    public int ignored()
+    {
+        return ignored;
     }
 
     public static class GroupByPrefix extends ColumnCounter
@@ -71,14 +79,17 @@ public class ColumnCounter
             assert toGroup == 0 || type != null;
         }
 
-        public void countColum(IColumn column, IColumnContainer container)
+        public void count(IColumn column, IColumnContainer container)
         {
             if (!isLive(column, container))
+            {
+                ignored++;
                 return;
+            }
 
             if (toGroup == 0)
             {
-                count = 1;
+                live = 1;
                 return;
             }
 
@@ -101,7 +112,7 @@ public class ColumnCounter
                     return;
             }
 
-            count++;
+            live++;
             last = current;
         }
     }

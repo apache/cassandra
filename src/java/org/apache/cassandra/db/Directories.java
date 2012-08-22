@@ -21,8 +21,12 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.primitives.Longs;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +35,6 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
@@ -64,13 +67,13 @@ public class Directories
     public static final String SNAPSHOT_SUBDIR = "snapshots";
     public static final String SECONDARY_INDEX_NAME_SEPARATOR = ".";
 
-    public static final File[] dataFileLocations;
+    public static final DataDirectory[] dataFileLocations;
     static
     {
         String[] locations = DatabaseDescriptor.getAllDataFileLocations();
-        dataFileLocations = new File[locations.length];
+        dataFileLocations = new DataDirectory[locations.length];
         for (int i = 0; i < locations.length; ++i)
-            dataFileLocations[i] = new File(locations[i]);
+            dataFileLocations[i] = new DataDirectory(new File(locations[i]));
     }
 
     private final String tablename;
@@ -93,13 +96,29 @@ public class Directories
         this.cfname = cfname;
         this.sstableDirectories = new File[dataFileLocations.length];
         for (int i = 0; i < dataFileLocations.length; ++i)
-            sstableDirectories[i] = new File(dataFileLocations[i], join(tablename, directoryName));
+            sstableDirectories[i] = new File(dataFileLocations[i].location, join(tablename, directoryName));
 
         if (!StorageService.instance.isClientMode())
         {
             for (File dir : sstableDirectories)
                 FileUtils.createDirectory(dir);
         }
+    }
+
+    /**
+     * Returns SSTable location which is inside given data directory.
+     *
+     * @param dataDirectory
+     * @return SSTable location
+     */
+    public File getLocationForDisk(File dataDirectory)
+    {
+        for (File dir : sstableDirectories)
+        {
+            if (FileUtils.getCanonicalPath(dir).startsWith(FileUtils.getCanonicalPath(dataDirectory)))
+                return dir;
+        }
+        return null;
     }
 
     public File getDirectoryForNewSSTables(long estimatedSize)
@@ -160,6 +179,37 @@ public class Directories
         return null;
     }
 
+    /**
+     * Find location which is capable of holding given {@code estimatedSize}.
+     * First it looks through for directory with no current task running and
+     * the most free space available.
+     * If no such directory is available, it just chose the one with the most
+     * free space available.
+     * If no directory can hold given {@code estimatedSize}, then returns null.
+     *
+     * @param estimatedSize estimated size you need to find location to fit
+     * @return directory capable of given estimated size, or null if none found
+     */
+    public static DataDirectory getLocationCapableOfSize(long estimatedSize)
+    {
+        // sort by available disk space
+        SortedSet<DataDirectory> directories = ImmutableSortedSet.copyOf(dataFileLocations);
+
+        // if there is disk with sufficient space and no activity running on it, then use it
+        for (DataDirectory directory : directories)
+        {
+            long spaceAvailable = directory.getEstimatedAvailableSpace();
+            if (estimatedSize < spaceAvailable && directory.currentTasks.get() == 0)
+                return directory;
+        }
+
+        // if not, use the one that has largest free space
+        if (estimatedSize < directories.first().getEstimatedAvailableSpace())
+            return directories.first();
+        else
+            return null;
+    }
+
     public static File getSnapshotDirectory(Descriptor desc, String snapshotName)
     {
         return getOrCreate(desc.directory, SNAPSHOT_SUBDIR, snapshotName);
@@ -173,6 +223,34 @@ public class Directories
     public SSTableLister sstableLister()
     {
         return new SSTableLister();
+    }
+
+    public static class DataDirectory implements Comparable<DataDirectory>
+    {
+        public final File location;
+        public final AtomicInteger currentTasks = new AtomicInteger();
+        public final AtomicLong estimatedWorkingSize = new AtomicLong();
+
+        public DataDirectory(File location)
+        {
+            this.location = location;
+        }
+
+        /**
+         * @return estimated available disk space for bounded directory,
+         * excluding the expected size written by tasks in the queue.
+         */
+        public long getEstimatedAvailableSpace()
+        {
+            // Load factor of 0.9 we do not want to use the entire disk that is too risky.
+            return (long)(0.9 * location.getUsableSpace()) - estimatedWorkingSize.get();
+        }
+
+        public int compareTo(DataDirectory o)
+        {
+            // we want to sort by free space in descending order
+            return -1 * Longs.compare(getEstimatedAvailableSpace(), o.getEstimatedAvailableSpace());
+        }
     }
 
     public class SSTableLister
@@ -389,9 +467,9 @@ public class Directories
             return false;
 
         boolean hasSystemKeyspace = false;
-        for (File location : dataFileLocations)
+        for (DataDirectory dir : dataFileLocations)
         {
-            File systemDir = new File(location, Table.SYSTEM_TABLE);
+            File systemDir = new File(dir.location, Table.SYSTEM_TABLE);
             hasSystemKeyspace |= (systemDir.exists() && systemDir.isDirectory());
             File statusCFDir = new File(systemDir, SystemTable.SCHEMA_KEYSPACES_CF);
             if (statusCFDir.exists())
@@ -403,8 +481,8 @@ public class Directories
 
         // Check whether the migration might create too long a filename
         int longestLocation = -1;
-        for (File loc : dataFileLocations)
-            longestLocation = Math.max(longestLocation, FileUtils.getCanonicalPath(loc).length());
+        for (DataDirectory loc : dataFileLocations)
+            longestLocation = Math.max(longestLocation, FileUtils.getCanonicalPath(loc.location).length());
 
         // Check that migration won't error out halfway through from too-long paths.  For Windows, we need to check
         // total path length <= 255 (see http://msdn.microsoft.com/en-us/library/aa365247.aspx and discussion on CASSANDRA-2749);
@@ -450,12 +528,12 @@ public class Directories
     {
         logger.info("Upgrade from pre-1.1 version detected: migrating sstables to new directory layout");
 
-        for (File location : dataFileLocations)
+        for (DataDirectory dir : dataFileLocations)
         {
-            if (!location.exists() || !location.isDirectory())
+            if (!dir.location.exists() || !dir.location.isDirectory())
                 continue;
 
-            for (File ksDir : location.listFiles())
+            for (File ksDir : dir.location.listFiles())
             {
                 if (!ksDir.isDirectory())
                     continue;
@@ -527,7 +605,7 @@ public class Directories
     static void overrideDataDirectoriesForTest(String loc)
     {
         for (int i = 0; i < dataFileLocations.length; ++i)
-            dataFileLocations[i] = new File(loc);
+            dataFileLocations[i] = new DataDirectory(new File(loc));
     }
 
     // Hack for tests, don't use otherwise
@@ -535,6 +613,6 @@ public class Directories
     {
         String[] locations = DatabaseDescriptor.getAllDataFileLocations();
         for (int i = 0; i < locations.length; ++i)
-            dataFileLocations[i] = new File(locations[i]);
+            dataFileLocations[i] = new DataDirectory(new File(locations[i]));
     }
 }

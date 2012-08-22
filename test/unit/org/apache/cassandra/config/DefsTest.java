@@ -217,7 +217,6 @@ public class DefsTest extends SchemaLoader
         ColumnFamilyStore store = Table.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
         store.forceBlockingFlush();
-        store.getFlushPath(1024, Descriptor.Version.CURRENT);
         assert store.directories.sstableLister().list().size() > 0;
 
         MigrationManager.announceColumnFamilyDrop(ks.name, cfm.cfName);

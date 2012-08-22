@@ -33,6 +33,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,7 +67,6 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.*;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import static org.apache.cassandra.config.CFMetaData.Caching;
 
@@ -538,20 +538,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return columnFamily;
     }
 
-    /*
-     * @return a temporary file name for an sstable.
-     * When the sstable object is closed, it will be renamed to a non-temporary
-     * format, so incomplete sstables can be recognized and removed on startup.
-     */
-    public String getFlushPath(long estimatedSize, Descriptor.Version version)
-    {
-        File location = directories.getDirectoryForNewSSTables(estimatedSize);
-        if (location == null)
-            throw new RuntimeException("Insufficient disk space to flush " + estimatedSize + " bytes");
-        return getTempSSTablePath(location, version);
-    }
-
-    private String getTempSSTablePath(File directory)
+    public String getTempSSTablePath(File directory)
     {
         return getTempSSTablePath(directory, Descriptor.Version.CURRENT);
     }
@@ -889,6 +876,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return SSTable.getTotalBytes(sstables);
         }
 
+        // cleanup size estimation only counts bytes for keys local to this node
         long expectedFileSize = 0;
         Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.name);
         for (SSTableReader sstable : sstables)
@@ -1920,13 +1908,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return null;
 
         return intern(name);
-    }
-
-    public SSTableWriter createFlushWriter(long estimatedRows, long estimatedSize, ReplayPosition context)
-    {
-        SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector().replayPosition(context);
-        String filename = getFlushPath(estimatedSize, Descriptor.Version.CURRENT);
-        return new SSTableWriter(filename, estimatedRows, metadata, partitioner, sstableMetadataCollector);
     }
 
     public SSTableWriter createCompactionWriter(long estimatedRows, File location, Collection<SSTableReader> sstables)

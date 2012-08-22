@@ -25,6 +25,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Function;
 import com.google.common.base.Throwables;
+
+import org.apache.cassandra.io.util.DiskAwareRunnable;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
+import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,13 +40,10 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.filter.AbstractColumnIterator;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SlabAllocator;
-import org.apache.cassandra.utils.WrappedRunnable;
-import org.cliffc.high_scale_lib.NonBlockingHashSet;
-import org.github.jamm.MemoryMeter;
 
 public class Memtable
 {
@@ -255,65 +256,9 @@ public class Memtable
         return builder.toString();
     }
 
-    private SSTableReader writeSortedContents(Future<ReplayPosition> context) throws ExecutionException, InterruptedException
-    {
-        logger.info("Writing " + this);
-
-        long keySize = 0;
-        for (RowPosition key : columnFamilies.keySet())
-        {
-            //  make sure we don't write non-sensical keys
-            assert key instanceof DecoratedKey;
-            keySize += ((DecoratedKey)key).key.remaining();
-        }
-        long estimatedSize = (long) ((keySize // index entries
-                                      + keySize // keys in data file
-                                      + currentSize.get()) // data
-                                     * 1.2); // bloom filter and row index overhead
-        SSTableReader ssTable;
-        // errors when creating the writer that may leave empty temp files.
-        SSTableWriter writer = cfs.createFlushWriter(columnFamilies.size(), estimatedSize, context.get());
-        try
-        {
-            // (we can't clear out the map as-we-go to free up memory,
-            //  since the memtable is being used for queries in the "pending flush" category)
-            for (Map.Entry<RowPosition, ColumnFamily> entry : columnFamilies.entrySet())
-            {
-                ColumnFamily cf = entry.getValue();
-                if (cf.isMarkedForDelete())
-                {
-                    // Pedantically, you could purge column level tombstones that are past GcGRace when writing to the SSTable.
-                    // But it can result in unexpected behaviour where deletes never make it to disk,
-                    // as they are lost and so cannot override existing column values. So we only remove deleted columns if there
-                    // is a CF level tombstone to ensure the delete makes it into an SSTable.
-                    ColumnFamilyStore.removeDeletedColumnsOnly(cf, Integer.MIN_VALUE);
-                }
-                writer.append((DecoratedKey)entry.getKey(), cf);
-            }
-
-            ssTable = writer.closeAndOpenReader();
-            logger.info(String.format("Completed flushing %s (%d bytes) for commitlog position %s",
-                        ssTable.getFilename(), new File(ssTable.getFilename()).length(), context.get()));
-            return ssTable;
-        }
-        catch (Throwable e)
-        {
-            writer.abort();
-            throw Throwables.propagate(e);
-        }
-    }
-
     public void flushAndSignal(final CountDownLatch latch, ExecutorService writer, final Future<ReplayPosition> context)
     {
-        writer.execute(new WrappedRunnable()
-        {
-            public void runMayThrow() throws Exception
-            {
-                SSTableReader sstable = writeSortedContents(context);
-                cfs.replaceFlushed(Memtable.this, sstable);
-                latch.countDown();
-            }
-        });
+        writer.execute(new FlushRunnable(latch, context));
     }
 
     public String toString()
@@ -438,5 +383,91 @@ public class Memtable
     public long creationTime()
     {
         return creationTime;
+    }
+
+    class FlushRunnable extends DiskAwareRunnable
+    {
+        private final CountDownLatch latch;
+        private final Future<ReplayPosition> context;
+        private final long estimatedSize;
+
+        FlushRunnable(CountDownLatch latch, Future<ReplayPosition> context)
+        {
+            this.latch = latch;
+            this.context = context;
+
+            long keySize = 0;
+            for (RowPosition key : columnFamilies.keySet())
+            {
+                //  make sure we don't write non-sensical keys
+                assert key instanceof DecoratedKey;
+                keySize += ((DecoratedKey)key).key.remaining();
+            }
+            estimatedSize = (long) ((keySize // index entries
+                                    + keySize // keys in data file
+                                    + currentSize.get()) // data
+                                    * 1.2); // bloom filter and row index overhead
+        }
+
+        public long getExpectedWriteSize()
+        {
+            return estimatedSize;
+        }
+
+        protected void runWith(File dataDirectory) throws Exception
+        {
+            assert dataDirectory != null : "Flush task is not bound to any disk";
+
+            SSTableReader sstable = writeSortedContents(context, dataDirectory);
+            cfs.replaceFlushed(Memtable.this, sstable);
+            latch.countDown();
+        }
+
+        private SSTableReader writeSortedContents(Future<ReplayPosition> context, File dataDirectory) throws ExecutionException, InterruptedException
+        {
+            logger.info("Writing " + Memtable.this.toString());
+
+            SSTableReader ssTable;
+            // errors when creating the writer that may leave empty temp files.
+            SSTableWriter writer = createFlushWriter(cfs.getTempSSTablePath(cfs.directories.getLocationForDisk(dataDirectory)));
+            try
+            {
+                // (we can't clear out the map as-we-go to free up memory,
+                //  since the memtable is being used for queries in the "pending flush" category)
+                for (Map.Entry<RowPosition, ColumnFamily> entry : columnFamilies.entrySet())
+                {
+                    ColumnFamily cf = entry.getValue();
+                    if (cf.isMarkedForDelete())
+                    {
+                        // Pedantically, you could purge column level tombstones that are past GcGRace when writing to the SSTable.
+                        // But it can result in unexpected behaviour where deletes never make it to disk,
+                        // as they are lost and so cannot override existing column values. So we only remove deleted columns if there
+                        // is a CF level tombstone to ensure the delete makes it into an SSTable.
+                        ColumnFamilyStore.removeDeletedColumnsOnly(cf, Integer.MIN_VALUE);
+                    }
+                    writer.append((DecoratedKey)entry.getKey(), cf);
+                }
+
+                ssTable = writer.closeAndOpenReader();
+                logger.info(String.format("Completed flushing %s (%d bytes) for commitlog position %s",
+                            ssTable.getFilename(), new File(ssTable.getFilename()).length(), context.get()));
+                return ssTable;
+            }
+            catch (Throwable e)
+            {
+                writer.abort();
+                throw Throwables.propagate(e);
+            }
+        }
+
+        public SSTableWriter createFlushWriter(String filename) throws ExecutionException, InterruptedException
+        {
+            SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector().replayPosition(context.get());
+            return new SSTableWriter(filename,
+                                     columnFamilies.size(),
+                                     cfs.metadata,
+                                     cfs.partitioner,
+                                     sstableMetadataCollector);
+        }
     }
 }
