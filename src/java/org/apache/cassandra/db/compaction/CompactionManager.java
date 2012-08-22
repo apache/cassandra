@@ -783,7 +783,7 @@ public class CompactionManager implements CompactionManagerMBean
         {
             public void run()
             {
-                if (!AutoSavingCache.flushInProgress.compareAndSet(false, true))
+                if (!AutoSavingCache.flushInProgress.add(writer.cacheType()))
                 {
                     logger.debug("Cache flushing was already in progress: skipping {}", writer.getCompactionInfo());
                     return;
@@ -802,7 +802,7 @@ public class CompactionManager implements CompactionManagerMBean
                 }
                 finally
                 {
-                    AutoSavingCache.flushInProgress.set(false);
+                    AutoSavingCache.flushInProgress.remove(writer.cacheType());
                 }
             }
         };

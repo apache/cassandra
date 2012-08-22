@@ -25,6 +25,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,7 +48,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
     private static final Logger logger = LoggerFactory.getLogger(AutoSavingCache.class);
 
     /** True if a cache flush is currently executing: only one may execute at a time. */
-    public static final AtomicBoolean flushInProgress = new AtomicBoolean(false);
+    public static final Set<CacheService.CacheType> flushInProgress = new NonBlockingHashSet<CacheService.CacheType>();
 
     protected volatile ScheduledFuture<?> saveTask;
     protected final CacheService.CacheType cacheType;
@@ -203,6 +204,11 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                                       0,
                                       keys.size(),
                                       "keys");
+        }
+
+        public CacheService.CacheType cacheType()
+        {
+            return cacheType;
         }
 
         public CompactionInfo getCompactionInfo()
