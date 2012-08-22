@@ -45,6 +45,7 @@
 1.1.5
  * increase stack size under Java7 to 180K
  * Log(info) schema changes (CASSANDRA-4547)
+ * Change nodetool setcachecapcity to manipulate global caches (CASSANDRA-4563)
 
 
 1.1.4
