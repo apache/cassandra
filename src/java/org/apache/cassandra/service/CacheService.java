@@ -26,14 +26,19 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.util.concurrent.Futures;
+
 import org.apache.cassandra.cache.*;
 import org.apache.cassandra.cache.AutoSavingCache.CacheSerializer;
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -320,12 +325,18 @@ public class CacheService implements CacheServiceMBean
             ByteBufferUtil.writeWithLength(key.key, out);
         }
 
-        public Pair<RowCacheKey, IRowCacheEntry> deserialize(DataInputStream in, ColumnFamilyStore cfs) throws IOException
+        public Future<Pair<RowCacheKey, IRowCacheEntry>> deserialize(DataInputStream in, final ColumnFamilyStore cfs) throws IOException
         {
-            ByteBuffer buffer = ByteBufferUtil.readWithLength(in);
-            DecoratedKey key = cfs.partitioner.decorateKey(buffer);
-            ColumnFamily data = cfs.getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(cfs.columnFamily)), Integer.MIN_VALUE, true);
-            return new Pair<RowCacheKey, IRowCacheEntry>(new RowCacheKey(cfs.metadata.cfId, key), data);
+            final ByteBuffer buffer = ByteBufferUtil.readWithLength(in);
+            return StageManager.getStage(Stage.READ).submit(new Callable<Pair<RowCacheKey, IRowCacheEntry>>()
+            {
+                public Pair<RowCacheKey, IRowCacheEntry> call() throws Exception
+                {
+                    DecoratedKey key = cfs.partitioner.decorateKey(buffer);
+                    ColumnFamily data = cfs.getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(cfs.columnFamily)), Integer.MIN_VALUE, true);
+                    return new Pair<RowCacheKey, IRowCacheEntry>(new RowCacheKey(cfs.metadata.cfId, key), data);
+                }
+            });
         }
 
         public void load(Set<ByteBuffer> buffers, ColumnFamilyStore cfs)
@@ -355,7 +366,7 @@ public class CacheService implements CacheServiceMBean
             RowIndexEntry.serializer.serialize(entry, out);
         }
 
-        public Pair<KeyCacheKey, RowIndexEntry> deserialize(DataInputStream input, ColumnFamilyStore cfs) throws IOException
+        public Future<Pair<KeyCacheKey, RowIndexEntry>> deserialize(DataInputStream input, ColumnFamilyStore cfs) throws IOException
         {
             ByteBuffer key = ByteBufferUtil.readWithLength(input);
             int generation = input.readInt();
@@ -370,7 +381,7 @@ public class CacheService implements CacheServiceMBean
                 entry = RowIndexEntry.serializer.deserialize(input, reader.descriptor.version);
             else
                 entry = reader.getPosition(reader.partitioner.decorateKey(key), Operator.EQ);
-            return new Pair<KeyCacheKey, RowIndexEntry>(new KeyCacheKey(reader.descriptor, key), entry);
+            return Futures.immediateFuture(Pair.create(new KeyCacheKey(reader.descriptor, key), entry));
         }
 
         private SSTableReader findDesc(int generation, Collection<SSTableReader> collection)

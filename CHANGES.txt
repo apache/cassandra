@@ -1,4 +1,5 @@
 1.2-dev
+ * parallelize row cache loading (CASSANDRA-4282)
  * Make compaction, flush JBOD-aware (CASSANDRA-4292)
  * run local range scans on the read stage (CASSANDRA-3687)
  * clean up ioexceptions (CASSANDRA-2116)

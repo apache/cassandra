@@ -1044,7 +1044,7 @@ public class DatabaseDescriptor
 
     public static File getSerializedCachePath(String ksName, String cfName, CacheService.CacheType cacheType, String version)
     {
-        return new File(conf.saved_caches_directory + File.separator + ksName + "-" + cfName + "-" + cacheType + ((version != null) ? "-" + version + ".db" : ""));
+        return new File(conf.saved_caches_directory + File.separator + ksName + "-" + cfName + "-" + cacheType + (version == null ? "" : "-" + version + ".db"));
     }
 
     public static int getDynamicUpdateInterval()

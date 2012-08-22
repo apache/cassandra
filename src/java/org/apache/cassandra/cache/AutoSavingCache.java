@@ -100,6 +100,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
     {
         int count = 0;
         long start = System.currentTimeMillis();
+
+        // old cache format that only saves keys
         File path = getCachePath(cfs.table.name, cfs.columnFamily, null);
         if (path.exists())
         {
@@ -127,6 +129,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             }
         }
 
+        // modern format, allows both key and value (so key cache load can be purely sequential)
         path = getCachePath(cfs.table.name, cfs.columnFamily, CURRENT_VERSION);
         if (path.exists())
         {
@@ -135,14 +138,20 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             {
                 logger.info(String.format("reading saved cache %s", path));
                 in = new DataInputStream(new BufferedInputStream(new FileInputStream(path)));
+                List<Future<Pair<K, V>>> futures = new ArrayList<Future<Pair<K, V>>>();
                 while (in.available() > 0)
                 {
-                    Pair<K, V> entry = cacheLoader.deserialize(in, cfs);
+                    futures.add(cacheLoader.deserialize(in, cfs));
+                    count++;
+                }
+
+                for (Future<Pair<K, V>> future : futures)
+                {
+                    Pair<K, V> entry = future.get();
                     // Key cache entry can return null, if the SSTable doesn't exist.
                     if (entry == null)
                         continue;
                     put(entry.left, entry.right);
-                    count++;
                 }
             }
             catch (Exception e)
@@ -314,7 +323,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
     {
         void serialize(K key, DataOutput out) throws IOException;
 
-        Pair<K, V> deserialize(DataInputStream in, ColumnFamilyStore cfs) throws IOException;
+        Future<Pair<K, V>> deserialize(DataInputStream in, ColumnFamilyStore cfs) throws IOException;
 
         @Deprecated
         void load(Set<ByteBuffer> buffer, ColumnFamilyStore cfs);
