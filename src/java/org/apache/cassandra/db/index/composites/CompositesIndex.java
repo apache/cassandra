@@ -17,14 +17,9 @@
  */
 package org.apache.cassandra.db.index.composites;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.*;
@@ -32,9 +27,6 @@ import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.dht.*;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Implements a secondary index for a column family using a second column family
@@ -50,7 +42,7 @@ public class CompositesIndex extends AbstractSimplePerColumnSecondaryIndex
     public void init(ColumnDefinition columnDef)
     {
         assert baseCfs.getComparator() instanceof CompositeType;
-        CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
+
         try
         {
             prefixSize = Integer.parseInt(columnDef.getIndexOptions().get(PREFIX_SIZE_OPTION));
