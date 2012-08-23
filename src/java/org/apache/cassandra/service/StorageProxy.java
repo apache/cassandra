@@ -78,8 +78,6 @@ public class StorageProxy implements StorageProxyMBean
 
     public static final StorageProxy instance = new StorageProxy();
 
-    private static volatile boolean hintedHandoffEnabled = DatabaseDescriptor.hintedHandoffEnabled();
-    private static volatile int maxHintWindow = DatabaseDescriptor.getMaxHintWindow();
     private static volatile int maxHintsInProgress = 1024 * Runtime.getRuntime().availableProcessors();
     private static final AtomicInteger totalHintsInProgress = new AtomicInteger();
     private static final Map<InetAddress, AtomicInteger> hintsInProgress = new MapMaker().concurrencyLevel(1).makeComputingMap(new Function<InetAddress, AtomicInteger>()
@@ -1161,30 +1159,30 @@ public class StorageProxy implements StorageProxyMBean
 
     public boolean getHintedHandoffEnabled()
     {
-        return hintedHandoffEnabled;
+        return DatabaseDescriptor.hintedHandoffEnabled();
     }
 
     public void setHintedHandoffEnabled(boolean b)
     {
-        hintedHandoffEnabled = b;
+        DatabaseDescriptor.setHintedHandoffEnabled(b);
     }
 
     public int getMaxHintWindow()
     {
-        return maxHintWindow;
+        return DatabaseDescriptor.getMaxHintWindow();
     }
 
     public void setMaxHintWindow(int ms)
     {
-        maxHintWindow = ms;
+        DatabaseDescriptor.setMaxHintWindow(ms);
     }
 
     public static boolean shouldHint(InetAddress ep)
     {
-        if (!hintedHandoffEnabled)
+        if (!DatabaseDescriptor.hintedHandoffEnabled())
             return false;
 
-        boolean hintWindowExpired = Gossiper.instance.getEndpointDowntime(ep) > maxHintWindow;
+        boolean hintWindowExpired = Gossiper.instance.getEndpointDowntime(ep) > DatabaseDescriptor.getMaxHintWindow();
         if (hintWindowExpired)
             logger.debug("not hinting {} which has been down {}ms", ep, Gossiper.instance.getEndpointDowntime(ep));
         return !hintWindowExpired;

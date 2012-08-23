@@ -83,9 +83,6 @@ public class CacheService implements CacheServiceMBean
     public final AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache;
     public final AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache;
 
-    private int rowCacheSavePeriod;
-    private int keyCacheSavePeriod;
-
     private CacheService()
     {
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
@@ -98,9 +95,6 @@ public class CacheService implements CacheServiceMBean
         {
             throw new RuntimeException(e);
         }
-
-        rowCacheSavePeriod = DatabaseDescriptor.getRowCacheSavePeriod();
-        keyCacheSavePeriod = DatabaseDescriptor.getKeyCacheSavePeriod();
 
         keyCache = initKeyCache();
         rowCache = initRowCache();
@@ -142,10 +136,10 @@ public class CacheService implements CacheServiceMBean
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
 
         logger.info("Scheduling key cache save to each {} seconds (going to save {} keys).",
-                    keyCacheSavePeriod,
+                DatabaseDescriptor.getKeyCacheSavePeriod(),
                     keyCacheKeysToSave == Integer.MAX_VALUE ? "all" : keyCacheKeysToSave);
 
-        keyCache.scheduleSaving(keyCacheSavePeriod, keyCacheKeysToSave);
+        keyCache.scheduleSaving(DatabaseDescriptor.getKeyCacheSavePeriod(), keyCacheKeysToSave);
 
         return keyCache;
     }
@@ -168,10 +162,10 @@ public class CacheService implements CacheServiceMBean
         int rowCacheKeysToSave = DatabaseDescriptor.getRowCacheKeysToSave();
 
         logger.info("Scheduling row cache save to each {} seconds (going to save {} keys).",
-                    rowCacheSavePeriod,
+                DatabaseDescriptor.getRowCacheSavePeriod(),
                     rowCacheKeysToSave == Integer.MAX_VALUE ? "all" : rowCacheKeysToSave);
 
-        rowCache.scheduleSaving(rowCacheSavePeriod, rowCacheKeysToSave);
+        rowCache.scheduleSaving(DatabaseDescriptor.getRowCacheSavePeriod(), rowCacheKeysToSave);
 
         return rowCache;
     }
@@ -208,7 +202,7 @@ public class CacheService implements CacheServiceMBean
 
     public int getRowCacheSavePeriodInSeconds()
     {
-        return rowCacheSavePeriod;
+        return DatabaseDescriptor.getRowCacheSavePeriod();
     }
 
     public void setRowCacheSavePeriodInSeconds(int rcspis)
@@ -216,13 +210,13 @@ public class CacheService implements CacheServiceMBean
         if (rcspis < 0)
             throw new RuntimeException("RowCacheSavePeriodInSeconds must be non-negative.");
 
-        rowCacheSavePeriod = rcspis;
-        rowCache.scheduleSaving(rowCacheSavePeriod, DatabaseDescriptor.getRowCacheKeysToSave());
+        DatabaseDescriptor.setRowCacheSavePeriod(rcspis);
+        rowCache.scheduleSaving(rcspis, DatabaseDescriptor.getRowCacheKeysToSave());
     }
 
     public int getKeyCacheSavePeriodInSeconds()
     {
-        return keyCacheSavePeriod;
+        return DatabaseDescriptor.getKeyCacheSavePeriod();
     }
 
     public void setKeyCacheSavePeriodInSeconds(int kcspis)
@@ -230,8 +224,8 @@ public class CacheService implements CacheServiceMBean
         if (kcspis < 0)
             throw new RuntimeException("KeyCacheSavePeriodInSeconds must be non-negative.");
 
-        keyCacheSavePeriod = kcspis;
-        keyCache.scheduleSaving(keyCacheSavePeriod, DatabaseDescriptor.getKeyCacheKeysToSave());
+        DatabaseDescriptor.setKeyCacheSavePeriod(kcspis);
+        keyCache.scheduleSaving(kcspis, DatabaseDescriptor.getKeyCacheKeysToSave());
     }
 
     public void invalidateKeyCache()

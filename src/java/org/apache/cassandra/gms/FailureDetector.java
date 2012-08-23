@@ -48,14 +48,12 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public static final IFailureDetector instance = new FailureDetector();
     private static final Logger logger = LoggerFactory.getLogger(FailureDetector.class);
-    private static double phiConvictThreshold;
 
     private final Map<InetAddress, ArrivalWindow> arrivalSamples = new Hashtable<InetAddress, ArrivalWindow>();
     private final List<IFailureDetectionEventListener> fdEvntListeners = new CopyOnWriteArrayList<IFailureDetectionEventListener>();
 
     public FailureDetector()
     {
-        phiConvictThreshold = DatabaseDescriptor.getPhiConvictThreshold();
         // Register this instance with JMX
         try
         {
@@ -131,12 +129,12 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public void setPhiConvictThreshold(double phi)
     {
-        phiConvictThreshold = phi;
+        DatabaseDescriptor.setPhiConvictThreshold(phi);
     }
 
     public double getPhiConvictThreshold()
     {
-        return phiConvictThreshold;
+        return DatabaseDescriptor.getPhiConvictThreshold();
     }
 
     public boolean isAlive(InetAddress ep)
@@ -186,7 +184,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         if (logger.isTraceEnabled())
             logger.trace("PHI for " + ep + " : " + phi);
 
-        if ( phi > phiConvictThreshold )
+        if (phi > getPhiConvictThreshold())
         {
             logger.trace("notifying listeners that {} is down", ep);
             logger.trace("intervals: {} mean: {}", hbWnd, hbWnd.mean());
@@ -202,7 +200,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         logger.debug("Forcing conviction of {}", ep);
         for (IFailureDetectionEventListener listener : fdEvntListeners)
         {
-            listener.convict(ep, phiConvictThreshold);
+            listener.convict(ep, getPhiConvictThreshold());
         }
     }
 

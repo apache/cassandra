@@ -19,7 +19,11 @@ package org.apache.cassandra.config;
 
 import org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider;
 
-
+/**
+ * A class that contains configuration properties for the cassandra node it runs within.
+ * 
+ * Properties declared as volatile can be mutated via JMX.
+ */
 public class Config
 {
     public String cluster_name = "Test Cluster";
@@ -30,8 +34,8 @@ public class Config
     public String partitioner;
 
     public Boolean auto_bootstrap = true;
-    public Boolean hinted_handoff_enabled = true;
-    public Integer max_hint_window_in_ms = Integer.MAX_VALUE;
+    public volatile Boolean hinted_handoff_enabled = true;
+    public volatile Integer max_hint_window_in_ms = Integer.MAX_VALUE;
 
     public SeedProviderDef seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
@@ -40,7 +44,7 @@ public class Config
     public String initial_token;
     public Integer num_tokens = 1;
 
-    public Long rpc_timeout_in_ms = new Long(10000);
+    public volatile Long rpc_timeout_in_ms = new Long(10000);
 
     public Long read_rpc_timeout_in_ms = new Long(10000);
 
@@ -52,7 +56,7 @@ public class Config
 
     public Integer streaming_socket_timeout_in_ms = new Integer(0);
 
-    public Double phi_convict_threshold = 8.0;
+    public volatile Double phi_convict_threshold = 8.0;
 
     public Integer concurrent_reads = 8;
     public Integer concurrent_writes = 32;
@@ -90,12 +94,12 @@ public class Config
     public Integer column_index_size_in_kb = 64;
     public Integer in_memory_compaction_limit_in_mb = 256;
     public Integer concurrent_compactors = Runtime.getRuntime().availableProcessors();
-    public Integer compaction_throughput_mb_per_sec = 16;
+    public volatile Integer compaction_throughput_mb_per_sec = 16;
     public Boolean multithreaded_compaction = false;
 
     public Integer max_streaming_retries = 3;
 
-    public Integer stream_throughput_outbound_megabits_per_sec;
+    public volatile Integer stream_throughput_outbound_megabits_per_sec;
 
     public String[] data_file_directories;
 
@@ -132,17 +136,17 @@ public class Config
     public int max_hints_delivery_threads = 1;
     public boolean compaction_preheat_key_cache = true;
 
-    public boolean incremental_backups = false;
+    public volatile boolean incremental_backups = false;
     public int memtable_flush_queue_size = 4;
     public boolean trickle_fsync = false;
     public int trickle_fsync_interval_in_kb = 10240;
 
     public Long key_cache_size_in_mb = null;
-    public int key_cache_save_period = 14400;
+    public volatile int key_cache_save_period = 14400;
     public int key_cache_keys_to_save = Integer.MAX_VALUE;
 
     public long row_cache_size_in_mb = 0;
-    public int row_cache_save_period = 0;
+    public volatile int row_cache_save_period = 0;
     public int row_cache_keys_to_save = Integer.MAX_VALUE;
     public String row_cache_provider = ConcurrentLinkedHashCacheProvider.class.getSimpleName();
     public boolean populate_io_cache_on_flush = false;

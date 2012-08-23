@@ -804,6 +804,11 @@ public class DatabaseDescriptor
         return conf.phi_convict_threshold;
     }
 
+    public static void setPhiConvictThreshold(double phiConvictThreshold)
+    {
+        conf.phi_convict_threshold = phiConvictThreshold;
+    }
+
     public static int getConcurrentReaders()
     {
         return conf.concurrent_reads;
@@ -1005,9 +1010,19 @@ public class DatabaseDescriptor
         return conf.auto_bootstrap;
     }
 
+    public static void setHintedHandoffEnabled(boolean hintedHandoffEnabled)
+    {
+        conf.hinted_handoff_enabled = hintedHandoffEnabled;
+    }
+
     public static boolean hintedHandoffEnabled()
     {
         return conf.hinted_handoff_enabled;
+    }
+
+    public static void setMaxHintWindow(int ms)
+    {
+        conf.max_hint_window_in_ms = ms;
     }
 
     public static int getMaxHintWindow()
@@ -1149,6 +1164,11 @@ public class DatabaseDescriptor
         return conf.key_cache_save_period;
     }
 
+    public static void setKeyCacheSavePeriod(int keyCacheSavePeriod)
+    {
+        conf.key_cache_save_period = keyCacheSavePeriod;
+    }
+
     public static int getKeyCacheKeysToSave()
     {
         return conf.key_cache_keys_to_save;
@@ -1162,6 +1182,11 @@ public class DatabaseDescriptor
     public static int getRowCacheSavePeriod()
     {
         return conf.row_cache_save_period;
+    }
+
+    public static void setRowCacheSavePeriod(int rowCacheSavePeriod)
+    {
+        conf.row_cache_save_period = rowCacheSavePeriod;
     }
 
     public static int getRowCacheKeysToSave()
