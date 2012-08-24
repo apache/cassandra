@@ -204,7 +204,7 @@ public class Descriptor
         return filenameFor(component.name());
     }
 
-    public String baseFilename()
+    private String baseFilename()
     {
         StringBuilder buff = new StringBuilder();
         buff.append(directory).append(File.separatorChar);

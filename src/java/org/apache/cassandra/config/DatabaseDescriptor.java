@@ -199,6 +199,8 @@ public class DatabaseDescriptor
                 logger.info("DiskAccessMode is " + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
             }
 
+            logger.info("DiskFailureMode is " + conf.disk_failure_policy);
+
 	        logger.debug("page_cache_hinting is " + conf.populate_io_cache_on_flush);
 
             /* Authentication and authorization backend, implementing IAuthenticator and IAuthority */
@@ -994,6 +996,11 @@ public class DatabaseDescriptor
     public static Config.DiskAccessMode getIndexAccessMode()
     {
         return indexAccessMode;
+    }
+
+    public static Config.DiskFailurePolicy getDiskFailureMode()
+    {
+        return conf.disk_failure_policy;
     }
 
     public static boolean isSnapshotBeforeCompaction()

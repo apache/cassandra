@@ -40,6 +40,8 @@ public class Config
     public SeedProviderDef seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
 
+    public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.best_effort;
+
     /* initial token in the ring */
     public String initial_token;
     public Integer num_tokens = 1;
@@ -191,6 +193,12 @@ public class Config
         mmap,
         mmap_index_only,
         standard,
+    }
+
+    public static enum DiskFailurePolicy
+    {
+        best_effort,
+        stop
     }
 
     public static enum RequestSchedulerId

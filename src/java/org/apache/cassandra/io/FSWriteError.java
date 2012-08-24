@@ -33,8 +33,9 @@ public class FSWriteError extends FSError
         this(cause, new File(path));
     }
 
-    public FSWriteError(Throwable cause, Descriptor descriptor)
+    @Override
+    public String toString()
     {
-        this(cause, descriptor.baseFilename());
+        return "FSWriteError in " + path;
     }
 }

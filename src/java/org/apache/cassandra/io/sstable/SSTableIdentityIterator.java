@@ -77,7 +77,6 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
      * @param dataStart Data for this row starts at this pos.
      * @param dataSize length of row data
      * @param checkData if true, do its best to deserialize and check the coherence of row data
-     * @throws IOException
      */
     public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey key, long dataStart, long dataSize, boolean checkData)
     {

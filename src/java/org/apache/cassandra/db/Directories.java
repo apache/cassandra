@@ -162,9 +162,13 @@ public class Directories
 
         for (File dir : sstableDirectories)
         {
-            if (maxFreeDisk < dir.getUsableSpace())
+            if (BlacklistedDirectories.isUnwritable(dir))
+                continue;
+
+            long usableSpace = dir.getUsableSpace();
+            if (maxFreeDisk < usableSpace)
             {
-                maxFreeDisk = dir.getUsableSpace();
+                maxFreeDisk = usableSpace;
                 maxLocation = dir;
             }
         }
@@ -173,10 +177,7 @@ public class Directories
         logger.debug(String.format("expected data files size is %d; largest free partition (%s) has %d bytes free",
                                    estimatedSize, maxLocation, maxFreeDisk));
 
-
-        if (estimatedSize < maxFreeDisk)
-            return maxLocation;
-        return null;
+        return estimatedSize < maxFreeDisk ? maxLocation : null;
     }
 
     /**
@@ -323,6 +324,9 @@ public class Directories
 
             for (File location : sstableDirectories)
             {
+                if (BlacklistedDirectories.isUnreadable(location))
+                    continue;
+
                 if (snapshotName != null)
                 {
                     new File(location, join(SNAPSHOT_SUBDIR, snapshotName)).listFiles(getFilter());

@@ -33,9 +33,4 @@ public class CorruptSSTableException extends RuntimeException
     {
         this(cause, new File(path));
     }
-
-    public CorruptSSTableException(Exception cause, Descriptor descriptor)
-    {
-        this(cause, descriptor.baseFilename());
-    }
 }

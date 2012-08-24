@@ -66,7 +66,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         catch (IOException e)
         {
             sstable.markSuspect();
-            throw new CorruptSSTableException(e, sstable.descriptor);
+            throw new CorruptSSTableException(e, sstable.getFilename());
         }
         finally
         {
@@ -89,7 +89,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         catch (IOException e)
         {
             sstable.markSuspect();
-            throw new CorruptSSTableException(e, sstable.descriptor);
+            throw new CorruptSSTableException(e, sstable.getFilename());
         }
     }
 

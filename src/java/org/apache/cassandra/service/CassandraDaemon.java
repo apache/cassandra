@@ -34,11 +34,10 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.io.FSError;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.thrift.ThriftServer;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Mx4jTool;
@@ -134,6 +133,37 @@ public class CassandraDaemon
                     // some code, like FileChannel.map, will wrap an OutOfMemoryError in another exception
                     if (e2 instanceof OutOfMemoryError)
                         System.exit(100);
+
+                    if (e2 instanceof FSError)
+                    {
+                        if (e2 != e) // make sure FSError gets logged exactly once.
+                            logger.error("Exception in thread " + t, e2);
+                        handleFSError((FSError) e2);
+                    }
+                }
+            }
+
+            private void handleFSError(FSError e)
+            {
+                switch (DatabaseDescriptor.getDiskFailureMode())
+                {
+                    case stop:
+                        logger.error("Stopping the gossiper and the RPC server");
+                        StorageService.instance.stopGossiping();
+                        StorageService.instance.stopRPCServer();
+                        break;
+                    case best_effort:
+                        // for both read and write errors mark the path as unwritable.
+                        BlacklistedDirectories.maybeMarkUnwritable(e.path);
+                        if (e instanceof FSReadError)
+                        {
+                            File directory = BlacklistedDirectories.maybeMarkUnreadable(e.path);
+                            if (directory != null)
+                                Table.removeUnreadableSSTables(directory);
+                        }
+                        break;
+                    default:
+                        throw new IllegalStateException();
                 }
             }
         });
@@ -266,8 +296,6 @@ public class CassandraDaemon
      * initialized via {@link #init(String[])}
      *
      * Hook for JSVC
-     *
-     * @throws IOException
      */
     public void start()
     {

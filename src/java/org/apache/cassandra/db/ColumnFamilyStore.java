@@ -229,7 +229,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (loadSSTables)
         {
             Directories.SSTableLister sstableFiles = directories.sstableLister().skipTemporary(true);
-            Collection<SSTableReader> sstables = SSTableReader.batchOpen(sstableFiles.list().entrySet(), data, metadata, this.partitioner);
+            Collection<SSTableReader> sstables = SSTableReader.batchOpen(sstableFiles.list().entrySet(), metadata, this.partitioner);
 
             // Filter non-compacted sstables, remove compacted ones
             Set<Integer> compactedSSTables = new HashSet<Integer>();
@@ -291,6 +291,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // this shouldn't block anything.
             logger.warn("Failed unregistering mbean: " + mbeanName, e);
         }
+    }
+
+    /**
+     * Removes every SSTable in the directory from the DataTracker's view.
+     * @param directory the unreadable directory, possibly with SSTables in it, but not necessarily.
+     */
+    void maybeRemoveUnreadableSSTables(File directory)
+    {
+        data.removeUnreadableSSTables(directory);
     }
 
     void unregisterMBean() throws MalformedObjectNameException, InstanceNotFoundException, MBeanRegistrationException
@@ -1255,7 +1264,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             //
             if (view.intervalTree.isEmpty())
             {
-                sstables = Collections.<SSTableReader>emptyList();
+                sstables = Collections.emptyList();
                 break;
             }
 

@@ -290,6 +290,32 @@ public class DataTracker
         postReplace(notCompacting, Collections.<SSTableReader>emptySet());
     }
 
+    /**
+     * Removes every SSTable in the directory from the DataTracker's view.
+     * @param directory the unreadable directory, possibly with SSTables in it, but not necessarily.
+     */
+    void removeUnreadableSSTables(File directory)
+    {
+        View currentView, newView;
+        List<SSTableReader> remaining = new ArrayList<SSTableReader>();
+        do
+        {
+            currentView = view.get();
+            for (SSTableReader r : currentView.nonCompactingSStables())
+            {
+                if (!r.descriptor.directory.equals(directory))
+                    remaining.add(r);
+            }
+
+            if (remaining.size() == currentView.nonCompactingSStables().size())
+                return;
+
+            newView = currentView.replace(currentView.sstables, remaining);
+        }
+        while (!view.compareAndSet(currentView, newView));
+        notifySSTablesChanged(remaining, Collections.<SSTableReader>emptySet(), OperationType.UNKNOWN);
+    }
+
     /** (Re)initializes the tracker, purging all references. */
     void init()
     {

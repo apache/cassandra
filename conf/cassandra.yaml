@@ -92,6 +92,14 @@ data_file_directories:
 # commit log
 commitlog_directory: /var/lib/cassandra/commitlog
 
+# policy for data disk failures:
+# stop: shut down gossip and Thrift, leaving the node effectively dead, but
+#       still inspectable via JMX.
+# best_effort: stop using the failed disk and respond to requests based on
+#              remaining available sstables.  This means you WILL see obsolete
+#              data at CL.ONE!
+disk_failure_policy: stop
+
 # Maximum size of the key cache in memory.
 #
 # Each key cache hit saves 1 seek and each row cache hit saves 2 seeks at the

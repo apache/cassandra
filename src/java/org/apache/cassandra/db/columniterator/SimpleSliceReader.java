@@ -86,7 +86,7 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
         catch (IOException e)
         {
             sstable.markSuspect();
-            throw new CorruptSSTableException(e, sstable.descriptor);
+            throw new CorruptSSTableException(e, sstable.getFilename());
         }
     }
 

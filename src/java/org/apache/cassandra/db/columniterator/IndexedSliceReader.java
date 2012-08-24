@@ -107,7 +107,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         catch (IOException e)
         {
             sstable.markSuspect();
-            throw new CorruptSSTableException(e, sstable.descriptor);
+            throw new CorruptSSTableException(e, file.getPath());
         }
     }
 

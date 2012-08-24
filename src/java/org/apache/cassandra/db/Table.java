@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -122,6 +123,22 @@ public class Table
                     t.unloadCf(cfs);
             }
             return t;
+        }
+    }
+
+    /**
+     * Removes every SSTable in the directory from the appropriate DataTracker's view.
+     * @param directory the unreadable directory, possibly with SSTables in it, but not necessarily.
+     */
+    public static void removeUnreadableSSTables(File directory)
+    {
+        for (Table table : Table.all())
+        {
+            for (ColumnFamilyStore baseCfs : table.getColumnFamilyStores())
+            {
+                for (ColumnFamilyStore cfs : baseCfs.concatWithIndexes())
+                    cfs.maybeRemoveUnreadableSSTables(directory);
+            }
         }
     }
 

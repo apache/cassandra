@@ -51,6 +51,8 @@ Features
     - num_tokens can now be specified in cassandra.yaml. This defines the
       number of tokens assigned to the host on the ring (default: 1).
       Also specifying initial_token will override any num_tokens setting.
+    - disk_failure_policy allows blacklisting failed disks in JBOD 
+      configuration instead of erroring out indefinitely
 
 
 1.1.3

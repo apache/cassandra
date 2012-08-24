@@ -33,8 +33,9 @@ public class FSReadError extends FSError
         this(cause, new File(path));
     }
 
-    public FSReadError(Throwable cause, Descriptor descriptor)
+    @Override
+    public String toString()
     {
-        this(cause, descriptor.baseFilename());
+        return "FSReadError in " + path;
     }
 }
