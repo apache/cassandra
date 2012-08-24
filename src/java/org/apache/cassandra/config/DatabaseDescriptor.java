@@ -199,7 +199,7 @@ public class DatabaseDescriptor
                 logger.info("DiskAccessMode is " + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
             }
 
-            logger.info("DiskFailureMode is " + conf.disk_failure_policy);
+            logger.info("disk_failure_policy is " + conf.disk_failure_policy);
 
 	        logger.debug("page_cache_hinting is " + conf.populate_io_cache_on_flush);
 
@@ -998,7 +998,7 @@ public class DatabaseDescriptor
         return indexAccessMode;
     }
 
-    public static Config.DiskFailurePolicy getDiskFailureMode()
+    public static Config.DiskFailurePolicy getDiskFailurePolicy()
     {
         return conf.disk_failure_policy;
     }

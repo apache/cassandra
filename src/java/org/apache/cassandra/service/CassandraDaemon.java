@@ -145,7 +145,7 @@ public class CassandraDaemon
 
             private void handleFSError(FSError e)
             {
-                switch (DatabaseDescriptor.getDiskFailureMode())
+                switch (DatabaseDescriptor.getDiskFailurePolicy())
                 {
                     case stop:
                         logger.error("Stopping the gossiper and the RPC server");
