@@ -259,7 +259,7 @@ public class AntiEntropyService
         private transient DecoratedKey lastKey;
 
         public final static MerkleTree.RowHash EMPTY_ROW = new MerkleTree.RowHash(null, new byte[0]);
-        
+
         Validator(TreeRequest request)
         {
             this(request,
@@ -451,9 +451,9 @@ public class AntiEntropyService
          * Trigger a validation compaction which will return the tree upon completion.
          */
         public void doVerb(Message message, String id)
-        { 
+        {
             byte[] bytes = message.getMessageBody();
-            
+
             DataInputStream buffer = new DataInputStream(new FastByteArrayInputStream(bytes));
             try
             {
@@ -468,7 +468,7 @@ public class AntiEntropyService
             }
             catch (IOException e)
             {
-                throw new IOError(e);            
+                throw new IOError(e);
             }
         }
     }
@@ -487,9 +487,9 @@ public class AntiEntropyService
             	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(validator, dos, Gossiper.instance.getVersion(validator.request.endpoint));
-                return new Message(local, 
-                                   StorageService.Verb.TREE_RESPONSE, 
-                                   bos.toByteArray(), 
+                return new Message(local,
+                                   StorageService.Verb.TREE_RESPONSE,
+                                   bos.toByteArray(),
                                    Gossiper.instance.getVersion(validator.request.endpoint));
             }
             catch(IOException e)
@@ -519,7 +519,7 @@ public class AntiEntropyService
         }
 
         public void doVerb(Message message, String id)
-        { 
+        {
             byte[] bytes = message.getMessageBody();
             DataInputStream buffer = new DataInputStream(new FastByteArrayInputStream(bytes));
 
@@ -572,7 +572,7 @@ public class AntiEntropyService
         {
             return Objects.hashCode(sessionid, endpoint, cf, range);
         }
-        
+
         @Override
         public final boolean equals(Object o)
         {
@@ -582,7 +582,7 @@ public class AntiEntropyService
             // handles nulls properly
             return Objects.equal(sessionid, that.sessionid) && Objects.equal(endpoint, that.endpoint) && Objects.equal(cf, that.cf) && Objects.equal(range, that.range);
         }
-        
+
         @Override
         public String toString()
         {
@@ -660,7 +660,7 @@ public class AntiEntropyService
             if (endpoints.isEmpty())
             {
                 differencingDone.signalAll();
-                logger.info("[repair #%s] No neighbors to repair with on range %s: session completed", getName(), range);
+                logger.info(String.format("[repair #%s] No neighbors to repair with on range %s: session completed", getName(), range));
                 return;
             }
 
