@@ -418,7 +418,7 @@ public class AntiEntropyService
         {
             try
             {
-            	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+                FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(request, dos, version);
                 return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.TREE_REQUEST, bos.toByteArray(), version);
@@ -490,7 +490,7 @@ public class AntiEntropyService
         {
             try
             {
-            	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+                FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(validator, dos, Gossiper.instance.getVersion(validator.request.endpoint));
                 return new Message(local,
@@ -668,7 +668,7 @@ public class AntiEntropyService
             if (endpoints.isEmpty())
             {
                 differencingDone.signalAll();
-                logger.info("[repair #%s] No neighbors to repair with on range %s: session completed", getName(), range);
+                logger.info(String.format("[repair #%s] No neighbors to repair with on range %s: session completed", getName(), range));
                 return;
             }
 
