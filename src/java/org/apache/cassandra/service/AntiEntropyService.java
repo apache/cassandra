@@ -622,7 +622,7 @@ public class AntiEntropyService
             if (endpoints.isEmpty())
             {
                 differencingDone.signalAll();
-                logger.info("[repair #%s] No neighbors to repair with on range %s: session completed", getName(), range);
+                logger.info(String.format("[repair #%s] No neighbors to repair with on range %s: session completed", getName(), range));
                 return;
             }
 
