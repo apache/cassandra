@@ -40,7 +40,7 @@ public class Config
     public SeedProviderDef seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
 
-    public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.best_effort;
+    public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.ignore;
 
     /* initial token in the ring */
     public String initial_token;
@@ -198,7 +198,8 @@ public class Config
     public static enum DiskFailurePolicy
     {
         best_effort,
-        stop
+        stop,
+        ignore,
     }
 
     public static enum RequestSchedulerId

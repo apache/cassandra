@@ -98,6 +98,7 @@ commitlog_directory: /var/lib/cassandra/commitlog
 # best_effort: stop using the failed disk and respond to requests based on
 #              remaining available sstables.  This means you WILL see obsolete
 #              data at CL.ONE!
+# ignore: ignore fatal errors and let requests fail, as in pre-1.2 Cassandra
 disk_failure_policy: stop
 
 # Maximum size of the key cache in memory.

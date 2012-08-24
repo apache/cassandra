@@ -162,6 +162,9 @@ public class CassandraDaemon
                                 Table.removeUnreadableSSTables(directory);
                         }
                         break;
+                    case ignore:
+                        // already logged, so left nothing to do
+                        break;
                     default:
                         throw new IllegalStateException();
                 }
