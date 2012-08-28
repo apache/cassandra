@@ -174,7 +174,13 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
             }
 
             if (inMemory)
-                return new CompactedRowContainer(rows.get(0).getKey(), executor.submit(new MergeTask(new ArrayList<RowContainer>(rows))));
+            {
+                // caller will re-use rows List, so make ourselves a copy
+                List<Row> rawRows = new ArrayList<Row>(rows.size());
+                for (RowContainer rowContainer : rows)
+                    rawRows.add(rowContainer.row);
+                return new CompactedRowContainer(rows.get(0).getKey(), executor.submit(new MergeTask(rawRows)));
+            }
 
             List<ICountableColumnIterator> iterators = new ArrayList<ICountableColumnIterator>(rows.size());
             for (RowContainer container : rows)
@@ -189,9 +195,9 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
         private class MergeTask implements Callable<ColumnFamily>
         {
-            private final List<RowContainer> rows;
+            private final List<Row> rows;
 
-            public MergeTask(List<RowContainer> rows)
+            public MergeTask(List<Row> rows)
             {
                 this.rows = rows;
             }
@@ -199,9 +205,9 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
             public ColumnFamily call() throws Exception
             {
                 ColumnFamily cf = null;
-                for (RowContainer container : rows)
+                for (Row row : rows)
                 {
-                    ColumnFamily thisCF = container.row.cf;
+                    ColumnFamily thisCF = row.cf;
                     if (cf == null)
                     {
                         cf = thisCF;
@@ -213,7 +219,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                     }
                 }
 
-                return PrecompactedRow.removeDeletedAndOldShards(rows.get(0).getKey(), controller, cf);
+                return PrecompactedRow.removeDeletedAndOldShards(rows.get(0).key, controller, cf);
             }
         }
 
