@@ -464,10 +464,15 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         List<Row> rows = getHintsSlice(Integer.MAX_VALUE);
 
         Map<String, Integer> result = new HashMap<String, Integer>();
+        Token.TokenFactory tokenFactory = StorageService.getPartitioner().getTokenFactory();
         for (Row r : rows)
         {
-            if (r.cf != null) //ignore removed rows
-                result.put(new String(r.key.key.array()), r.cf.getColumnCount());
+            if (r.cf == null) // ignore removed rows
+                continue;
+
+            int count = r.cf.getColumnCount();
+            if (count > 0)
+                result.put(tokenFactory.toString(r.key.token), count);
         }
         return result;
     }
