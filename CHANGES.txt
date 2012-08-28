@@ -48,6 +48,8 @@
  * increase stack size under Java7 to 180K
  * Log(info) schema changes (CASSANDRA-4547)
  * Change nodetool setcachecapcity to manipulate global caches (CASSANDRA-4563)
+Merged from 1.0:
+ * fix toString of hint destination tokens (CASSANDRA-4568)
 
 
 1.1.4
