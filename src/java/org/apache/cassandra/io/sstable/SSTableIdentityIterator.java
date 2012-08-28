@@ -227,17 +227,6 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         }
     }
 
-    public void echoData(DataOutput out) throws IOException
-    {
-        if (!(input instanceof RandomAccessReader))
-            throw new UnsupportedOperationException();
-
-        ((RandomAccessReader) input).seek(dataStart);
-        inputWithTracker.reset(0);
-        while (inputWithTracker.getBytesRead() < dataSize)
-            out.write(inputWithTracker.readByte());
-    }
-
     public ColumnFamily getColumnFamilyWithColumns() throws IOException
     {
         assert inputWithTracker.getBytesRead() == headerSize();
