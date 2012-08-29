@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
@@ -152,13 +153,87 @@ public class DefsTable
 
         for (Row row : serializedSchema)
         {
-            if (row.cf == null || (row.cf.isMarkedForDelete() && row.cf.isEmpty()))
+            if (invalidSchemaRow(row))
                 continue;
 
             keyspaces.add(KSMetaData.fromSchema(row, serializedColumnFamilies(row.key)));
         }
 
         return keyspaces;
+    }
+
+    public static void fixSchemaNanoTimestamps() throws IOException
+    {
+        fixSchemaNanoTimestamp(SystemTable.SCHEMA_KEYSPACES_CF);
+        fixSchemaNanoTimestamp(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
+        fixSchemaNanoTimestamp(SystemTable.SCHEMA_COLUMNS_CF);
+    }
+
+    private static void fixSchemaNanoTimestamp(String columnFamily) throws IOException
+    {
+        ColumnFamilyStore cfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(columnFamily);
+
+        boolean needsCleanup = false;
+        long timestamp = FBUtilities.timestampMicros();
+
+        List<Row> rows = SystemTable.serializedSchema(columnFamily);
+
+        row_check_loop:
+        for (Row row : rows)
+        {
+            if (invalidSchemaRow(row))
+                continue;
+
+            for (IColumn column : row.cf.columns)
+            {
+                if (column.timestamp() > timestamp)
+                {
+                    needsCleanup = true;
+                    // exit the loop on first found timestamp mismatch as we know that it
+                    // wouldn't be only one column/row that we would have to fix anyway
+                    break row_check_loop;
+                }
+            }
+        }
+
+        if (!needsCleanup)
+            return;
+
+        logger.info("Fixing timestamps of schema ColumnFamily " + columnFamily + "...");
+
+        try
+        {
+            cfs.truncate().get();
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+
+        for (Row row : rows)
+        {
+            if (invalidSchemaRow(row))
+                continue;
+
+            RowMutation mutation = new RowMutation(Table.SYSTEM_TABLE, row.key.key);
+
+            for (IColumn column : row.cf.columns)
+            {
+                if (column.isLive())
+                    mutation.add(new QueryPath(columnFamily, null, column.name()), column.value(), timestamp);
+            }
+
+            mutation.apply();
+        }
+    }
+
+    private static boolean invalidSchemaRow(Row row)
+    {
+        return row.cf == null || (row.cf.isMarkedForDelete() && row.cf.isEmpty());
     }
 
     public static ByteBuffer searchComposite(String name, boolean start)

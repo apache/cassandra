@@ -7,6 +7,7 @@
  * Log(info) schema changes (CASSANDRA-4547)
  * Change nodetool setcachecapcity to manipulate global caches (CASSANDRA-4563)
  * (cql3) fix setting compaction strategy (CASSANDRA-4597)
+ * fix broken system.schema_* timestamps on system startup (CASSANDRA-4561)
 Merged from 1.0:
  * increase Xss to 160k to accomodate latest 1.6 JVMs (CASSANDRA-4602)
  * fix toString of hint destination tokens (CASSANDRA-4568)
