@@ -27,7 +27,10 @@ import java.util.concurrent.TimeoutException;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
-import com.google.common.base.Predicates;
+import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,12 +44,16 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.*;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.TException;
 
 public class CassandraServer implements Cassandra.Iface
@@ -301,21 +308,61 @@ public class CassandraServer implements Cassandra.Iface
     public List<ColumnOrSuperColumn> get_slice(ByteBuffer key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        logger.debug("get_slice");
+        if (startSessionIfRequested())
+        {
+            Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
+                    "column_parent", column_parent.toString(),
+                    "predicate", predicate.toString(),
+                    "consistency_level", consistency_level.name());
+            Tracing.instance().begin("get_slice", traceParameters);
+        }
+        else
+        {
+            logger.debug("get_slice");
+        }
 
-        ClientState cState = state();
-        cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
-        return multigetSliceInternal(cState.getKeyspace(), Collections.singletonList(key), column_parent, predicate, consistency_level).get(key);
+        try
+        {
+            state().hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+            return multigetSliceInternal(state().getKeyspace(), Collections.singletonList(key), column_parent,
+                    predicate, consistency_level).get(key);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
     }
 
     public Map<ByteBuffer, List<ColumnOrSuperColumn>> multiget_slice(List<ByteBuffer> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        logger.debug("multiget_slice");
+        if (startSessionIfRequested())
+        {
+            List<String> keysList = Lists.newArrayList();
+            for (ByteBuffer key : keys)
+            {
+                keysList.add(ByteBufferUtil.bytesToHex(key));
+            }
+            Map<String, String> traceParameters = ImmutableMap.of("keys", keysList.toString(),
+                    "column_parent", column_parent.toString(),
+                    "predicate", predicate.toString(),
+                    "consistency_level", consistency_level.name());
+            Tracing.instance().begin("multiget_slice", traceParameters);
+        }
+        else
+        {
+            logger.debug("multiget_slice");
+        }
 
-        ClientState cState = state();
-        cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
-        return multigetSliceInternal(cState.getKeyspace(), keys, column_parent, predicate, consistency_level);
+        try
+        {
+            state().hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+            return multigetSliceInternal(state().getKeyspace(), keys, column_parent, predicate, consistency_level);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
     }
 
     private Map<ByteBuffer, List<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, List<ByteBuffer> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
@@ -380,74 +427,112 @@ public class CassandraServer implements Cassandra.Iface
     public ColumnOrSuperColumn get(ByteBuffer key, ColumnPath column_path, ConsistencyLevel consistency_level)
     throws InvalidRequestException, NotFoundException, UnavailableException, TimedOutException
     {
-        logger.debug("get");
 
-        return internal_get(key, column_path, consistency_level);
+        if (startSessionIfRequested())
+        {
+            Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
+                    "column_path", column_path.toString(),
+                    "consistency_level", consistency_level.name());
+            Tracing.instance().begin("get", traceParameters);
+        }
+        else
+        {
+            logger.debug("get");
+        }
+
+        try
+        {
+            return internal_get(key, column_path, consistency_level);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
     }
 
     public int get_count(ByteBuffer key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        logger.debug("get_count");
-
-        ClientState cState = state();
-        cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
-        Table table = Table.open(cState.getKeyspace());
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(column_parent.column_family);
-
-        if (predicate.column_names != null)
-            return get_slice(key, column_parent, predicate, consistency_level).size();
-
-        int pageSize;
-        // request by page if this is a large row
-        if (cfs.getMeanColumns() > 0)
+        if (startSessionIfRequested())
         {
-            int averageColumnSize = (int) (cfs.getMeanRowSize() / cfs.getMeanColumns());
-            pageSize = Math.min(COUNT_PAGE_SIZE,
-                                DatabaseDescriptor.getInMemoryCompactionLimit() / averageColumnSize);
-            pageSize = Math.max(2, pageSize);
-            logger.debug("average row column size is {}; using pageSize of {}", averageColumnSize, pageSize);
+            Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
+                    "column_parent", column_parent.toString(),
+                    "predicate", predicate.toString(),
+                    "consistency_level", consistency_level.name());
+            Tracing.instance().begin("get_count", traceParameters);
         }
         else
         {
-            pageSize = COUNT_PAGE_SIZE;
+            logger.debug("get_count");
         }
 
-        int totalCount = 0;
-        List<ColumnOrSuperColumn> columns;
-
-        if (predicate.slice_range == null)
+        try
         {
-            predicate.slice_range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                   ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                   false,
-                                                   Integer.MAX_VALUE);
-        }
+            ClientState cState = state();
+            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+            Table table = Table.open(cState.getKeyspace());
+            ColumnFamilyStore cfs = table.getColumnFamilyStore(column_parent.column_family);
 
-        int requestedCount = predicate.slice_range.count;
-        int pages = 0;
-        while (true)
-        {
-            predicate.slice_range.count = Math.min(pageSize, requestedCount);
-            columns = get_slice(key, column_parent, predicate, consistency_level);
-            if (columns.isEmpty())
-                break;
+            if (predicate.column_names != null)
+                return get_slice(key, column_parent, predicate, consistency_level).size();
 
-            ByteBuffer firstName = getName(columns.get(0));
-            int newColumns = pages == 0 || !firstName.equals(predicate.slice_range.start) ? columns.size() : columns.size() - 1;
-            totalCount += newColumns;
-            requestedCount -= newColumns;
-            pages++;
-            // We're done if either:
-            //   - We've querying the number of columns requested by the user
-            //   - The last page wasn't full
-            if (requestedCount == 0 || columns.size() < predicate.slice_range.count)
-                break;
+            int pageSize;
+            // request by page if this is a large row
+            if (cfs.getMeanColumns() > 0)
+            {
+                int averageColumnSize = (int) (cfs.getMeanRowSize() / cfs.getMeanColumns());
+                pageSize = Math.min(COUNT_PAGE_SIZE,
+                        DatabaseDescriptor.getInMemoryCompactionLimit() / averageColumnSize);
+                pageSize = Math.max(2, pageSize);
+                logger.debug("average row column size is {}; using pageSize of {}", averageColumnSize, pageSize);
+            }
             else
-                predicate.slice_range.start = getName(columns.get(columns.size() - 1));
-        }
+            {
+                pageSize = COUNT_PAGE_SIZE;
+            }
 
-        return totalCount;
+            int totalCount = 0;
+            List<ColumnOrSuperColumn> columns;
+
+            if (predicate.slice_range == null)
+            {
+                predicate.slice_range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                        false,
+                        Integer.MAX_VALUE);
+            }
+
+            int requestedCount = predicate.slice_range.count;
+            int pages = 0;
+            while (true)
+            {
+                predicate.slice_range.count = Math.min(pageSize, requestedCount);
+                columns = get_slice(key, column_parent, predicate, consistency_level);
+                if (columns.isEmpty())
+                    break;
+
+                ByteBuffer firstName = getName(columns.get(0));
+                int newColumns = pages == 0 || !firstName.equals(predicate.slice_range.start) ? columns.size()
+                        : columns.size() - 1;
+
+                totalCount += newColumns;
+                requestedCount -= newColumns;
+                pages++;
+                // We're done if either:
+                // - We've querying the number of columns requested by the user
+                // - The last page wasn't full
+                if (requestedCount == 0 || columns.size() < predicate.slice_range.count)
+                    break;
+                else
+                    predicate.slice_range.start = getName(columns.get(columns.size() - 1));
+            }
+
+            return totalCount;
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
     }
 
     private static ByteBuffer getName(ColumnOrSuperColumn cosc)
@@ -460,19 +545,44 @@ public class CassandraServer implements Cassandra.Iface
     public Map<ByteBuffer, Integer> multiget_count(List<ByteBuffer> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        logger.debug("multiget_count");
-
-        ClientState cState = state();
-        cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
-        String keyspace = cState.getKeyspace();
-
-        Map<ByteBuffer, Integer> counts = new HashMap<ByteBuffer, Integer>();
-        Map<ByteBuffer, List<ColumnOrSuperColumn>> columnFamiliesMap = multigetSliceInternal(keyspace, keys, column_parent, predicate, consistency_level);
-
-        for (Map.Entry<ByteBuffer, List<ColumnOrSuperColumn>> cf : columnFamiliesMap.entrySet()) {
-          counts.put(cf.getKey(), cf.getValue().size());
+        if (startSessionIfRequested())
+        {
+            List<String> keysList = Lists.newArrayList();
+            for (ByteBuffer key : keys)
+            {
+                keysList.add(ByteBufferUtil.bytesToHex(key));
+            }
+            Map<String, String> traceParameters = ImmutableMap.of("keys", keysList.toString(),
+                    "column_parent", column_parent.toString(),
+                    "predicate", predicate.toString(),
+                    "consistency_level", consistency_level.name());
+            Tracing.instance().begin("multiget_count", traceParameters);
         }
-        return counts;
+        else
+        {
+            logger.debug("multiget_count");
+        }
+
+        try
+        {
+            ClientState cState = state();
+            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+            String keyspace = cState.getKeyspace();
+
+            Map<ByteBuffer, Integer> counts = new HashMap<ByteBuffer, Integer>();
+            Map<ByteBuffer, List<ColumnOrSuperColumn>> columnFamiliesMap = multigetSliceInternal(keyspace, keys,
+                    column_parent, predicate, consistency_level);
+
+            for (Map.Entry<ByteBuffer, List<ColumnOrSuperColumn>> cf : columnFamiliesMap.entrySet())
+            {
+                counts.put(cf.getKey(), cf.getValue().size());
+            }
+            return counts;
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
     }
 
     private void internal_insert(ByteBuffer key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level)
@@ -507,9 +617,27 @@ public class CassandraServer implements Cassandra.Iface
     public void insert(ByteBuffer key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        logger.debug("insert");
+        if (startSessionIfRequested())
+        {
+            Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
+                    "column_parent", column_parent.toString(),
+                    "column", column.toString(),
+                    "consistency_level", consistency_level.name());
+            Tracing.instance().begin("insert", traceParameters);
+        }
+        else
+        {
+            logger.debug("insert");
+        }
 
-        internal_insert(key, column_parent, column, consistency_level);
+        try
+        {
+            internal_insert(key, column_parent, column, consistency_level);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
     }
 
     private void internal_batch_mutate(Map<ByteBuffer,Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level)
@@ -583,9 +711,30 @@ public class CassandraServer implements Cassandra.Iface
     public void batch_mutate(Map<ByteBuffer,Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        logger.debug("batch_mutate");
+        if (startSessionIfRequested())
+        {
+            Map<String, String> traceParameters = Maps.newLinkedHashMap();
+            for (Map.Entry<ByteBuffer, Map<String, List<Mutation>>> mutationEntry : mutation_map.entrySet())
+            {
+                traceParameters.put(ByteBufferUtil.bytesToHex(mutationEntry.getKey()),
+                        Joiner.on(";").withKeyValueSeparator(":").join(mutationEntry.getValue()));
+            }
+            traceParameters.put("consistency_level", consistency_level.name());
+            Tracing.instance().begin("batch_mutate", traceParameters);
+        }
+        else
+        {
+            logger.debug("batch_mutate");
+        }
 
-        internal_batch_mutate(mutation_map, consistency_level);
+        try
+        {
+            internal_batch_mutate(mutation_map, consistency_level);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
     }
 
     private void internal_remove(ByteBuffer key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level, boolean isCommutativeOp)
@@ -612,9 +761,27 @@ public class CassandraServer implements Cassandra.Iface
     public void remove(ByteBuffer key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        logger.debug("remove");
+        if (startSessionIfRequested())
+        {
+            Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
+                    "column_path", column_path.toString(),
+                    "timestamp", timestamp+"",
+                    "consistency_level", consistency_level.name());
+            Tracing.instance().begin("remove", traceParameters);
+        }
+        else
+        {
+            logger.debug("remove");
+        }
 
-        internal_remove(key, column_path, timestamp, consistency_level, false);
+        try
+        {
+            internal_remove(key, column_path, timestamp, consistency_level, false);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
     }
 
     private void doInsert(ConsistencyLevel consistency_level, List<? extends IMutation> mutations) throws UnavailableException, TimedOutException, InvalidRequestException
@@ -648,25 +815,122 @@ public class CassandraServer implements Cassandra.Iface
     public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TException, TimedOutException
     {
-        logger.debug("range_slice");
 
-        ClientState cState = state();
-        String keyspace = cState.getKeyspace();
-        cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+        if (startSessionIfRequested())
+        {
+            Map<String, String> traceParameters = ImmutableMap.of(
+                    "column_parent", column_parent.toString(),
+                    "predicate", predicate.toString(),
+                    "range", range.toString(),
+                    "consistency_level", consistency_level.name());
+            Tracing.instance().begin("get_range_slices", traceParameters);
+        }
+        else
+        {
+            logger.debug("range_slice");
+        }
 
-        CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family);
-        ThriftValidation.validateColumnParent(metadata, column_parent);
-        ThriftValidation.validatePredicate(metadata, column_parent, predicate);
-        ThriftValidation.validateKeyRange(metadata, column_parent.super_column, range);
-        ThriftValidation.validateConsistencyLevel(keyspace, consistency_level, RequestType.READ);
-
-        List<Row> rows;
         try
         {
+
+            String keyspace = null;
+            CFMetaData metadata = null;
+
+            ClientState cState = state();
+            keyspace = cState.getKeyspace();
+            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+
+            metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family);
+            ThriftValidation.validateColumnParent(metadata, column_parent);
+            ThriftValidation.validatePredicate(metadata, column_parent, predicate);
+            ThriftValidation.validateKeyRange(metadata, column_parent.super_column, range);
+            ThriftValidation.validateConsistencyLevel(keyspace, consistency_level, RequestType.READ);
+
+            List<Row> rows = null;
+            try
+            {
+                IPartitioner p = StorageService.getPartitioner();
+                AbstractBounds<RowPosition> bounds;
+                if (range.start_key == null)
+                {
+                    Token.TokenFactory tokenFactory = p.getTokenFactory();
+                    Token left = tokenFactory.fromString(range.start_token);
+                    Token right = tokenFactory.fromString(range.end_token);
+                    bounds = Range.makeRowRange(left, right, p);
+                }
+                else
+                {
+                    bounds = new Bounds<RowPosition>(RowPosition.forKey(range.start_key, p), RowPosition.forKey(
+                            range.end_key, p));
+                }
+                schedule(DatabaseDescriptor.getRangeRpcTimeout());
+                try
+                {
+                    IFilter filter = ThriftValidation.asIFilter(predicate,
+                            metadata.getComparatorFor(column_parent.super_column));
+                    rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, filter, bounds,
+                            range.row_filter, range.count), consistency_level);
+                }
+                finally
+                {
+                    release();
+                }
+                assert rows != null;
+            }
+            catch (TimeoutException e)
+            {
+                logger.debug("... timed out");
+                throw new TimedOutException();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+
+            return thriftifyKeySlices(rows, column_parent, predicate);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
+    }
+
+    public List<KeySlice> get_paged_slice(String column_family, KeyRange range, ByteBuffer start_column, ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    {
+        if (startSessionIfRequested())
+        {
+            Map<String, String> traceParameters = ImmutableMap.of(
+                    "column_family", column_family,
+                    "range", range.toString(),
+                    "start_column", ByteBufferUtil.bytesToHex(start_column),
+                    "consistency_level", consistency_level.name());
+            Tracing.instance().begin("get_paged_slice", traceParameters);
+        }
+        else
+        {
+            logger.debug("get_paged_slice");
+        }
+
+        try
+        {
+
+            ClientState cState = state();
+            String keyspace = cState.getKeyspace();
+            cState.hasColumnFamilyAccess(column_family, Permission.READ);
+
+            CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_family);
+            ThriftValidation.validateKeyRange(metadata, null, range);
+            ThriftValidation.validateConsistencyLevel(keyspace, consistency_level, RequestType.READ);
+
+            SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(start_column,
+                    ByteBufferUtil.EMPTY_BYTE_BUFFER, false, -1));
+
             IPartitioner p = StorageService.getPartitioner();
             AbstractBounds<RowPosition> bounds;
             if (range.start_key == null)
             {
+                // (token, key) is unsupported, assume (token, token)
                 Token.TokenFactory tokenFactory = p.getTokenFactory();
                 Token left = tokenFactory.fromString(range.start_token);
                 Token right = tokenFactory.fromString(range.end_token);
@@ -674,91 +938,44 @@ public class CassandraServer implements Cassandra.Iface
             }
             else
             {
-                bounds = new Bounds<RowPosition>(RowPosition.forKey(range.start_key, p), RowPosition.forKey(range.end_key, p));
+                RowPosition end = range.end_key == null ? p.getTokenFactory().fromString(range.end_token)
+                        .maxKeyBound(p)
+                        : RowPosition.forKey(range.end_key, p);
+                bounds = new Bounds<RowPosition>(RowPosition.forKey(range.start_key, p), end);
             }
-            schedule(DatabaseDescriptor.getRangeRpcTimeout());
+
+            List<Row> rows;
             try
             {
-                IFilter filter = ThriftValidation.asIFilter(predicate, metadata.getComparatorFor(column_parent.super_column));
-                rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, filter, bounds, range.row_filter, range.count), consistency_level);
+                schedule(DatabaseDescriptor.getRangeRpcTimeout());
+                try
+                {
+                    IFilter filter = ThriftValidation.asIFilter(predicate, metadata.comparator);
+                    rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_family, null, filter,
+                            bounds, range.row_filter, range.count, true, true), consistency_level);
+                }
+                finally
+                {
+                    release();
+                }
+                assert rows != null;
             }
-            finally
+            catch (TimeoutException e)
             {
-                release();
+                logger.debug("... timed out");
+                throw new TimedOutException();
             }
-            assert rows != null;
-        }
-        catch (TimeoutException e)
-        {
-            logger.debug("... timed out");
-            throw new TimedOutException();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        return thriftifyKeySlices(rows, column_parent, predicate);
-    }
-
-    public List<KeySlice> get_paged_slice(String column_family, KeyRange range, ByteBuffer start_column, ConsistencyLevel consistency_level)
-    throws InvalidRequestException, UnavailableException, TimedOutException, TException
-    {
-        logger.debug("get_paged_slice");
-
-        ClientState cState = state();
-        String keyspace = cState.getKeyspace();
-        cState.hasColumnFamilyAccess(column_family, Permission.READ);
-
-        CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_family);
-        ThriftValidation.validateKeyRange(metadata, null, range);
-        ThriftValidation.validateConsistencyLevel(keyspace, consistency_level, RequestType.READ);
-
-        SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(start_column, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, -1));
-
-        IPartitioner p = StorageService.getPartitioner();
-        AbstractBounds<RowPosition> bounds;
-        if (range.start_key == null)
-        {
-            // (token, key) is unsupported, assume (token, token)
-            Token.TokenFactory tokenFactory = p.getTokenFactory();
-            Token left = tokenFactory.fromString(range.start_token);
-            Token right = tokenFactory.fromString(range.end_token);
-            bounds = Range.makeRowRange(left, right, p);
-        }
-        else
-        {
-            RowPosition end = range.end_key == null ? p.getTokenFactory().fromString(range.end_token).maxKeyBound(p)
-                                                    : RowPosition.forKey(range.end_key, p);
-            bounds = new Bounds<RowPosition>(RowPosition.forKey(range.start_key, p), end);
-        }
-
-        List<Row> rows;
-        try
-        {
-            schedule(DatabaseDescriptor.getRangeRpcTimeout());
-            try
+            catch (IOException e)
             {
-                IFilter filter = ThriftValidation.asIFilter(predicate, metadata.comparator);
-                rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_family, null, filter, bounds, range.row_filter, range.count, true, true), consistency_level);
+                throw new RuntimeException(e);
             }
-            finally
-            {
-                release();
-            }
-            assert rows != null;
-        }
-        catch (TimeoutException e)
-        {
-            logger.debug("... timed out");
-            throw new TimedOutException();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
 
-        return thriftifyKeySlices(rows, new ColumnParent(column_family), predicate);
+            return thriftifyKeySlices(rows, new ColumnParent(column_family), predicate);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
     }
 
     private List<KeySlice> thriftifyKeySlices(List<Row> rows, ColumnParent column_parent, SlicePredicate predicate)
@@ -776,46 +993,68 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<KeySlice> get_indexed_slices(ColumnParent column_parent, IndexClause index_clause, SlicePredicate column_predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
-        logger.debug("scan");
+        if (startSessionIfRequested())
+        {
+            Map<String, String> traceParameters = ImmutableMap.of(
+                    "column_parent", column_parent.toString(),
+                    "index_clause", index_clause.toString(),
+                    "slice_predicate", column_predicate.toString(),
+                    "consistency_level", consistency_level.name());
+            Tracing.instance().begin("get_indexed_slices", traceParameters);
+        }
+        else
+        {
+            logger.debug("scan");
+        }
 
-        ClientState cState = state();
-        cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
-        String keyspace = cState.getKeyspace();
-        CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family, false);
-        ThriftValidation.validateColumnParent(metadata, column_parent);
-        ThriftValidation.validatePredicate(metadata, column_parent, column_predicate);
-        ThriftValidation.validateIndexClauses(metadata, index_clause);
-        ThriftValidation.validateConsistencyLevel(keyspace, consistency_level, RequestType.READ);
-
-        IPartitioner p = StorageService.getPartitioner();
-        AbstractBounds<RowPosition> bounds = new Bounds<RowPosition>(RowPosition.forKey(index_clause.start_key, p),
-                                                                     p.getMinimumToken().minKeyBound());
-
-        IFilter filter = ThriftValidation.asIFilter(column_predicate, metadata.getComparatorFor(column_parent.super_column));
-        RangeSliceCommand command = new RangeSliceCommand(keyspace,
-                                                          column_parent.column_family,
-                                                          null,
-                                                          filter,
-                                                          bounds,
-                                                          index_clause.expressions,
-                                                          index_clause.count);
-
-        List<Row> rows;
         try
         {
-            rows = StorageProxy.getRangeSlice(command, consistency_level);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (TimeoutException e)
-        {
-            logger.debug("... timed out");
-            throw new TimedOutException();
-        }
 
-        return thriftifyKeySlices(rows, column_parent, column_predicate);
+            ClientState cState = state();
+            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+            String keyspace = cState.getKeyspace();
+            CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family, false);
+            ThriftValidation.validateColumnParent(metadata, column_parent);
+            ThriftValidation.validatePredicate(metadata, column_parent, column_predicate);
+            ThriftValidation.validateIndexClauses(metadata, index_clause);
+            ThriftValidation.validateConsistencyLevel(keyspace, consistency_level, RequestType.READ);
+
+            IPartitioner p = StorageService.getPartitioner();
+            AbstractBounds<RowPosition> bounds = new Bounds<RowPosition>(RowPosition.forKey(index_clause.start_key, p),
+                    p.getMinimumToken().minKeyBound());
+
+            IFilter filter = ThriftValidation.asIFilter(column_predicate,
+                    metadata.getComparatorFor(column_parent.super_column));
+            RangeSliceCommand command = new RangeSliceCommand(keyspace,
+                    column_parent.column_family,
+                    null,
+                    filter,
+                    bounds,
+                    index_clause.expressions,
+                    index_clause.count);
+
+            List<Row> rows;
+            try
+            {
+                rows = StorageProxy.getRangeSlice(command, consistency_level);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            catch (TimeoutException e)
+            {
+                logger.debug("... timed out");
+                throw new TimedOutException();
+            }
+
+            return thriftifyKeySlices(rows, column_parent, column_predicate);
+
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
     }
 
     public List<KsDef> describe_keyspaces() throws TException, InvalidRequestException
@@ -1071,8 +1310,17 @@ public class CassandraServer implements Cassandra.Iface
     public void truncate(String cfname) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
         ClientState cState = state();
-        logger.debug("truncating {} in {}", cfname, cState.getKeyspace());
         cState.hasColumnFamilyAccess(cfname, Permission.WRITE);
+
+        if (startSessionIfRequested())
+        {
+            Tracing.instance().begin("truncate", ImmutableMap.of("cf", cfname, "ks", cState.getKeyspace()));
+        }
+        else
+        {
+            logger.debug("truncating {}.{}", cState.getKeyspace(), cfname);
+        }
+
         try
         {
             schedule(DatabaseDescriptor.getTruncateRpcTimeout());
@@ -1094,6 +1342,10 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw (UnavailableException) new UnavailableException().initCause(e);
         }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
     }
 
     public void set_keyspace(String keyspace) throws InvalidRequestException, TException
@@ -1114,41 +1366,78 @@ public class CassandraServer implements Cassandra.Iface
     public void add(ByteBuffer key, ColumnParent column_parent, CounterColumn column, ConsistencyLevel consistency_level)
             throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
-        logger.debug("add");
-
-        ClientState cState = state();
-        cState.hasColumnFamilyAccess(column_parent.column_family, Permission.WRITE);
-        String keyspace = cState.getKeyspace();
-
-        CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family, true);
-        ThriftValidation.validateKey(metadata, key);
-        ThriftValidation.validateCommutativeForWrite(metadata, consistency_level);
-        ThriftValidation.validateColumnParent(metadata, column_parent);
-        // SuperColumn field is usually optional, but not when we're adding
-        if (metadata.cfType == ColumnFamilyType.Super && column_parent.super_column == null)
+        if (startSessionIfRequested())
         {
-            throw new InvalidRequestException("missing mandatory super column name for super CF " + column_parent.column_family);
+            Map<String, String> traceParameters = ImmutableMap.of(
+                    "column_parent", column_parent.toString(),
+                    "column", column.toString(),
+                    "consistency_level", consistency_level.name());
+            Tracing.instance().begin("add", traceParameters);
         }
-        ThriftValidation.validateColumnNames(metadata, column_parent, Arrays.asList(column.name));
+        else
+        {
+            logger.debug("add");
+        }
 
-        RowMutation rm = new RowMutation(keyspace, key);
         try
         {
-            rm.addCounter(new QueryPath(column_parent.column_family, column_parent.super_column, column.name), column.value);
+            ClientState cState = state();
+            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.WRITE);
+            String keyspace = cState.getKeyspace();
+
+            CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family, true);
+            ThriftValidation.validateKey(metadata, key);
+            ThriftValidation.validateCommutativeForWrite(metadata, consistency_level);
+            ThriftValidation.validateColumnParent(metadata, column_parent);
+            // SuperColumn field is usually optional, but not when we're adding
+            if (metadata.cfType == ColumnFamilyType.Super && column_parent.super_column == null)
+            {
+                throw new InvalidRequestException("missing mandatory super column name for super CF "
+                        + column_parent.column_family);
+            }
+            ThriftValidation.validateColumnNames(metadata, column_parent, Arrays.asList(column.name));
+
+            RowMutation rm = new RowMutation(keyspace, key);
+            try
+            {
+                rm.addCounter(new QueryPath(column_parent.column_family, column_parent.super_column, column.name),
+                        column.value);
+            }
+            catch (MarshalException e)
+            {
+                throw new InvalidRequestException(e.getMessage());
+            }
+            doInsert(consistency_level, Arrays.asList(new CounterMutation(rm, consistency_level)));
         }
-        catch (MarshalException e)
+        finally
         {
-            throw new InvalidRequestException(e.getMessage());
+            Tracing.instance().stopSession();
         }
-        doInsert(consistency_level, Arrays.asList(new CounterMutation(rm, consistency_level)));
     }
 
     public void remove_counter(ByteBuffer key, ColumnPath path, ConsistencyLevel consistency_level)
             throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
-        logger.debug("remove_counter");
+        if (startSessionIfRequested())
+        {
+            Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
+                    "column_path", path.toString(),
+                    "consistency_level", consistency_level.name());
+            Tracing.instance().begin("remove_counter", traceParameters);
+        }
+        else
+        {
+            logger.debug("remove_counter");
+        }
 
-        internal_remove(key, path, System.currentTimeMillis(), consistency_level, true);
+        try
+        {
+            internal_remove(key, path, System.currentTimeMillis(), consistency_level, true);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
     }
 
     private static String uncompress(ByteBuffer query, Compression compression) throws InvalidRequestException
@@ -1212,21 +1501,36 @@ public class CassandraServer implements Cassandra.Iface
     public CqlResult execute_cql_query(ByteBuffer query, Compression compression)
     throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
-        if (logger.isDebugEnabled()) logger.debug("execute_cql_query");
+        try
+        {
+            String queryString = uncompress(query, compression);
+            if (startSessionIfRequested())
+            {
+                Tracing.instance().begin("execute_cql_query",
+                                         ImmutableMap.of("query", queryString));
+            }
+            else
+            {
+                logger.debug("execute_cql_query");
+            }
 
-        String queryString = uncompress(query,compression);
-
-        ClientState cState = state();
-        if (cState.getCQLVersion().major == 2)
-            return QueryProcessor.process(queryString, state());
-        else
-            return org.apache.cassandra.cql3.QueryProcessor.process(queryString, cState).toThriftResult();
+            ClientState cState = state();
+            if (cState.getCQLVersion().major == 2)
+                return QueryProcessor.process(queryString, state());
+            else
+                return org.apache.cassandra.cql3.QueryProcessor.process(queryString, cState).toThriftResult();
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
     }
 
     public CqlPreparedResult prepare_cql_query(ByteBuffer query, Compression compression)
     throws InvalidRequestException, TException
     {
-        if (logger.isDebugEnabled()) logger.debug("prepare_cql_query");
+        if (logger.isDebugEnabled())
+            logger.debug("prepare_cql_query");
 
         String queryString = uncompress(query,compression);
 
@@ -1240,28 +1544,45 @@ public class CassandraServer implements Cassandra.Iface
     public CqlResult execute_prepared_cql_query(int itemId, List<ByteBuffer> bindVariables)
     throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
-        if (logger.isDebugEnabled()) logger.debug("execute_prepared_cql_query");
-
-        ClientState cState = state();
-        if (cState.getCQLVersion().major == 2)
+        if (startSessionIfRequested())
         {
-            CQLStatement statement = cState.getPrepared().get(itemId);
-
-            if (statement == null)
-                throw new InvalidRequestException(String.format("Prepared query with ID %d not found", itemId));
-            logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, statement.boundTerms);
-
-            return QueryProcessor.processPrepared(statement, cState, bindVariables);
+            // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
+            Tracing.instance().begin("execute_prepared_cql_query", Collections.<String, String>emptyMap());
         }
         else
         {
-            org.apache.cassandra.cql3.CQLStatement statement = cState.getCQL3Prepared().get(itemId);
+            logger.debug("execute_prepared_cql_query");
+        }
 
-            if (statement == null)
-                throw new InvalidRequestException(String.format("Prepared query with ID %d not found", itemId));
-            logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, statement.getBoundsTerms());
+        try
+        {
+            ClientState cState = state();
+            if (cState.getCQLVersion().major == 2)
+            {
+                CQLStatement statement = cState.getPrepared().get(itemId);
 
-            return org.apache.cassandra.cql3.QueryProcessor.processPrepared(statement, cState, bindVariables).toThriftResult();
+                if (statement == null)
+                    throw new InvalidRequestException(String.format("Prepared query with ID %d not found", itemId));
+                logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, statement.boundTerms);
+
+                return QueryProcessor.processPrepared(statement, cState, bindVariables);
+            }
+            else
+            {
+                org.apache.cassandra.cql3.CQLStatement statement = cState.getCQL3Prepared().get(itemId);
+
+                if (statement == null)
+                    throw new InvalidRequestException(String.format("Prepared query with ID %d not found", itemId));
+                logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId,
+                        statement.getBoundsTerms());
+
+                return org.apache.cassandra.cql3.QueryProcessor.processPrepared(statement, cState, bindVariables)
+                        .toThriftResult();
+            }
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
         }
     }
 
@@ -1270,6 +1591,23 @@ public class CassandraServer implements Cassandra.Iface
         logger.debug("set_cql_version: " + version);
 
         state().setCQLVersion(version);
+    }
+
+    public ByteBuffer trace_next_query() throws TException
+    {
+        UUID sessionId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
+        state().prepareTracingSession(sessionId);
+        return TimeUUIDType.instance.decompose(sessionId);
+    }
+
+    private boolean startSessionIfRequested()
+    {
+        if (state().traceNextQuery())
+        {
+            state().createSession();
+            return true;
+        }
+        return false;
     }
 
     // main method moved to CassandraDaemon

@@ -58,6 +58,7 @@ import org.apache.cassandra.service.AntiEntropyService.RepairFuture;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 
 /**
@@ -151,6 +152,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private boolean isClientMode;
     private boolean initialized;
     private volatile boolean joined = false;
+
+    /* the probability for tracing any particular request, 0 disables tracing and 1 enables for all */
+    private double tracingProbability = 0.0;
 
     private static enum Mode { NORMAL, CLIENT, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED }
     private Mode operationMode;
@@ -429,7 +433,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             @Override
             public void runMayThrow() throws ExecutionException, InterruptedException, IOException
             {
-                ThreadPoolExecutor mutationStage = StageManager.getStage(Stage.MUTATION);
+                ExecutorService mutationStage = StageManager.getStage(Stage.MUTATION);
                 if (mutationStage.isShutdown())
                     return; // drained already
 
@@ -821,6 +825,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             // Dont set any state for the node which is bootstrapping the existing token...
             tokenMetadata.updateNormalTokens(tokens, FBUtilities.getBroadcastAddress());
         }
+        Tracing.instance();
         setMode(Mode.JOINING, "Starting to bootstrap...", true);
         new BootStrapper(FBUtilities.getBroadcastAddress(), tokens, tokenMetadata).bootstrap(); // handles token update
     }
@@ -1892,7 +1897,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void forceTableCleanup(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        if (tableName.equals(Table.SYSTEM_TABLE))
+        if (tableName.equals(Table.SYSTEM_KS))
             throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
 
         NodeId.OneShotRenewer nodeIdRenewer = new NodeId.OneShotRenewer();
@@ -2067,7 +2072,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void forceTableRepair(final String tableName, boolean isSequential, final String... columnFamilies) throws IOException
     {
-        if (Table.SYSTEM_TABLE.equals(tableName))
+        if (Table.SYSTEM_KS.equals(tableName))
             return;
 
         Collection<Range<Token>> ranges = getLocalRanges(tableName);
@@ -2116,7 +2121,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void forceTableRepairPrimaryRange(final String tableName, boolean isSequential, final String... columnFamilies) throws IOException
     {
-        if (Table.SYSTEM_TABLE.equals(tableName))
+        if (Table.SYSTEM_KS.equals(tableName))
             return;
 
         List<AntiEntropyService.RepairFuture> futures = new ArrayList<AntiEntropyService.RepairFuture>();
@@ -2134,7 +2139,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void forceTableRepairRange(String beginToken, String endToken, final String tableName, boolean isSequential, final String... columnFamilies) throws IOException
     {
-        if (Table.SYSTEM_TABLE.equals(tableName))
+        if (Table.SYSTEM_KS.equals(tableName))
             return;
 
         Token parsedBeginToken = getPartitioner().getTokenFactory().fromString(beginToken);
@@ -3308,5 +3313,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void resetLocalSchema() throws IOException
     {
         MigrationManager.resetLocalSchema();
+    }
+
+    public void setTraceProbability(double probability)
+    {
+        this.tracingProbability = probability;
+    }
+
+    public double getTracingProbability()
+    {
+        return tracingProbability;
     }
 }

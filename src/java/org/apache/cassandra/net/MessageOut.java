@@ -24,13 +24,19 @@ import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Map;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.tracing.Tracing.TRACE_HEADER;
+import static org.apache.cassandra.tracing.Tracing.isTracing;
 
 public class MessageOut<T>
 {
@@ -48,14 +54,19 @@ public class MessageOut<T>
 
     public MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer)
     {
-        this(verb, payload, serializer, Collections.<String, byte[]>emptyMap());
+        this(verb,
+             payload,
+             serializer,
+             isTracing() ? ImmutableMap.of(TRACE_HEADER, UUIDGen.decompose(Tracing.instance().getSessionId()))
+                         : Collections.<String, byte[]>emptyMap());
     }
 
-    public MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, Map<String, byte[]> parameters)
+    private MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, Map<String, byte[]> parameters)
     {
         this(FBUtilities.getBroadcastAddress(), verb, payload, serializer, parameters);
     }
 
+    @VisibleForTesting
     public MessageOut(InetAddress from, MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, Map<String, byte[]> parameters)
     {
         this.from = from;

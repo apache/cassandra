@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -208,7 +209,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             else
                 type = OperationType.UNKNOWN;
 
-            info = new CompactionInfo(new CFMetaData("system", cacheType.toString(), null, null, null),
+            info = new CompactionInfo(new CFMetaData(Table.SYSTEM_KS, cacheType.toString(), null, null, null),
                                       type,
                                       0,
                                       keys.size(),

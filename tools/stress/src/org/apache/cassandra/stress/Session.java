@@ -117,6 +117,7 @@ public class Session implements Serializable
     private boolean ignoreErrors  = false;
     private boolean enable_cql    = false;
     private boolean use_prepared  = false;
+    private boolean trace         = false;
 
     private final String outFileName;
 
@@ -139,6 +140,7 @@ public class Session implements Serializable
     public final InetAddress sendToDaemon;
     public final String comparator;
     public final boolean timeUUIDComparator;
+    public double traceProbability = 0.0;
 
     public Session(String[] arguments) throws IllegalArgumentException
     {

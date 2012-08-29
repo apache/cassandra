@@ -18,9 +18,12 @@
 package org.apache.cassandra.concurrent;
 
 import java.util.EnumMap;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.net.MessagingService;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.*;
 
@@ -32,6 +35,8 @@ import static org.apache.cassandra.config.DatabaseDescriptor.*;
  */
 public class StageManager
 {
+    private static final Logger logger = LoggerFactory.getLogger(StageManager.class);
+
     private static final EnumMap<Stage, ThreadPoolExecutor> stages = new EnumMap<Stage, ThreadPoolExecutor>(Stage.class);
 
     public static final long KEEPALIVE = 60; // seconds to keep "extra" threads alive for when idle
@@ -52,6 +57,25 @@ public class StageManager
         stages.put(Stage.MIGRATION, new JMXEnabledThreadPoolExecutor(Stage.MIGRATION));
         stages.put(Stage.MISC, new JMXEnabledThreadPoolExecutor(Stage.MISC));
         stages.put(Stage.READ_REPAIR, multiThreadedStage(Stage.READ_REPAIR, Runtime.getRuntime().availableProcessors()));
+        stages.put(Stage.TRACING, tracingExecutor());
+    }
+
+    private static ThreadPoolExecutor tracingExecutor()
+    {
+        RejectedExecutionHandler reh = new RejectedExecutionHandler()
+        {
+            public void rejectedExecution(Runnable r, ThreadPoolExecutor executor)
+            {
+                MessagingService.instance().incrementDroppedMessages(MessagingService.Verb._TRACE);
+            }
+        };
+        return new ExecuteOnlyExecutor(1,
+                                       1,
+                                       KEEPALIVE,
+                                       TimeUnit.SECONDS,
+                                       new ArrayBlockingQueue<Runnable>(1000),
+                                       new NamedThreadFactory(Stage.TRACING.getJmxName()),
+                                       reh);
     }
 
     private static ThreadPoolExecutor multiThreadedStage(Stage stage, int numThreads)
@@ -101,6 +125,36 @@ public class StageManager
         for (Stage stage : Stage.values())
         {
             StageManager.stages.get(stage).shutdownNow();
+        }
+    }
+
+    /**
+     * A TPE that disallows submit so that we don't need to worry about unwrapping exceptions on the
+     * tracing stage.  See CASSANDRA-1123 for background.
+     */
+    private static class ExecuteOnlyExecutor extends ThreadPoolExecutor
+    {
+        public ExecuteOnlyExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, RejectedExecutionHandler handler)
+        {
+            super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
+        }
+
+        @Override
+        public Future<?> submit(Runnable task)
+        {
+            return super.submit(task);
+        }
+
+        @Override
+        public <T> Future<T> submit(Runnable task, T result)
+        {
+            return super.submit(task, result);
+        }
+
+        @Override
+        public <T> Future<T> submit(Callable<T> task)
+        {
+            return super.submit(task);
         }
     }
 }

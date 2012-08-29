@@ -1149,9 +1149,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         assert columnFamily.equals(filter.getColumnFamilyName()) : filter.getColumnFamilyName();
 
+        ColumnFamily result = null;
+
         long start = System.nanoTime();
         try
         {
+
             if (!isRowCacheEnabled())
             {
                 ColumnFamily cf = getTopLevelColumns(filter, gcBefore, false);
@@ -1161,23 +1164,36 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 // TODO this is necessary because when we collate supercolumns together, we don't check
                 // their subcolumns for relevance, so we need to do a second prune post facto here.
-                return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
+                result = cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
+
             }
+            else
+            {
 
-            UUID cfId = Schema.instance.getId(table.name, this.columnFamily);
-            if (cfId == null)
-                return null; // secondary index
+                UUID cfId = Schema.instance.getId(table.name, columnFamily);
+                if (cfId == null)
+                {
+                    logger.debug("no id found for {}.{}", table.name, columnFamily);
+                    return null;
+                }
 
-            ColumnFamily cached = getThroughCache(cfId, filter);
-            if (cached == null)
-                return null;
+                ColumnFamily cached = getThroughCache(cfId, filter);
+                if (cached == null)
+                {
+                    logger.debug("cached row is empty");
+                    return null;
+                }
 
-            return filterColumnFamily(cached, filter, gcBefore);
+                result = filterColumnFamily(cached, filter, gcBefore);
+            }
         }
         finally
         {
             readStats.addNano(System.nanoTime() - start);
         }
+
+        logger.debug("Read {} columns", result.getColumnCount());
+        return result;
     }
 
     /**
@@ -1612,7 +1628,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public static List<ColumnFamilyStore> allUserDefined()
     {
         List<ColumnFamilyStore> cfses = new ArrayList<ColumnFamilyStore>();
-        for (Table table : Sets.difference(ImmutableSet.copyOf(Table.all()), ImmutableSet.of(Table.open(Table.SYSTEM_TABLE))))
+        for (Table table : Sets.difference(ImmutableSet.copyOf(Table.all()), ImmutableSet.of(Table.open(Table.SYSTEM_KS))))
             cfses.addAll(table.getColumnFamilyStores());
         return cfses;
     }

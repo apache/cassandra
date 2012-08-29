@@ -45,6 +45,7 @@ import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -75,13 +76,13 @@ public final class CFMetaData
     public final static String DEFAULT_COMPRESSOR = SnappyCompressor.isAvailable() ? SnappyCompressor.class.getCanonicalName() : null;
 
     @Deprecated
-    public static final CFMetaData OldStatusCf = newSystemMetadata(SystemTable.OLD_STATUS_CF, 0, "unused", BytesType.instance, null);
+    public static final CFMetaData OldStatusCf = newSystemMetadata(Table.SYSTEM_KS, SystemTable.OLD_STATUS_CF, 0, "unused", BytesType.instance, null);
     @Deprecated
-    public static final CFMetaData OldHintsCf = newSystemMetadata(SystemTable.OLD_HINTS_CF, 1, "unused", BytesType.instance, BytesType.instance);
+    public static final CFMetaData OldHintsCf = newSystemMetadata(Table.SYSTEM_KS, SystemTable.OLD_HINTS_CF, 1, "unused", BytesType.instance, BytesType.instance);
     @Deprecated
-    public static final CFMetaData MigrationsCf = newSystemMetadata(DefsTable.OLD_MIGRATIONS_CF, 2, "unused", TimeUUIDType.instance, null);
+    public static final CFMetaData MigrationsCf = newSystemMetadata(Table.SYSTEM_KS, DefsTable.OLD_MIGRATIONS_CF, 2, "unused", TimeUUIDType.instance, null);
     @Deprecated
-    public static final CFMetaData SchemaCf = newSystemMetadata(DefsTable.OLD_SCHEMA_CF, 3, "unused", UTF8Type.instance, null);
+    public static final CFMetaData SchemaCf = newSystemMetadata(Table.SYSTEM_KS, DefsTable.OLD_SCHEMA_CF, 3, "unused", UTF8Type.instance, null);
 
     public static final CFMetaData IndexCf = compile(5, "CREATE TABLE \"" + SystemTable.INDEX_CF + "\" ("
                                                         + "table_name text,"
@@ -168,6 +169,26 @@ public final class CFMetaData
                                                          + "thrift_version text,"
                                                          + "cql_version text"
                                                          + ") WITH COMMENT='information about the local node'");
+
+    public static final CFMetaData TraceSessionsCf = compile(14, "CREATE TABLE " + Tracing.SESSIONS_CF + " ("
+                                                               + "  session_id uuid PRIMARY KEY,"
+                                                               + "  coordinator inet,"
+                                                               + "  request text,"
+                                                               + "  started_at timestamp,"
+                                                               + "  finished_at timestamp,"
+                                                               + "  parameters map<text, text>"
+                                                               + ") WITH COMMENT='traced sessions'", Tracing.TRACE_KS);
+
+    public static final CFMetaData TraceEventsCf = compile(15, "CREATE TABLE " + Tracing.EVENTS_CF + " ("
+                                                               + "  session_id uuid,"
+                                                               + "  event_id timeuuid,"
+                                                               + "  source inet,"
+                                                               + "  thread text,"
+                                                               + "  activity text,"
+                                                               + "  happened_at timestamp,"
+                                                               + "  source_elapsed int,"
+                                                               + "  PRIMARY KEY (session_id, event_id)"
+                                                               + ");", Tracing.TRACE_KS);
 
     public enum Caching
     {
@@ -258,12 +279,12 @@ public final class CFMetaData
         this.init();
     }
 
-    private static CFMetaData compile(int id, String cql)
+    private static CFMetaData compile(int id, String cql, String keyspace)
     {
         try
         {
             CreateColumnFamilyStatement statement = (CreateColumnFamilyStatement) QueryProcessor.parseStatement(cql).prepare().statement;
-            CFMetaData cfmd = newSystemMetadata(statement.columnFamily(), id, "", statement.comparator, null);
+            CFMetaData cfmd = newSystemMetadata(keyspace, statement.columnFamily(), id, "", statement.comparator, null);
             statement.applyPropertiesTo(cfmd);
             return cfmd;
         }
@@ -275,6 +296,11 @@ public final class CFMetaData
         {
             throw new RuntimeException(e);
         }
+    }
+
+    private static CFMetaData compile(int id, String cql)
+    {
+        return compile(id, cql, Table.SYSTEM_KS);
     }
 
     private AbstractType<?> enforceSubccDefault(ColumnFamilyType cftype, AbstractType<?> subcc)
@@ -324,10 +350,10 @@ public final class CFMetaData
         updateCfDef(); // init cqlCfDef
     }
 
-    private static CFMetaData newSystemMetadata(String cfName, int oldCfId, String comment, AbstractType<?> comparator, AbstractType<?> subcc)
+    private static CFMetaData newSystemMetadata(String keyspace, String cfName, int oldCfId, String comment, AbstractType<?> comparator, AbstractType<?> subcc)
     {
         ColumnFamilyType type = subcc == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super;
-        CFMetaData newCFMD = new CFMetaData(Table.SYSTEM_TABLE, cfName, type, comparator,  subcc);
+        CFMetaData newCFMD = new CFMetaData(keyspace, cfName, type, comparator,  subcc);
 
         // adding old -> new style ID mapping to support backward compatibility
         Schema.instance.addOldCfIdMapping(oldCfId, newCFMD.cfId);
@@ -1119,7 +1145,7 @@ public final class CFMetaData
      */
     public RowMutation toSchemaUpdate(CFMetaData newState, long modificationTimestamp)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(ksName));
+        RowMutation rm = new RowMutation(Table.SYSTEM_KS, SystemTable.getSchemaKSKey(ksName));
 
         newState.toSchemaNoColumns(rm, modificationTimestamp);
 
@@ -1152,7 +1178,7 @@ public final class CFMetaData
      */
     public RowMutation dropFromSchema(long timestamp)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(ksName));
+        RowMutation rm = new RowMutation(Table.SYSTEM_KS, SystemTable.getSchemaKSKey(ksName));
         ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
@@ -1328,7 +1354,7 @@ public final class CFMetaData
      */
     public RowMutation toSchema(long timestamp) throws ConfigurationException
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(ksName));
+        RowMutation rm = new RowMutation(Table.SYSTEM_KS, SystemTable.getSchemaKSKey(ksName));
         toSchema(rm, timestamp);
         return rm;
     }

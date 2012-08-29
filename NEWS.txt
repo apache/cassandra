@@ -53,6 +53,8 @@ Features
       Also specifying initial_token will override any num_tokens setting.
     - disk_failure_policy allows blacklisting failed disks in JBOD 
       configuration instead of erroring out indefinitely
+    - event tracing can be configured per-connection ("trace_next_query")
+      or globally/probabilistically ("nodetool settraceprobability")
 
 
 1.1.3

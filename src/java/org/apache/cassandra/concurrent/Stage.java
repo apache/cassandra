@@ -27,6 +27,7 @@ public enum Stage
     ANTI_ENTROPY,
     MIGRATION,
     MISC,
+    TRACING,
     INTERNAL_RESPONSE,
     READ_REPAIR,
     REPLICATE_ON_WRITE;
@@ -39,6 +40,7 @@ public enum Stage
             case GOSSIP:
             case MIGRATION:
             case MISC:
+            case TRACING:
             case STREAM:
             case INTERNAL_RESPONSE:
                 return "internal";

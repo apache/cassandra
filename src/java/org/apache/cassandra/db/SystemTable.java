@@ -114,7 +114,7 @@ public class SystemTable
     /** if system data becomes incompatible across versions of cassandra, that logic (and associated purging) is managed here */
     private static void upgradeSystemData() throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open(Table.SYSTEM_TABLE);
+        Table table = Table.open(Table.SYSTEM_KS);
         ColumnFamilyStore oldStatusCfs = table.getColumnFamilyStore(OLD_STATUS_CF);
         if (oldStatusCfs.getSSTables().size() > 0)
         {
@@ -243,7 +243,7 @@ public class SystemTable
     {
         try
         {
-            Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(cfname).forceBlockingFlush();
+            Table.open(Table.SYSTEM_KS).getColumnFamilyStore(cfname).forceBlockingFlush();
         }
         catch (ExecutionException e)
         {
@@ -282,7 +282,7 @@ public class SystemTable
         Table table;
         try
         {
-            table = Table.open(Table.SYSTEM_TABLE);
+            table = Table.open(Table.SYSTEM_KS);
         }
         catch (AssertionError err)
         {
@@ -389,7 +389,7 @@ public class SystemTable
 
     public static boolean isIndexBuilt(String table, String indexName)
     {
-        ColumnFamilyStore cfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(INDEX_CF);
+        ColumnFamilyStore cfs = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(INDEX_CF);
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBufferUtil.bytes(table)),
                                                         new QueryPath(INDEX_CF),
                                                         ByteBufferUtil.bytes(indexName));
@@ -398,9 +398,9 @@ public class SystemTable
 
     public static void setIndexBuilt(String table, String indexName)
     {
-        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, INDEX_CF);
+        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_KS, INDEX_CF);
         cf.addColumn(new Column(ByteBufferUtil.bytes(indexName), ByteBufferUtil.EMPTY_BYTE_BUFFER, FBUtilities.timestampMicros()));
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes(table));
+        RowMutation rm = new RowMutation(Table.SYSTEM_KS, ByteBufferUtil.bytes(table));
         rm.add(cf);
         rm.apply();
         forceBlockingFlush(INDEX_CF);
@@ -408,7 +408,7 @@ public class SystemTable
 
     public static void setIndexRemoved(String table, String indexName)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes(table));
+        RowMutation rm = new RowMutation(Table.SYSTEM_KS, ByteBufferUtil.bytes(table));
         rm.delete(new QueryPath(INDEX_CF, null, ByteBufferUtil.bytes(indexName)), FBUtilities.timestampMicros());
         rm.apply();
         forceBlockingFlush(INDEX_CF);
@@ -447,7 +447,7 @@ public class SystemTable
     public static NodeId getCurrentLocalNodeId()
     {
         ByteBuffer id = null;
-        Table table = Table.open(Table.SYSTEM_TABLE);
+        Table table = Table.open(Table.SYSTEM_KS);
         QueryFilter filter = QueryFilter.getIdentityFilter(decorate(CURRENT_LOCAL_NODE_ID_KEY),
                                                            new QueryPath(NODE_ID_CF));
         ColumnFamily cf = table.getColumnFamilyStore(NODE_ID_CF).getColumnFamily(filter);
@@ -480,7 +480,7 @@ public class SystemTable
      */
     public static void writeCurrentLocalNodeId(NodeId oldNodeId, NodeId newNodeId, long now)
     {
-        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, NODE_ID_CF);
+        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_KS, NODE_ID_CF);
         cf.addColumn(new Column(newNodeId.bytes(), ByteBufferUtil.EMPTY_BYTE_BUFFER, now));
         ColumnFamily cf2 = cf.cloneMe();
         if (oldNodeId != null)
@@ -489,8 +489,8 @@ public class SystemTable
             // tests use single digit long values for now, so use actual time.
             cf2.addColumn(new DeletedColumn(oldNodeId.bytes(), (int)(System.currentTimeMillis() / 1000), now));
         }
-        RowMutation rmCurrent = new RowMutation(Table.SYSTEM_TABLE, CURRENT_LOCAL_NODE_ID_KEY);
-        RowMutation rmAll = new RowMutation(Table.SYSTEM_TABLE, ALL_LOCAL_NODE_ID_KEY);
+        RowMutation rmCurrent = new RowMutation(Table.SYSTEM_KS, CURRENT_LOCAL_NODE_ID_KEY);
+        RowMutation rmAll = new RowMutation(Table.SYSTEM_KS, ALL_LOCAL_NODE_ID_KEY);
         rmCurrent.add(cf2);
         rmAll.add(cf);
         rmCurrent.apply();
@@ -501,7 +501,7 @@ public class SystemTable
     {
         List<NodeId.NodeIdRecord> l = new ArrayList<NodeId.NodeIdRecord>();
 
-        Table table = Table.open(Table.SYSTEM_TABLE);
+        Table table = Table.open(Table.SYSTEM_KS);
         QueryFilter filter = QueryFilter.getIdentityFilter(decorate(ALL_LOCAL_NODE_ID_KEY),
                 new QueryPath(NODE_ID_CF));
         ColumnFamily cf = table.getColumnFamilyStore(NODE_ID_CF).getColumnFamily(filter);
@@ -525,7 +525,7 @@ public class SystemTable
      */
     public static ColumnFamilyStore schemaCFS(String cfName)
     {
-        return Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(cfName);
+        return Table.open(Table.SYSTEM_KS).getColumnFamilyStore(cfName);
     }
 
     public static List<Row> serializedSchema()
@@ -574,7 +574,7 @@ public class SystemTable
 
             if (mutation == null)
             {
-                mutationMap.put(schemaRow.key, new RowMutation(Table.SYSTEM_TABLE, schemaRow));
+                mutationMap.put(schemaRow.key, new RowMutation(Table.SYSTEM_KS, schemaRow));
                 continue;
             }
 

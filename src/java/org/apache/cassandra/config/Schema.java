@@ -22,21 +22,17 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-import org.apache.cassandra.service.MigrationManager;
+import com.google.common.collect.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.UnknownColumnFamilyException;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Pair;
-
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class Schema
@@ -281,9 +277,8 @@ public class Schema
      */
     public List<String> getNonSystemTables()
     {
-        List<String> tablesList = new ArrayList<String>(tables.keySet());
-        tablesList.remove(Table.SYSTEM_TABLE);
-        return Collections.unmodifiableList(tablesList);
+        ImmutableSet<String> system = ImmutableSet.of(Table.SYSTEM_KS, Tracing.TRACE_KS);
+        return ImmutableList.copyOf(Sets.difference(tables.keySet(), system));
     }
 
     /**
@@ -336,17 +331,8 @@ public class Schema
      */
     public void setTableDefinition(KSMetaData ksm)
     {
-        if (ksm != null)
-            tables.put(ksm.name, ksm);
-    }
-
-    /**
-     * Add a new system table
-     * @param systemTable The metadata describing new system table
-     */
-    public void addSystemTable(KSMetaData systemTable)
-    {
-        tables.put(systemTable.name, systemTable);
+        assert ksm != null;
+        tables.put(ksm.name, ksm);
     }
 
     /* ColumnFamily query/control methods */

@@ -458,11 +458,13 @@ public class DatabaseDescriptor
             rowCacheProvider = FBUtilities.newCacheProvider(conf.row_cache_provider);
 
             // Hardcoded system tables
-            KSMetaData systemMeta = KSMetaData.systemKeyspace();
-            for (CFMetaData cfm : systemMeta.cfMetaData().values())
-                Schema.instance.load(cfm);
-
-            Schema.instance.addSystemTable(systemMeta);
+            List<KSMetaData> systemKeyspaces = Arrays.asList(KSMetaData.systemKeyspace(), KSMetaData.traceKeyspace());
+            for (KSMetaData ksmd : systemKeyspaces)
+            {
+                for (CFMetaData cfm : ksmd.cfMetaData().values())
+                    Schema.instance.load(cfm);
+                Schema.instance.setTableDefinition(ksmd);
+            }
 
             /* Load the seeds for node contact points */
             if (conf.seed_provider == null)

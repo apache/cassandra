@@ -297,7 +297,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public static UUID getLastMigrationId()
     {
         DecoratedKey dkey = StorageService.getPartitioner().decorateKey(LAST_MIGRATION_KEY);
-        Table defs = Table.open(Table.SYSTEM_TABLE);
+        Table defs = Table.open(Table.SYSTEM_KS);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(DefsTable.OLD_SCHEMA_CF);
         QueryFilter filter = QueryFilter.getNamesFilter(dkey, new QueryPath(DefsTable.OLD_SCHEMA_CF), LAST_MIGRATION_KEY);
         ColumnFamily cf = cfStore.getColumnFamily(filter);

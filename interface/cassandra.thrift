@@ -721,6 +721,10 @@ service Cassandra {
                                4:required i32 keys_per_split)
     throws (1:InvalidRequestException ire),
 
+  /** Enables tracing for the next query in this connection and returns the UUID for that trace session
+      The next query will be traced idependently of trace probability and the returned UUID can be used to query the trace keyspace */
+  binary trace_next_query(),
+
   /** adds a column family. returns the new schema id. */
   string system_add_column_family(1:required CfDef cf_def)
     throws (1:InvalidRequestException ire, 2:SchemaDisagreementException sde),

@@ -32,7 +32,10 @@ import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SemanticVersion;
+
+import static org.apache.cassandra.tracing.Tracing.instance;
 
 /**
  * A container for per-client, thread-local state that Avro/Thrift threads must hold.
@@ -47,6 +50,8 @@ public class ClientState
     // Current user for the session
     private AuthenticatedUser user;
     private String keyspace;
+    private UUID preparedTracingSession;
+
     // Reusable array for authorization
     private final List<Object> resource = new ArrayList<Object>();
     private SemanticVersion cqlVersion = DEFAULT_CQL_VERSION;
@@ -103,6 +108,36 @@ public class ClientState
         keyspace = ks;
     }
 
+    public boolean traceNextQuery()
+    {
+        if (preparedTracingSession != null)
+        {
+            return true;
+        }
+
+        double tracingProbability = StorageService.instance.getTracingProbability();
+        return tracingProbability != 0 && FBUtilities.threadLocalRandom().nextDouble() < tracingProbability;
+    }
+
+    public void prepareTracingSession(UUID sessionId)
+    {
+        this.preparedTracingSession = sessionId;
+    }
+
+    public void createSession()
+    {
+        if (this.preparedTracingSession == null)
+        {
+            instance().newSession();
+        }
+        else
+        {
+            UUID session = this.preparedTracingSession;
+            this.preparedTracingSession = null;
+            instance().newSession(session);
+        }
+    }
+
     public String getSchedulingValue()
     {
         switch(DatabaseDescriptor.getRequestSchedulerId())
@@ -141,6 +176,7 @@ public class ClientState
     {
         user = DatabaseDescriptor.getAuthenticator().defaultUser();
         keyspace = null;
+        preparedTracingSession = null;
         resourceClear();
         prepared.clear();
         cql3Prepared.clear();
@@ -174,7 +210,7 @@ public class ClientState
         validateKeyspace(keyspace);
 
         // hardcode disallowing messing with system keyspace
-        if (keyspace.equalsIgnoreCase(Table.SYSTEM_TABLE) && perm == Permission.WRITE)
+        if (keyspace.equalsIgnoreCase(Table.SYSTEM_KS) && perm == Permission.WRITE)
             throw new InvalidRequestException("system keyspace is not user-modifiable");
 
         resourceClear();

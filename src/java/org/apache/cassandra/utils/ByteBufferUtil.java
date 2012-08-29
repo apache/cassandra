@@ -24,10 +24,12 @@ package org.apache.cassandra.utils;
  */
 
 import java.io.*;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.UUID;
 
 import static com.google.common.base.Charsets.UTF_8;
 
@@ -522,5 +524,15 @@ public class ByteBufferUtil
             return (byte1 & 0xFF) < (byte2 & 0xFF) ? -1 : 1;
         }
         return 0;
+    }
+
+    public static ByteBuffer bytes(InetAddress address)
+    {
+        return ByteBuffer.wrap(address.getAddress());
+    }
+
+    public static ByteBuffer bytes(UUID uuid)
+    {
+        return ByteBuffer.wrap(UUIDGen.decompose(uuid));
     }
 }

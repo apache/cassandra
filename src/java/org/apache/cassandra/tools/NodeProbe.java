@@ -701,6 +701,11 @@ public class NodeProbe
         ssProxy.setStreamThroughputMbPerSec(value);
     }
 
+    public void setTraceProbability(double value)
+    {
+        ssProxy.setTraceProbability(value);
+    }
+
     public String getSchemaVersion()
     {
         return ssProxy.getSchemaVersion();

@@ -473,7 +473,7 @@ public class Directories
         boolean hasSystemKeyspace = false;
         for (DataDirectory dir : dataFileLocations)
         {
-            File systemDir = new File(dir.location, Table.SYSTEM_TABLE);
+            File systemDir = new File(dir.location, Table.SYSTEM_KS);
             hasSystemKeyspace |= (systemDir.exists() && systemDir.isDirectory());
             File statusCFDir = new File(systemDir, SystemTable.SCHEMA_KEYSPACES_CF);
             if (statusCFDir.exists())

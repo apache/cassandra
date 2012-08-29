@@ -188,7 +188,7 @@ public class DefsTable
     public static synchronized Collection<KSMetaData> loadFromStorage(UUID version) throws IOException
     {
         DecoratedKey vkey = StorageService.getPartitioner().decorateKey(toUTF8Bytes(version));
-        Table defs = Table.open(Table.SYSTEM_TABLE);
+        Table defs = Table.open(Table.SYSTEM_KS);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(OLD_SCHEMA_CF);
         ColumnFamily cf = cfStore.getColumnFamily(QueryFilter.getIdentityFilter(vkey, new QueryPath(OLD_SCHEMA_CF)));
         IColumn avroschema = cf.getColumn(DEFINITION_SCHEMA_COLUMN_NAME);
@@ -216,8 +216,8 @@ public class DefsTable
             dumpToStorage(keyspaces);
 
             logger.info("Truncating deprecated system column families (migrations, schema)...");
-            dropColumnFamily(Table.SYSTEM_TABLE, OLD_MIGRATIONS_CF);
-            dropColumnFamily(Table.SYSTEM_TABLE, OLD_SCHEMA_CF);
+            dropColumnFamily(Table.SYSTEM_KS, OLD_MIGRATIONS_CF);
+            dropColumnFamily(Table.SYSTEM_KS, OLD_SCHEMA_CF);
         }
 
         return keyspaces;

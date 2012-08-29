@@ -21,17 +21,16 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
+import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import org.apache.commons.lang.StringUtils;
-import com.google.common.base.Charsets;
-import com.google.common.base.Joiner;
 
 import org.antlr.runtime.tree.Tree;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -42,7 +41,6 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.SimpleSnitch;
-import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -50,15 +48,11 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.TBaseHelper;
 import org.apache.thrift.TException;
-import org.codehaus.jackson.JsonEncoding;
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
-import org.yaml.snakeyaml.constructor.Constructor;
+import org.codehaus.jackson.*;
 import org.yaml.snakeyaml.Loader;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.Constructor;
 
 // Cli Client Side Library
 public class CliClient
@@ -264,6 +258,9 @@ public class CliClient
                     break;
                 case CliParser.NODE_USE_TABLE:
                     executeUseKeySpace(tree);
+                    break;
+                case CliParser.NODE_TRACE_NEXT_QUERY:
+                    executeTraceNextQuery();
                     break;
                 case CliParser.NODE_CONNECT:
                     executeConnect(tree);
@@ -1981,6 +1978,16 @@ public class CliClient
 
             sessionState.err.println("Login failure. Did you specify 'keyspace', 'username' and 'password'?");
         }
+    }
+
+    private void executeTraceNextQuery() throws TException, CharacterCodingException
+    {
+        if (!CliMain.isConnected())
+            return;
+
+        UUID sessionId = TimeUUIDType.instance.compose(thriftClient.trace_next_query());
+
+        sessionState.out.println("Will trace next query. Session ID: " + sessionId.toString());
     }
 
     private void describeKeySpace(String keySpaceName, KsDef metadata) throws TException

@@ -588,7 +588,7 @@ public class StorageProxy implements StorageProxyMBean
     private static boolean systemTableQuery(List<ReadCommand> cmds)
     {
         for (ReadCommand cmd : cmds)
-            if (!cmd.table.equals(Table.SYSTEM_TABLE))
+            if (!cmd.table.equals(Table.SYSTEM_KS))
                 return false;
         return true;
     }

@@ -33,10 +33,13 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -44,14 +47,14 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class Table
 {
-    public static final String SYSTEM_TABLE = "system";
+    public static final String SYSTEM_KS = "system";
 
     private static final Logger logger = LoggerFactory.getLogger(Table.class);
 
     /**
      * accesses to CFS.memtable should acquire this for thread safety.
      * CFS.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
-     *
+     * <p/>
      * (Enabling fairness in the RRWL is observed to decrease throughput, so we leave it off.)
      */
     public static final ReentrantReadWriteLock switchLock = new ReentrantReadWriteLock();
@@ -167,9 +170,8 @@ public class Table
      * Take a snapshot of the specific column family, or the entire set of column families
      * if columnFamily is null with a given timestamp
      *
-     * @param snapshotName the tag associated with the name of the snapshot.  This value may not be null
+     * @param snapshotName     the tag associated with the name of the snapshot.  This value may not be null
      * @param columnFamilyName the column family to snapshot or all on null
-     *
      * @throws IOException if the column family doesn't exist
      */
     public void snapshot(String snapshotName, String columnFamilyName) throws IOException
@@ -224,7 +226,7 @@ public class Table
      * Clear all the snapshots for a given table.
      *
      * @param snapshotName the user supplied snapshot name. It empty or null,
-     * all the snapshots will be cleaned
+     *                     all the snapshots will be cleaned
      */
     public void clearSnapshot(String snapshotName)
     {
@@ -311,7 +313,9 @@ public class Table
         cfs.invalidate();
     }
 
-    /** adds a cf to internal structures, ends up creating disk files). */
+    /**
+     * adds a cf to internal structures, ends up creating disk files).
+     */
     public void initCf(UUID cfId, String cfName, boolean loadSSTables)
     {
         if (columnFamilyStores.containsKey(cfId))
@@ -345,15 +349,15 @@ public class Table
     /**
      * This method appends a row to the global CommitLog, then updates memtables and indexes.
      *
-     * @param mutation the row to write.  Must not be modified after calling apply, since commitlog append
-     *                 may happen concurrently, depending on the CL Executor type.
+     * @param mutation       the row to write.  Must not be modified after calling apply, since commitlog append
+     *                       may happen concurrently, depending on the CL Executor type.
      * @param writeCommitLog false to disable commitlog append entirely
-     * @param updateIndexes false to disable index updates (used by CollationController "defragmenting")
+     * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
      */
     public void apply(RowMutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        if (logger.isDebugEnabled())
-            logger.debug("applying mutation of row {}", ByteBufferUtil.bytesToHex(mutation.key()));
+        if (!mutation.getTable().equals(Tracing.TRACE_KS))
+            logger.debug("applying mutation");
 
         // write the mutation to the commitlog and memtables
         switchLock.readLock().lock();
@@ -520,9 +524,9 @@ public class Table
     }
 
     /**
-     * @param key row to index
-     * @param cfs ColumnFamily to index row in
-     * @param indexedColumns columns to index, in comparator order
+     * @param key      row to index
+     * @param cfs      ColumnFamily to index row in
+     * @param idxNames columns to index, in comparator order
      */
     public static void indexRow(DecoratedKey key, ColumnFamilyStore cfs, Set<String> idxNames)
     {

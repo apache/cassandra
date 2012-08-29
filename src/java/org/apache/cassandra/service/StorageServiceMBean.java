@@ -434,4 +434,18 @@ public interface StorageServiceMBean
     public void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames);
 
     public void resetLocalSchema() throws IOException;
+
+    /**
+     * Enables/Disables tracing for the whole system. Only thrift requests can start tracing currently.
+     * 
+     * @param probability
+     *            ]0,1[ will enable tracing on a partial number of requests with the provided probability. 0 will
+     *            disable tracing and 1 will enable tracing for all requests (which mich severely cripple the system)
+     */
+    public void setTraceProbability(double probability);
+
+    /**
+     * Returns the configured tracing probability.
+     */
+    public double getTracingProbability();
 }

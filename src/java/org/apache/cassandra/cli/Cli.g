@@ -38,6 +38,8 @@ tokens {
     NODE_DESCRIBE;
     NODE_DESCRIBE_CLUSTER;
     NODE_USE_TABLE;
+    NODE_TRACE_NEXT_QUERY;
+    NODE_SET_TRACE_PROBABILITY;
     NODE_EXIT;
     NODE_HELP;
     NODE_NO_OP;
@@ -145,6 +147,8 @@ statement
     | delColumnFamily
     | delKeyspace
     | useKeyspace
+    | traceNextQuery
+    | setTraceProbability
     | delStatement
     | getStatement
     | helpStatement
@@ -173,6 +177,10 @@ helpStatement
         -> ^(NODE_HELP NODE_CONNECT)
     | HELP USE 
         -> ^(NODE_HELP NODE_USE_TABLE)
+    | HELP TRACE NEXT QUERY
+        -> ^(NODE_HELP NODE_TRACE_NEXT_QUERY)
+    | HELP SET TRACE PROBABILITY
+        -> ^(NODE_HELP NODE_SET_TRACE_PROBABILITY)
     | HELP DESCRIBE
         -> ^(NODE_HELP NODE_DESCRIBE)
     | HELP DESCRIBE 'CLUSTER'
@@ -372,7 +380,16 @@ useKeyspace
     : USE keyspace ( username )? ( password )? 
         -> ^(NODE_USE_TABLE keyspace ( username )? ( password )?)
     ;
+    
+traceNextQuery
+    : TRACE NEXT QUERY
+        -> ^(NODE_TRACE_NEXT_QUERY)
+    ;
 
+setTraceProbability
+    : SET TRACE PROBABILITY tracingProbability
+        -> ^(NODE_SET_TRACE_PROBABILITY tracingProbability)
+    ;
 
 keyValuePairExpr
     : entityName ( (AND | WITH) keyValuePair )*
@@ -533,7 +550,6 @@ ip_address
         -> ^(NODE_ID_LIST IP_ADDRESS)
     ;
 
-
 port    
     : IntegerPositiveLiteral
     ;
@@ -541,6 +557,14 @@ port
 incrementValue
     : IntegerPositiveLiteral
     | IntegerNegativeLiteral
+    ;
+
+traceSessionId
+    : Identifier
+    ;
+
+tracingProbability
+    : DoubleLiteral
     ;
 
 //
@@ -552,13 +576,17 @@ incrementValue
 //
 // CLI is case-insensitive with respect to these keywords.
 // However, they MUST be listed in upper case here.
-// 
+//
 CONFIG:      'CONFIG';
 CONNECT:     'CONNECT';
 COUNT:       'COUNT';
 DEL:         'DEL';
 DESCRIBE:    'DESCRIBE';
 USE:         'USE';
+TRACE:       'TRACE';
+PROBABILITY: 'PROBABILITY';
+NEXT:        'NEXT';
+QUERY:       'QUERY';
 GET:         'GET';
 HELP:        'HELP';
 EXIT:        'EXIT';

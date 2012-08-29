@@ -36,6 +36,7 @@ import org.apache.commons.cli.*;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
@@ -46,7 +47,7 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 
-public class NodeCmd
+public class trace_next_queryNodeCmd
 {
     private static final Pair<String, String> SNAPSHOT_COLUMNFAMILY_OPT = new Pair<String, String>("cf", "column-family");
     private static final Pair<String, String> HOST_OPT = new Pair<String, String>("h", "host");
@@ -120,6 +121,7 @@ public class NodeCmd
         SETCOMPACTIONTHRESHOLD,
         SETCOMPACTIONTHROUGHPUT,
         SETSTREAMTHROUGHPUT,
+        SETTRACEPROBABILITY,
         SNAPSHOT,
         STATUS,
         STATUSTHRIFT,
@@ -145,7 +147,7 @@ public class NodeCmd
         // No args
         addCmdHelp(header, "ring", "Print information about the token ring");
         addCmdHelp(header, "join", "Join the ring");
-        addCmdHelp(header, "info [-T/--tokens]", "Print node information (uptime, load, ...)");
+        addCmdHelp(header, "igit nfo [-T/--tokens]", "Print node information (uptime, load, ...)");
         addCmdHelp(header, "status", "Print cluster information (state, load, IDs, ...)");
         addCmdHelp(header, "cfstats", "Print statistics on column families");
         addCmdHelp(header, "version", "Print cassandra version");
@@ -173,6 +175,7 @@ public class NodeCmd
         addCmdHelp(header, "describering [keyspace]", "Shows the token ranges info of a given keyspace.");
         addCmdHelp(header, "rangekeysample", "Shows the sampled keys held across all keyspaces.");
         addCmdHelp(header, "rebuild [src-dc-name]", "Rebuild data by streaming from other nodes (similarly to bootstrap)");
+        addCmdHelp(header, "settraceprobability [value]", "Sets the probability for tracing any given request to value. 0 disables, 1 enables for all requests, 0 is the default");
 
         // Two args
         addCmdHelp(header, "snapshot [keyspaces...] -cf [columnfamilyName] -t [snapshotName]", "Take a snapshot of the optionally specified column family of the specified keyspaces using optional name snapshotName");
@@ -1033,6 +1036,11 @@ public class NodeCmd
                     probe.setStreamThroughput(Integer.valueOf(arguments[0]));
                     break;
 
+                case SETTRACEPROBABILITY :
+                    if (arguments.length != 1) { badUse("Missing value argument."); }
+                    probe.setTraceProbability(Double.valueOf(arguments[0]));
+                    break;
+
                 case REBUILD :
                     if (arguments.length > 1) { badUse("Too many arguments."); }
                     probe.rebuild(arguments.length == 1 ? arguments[0] : null);
@@ -1284,7 +1292,7 @@ public class NodeCmd
                     catch (ExecutionException ee) { err(ee, "Error occured during compaction"); }
                     break;
                 case CLEANUP :
-                    if (keyspace.equals("system")) { break; } // Skip cleanup on system cfs.
+                    if (keyspace.equals(Table.SYSTEM_KS)) { break; } // Skip cleanup on system cfs.
                     try { probe.forceTableCleanup(keyspace, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occured during cleanup"); }
                     break;

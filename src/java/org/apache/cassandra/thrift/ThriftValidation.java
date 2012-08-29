@@ -605,7 +605,7 @@ public class ThriftValidation
 
     public static void validateKeyspaceNotSystem(String modifiedKeyspace) throws InvalidRequestException
     {
-        if (modifiedKeyspace.equalsIgnoreCase(Table.SYSTEM_TABLE))
+        if (modifiedKeyspace.equalsIgnoreCase(Table.SYSTEM_KS))
             throw new InvalidRequestException("system keyspace is not user-modifiable");
     }
 

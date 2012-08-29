@@ -194,8 +194,8 @@ public class CassandraDaemon
         // check the system table to keep user from shooting self in foot by changing partitioner, cluster name, etc.
         // we do a one-off scrub of the system table first; we can't load the list of the rest of the tables,
         // until system table is opened.
-        for (CFMetaData cfm : Schema.instance.getTableMetaData(Table.SYSTEM_TABLE).values())
-            ColumnFamilyStore.scrubDataDirectories(Table.SYSTEM_TABLE, cfm.cfName);
+        for (CFMetaData cfm : Schema.instance.getTableMetaData(Table.SYSTEM_KS).values())
+            ColumnFamilyStore.scrubDataDirectories(Table.SYSTEM_KS, cfm.cfName);
         try
         {
             SystemTable.checkHealth();

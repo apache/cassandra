@@ -104,7 +104,7 @@ public class RowMutation implements IMutation
      */
     public static RowMutation hintFor(RowMutation mutation, UUID targetId) throws IOException
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, UUIDType.instance.decompose(targetId));
+        RowMutation rm = new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(targetId));
         UUID hintId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
 
         // determine the TTL for the RowMutation
