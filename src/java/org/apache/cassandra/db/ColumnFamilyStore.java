@@ -1192,7 +1192,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             readStats.addNano(System.nanoTime() - start);
         }
 
-        logger.debug("Read {} columns", result.getColumnCount());
+        logger.debug("Read {} columns", result == null ? 0 : result.getColumnCount());
         return result;
     }
 
