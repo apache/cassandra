@@ -47,7 +47,7 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 
-public class trace_next_queryNodeCmd
+public class NodeCmd
 {
     private static final Pair<String, String> SNAPSHOT_COLUMNFAMILY_OPT = new Pair<String, String>("cf", "column-family");
     private static final Pair<String, String> HOST_OPT = new Pair<String, String>("h", "host");
@@ -147,7 +147,7 @@ public class trace_next_queryNodeCmd
         // No args
         addCmdHelp(header, "ring", "Print information about the token ring");
         addCmdHelp(header, "join", "Join the ring");
-        addCmdHelp(header, "igit nfo [-T/--tokens]", "Print node information (uptime, load, ...)");
+        addCmdHelp(header, "info [-T/--tokens]", "Print node information (uptime, load, ...)");
         addCmdHelp(header, "status", "Print cluster information (state, load, IDs, ...)");
         addCmdHelp(header, "cfstats", "Print statistics on column families");
         addCmdHelp(header, "version", "Print cassandra version");
