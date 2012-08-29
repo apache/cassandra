@@ -155,7 +155,7 @@ public class CompactionTask extends AbstractCompactionTask
                 return;
             }
 
-            SSTableWriter writer = cfs.createCompactionWriter(keysPerSSTable, dataDirectory, toCompact);
+            SSTableWriter writer = cfs.createCompactionWriter(keysPerSSTable, cfs.directories.getLocationForDisk(dataDirectory), toCompact);
             writers.add(writer);
             while (nni.hasNext())
             {
@@ -187,7 +187,7 @@ public class CompactionTask extends AbstractCompactionTask
                     sstables.add(toIndex);
                     if (nni.hasNext())
                     {
-                        writer = cfs.createCompactionWriter(keysPerSSTable, dataDirectory, toCompact);
+                        writer = cfs.createCompactionWriter(keysPerSSTable, cfs.directories.getLocationForDisk(dataDirectory), toCompact);
                         writers.add(writer);
                         cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
                     }
