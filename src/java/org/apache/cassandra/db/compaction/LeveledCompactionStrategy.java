@@ -224,7 +224,8 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
             this.range = range;
             this.sstables = new ArrayList<SSTableReader>(sstables);
             Collections.sort(this.sstables, SSTable.sstableComparator);
-            this.sstableIterator = this.sstables.iterator();
+            sstableIterator = this.sstables.iterator();
+            currentScanner = sstableIterator.next().getDirectScanner(range);
 
             long length = 0;
             for (SSTableReader sstable : sstables)
@@ -236,26 +237,17 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         {
             try
             {
-                if (currentScanner != null)
+                while (true)
                 {
                     if (currentScanner.hasNext())
-                    {
                         return currentScanner.next();
-                    }
-                    else
-                    {
-                        positionOffset += currentScanner.getLengthInBytes();
-                        currentScanner.close();
-                        currentScanner = null;
-                        return computeNext();
-                    }
+
+                    positionOffset += currentScanner.getLengthInBytes();
+                    currentScanner.close();
+                    if (!sstableIterator.hasNext())
+                        return endOfData();
+                    currentScanner = sstableIterator.next().getDirectScanner(range);
                 }
-
-                if (!sstableIterator.hasNext())
-                    return endOfData();
-
-                currentScanner = sstableIterator.next().getDirectScanner(range);
-                return computeNext();
             }
             catch (IOException e)
             {
