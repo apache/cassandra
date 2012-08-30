@@ -537,16 +537,24 @@ public class Directories
             if (!dir.location.exists() || !dir.location.isDirectory())
                 continue;
 
-            for (File ksDir : dir.location.listFiles())
+            File[] ksDirs = dir.location.listFiles();
+            if (ksDirs != null)
             {
-                if (!ksDir.isDirectory())
-                    continue;
+                for (File ksDir : ksDirs)
+                {
+                    if (!ksDir.isDirectory())
+                        continue;
 
-                for (File file : ksDir.listFiles())
-                    migrateFile(file, ksDir, null);
+                    File[] files = ksDir.listFiles();
+                    if (files != null)
+                    {
+                        for (File file : files)
+                            migrateFile(file, ksDir, null);
+                    }
 
-                migrateSnapshots(ksDir);
-                migrateBackups(ksDir);
+                    migrateSnapshots(ksDir);
+                    migrateBackups(ksDir);
+                }
             }
         }
     }
@@ -557,16 +565,23 @@ public class Directories
         if (!snapshotDir.exists())
             return;
 
-        for (File snapshot : snapshotDir.listFiles())
+        File[] snapshots = snapshotDir.listFiles();
+        if (snapshots != null)
         {
-            if (!snapshot.isDirectory())
-                continue;
+            for (File snapshot : snapshots)
+            {
+                if (!snapshot.isDirectory())
+                    continue;
 
-            for (File f : snapshot.listFiles())
-                migrateFile(f, ksDir, join(SNAPSHOT_SUBDIR, snapshot.getName()));
-
-            if (!snapshot.delete())
-                logger.info("Old snapsot directory {} not deleted by migraation as it is not empty", snapshot);
+                File[] files = snapshot.listFiles();
+                if (files != null)
+                {
+                    for (File f : files)
+                        migrateFile(f, ksDir, join(SNAPSHOT_SUBDIR, snapshot.getName()));
+                }
+                if (!snapshot.delete())
+                    logger.info("Old snapsot directory {} not deleted by migraation as it is not empty", snapshot);
+            }
         }
         if (!snapshotDir.delete())
             logger.info("Old directory {} not deleted by migration as it is not empty", snapshotDir);
@@ -578,9 +593,12 @@ public class Directories
         if (!backupDir.exists())
             return;
 
-        for (File f : backupDir.listFiles())
-            migrateFile(f, ksDir, BACKUPS_SUBDIR);
-
+        File[] files = backupDir.listFiles();
+        if (files != null)
+        {
+            for (File f : files)
+                migrateFile(f, ksDir, BACKUPS_SUBDIR);
+        }
         if (!backupDir.delete())
             logger.info("Old directory {} not deleted by migration as it is not empty", backupDir);
     }
