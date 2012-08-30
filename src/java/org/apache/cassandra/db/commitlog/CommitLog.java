@@ -35,6 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
 
 /*
@@ -58,6 +59,8 @@ public class CommitLog implements CommitLogMBean
 
     public CommitLogSegment activeSegment;
 
+    private final CommitLogMetrics metrics;
+
     private CommitLog()
     {
         DatabaseDescriptor.createAllDirectories();
@@ -78,6 +81,9 @@ public class CommitLog implements CommitLogMBean
         {
             throw new RuntimeException(e);
         }
+
+        // register metrics
+        metrics = new CommitLogMetrics(executor, allocator);
     }
 
     /**
@@ -272,7 +278,7 @@ public class CommitLog implements CommitLogMBean
      */
     public long getCompletedTasks()
     {
-        return executor.getCompletedTasks();
+        return metrics.completedTasks.value();
     }
 
     /**
@@ -280,7 +286,7 @@ public class CommitLog implements CommitLogMBean
      */
     public long getPendingTasks()
     {
-        return executor.getPendingTasks();
+        return metrics.pendingTasks.value();
     }
 
     /**
@@ -288,7 +294,7 @@ public class CommitLog implements CommitLogMBean
      */
     public long getTotalCommitlogSize()
     {
-        return allocator.bytesUsed();
+        return metrics.totalCommitLogSize.value();
     }
 
     /**
@@ -330,7 +336,7 @@ public class CommitLog implements CommitLogMBean
             segmentNames.add(segment.getName());
         return segmentNames;
     }
-    
+
     public List<String> getArchivingSegmentNames()
     {
         return new ArrayList<String>(archiver.archivePending.keySet());

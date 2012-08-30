@@ -29,11 +29,14 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.util.concurrent.Futures;
+import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
+import org.github.jamm.MemoryMeter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.*;
 import org.apache.cassandra.cache.AutoSavingCache.CacheSerializer;
@@ -52,12 +55,6 @@ import org.apache.cassandra.io.sstable.SSTableReader.Operator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.github.jamm.MemoryMeter;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 
 public class CacheService implements CacheServiceMBean
 {
@@ -125,7 +122,7 @@ public class CacheService implements CacheServiceMBean
         else
         {
             logger.warn("MemoryMeter uninitialized (jamm not specified as java agent); KeyCache size in JVM Heap will not be calculated accurately. " +
-            		"Usually this means cassandra-env.sh disabled jamm because you are using a buggy JRE; upgrade to the Sun JRE instead");
+                        "Usually this means cassandra-env.sh disabled jamm because you are using a buggy JRE; upgrade to the Sun JRE instead");
             /* We don't know the overhead size because memory meter is not enabled. */
             EntryWeigher<KeyCacheKey, RowIndexEntry> weigher = new EntryWeigher<KeyCacheKey, RowIndexEntry>()
             {
@@ -177,32 +174,32 @@ public class CacheService implements CacheServiceMBean
 
     public long getKeyCacheHits()
     {
-        return keyCache.getHits();
+        return keyCache.getMetrics().hits.count();
     }
 
     public long getRowCacheHits()
     {
-        return rowCache.getHits();
+        return rowCache.getMetrics().hits.count();
     }
 
     public long getKeyCacheRequests()
     {
-        return keyCache.getRequests();
+        return keyCache.getMetrics().requests.count();
     }
 
     public long getRowCacheRequests()
     {
-        return rowCache.getRequests();
+        return rowCache.getMetrics().requests.count();
     }
 
     public double getKeyCacheRecentHitRate()
     {
-        return keyCache.getRecentHitRate();
+        return keyCache.getMetrics().getRecentHitRate();
     }
 
     public double getRowCacheRecentHitRate()
     {
-        return rowCache.getRecentHitRate();
+        return rowCache.getMetrics().getRecentHitRate();
     }
 
     public int getRowCacheSavePeriodInSeconds()
@@ -245,7 +242,7 @@ public class CacheService implements CacheServiceMBean
 
     public long getRowCacheCapacityInBytes()
     {
-        return rowCache.getCapacity();
+        return rowCache.getMetrics().capacityInBytes.value();
     }
 
     public long getRowCacheCapacityInMB()
@@ -263,7 +260,7 @@ public class CacheService implements CacheServiceMBean
 
     public long getKeyCacheCapacityInBytes()
     {
-        return keyCache.getCapacity();
+        return keyCache.getMetrics().capacityInBytes.value();
     }
 
     public long getKeyCacheCapacityInMB()
@@ -282,12 +279,12 @@ public class CacheService implements CacheServiceMBean
 
     public long getRowCacheSize()
     {
-        return rowCache.weightedSize();
+        return rowCache.getMetrics().size.value();
     }
 
     public long getKeyCacheSize()
     {
-        return keyCache.weightedSize();
+        return keyCache.getMetrics().size.value();
     }
 
     public void reduceCacheSizes()

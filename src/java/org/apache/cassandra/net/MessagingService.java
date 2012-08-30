@@ -31,15 +31,12 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
-
-import org.apache.cassandra.tracing.Tracing;
-
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,6 +54,8 @@ import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.ILatencySubscriber;
+import org.apache.cassandra.metrics.ConnectionMetrics;
+import org.apache.cassandra.metrics.DroppedMessageMetrics;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.AntiEntropyService;
@@ -65,9 +64,8 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.streaming.compress.CompressedFileStreamTask;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
 
 public final class MessagingService implements MessagingServiceMBean
 {
@@ -260,7 +258,6 @@ public final class MessagingService implements MessagingServiceMBean
      * is not going to be a thread per node - but rather an instance per node. That's totally fine.
      */
     private final ConcurrentMap<InetAddress, DebuggableThreadPoolExecutor> streamExecutors = new NonBlockingHashMap<InetAddress, DebuggableThreadPoolExecutor>();
-    private final AtomicInteger activeStreamsOutbound = new AtomicInteger(0);
 
     private final NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool> connectionManagers = new NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool>();
 
@@ -283,15 +280,10 @@ public final class MessagingService implements MessagingServiceMBean
                                                                    Verb.REQUEST_RESPONSE);
 
     // total dropped message counts for server lifetime
-    private final Map<Verb, AtomicInteger> droppedMessages = new EnumMap<Verb, AtomicInteger>(Verb.class);
+    private final Map<Verb, DroppedMessageMetrics> droppedMessages = new EnumMap<Verb, DroppedMessageMetrics>(Verb.class);
     // dropped count when last requested for the Recent api.  high concurrency isn't necessary here.
-    private final Map<Verb, Integer> lastDropped = Collections.synchronizedMap(new EnumMap<Verb, Integer>(Verb.class));
     private final Map<Verb, Integer> lastDroppedInternal = new EnumMap<Verb, Integer>(Verb.class);
 
-    private long totalTimeouts = 0;
-    private long recentTotalTimeouts = 0;
-    private final Map<String, AtomicLong> timeoutsPerHost = new HashMap<String, AtomicLong>();
-    private final Map<String, AtomicLong> recentTimeoutsPerHost = new HashMap<String, AtomicLong>();
     private final List<ILatencySubscriber> subscribers = new ArrayList<ILatencySubscriber>();
 
     // protocol versions of the other nodes in the cluster
@@ -310,8 +302,7 @@ public final class MessagingService implements MessagingServiceMBean
     {
         for (Verb verb : DROPPABLE_VERBS)
         {
-            droppedMessages.put(verb, new AtomicInteger());
-            lastDropped.put(verb, 0);
+            droppedMessages.put(verb, new DroppedMessageMetrics(verb));
             lastDroppedInternal.put(verb, 0);
         }
 
@@ -332,19 +323,8 @@ public final class MessagingService implements MessagingServiceMBean
             {
                 CallbackInfo expiredCallbackInfo = pair.right.value;
                 maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, pair.right.timeout);
-                totalTimeouts++;
-                String ip = expiredCallbackInfo.target.getHostAddress();
-                AtomicLong c = timeoutsPerHost.get(ip);
-                if (c == null)
-                {
-                    c = new AtomicLong();
-                    timeoutsPerHost.put(ip, c);
-                }
-                c.incrementAndGet();
-                // we only create AtomicLong instances here, so that the write
-                // access to the hashmap happens single-threadedly.
-                if (recentTimeoutsPerHost.get(ip) == null)
-                    recentTimeoutsPerHost.put(ip, new AtomicLong());
+                ConnectionMetrics.totalTimeouts.mark();
+                getConnectionPool(expiredCallbackInfo.target).incrementTimeout();
 
                 if (expiredCallbackInfo.shouldHint())
                 {
@@ -627,24 +607,6 @@ public final class MessagingService implements MessagingServiceMBean
                          : new CompressedFileStreamTask(header, to));
     }
 
-    public void incrementActiveStreamsOutbound()
-    {
-        activeStreamsOutbound.incrementAndGet();
-    }
-
-    public void decrementActiveStreamsOutbound()
-    {
-        activeStreamsOutbound.decrementAndGet();
-    }
-
-    /**
-     * The count of active outbound stream tasks.
-     */
-    public int getActiveStreamsOutbound()
-    {
-        return activeStreamsOutbound.get();
-    }
-
     public void register(ILatencySubscriber subcriber)
     {
         subscribers.add(subcriber);
@@ -821,23 +783,23 @@ public final class MessagingService implements MessagingServiceMBean
     public void incrementDroppedMessages(Verb verb)
     {
         assert DROPPABLE_VERBS.contains(verb) : "Verb " + verb + " should not legally be dropped";
-        droppedMessages.get(verb).incrementAndGet();
+        droppedMessages.get(verb).dropped.mark();
     }
 
     private void logDroppedMessages()
     {
         boolean logTpstats = false;
-        for (Map.Entry<Verb, AtomicInteger> entry : droppedMessages.entrySet())
+        for (Map.Entry<Verb, DroppedMessageMetrics> entry : droppedMessages.entrySet())
         {
-            AtomicInteger dropped = entry.getValue();
+            int dropped = (int) entry.getValue().dropped.count();
             Verb verb = entry.getKey();
-            int recent = dropped.get() - lastDroppedInternal.get(verb);
+            int recent = dropped - lastDroppedInternal.get(verb);
             if (recent > 0)
             {
                 logTpstats = true;
                 logger.info("{} {} messages dropped in last {}ms",
-                            new Object[]{ recent, verb, LOG_DROPPED_INTERVAL_IN_MS });
-                lastDroppedInternal.put(verb, dropped.get());
+                             new Object[] {recent, verb, LOG_DROPPED_INTERVAL_IN_MS});
+                lastDroppedInternal.put(verb, dropped);
             }
         }
 
@@ -932,43 +894,37 @@ public final class MessagingService implements MessagingServiceMBean
     public Map<String, Integer> getDroppedMessages()
     {
         Map<String, Integer> map = new HashMap<String, Integer>();
-        for (Map.Entry<Verb, AtomicInteger> entry : droppedMessages.entrySet())
-            map.put(entry.getKey().toString(), entry.getValue().get());
+        for (Map.Entry<Verb, DroppedMessageMetrics> entry : droppedMessages.entrySet())
+            map.put(entry.getKey().toString(), (int) entry.getValue().dropped.count());
         return map;
     }
 
     public Map<String, Integer> getRecentlyDroppedMessages()
     {
         Map<String, Integer> map = new HashMap<String, Integer>();
-        for (Map.Entry<Verb, AtomicInteger> entry : droppedMessages.entrySet())
-        {
-            Verb verb = entry.getKey();
-            Integer dropped = entry.getValue().get();
-            Integer recentlyDropped = dropped - lastDropped.get(verb);
-            map.put(verb.toString(), recentlyDropped);
-            lastDropped.put(verb, dropped);
-        }
+        for (Map.Entry<Verb, DroppedMessageMetrics> entry : droppedMessages.entrySet())
+            map.put(entry.getKey().toString(), entry.getValue().getRecentlyDropped());
         return map;
     }
 
     public long getTotalTimeouts()
     {
-        return totalTimeouts;
+        return ConnectionMetrics.totalTimeouts.count();
     }
 
     public long getRecentTotalTimouts()
     {
-        long recent = totalTimeouts - recentTotalTimeouts;
-        recentTotalTimeouts = totalTimeouts;
-        return recent;
+        return ConnectionMetrics.getRecentTotalTimeout();
     }
 
     public Map<String, Long> getTimeoutsPerHost()
     {
         Map<String, Long> result = new HashMap<String, Long>();
-        for (Map.Entry<String, AtomicLong> entry : timeoutsPerHost.entrySet())
+        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry: connectionManagers.entrySet())
         {
-            result.put(entry.getKey(), entry.getValue().get());
+            String ip = entry.getKey().getHostAddress();
+            long recent = entry.getValue().getTimeouts();
+            result.put(ip, recent);
         }
         return result;
     }
@@ -976,12 +932,11 @@ public final class MessagingService implements MessagingServiceMBean
     public Map<String, Long> getRecentTimeoutsPerHost()
     {
         Map<String, Long> result = new HashMap<String, Long>();
-        for (Map.Entry<String, AtomicLong> entry : recentTimeoutsPerHost.entrySet())
+        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry: connectionManagers.entrySet())
         {
-            String ip = entry.getKey();
-            AtomicLong recent = entry.getValue();
-            Long timeout = timeoutsPerHost.get(ip).get();
-            result.put(ip, timeout - recent.getAndSet(timeout));
+            String ip = entry.getKey().getHostAddress();
+            long recent = entry.getValue().getRecentTimeouts();
+            result.put(ip, recent);
         }
         return result;
     }

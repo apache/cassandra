@@ -29,23 +29,31 @@ public interface CompactionManagerMBean
     public List<String> getCompactionSummary();
 
     /**
+     * @see org.apache.cassandra.metrics.CompactionMetrics#pendingTasks
      * @return estimated number of compactions remaining to perform
      */
+    @Deprecated
     public int getPendingTasks();
 
     /**
+     * @see org.apache.cassandra.metrics.CompactionMetrics#completedTasks
      * @return number of completed compactions since server [re]start
      */
+    @Deprecated
     public long getCompletedTasks();
 
     /**
+     * @see org.apache.cassandra.metrics.CompactionMetrics#totalBytesCompacted
      * @return total number of bytes compacted since server [re]start
      */
+    @Deprecated
     public long getTotalBytesCompacted();
 
     /**
+     * @see org.apache.cassandra.metrics.CompactionMetrics#totalCompactionsCompleted
      * @return total number of compactions since server [re]start
      */
+    @Deprecated
     public long getTotalCompactionsCompleted();
 
     /**

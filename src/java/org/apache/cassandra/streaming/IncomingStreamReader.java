@@ -37,6 +37,7 @@ import org.apache.cassandra.db.compaction.PrecompactedRow;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.compress.CompressedInputStream;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -52,6 +53,7 @@ public class IncomingStreamReader
     protected final PendingFile remoteFile;
     protected final StreamInSession session;
     private final InputStream underliningStream;
+    private final StreamingMetrics metrics;
 
     public IncomingStreamReader(StreamHeader header, Socket socket) throws IOException
     {
@@ -80,6 +82,7 @@ public class IncomingStreamReader
         {
             underliningStream = null;
         }
+        metrics = StreamingMetrics.get(socket.getInetAddress());
     }
 
     /**
@@ -127,6 +130,7 @@ public class IncomingStreamReader
         try
         {
             BytesReadTracker in = new BytesReadTracker(input);
+            long totalBytesRead = 0;
 
             for (Pair<Long, Long> section : localFile.sections)
             {
@@ -166,8 +170,11 @@ public class IncomingStreamReader
                     remoteFile.progress += remoteFile.compressionInfo != null
                                            ? ((CompressedInputStream) underliningStream).uncompressedBytes()
                                            : in.getBytesRead();
+                    totalBytesRead += in.getBytesRead();
                 }
             }
+            StreamingMetrics.totalIncomingBytes.inc(totalBytesRead);
+            metrics.incomingBytes.inc(totalBytesRead);
             return writer.closeAndOpenReader();
         }
         catch (Throwable e)

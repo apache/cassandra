@@ -59,7 +59,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
     public AutoSavingCache(ICache<K, V> cache, CacheService.CacheType cacheType, CacheSerializer<K, V> cacheloader)
     {
-        super(cache);
+        super(cacheType.toString(), cache);
         this.cacheType = cacheType;
         this.cacheLoader = cacheloader;
     }

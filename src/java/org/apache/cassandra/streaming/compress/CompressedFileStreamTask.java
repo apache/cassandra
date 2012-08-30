@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.FileStreamTask;
 import org.apache.cassandra.streaming.StreamHeader;
@@ -67,11 +68,12 @@ public class CompressedFileStreamTask extends FileStreamTask
         RandomAccessReader file = RandomAccessReader.open(new File(header.file.getFilename()), true);
         FileChannel fc = file.getChannel();
 
-        MessagingService.instance().incrementActiveStreamsOutbound();
+        StreamingMetrics.activeStreamsOutbound.inc();
         // calculate chunks to transfer. we want to send continuous chunks altogether.
         List<Pair<Long, Long>> sections = getTransferSections(header.file.compressionInfo.chunks);
         try
         {
+            long totalBytesTransferred = 0;
             // stream each of the required sections of the file
             for (Pair<Long, Long> section : sections)
             {
@@ -99,18 +101,21 @@ public class CompressedFileStreamTask extends FileStreamTask
                         throttle.throttleDelta(toTransfer);
                         lastWrite = toTransfer;
                     }
+                    totalBytesTransferred += lastWrite;
                     bytesTransferred += lastWrite;
                     header.file.progress += lastWrite;
                 }
 
                 logger.debug("Bytes transferred " + bytesTransferred + "/" + header.file.size);
             }
+            StreamingMetrics.totalOutgoingBytes.inc(totalBytesTransferred);
+            metrics.outgoingBytes.inc(totalBytesTransferred);
             // receive reply confirmation
             receiveReply();
         }
         finally
         {
-            MessagingService.instance().decrementActiveStreamsOutbound();
+            StreamingMetrics.activeStreamsOutbound.dec();
 
             // no matter what happens close file
             FileUtils.closeQuietly(file);

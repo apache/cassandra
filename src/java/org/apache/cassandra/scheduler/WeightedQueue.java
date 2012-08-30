@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.scheduler;
 
-
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
@@ -25,11 +24,11 @@ import java.lang.management.ManagementFactory;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.utils.LatencyTracker;
+import org.apache.cassandra.metrics.LatencyMetrics;
 
 class WeightedQueue implements WeightedQueueMBean
 {
-    private final LatencyTracker stats = new LatencyTracker();
+    private final LatencyMetrics metric;
 
     public final String key;
     public final int weight;
@@ -39,6 +38,7 @@ class WeightedQueue implements WeightedQueueMBean
         this.key = key;
         this.weight = weight;
         this.queue = new SynchronousQueue<Entry>(true);
+        this.metric =  new LatencyMetrics("org.apache.cassandra.metrics", "scheduler", "WeightedQueue", key);
     }
 
     public void register()
@@ -66,7 +66,7 @@ class WeightedQueue implements WeightedQueueMBean
         Entry e = queue.poll();
         if (e == null)
             return null;
-        stats.addNano(System.nanoTime() - e.creationTime);
+        metric.addNano(System.nanoTime() - e.creationTime);
         return e.thread;
     }
 
@@ -90,26 +90,26 @@ class WeightedQueue implements WeightedQueueMBean
 
     public long getOperations()
     {
-        return stats.getOpCount();
+        return metric.latency.count();
     }
 
     public long getTotalLatencyMicros()
     {
-        return stats.getTotalLatencyMicros();
+        return metric.totalLatency.count();
     }
 
     public double getRecentLatencyMicros()
     {
-        return stats.getRecentLatencyMicros();
+        return metric.getRecentLatency();
     }
 
     public long[] getTotalLatencyHistogramMicros()
     {
-        return stats.getTotalLatencyHistogramMicros();
+        return metric.totalLatencyHistogram.getBuckets(false);
     }
 
     public long[] getRecentLatencyHistogramMicros()
     {
-        return stats.getRecentLatencyHistogramMicros();
+        return metric.recentLatencyHistogram.getBuckets(true);
     }
 }

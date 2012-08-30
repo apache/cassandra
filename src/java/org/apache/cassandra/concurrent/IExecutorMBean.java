@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.concurrent;
 
+/**
+ * @see org.apache.cassandra.metrics.ThreadPoolMetrics
+ */
+@Deprecated
 public interface IExecutorMBean
 {
     /**

@@ -171,7 +171,9 @@ public interface StorageServiceMBean
 
     /**
      * Numeric load value.
+     * @see org.apache.cassandra.metrics.StorageMetrics#load
      */
+    @Deprecated
     public double getLoad();
 
     /** Human-readable load value */

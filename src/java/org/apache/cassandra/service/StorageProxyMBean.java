@@ -19,22 +19,52 @@ package org.apache.cassandra.service;
 
 public interface StorageProxyMBean
 {
+    /**
+     * @see org.apache.cassandra.metrics.LatencyMetrics#opCount
+     */
+    @Deprecated
     public long getReadOperations();
+    /**
+     * @see org.apache.cassandra.metrics.LatencyMetrics#totalLatency
+     */
+    @Deprecated
     public long getTotalReadLatencyMicros();
+    /**
+     * @see org.apache.cassandra.metrics.LatencyMetrics#recentLatencyMicro
+     */
+    @Deprecated
     public double getRecentReadLatencyMicros();
+    /**
+     * @see org.apache.cassandra.metrics.LatencyMetrics#totalLatencyHistogramMicro
+     */
+    @Deprecated
     public long[] getTotalReadLatencyHistogramMicros();
+    /**
+     * @see org.apache.cassandra.metrics.LatencyMetrics#recentLatencyHistogramMicro
+     */
+    @Deprecated
     public long[] getRecentReadLatencyHistogramMicros();
 
+    @Deprecated
     public long getRangeOperations();
+    @Deprecated
     public long getTotalRangeLatencyMicros();
+    @Deprecated
     public double getRecentRangeLatencyMicros();
+    @Deprecated
     public long[] getTotalRangeLatencyHistogramMicros();
+    @Deprecated
     public long[] getRecentRangeLatencyHistogramMicros();
 
+    @Deprecated
     public long getWriteOperations();
+    @Deprecated
     public long getTotalWriteLatencyMicros();
+    @Deprecated
     public double getRecentWriteLatencyMicros();
+    @Deprecated
     public long[] getTotalWriteLatencyHistogramMicros();
+    @Deprecated
     public long[] getRecentWriteLatencyHistogramMicros();
 
     public long getTotalHints();

@@ -27,6 +27,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -39,6 +40,7 @@ public class OutboundTcpConnectionPool
     public final OutboundTcpConnection ackCon;
     // pointer to the reseted Address.
     private InetAddress resetedEndpoint;
+    private ConnectionMetrics metrics;
 
     OutboundTcpConnectionPool(InetAddress remoteEp)
     {
@@ -47,6 +49,8 @@ public class OutboundTcpConnectionPool
         cmdCon.start();
         ackCon = new OutboundTcpConnection(this);
         ackCon.start();
+
+        metrics = new ConnectionMetrics(id, this);
     }
 
     /**
@@ -86,6 +90,25 @@ public class OutboundTcpConnectionPool
         resetedEndpoint = remoteEP;
         for (OutboundTcpConnection conn : new OutboundTcpConnection[] { cmdCon, ackCon })
             conn.softCloseSocket();
+
+        // release previous metrics and create new one with reset address
+        metrics.release();
+        metrics = new ConnectionMetrics(resetedEndpoint, this);
+    }
+
+    public long getTimeouts()
+    {
+       return metrics.timeouts.count();
+    }
+
+    public long getRecentTimeouts()
+    {
+        return metrics.getRecentTimeout();
+    }
+
+    public void incrementTimeout()
+    {
+        metrics.timeouts.mark();
     }
 
     public Socket newSocket() throws IOException

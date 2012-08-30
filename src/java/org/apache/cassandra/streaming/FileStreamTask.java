@@ -29,6 +29,7 @@ import com.ning.compress.lzf.LZFOutputStream;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -57,6 +58,7 @@ public class FileStreamTask extends WrappedRunnable
     // outbound global throughput limiter
     protected final Throttle throttle;
     private final StreamReplyVerbHandler handler = new StreamReplyVerbHandler();
+    protected final StreamingMetrics metrics;
 
     public FileStreamTask(StreamHeader header, InetAddress to)
     {
@@ -73,9 +75,10 @@ public class FileStreamTask extends WrappedRunnable
                 // total throughput
                 int totalBytesPerMS = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec() * 1024 * 1024 / 8 / 1000;
                 // per stream throughput (target bytes per MS)
-                return totalBytesPerMS / Math.max(1, MessagingService.instance().getActiveStreamsOutbound());
+                return totalBytesPerMS / Math.max(1, (int)StreamingMetrics.activeStreamsOutbound.count());
             }
         });
+        metrics = StreamingMetrics.get(to);
     }
 
     public void runMayThrow() throws IOException
@@ -141,9 +144,10 @@ public class FileStreamTask extends WrappedRunnable
         // setting up data compression stream
         compressedoutput = new LZFOutputStream(output);
 
-        MessagingService.instance().incrementActiveStreamsOutbound();
+        StreamingMetrics.activeStreamsOutbound.inc();
         try
         {
+            long totalBytesTransferred = 0;
             // stream each of the required sections of the file
             for (Pair<Long, Long> section : header.file.sections)
             {
@@ -159,6 +163,7 @@ public class FileStreamTask extends WrappedRunnable
                 {
                     long lastWrite = write(file, length, bytesTransferred);
                     bytesTransferred += lastWrite;
+                    totalBytesTransferred += lastWrite;
                     // store streaming progress
                     header.file.progress += lastWrite;
                 }
@@ -169,12 +174,14 @@ public class FileStreamTask extends WrappedRunnable
                 if (logger.isDebugEnabled())
                     logger.debug("Bytes transferred " + bytesTransferred + "/" + header.file.size);
             }
+            StreamingMetrics.totalOutgoingBytes.inc(totalBytesTransferred);
+            metrics.outgoingBytes.inc(totalBytesTransferred);
             // receive reply confirmation
             receiveReply();
         }
         finally
         {
-            MessagingService.instance().decrementActiveStreamsOutbound();
+            StreamingMetrics.activeStreamsOutbound.dec();
 
             // no matter what happens close file
             FileUtils.closeQuietly(file);

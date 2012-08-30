@@ -25,17 +25,23 @@ public interface CommitLogMBean
 {
     /**
      * Get the number of completed tasks
+     * @see org.apache.cassandra.metrics.CommitLogMetrics#completedTasks
      */
+    @Deprecated
     public long getCompletedTasks();
 
     /**
      * Get the number of tasks waiting to be executed
+     * @see org.apache.cassandra.metrics.CommitLogMetrics#pendingTasks
      */
+    @Deprecated
     public long getPendingTasks();
 
     /**
      * Get the current size used by all the commitlog segments.
+     * @see org.apache.cassandra.metrics.CommitLogMetrics#totalCommitLogSize
      */
+    @Deprecated
     public long getTotalCommitlogSize();
 
     /**

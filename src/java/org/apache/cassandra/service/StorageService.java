@@ -50,6 +50,7 @@ import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -109,6 +110,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(getPartitioner());
 
     public static final StorageService instance = new StorageService();
+
+    private static final StorageMetrics metrics = new StorageMetrics();
 
     public static IPartitioner getPartitioner()
     {
@@ -393,13 +396,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         catch (ClassNotFoundException e)
         {
             throw new AssertionError(e);
-        }
-
-        if (!isClientMode)
-        {
-            // "Touch" metrics classes to trigger static initialization, such that all metrics become available
-            // on start-up even if they have not yet been used.
-            new ClientRequestMetrics();
         }
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))

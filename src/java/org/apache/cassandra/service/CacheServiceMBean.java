@@ -21,13 +21,28 @@ import java.util.concurrent.ExecutionException;
 
 public interface CacheServiceMBean
 {
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#hits
+     */
+    @Deprecated
     public long getKeyCacheHits();
+    @Deprecated
     public long getRowCacheHits();
 
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#requests
+     */
+    @Deprecated
     public long getKeyCacheRequests();
+    @Deprecated
     public long getRowCacheRequests();
 
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#recentHitRate
+     */
+    @Deprecated
     public double getKeyCacheRecentHitRate();
+    @Deprecated
     public double getRowCacheRecentHitRate();
 
     public int getRowCacheSavePeriodInSeconds();
@@ -47,15 +62,31 @@ public interface CacheServiceMBean
     public void invalidateRowCache();
 
     public long getRowCacheCapacityInMB();
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#capacityInBytes
+     */
+    @Deprecated
     public long getRowCacheCapacityInBytes();
     public void setRowCacheCapacityInMB(long capacity);
 
     public long getKeyCacheCapacityInMB();
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#capacityInBytes
+     */
+    @Deprecated
     public long getKeyCacheCapacityInBytes();
     public void setKeyCacheCapacityInMB(long capacity);
 
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#size
+     */
+    @Deprecated
     public long getRowCacheSize();
 
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#size
+     */
+    @Deprecated
     public long getKeyCacheSize();
 
     /**

@@ -15,23 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.concurrent;
+package org.apache.cassandra.metrics;
+
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.Counter;
+import com.yammer.metrics.core.MetricName;
 
 /**
- * @see org.apache.cassandra.metrics.ThreadPoolMetrics
+ * Metrics related to Storage.
  */
-@Deprecated
-public interface JMXEnabledThreadPoolExecutorMBean extends IExecutorMBean
+public class StorageMetrics
 {
-    /**
-     * Get the number of tasks that had blocked before being accepted (or
-     * rejected).
-     */
-    public int getTotalBlockedTasks();
-
-    /**
-     * Get the number of tasks currently blocked, waiting to be accepted by
-     * the executor (because all threads are busy and the backing queue is full).
-     */
-    public int getCurrentlyBlockedTasks();
+    public static final Counter load = Metrics.newCounter(new MetricName("org.apache.cassandra.metrics", "Storage", "Load"));
 }

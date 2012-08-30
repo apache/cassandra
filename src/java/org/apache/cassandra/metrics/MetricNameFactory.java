@@ -15,23 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.concurrent;
+package org.apache.cassandra.metrics;
 
-/**
- * @see org.apache.cassandra.metrics.ThreadPoolMetrics
- */
-@Deprecated
-public interface JMXEnabledThreadPoolExecutorMBean extends IExecutorMBean
+import com.yammer.metrics.core.MetricName;
+
+public interface MetricNameFactory
 {
     /**
-     * Get the number of tasks that had blocked before being accepted (or
-     * rejected).
+     * Create {@link MetricName} from given metric name.
+     *
+     * @param metricName Name part of {@link MetricName}.
+     * @return new MetricName with given metric name.
      */
-    public int getTotalBlockedTasks();
-
-    /**
-     * Get the number of tasks currently blocked, waiting to be accepted by
-     * the executor (because all threads are busy and the backing queue is full).
-     */
-    public int getCurrentlyBlockedTasks();
+    MetricName createMetricName(String metricName);
 }
