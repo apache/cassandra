@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
@@ -75,11 +74,6 @@ public class SecondaryIndexColumnSizeTest
     private class MockRowIndex extends PerRowSecondaryIndex
     {
         @Override
-        public void applyIndexUpdates(ByteBuffer rowKey, ColumnFamily cf, SortedSet<ByteBuffer> mutatedIndexedColumns, ColumnFamily oldIndexedColumns)
-        {
-        }
-
-        @Override
         public void init()
         {
         }
@@ -133,11 +127,17 @@ public class SecondaryIndexColumnSizeTest
         {
         }
 
-        @Override
-        public void deleteFromIndex(DecoratedKey key, List<IColumn> indexedColumnsInRow)
+        public void index(ByteBuffer rowKey, ColumnFamily cf)
         {
         }
 
+        public void index(ByteBuffer rowKey)
+        {
+        }
+
+        public void delete(DecoratedKey key)
+        {
+        }
     }
 
 
@@ -198,17 +198,17 @@ public class SecondaryIndexColumnSizeTest
         }
 
         @Override
-        public void deleteColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col)
+        public void delete(ByteBuffer rowKey, IColumn col)
         {
         }
 
         @Override
-        public void insertColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col)
+        public void insert(ByteBuffer rowKey, IColumn col)
         {
         }
 
         @Override
-        public void updateColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col)
+        public void update(ByteBuffer rowKey, IColumn col)
         {
         }
     }

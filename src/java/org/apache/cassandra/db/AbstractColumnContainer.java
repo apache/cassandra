@@ -26,6 +26,7 @@ import com.google.common.base.Function;
 import com.google.common.base.Functions;
 
 import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.Allocator;
@@ -83,9 +84,9 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         columns.maybeResetDeletionTimes(gcBefore);
     }
 
-    public long addAllWithSizeDelta(AbstractColumnContainer cc, Allocator allocator, Function<IColumn, IColumn> transformation)
+    public long addAllWithSizeDelta(AbstractColumnContainer cc, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer)
     {
-        return columns.addAllWithSizeDelta(cc.columns, allocator, transformation);
+        return columns.addAllWithSizeDelta(cc.columns, allocator, transformation, indexer);
     }
 
     public void addAll(AbstractColumnContainer cc, Allocator allocator, Function<IColumn, IColumn> transformation)

@@ -34,6 +34,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.index.composites.CompositesIndex;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.compress.CompressionParameters;
@@ -224,7 +225,8 @@ public class SchemaLoader
                                            standardCFMD(ks2, "Standard3", withOldCfIds),
                                            superCFMD(ks2, "Super3", bytes, withOldCfIds),
                                            superCFMD(ks2, "Super4", TimeUUIDType.instance, withOldCfIds),
-                                           indexCFMD(ks2, "Indexed1", true, withOldCfIds)));
+                                           indexCFMD(ks2, "Indexed1", true, withOldCfIds),
+                                           compositeIndexCFMD(ks2, "Indexed2", true, withOldCfIds)));
 
         // Keyspace 3
         schema.add(KSMetaData.testMetadata(ks3,
@@ -336,6 +338,23 @@ public class SchemaLoader
                         put(cName, new ColumnDefinition(cName, LongType.instance, keys, null, withIdxType ? ByteBufferUtil.bytesToHex(cName) : null, null));
                     }});
     }
+    private static CFMetaData compositeIndexCFMD(String ksName, String cfName, final Boolean withIdxType, boolean withOldCfIds) throws ConfigurationException
+    {
+        final Map<String, String> idxOpts = Collections.singletonMap(CompositesIndex.PREFIX_SIZE_OPTION, "1");
+        final CompositeType composite = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{UTF8Type.instance, UTF8Type.instance})); 
+        return new CFMetaData(ksName,
+                cfName,
+                ColumnFamilyType.Standard,
+                composite,
+                null)
+               .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
+                {{
+                   ByteBuffer cName = ByteBuffer.wrap("col1".getBytes(Charsets.UTF_8));
+                   IndexType idxType = withIdxType ? IndexType.COMPOSITES : null;
+                   put(cName, new ColumnDefinition(cName, UTF8Type.instance, idxType, idxOpts, withIdxType ? "col1_idx" : null, 1));
+                }});
+    }
+    
     private static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp, boolean withOldCfIds)
     {
         CFMetaData cfmd = new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, comp, null).defaultValidator(comp);

@@ -21,6 +21,7 @@ import java.util.Iterator;
 
 import com.google.common.base.Function;
 
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
@@ -89,14 +90,6 @@ public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumn
             current = iter.hasNext() ? iter.next() : null;
         }
     }
-
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
-    {
-        // sizeDelta is only needed by memtable updates which should not be using thread-unsafe containers
-        throw new UnsupportedOperationException();
-    }
-
-    public abstract void addAll(ISortedColumns columns, Allocator allocator, Function<IColumn, IColumn> transformation);
 
     public boolean isEmpty()
     {

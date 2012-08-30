@@ -23,6 +23,7 @@ import java.util.*;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.index.PerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
@@ -300,6 +301,17 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                         ColumnFamily newData = baseCfs.getColumnFamily(new QueryFilter(dk, path, dataFilter));
                         if (newData != null)
                         {
+                            ByteBuffer baseColumnName = builder.copy().add(primary.column_name).build();
+                            ByteBuffer indexedValue = indexKey.key;
+
+                            if (isIndexValueStale(newData, baseColumnName, indexedValue))
+                            {
+                                // delete the index entry w/ its own timestamp
+                                IColumn dummyColumn = new Column(baseColumnName, indexedValue, column.timestamp());
+                                ((PerColumnSecondaryIndex) index).delete(dk.key, dummyColumn);
+                                continue;
+                            }
+
                             if (!filter.isSatisfiedBy(newData, builder))
                                 continue;
 

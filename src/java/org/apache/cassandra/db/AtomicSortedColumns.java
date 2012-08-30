@@ -25,6 +25,7 @@ import com.google.common.base.Function;
 import edu.stanford.ppl.concurrent.SnapTreeMap;
 
 import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
@@ -150,17 +151,17 @@ public class AtomicSortedColumns implements ISortedColumns
         {
             current = ref.get();
             modified = current.cloneMe();
-            modified.addColumn(column, allocator);
+            modified.addColumn(column, allocator, SecondaryIndexManager.nullUpdater);
         }
         while (!ref.compareAndSet(current, modified));
     }
 
     public void addAll(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
     {
-        addAllWithSizeDelta(cm, allocator, transformation);
+        addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater);
     }
 
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
+    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer)
     {
         /*
          * This operation needs to atomicity and isolation. To that end, we
@@ -186,7 +187,7 @@ public class AtomicSortedColumns implements ISortedColumns
 
             for (IColumn column : cm.getSortedColumns())
             {
-                sizeDelta += modified.addColumn(transformation.apply(column), allocator);
+                sizeDelta += modified.addColumn(transformation.apply(column), allocator, indexer);
                 // bail early if we know we've been beaten
                 if (ref.get() != current)
                     continue main_loop;
@@ -335,14 +336,17 @@ public class AtomicSortedColumns implements ISortedColumns
             return new Holder(new SnapTreeMap<ByteBuffer, IColumn>(map.comparator()), deletionInfo);
         }
 
-        long addColumn(IColumn column, Allocator allocator)
+        long addColumn(IColumn column, Allocator allocator, SecondaryIndexManager.Updater indexer)
         {
             ByteBuffer name = column.name();
             while (true)
             {
                 IColumn oldColumn = map.putIfAbsent(name, column);
                 if (oldColumn == null)
+                {
+                    indexer.insert(column);
                     return column.dataSize();
+                }
 
                 if (oldColumn instanceof SuperColumn)
                 {
@@ -353,11 +357,17 @@ public class AtomicSortedColumns implements ISortedColumns
                 }
                 else
                 {
-                    // calculate reconciled col from old (existing) col and new col
                     IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
                     if (map.replace(name, oldColumn, reconciledColumn))
+                    {
+                        // for memtable updates we only care about oldcolumn, reconciledcolumn, but when compacting
+                        // we need to make sure we update indexes no matter the order we merge
+                        if (reconciledColumn == column)
+                            indexer.update(oldColumn, reconciledColumn);
+                        else
+                            indexer.update(column, reconciledColumn);
                         return reconciledColumn.dataSize() - oldColumn.dataSize();
-
+                    }
                     // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
                     // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
                 }

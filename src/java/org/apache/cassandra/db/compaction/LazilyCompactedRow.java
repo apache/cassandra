@@ -23,6 +23,7 @@ import java.security.MessageDigest;
 import java.util.Iterator;
 import java.util.List;
 
+import com.google.common.base.Functions;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
 import org.slf4j.Logger;
@@ -31,10 +32,12 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.ICountableColumnIterator;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.StreamingHistogram;
 
@@ -63,6 +66,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
     private boolean closed;
     private ColumnIndex.Builder indexBuilder;
     private ColumnIndex columnsIndex;
+    private final SecondaryIndexManager.Updater indexer;
 
     public LazilyCompactedRow(CompactionController controller, List<? extends ICountableColumnIterator> rows)
     {
@@ -70,6 +74,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         this.rows = rows;
         this.controller = controller;
         this.shouldPurge = controller.shouldPurge(key);
+        indexer = controller.cfs.indexManager.updaterFor(key, false);
 
         for (OnDiskAtomIterator row : rows)
         {
@@ -224,8 +229,13 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
 
     private class Reducer extends MergeIterator.Reducer<OnDiskAtom, OnDiskAtom>
     {
+        // all columns reduced together will have the same name, so there will only be one column
+        // in the container; we just want to leverage the conflict resolution code from CF
         ColumnFamily container = emptyColumnFamily.cloneMeShallow();
+
+        // tombstone reference; will be reconciled w/ column during getReduced
         RangeTombstone tombstone;
+
         long serializedSize = 4; // int for column count
         int columns = 0;
         long maxTimestampSeen = Long.MIN_VALUE;
@@ -234,9 +244,16 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         public void reduce(OnDiskAtom current)
         {
             if (current instanceof RangeTombstone)
+            {
                 tombstone = (RangeTombstone)current;
+            }
             else
-                container.addColumn((IColumn)current);
+            {
+                IColumn column = (IColumn) current;
+                container.addColumn(column);
+                if (container.getColumn(column.name()) != column)
+                    indexer.remove(column);
+            }
         }
 
         protected OnDiskAtom getReduced()

@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import com.google.common.base.Function;
 
 import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
@@ -125,11 +126,11 @@ public class ThreadSafeSortedColumns extends AbstractThreadUnsafeSortedColumns i
      */
     public void addAll(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
     {
-        addAllWithSizeDelta(cm, allocator, transformation);
+        addAllWithSizeDelta(cm, allocator, transformation, null);
     }
 
     @Override
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
+    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer)
     {
         delete(cm.getDeletionInfo());
         long sizeDelta = 0;

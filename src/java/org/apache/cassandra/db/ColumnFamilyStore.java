@@ -33,6 +33,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -712,12 +713,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ key - key for update/insert
      * param @ columnFamily - columnFamily changes
      */
-    public void apply(DecoratedKey key, ColumnFamily columnFamily)
+    public void apply(DecoratedKey key, ColumnFamily columnFamily, SecondaryIndexManager.Updater indexer)
     {
         long start = System.nanoTime();
 
         Memtable mt = getMemtableThreadSafe();
-        mt.put(key, columnFamily);
+        mt.put(key, columnFamily, indexer);
         updateRowCache(key, columnFamily);
         metric.writeLatency.addNano(System.nanoTime() - start);
 
@@ -742,44 +743,54 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return cf.getColumnCount() == 0 && !cf.isMarkedForDelete() ? null : cf;
     }
 
+    public static ColumnFamily removeDeleted(ColumnFamily cf, int gcBefore)
+    {
+        return removeDeleted(cf, gcBefore, SecondaryIndexManager.nullUpdater);
+    }
+
     /*
      This is complicated because we need to preserve deleted columns, supercolumns, and columnfamilies
      until they have been deleted for at least GC_GRACE_IN_SECONDS.  But, we do not need to preserve
      their contents; just the object itself as a "tombstone" that can be used to repair other
      replicas that do not know about the deletion.
      */
-    public static ColumnFamily removeDeleted(ColumnFamily cf, int gcBefore)
+    public static ColumnFamily removeDeleted(ColumnFamily cf, int gcBefore, SecondaryIndexManager.Updater indexer)
     {
         if (cf == null)
         {
             return null;
         }
 
-        removeDeletedColumnsOnly(cf, gcBefore);
+        removeDeletedColumnsOnly(cf, gcBefore, indexer);
         return removeDeletedCF(cf, gcBefore);
     }
 
-    public static void removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore)
+    private static void removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore, SecondaryIndexManager.Updater indexer)
     {
         if (cf.isSuper())
             removeDeletedSuper(cf, gcBefore);
         else
-            removeDeletedStandard(cf, gcBefore);
+            removeDeletedStandard(cf, gcBefore, indexer);
     }
 
-    private static void removeDeletedStandard(ColumnFamily cf, int gcBefore)
+    public static void removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore)
+    {
+        removeDeletedColumnsOnly(cf, gcBefore, SecondaryIndexManager.nullUpdater);
+    }
+
+    private static void removeDeletedStandard(ColumnFamily cf, int gcBefore, SecondaryIndexManager.Updater indexer)
     {
         Iterator<IColumn> iter = cf.iterator();
         while (iter.hasNext())
         {
             IColumn c = iter.next();
-            ByteBuffer cname = c.name();
             // remove columns if
             // (a) the column itself is gcable or
             // (b) the column is shadowed by a CF tombstone
             if (c.getLocalDeletionTime() < gcBefore || cf.deletionInfo().isDeleted(c))
             {
                 iter.remove();
+                indexer.remove(c);
             }
         }
     }

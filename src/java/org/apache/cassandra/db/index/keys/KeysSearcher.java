@@ -23,6 +23,7 @@ import java.util.*;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.index.PerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
@@ -31,6 +32,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.HeapAllocator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -196,6 +198,24 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         // While the column family we'll get in the end should contains the primary clause column, the initialFilter may not have found it and can thus be null
                         if (data == null)
                             data = ColumnFamily.create(baseCfs.metadata);
+
+                        // as in CFS.filter - extend the filter to ensure we include the columns 
+                        // from the index expressions, just in case they weren't included in the initialFilter
+                        IFilter extraFilter = filter.getExtraFilter(data);
+                        if (extraFilter != null)
+                        {
+                            ColumnFamily cf = baseCfs.getColumnFamily(new QueryFilter(dk, path, extraFilter));
+                            if (cf != null)
+                                data.addAll(cf, HeapAllocator.instance);
+                        }
+                        
+                        if (isIndexValueStale(data, primary.column_name, indexKey.key))
+                        {
+                            // delete the index entry w/ its own timestamp
+                            IColumn dummyColumn = new Column(primary.column_name, indexKey.key, column.timestamp());
+                            ((PerColumnSecondaryIndex)index).delete(dk.key, dummyColumn);
+                            continue;
+                        }
                         return new Row(dk, data);
                     }
                  }

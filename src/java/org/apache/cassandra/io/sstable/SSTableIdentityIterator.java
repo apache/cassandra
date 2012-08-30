@@ -227,10 +227,10 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         }
     }
 
-    public ColumnFamily getColumnFamilyWithColumns() throws IOException
+    public ColumnFamily getColumnFamilyWithColumns(ISortedColumns.Factory containerFactory) throws IOException
     {
         assert inputWithTracker.getBytesRead() == headerSize();
-        ColumnFamily cf = columnFamily.cloneMeShallow(ArrayBackedSortedColumns.factory(), false);
+        ColumnFamily cf = columnFamily.cloneMeShallow(containerFactory, false);
         // since we already read column count, just pass that value and continue deserialization
         columnFamily.serializer.deserializeColumnsFromSSTable(inputWithTracker, cf, columnCount, flag, expireBefore, dataVersion);
         if (validateColumns)

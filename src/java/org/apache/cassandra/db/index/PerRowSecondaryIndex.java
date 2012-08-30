@@ -34,27 +34,26 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public abstract class PerRowSecondaryIndex extends SecondaryIndex
 {
     /**
-     * Removes obsolete index entries and creates new ones for the given row key
-     * and mutated columns.
+     * Index the given row for new index creation.  @param cf will represent the entire row.
      *
      * @param rowKey the row key
      * @param cf the current rows data
-     * @param mutatedIndexedColumns the set of columns that were changed or added
-     * @param oldIndexedColumns the columns which were deleted
      */
-    public abstract void applyIndexUpdates(ByteBuffer rowKey,
-                                           ColumnFamily cf,
-                                           SortedSet<ByteBuffer> mutatedIndexedColumns,
-                                           ColumnFamily oldIndexedColumns);
+    public abstract void index(ByteBuffer rowKey, ColumnFamily cf);
+
+    /**
+     * Index the given row
+     *
+     * @param rowKey the row key
+     */
+    public abstract void index(ByteBuffer rowKey);
 
     /**
      * cleans up deleted columns from cassandra cleanup compaction
      *
      * @param key
-     * @param indexedColumnsInRow
      */
-    public abstract void deleteFromIndex(DecoratedKey key, List<IColumn> indexedColumnsInRow);
-
+    public abstract void delete(DecoratedKey key);
 
     @Override
     public String getNameForSystemTable(ByteBuffer columnName)

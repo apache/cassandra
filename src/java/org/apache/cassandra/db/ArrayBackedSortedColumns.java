@@ -25,6 +25,7 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
@@ -204,6 +205,11 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
             }
         }
         return -mid - (result < 0 ? 1 : 2);
+    }
+
+    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer)
+    {
+        throw new UnsupportedOperationException();
     }
 
     public void addAll(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)

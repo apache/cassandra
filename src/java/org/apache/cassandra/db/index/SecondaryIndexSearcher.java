@@ -44,4 +44,14 @@ public abstract class SecondaryIndexSearcher
      * @return true this index is able to handle given clauses.
      */
     public abstract boolean isIndexing(List<IndexExpression> clause);
+    
+    protected boolean isIndexValueStale(ColumnFamily liveData, ByteBuffer indexedColumnName, ByteBuffer indexedValue)
+    {
+        IColumn liveColumn = liveData.getColumn(indexedColumnName);
+        if (null == liveColumn || liveColumn.isMarkedForDelete())
+            return true;
+        
+        ByteBuffer liveValue = liveColumn.value();
+        return 0 != liveData.metadata().getValueValidator(indexedColumnName).compare(indexedValue, liveValue);
+    }
 }

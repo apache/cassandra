@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import com.google.common.base.Function;
 import com.google.common.base.Throwables;
 
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.util.DiskAwareRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 import org.github.jamm.MemoryMeter;
@@ -148,10 +149,10 @@ public class Memtable
      * (CFS handles locking to avoid submitting an op
      *  to a flushing memtable.  Any other way is unsafe.)
     */
-    void put(DecoratedKey key, ColumnFamily columnFamily)
+    void put(DecoratedKey key, ColumnFamily columnFamily, SecondaryIndexManager.Updater indexer)
     {
         assert !isFrozen; // not 100% foolproof but hell, it's an assert
-        resolve(key, columnFamily);
+        resolve(key, columnFamily, indexer);
     }
 
     public void updateLiveRatio() throws RuntimeException
@@ -222,7 +223,7 @@ public class Memtable
         meterExecutor.submit(runnable);
     }
 
-    private void resolve(DecoratedKey key, ColumnFamily cf)
+    private void resolve(DecoratedKey key, ColumnFamily cf, SecondaryIndexManager.Updater indexer)
     {
         ColumnFamily previous = columnFamilies.get(key);
 
@@ -236,7 +237,7 @@ public class Memtable
                 previous = empty;
         }
 
-        long sizeDelta = previous.addAllWithSizeDelta(cf, allocator, localCopyFunction);
+        long sizeDelta = previous.addAllWithSizeDelta(cf, allocator, localCopyFunction, indexer);
         currentSize.addAndGet(sizeDelta);
         currentOperations.addAndGet((cf.getColumnCount() == 0)
                                     ? cf.isMarkedForDelete() ? 1 : 0

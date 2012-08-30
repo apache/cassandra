@@ -60,6 +60,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.dht.Bounds;
@@ -423,6 +424,143 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         key = ByteBufferUtil.string(rows.get(0).key.key);
         assert "k1".equals( key );
 
+    }
+    
+    @Test
+    public void testDeleteOfInconsistentValuesInKeysIndex() throws Exception
+    {
+        String keySpace = "Keyspace2";
+        String cfName = "Indexed1";
+
+        Table table = Table.open(keySpace);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        cfs.truncate().get();
+
+        ByteBuffer rowKey = ByteBufferUtil.bytes("k1");
+        ByteBuffer colName = ByteBufferUtil.bytes("birthdate"); 
+        ByteBuffer val1 = ByteBufferUtil.bytes(1L);
+        ByteBuffer val2 = ByteBufferUtil.bytes(2L);
+
+        // create a row and update the "birthdate" value, test that the index query fetches this version
+        RowMutation rm;
+        rm = new RowMutation(keySpace, rowKey);
+        rm.add(new QueryPath(cfName, null, colName), val1, 0);
+        rm.apply();
+        IndexExpression expr = new IndexExpression(colName, IndexOperator.EQ, val1);
+        List<IndexExpression> clause = Arrays.asList(expr);
+        IFilter filter = new IdentityQueryFilter();
+        Range<RowPosition> range = Util.range("", "");
+        List<Row> rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);
+        assertEquals(1, rows.size());
+
+        // force a flush, so our index isn't being read from a memtable
+        table.getColumnFamilyStore(cfName).forceBlockingFlush();
+
+        // now apply another update, but force the index update to be skipped
+        rm = new RowMutation(keySpace, rowKey);
+        rm.add(new QueryPath(cfName, null, colName), val2, 1);
+        table.apply(rm, true, false);
+
+        // Now searching the index for either the old or new value should return 0 rows
+        // because the new value was not indexed and the old value should be ignored 
+        // (and in fact purged from the index cf).
+        // first check for the old value
+        rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);
+        assertEquals(0, rows.size());
+        // now check for the updated value
+        expr = new IndexExpression(colName, IndexOperator.EQ, val2);
+        clause = Arrays.asList(expr);
+        filter = new IdentityQueryFilter();
+        range = Util.range("", "");
+        rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);
+        assertEquals(0, rows.size());
+
+        // now, reset back to the original value, still skipping the index update, to
+        // make sure the value was expunged from the index when it was discovered to be inconsistent
+        rm = new RowMutation(keySpace, rowKey);
+        rm.add(new QueryPath(cfName, null, colName), ByteBufferUtil.bytes(1L), 3);
+        table.apply(rm, true, false);
+
+        expr = new IndexExpression(colName, IndexOperator.EQ, ByteBufferUtil.bytes(1L));
+        clause = Arrays.asList(expr);
+        filter = new IdentityQueryFilter();
+        range = Util.range("", "");
+        rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);
+        assertEquals(0, rows.size());
+    }
+
+    @Test
+    public void testDeleteOfInconsistentValuesFromCompositeIndex() throws Exception
+    {
+        String keySpace = "Keyspace2";
+        String cfName = "Indexed2";
+
+        Table table = Table.open(keySpace);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        cfs.truncate().get();
+
+        ByteBuffer rowKey = ByteBufferUtil.bytes("k1");
+        ByteBuffer clusterKey = ByteBufferUtil.bytes("ck1");
+        ByteBuffer colName = ByteBufferUtil.bytes("col1"); 
+        CompositeType baseComparator = (CompositeType)cfs.getComparator();
+        CompositeType.Builder builder = baseComparator.builder();
+        builder.add(clusterKey);
+        builder.add(colName);
+        ByteBuffer compositeName = builder.build();
+
+        ByteBuffer val1 = ByteBufferUtil.bytes("v1");
+        ByteBuffer val2 = ByteBufferUtil.bytes("v2");
+
+        // create a row and update the author value
+        RowMutation rm;
+        rm = new RowMutation(keySpace, rowKey);
+        rm.add(new QueryPath(cfName, null , compositeName), val1, 0);
+        rm.apply();
+
+        // test that the index query fetches this version
+        IndexExpression expr = new IndexExpression(colName, IndexOperator.EQ, val1);
+        List<IndexExpression> clause = Arrays.asList(expr);
+        IFilter filter = new IdentityQueryFilter();
+        Range<RowPosition> range = Util.range("", "");
+        List<Row> rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);
+        assertEquals(1, rows.size());
+
+        // force a flush and retry the query, so our index isn't being read from a memtable
+        table.getColumnFamilyStore(cfName).forceBlockingFlush();
+        rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);
+        assertEquals(1, rows.size());
+
+        // now apply another update, but force the index update to be skipped
+        rm = new RowMutation(keySpace, rowKey);
+        rm.add(new QueryPath(cfName, null, compositeName), val2, 1);
+        table.apply(rm, true, false);
+
+        // Now searching the index for either the old or new value should return 0 rows
+        // because the new value was not indexed and the old value should be ignored 
+        // (and in fact purged from the index cf).
+        // first check for the old value
+        rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);
+        assertEquals(0, rows.size());
+        // now check for the updated value
+        expr = new IndexExpression(colName, IndexOperator.EQ, val2);
+        clause = Arrays.asList(expr);
+        filter = new IdentityQueryFilter();
+        range = Util.range("", "");
+        rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);
+        assertEquals(0, rows.size());
+
+        // now, reset back to the original value, still skipping the index update, to
+        // make sure the value was expunged from the index when it was discovered to be inconsistent
+        rm = new RowMutation(keySpace, rowKey);
+        rm.add(new QueryPath(cfName, null , compositeName), val1, 2);
+        table.apply(rm, true, false);
+
+        expr = new IndexExpression(colName, IndexOperator.EQ, val1);
+        clause = Arrays.asList(expr);
+        filter = new IdentityQueryFilter();
+        range = Util.range("", "");
+        rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);
+        assertEquals(0, rows.size());
     }
 
     // See CASSANDRA-2628

@@ -27,7 +27,6 @@ import java.util.*;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.ISSTableSerializer;
@@ -113,43 +112,6 @@ public class DeletionInfo
                 return true;
         }
         return false;
-    }
-
-    /**
-     * Return the slice range covered by this deletion info or null is nothing is deleted.
-     */
-    public ColumnSlice[] coveredSlices()
-    {
-        if (isLive())
-            return null;
-
-        if (!topLevel.equals(DeletionTime.LIVE))
-            return ColumnSlice.ALL_COLUMNS_ARRAY;
-
-        List<ColumnSlice> slices = new ArrayList<ColumnSlice>();
-        ColumnSlice current = null;
-        for (RangeTombstone tombstone : ranges)
-        {
-            if (current == null)
-            {
-                current = new ColumnSlice(tombstone.min, tombstone.max);
-            }
-            else if (ranges.comparator().compare(current.finish, tombstone.min) < 0)
-            {
-                // If next if strictly after current, we've finish current slice
-                slices.add(current);
-                current = new ColumnSlice(tombstone.min, tombstone.max);
-            }
-            else if (ranges.comparator().compare(current.finish, tombstone.max) < 0)
-            {
-                // if tombstone end if after current end, extend current
-                current = new ColumnSlice(current.start, tombstone.max);
-            }
-            // otherwise, tombstone is fully included in current already, skip it
-        }
-        if (current != null)
-            slices.add(current);
-        return slices.isEmpty() ? null : slices.toArray(new ColumnSlice[slices.size()]);
     }
 
     /**

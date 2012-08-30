@@ -27,6 +27,7 @@ import java.util.TreeMap;
 import com.google.common.base.Function;
 
 import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
@@ -82,11 +83,16 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         return false;
     }
 
+    public void addColumn(IColumn column, Allocator allocator)
+    {
+        addColumn(column, allocator, SecondaryIndexManager.nullUpdater);
+    }
+
     /*
      * If we find an old column that has the same name
      * the ask it to resolve itself else add the new column
     */
-    public void addColumn(IColumn column, Allocator allocator)
+    public long addColumn(IColumn column, Allocator allocator, SecondaryIndexManager.Updater indexer)
     {
         ByteBuffer name = column.name();
         // this is a slightly unusual way to structure this; a more natural way is shown in ThreadSafeSortedColumns,
@@ -94,24 +100,43 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         // which saves the extra "get" in the no-conflict case [for both normal and super columns],
         // in exchange for a re-put in the SuperColumn case.
         IColumn oldColumn = map.put(name, column);
-        if (oldColumn != null)
+        if (oldColumn == null)
+            return column.dataSize();
+
+        if (oldColumn instanceof SuperColumn)
         {
-            if (oldColumn instanceof SuperColumn)
-            {
-                assert column instanceof SuperColumn;
-                // since oldColumn is where we've been accumulating results, it's usually going to be faster to
-                // add the new one to the old, then place old back in the Map, rather than copy the old contents
-                // into the new Map entry.
-                ((SuperColumn) oldColumn).putColumn((SuperColumn)column, allocator);
-                map.put(name,  oldColumn);
-            }
-            else
-            {
-                // calculate reconciled col from old (existing) col and new col
-                IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
-                map.put(name, reconciledColumn);
-            }
+            assert column instanceof SuperColumn;
+            long previousSize = oldColumn.dataSize();
+            // since oldColumn is where we've been accumulating results, it's usually going to be faster to
+            // add the new one to the old, then place old back in the Map, rather than copy the old contents
+            // into the new Map entry.
+            ((SuperColumn) oldColumn).putColumn((SuperColumn)column, allocator);
+            map.put(name, oldColumn);
+            return oldColumn.dataSize() - previousSize;
         }
+        else
+        {
+            // calculate reconciled col from old (existing) col and new col
+            IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
+            map.put(name, reconciledColumn);
+            // for memtable updates we only care about oldcolumn, reconciledcolumn, but when compacting
+            // we need to make sure we update indexes no matter the order we merge
+            if (reconciledColumn == column)
+                indexer.update(oldColumn, reconciledColumn);
+            else
+                indexer.update(column, reconciledColumn);
+            return reconciledColumn.dataSize() - oldColumn.dataSize();
+        }
+    }
+
+    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer)
+    {
+        delete(cm.getDeletionInfo());
+        for (IColumn column : cm.getSortedColumns())
+            addColumn(transformation.apply(column), allocator, indexer);
+
+        // we don't use this for memtables, so we don't bother computing size
+        return Long.MIN_VALUE;
     }
 
     /**
@@ -119,9 +144,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
      */
     public void addAll(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
     {
-        delete(cm.getDeletionInfo());
-        for (IColumn column : cm.getSortedColumns())
-            addColumn(transformation.apply(column), allocator);
+        addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater);
     }
 
     public boolean replace(IColumn oldColumn, IColumn newColumn)

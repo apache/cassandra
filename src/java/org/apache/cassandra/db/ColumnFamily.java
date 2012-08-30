@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.UUID;
 
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.utils.*;
 

@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Condition;
 
+import com.google.common.base.Functions;
 import com.google.common.collect.AbstractIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +35,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.ICountableColumnIterator;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.utils.*;
 
@@ -215,7 +217,8 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                     else
                     {
                         // addAll is ok even if cf is an ArrayBackedSortedColumns
-                        cf.addAll(thisCF, HeapAllocator.instance);
+                        SecondaryIndexManager.Updater indexer = controller.cfs.indexManager.updaterFor(row.key, false);
+                        cf.addAllWithSizeDelta(thisCF, HeapAllocator.instance, Functions.<IColumn>identity(), indexer);
                     }
                 }
 
@@ -308,7 +311,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                         else
                         {
                             logger.debug("parallel eager deserialize from " + iter.getPath());
-                            queue.put(new RowContainer(new Row(iter.getKey(), iter.getColumnFamilyWithColumns())));
+                            queue.put(new RowContainer(new Row(iter.getKey(), iter.getColumnFamilyWithColumns(TreeMapBackedSortedColumns.factory()))));
                         }
                     }
                 }

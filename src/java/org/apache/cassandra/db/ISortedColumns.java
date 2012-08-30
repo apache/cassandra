@@ -26,6 +26,7 @@ import java.util.SortedSet;
 import com.google.common.base.Function;
 
 import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.Allocator;
@@ -74,7 +75,7 @@ public interface ISortedColumns extends IIterableColumns
      *
      *  @return the difference in size seen after merging the given columns
      */
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation);
+    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer);
 
     /**
      * Adds the columns without necessarily computing the size delta

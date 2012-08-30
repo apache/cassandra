@@ -22,7 +22,10 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.List;
 
+import com.google.common.base.Functions;
+
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -42,6 +45,8 @@ public class PrecompactedRow extends AbstractCompactedRow
         super(key);
         compactedCf = cf;
     }
+
+
 
     public static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, CompactionController controller, ColumnFamily cf)
     {
@@ -77,7 +82,9 @@ public class PrecompactedRow extends AbstractCompactedRow
     public static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, boolean shouldPurge, CompactionController controller, ColumnFamily cf)
     {
         // See comment in preceding method
-        ColumnFamily compacted = ColumnFamilyStore.removeDeleted(cf, shouldPurge ? controller.gcBefore : Integer.MIN_VALUE);
+        ColumnFamily compacted = ColumnFamilyStore.removeDeleted(cf,
+                                                                 shouldPurge ? controller.gcBefore : Integer.MIN_VALUE,
+                                                                 controller.cfs.indexManager.updaterFor(key, false));
         if (shouldPurge && compacted != null && compacted.metadata().getDefaultValidator().isCommutative())
             CounterColumn.mergeAndRemoveOldShards(key, compacted, controller.gcBefore, controller.mergeShardBefore);
         return compacted;
@@ -86,19 +93,22 @@ public class PrecompactedRow extends AbstractCompactedRow
     public PrecompactedRow(CompactionController controller, List<SSTableIdentityIterator> rows)
     {
         this(rows.get(0).getKey(),
-             removeDeletedAndOldShards(rows.get(0).getKey(), controller, merge(rows)));
+             removeDeletedAndOldShards(rows.get(0).getKey(), controller, merge(rows, controller)));
     }
 
-    private static ColumnFamily merge(List<SSTableIdentityIterator> rows)
+    private static ColumnFamily merge(List<SSTableIdentityIterator> rows, CompactionController controller)
     {
         assert !rows.isEmpty();
         ColumnFamily cf = null;
+        SecondaryIndexManager.Updater indexer = null;
         for (SSTableIdentityIterator row : rows)
         {
             ColumnFamily thisCF;
             try
             {
-                thisCF = row.getColumnFamilyWithColumns();
+                // use a map for the first once since that will be the one we merge into
+                ISortedColumns.Factory factory = cf == null ? TreeMapBackedSortedColumns.factory() : ArrayBackedSortedColumns.factory();
+                thisCF = row.getColumnFamilyWithColumns(factory);
             }
             catch (IOException e)
             {
@@ -108,11 +118,12 @@ public class PrecompactedRow extends AbstractCompactedRow
             if (cf == null)
             {
                 cf = thisCF;
+                indexer = controller.cfs.indexManager.updaterFor(row.getKey(), false); // only init indexer once
             }
             else
             {
                 // addAll is ok even if cf is an ArrayBackedSortedColumns
-                cf.addAll(thisCF, HeapAllocator.instance);
+                cf.addAllWithSizeDelta(thisCF, HeapAllocator.instance, Functions.<IColumn>identity(), indexer);
             }
         }
         return cf;

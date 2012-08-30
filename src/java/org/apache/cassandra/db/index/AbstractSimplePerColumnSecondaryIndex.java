@@ -17,22 +17,14 @@
  */
 package org.apache.cassandra.db.index;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.index.PerColumnSecondaryIndex;
-import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -81,21 +73,23 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
     protected abstract ByteBuffer makeIndexColumnName(ByteBuffer rowKey, IColumn column);
 
-    public void deleteColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn column)
+    public void delete(ByteBuffer rowKey, IColumn column)
     {
         if (column.isMarkedForDelete())
             return;
 
+        DecoratedKey valueKey = getIndexKeyFor(column.value());
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
         ColumnFamily cfi = ColumnFamily.create(indexCfs.metadata);
         cfi.addTombstone(makeIndexColumnName(rowKey, column), localDeletionTime, column.timestamp());
-        indexCfs.apply(valueKey, cfi);
+        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater);
         if (logger.isDebugEnabled())
             logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
     }
 
-    public void insertColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn column)
+    public void insert(ByteBuffer rowKey, IColumn column)
     {
+        DecoratedKey valueKey = getIndexKeyFor(column.value());
         ColumnFamily cfi = ColumnFamily.create(indexCfs.metadata);
         ByteBuffer name = makeIndexColumnName(rowKey, column);
         if (column instanceof ExpiringColumn)
@@ -110,12 +104,12 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         if (logger.isDebugEnabled())
             logger.debug("applying index row {} in {}", indexCfs.metadata.getKeyValidator().getString(valueKey.key), cfi);
 
-        indexCfs.apply(valueKey, cfi);
+        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater);
     }
 
-    public void updateColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col)
+    public void update(ByteBuffer rowKey, IColumn col)
     {
-        insertColumn(valueKey, rowKey, col);
+        insert(rowKey, col);
     }
 
     public void removeIndex(ByteBuffer columnName)

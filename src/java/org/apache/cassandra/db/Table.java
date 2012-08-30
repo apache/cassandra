@@ -35,12 +35,12 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.index.SecondaryIndex;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * It represents a Keyspace.
@@ -376,68 +376,7 @@ public class Table
                     continue;
                 }
 
-                ColumnSlice[] deletionSlices = null;
-                SortedSet<ByteBuffer> mutatedIndexedColumns = null;
-                if (updateIndexes)
-                {
-                    // If cf has some range deletion, we need to fetch those ranges to know if something indexed was updated
-                    // Note: we could "optimize" that for Keys index, because we know that the columnDef name is directly
-                    // the indexed column name.
-                    deletionSlices = cf.deletionInfo().coveredSlices();
-
-                    for (IColumn updated : cf)
-                    {
-                        if (cfs.indexManager.indexes(updated))
-                        {
-                            if (mutatedIndexedColumns == null)
-                                mutatedIndexedColumns = new TreeSet<ByteBuffer>(cf.getComparator());
-                            mutatedIndexedColumns.add(updated.name());
-                            if (logger.isDebugEnabled())
-                            {
-                                logger.debug(String.format("Mutated indexed column %s value %s",
-                                                           cf.getComparator().getString(updated.name()),
-                                                           ByteBufferUtil.bytesToHex(updated.value())));
-                            }
-                        }
-                    }
-                }
-
-                // Sharding the lock is insufficient to avoid contention when there is a "hot" row, e.g., for
-                // hint writes when a node is down (keyed by target IP).  So it is worth special-casing the
-                // no-index case to avoid the synchronization.
-                if (mutatedIndexedColumns == null && deletionSlices == null)
-                {
-                    cfs.apply(key, cf);
-                    continue;
-                }
-                // else mutatedIndexedColumns != null
-                synchronized (indexLockFor(mutation.key()))
-                {
-                    if (mutatedIndexedColumns == null)
-                        mutatedIndexedColumns = new TreeSet<ByteBuffer>(cf.getComparator());
-
-                    // with the raw data CF, we can just apply every update in any order and let
-                    // read-time resolution throw out obsolete versions, thus avoiding read-before-write.
-                    // but for indexed data we need to make sure that we're not creating index entries
-                    // for obsolete writes.
-                    ColumnFamily oldIndexedColumns = readCurrentIndexedColumns(key, cfs, mutatedIndexedColumns, deletionSlices);
-
-                    // We might still have no mutated columns in case it is a deletion but the row had
-                    // no indexed columns
-                    if (mutatedIndexedColumns.isEmpty())
-                    {
-                        cfs.apply(key, cf);
-                        continue;
-                    }
-
-                    logger.debug("Pre-mutation index row is {}", oldIndexedColumns);
-                    ignoreObsoleteMutations(cf, mutatedIndexedColumns, oldIndexedColumns);
-
-                    cfs.apply(key, cf);
-
-                    // ignore full index memtables -- we flush those when the "master" one is full
-                    cfs.indexManager.applyIndexUpdates(mutation.key(), cf, mutatedIndexedColumns, oldIndexedColumns);
-                }
+                cfs.apply(key, cf, updateIndexes ? cfs.indexManager.updaterFor(key, true) : SecondaryIndexManager.nullUpdater);
             }
         }
         finally
@@ -446,86 +385,14 @@ public class Table
         }
     }
 
-    private static void ignoreObsoleteMutations(ColumnFamily cf, SortedSet<ByteBuffer> mutatedIndexedColumns, ColumnFamily oldIndexedColumns)
-    {
-        // DO NOT modify the cf object here, it can race w/ the CL write (see https://issues.apache.org/jira/browse/CASSANDRA-2604)
-
-        if (oldIndexedColumns == null)
-            return;
-
-        for (Iterator<ByteBuffer> iter = mutatedIndexedColumns.iterator(); iter.hasNext(); )
-        {
-            ByteBuffer name = iter.next();
-            IColumn newColumn = cf.getColumn(name); // null == row delete or it wouldn't be marked Mutated
-            if (newColumn != null && cf.isMarkedForDelete())
-            {
-                // row is marked for delete, but column was also updated.  if column is timestamped less than
-                // the row tombstone, treat it as if it didn't exist.  Otherwise we don't care about row
-                // tombstone for the purpose of the index update and we can proceed as usual.
-                if (cf.deletionInfo().isDeleted(newColumn))
-                {
-                    // don't remove from the cf object; that can race w/ CommitLog write.  Leaving it is harmless.
-                    newColumn = null;
-                }
-            }
-            IColumn oldColumn = oldIndexedColumns.getColumn(name);
-
-            // deletions are irrelevant to the index unless we're changing state from live -> deleted, i.e.,
-            // just updating w/ a newer tombstone doesn't matter
-            boolean bothDeleted = (newColumn == null || newColumn.isMarkedForDelete())
-                                  && (oldColumn == null || oldColumn.isMarkedForDelete());
-            // obsolete means either the row or the column timestamp we're applying is older than existing data
-            boolean obsoleteRowTombstone = newColumn == null && oldColumn != null && !cf.deletionInfo().isDeleted(oldColumn);
-            boolean obsoleteColumn = newColumn != null && (oldIndexedColumns.deletionInfo().isDeleted(newColumn)
-                                                           || (oldColumn != null && oldColumn.reconcile(newColumn) == oldColumn));
-
-            if (bothDeleted || obsoleteRowTombstone || obsoleteColumn)
-            {
-                if (logger.isDebugEnabled())
-                    logger.debug("skipping index update for obsolete mutation of " + cf.getComparator().getString(name));
-                iter.remove();
-                oldIndexedColumns.remove(name);
-            }
-        }
-    }
-
-    private static ColumnFamily readCurrentIndexedColumns(DecoratedKey key, ColumnFamilyStore cfs, SortedSet<ByteBuffer> mutatedIndexedColumns, ColumnSlice[] deletionSlices)
-    {
-        // Note: we could only query names not covered by the slices
-        QueryPath path = new QueryPath(cfs.getColumnFamilyName());
-        ColumnFamily cf = ColumnFamily.create(cfs.metadata);
-
-        if (mutatedIndexedColumns != null)
-            cf.resolve(cfs.getColumnFamily(QueryFilter.getNamesFilter(key, path, mutatedIndexedColumns)));
-
-        if (deletionSlices != null)
-        {
-            SliceQueryPager pager = new SliceQueryPager(cfs, key, deletionSlices);
-            while (pager.hasNext())
-            {
-                ColumnFamily cf2 = pager.next();
-                cf.delete(cf2);
-                for (IColumn column : cf2)
-                {
-                    if (cfs.indexManager.indexes(column))
-                    {
-                        cf.addColumn(column);
-                        mutatedIndexedColumns.add(column.name());
-                    }
-                }
-            }
-        }
-        return cf;
-    }
-
     public AbstractReplicationStrategy getReplicationStrategy()
     {
         return replicationStrategy;
     }
 
     /**
-     * @param key      row to index
-     * @param cfs      ColumnFamily to index row in
+     * @param key row to index
+     * @param cfs ColumnFamily to index row in
      * @param idxNames columns to index, in comparator order
      */
     public static void indexRow(DecoratedKey key, ColumnFamilyStore cfs, Set<String> idxNames)
@@ -533,13 +400,14 @@ public class Table
         if (logger.isDebugEnabled())
             logger.debug("Indexing row {} ", cfs.metadata.getKeyValidator().getString(key.key));
 
+        Collection<SecondaryIndex> indexes = cfs.indexManager.getIndexesByNames(idxNames);
+
         switchLock.readLock().lock();
         try
         {
             // Our index lock is per-row, but we don't want to hold writes for too long, so for large rows
             // we release the lock between pages
             SliceQueryPager pager = new SliceQueryPager(cfs, key, ColumnSlice.ALL_COLUMNS_ARRAY);
-
             while (pager.hasNext())
             {
                 synchronized (cfs.table.indexLockFor(key.key))
@@ -548,10 +416,10 @@ public class Table
                     ColumnFamily cf2 = cf.cloneMeShallow();
                     for (IColumn column : cf)
                     {
-                        if (cfs.indexManager.indexes(column.name(), idxNames))
+                        if (cfs.indexManager.indexes(column.name(), indexes))
                             cf2.addColumn(column);
                     }
-                    cfs.indexManager.applyIndexUpdates(key.key, cf2, cf2.getColumnNames(), null);
+                    cfs.indexManager.indexRow(key.key, cf2);
                 }
             }
         }
