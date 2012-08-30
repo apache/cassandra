@@ -169,7 +169,7 @@ public class SSTableReader extends SSTable
         // Check if sstable is created using same partitioner.
         // Partitioner can be null, which indicates older version of sstable or no stats available.
         // In that case, we skip the check.
-        String partitionerName = DatabaseDescriptor.getPartitionerName();
+        String partitionerName = partitioner.getClass().getCanonicalName();
         if (sstableMetadata.partitioner != null && !partitionerName.equals(sstableMetadata.partitioner))
         {
             logger.warn("Changing paritioner on a existing cluster can cause data loose, Please verify your partitioner in cassandra.yaml");
