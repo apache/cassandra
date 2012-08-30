@@ -74,7 +74,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         states.put(InetAddress.getByName("127.0.0.2"), Statics.EndpointSt);
         GossipDigestAck ack = new GossipDigestAck(Statics.Digests, states);
         GossipDigestAck2 ack2 = new GossipDigestAck2(states);
-        GossipDigestSyn syn = new GossipDigestSyn("Not a real cluster name", Statics.Digests);
+        GossipDigestSyn syn = new GossipDigestSyn("Not a real cluster name", StorageService.getPartitioner().getClass().getCanonicalName(), Statics.Digests);
 
         DataOutputStream out = getOutput("gms.Gossip.bin");
         for (GossipDigest gd : Statics.Digests)

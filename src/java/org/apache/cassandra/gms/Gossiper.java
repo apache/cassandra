@@ -118,7 +118,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
                 if ( gDigests.size() > 0 )
                 {
-                    GossipDigestSyn digestSynMessage = new GossipDigestSyn(DatabaseDescriptor.getClusterName(), gDigests);
+                    GossipDigestSyn digestSynMessage = new GossipDigestSyn(DatabaseDescriptor.getClusterName(),
+                                                                           DatabaseDescriptor.getPartitionerName(),
+                                                                           gDigests);
                     MessageOut<GossipDigestSyn> message = new MessageOut<GossipDigestSyn>(MessagingService.Verb.GOSSIP_DIGEST_SYN,
                                                                                                         digestSynMessage,
                                                                                                         GossipDigestSyn.serializer);

@@ -53,6 +53,12 @@ public class GossipDigestSynVerbHandler implements IVerbHandler<GossipDigestSyn>
             return;
         }
 
+        if (gDigestMessage.partioner != null && !gDigestMessage.partioner.equals(DatabaseDescriptor.getPartitionerName()))
+        {
+            logger.warn("Partitioner mismatch from " + from + " " + gDigestMessage.partioner  + "!=" + DatabaseDescriptor.getPartitionerName());
+            return;
+        }
+
         List<GossipDigest> gDigestList = gDigestMessage.getGossipDigests();
         if (logger.isTraceEnabled())
         {

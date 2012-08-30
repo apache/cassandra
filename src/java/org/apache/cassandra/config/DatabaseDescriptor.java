@@ -71,6 +71,7 @@ public class DatabaseDescriptor
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner<?> partitioner;
+    private static String paritionerName;
 
     private static Config.DiskAccessMode indexAccessMode;
 
@@ -224,6 +225,7 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("Invalid partitioner class " + conf.partitioner);
             }
+            paritionerName = partitioner.getClass().getCanonicalName();
 
             /* phi convict threshold for FailureDetector */
             if (conf.phi_convict_threshold < 5 || conf.phi_convict_threshold > 16)
@@ -640,6 +642,11 @@ public class DatabaseDescriptor
     public static IPartitioner<?> getPartitioner()
     {
         return partitioner;
+    }
+
+    public static String getPartitionerName()
+    {
+        return paritionerName;
     }
 
     /* For tests ONLY, don't use otherwise or all hell will break loose */
