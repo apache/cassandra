@@ -39,7 +39,6 @@ from itertools import groupby
 from contextlib import contextmanager, closing
 from glob import glob
 from functools import partial
-from collections import defaultdict
 
 import cmd
 import sys
@@ -49,18 +48,9 @@ import optparse
 import ConfigParser
 import codecs
 import locale
-import re
 import platform
 import warnings
 import csv
-
-# cqlsh should run correctly when run out of a Cassandra source tree,
-# out of an unpacked Cassandra tarball, and after a proper package install.
-cqlshlibdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'pylib')
-if os.path.isdir(cqlshlibdir):
-    sys.path.insert(0, cqlshlibdir)
-
-from cqlshlib import cqlhandling, cql3handling, pylexotron, wcwidth
 
 try:
     import readline
@@ -105,7 +95,20 @@ except ImportError, e:
 
 import cql.decoders
 from cql.cursor import _COUNT_DESCRIPTION, _VOID_DESCRIPTION
+from cql.cqltypes import (cql_types, cql_typename, lookup_casstype, lookup_cqltype,
+                          CassandraType)
 
+# cqlsh should run correctly when run out of a Cassandra source tree,
+# out of an unpacked Cassandra tarball, and after a proper package install.
+cqlshlibdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'pylib')
+if os.path.isdir(cqlshlibdir):
+    sys.path.insert(0, cqlshlibdir)
+
+from cqlshlib import cqlhandling, cql3handling, pylexotron
+from cqlshlib.displaying import (RED, BLUE, ANSI_RESET, COLUMN_NAME_COLORS,
+                                 FormattedValue, colorme)
+from cqlshlib.formatting import format_by_type
+from cqlshlib.util import trim_if_present
 
 CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
 HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
@@ -138,16 +141,6 @@ parser.add_option("-2", "--cql2", action="store_const", dest='cqlversion', const
 parser.add_option("-3", "--cql3", action="store_const", dest='cqlversion', const='3',
                   help="Shortcut notation for --cqlversion=3")
 
-
-RED = '\033[0;1;31m'
-GREEN = '\033[0;1;32m'
-YELLOW = '\033[0;1;33m'
-BLUE = '\033[0;1;34m'
-MAGENTA = '\033[0;1;35m'
-CYAN = '\033[0;1;36m'
-WHITE = '\033[0;1;37m'
-DARK_MAGENTA = '\033[0;35m'
-ANSI_RESET = '\033[0m'
 
 CQL_ERRORS = (cql.Error,)
 try:
@@ -361,159 +354,18 @@ def full_cql_version(ver):
     vertuple = tuple(map(int, ver_parts[0].split('.')) + [ver_parts[1]])
     return ver, vertuple
 
-def trim_if_present(s, prefix):
-    if s.startswith(prefix):
-        return s[len(prefix):]
-    return s
-
-class FormattedValue:
-    def __init__(self, strval, coloredval, displaywidth):
-        self.strval = strval
-        self.coloredval = coloredval
-        self.displaywidth = displaywidth
-
-    def __len__(self):
-        return len(self.strval)
-
-    def _pad(self, width, fill=' '):
-        if width > self.displaywidth:
-            return fill * (width - self.displaywidth)
+def format_value(val, typeclass, output_encoding, addcolor=False, time_format=None,
+                 float_precision=None, colormap=None, nullval=None):
+    if isinstance(val, DecodeError):
+        if addcolor:
+            return colorme(val.thebytes, colormap, 'hex')
         else:
-            return ''
-
-    def ljust(self, width, fill=' '):
-        """
-        Similar to self.strval.ljust(width), but takes expected terminal
-        display width into account for special characters, and does not
-        take color escape codes into account.
-        """
-        return self.strval + self._pad(width, fill)
-
-    def rjust(self, width, fill=' '):
-        """
-        Similar to self.strval.rjust(width), but takes expected terminal
-        display width into account for special characters, and does not
-        take color escape codes into account.
-        """
-        return self._pad(width, fill) + self.strval
-
-    def color_rjust(self, width, fill=' '):
-        """
-        Similar to self.rjust(width), but uses this value's colored
-        representation, and does not take color escape codes into account
-        in determining width.
-        """
-        return self._pad(width, fill) + self.coloredval
-
-    def color_ljust(self, width, fill=' '):
-        """
-        Similar to self.ljust(width), but uses this value's colored
-        representation, and does not take color escape codes into account
-        in determining width.
-        """
-        return self.coloredval + self._pad(width, fill)
-
-unicode_controlchars_re = re.compile(r'[\x00-\x31\x7f-\xa0]')
-controlchars_re = re.compile(r'[\x00-\x31\x7f-\xff]')
-
-def _show_control_chars(match):
-    txt = repr(match.group(0))
-    if txt.startswith('u'):
-        txt = txt[2:-1]
-    else:
-        txt = txt[1:-1]
-    return txt
-
-bits_to_turn_red_re = re.compile(r'\\([^uUx]|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|U[0-9a-fA-F]{8})')
-
-def _make_turn_bits_red_f(color1, color2):
-    def _turn_bits_red(match):
-        txt = match.group(0)
-        if txt == '\\\\':
-            return '\\'
-        return color1 + txt + color2
-    return _turn_bits_red
-
-DEFAULT_VALUE_COLORS = dict(
-    default=YELLOW,
-    text=YELLOW,
-    error=RED,
-    hex=DARK_MAGENTA,
-    timestamp=GREEN,
-    int=GREEN,
-    float=GREEN,
-    decimal=GREEN,
-    boolean=GREEN,
-    uuid=GREEN,
-)
-
-COLUMN_NAME_COLORS = defaultdict(lambda: MAGENTA,
-    error=RED,
-    hex=DARK_MAGENTA,
-)
-
-def unix_time_from_uuid1(u):
-    return (u.get_time() - 0x01B21DD213814000) / 10000000.0
-
-def format_value(val, casstype, output_encoding, addcolor=False, time_format='',
-                 float_precision=3, colormap=DEFAULT_VALUE_COLORS, nullval='null'):
-    casstype = trim_if_present(casstype, 'org.apache.cassandra.db.marshal.')
-    color = colormap['default']
-    coloredval = None
-    displaywidth = None
-
-    if val is None:
-        bval = nullval
-        color = colormap['error']
-    elif isinstance(val, DecodeError):
-        casstype = 'BytesType'
-        bval = repr(val.thebytes)
-        color = colormap['hex']
-    elif casstype == 'UTF8Type':
-        escapedval = val.replace(u'\\', u'\\\\')
-        escapedval = unicode_controlchars_re.sub(_show_control_chars, escapedval)
-        bval = escapedval.encode(output_encoding, 'backslashreplace')
-        displaywidth = wcwidth.wcswidth(bval.decode(output_encoding))
-        if addcolor:
-            tbr = _make_turn_bits_red_f(colormap['hex'], colormap['text'])
-            coloredval = colormap['text'] + bits_to_turn_red_re.sub(tbr, bval) + ANSI_RESET
-    elif casstype in ('DateType', 'TimeUUIDType'):
-        if casstype == 'TimeUUIDType':
-            val = unix_time_from_uuid1(val)
-        timestamp = time.localtime(val)
-        bval = time.strftime(time_format, timestamp)
-        color = colormap['timestamp']
-    elif casstype in ('LongType', 'Int32Type', 'IntegerType', 'CounterColumnType'):
-        # base-10 only for now; support others?
-        bval = str(val)
-        color = colormap['int']
-    elif casstype in ('FloatType', 'DoubleType'):
-        bval = '%.*g' % (float_precision, val)
-        color = colormap['float']
-    elif casstype in ('DecimalType', 'UUIDType', 'BooleanType'):
-        # let python do these for us
-        bval = str(val)
-        color = colormap[cqlruleset.cql_typename(casstype)]
-    elif casstype == 'BytesType':
-        bval = ''.join('%02x' % ord(c) for c in val)
-        color = colormap['hex']
-    else:
-        # AsciiType is the only other one known right now, but handle others
-        val = str(val)
-        escapedval = val.replace('\\', '\\\\')
-        bval = controlchars_re.sub(_show_control_chars, escapedval)
-        if addcolor:
-            tbr = _make_turn_bits_red_f(colormap['hex'], colormap['text'])
-            coloredval = colormap['text'] + bits_to_turn_red_re.sub(tbr, bval) + ANSI_RESET
-
-    if displaywidth is None:
-        displaywidth = len(bval)
-    if not addcolor:
-        coloredval = bval
-    elif coloredval is None:
-        coloredval = color + bval + ANSI_RESET
-
-    return FormattedValue(bval, coloredval, displaywidth)
+            return FormattedValue(val.thebytes)
+    if not issubclass(typeclass, CassandraType):
+        typeclass = lookup_casstype(typeclass)
+    return format_by_type(typeclass, val, output_encoding, colormap=colormap,
+                          addcolor=addcolor, nullval=nullval, time_format=time_format,
+                          float_precision=float_precision)
 
 def show_warning_without_quoting_line(message, category, filename, lineno, file=None, line=None):
     if file is None:
@@ -657,14 +509,14 @@ class Shell(cmd.Cmd):
                 cf = self.cql_protect_name(cf)
                 if override.default_name_type:
                     print 'ASSUME %s NAMES ARE %s;' \
-                          % (cf, cqlruleset.cql_typename(override.default_name_type))
+                          % (cf, cql_typename(override.default_name_type))
                 if override.default_value_type:
                     print 'ASSUME %s VALUES ARE %s;' \
-                          % (cf, cqlruleset.cql_typename(override.default_value_type))
+                          % (cf, cql_typename(override.default_value_type))
                 for colname, vtype in override.value_types.items():
                     colname = self.cql_protect_name(colname)
                     print 'ASSUME %s(%s) VALUES ARE %s;' \
-                          % (cf, colname, cqlruleset.cql_typename(vtype))
+                          % (cf, colname, cql_typename(vtype))
         print
 
     def get_cluster_versions(self):
@@ -1059,15 +911,7 @@ class Shell(cmd.Cmd):
         This is necessary to differentiate some things like ascii vs. blob hex.
         """
 
-        if getattr(cursor, 'supports_name_info', False):
-            return cursor.name_info[num][1]
-
-        # This is a pretty big hack, but necessary until we can rely on
-        # python-cql 1.0.10 being around.
-        row = cursor.result[cursor.rs_idx - 1]
-        col = row.columns[num]
-        schema = cursor.decoder.schema
-        return schema.name_types.get(col.name, schema.default_name_type)
+        return cursor.name_info[num][1]
 
     def print_count_result(self, cursor):
         if not cursor.result:
@@ -1077,21 +921,21 @@ class Shell(cmd.Cmd):
         self.writeresult(cursor.result[0])
         self.writeresult("")
 
-    def print_result(self, cursor):
-        self.decoding_errors = []
-
-        # first pass: see if we have a static column set
+    def has_static_result_set(self, cursor):
+        if self.cqlver_atleast(3):
+            return True  # all cql3 resultsets are static, don't bother scanning
         last_description = None
         for row in cursor:
             if last_description is not None and cursor.description != last_description:
-                static = False
-                break
+                return False
             last_description = cursor.description
-        else:
-            static = True
         cursor._reset()
+        return True
 
-        if static:
+    def print_result(self, cursor):
+        self.decoding_errors = []
+
+        if self.has_static_result_set(cursor):
             self.print_static_result(cursor)
         else:
             self.print_dynamic_result(cursor)
@@ -1105,10 +949,10 @@ class Shell(cmd.Cmd):
                                  % (len(self.decoding_errors) - 2), color=RED)
 
     def print_static_result(self, cursor):
-        colnames, coltypes = zip(*cursor.description)[:2]
+        colnames = [d[0] for d in cursor.description]
         colnames_t = [(name, self.get_nametype(cursor, n)) for (n, name) in enumerate(colnames)]
         formatted_names = [self.myformat_colname(name, nametype) for (name, nametype) in colnames_t]
-        formatted_data = [map(self.myformat_value, row, coltypes) for row in cursor]
+        formatted_data = [map(self.myformat_value, row, cursor.column_types) for row in cursor]
 
         # determine column widths
         widths = [n.displaywidth for n in formatted_names]
@@ -1128,10 +972,10 @@ class Shell(cmd.Cmd):
 
     def print_dynamic_result(self, cursor):
         for row in cursor:
-            colnames, coltypes = zip(*cursor.description)[:2]
+            colnames = [d[0] for d in cursor.description]
             colnames_t = [(name, self.get_nametype(cursor, n)) for (n, name) in enumerate(colnames)]
             colnames = [self.myformat_colname(name, nametype) for (name, nametype) in colnames_t]
-            colvals = [self.myformat_value(val, casstype) for (val, casstype) in zip(row, coltypes)]
+            colvals = map(self.myformat_value, row, cursor.column_types)
             line = ' | '.join('%s,%s' % (n.coloredval, v.coloredval) for (n, v) in zip(colnames, colvals))
             self.writeresult(' ' + line)
 
@@ -1234,12 +1078,12 @@ class Shell(cmd.Cmd):
         cfname = self.cql_protect_name(cfdef.name)
         out.write("CREATE TABLE %s (\n" % cfname)
         alias = self.cql_protect_name(cfdef.key_alias) if cfdef.key_alias else 'KEY'
-        keytype = cqlruleset.cql_typename(cfdef.key_validation_class)
+        keytype = cql_typename(cfdef.key_validation_class)
         out.write("  %s %s PRIMARY KEY" % (alias, keytype))
         indexed_columns = []
         for col in cfdef.column_metadata:
             colname = self.cql_protect_name(col.name)
-            out.write(",\n  %s %s" % (colname, cqlruleset.cql_typename(col.validation_class)))
+            out.write(",\n  %s %s" % (colname, cql_typename(col.validation_class)))
             if col.index_name is not None:
                 indexed_columns.append(col)
         cf_opts = []
@@ -1248,7 +1092,7 @@ class Shell(cmd.Cmd):
             if optval is None:
                 continue
             if option in ('comparator', 'default_validation'):
-                optval = cqlruleset.cql_typename(optval)
+                optval = cql_typename(optval)
             else:
                 if option == 'row_cache_provider':
                     optval = trim_if_present(optval, 'org.apache.cassandra.cache.')
@@ -1612,11 +1456,11 @@ class Shell(cmd.Cmd):
                 row = self.cursor.fetchone()
                 if row is None:
                     break
-                fmt = lambda v, d: \
-                    format_value(v, d[1], output_encoding=encoding, nullval=nullval,
+                fmt = lambda v, t: \
+                    format_value(v, t, output_encoding=encoding, nullval=nullval,
                                  time_format=self.display_time_format,
                                  float_precision=self.display_float_precision).strval
-                writer.writerow(map(fmt, row, self.cursor.description))
+                writer.writerow(map(fmt, row, self.cursor.column_types))
                 rows += 1
         finally:
             if do_close:
@@ -1726,7 +1570,7 @@ class Shell(cmd.Cmd):
             if cqltype is None:
                 continue
             try:
-                validator_class = cqlruleset.find_validator_class(cqltype)
+                validator_class = lookup_cqltype(cqltype).cass_parameterized_type()
             except KeyError:
                 self.printerr('Error: validator type %s not found.' % cqltype)
             else:
@@ -1868,7 +1712,7 @@ class Shell(cmd.Cmd):
 
     def help_types(self):
         print "\n        CQL types recognized by this version of cqlsh:\n"
-        for t in cqlruleset.cql_types:
+        for t in cql_types:
             print '          ' + t
         print """
         For information on the various recognizable input formats for these

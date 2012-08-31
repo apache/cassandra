@@ -72,3 +72,8 @@ def list_bifilter(pred, iterable):
 
 def identity(x):
     return x
+
+def trim_if_present(s, prefix):
+    if s.startswith(prefix):
+        return s[len(prefix):]
+    return s

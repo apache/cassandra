@@ -17,6 +17,7 @@
 import re
 from warnings import warn
 from .cqlhandling import CqlParsingRuleSet, Hint
+from cql.cqltypes import cql_types, cql_typename
 
 try:
     import json
@@ -131,7 +132,7 @@ CqlRuleSet = Cql3ParsingRuleSet()
 shorthands = ('completer_for', 'explain_completion',
               'dequote_value', 'dequote_name',
               'escape_value', 'escape_name',
-              'maybe_escape_name', 'cql_typename')
+              'maybe_escape_name')
 
 for shorthand in shorthands:
     globals()[shorthand] = getattr(CqlRuleSet, shorthand)
@@ -250,7 +251,7 @@ def token_word_completer(ctxt, cass):
 
 @completer_for('storageType', 'typename')
 def storagetype_completer(ctxt, cass):
-    return CqlRuleSet.cql_types
+    return cql_types
 
 @completer_for('keyspaceName', 'ksname')
 def ks_name_completer(ctxt, cass):
@@ -611,7 +612,7 @@ def create_cf_option_val_completer(ctxt, cass):
     if any(this_opt == opt[0] for opt in CqlRuleSet.obsolete_cf_options):
         return ["'<obsolete_option>'"]
     if this_opt in ('comparator', 'default_validation'):
-        return CqlRuleSet.cql_types
+        return cql_types
     if this_opt in ('read_repair_chance', 'bloom_filter_fp_chance'):
         return [Hint('<float_between_0_and_1>')]
     if this_opt == 'replicate_on_write':

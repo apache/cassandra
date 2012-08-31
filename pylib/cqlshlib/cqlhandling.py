@@ -20,6 +20,7 @@
 import re
 import traceback
 from . import pylexotron, util
+from cql import cqltypes
 
 Hint = pylexotron.Hint
 
@@ -76,27 +77,6 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         'LeveledCompactionStrategy',
         'SizeTieredCompactionStrategy'
     )
-
-    cql_type_to_apache_class = {
-        'ascii': 'AsciiType',
-        'bigint': 'LongType',
-        'blob': 'BytesType',
-        'boolean': 'BooleanType',
-        'counter': 'CounterColumnType',
-        'decimal': 'DecimalType',
-        'double': 'DoubleType',
-        'float': 'FloatType',
-        'int': 'Int32Type',
-        'text': 'UTF8Type',
-        'timestamp': 'DateType',
-        'uuid': 'UUIDType',
-        'varchar': 'UTF8Type',
-        'varint': 'IntegerType'
-    }
-
-    apache_class_to_cql_type = dict((v,k) for (k,v) in cql_type_to_apache_class.items())
-
-    cql_types = sorted(cql_type_to_apache_class.keys())
 
     replication_strategies = (
         'SimpleStrategy',
@@ -362,20 +342,6 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         return self.cql_complete_multiple(text, first, init_bindings, startsymbol=startsymbol)
 
     @classmethod
-    def cql_typename(cls, classname):
-        fq_classname = 'org.apache.cassandra.db.marshal.'
-        if classname.startswith(fq_classname):
-            classname = classname[len(fq_classname):]
-        try:
-            return cls.apache_class_to_cql_type[classname]
-        except KeyError:
-            return cls.escape_value(classname)
-
-    @classmethod
-    def find_validator_class(cls, cqlname):
-        return cls.cql_type_to_apache_class[cqlname]
-
-    @classmethod
     def is_valid_cql_word(cls, s):
         return cls.valid_cql_word_re.match(s) is not None and s.lower() not in cls.keywords
 
@@ -410,7 +376,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
     @classmethod
     def is_counter_col(cls, cfdef, colname):
         col_info = [cm for cm in cfdef.column_metadata if cm.name == colname]
-        return bool(col_info and cls.cql_typename(col_info[0].validation_class) == 'counter')
+        return bool(col_info and cqltypes.is_counter_type(col_info[0].validation_class))
 
     @staticmethod
     def cql2_dequote_value(cqlword):
@@ -543,7 +509,7 @@ def cl_completer(ctxt, cass):
 
 @completer_for('storageType', 'typename')
 def storagetype_completer(ctxt, cass):
-    return CqlRuleSet.cql_types
+    return cqltypes.cql_types
 
 @completer_for('keyspaceName', 'ksname')
 def ks_name_completer(ctxt, cass):
@@ -850,7 +816,7 @@ def create_cf_option_val_completer(ctxt, cass):
     if any(this_opt == opt[0] for opt in CqlRuleSet.obsolete_cf_options):
         return ["'<obsolete_option>'"]
     if this_opt in ('comparator', 'default_validation'):
-        return CqlRuleSet.cql_types
+        return cqltypes.cql_types
     if this_opt == 'read_repair_chance':
         return [Hint('<float_between_0_and_1>')]
     if this_opt == 'replicate_on_write':
