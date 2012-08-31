@@ -42,57 +42,35 @@ public class WriteResponse
         return new MessageOut<WriteResponse>(MessagingService.Verb.REQUEST_RESPONSE, this, serializer);
     }
 
-    private final String table;
-    private final ByteBuffer key;
-    private final boolean status;
-
-    public WriteResponse(String table, ByteBuffer key, boolean bVal)
-    {
-        this.table = table;
-        this.key = key;
-        this.status = bVal;
-    }
-
-    public String table()
-    {
-        return table;
-    }
-
-    public ByteBuffer key()
-    {
-        return key;
-    }
-
-    public boolean isSuccess()
-    {
-        return status;
-    }
-
     public static class WriteResponseSerializer implements IVersionedSerializer<WriteResponse>
     {
         public void serialize(WriteResponse wm, DataOutput dos, int version) throws IOException
         {
-            dos.writeUTF(wm.table());
-            ByteBufferUtil.writeWithShortLength(wm.key(), dos);
-            dos.writeBoolean(wm.isSuccess());
+            if (version < MessagingService.VERSION_12)
+            {
+                dos.writeUTF("");
+                ByteBufferUtil.writeWithShortLength(ByteBufferUtil.EMPTY_BYTE_BUFFER, dos);
+                dos.writeBoolean(true);
+            }
         }
 
         public WriteResponse deserialize(DataInput dis, int version) throws IOException
         {
-            String table = dis.readUTF();
-            ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
-            boolean status = dis.readBoolean();
-            return new WriteResponse(table, key, status);
+            if (version < MessagingService.VERSION_12)
+            {
+                dis.readUTF();
+                ByteBufferUtil.readWithShortLength(dis);
+                dis.readBoolean();
+            }
+            return new WriteResponse();
         }
 
         public long serializedSize(WriteResponse response, int version)
         {
             TypeSizes sizes = TypeSizes.NATIVE;
-            int keySize = response.key().remaining();
-            int size = sizes.sizeof(response.table());
-            size += sizes.sizeof((short) keySize) + keySize;
-            size += sizes.sizeof(response.isSuccess());
-            return size;
+            if (version < MessagingService.VERSION_12)
+                return sizes.sizeof("") + sizes.sizeof((short) 0) + sizes.sizeof(true);
+            return 0;
         }
     }
 }

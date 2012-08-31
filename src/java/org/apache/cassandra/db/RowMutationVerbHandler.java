@@ -54,7 +54,7 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
             }
 
             rm.apply();
-            WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
+            WriteResponse response = new WriteResponse();
             if (logger.isDebugEnabled())
               logger.debug(rm + " applied.  Sending response to " + id + "@" + replyTo);
             MessagingService.instance().sendReply(response.createMessage(), id, replyTo);

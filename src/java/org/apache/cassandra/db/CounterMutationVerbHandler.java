@@ -45,7 +45,7 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
 
             String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
             StorageProxy.applyCounterMutationOnLeader(cm, localDataCenter).get();
-            WriteResponse response = new WriteResponse(cm.getTable(), cm.key(), true);
+            WriteResponse response = new WriteResponse();
             MessagingService.instance().sendReply(response.createMessage(), id, message.from);
         }
         catch (UnavailableException e)

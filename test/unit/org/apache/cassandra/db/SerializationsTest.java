@@ -308,8 +308,8 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testWriteResponseWrite() throws IOException
     {
-        WriteResponse aff = new WriteResponse(Statics.KS, Statics.Key, true);
-        WriteResponse neg = new WriteResponse(Statics.KS, Statics.Key, false);
+        WriteResponse aff = new WriteResponse();
+        WriteResponse neg = new WriteResponse();
         DataOutputStream out = getOutput("db.WriteResponse.bin");
         WriteResponse.serializer.serialize(aff, out, getVersion());
         WriteResponse.serializer.serialize(neg, out, getVersion());

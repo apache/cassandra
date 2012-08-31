@@ -1,4 +1,5 @@
 1.2-dev
+ * optimize WriteResponse (CASSANDRA-4548)
  * new metrics (CASSANDRA-4009)
  * redesign KEYS indexes to avoid read-before-write (CASSANDRA-2897)
  * debug tracing (CASSANDRA-1123)

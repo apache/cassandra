@@ -27,7 +27,7 @@ public class ReadRepairVerbHandler implements IVerbHandler<RowMutation>
     {
         RowMutation rm = message.payload;
         rm.apply();
-        WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
+        WriteResponse response = new WriteResponse();
         MessagingService.instance().sendReply(response.createMessage(), id, message.from);
     }
 }
