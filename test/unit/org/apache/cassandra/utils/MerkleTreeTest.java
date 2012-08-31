@@ -332,7 +332,7 @@ public class MerkleTreeTest
         for (TreeRange range : ranges)
             range.addHash(new RowHash(range.right, new byte[0]));
 
-        assert null != mt.hash(new Range(tok(-1), tok(-1))) :
+        assert mt.hash(new Range(tok(-1), tok(-1))) != null :
             "Could not hash tree " + mt;
     }
 

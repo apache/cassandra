@@ -48,7 +48,7 @@ public abstract class SecondaryIndexSearcher
     protected boolean isIndexValueStale(ColumnFamily liveData, ByteBuffer indexedColumnName, ByteBuffer indexedValue)
     {
         IColumn liveColumn = liveData.getColumn(indexedColumnName);
-        if (null == liveColumn || liveColumn.isMarkedForDelete())
+        if (liveColumn == null || liveColumn.isMarkedForDelete())
             return true;
         
         ByteBuffer liveValue = liveColumn.value();

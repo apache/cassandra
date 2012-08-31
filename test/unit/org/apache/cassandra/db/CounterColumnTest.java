@@ -231,7 +231,7 @@ public class CounterColumnTest extends SchemaLoader
 
         leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), left.context,  1L);
         rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), right.context, 1L);
-        assert null == leftCol.diff(rightCol);
+        assert leftCol.diff(rightCol) == null;
 
         // greater than: left has superset of nodes (counts equal)
         left = ContextState.allocate(4, 0, allocator);
@@ -247,7 +247,7 @@ public class CounterColumnTest extends SchemaLoader
 
         leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), left.context,  1L);
         rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), right.context, 1L);
-        assert null == leftCol.diff(rightCol);
+        assert leftCol.diff(rightCol) == null;
 
         // less than: right has subset of nodes (counts equal)
         assert leftCol == rightCol.diff(leftCol);

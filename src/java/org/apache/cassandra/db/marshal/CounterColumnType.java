@@ -31,7 +31,7 @@ public class CounterColumnType extends AbstractCommutativeType
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (o1 == null)
-            return null == o2 ?  0 : -1;
+            return o2 == null ?  0 : -1;
 
         return ByteBufferUtil.compareUnsigned(o1, o2);
     }

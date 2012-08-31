@@ -86,7 +86,7 @@ public class NodeProbe
      */
     public NodeProbe(String host, int port, String username, String password) throws IOException, InterruptedException
     {
-        assert username != null && !username.isEmpty() && null != password && !password.isEmpty()
+        assert username != null && !username.isEmpty() && password != null && !password.isEmpty()
                : "neither username nor password can be blank";
 
         this.host = host;

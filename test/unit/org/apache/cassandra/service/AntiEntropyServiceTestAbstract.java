@@ -139,7 +139,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
 
         // confirm that the tree was validated
         Token min = validator.tree.partitioner().getMinimumToken();
-        assert null != validator.tree.hash(new Range<Token>(min, min));
+        assert validator.tree.hash(new Range<Token>(min, min)) != null;
     }
 
     @Test
@@ -156,7 +156,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         validator.completeTree();
 
         // confirm that the tree was validated
-        assert null != validator.tree.hash(local_range);
+        assert validator.tree.hash(local_range) != null;
     }
 
     @Test

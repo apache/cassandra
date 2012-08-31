@@ -46,10 +46,8 @@ public class BytesType extends AbstractType<ByteBuffer>
 
     public static int bytesCompare(ByteBuffer o1, ByteBuffer o2)
     {
-        if(null == o1){
-            if(null == o2) return 0;
-            else return -1;
-        }
+        if (o1 == null)
+            return o2 == null ? 0 : -1;
 
         return ByteBufferUtil.compareUnsigned(o1, o2);
     }

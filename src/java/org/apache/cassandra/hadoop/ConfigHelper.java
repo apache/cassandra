@@ -266,7 +266,7 @@ public class ConfigHelper
     public static KeyRange getInputKeyRange(Configuration conf)
     {
         String str = conf.get(INPUT_KEYRANGE_CONFIG);
-        return null != str ? keyRangeFromString(str) : null;
+        return str == null ? null : keyRangeFromString(str);
     }
 
     private static KeyRange keyRangeFromString(String st)

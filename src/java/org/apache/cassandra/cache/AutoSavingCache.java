@@ -232,7 +232,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             logger.debug("Deleting old {} files.", cacheType);
             deleteOldCacheFiles();
 
-            if (keys.size() == 0 || keys.size() == 0)
+            if (keys.isEmpty())
             {
                 logger.debug("Skipping {} save, cache is empty.", cacheType);
                 return;
@@ -248,7 +248,6 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 {
                     Pair<String, String> path = key.getPathInfo();
                     SequentialWriter writer = writers.get(path);
-
                     if (writer == null)
                     {
                         writer = tempCacheFile(path);

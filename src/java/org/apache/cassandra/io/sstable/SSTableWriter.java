@@ -135,9 +135,9 @@ public class SSTableWriter extends SSTable
     private RowIndexEntry afterAppend(DecoratedKey decoratedKey, long dataPosition, DeletionInfo delInfo, ColumnIndex index)
     {
         lastWrittenKey = decoratedKey;
-        this.last = lastWrittenKey;
-        if(null == this.first)
-            this.first = lastWrittenKey;
+        last = lastWrittenKey;
+        if (first == null)
+            first = lastWrittenKey;
 
         if (logger.isTraceEnabled())
             logger.trace("wrote " + decoratedKey + " at " + dataPosition);
@@ -156,7 +156,7 @@ public class SSTableWriter extends SSTable
             long dataStart = dataFile.getFilePointer();
             long dataSize = row.write(dataFile.stream);
             assert dataSize == dataFile.getFilePointer() - (dataStart + 8)
-                    : "incorrect row data size " + dataSize + " written to " + dataFile.getPath() + "; correct is " + (dataFile.getFilePointer() - (dataStart + 8));
+                   : "incorrect row data size " + dataSize + " written to " + dataFile.getPath() + "; correct is " + (dataFile.getFilePointer() - (dataStart + 8));
         }
         catch (IOException e)
         {

@@ -52,7 +52,7 @@ public abstract class AbstractCompactionStrategy
         this.options = options;
 
         String optionValue = options.get(TOMBSTONE_THRESHOLD_KEY);
-        tombstoneThreshold = (null != optionValue) ? Float.parseFloat(optionValue) : DEFAULT_TOMBSTONE_THRESHOLD;
+        tombstoneThreshold = optionValue == null ? DEFAULT_TOMBSTONE_THRESHOLD : Float.parseFloat(optionValue);
 
         // start compactions in five minutes (if no flushes have occurred by then to do so)
         Runnable runnable = new Runnable()

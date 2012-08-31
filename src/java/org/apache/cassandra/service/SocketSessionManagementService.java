@@ -47,13 +47,8 @@ public class SocketSessionManagementService
 
     public boolean remove(SocketAddress key)
     {
-        assert null != key;
-        boolean retval = false;
-        if (null != activeSocketSessions.remove(key))
-        {
-            retval = true;
-        }
-        return retval;
+        assert key != null;
+        return activeSocketSessions.remove(key) != null;
     }
 
     public void clear()
