@@ -655,7 +655,7 @@ public final class MessagingService implements MessagingServiceMBean
         }
     }
 
-    public void receive(MessageIn message, String id)
+    public void receive(MessageIn message, String id, long timestamp)
     {
         Tracing.instance().initializeFromMessage(message);
 
@@ -666,7 +666,7 @@ public final class MessagingService implements MessagingServiceMBean
         if (message == null)
             return;
 
-        Runnable runnable = new MessageDeliveryTask(message, id);
+        Runnable runnable = new MessageDeliveryTask(message, id, timestamp);
         ExecutorService stage = StageManager.getStage(message.getMessageType());
         assert stage != null : "No stage for message type " + message.verb;
         stage.execute(runnable);

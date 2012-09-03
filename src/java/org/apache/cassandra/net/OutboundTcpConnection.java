@@ -123,7 +123,6 @@ public class OutboundTcpConnection extends Thread
             }
 
             MessageOut<?> m = qm.message;
-            String id = qm.id;
             if (m == CLOSE_SENTINEL)
             {
                 disconnect();
@@ -132,7 +131,7 @@ public class OutboundTcpConnection extends Thread
             if (qm.timestamp < System.currentTimeMillis() - m.getTimeout())
                 dropped.incrementAndGet();
             else if (socket != null || connect())
-                writeConnected(m, id);
+                writeConnected(qm);
             else
                 // clear out the queue, else gossip messages back up.
                 active.clear();
@@ -161,11 +160,11 @@ public class OutboundTcpConnection extends Thread
                || (DatabaseDescriptor.internodeCompression() == Config.InternodeCompression.dc && !isLocalDC(poolReference.endPoint()));
     }
 
-    private void writeConnected(MessageOut<?> message, String id)
+    private void writeConnected(QueuedMessage qm)
     {
         try
         {
-            write(message, id, out);
+            write(qm.message, qm.id, qm.timestamp, out, targetVersion);
             completed++;
             if (active.peek() == null)
             {
@@ -183,21 +182,23 @@ public class OutboundTcpConnection extends Thread
         }
     }
 
-    public void write(MessageOut<?> message, String id, DataOutputStream out) throws IOException
-    {
-        write(message, id, out, targetVersion);
-    }
-
-    public static void write(MessageOut message, String id, DataOutputStream out, int version) throws IOException
+    public static void write(MessageOut message, String id, long timestamp, DataOutputStream out, int version) throws IOException
     {
         out.writeInt(MessagingService.PROTOCOL_MAGIC);
         if (version < MessagingService.VERSION_12)
+        {
             writeHeader(out, version, false);
-        // 0.8 included a total message size int.  1.0 doesn't need it but expects it to be there.
-        if (version <  MessagingService.VERSION_12)
+            // 0.8 included a total message size int.  1.0 doesn't need it but expects it to be there.
             out.writeInt(-1);
+        }
 
         out.writeUTF(id);
+        if (version >= MessagingService.VERSION_12)
+        {
+            // int cast cuts off the high-order half of the timestamp, which we can assume remains
+            // the same between now and when the recipient reconstructs it.
+            out.writeInt((int) timestamp);
+        }
         message.serialize(out, version);
     }
 

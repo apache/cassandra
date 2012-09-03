@@ -174,10 +174,14 @@ public class IncomingTcpConnection extends Thread
 
     private InetAddress receiveMessage(DataInputStream input, int version) throws IOException
     {
-        if (version <= MessagingService.VERSION_11)
+        if (version < MessagingService.VERSION_12)
             input.readInt(); // size of entire message. in 1.0+ this is just a placeholder
 
         String id = input.readUTF();
+        long timestamp = version >= MessagingService.VERSION_12
+                       ? (System.currentTimeMillis() | 0x00000000FFFFFFFFL) & input.readInt()
+                       : System.currentTimeMillis();
+
         MessageIn message = MessageIn.read(input, version, id);
         if (message == null)
         {
@@ -186,7 +190,7 @@ public class IncomingTcpConnection extends Thread
         }
         if (version <= MessagingService.current_version)
         {
-            MessagingService.instance().receive(message, id);
+            MessagingService.instance().receive(message, id, timestamp);
         }
         else
         {

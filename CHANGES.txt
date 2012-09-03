@@ -1,4 +1,6 @@
 1.2-dev
+ * include message initiation time to replicas so they can more
+   accurately drop timed-out requests (CASSANDRA-2858)
  * fix clientutil.jar dependencies (CASSANDRA-4566)
  * optimize WriteResponse (CASSANDRA-4548)
  * new metrics (CASSANDRA-4009)

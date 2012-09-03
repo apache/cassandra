@@ -19,6 +19,10 @@ Upgrading
       the ability to read data files from Cassandra versions at least
       back to 0.6, so a non-rolling upgrade remains possible with just
       one step.
+    - Server clock synchronization is more important in 1.2; replicas
+      will use a coordinator-provided timestamp to determine when a
+      request has timed out and is thus not worth proceeding with.
+      Using a service like NTP is strongly recommended.
     - The hints schema was changed from 1.1 to 1.2. Cassandra automatically
       snapshots and then truncates the hints column family as part of
       starting up 1.2 for the first time.  Additionally, upgraded nodes

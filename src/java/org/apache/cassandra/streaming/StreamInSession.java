@@ -170,6 +170,7 @@ public class StreamInSession extends AbstractStreamSession
         DataOutputStream out = new DataOutputStream(socket.getOutputStream());
         OutboundTcpConnection.write(message,
                                     String.valueOf(getSessionId()),
+                                    System.currentTimeMillis(),
                                     out,
                                     MessagingService.instance().getVersion(getHost()));
         out.flush();
@@ -221,6 +222,7 @@ public class StreamInSession extends AbstractStreamSession
                 if (socket != null)
                     OutboundTcpConnection.write(reply.createMessage(),
                                                 context.right.toString(),
+                                                System.currentTimeMillis(),
                                                 new DataOutputStream(socket.getOutputStream()),
                                                 MessagingService.instance().getVersion(getHost()));
                 else
