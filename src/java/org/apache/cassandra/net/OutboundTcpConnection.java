@@ -104,13 +104,13 @@ public class OutboundTcpConnection extends Thread
     {
         while (true)
         {
-            QueuedMessage entry = active.poll();
-            if (entry == null)
+            QueuedMessage qm = active.poll();
+            if (qm == null)
             {
                 // exhausted the active queue.  switch to backlog, once there's something to process there
                 try
                 {
-                    entry = backlog.take();
+                    qm = backlog.take();
                 }
                 catch (InterruptedException e)
                 {
@@ -122,14 +122,14 @@ public class OutboundTcpConnection extends Thread
                 active = tmp;
             }
 
-            MessageOut<?> m = entry.message;
-            String id = entry.id;
+            MessageOut<?> m = qm.message;
+            String id = qm.id;
             if (m == CLOSE_SENTINEL)
             {
                 disconnect();
                 continue;
             }
-            if (entry.timestamp < System.currentTimeMillis() - m.getTimeout())
+            if (qm.timestamp < System.currentTimeMillis() - m.getTimeout())
                 dropped.incrementAndGet();
             else if (socket != null || connect())
                 writeConnected(m, id);
@@ -309,18 +309,18 @@ public class OutboundTcpConnection extends Thread
     {
         while (true)
         {
-            QueuedMessage message = backlog.peek();
-            if (message == null || message.timestamp >= System.currentTimeMillis() - message.message.getTimeout())
+            QueuedMessage qm = backlog.peek();
+            if (qm == null || qm.timestamp >= System.currentTimeMillis() - qm.message.getTimeout())
                 break;
 
-            QueuedMessage message2 = backlog.poll();
-            if (message2 != message)
+            QueuedMessage qm2 = backlog.poll();
+            if (qm2 != qm)
             {
                 // sending thread switched queues.  add this entry (from the "new" backlog)
                 // at the end of the active queue, which keeps it in the same position relative to the other entries
                 // without having to contend with other clients for the head-of-backlog lock.
-                if (message2 != null)
-                    active.add(message2);
+                if (qm2 != null)
+                    active.add(qm2);
                 break;
             }
 
