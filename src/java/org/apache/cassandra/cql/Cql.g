@@ -492,7 +492,7 @@ relation returns [Relation rel]
 
 // TRUNCATE <CF>;
 truncateStatement returns [Pair<String,String> cf]
-    : K_TRUNCATE (keyspace=( IDENT | STRING_LITERAL | INTEGER ) '.')? columnFamily=( IDENT | STRING_LITERAL | INTEGER ) { $cf = new Pair<String, String>($keyspace.text, $columnFamily.text); } endStmnt
+    : K_TRUNCATE (keyspace=( IDENT | STRING_LITERAL | INTEGER ) '.')? columnFamily=( IDENT | STRING_LITERAL | INTEGER ) { $cf = Pair.create($keyspace.text, $columnFamily.text); } endStmnt
     ;
 
 endStmnt
