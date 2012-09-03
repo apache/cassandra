@@ -46,8 +46,8 @@ public class OutboundTcpConnection extends Thread
 
     // sending thread reads from "active" (one of queue1, queue2) until it is empty.
     // then it swaps it with "backlog."
-    private volatile BlockingQueue<Entry> backlog = new LinkedBlockingQueue<Entry>();
-    private volatile BlockingQueue<Entry> active = new LinkedBlockingQueue<Entry>();
+    private volatile BlockingQueue<QueuedMessage> backlog = new LinkedBlockingQueue<QueuedMessage>();
+    private volatile BlockingQueue<QueuedMessage> active = new LinkedBlockingQueue<QueuedMessage>();
 
     private final OutboundTcpConnectionPool poolReference;
 
@@ -75,7 +75,7 @@ public class OutboundTcpConnection extends Thread
         expireMessages();
         try
         {
-            backlog.put(new Entry(message, id, System.currentTimeMillis()));
+            backlog.put(new QueuedMessage(message, id, System.currentTimeMillis()));
         }
         catch (InterruptedException e)
         {
@@ -104,7 +104,7 @@ public class OutboundTcpConnection extends Thread
     {
         while (true)
         {
-            Entry entry = active.poll();
+            QueuedMessage entry = active.poll();
             if (entry == null)
             {
                 // exhausted the active queue.  switch to backlog, once there's something to process there
@@ -117,7 +117,7 @@ public class OutboundTcpConnection extends Thread
                     throw new AssertionError(e);
                 }
 
-                BlockingQueue<Entry> tmp = backlog;
+                BlockingQueue<QueuedMessage> tmp = backlog;
                 backlog = active;
                 active = tmp;
             }
@@ -309,18 +309,18 @@ public class OutboundTcpConnection extends Thread
     {
         while (true)
         {
-            Entry entry = backlog.peek();
-            if (entry == null || entry.timestamp >= System.currentTimeMillis() - entry.message.getTimeout())
+            QueuedMessage message = backlog.peek();
+            if (message == null || message.timestamp >= System.currentTimeMillis() - message.message.getTimeout())
                 break;
 
-            Entry entry2 = backlog.poll();
-            if (entry2 != entry)
+            QueuedMessage message2 = backlog.poll();
+            if (message2 != message)
             {
                 // sending thread switched queues.  add this entry (from the "new" backlog)
                 // at the end of the active queue, which keeps it in the same position relative to the other entries
                 // without having to contend with other clients for the head-of-backlog lock.
-                if (entry2 != null)
-                    active.add(entry2);
+                if (message2 != null)
+                    active.add(message2);
                 break;
             }
 
@@ -328,13 +328,13 @@ public class OutboundTcpConnection extends Thread
         }
     }
 
-    private static class Entry
+    private static class QueuedMessage
     {
         final MessageOut<?> message;
         final String id;
         final long timestamp;
 
-        Entry(MessageOut<?> message, String id, long timestamp)
+        QueuedMessage(MessageOut<?> message, String id, long timestamp)
         {
             this.message = message;
             this.id = id;
