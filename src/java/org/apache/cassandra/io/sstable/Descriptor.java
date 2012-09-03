@@ -277,7 +277,7 @@ public class Descriptor
         // component suffix
         String component = st.nextToken();
         directory = directory != null ? directory : new File(".");
-        return new Pair<Descriptor,String>(new Descriptor(version, directory, ksname, cfname, generation, temporary), component);
+        return Pair.create(new Descriptor(version, directory, ksname, cfname, generation, temporary), component);
     }
 
     /**

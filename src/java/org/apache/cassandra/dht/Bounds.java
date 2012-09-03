@@ -58,7 +58,7 @@ public class Bounds<T extends RingPosition> extends AbstractBounds<T>
 
         AbstractBounds<T> lb = new Bounds<T>(left, position, partitioner);
         AbstractBounds<T> rb = new Range<T>(position, right, partitioner);
-        return new Pair<AbstractBounds<T>, AbstractBounds<T>>(lb, rb);
+        return Pair.create(lb, rb);
     }
 
     public boolean intersects(Bounds<T> that)

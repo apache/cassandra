@@ -49,15 +49,15 @@ import org.apache.cassandra.utils.Pair;
 
 public class NodeCmd
 {
-    private static final Pair<String, String> SNAPSHOT_COLUMNFAMILY_OPT = new Pair<String, String>("cf", "column-family");
-    private static final Pair<String, String> HOST_OPT = new Pair<String, String>("h", "host");
-    private static final Pair<String, String> PORT_OPT = new Pair<String, String>("p", "port");
-    private static final Pair<String, String> USERNAME_OPT = new Pair<String, String>("u",  "username");
-    private static final Pair<String, String> PASSWORD_OPT = new Pair<String, String>("pw", "password");
-    private static final Pair<String, String> TAG_OPT = new Pair<String, String>("t", "tag");
-    private static final Pair<String, String> TOKENS_OPT = new Pair<String, String>("T", "tokens");
-    private static final Pair<String, String> PRIMARY_RANGE_OPT = new Pair<String, String>("pr", "partitioner-range");
-    private static final Pair<String, String> SNAPSHOT_REPAIR_OPT = new Pair<String, String>("snapshot", "with-snapshot");
+    private static final Pair<String, String> SNAPSHOT_COLUMNFAMILY_OPT = Pair.create("cf", "column-family");
+    private static final Pair<String, String> HOST_OPT = Pair.create("h", "host");
+    private static final Pair<String, String> PORT_OPT = Pair.create("p", "port");
+    private static final Pair<String, String> USERNAME_OPT = Pair.create("u", "username");
+    private static final Pair<String, String> PASSWORD_OPT = Pair.create("pw", "password");
+    private static final Pair<String, String> TAG_OPT = Pair.create("t", "tag");
+    private static final Pair<String, String> TOKENS_OPT = Pair.create("T", "tokens");
+    private static final Pair<String, String> PRIMARY_RANGE_OPT = Pair.create("pr", "partitioner-range");
+    private static final Pair<String, String> SNAPSHOT_REPAIR_OPT = Pair.create("snapshot", "with-snapshot");
 
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 7199;

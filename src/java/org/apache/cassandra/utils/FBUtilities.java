@@ -34,7 +34,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Throwables;
 import com.google.common.collect.AbstractIterator;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -175,7 +174,7 @@ public class FBUtilities
             remainder = distance.testBit(0);
             midpoint = distance.shiftRight(1).add(left).mod(max);
         }
-        return new Pair<BigInteger, Boolean>(midpoint, remainder);
+        return Pair.create(midpoint, remainder);
     }
 
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2, int offset1, int offset2, int len1, int len2)

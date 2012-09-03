@@ -224,7 +224,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
 
         AbstractBounds<T> lb = new Range<T>(left, position, partitioner);
         AbstractBounds<T> rb = new Range<T>(position, right, partitioner);
-        return new Pair<AbstractBounds<T>, AbstractBounds<T>>(lb, rb);
+        return Pair.create(lb, rb);
     }
 
     public List<Range<T>> unwrap()

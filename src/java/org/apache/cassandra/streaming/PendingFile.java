@@ -153,7 +153,7 @@ public class PendingFile
             int count = dis.readInt();
             List<Pair<Long,Long>> sections = new ArrayList<Pair<Long,Long>>(count);
             for (int i = 0; i < count; i++)
-                sections.add(new Pair<Long,Long>(dis.readLong(), dis.readLong()));
+                sections.add(Pair.create(dis.readLong(), dis.readLong()));
             // this controls the way indexes are rebuilt when streaming in.
             OperationType type = OperationType.RESTORE_REPLICA_COUNT;
             type = OperationType.valueOf(dis.readUTF());

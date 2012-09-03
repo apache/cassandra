@@ -137,7 +137,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
         }
 
         for (Mutation amut : value)
-            client.put(new Pair<ByteBuffer,Mutation>(keybuff, amut));
+            client.put(Pair.create(keybuff, amut));
             progressable.progress();
     }
 

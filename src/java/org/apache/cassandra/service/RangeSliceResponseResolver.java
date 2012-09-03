@@ -111,7 +111,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
 
         protected Pair<Row,InetAddress> computeNext()
         {
-            return iter.hasNext() ? new Pair<Row, InetAddress>(iter.next(), source) : endOfData();
+            return iter.hasNext() ? Pair.create(iter.next(), source) : endOfData();
         }
 
         public void close() {}

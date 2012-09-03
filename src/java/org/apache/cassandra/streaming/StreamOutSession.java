@@ -71,7 +71,7 @@ public class StreamOutSession extends AbstractStreamSession
 
     public static StreamOutSession create(String table, InetAddress host, long sessionId, IStreamCallback callback)
     {
-        Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, sessionId);
+        Pair<InetAddress, Long> context = Pair.create(host, sessionId);
         StreamOutSession session = new StreamOutSession(table, context, callback);
         streams.put(context, session);
         return session;
@@ -79,7 +79,7 @@ public class StreamOutSession extends AbstractStreamSession
 
     public static StreamOutSession get(InetAddress host, long sessionId)
     {
-        return streams.get(new Pair<InetAddress, Long>(host, sessionId));
+        return streams.get(Pair.create(host, sessionId));
     }
 
     private final Map<String, PendingFile> files = new NonBlockingHashMap<String, PendingFile>();

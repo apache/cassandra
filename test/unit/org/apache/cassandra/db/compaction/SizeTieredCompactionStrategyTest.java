@@ -33,7 +33,7 @@ public class SizeTieredCompactionStrategyTest
         String[] strings = { "a", "bbbb", "cccccccc", "cccccccc", "bbbb", "a" };
         for (String st : strings)
         {
-            Pair<String, Long> pair = new Pair<String, Long>(st, new Long(st.length()));
+            Pair<String, Long> pair = Pair.create(st, new Long(st.length()));
             pairs.add(pair);
         }
 
@@ -53,7 +53,7 @@ public class SizeTieredCompactionStrategyTest
         String[] strings2 = { "aaa", "bbbbbbbb", "aaa", "bbbbbbbb", "bbbbbbbb", "aaa" };
         for (String st : strings2)
         {
-            Pair<String, Long> pair = new Pair<String, Long>(st, new Long(st.length()));
+            Pair<String, Long> pair = Pair.create(st, new Long(st.length()));
             pairs.add(pair);
         }
 
@@ -74,7 +74,7 @@ public class SizeTieredCompactionStrategyTest
         String[] strings3 = { "aaa", "bbbbbbbb", "aaa", "bbbbbbbb", "bbbbbbbb", "aaa" };
         for (String st : strings3)
         {
-            Pair<String, Long> pair = new Pair<String, Long>(st, new Long(st.length()));
+            Pair<String, Long> pair = Pair.create(st, new Long(st.length()));
             pairs.add(pair);
         }
 

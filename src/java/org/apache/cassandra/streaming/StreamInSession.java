@@ -82,7 +82,7 @@ public class StreamInSession extends AbstractStreamSession
 
     public static StreamInSession create(InetAddress host, IStreamCallback callback)
     {
-        Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, nextSessionId());
+        Pair<InetAddress, Long> context = Pair.create(host, nextSessionId());
         StreamInSession session = new StreamInSession(context, callback);
         sessions.put(context, session);
         return session;
@@ -90,7 +90,7 @@ public class StreamInSession extends AbstractStreamSession
 
     public static StreamInSession get(InetAddress host, long sessionId)
     {
-        Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, sessionId);
+        Pair<InetAddress, Long> context = Pair.create(host, sessionId);
         StreamInSession session = sessions.get(context);
         if (session == null)
         {

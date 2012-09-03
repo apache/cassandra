@@ -406,7 +406,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 IColumn column = unthriftify(cosc);
                 map.put(column.name(), column);
             }
-            return new Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>>(ks.key, map);
+            return Pair.create(ks.key, map);
         }
     }
 

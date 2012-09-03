@@ -134,17 +134,17 @@ public class CompressedFileStreamTask extends FileStreamTask
                 if (chunk.offset == lastSection.right)
                 {
                     // extend previous section to end of this chunk
-                    lastSection = new Pair<Long, Long>(lastSection.left, chunk.offset + chunk.length + 4); // 4 bytes for CRC
+                    lastSection = Pair.create(lastSection.left, chunk.offset + chunk.length + 4); // 4 bytes for CRC
                 }
                 else
                 {
                     transferSections.add(lastSection);
-                    lastSection = new Pair<Long, Long>(chunk.offset, chunk.offset + chunk.length + 4);
+                    lastSection = Pair.create(chunk.offset, chunk.offset + chunk.length + 4);
                 }
             }
             else
             {
-                lastSection = new Pair<Long, Long>(chunk.offset, chunk.offset + chunk.length + 4);
+                lastSection = Pair.create(chunk.offset, chunk.offset + chunk.length + 4);
             }
         }
         if (lastSection != null)

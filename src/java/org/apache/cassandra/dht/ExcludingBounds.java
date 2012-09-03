@@ -53,7 +53,7 @@ public class ExcludingBounds<T extends RingPosition> extends AbstractBounds<T>
             return null;
         AbstractBounds<T> lb = new Range<T>(left, position, partitioner);
         AbstractBounds<T> rb = new ExcludingBounds<T>(position, right, partitioner);
-        return new Pair<AbstractBounds<T>, AbstractBounds<T>>(lb, rb);
+        return Pair.create(lb, rb);
     }
 
     public List<? extends AbstractBounds<T>> unwrap()

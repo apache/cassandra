@@ -379,7 +379,7 @@ public class Schema
      */
     public UUID getId(String ksName, String cfName)
     {
-        return cfIdMap.get(new Pair<String, String>(ksName, cfName));
+        return cfIdMap.get(Pair.create(ksName, cfName));
     }
 
     /**
@@ -392,7 +392,7 @@ public class Schema
      */
     public void load(CFMetaData cfm)
     {
-        Pair<String, String> key = new Pair<String, String>(cfm.ksName, cfm.cfName);
+        Pair<String, String> key = Pair.create(cfm.ksName, cfm.cfName);
 
         if (cfIdMap.containsKey(key))
             throw new RuntimeException(String.format("Attempting to load already loaded column family %s.%s", cfm.ksName, cfm.cfName));
@@ -408,7 +408,7 @@ public class Schema
      */
     public void purge(CFMetaData cfm)
     {
-        cfIdMap.remove(new Pair<String, String>(cfm.ksName, cfm.cfName));
+        cfIdMap.remove(Pair.create(cfm.ksName, cfm.cfName));
     }
 
     /* Version control */

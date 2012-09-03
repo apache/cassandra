@@ -132,7 +132,7 @@ public class Component
                  throw new IllegalStateException();
         }
 
-        return new Pair<Descriptor,Component>(path.left, component);
+        return Pair.create(path.left, component);
     }
 
     @Override

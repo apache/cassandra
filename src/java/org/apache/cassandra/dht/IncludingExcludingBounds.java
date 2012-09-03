@@ -52,7 +52,7 @@ public class IncludingExcludingBounds<T extends RingPosition> extends AbstractBo
         assert contains(position);
         AbstractBounds<T> lb = new Bounds<T>(left, position, partitioner);
         AbstractBounds<T> rb = new ExcludingBounds<T>(position, right, partitioner);
-        return new Pair<AbstractBounds<T>, AbstractBounds<T>>(lb, rb);
+        return Pair.create(lb, rb);
     }
 
     public List<? extends AbstractBounds<T>> unwrap()

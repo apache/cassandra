@@ -39,7 +39,7 @@ public class KeyCacheKey implements CacheKey
 
     public Pair<String, String> getPathInfo()
     {
-        return new Pair<String, String>(desc.ksname, desc.cfname);
+        return Pair.create(desc.ksname, desc.cfname);
     }
 
     public String toString()

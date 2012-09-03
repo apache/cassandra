@@ -589,7 +589,7 @@ public class SSTableReader extends SSTable
             if (left > right)
                 // empty range
                 continue;
-            positions.add(new Pair(Integer.valueOf(left), Integer.valueOf(right)));
+            positions.add(Pair.create(Integer.valueOf(left), Integer.valueOf(right)));
         }
         return positions;
     }
@@ -670,7 +670,7 @@ public class SSTableReader extends SSTable
             if (left == right)
                 // empty range
                 continue;
-            positions.add(new Pair(Long.valueOf(left), Long.valueOf(right)));
+            positions.add(Pair.create(Long.valueOf(left), Long.valueOf(right)));
         }
         return positions;
     }

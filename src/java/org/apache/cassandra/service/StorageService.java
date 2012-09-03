@@ -49,7 +49,6 @@ import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.*;
-import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.MessageOut;
@@ -3219,7 +3218,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
         }
 
-        return new Pair<Set<Range<Token>>, Set<Range<Token>>>(toStream, toFetch);
+        return Pair.create(toStream, toFetch);
     }
 
     public void bulkLoad(String directory)

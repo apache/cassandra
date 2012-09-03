@@ -91,7 +91,7 @@ public class ExpiringMap<K, V>
                         cache.remove(entry.getKey());
                         n++;
                         if (postExpireHook != null)
-                            postExpireHook.apply(new Pair<K, CacheableObject<V>>(entry.getKey(), entry.getValue()));
+                            postExpireHook.apply(Pair.create(entry.getKey(), entry.getValue()));
                     }
                 }
                 logger.trace("Expired {} entries", n);

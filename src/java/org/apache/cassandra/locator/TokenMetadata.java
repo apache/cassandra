@@ -340,7 +340,7 @@ public class TokenMetadata
 
         try
         {
-            movingEndpoints.add(new Pair<Token, InetAddress>(token, endpoint));
+            movingEndpoints.add(Pair.create(token, endpoint));
         }
         finally
         {
@@ -959,7 +959,7 @@ public class TokenMetadata
                 dcRacks.put(dc, HashMultimap.<String, InetAddress>create());
             dcRacks.get(dc).put(rack, ep);
 
-            currentLocations.put(ep, new Pair<String, String>(dc, rack));
+            currentLocations.put(ep, Pair.create(dc, rack));
         }
 
         /**

@@ -153,7 +153,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         Descriptor desc = new Descriptor("z", new File("path/doesn't/matter"), "Keyspace1", "Standard1", 23, false);
         List<Pair<Long, Long>> sections = new ArrayList<Pair<Long, Long>>();
         for (int i = 0; i < numSecs; i++)
-            sections.add(new Pair<Long, Long>(new Long(i), new Long(i * i)));
+            sections.add(Pair.create(new Long(i), new Long(i * i)));
         return new PendingFile(sst ? makeSSTable() : null, desc, SSTable.COMPONENT_DATA, sections, op);
     }
 
