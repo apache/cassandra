@@ -21,10 +21,10 @@ package org.apache.cassandra.cql3;
 import com.google.common.collect.Sets;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.io.compress.CompressionParameters;
-import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,6 +90,7 @@ public class CFPropDefs
     }
 
     public final Map<String, String> properties = new HashMap<String, String>();
+    private Class<? extends AbstractCompactionStrategy> compactionStrategyClass = null;
     public final Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
     public final Map<String, String> compressionParameters = new HashMap<String, String>()
     {{
@@ -126,6 +127,12 @@ public class CFPropDefs
             throw new ConfigurationException(bogus + " is not a valid keyword argument for CREATE TABLE");
         for (String obsolete : Sets.intersection(properties.keySet(), obsoleteKeywords))
             logger.warn("Ignoring obsolete property {}", obsolete);
+
+        if (properties.containsKey(KW_COMPACTION_STRATEGY_CLASS))
+        {
+            compactionStrategyClass = CFMetaData.createCompactionStrategy(properties.get(KW_COMPACTION_STRATEGY_CLASS));
+            compactionStrategyOptions.remove(KW_COMPACTION_STRATEGY_CLASS);
+        }
     }
 
     /** Map a keyword to the corresponding value */
@@ -172,6 +179,9 @@ public class CFPropDefs
         cfm.maxCompactionThreshold(toInt(KW_MAXCOMPACTIONTHRESHOLD, compactionStrategyOptions.get(KW_MAXCOMPACTIONTHRESHOLD), cfm.getMaxCompactionThreshold()));
         cfm.caching(CFMetaData.Caching.fromString(getString(KW_CACHING, cfm.getCaching().toString())));
         cfm.bloomFilterFpChance(getDouble(KW_BF_FP_CHANCE, cfm.getBloomFilterFpChance()));
+
+        if (compactionStrategyClass != null)
+            cfm.compactionStrategyClass(compactionStrategyClass);
 
         if (!compactionStrategyOptions.isEmpty())
             cfm.compactionStrategyOptions(new HashMap<String, String>(compactionStrategyOptions));
