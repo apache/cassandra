@@ -158,7 +158,7 @@ Table of Contents
     [option]       A pair of <id><value> where <id> is a [short] representing
                    the option id and <value> depends on that option (and can be
                    of size 0). The supported id (and the corresponding <value>)
-                   will be described when this is usedt .
+                   will be described when this is used.
     [option list]  A [short] n, followed by n [option].
 
 
