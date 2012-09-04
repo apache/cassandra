@@ -1,4 +1,6 @@
 1.1.5
+ * use millis + atomicint for commitlog segment creation instead of
+   nanotime, which has issues under some hypervisors (CASSANDRA-4601)
  * fix FD leak in slice queries (CASSANDRA-4571)
  * avoid recursion in leveled compaction (CASSANDRA-4587)
  * increase stack size under Java7 to 180K

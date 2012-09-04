@@ -27,6 +27,7 @@ import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 import java.nio.MappedByteBuffer;
 import java.util.Collection;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.Checksum;
@@ -56,6 +57,8 @@ public class CommitLogSegment
     static final String FILENAME_PREFIX = "CommitLog-";
     static final String FILENAME_EXTENSION = ".log";
     private static final Pattern COMMIT_LOG_FILE_PATTERN = Pattern.compile(FILENAME_PREFIX + "(\\d+)" + FILENAME_EXTENSION);
+    private final static long idBase = System.currentTimeMillis();
+    private final static AtomicInteger nextId = new AtomicInteger(1);
 
     // The commit log entry overhead in bytes (int: length + long: head checksum + long: tail checksum)
     static final int ENTRY_OVERHEAD_SIZE = 4 + 8 + 8;
@@ -81,6 +84,10 @@ public class CommitLogSegment
         return new CommitLogSegment(null);
     }
 
+    public static long getNextId()
+    {
+        return idBase + nextId.getAndIncrement();
+    }
     /**
      * Constructs a new segment file.
      *
@@ -88,7 +95,7 @@ public class CommitLogSegment
      */
     CommitLogSegment(String filePath)
     {
-        id = System.nanoTime();
+        id = getNextId();
         logFile = new File(DatabaseDescriptor.getCommitLogLocation(), FILENAME_PREFIX + id + FILENAME_EXTENSION);
         boolean isCreating = true;
 

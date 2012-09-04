@@ -150,7 +150,7 @@ public class CommitLogArchiver
             {
                 File toFile = new File(DatabaseDescriptor.getCommitLogLocation(),
                                        CommitLogSegment.FILENAME_PREFIX +
-                                       System.nanoTime() +
+                                       CommitLogSegment.getNextId() +
                                        CommitLogSegment.FILENAME_EXTENSION);             
                 String command = restoreCommand.replace("%from", fromFile.getPath());
                 command = command.replace("%to", toFile.getPath());       
