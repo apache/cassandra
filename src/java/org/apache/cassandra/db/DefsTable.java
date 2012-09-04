@@ -166,7 +166,7 @@ public class DefsTable
 
     private static void fixSchemaNanoTimestamp(String columnFamily) throws IOException
     {
-        ColumnFamilyStore cfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(columnFamily);
+        ColumnFamilyStore cfs = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(columnFamily);
 
         boolean needsCleanup = false;
         long timestamp = FBUtilities.timestampMicros();
@@ -214,7 +214,7 @@ public class DefsTable
             if (invalidSchemaRow(row))
                 continue;
 
-            RowMutation mutation = new RowMutation(Table.SYSTEM_TABLE, row.key.key);
+            RowMutation mutation = new RowMutation(Table.SYSTEM_KS, row.key.key);
 
             for (IColumn column : row.cf.columns)
             {
