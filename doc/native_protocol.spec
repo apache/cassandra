@@ -152,13 +152,13 @@ Table of Contents
                    string.
     [long string]  An [int] n, followed by n bytes representing an UTF-8 string.
     [string list]  A [short] n, followed by n [string].
-    [value]        An [int] n, followed by n bytes if n >= 0. If n < 0,
+    [bytes]        An [int] n, followed by n bytes if n >= 0. If n < 0,
                    no byte should follow and the value represented is `null`.
 
     [option]       A pair of <id><value> where <id> is a [short] representing
                    the option id and <value> depends on that option (and can be
-                   of size 0). The supported id (and the respecting value) will
-                   be described when this is used.
+                   of size 0). The supported id (and the corresponding <value>)
+                   will be described when this is usedt .
     [option list]  A [short] n, followed by n [option].
 
 
@@ -239,7 +239,7 @@ Table of Contents
     - <id> is the prepared query ID. It's an [int] returned as a response to a
       PREPARE message.
     - <n> is a [short] indicating the number of following values.
-    - <value_1>...<value_n> are the [value] to use for bound variables in the
+    - <value_1>...<value_n> are the [bytes] to use for bound variables in the
       prepared query.
 
   The response from the server will be a RESULT message.
@@ -367,9 +367,9 @@ Table of Contents
       result. Those rows are serialized in the <rows_content> part.
     - <rows_content> is composed of <row_1>...<row_m> where m is <rows_count>.
       Each <row_i> is composed of <value_1>...<value_n> where n is
-      <columns_count> and where <value_j> is a [value] representing the value
+      <columns_count> and where <value_j> is a [bytes] representing the value
       returned for the jth column of the ith row. In other words, <rows_content>
-      is composed of (<rows_count> * <columns_count>) [value].
+      is composed of (<rows_count> * <columns_count>) [bytes].
 
 
 4.2.5.3. Set_keyspace
