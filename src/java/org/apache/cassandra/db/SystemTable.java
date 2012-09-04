@@ -86,6 +86,7 @@ public class SystemTable
 
     public static void finishStartup() throws IOException
     {
+        DefsTable.fixSchemaNanoTimestamps();
         setupVersion();
         try
         {
