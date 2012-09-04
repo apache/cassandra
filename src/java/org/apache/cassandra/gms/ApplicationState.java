@@ -26,6 +26,7 @@ public enum ApplicationState
     RACK,
     RELEASE_VERSION,
     REMOVAL_COORDINATOR,
+    X_11_PADDING, // padding specifically for 1.1
     INTERNAL_IP,
     RPC_ADDRESS,
     SEVERITY,
