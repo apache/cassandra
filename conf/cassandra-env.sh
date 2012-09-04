@@ -188,7 +188,7 @@ if [ "`uname`" = "Linux" ] ; then
     then
         JVM_OPTS="$JVM_OPTS -Xss180k"
     else
-        JVM_OPTS="$JVM_OPTS -Xss128k"
+        JVM_OPTS="$JVM_OPTS -Xss160k"
     fi
 fi
 echo "xss = $JVM_OPTS"
