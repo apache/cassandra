@@ -26,9 +26,9 @@ public enum ApplicationState
     RACK,
     RELEASE_VERSION,
     REMOVAL_COORDINATOR,
-    X_11_PADDING, // padding specifically for 1.1
     INTERNAL_IP,
     RPC_ADDRESS,
+    X_11_PADDING, // padding specifically for 1.1
     SEVERITY,
     NET_VERSION,
     // pad to allow adding new states to existing cluster
