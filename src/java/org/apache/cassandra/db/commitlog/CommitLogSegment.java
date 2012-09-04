@@ -20,12 +20,13 @@ package org.apache.cassandra.db.commitlog;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.channels.FileChannel;
 import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.Collection;
-import java.util.UUID;
-import java.util.zip.Checksum;
 import java.util.HashMap;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.Checksum;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +49,9 @@ import org.apache.cassandra.utils.PureJavaCrc32;
 public class CommitLogSegment
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLogSegment.class);
+
+    private final static long idBase = System.currentTimeMillis();
+    private final static AtomicInteger nextId = new AtomicInteger(1);
 
     // The commit log entry overhead in bytes (int: length + long: head checksum + long: tail checksum)
     static final int ENTRY_OVERHEAD_SIZE = 4 + 8 + 8;
@@ -75,6 +79,10 @@ public class CommitLogSegment
         return new CommitLogSegment(null);
     }
 
+    public static long getNextId()
+    {
+        return idBase + nextId.getAndIncrement();
+    }
     /**
      * Constructs a new segment file.
      *
@@ -82,7 +90,7 @@ public class CommitLogSegment
      */
     CommitLogSegment(String filePath)
     {
-        id = System.nanoTime();
+        id = getNextId();
         descriptor = new CommitLogDescriptor(id);
         logFile = new File(DatabaseDescriptor.getCommitLogLocation(), descriptor.fileName());
         boolean isCreating = true;
