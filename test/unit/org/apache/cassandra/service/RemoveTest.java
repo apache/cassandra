@@ -88,10 +88,6 @@ public class RemoveTest
 
         MessagingService.instance().listen(FBUtilities.getBroadcastAddress());
         Gossiper.instance.start(1);
-        for (int i = 0; i < 6; i++)
-        {
-            Gossiper.instance.initializeNodeUnsafe(hosts.get(i), 1);
-        }
         removalhost = hosts.get(5);
         hosts.remove(removalhost);
         removalId = hostIds.get(5);

@@ -31,6 +31,8 @@ public enum ApplicationState
     X_11_PADDING, // padding specifically for 1.1
     SEVERITY,
     NET_VERSION,
+    HOST_ID,
+    TOKENS,
     // pad to allow adding new states to existing cluster
     X1,
     X2,

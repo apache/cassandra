@@ -18,11 +18,15 @@
 package org.apache.cassandra.gms;
 
 import java.io.*;
+
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+
+import com.google.common.collect.Iterables;
+import static com.google.common.base.Charsets.ISO_8859_1;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
@@ -47,6 +51,7 @@ import org.apache.commons.lang.StringUtils;
 
 public class VersionedValue implements Comparable<VersionedValue>
 {
+
     public static final IVersionedSerializer<VersionedValue> serializer = new VersionedValueSerializer();
 
     // this must be a char that cannot be present in any token
@@ -67,8 +72,6 @@ public class VersionedValue implements Comparable<VersionedValue>
 
     // values for ApplicationState.REMOVAL_COORDINATOR
     public final static String REMOVAL_COORDINATOR = "REMOVER";
-    // network proto version from MS
-    public final static String NET_VERSION = "NET_VERSION";
 
     public final int version;
     public final String value;
@@ -110,26 +113,21 @@ public class VersionedValue implements Comparable<VersionedValue>
             this.partitioner = partitioner;
         }
 
-        public VersionedValue bootstrapping(Collection<Token> tokens, UUID hostId)
+        public VersionedValue bootstrapping(Collection<Token> tokens)
         {
             return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING,
-                                                    hostId.toString(),
                                                     makeTokenString(tokens)));
         }
 
-        public VersionedValue normal(Collection<Token> tokens, UUID hostId)
+        public VersionedValue normal(Collection<Token> tokens)
         {
             return new VersionedValue(versionString(VersionedValue.STATUS_NORMAL,
-                                                    hostId.toString(),
                                                     makeTokenString(tokens)));
         }
 
         private String makeTokenString(Collection<Token> tokens)
         {
-            List<String> tokenStrings = new ArrayList<String>();
-            for (Token<?> token : tokens)
-                tokenStrings.add(partitioner.getTokenFactory().toString(token));
-            return StringUtils.join(tokenStrings, VersionedValue.DELIMITER);
+            return partitioner.getTokenFactory().toString(Iterables.get(tokens, 0));
         }
 
         public VersionedValue load(double load)
@@ -145,19 +143,39 @@ public class VersionedValue implements Comparable<VersionedValue>
         public VersionedValue leaving(Collection<Token> tokens)
         {
             return new VersionedValue(versionString(VersionedValue.STATUS_LEAVING,
-                                                    makeTokenString(tokens)));
+                    makeTokenString(tokens)));
         }
 
         public VersionedValue left(Collection<Token> tokens, long expireTime)
         {
             return new VersionedValue(versionString(VersionedValue.STATUS_LEFT,
-                                                    Long.toString(expireTime),
-                                                    makeTokenString(tokens)));
+                    Long.toString(expireTime),
+                    makeTokenString(tokens)));
         }
 
         public VersionedValue moving(Token token)
         {
             return new VersionedValue(VersionedValue.STATUS_MOVING + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+        }
+
+        public VersionedValue hostId(UUID hostId)
+        {
+            return new VersionedValue(hostId.toString());
+        }
+
+        public VersionedValue tokens(Collection<Token> tokens)
+        {
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            DataOutputStream dos = new DataOutputStream(bos);
+            try
+            {
+                TokenSerializer.serialize(partitioner, tokens, dos);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            return new VersionedValue(new String(bos.toByteArray(), ISO_8859_1));
         }
 
         public VersionedValue removingNonlocal(UUID hostId)

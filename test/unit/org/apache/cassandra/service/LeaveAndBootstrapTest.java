@@ -164,16 +164,17 @@ public class LeaveAndBootstrapTest
 
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
         InetAddress boot1 = InetAddress.getByName("127.0.1.1");
-        Gossiper.instance.initializeNodeUnsafe(boot1, 1);
-        UUID boot1Id = UUID.randomUUID();
+        Gossiper.instance.initializeNodeUnsafe(boot1, UUID.randomUUID(), 1);
+        Gossiper.instance.injectApplicationState(boot1, ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(5))));
         ss.onChange(boot1,
                     ApplicationState.STATUS,
-                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(5)), boot1Id));
+                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(5))));
         InetAddress boot2 = InetAddress.getByName("127.0.1.2");
-        Gossiper.instance.initializeNodeUnsafe(boot2, 1);
+        Gossiper.instance.initializeNodeUnsafe(boot2, UUID.randomUUID(), 1);
+        Gossiper.instance.injectApplicationState(boot2, ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(7))));
         ss.onChange(boot2,
                     ApplicationState.STATUS,
-                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(7)), UUID.randomUUID()));
+                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(7))));
 
         Collection<InetAddress> endpoints = null;
 
@@ -329,7 +330,7 @@ public class LeaveAndBootstrapTest
                 valueFactory.left(Collections.singleton(endpointTokens.get(LEAVING[0])), Gossiper.computeExpireTime()));
         ss.onChange(hosts.get(LEAVING[2]), ApplicationState.STATUS,
                 valueFactory.left(Collections.singleton(endpointTokens.get(LEAVING[2])), Gossiper.computeExpireTime()));
-        ss.onChange(boot1, ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(5)), boot1Id));
+        ss.onChange(boot1, ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(5))));
 
         // adjust precalcuated results.  this changes what the epected endpoints are.
         expectedEndpoints.get("Keyspace1").get(new BigIntegerToken("55")).removeAll(makeAddrs("127.0.0.7", "127.0.0.8"));
@@ -462,18 +463,20 @@ public class LeaveAndBootstrapTest
         assertTrue(tmd.getBootstrapTokens().isEmpty());
 
         // Bootstrap the node immedidiately to keyTokens.get(4) without going through STATE_LEFT
+        Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(4))));
         ss.onChange(hosts.get(2),
                     ApplicationState.STATUS,
-                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(4)), hostIds.get(2)));
+                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(4))));
 
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
         assertTrue(tmd.getBootstrapTokens().get(keyTokens.get(4)).equals(hosts.get(2)));
 
         // Bootstrap node hosts.get(3) to keyTokens.get(1)
+        Gossiper.instance.injectApplicationState(hosts.get(3), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(1))));
         ss.onChange(hosts.get(3),
                     ApplicationState.STATUS,
-                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(1)), hostIds.get(3)));
+                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(1))));
 
         assertFalse(tmd.isMember(hosts.get(3)));
         assertFalse(tmd.isLeaving(hosts.get(3)));
@@ -481,9 +484,10 @@ public class LeaveAndBootstrapTest
         assertTrue(tmd.getBootstrapTokens().get(keyTokens.get(1)).equals(hosts.get(3)));
 
         // Bootstrap node hosts.get(2) further to keyTokens.get(3)
+        Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(3))));
         ss.onChange(hosts.get(2),
                     ApplicationState.STATUS,
-                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(3)), hostIds.get(2)));
+                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(3))));
 
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
@@ -492,10 +496,10 @@ public class LeaveAndBootstrapTest
         assertTrue(tmd.getBootstrapTokens().get(keyTokens.get(1)).equals(hosts.get(3)));
 
         // Go to normal again for both nodes
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(3)),
-                                                                               hostIds.get(2)));
-        ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(2)),
-                                                                               hostIds.get(3)));
+        Gossiper.instance.injectApplicationState(hosts.get(3), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(2))));
+        Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(3))));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(3))));
+        ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(2))));
 
         assertTrue(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
@@ -531,8 +535,8 @@ public class LeaveAndBootstrapTest
         assertTrue(tmd.getToken(hosts.get(2)).equals(endpointTokens.get(2)));
 
         // back to normal
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(2)),
-                                                                               hostIds.get(2)));
+        Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(2))));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(2))));
 
         assertTrue(tmd.getLeavingEndpoints().isEmpty());
         assertTrue(tmd.getToken(hosts.get(2)).equals(keyTokens.get(2)));
@@ -541,8 +545,8 @@ public class LeaveAndBootstrapTest
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(Collections.singleton(keyTokens.get(2))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
                 valueFactory.left(Collections.singleton(keyTokens.get(2)), Gossiper.computeExpireTime()));
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(4)),
-                                                                               hostIds.get(2)));
+        Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(4))));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(4))));
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
         assertTrue(tmd.getLeavingEndpoints().isEmpty());
@@ -567,6 +571,7 @@ public class LeaveAndBootstrapTest
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 6);
 
         // node 2 leaves with _different_ token
+        Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(0))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(Collections.singleton(keyTokens.get(0))));
 
         assertTrue(tmd.getToken(hosts.get(2)).equals(keyTokens.get(0)));
@@ -574,9 +579,10 @@ public class LeaveAndBootstrapTest
         assertTrue(tmd.getEndpoint(endpointTokens.get(2)) == null);
 
         // go to boostrap
+        Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(1))));
         ss.onChange(hosts.get(2),
                     ApplicationState.STATUS,
-                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(1)), hostIds.get(2)));
+                    valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(1))));
 
         assertFalse(tmd.isLeaving(hosts.get(2)));
         assertTrue(tmd.getBootstrapTokens().size() == 1);
@@ -621,13 +627,15 @@ public class LeaveAndBootstrapTest
         assertFalse(tmd.isMember(hosts.get(2)));
 
         // node hosts.get(4) goes to bootstrap
-        ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(1)), hostIds.get(3)));
+        Gossiper.instance.injectApplicationState(hosts.get(3), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(1))));
+        ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(1))));
 
         assertFalse(tmd.isMember(hosts.get(3)));
         assertTrue(tmd.getBootstrapTokens().size() == 1);
         assertTrue(tmd.getBootstrapTokens().get(keyTokens.get(1)).equals(hosts.get(3)));
 
         // and then directly to 'left'
+        Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(1))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
                 valueFactory.left(Collections.singleton(keyTokens.get(1)), Gossiper.computeExpireTime()));
 

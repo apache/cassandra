@@ -618,6 +618,22 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return endpointStateMap.entrySet();
     }
 
+    public boolean usesHostId(InetAddress endpoint)
+    {
+        if (MessagingService.instance().knowsVersion(endpoint) && MessagingService.instance().getVersion(endpoint) >= MessagingService.VERSION_12)
+            return true;
+        else  if (getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NET_VERSION) != null && Integer.valueOf(getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NET_VERSION).value) >= MessagingService.VERSION_12)
+            return true;
+        return false;
+    }
+
+    public UUID getHostId(InetAddress endpoint)
+    {
+        if (!usesHostId(endpoint))
+            throw new RuntimeException("Host " + endpoint + " does not use new-style tokens!");
+        return UUID.fromString(getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.HOST_ID).value);
+    }
+
     EndpointState getStateForVersionBiggerThan(InetAddress forEndpoint, int version)
     {
         EndpointState epState = endpointStateMap.get(forEndpoint);
@@ -1075,7 +1091,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     /**
      * This should *only* be used for testing purposes.
      */
-    public void initializeNodeUnsafe(InetAddress addr, int generationNbr) {
+    public void initializeNodeUnsafe(InetAddress addr, UUID uuid, int generationNbr) {
         /* initialize the heartbeat state for this localEndpoint */
         EndpointState localState = endpointStateMap.get(addr);
         if ( localState == null )
@@ -1087,6 +1103,16 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
         // always add the version state
         localState.addApplicationState(ApplicationState.NET_VERSION, StorageService.instance.valueFactory.networkVersion());
+        localState.addApplicationState(ApplicationState.HOST_ID, StorageService.instance.valueFactory.hostId(uuid));
+    }
+
+    /**
+     * This should *only* be used for testing purposes
+     */
+    public void injectApplicationState(InetAddress endpoint, ApplicationState state, VersionedValue value)
+    {
+        EndpointState localState = endpointStateMap.get(endpoint);
+        localState.addApplicationState(state, value);
     }
 
     public long getEndpointDowntime(String address) throws UnknownHostException

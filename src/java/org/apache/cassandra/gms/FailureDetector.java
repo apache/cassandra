@@ -101,7 +101,11 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     private void appendEndpointState(StringBuilder sb, EndpointState endpointState)
     {
         for (Map.Entry<ApplicationState, VersionedValue> state : endpointState.applicationState.entrySet())
+        {
+            if (state.getKey() == ApplicationState.TOKENS)
+                continue;
             sb.append("  ").append(state.getKey()).append(":").append(state.getValue().value).append("\n");
+        }
     }
 
     /**

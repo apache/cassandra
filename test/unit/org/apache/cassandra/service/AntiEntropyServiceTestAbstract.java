@@ -98,7 +98,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         tmd.updateNormalToken(StorageService.getPartitioner().getMinimumToken(), REMOTE);
         assert tmd.isMember(REMOTE);
 
-        Gossiper.instance.initializeNodeUnsafe(REMOTE, 1);
+        Gossiper.instance.initializeNodeUnsafe(REMOTE, UUID.randomUUID(), 1);
 
         local_range = StorageService.instance.getLocalPrimaryRange();
 
