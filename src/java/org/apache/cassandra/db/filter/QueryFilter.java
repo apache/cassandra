@@ -22,8 +22,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.db.columniterator.ISSTableColumnIterator;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -61,14 +62,14 @@ public class QueryFilter
     }
 
     // TODO move gcBefore into a field
-    public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable)
+    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable)
     {
         if (path.superColumnName == null)
             return filter.getSSTableColumnIterator(sstable, key);
         return superFilter.getSSTableColumnIterator(sstable, key);
     }
 
-    public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry)
+    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry)
     {
         if (path.superColumnName == null)
             return filter.getSSTableColumnIterator(sstable, file, key, indexEntry);

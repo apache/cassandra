@@ -30,13 +30,15 @@ import org.apache.cassandra.io.util.FileDataInput;
 /**
  *  A Column Iterator over SSTable
  */
-public class SSTableSliceIterator implements OnDiskAtomIterator
+public class SSTableSliceIterator implements ISSTableColumnIterator
 {
     private final OnDiskAtomIterator reader;
     private final DecoratedKey key;
+    private final SSTableReader sstable;
 
     public SSTableSliceIterator(SSTableReader sstable, DecoratedKey key, ColumnSlice[] slices, boolean reversed)
     {
+        this.sstable = sstable;
         this.key = key;
         RowIndexEntry indexEntry = sstable.getPosition(key, SSTableReader.Operator.EQ);
         this.reader = indexEntry == null ? null : createReader(sstable, indexEntry, null, slices, reversed);
@@ -56,6 +58,7 @@ public class SSTableSliceIterator implements OnDiskAtomIterator
      */
     public SSTableSliceIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, ColumnSlice[] slices, boolean reversed, RowIndexEntry indexEntry)
     {
+        this.sstable = sstable;
         this.key = key;
         reader = createReader(sstable, indexEntry, file, slices, reversed);
     }
@@ -65,6 +68,11 @@ public class SSTableSliceIterator implements OnDiskAtomIterator
         return slices.length == 1 && slices[0].start.remaining() == 0 && !reversed
              ? new SimpleSliceReader(sstable, indexEntry, file, slices[0].finish)
              : new IndexedSliceReader(sstable, indexEntry, file, slices, reversed);
+    }
+
+    public SSTableReader getSStable()
+    {
+        return sstable;
     }
 
     public DecoratedKey getKey()

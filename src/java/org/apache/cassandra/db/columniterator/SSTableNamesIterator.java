@@ -39,7 +39,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Filter;
 
-public class SSTableNamesIterator extends SimpleAbstractColumnIterator implements OnDiskAtomIterator
+public class SSTableNamesIterator extends SimpleAbstractColumnIterator implements ISSTableColumnIterator
 {
     private ColumnFamily cf;
     private final SSTableReader sstable;
@@ -97,6 +97,11 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
     {
         fileToClose = sstable.getFileDataInput(position);
         return fileToClose;
+    }
+
+    public SSTableReader getSStable()
+    {
+        return sstable;
     }
 
     private void read(SSTableReader sstable, FileDataInput file, RowIndexEntry indexEntry)
