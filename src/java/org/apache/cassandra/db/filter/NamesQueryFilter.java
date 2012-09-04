@@ -30,6 +30,7 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.columniterator.ISSTableColumnIterator;
 import org.apache.cassandra.db.columniterator.SSTableNamesIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -55,12 +56,12 @@ public class NamesQueryFilter implements IFilter
         return Memtable.getNamesIterator(key, cf, this);
     }
 
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey<?> key)
+    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey<?> key)
     {
         return new SSTableNamesIterator(sstable, key, columns);
     }
 
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey<?> key)
+    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey<?> key)
     {
         return new SSTableNamesIterator(sstable, file, key, columns);
     }

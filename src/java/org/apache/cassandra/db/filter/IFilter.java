@@ -25,6 +25,7 @@ import java.util.Iterator;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.columniterator.ISSTableColumnIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -51,13 +52,13 @@ public interface IFilter
      * @param file Already opened file data input, saves us opening another one
      * @param key The key of the row we are about to iterate over
      */
-    public abstract IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey<?> key);
+    public abstract ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey<?> key);
 
     /**
      * returns an iterator that returns columns from the given SSTable
      * matching the Filter criteria in sorted order.
      */
-    public abstract IColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey<?> key);
+    public abstract ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey<?> key);
 
     /**
      * collects columns from reducedColumns into returnCF.  Termination is determined

@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.columniterator.ISSTableColumnIterator;
 import org.apache.cassandra.db.columniterator.SimpleAbstractColumnIterator;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
@@ -245,7 +246,6 @@ public class CollationController
             }
             
             long mostRecentRowTombstone = Long.MIN_VALUE;
-            Map<IColumnIterator, Long> iteratorMaxTimes = Maps.newHashMapWithExpectedSize(view.sstables.size());
             for (SSTableReader sstable : view.sstables)
             {
                 // if we've already seen a row tombstone with a timestamp greater 
@@ -254,7 +254,7 @@ public class CollationController
                     continue;
 
                 IColumnIterator iter = filter.getSSTableColumnIterator(sstable);
-                iteratorMaxTimes.put(iter, sstable.getMaxTimestamp());
+                iterators.add(iter);
                 if (iter.getColumnFamily() != null)
                 {
                     ColumnFamily cf = iter.getColumnFamily();
@@ -269,10 +269,19 @@ public class CollationController
             // If we saw a row tombstone, do a second pass through the iterators we
             // obtained from the sstables and drop any whose maxTimestamp < that of the
             // row tombstone
-            for (Map.Entry<IColumnIterator, Long> entry : iteratorMaxTimes.entrySet())
+            if (mostRecentRowTombstone > Long.MIN_VALUE)
             {
-                if (entry.getValue() >= mostRecentRowTombstone)
-                    iterators.add(entry.getKey());
+                Iterator<IColumnIterator> it = iterators.iterator();
+                while (it.hasNext())
+                {
+                    IColumnIterator iter = it.next();
+                    if ((iter instanceof ISSTableColumnIterator)
+                        && ((ISSTableColumnIterator) iter).getSStable().getMaxTimestamp() < mostRecentRowTombstone)
+                    {
+                        FileUtils.closeQuietly(iter);
+                        it.remove();
+                    }
+                }
             }
 
             // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)

@@ -43,7 +43,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Filter;
 
-public class SSTableNamesIterator extends SimpleAbstractColumnIterator implements IColumnIterator
+public class SSTableNamesIterator extends SimpleAbstractColumnIterator implements ISSTableColumnIterator
 {
     private static Logger logger = LoggerFactory.getLogger(SSTableNamesIterator.class);
 
@@ -51,9 +51,11 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
     private Iterator<IColumn> iter;
     public final SortedSet<ByteBuffer> columns;
     public final DecoratedKey key;
+    private final SSTableReader sstable;
 
     public SSTableNamesIterator(SSTableReader sstable, DecoratedKey key, SortedSet<ByteBuffer> columns)
     {
+        this.sstable = sstable;
         assert columns != null;
         this.columns = columns;
         this.key = key;
@@ -84,6 +86,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
 
     public SSTableNamesIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, SortedSet<ByteBuffer> columns)
     {
+        this.sstable = sstable;
         assert columns != null;
         this.columns = columns;
         this.key = key;
@@ -97,6 +100,11 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             sstable.markSuspect();
             throw new IOError(ioe);
         }
+    }
+
+    public SSTableReader getSStable()
+    {
+        return sstable;
     }
 
     private void read(SSTableReader sstable, FileDataInput file)

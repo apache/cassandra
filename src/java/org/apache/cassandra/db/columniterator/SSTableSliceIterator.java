@@ -36,14 +36,16 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 /**
  *  A Column Iterator over SSTable
  */
-public class SSTableSliceIterator implements IColumnIterator
+public class SSTableSliceIterator implements ISSTableColumnIterator
 {
     private final FileDataInput fileToClose;
     private IColumnIterator reader;
+    private final SSTableReader sstable;
     private DecoratedKey key;
 
     public SSTableSliceIterator(SSTableReader sstable, DecoratedKey key, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
     {
+        this.sstable = sstable;
         this.key = key;
         fileToClose = sstable.getFileDataInput(this.key);
         if (fileToClose == null)
@@ -81,6 +83,7 @@ public class SSTableSliceIterator implements IColumnIterator
      */
     public SSTableSliceIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
     {
+        this.sstable = sstable;
         this.key = key;
         fileToClose = null;
         reader = createReader(sstable, file, startColumn, finishColumn, reversed);
@@ -91,6 +94,11 @@ public class SSTableSliceIterator implements IColumnIterator
         return startColumn.remaining() == 0 && !reversed
                  ? new SimpleSliceReader(sstable, file, finishColumn)
                  : new IndexedSliceReader(sstable, file, startColumn, finishColumn, reversed);
+    }
+
+    public SSTableReader getSStable()
+    {
+        return sstable;
     }
 
     public DecoratedKey getKey()

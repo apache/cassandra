@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.columniterator.ISSTableColumnIterator;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -72,14 +73,14 @@ public class QueryFilter
     }
 
     // TODO move gcBefore into a field
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable)
+    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable)
     {
         if (path.superColumnName == null)
             return filter.getSSTableColumnIterator(sstable, key);
         return superFilter.getSSTableColumnIterator(sstable, key);
     }
 
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey<?> key)
+    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey<?> key)
     {
         if (path.superColumnName == null)
             return filter.getSSTableColumnIterator(sstable, file, key);
