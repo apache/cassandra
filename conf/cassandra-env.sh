@@ -150,7 +150,7 @@ if [ "`uname`" = "Linux" ] ; then
     # thread-per-client.  (Best practice is for client connections to
     # be pooled anyway.) Only do so on Linux where it is known to be
     # supported.
-    JVM_OPTS="$JVM_OPTS -Xss128k"
+    JVM_OPTS="$JVM_OPTS -Xss160k"
 fi
 
 # GC tuning options

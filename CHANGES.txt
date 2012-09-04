@@ -1,4 +1,5 @@
 1.0.12
+ * increase Xss to 160k to accomodate latest 1.6 JVMs (CASSANDRA-4602)
  * fix toString of hint destination tokens (CASSANDRA-4568)
  * (Hadoop) fix setting key length for old-style mapred api (CASSANDRA-4534)
  * (Hadoop) fix iterating through a resultset consisting entirely
