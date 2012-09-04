@@ -20,8 +20,8 @@ package org.apache.cassandra.cql3;
 import com.google.common.collect.Sets;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
+import org.apache.cassandra.io.compress.CompressionParameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,10 +38,10 @@ public class CFPropDefs
     public static final String KW_READREPAIRCHANCE = "read_repair_chance";
     public static final String KW_DCLOCALREADREPAIRCHANCE = "dclocal_read_repair_chance";
     public static final String KW_GCGRACESECONDS = "gc_grace_seconds";
-    public static final String KW_MINCOMPACTIONTHRESHOLD = "min_compaction_threshold";
-    public static final String KW_MAXCOMPACTIONTHRESHOLD = "max_compaction_threshold";
+    public static final String KW_MINCOMPACTIONTHRESHOLD = "min_threshold";
+    public static final String KW_MAXCOMPACTIONTHRESHOLD = "max_threshold";
     public static final String KW_REPLICATEONWRITE = "replicate_on_write";
-    public static final String KW_COMPACTION_STRATEGY_CLASS = "compaction_strategy_class";
+    public static final String KW_COMPACTION_STRATEGY_CLASS = "class";
     public static final String KW_CACHING = "caching";
     public static final String KW_BF_FP_CHANCE = "bloom_filter_fp_chance";
 
@@ -50,8 +50,8 @@ public class CFPropDefs
     public static final Set<String> obsoleteKeywords = new HashSet<String>();
     public static final Set<String> allowedKeywords = new HashSet<String>();
 
-    public static final String COMPACTION_OPTIONS_PREFIX = "compaction_strategy_options";
-    public static final String COMPRESSION_PARAMETERS_PREFIX = "compression_parameters";
+    public static final String COMPACTION_PARAMETERS = "compaction";
+    public static final String COMPRESSION_PARAMETERS = "compression";
 
     static
     {
@@ -60,9 +60,15 @@ public class CFPropDefs
         keywords.add(KW_DCLOCALREADREPAIRCHANCE);
         keywords.add(KW_GCGRACESECONDS);
         keywords.add(KW_REPLICATEONWRITE);
-        keywords.add(KW_COMPACTION_STRATEGY_CLASS);
         keywords.add(KW_CACHING);
         keywords.add(KW_BF_FP_CHANCE);
+
+        obsoleteKeywords.add("compaction_strategy_class");
+        obsoleteKeywords.add("compaction_strategy_options");
+        obsoleteKeywords.add("min_compaction_threshold");
+        obsoleteKeywords.add("max_compaction_threshold");
+        obsoleteKeywords.add("compaction_parameters");
+        obsoleteKeywords.add("compression_parameters");
 
         allowedKeywords.addAll(keywords);
         allowedKeywords.addAll(obsoleteKeywords);
@@ -85,31 +91,38 @@ public class CFPropDefs
         for (String obsolete : Sets.intersection(properties.keySet(), obsoleteKeywords))
             logger.warn("Ignoring obsolete property {}", obsolete);
 
-        if (properties.containsKey(KW_COMPACTION_STRATEGY_CLASS))
+        if (!compactionStrategyOptions.isEmpty())
         {
-            compactionStrategyClass = CFMetaData.createCompactionStrategy(properties.get(KW_COMPACTION_STRATEGY_CLASS));
-            compactionStrategyOptions.remove(KW_COMPACTION_STRATEGY_CLASS);
+            if (compactionStrategyOptions.containsKey(KW_COMPACTION_STRATEGY_CLASS))
+            {
+                compactionStrategyClass = CFMetaData.createCompactionStrategy(compactionStrategyOptions.get(KW_COMPACTION_STRATEGY_CLASS));
+                compactionStrategyOptions.remove(KW_COMPACTION_STRATEGY_CLASS);
+            }
+            else
+            {
+                throw new ConfigurationException("Missing sub-option '" + KW_COMPACTION_STRATEGY_CLASS + "' for the '" + COMPACTION_PARAMETERS + "' option.");
+            }
         }
     }
 
     /** Map a keyword to the corresponding value */
     public void addProperty(String name, String value)
     {
-        String[] composite = name.split(":");
-        if (composite.length > 1)
-        {
-            if (composite[0].equals(COMPACTION_OPTIONS_PREFIX))
-            {
-                compactionStrategyOptions.put(composite[1], value);
-                return;
-            }
-            else if (composite[0].equals(COMPRESSION_PARAMETERS_PREFIX))
-            {
-                compressionParameters.put(composite[1], value);
-                return;
-            }
-        }
         properties.put(name, value);
+    }
+
+    public void addProperty(String name, Map<String, String> value)
+    {
+        if (name.equalsIgnoreCase(COMPACTION_PARAMETERS))
+        {
+            for (Map.Entry<String, String> entry : value.entrySet())
+                compactionStrategyOptions.put(entry.getKey().toLowerCase(), entry.getValue());
+        }
+        else if (name.equalsIgnoreCase(COMPRESSION_PARAMETERS))
+        {
+            for (Map.Entry<String, String> entry : value.entrySet())
+                compressionParameters.put(entry.getKey().toLowerCase(), entry.getValue());
+        }
     }
 
     public void addAll(Map<String, String> propertyMap)

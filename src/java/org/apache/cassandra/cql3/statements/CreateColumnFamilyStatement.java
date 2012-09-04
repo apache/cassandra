@@ -131,7 +131,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     public static class RawStatement extends CFStatement
     {
         private final Map<ColumnIdentifier, ParsedType> definitions = new HashMap<ColumnIdentifier, ParsedType>();
-        private final CFPropDefs properties = new CFPropDefs();
+        public final CFPropDefs properties = new CFPropDefs();
 
         private final List<List<ColumnIdentifier>> keyAliases = new ArrayList<List<ColumnIdentifier>>();
         private final List<ColumnIdentifier> columnAliases = new ArrayList<ColumnIdentifier>();
@@ -332,11 +332,6 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         public void addColumnAlias(ColumnIdentifier alias)
         {
             columnAliases.add(alias);
-        }
-
-        public void addProperty(String name, String value)
-        {
-            properties.addProperty(name, value);
         }
 
         public void setOrdering(ColumnIdentifier alias, boolean reversed)

@@ -149,8 +149,7 @@ public final class CFMetaData
                                                          + "mutation blob,"
                                                          + "PRIMARY KEY (target_id, hint_id, message_version)"
                                                          + ") WITH COMPACT STORAGE "
-                                                         + "AND COMPACTION_STRATEGY_OPTIONS:MIN_COMPACTION_THRESHOLD=0 "
-                                                         + "AND COMPACTION_STRATEGY_OPTIONS:MAX_COMPACTION_THRESHOLD=0 "
+                                                         + "AND COMPACTION={'class' : 'SizeTieredCompactionStrategy', 'min_threshold' : 0, 'max_threshold' : 0} "
                                                          + "AND COMMENT='hints awaiting delivery'");
 
     public static final CFMetaData PeersCf = compile(12, "CREATE TABLE " + SystemTable.PEERS_CF + " ("

@@ -46,6 +46,7 @@
  * (cql3) fix defining more than one PK to be invalid (CASSANDRA-4477)
  * remove schema agreement checking from all external APIs (Thrift, CQL and CQL3) (CASSANDRA-4487)
  * add Murmur3Partitioner and make it default for new installations (CASSANDRA-3772)
+ * (cql3) update pseudo-map syntax to use map syntax (CASSANDRA-4497)
 
 
 1.1.5

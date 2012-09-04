@@ -34,8 +34,11 @@ import org.apache.cassandra.thrift.ThriftValidation;
 /** A <code>CREATE KEYSPACE</code> statement parsed from a CQL query. */
 public class CreateKeyspaceStatement extends SchemaAlteringStatement
 {
+    private static String REPLICATION_PARAMETERS_PREFIX = "replication";
+    private static String REPLICATION_STRATEGY_CLASS_KEY = "class";
+
     private final String name;
-    private final Map<String, String> attrs;
+    private final Map<String, Map<String, String>> attrs;
     private String strategyClass;
     private final Map<String, String> strategyOptions = new HashMap<String, String>();
 
@@ -46,7 +49,7 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
      * @param name the name of the keyspace to create
      * @param attrs map of the raw keyword arguments that followed the <code>WITH</code> keyword.
      */
-    public CreateKeyspaceStatement(String name, Map<String, String> attrs)
+    public CreateKeyspaceStatement(String name, Map<String, Map<String, String>> attrs)
     {
         super();
         this.name = name;
@@ -72,15 +75,23 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
         if (name.length() > Schema.NAME_LENGTH)
             throw new InvalidRequestException(String.format("Keyspace names shouldn't be more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, name));
 
-        // required
-        if (!attrs.containsKey("strategy_class"))
-            throw new InvalidRequestException("missing required argument \"strategy_class\"");
-        strategyClass = attrs.get("strategy_class");
+        if (!attrs.containsKey(REPLICATION_PARAMETERS_PREFIX))
+            throw new InvalidRequestException("missing required argument '" +  REPLICATION_PARAMETERS_PREFIX + "'");
 
-        // optional
-        for (String key : attrs.keySet())
-            if ((key.contains(":")) && (key.startsWith("strategy_options")))
-                strategyOptions.put(key.split(":")[1], attrs.get(key));
+        Map<String, String> replication_parameters = attrs.get(REPLICATION_PARAMETERS_PREFIX);
+
+        strategyClass = replication_parameters.get(REPLICATION_STRATEGY_CLASS_KEY);
+
+        if (strategyClass == null)
+            throw new InvalidRequestException("missing required field '" + REPLICATION_STRATEGY_CLASS_KEY + "' for '" + REPLICATION_PARAMETERS_PREFIX + "' option");
+
+        for (Map.Entry<String, String> entry : replication_parameters.entrySet())
+        {
+            if (entry.getKey().equals(REPLICATION_STRATEGY_CLASS_KEY))
+                continue;
+
+            strategyOptions.put(entry.getKey(), entry.getValue());
+        }
 
         // trial run to let ARS validate class + per-class options
         try

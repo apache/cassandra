@@ -76,6 +76,26 @@ options {
         if (op == null && (value.isBindMarker() || Long.parseLong(value.getText()) > 0))
             throw new MissingTokenException(102, stream, value);
     }
+
+    public Map<String, String> convertMap(Map<Term, Term> terms)
+    {
+        if (terms == null || terms.isEmpty())
+            return Collections.<String, String>emptyMap();
+
+        Map<String, String> res = new HashMap<String, String>(terms.size());
+
+        for (Map.Entry<Term, Term> entry : terms.entrySet())
+        {
+            // Because the parser tries to be smart and recover on error (to
+            // allow displaying more than one error I suppose), we have null
+            // entries in there. Just skip those, a proper error will be thrown in the end.
+            if (entry.getKey() == null || entry.getValue() == null)
+                break;
+            res.put(entry.getKey().getText(), entry.getValue().getText());
+        }
+
+        return res;
+    }
 }
 
 @lexer::header {
@@ -349,7 +369,7 @@ batchStatementObjective returns [ModificationStatement statement]
  */
 createKeyspaceStatement returns [CreateKeyspaceStatement expr]
     : K_CREATE K_KEYSPACE ks=keyspaceName
-      K_WITH props=properties { $expr = new CreateKeyspaceStatement(ks, props); }
+      K_WITH props=mapProperties { $expr = new CreateKeyspaceStatement(ks, props); }
     ;
 
 /**
@@ -380,7 +400,7 @@ pkDef[CreateColumnFamilyStatement.RawStatement expr]
     ;
 
 cfamProperty[CreateColumnFamilyStatement.RawStatement expr]
-    : k=property '=' v=propertyValue { $expr.addProperty(k, v); }
+    : property[expr.properties]
     | K_COMPACT K_STORAGE { $expr.setCompactStorage(); }
     | K_CLUSTERING K_ORDER K_BY '(' cfamOrdering[expr] (',' cfamOrdering[expr])* ')'
     ;
@@ -407,13 +427,14 @@ createIndexStatement returns [CreateIndexStatement expr]
 alterTableStatement returns [AlterTableStatement expr]
     @init {
         AlterTableStatement.Type type = null;
-        props = new HashMap<String, String>();
+        CFPropDefs props = new CFPropDefs();
     }
     : K_ALTER K_COLUMNFAMILY cf=columnFamilyName
           ( K_ALTER id=cident K_TYPE v=comparatorType { type = AlterTableStatement.Type.ALTER; }
           | K_ADD   id=cident v=comparatorType        { type = AlterTableStatement.Type.ADD; }
           | K_DROP  id=cident                         { type = AlterTableStatement.Type.DROP; }
-          | K_WITH  props=properties                  { type = AlterTableStatement.Type.OPTS; }
+          | K_WITH  (property[props]
+                     ( K_AND property[props] )* { type = AlterTableStatement.Type.OPTS; })
           )
     {
         $expr = new AlterTableStatement(cf, type, id, v, props);
@@ -553,9 +574,9 @@ operation returns [Operation op]
     | '+' ml=map_literal { $op = MapOperation.Put(ml); }
     ;
 
-property returns [String str]
-    @init{ StringBuilder sb = new StringBuilder(); }
-    : c1=cident { sb.append(c1); } ( ':' cn=cident { sb.append(':').append(cn); } )* { $str = sb.toString(); }
+property[CFPropDefs props]
+    : k=cident '=' (simple=propertyValue { $props.addProperty(k.toString(), simple); }
+                   |   map=map_literal   { $props.addProperty(k.toString(), convertMap(map)); })
     ;
 
 propertyValue returns [String str]
@@ -563,9 +584,9 @@ propertyValue returns [String str]
     | u=unreserved_keyword                         { $str = u; }
     ;
 
-properties returns [Map<String, String> props]
-    @init{ $props = new HashMap<String, String>(); }
-    : k1=property '=' v1=propertyValue { $props.put(k1, v1); } (K_AND kn=property '=' vn=propertyValue { $props.put(kn, vn); } )*
+mapProperties returns [Map<String, Map<String, String>> props]
+    @init { $props = new HashMap<String, Map<String, String>>(); }
+    : k=cident '=' v=map_literal { $props.put(k.toString(), convertMap(v)); } (K_AND kn=cident '=' vn=map_literal { $props.put(kn.toString(), convertMap(vn)); } )*
     ;
 
 // Either a string or a list of terms

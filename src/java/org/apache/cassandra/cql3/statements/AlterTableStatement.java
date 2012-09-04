@@ -42,15 +42,15 @@ public class AlterTableStatement extends SchemaAlteringStatement
     public final Type oType;
     public final ParsedType validator;
     public final ColumnIdentifier columnName;
-    private final CFPropDefs cfProps = new CFPropDefs();
+    private final CFPropDefs cfProps;
 
-    public AlterTableStatement(CFName name, Type type, ColumnIdentifier columnName, ParsedType validator, Map<String, String> propertyMap)
+    public AlterTableStatement(CFName name, Type type, ColumnIdentifier columnName, ParsedType validator, CFPropDefs cfProps)
     {
         super(name);
         this.oType = type;
         this.columnName = columnName;
         this.validator = validator; // used only for ADD/ALTER commands
-        this.cfProps.addAll(propertyMap);
+        this.cfProps = cfProps;
     }
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException
