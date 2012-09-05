@@ -181,4 +181,10 @@ public class KeysIndex extends PerColumnSecondaryIndex
     {
         return indexCfs.getMemtableDataSize();
     }
+
+    public void reload() throws IOException
+    {
+        indexCfs.metadata.reloadSecondaryIndexMetadata(baseCfs.metadata);
+        indexCfs.reload();
+    }
 }

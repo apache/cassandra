@@ -137,7 +137,11 @@ public class SecondaryIndexColumnSizeTest
         public void deleteFromIndex(DecoratedKey<?> key, List<IColumn> indexedColumnsInRow)
         {  
         }
-        
+
+        @Override
+        public void reload()
+        {
+        }
     }
     
     
@@ -210,6 +214,11 @@ public class SecondaryIndexColumnSizeTest
         @Override
         public void updateColumn(DecoratedKey valueKey, ByteBuffer rowKey, IColumn col) throws IOException
         {
-        }    
+        }
+
+        @Override
+        public void reload()
+        {
+        }
     }
 }

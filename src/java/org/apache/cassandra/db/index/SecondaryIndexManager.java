@@ -99,10 +99,11 @@ public class SecondaryIndexManager
             if (cdef.getIndexType() != null && !indexedColumnNames.contains(cdef.name))
                 addIndexedColumn(cdef);
 
-        for (ColumnFamilyStore cfs : getIndexesBackedByCfs())
+        Set<SecondaryIndex> reloadedIndexes = Collections.newSetFromMap(new IdentityHashMap<SecondaryIndex, Boolean>());
+        for (SecondaryIndex index : indexesByColumn.values())
         {
-            cfs.metadata.reloadSecondaryIndexMetadata(baseCfs.metadata);
-            cfs.reload();
+            if (reloadedIndexes.add(index))
+                index.reload();
         }
     }
 

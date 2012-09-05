@@ -1,4 +1,5 @@
 1.1.5
+ * add SecondaryIndex.reload API (CASSANDRA-4581)
  * use millis + atomicint for commitlog segment creation instead of
    nanotime, which has issues under some hypervisors (CASSANDRA-4601)
  * fix FD leak in slice queries (CASSANDRA-4571)

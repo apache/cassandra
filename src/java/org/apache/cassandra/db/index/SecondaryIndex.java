@@ -66,6 +66,14 @@ public abstract class SecondaryIndex
     public abstract void init();
 
     /**
+     * Reload an existing index following a change to its configuration, 
+     * or that of the indexed column(s). Differs from init() in that we expect
+     * expect new resources (such as CFS for a KEYS index) to be created by
+     * init() but not here
+     */
+    public abstract void reload() throws IOException;
+
+    /**
      * Validates the index_options passed in the ColumnDef
      * @throws ConfigurationException
      */
