@@ -19,20 +19,12 @@ package org.apache.cassandra.db.index.keys;
 
 import java.nio.ByteBuffer;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.LocalByPartionerType;
-import org.apache.cassandra.dht.*;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.exceptions.ConfigurationException;
 
 /**
  * Implements a secondary index for a column family using a second column family

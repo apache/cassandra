@@ -138,6 +138,11 @@ public class SecondaryIndexColumnSizeTest
         public void delete(DecoratedKey key)
         {
         }
+
+        @Override
+        public void reload()
+        {
+        }
     }
 
 
@@ -209,6 +214,11 @@ public class SecondaryIndexColumnSizeTest
 
         @Override
         public void update(ByteBuffer rowKey, IColumn col)
+        {
+        }
+
+        @Override
+        public void reload()
         {
         }
     }

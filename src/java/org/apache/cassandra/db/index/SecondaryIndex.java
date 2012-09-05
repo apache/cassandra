@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.db.index;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -73,6 +73,14 @@ public abstract class SecondaryIndex
      * Perform any initialization work
      */
     public abstract void init();
+
+    /**
+     * Reload an existing index following a change to its configuration, 
+     * or that of the indexed column(s). Differs from init() in that we expect
+     * expect new resources (such as CFS for a KEYS index) to be created by
+     * init() but not here
+     */
+    public abstract void reload();
 
     /**
      * Validates the index_options passed in the ColumnDef

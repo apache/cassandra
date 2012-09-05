@@ -157,4 +157,10 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
     {
         return indexCfs.getMemtableDataSize();
     }
+
+    public void reload()
+    {
+        indexCfs.metadata.reloadSecondaryIndexMetadata(baseCfs.metadata);
+        indexCfs.reload();
+    }
 }
