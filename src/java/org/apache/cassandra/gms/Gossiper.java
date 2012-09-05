@@ -896,6 +896,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (logger.isTraceEnabled())
             logger.trace("Updating heartbeat state version to " + localState.getHeartBeatState().getHeartBeatVersion() + " from " + oldVersion + " for " + addr + " ...");
 
+        // we need to make two loops here, one to apply, then another to notify, this way all states in an update are present and current when the notifications are received
         for (Entry<ApplicationState, VersionedValue> remoteEntry : remoteState.getApplicationStateMap().entrySet())
         {
             ApplicationState remoteKey = remoteEntry.getKey();
@@ -903,7 +904,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
             assert remoteState.getHeartBeatState().getGeneration() == localState.getHeartBeatState().getGeneration();
             localState.addApplicationState(remoteKey, remoteValue);
-            doNotifications(addr, remoteKey, remoteValue);
+        }
+        for (Entry<ApplicationState, VersionedValue> remoteEntry : remoteState.getApplicationStateMap().entrySet())
+        {
+            doNotifications(addr, remoteEntry.getKey(), remoteEntry.getValue());
         }
     }
 
