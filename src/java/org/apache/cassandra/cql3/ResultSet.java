@@ -209,7 +209,7 @@ public class ResultSet
         public Metadata(List<ColumnSpecification> names)
         {
             this(EnumSet.noneOf(Flag.class), names);
-            if (allInSameCF())
+            if (!names.isEmpty() && allInSameCF())
                 flags.add(Flag.GLOBAL_TABLES_SPEC);
         }
 
