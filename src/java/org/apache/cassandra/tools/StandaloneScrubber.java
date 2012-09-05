@@ -18,21 +18,23 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.io.sstable.*;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.AbstractCassandraDaemon;
 import org.apache.cassandra.utils.OutputHandler;
+
 import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
 public class StandaloneScrubber
@@ -103,7 +105,7 @@ public class StandaloneScrubber
                 cfs.directories.snapshotLeveledManifest(snapshotName);
                 System.out.println(String.format("Leveled manifest snapshotted into snapshot %s", snapshotName));
 
-                int maxSizeInMB = (int)((((LeveledCompactionStrategy)cfs.getCompactionStrategy()).getMaxSSTableSize()) / (1024L * 1024L));
+                int maxSizeInMB = (int)((cfs.getCompactionStrategy().getMaxSSTableSize()) / (1024L * 1024L));
                 manifest = LeveledManifest.create(cfs, maxSizeInMB, sstables);
             }
 
@@ -130,7 +132,7 @@ public class StandaloneScrubber
 
                             List<SSTableReader> added = scrubber.getNewSSTable() == null
                                 ? Collections.<SSTableReader>emptyList()
-                                : Collections.<SSTableReader>singletonList(scrubber.getNewSSTable());
+                                : Collections.singletonList(scrubber.getNewSSTable());
                             manifest.replace(Collections.singletonList(sstable), added);
                         }
 
@@ -168,7 +170,7 @@ public class StandaloneScrubber
         System.out.println(String.format("Checking leveled manifest"));
         for (int i = 1; i <= manifest.getLevelCount(); ++i)
         {
-            List<SSTableReader> sstables = new ArrayList(manifest.getLevel(i));
+            List<SSTableReader> sstables = new ArrayList<SSTableReader>(manifest.getLevel(i));
             Collections.sort(sstables, SSTable.sstableComparator);
             if (sstables.isEmpty())
                 continue;
