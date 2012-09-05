@@ -124,9 +124,10 @@ public abstract class Message
         return connection;
     }
 
-    public void setStreamId(int streamId)
+    public Message setStreamId(int streamId)
     {
         this.streamId = streamId;
+        return this;
     }
 
     public int getStreamId()
@@ -197,19 +198,28 @@ public abstract class Message
                 throw new ProtocolException("Invalid response message received, expecting requests");
 
             Request request = (Request)e.getMessage();
-            Connection connection = request.connection();
-            connection.validateNewMessage(request.type);
 
-            logger.debug("Received: " + request);
+            try
+            {
+                Connection connection = request.connection();
+                connection.validateNewMessage(request.type);
 
-            Response response = request.execute();
-            response.setStreamId(request.getStreamId());
-            response.attach(connection);
-            response.connection().applyStateTransition(request.type, response.type);
+                logger.debug("Received: " + request);
 
-            logger.debug("Responding: " + response);
+                Response response = request.execute();
+                response.setStreamId(request.getStreamId());
+                response.attach(connection);
+                response.connection().applyStateTransition(request.type, response.type);
 
-            e.getChannel().write(response);
+                logger.debug("Responding: " + response);
+
+                e.getChannel().write(response);
+            }
+            catch (Exception ex)
+            {
+                // Don't let the exception propagate to exceptionCaught() if we can help it so that we can assign the right streamID.
+                e.getChannel().write(ErrorMessage.fromException(ex).setStreamId(request.getStreamId()));
+            }
         }
 
         @Override
