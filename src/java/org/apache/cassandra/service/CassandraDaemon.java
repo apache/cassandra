@@ -23,6 +23,7 @@ import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Iterables;
@@ -36,6 +37,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.thrift.ThriftServer;
@@ -231,7 +233,14 @@ public class CassandraDaemon
         {
             if (logger.isDebugEnabled())
                 logger.debug("opening keyspace " + table);
-            Table.open(table);
+            // disable auto compaction until commit log replay ends
+            for (ColumnFamilyStore cfs : Table.open(table).getColumnFamilyStores())
+            {
+                for (ColumnFamilyStore store : cfs.concatWithIndexes())
+                {
+                    store.disableAutoCompaction();
+                }
+            }
         }
 
         if (CacheService.instance.keyCache.size() > 0)
@@ -251,6 +260,34 @@ public class CassandraDaemon
 
         // replay the log if necessary
         CommitLog.instance.recover();
+
+        // enable auto compaction
+        for (Table table : Table.all())
+        {
+            for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
+            {
+                for (final ColumnFamilyStore store : cfs.concatWithIndexes())
+                {
+                    store.enableAutoCompaction();
+                }
+            }
+        }
+        // start compactions in five minutes (if no flushes have occurred by then to do so)
+        Runnable runnable = new Runnable()
+        {
+            public void run()
+            {
+                for (Table table : Table.all())
+                {
+                    for (ColumnFamilyStore cf : table.getColumnFamilyStores())
+                    {
+                        for (ColumnFamilyStore store : cf.concatWithIndexes())
+                            CompactionManager.instance.submitBackground(store);
+                    }
+                }
+            }
+        };
+        StorageService.optionalTasks.schedule(runnable, 5 * 60, TimeUnit.SECONDS);
 
         SystemTable.finishStartup();
 

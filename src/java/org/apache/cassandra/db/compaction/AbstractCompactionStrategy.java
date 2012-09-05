@@ -25,7 +25,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.service.StorageService;
 
 /**
  * Pluggable compaction strategy determines how SSTables get merged.
@@ -53,19 +52,6 @@ public abstract class AbstractCompactionStrategy
 
         String optionValue = options.get(TOMBSTONE_THRESHOLD_KEY);
         tombstoneThreshold = optionValue == null ? DEFAULT_TOMBSTONE_THRESHOLD : Float.parseFloat(optionValue);
-
-        // start compactions in five minutes (if no flushes have occurred by then to do so)
-        Runnable runnable = new Runnable()
-        {
-            public void run()
-            {
-                if (CompactionManager.instance.getActiveCompactions() == 0)
-                {
-                    CompactionManager.instance.submitBackground(AbstractCompactionStrategy.this.cfs);
-                }
-            }
-        };
-        StorageService.optionalTasks.schedule(runnable, 5 * 60, TimeUnit.SECONDS);
     }
 
     public Map<String, String> getOptions()
