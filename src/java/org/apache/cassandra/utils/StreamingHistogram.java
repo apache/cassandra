@@ -127,10 +127,10 @@ public class StreamingHistogram
     }
 
     /**
-     * Calculates estimated number of points in interval [-∞,b].
+     * Calculates estimated number of points in interval [-inf,b].
      *
      * @param b upper bound of a interval to calculate sum
-     * @return estimated number of points in a interval [-∞,b].
+     * @return estimated number of points in a interval [-inf,b].
      */
     public double sum(double b)
     {
