@@ -1846,6 +1846,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         maxCompactionThreshold.set(0);
     }
 
+    public void enableAutoCompaction()
+    {
+        minCompactionThreshold.reset();
+        maxCompactionThreshold.reset();
+    }
+
     /*
      JMX getters and setters for the Default<T>s.
        - get/set minCompactionThreshold

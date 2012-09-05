@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -45,6 +45,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Mx4jTool;
 
@@ -143,8 +144,8 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
 
         // check all directories(data, commitlog, saved cache) for existence and permission
         Iterable<String> dirs = Iterables.concat(Arrays.asList(DatabaseDescriptor.getAllDataFileLocations()),
-                                                 Arrays.asList(new String[] {DatabaseDescriptor.getCommitLogLocation(),
-                                                                             DatabaseDescriptor.getSavedCachesLocation()}));
+                                                 Arrays.asList(DatabaseDescriptor.getCommitLogLocation(),
+                                                               DatabaseDescriptor.getSavedCachesLocation()));
         for (String dataDir : dirs)
         {
             logger.debug("Checking directory {}", dataDir);
@@ -201,7 +202,14 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         {
             if (logger.isDebugEnabled())
                 logger.debug("opening keyspace " + table);
-            Table.open(table);
+            // disable auto compaction until commit log replay ends
+            for (ColumnFamilyStore cfs : Table.open(table).getColumnFamilyStores())
+            {
+                for (ColumnFamilyStore store : cfs.concatWithIndexes())
+                {
+                    store.disableAutoCompaction();
+                }
+            }
         }
 
         if (CacheService.instance.keyCache.size() > 0)
@@ -221,6 +229,34 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
 
         // replay the log if necessary
         CommitLog.instance.recover();
+
+        // enable auto compaction
+        for (Table table : Table.all())
+        {
+            for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
+            {
+                for (final ColumnFamilyStore store : cfs.concatWithIndexes())
+                {
+                    store.enableAutoCompaction();
+                }
+            }
+        }
+        // start compactions in five minutes (if no flushes have occurred by then to do so)
+        Runnable runnable = new Runnable()
+        {
+            public void run()
+            {
+                for (Table table : Table.all())
+                {
+                    for (ColumnFamilyStore cf : table.getColumnFamilyStores())
+                    {
+                        for (ColumnFamilyStore store : cf.concatWithIndexes())
+                            CompactionManager.instance.submitBackground(store);
+                    }
+                }
+            }
+        };
+        StorageService.optionalTasks.schedule(runnable, 5 * 60, TimeUnit.SECONDS);
 
         SystemTable.finishStartup();
 

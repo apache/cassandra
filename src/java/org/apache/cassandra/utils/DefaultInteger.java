@@ -40,6 +40,11 @@ public class DefaultInteger
         currentValue = i;
     }
 
+    public void reset()
+    {
+        currentValue = originalValue;
+    }
+
     public boolean isModified()
     {
         return originalValue != currentValue;

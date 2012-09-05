@@ -47,19 +47,6 @@ public abstract class AbstractCompactionStrategy
         assert cfs != null;
         this.cfs = cfs;
         this.options = options;
-
-        // start compactions in five minutes (if no flushes have occurred by then to do so)
-        Runnable runnable = new Runnable()
-        {
-            public void run()
-            {
-                if (CompactionManager.instance.getActiveCompactions() == 0)
-                {
-                    CompactionManager.instance.submitBackground(AbstractCompactionStrategy.this.cfs);
-                }
-            }
-        };
-        StorageService.optionalTasks.schedule(runnable, 5 * 60, TimeUnit.SECONDS);
     }
 
     public Map<String, String> getOptions()
