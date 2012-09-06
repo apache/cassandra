@@ -1,5 +1,7 @@
 1.1.6
   * (cql3) fix potential NPE with both equal and unequal restriction (CASSANDRA-4532)
+  * (cql3) improves ORDER BY validation (CASSANDRA-4624)
+
 
 1.1.5
  * add SecondaryIndex.reload API (CASSANDRA-4581)

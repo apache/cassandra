@@ -1070,8 +1070,8 @@ public class SelectStatement implements CQLStatement
 
             if (!stmt.parameters.orderings.isEmpty())
             {
-                if (whereClause.isEmpty())
-                    throw new InvalidRequestException("ORDER BY is only supported in combination with WHERE clause.");
+                if (stmt.isKeyRange())
+                    throw new InvalidRequestException("ORDER BY is only supported when the partition key is restricted by an EQ or an IN.");
 
                 Boolean[] reversedMap = new Boolean[cfDef.columns.size()];
                 int i = 0;
