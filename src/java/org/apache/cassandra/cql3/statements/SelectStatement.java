@@ -808,28 +808,59 @@ public class SelectStatement implements CQLStatement
         if (parameters.orderings.size() == 1)
         {
             CFDefinition.Name ordering = cfDef.get(parameters.orderings.keySet().iterator().next());
-            Collections.sort(cqlRows.rows, new SingleColumnComparator(ordering.position + 1, ordering.type));
+            Collections.sort(cqlRows.rows, new SingleColumnComparator(getColumnPositionInSelect(ordering), ordering.type));
             return;
         }
 
-        // figures out where ordering would start in results (startPosition),
-        // builds a composite type for multi-column comparison from the comparators of the ordering components
+        // builds a 'composite' type for multi-column comparison from the comparators of the ordering components
         // and passes collected position information and built composite comparator to CompositeComparator to do
         // an actual comparison of the CQL rows.
-        int startPosition = -1;
-        List<AbstractType<?>> types = new ArrayList<AbstractType<?>>();
+        List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(parameters.orderings.size());
+        int[] positions = new int[parameters.orderings.size()];
 
+        int idx = 0;
         for (ColumnIdentifier identifier : parameters.orderings.keySet())
         {
             CFDefinition.Name orderingColumn = cfDef.get(identifier);
-
-            if (startPosition == -1)
-                startPosition = orderingColumn.position + 1;
-
             types.add(orderingColumn.type);
+            positions[idx++] = getColumnPositionInSelect(orderingColumn);
         }
 
-        Collections.sort(cqlRows.rows, new CompositeComparator(startPosition, types));
+        Collections.sort(cqlRows.rows, new CompositeComparator(types, positions));
+    }
+
+    // determine position of column in the select clause
+    private int getColumnPositionInSelect(CFDefinition.Name columnName)
+    {
+        for (int i = 0; i < selectedNames.size(); i++)
+        {
+            if (selectedNames.get(i).left.equals(columnName))
+                return i;
+        }
+
+        throw new IllegalArgumentException(String.format("Column %s wasn't found in select clause.", columnName));
+    }
+
+    /**
+     * For sparse composite, returns wheter two columns belong to the same
+     * cqlRow base on the full list of component in the name.
+     * Two columns do belong together if they differ only by the last
+     * component.
+     */
+    private static boolean isSameRow(ByteBuffer[] c1, ByteBuffer[] c2)
+    {
+        // Cql don't allow to insert columns who doesn't have all component of
+        // the composite set for sparse composite. Someone coming from thrift
+        // could hit that though. But since we have no way to handle this
+        // correctly, better fail here and tell whomever may hit that (if
+        // someone ever do) to change the definition to a dense composite
+        assert c1.length == c2.length : "Sparse composite should not have partial column names";
+        for (int i = 0; i < c1.length - 1; i++)
+        {
+            if (!c1[i].equals(c2[i]))
+                return false;
+        }
+        return true;
     }
 
     private void handleGroup(List<Pair<CFDefinition.Name, Selector>> selection, ByteBuffer key, ByteBuffer[] keyComponents, ColumnGroupMap columns, ResultSet cqlRows)
@@ -1087,6 +1118,28 @@ public class SelectStatement implements CQLStatement
             {
                 if (stmt.isKeyRange)
                     throw new InvalidRequestException("ORDER BY is only supported when the partition key is restricted by an EQ or an IN.");
+
+                // check if we are trying to order by column that wouldn't be included in the results
+                if (!stmt.selectedNames.isEmpty()) // empty means wildcard was used
+                {
+                    for (ColumnIdentifier column : stmt.parameters.orderings.keySet())
+                    {
+                        CFDefinition.Name name = cfDef.get(column);
+
+                        boolean hasColumn = false;
+                        for (Pair<CFDefinition.Name, Selector> selectPair : stmt.selectedNames)
+                        {
+                            if (selectPair.left.equals(name))
+                            {
+                                hasColumn = true;
+                                break;
+                            }
+                        }
+
+                        if (!hasColumn)
+                            throw new InvalidRequestException("ORDER BY could not be used on columns missing in select clause.");
+                    }
+                }
 
                 Boolean[] reversedMap = new Boolean[cfDef.columns.size()];
                 int i = 0;
@@ -1355,27 +1408,29 @@ public class SelectStatement implements CQLStatement
      */
     private static class CompositeComparator implements Comparator<List<ByteBuffer>>
     {
-        private final int startColumnIndex;
-        private final List<AbstractType<?>> orderings;
+        private final List<AbstractType<?>> orderTypes;
+        private final int[] positions;
 
-        private CompositeComparator(int startIndex, List<AbstractType<?>> orderComparators)
+        private CompositeComparator(List<AbstractType<?>> orderTypes, int[] positions)
         {
-            startColumnIndex = startIndex;
-            orderings = orderComparators;
+            this.orderTypes = orderTypes;
+            this.positions = positions;
         }
 
         public int compare(List<ByteBuffer> a, List<ByteBuffer> b)
         {
-            int currentIndex = startColumnIndex;
-
-            for (AbstractType<?> comparator : orderings)
+            for (int i = 0; i < positions.length; i++)
             {
-                int comparison = comparator.compare(a.get(currentIndex), b.get(currentIndex));
+                AbstractType<?> type = orderTypes.get(i);
+                int columnPos = positions[i];
+
+                ByteBuffer aValue = a.get(columnPos);
+                ByteBuffer bValue = b.get(columnPos);
+
+                int comparison = type.compare(aValue, bValue);
 
                 if (comparison != 0)
                     return comparison;
-
-                currentIndex++;
             }
 
             return 0;
