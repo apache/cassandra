@@ -1,4 +1,4 @@
-1.2-dev
+1.2-beta1
  * include message initiation time to replicas so they can more
    accurately drop timed-out requests (CASSANDRA-2858)
  * fix clientutil.jar dependencies (CASSANDRA-4566)
@@ -64,6 +64,11 @@
  * Change nodetool setcachecapcity to manipulate global caches (CASSANDRA-4563)
  * (cql3) fix setting compaction strategy (CASSANDRA-4597)
  * fix broken system.schema_* timestamps on system startup (CASSANDRA-4561)
+ * fix wrong skip of cache saving (CASSANDRA-4533)
+ * Avoid NPE when lost+found is in data dir (CASSANDRA-4572)
+ * Respect five-minute flush moratorium after initial CL replay (CASSANDRA-4474)
+ * Adds ntp as recommended in debian packaging (CASSANDRA-4606)
+ * Configurable transport in CF Record{Reader|Writer} (CASSANDRA-4558)
 Merged from 1.0:
  * increase Xss to 160k to accomodate latest 1.6 JVMs (CASSANDRA-4602)
  * fix toString of hint destination tokens (CASSANDRA-4568)
