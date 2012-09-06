@@ -116,18 +116,18 @@ public abstract class AbstractReplicationStrategy
      */
     public abstract List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata);
 
-    public IWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistency_level)
+    public IWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistency_level, Runnable callback)
     {
         if (consistency_level == ConsistencyLevel.LOCAL_QUORUM)
         {
             // block for in this context will be localnodes block.
-            return DatacenterWriteResponseHandler.create(writeEndpoints, consistency_level, table);
+            return DatacenterWriteResponseHandler.create(writeEndpoints, consistency_level, table, callback);
         }
         else if (consistency_level == ConsistencyLevel.EACH_QUORUM)
         {
-            return DatacenterSyncWriteResponseHandler.create(writeEndpoints, consistency_level, table);
+            return DatacenterSyncWriteResponseHandler.create(writeEndpoints, consistency_level, table, callback);
         }
-        return WriteResponseHandler.create(writeEndpoints, consistency_level, table);
+        return WriteResponseHandler.create(writeEndpoints, consistency_level, table, callback);
     }
 
     /**

@@ -34,16 +34,22 @@ import org.apache.cassandra.utils.SimpleCondition;
 
 public abstract class AbstractWriteResponseHandler implements IWriteResponseHandler
 {
-    protected final SimpleCondition condition = new SimpleCondition();
+    private final SimpleCondition condition = new SimpleCondition();
     protected final long startTime;
     protected final Collection<InetAddress> writeEndpoints;
     protected final ConsistencyLevel consistencyLevel;
+    protected final Runnable callback;
 
-    protected AbstractWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel)
+    /**
+     * @param callback A callback to be called when the write is successful.
+     * Note that this callback will *not* be called in case of an exception (timeout or unavailable).
+     */
+    protected AbstractWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, Runnable callback)
     {
         startTime = System.currentTimeMillis();
         this.consistencyLevel = consistencyLevel;
         this.writeEndpoints = writeEndpoints;
+        this.callback = callback;
     }
 
     public void get() throws TimeoutException
@@ -69,4 +75,11 @@ public abstract class AbstractWriteResponseHandler implements IWriteResponseHand
     public abstract void response(Message msg);
 
     public abstract void assureSufficientLiveNodes() throws UnavailableException;
+
+    protected void signal()
+    {
+        condition.signal();
+        if (callback != null)
+            callback.run();
+    }
 }

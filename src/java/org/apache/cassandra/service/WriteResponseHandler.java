@@ -42,21 +42,21 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
 
     protected final AtomicInteger responses;
 
-    protected WriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
+    protected WriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
     {
-        super(writeEndpoints, consistencyLevel);
+        super(writeEndpoints, consistencyLevel, callback);
         responses = new AtomicInteger(determineBlockFor(table));
     }
 
     protected WriteResponseHandler(InetAddress endpoint)
     {
-        super(Arrays.asList(endpoint), ConsistencyLevel.ALL);
+        super(Arrays.asList(endpoint), ConsistencyLevel.ALL, null);
         responses = new AtomicInteger(1);
     }
 
-    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
+    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
     {
-        return new WriteResponseHandler(writeEndpoints, consistencyLevel, table);
+        return new WriteResponseHandler(writeEndpoints, consistencyLevel, table, callback);
     }
 
     public static IWriteResponseHandler create(InetAddress endpoint)
@@ -67,7 +67,7 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
     public void response(Message m)
     {
         if (responses.decrementAndGet() == 0)
-            condition.signal();
+            signal();
     }
 
     protected int determineBlockFor(String table)
