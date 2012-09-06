@@ -1083,9 +1083,6 @@
         <fileset dir="${build.dir.lib}">
           <include name="**/junit*.jar" />
         </fileset>
-        <fileset dir="${build.lib}">
-          <include name="**/guava*.jar" />
-        </fileset>
       </classpath>
     </junit>
   </target>

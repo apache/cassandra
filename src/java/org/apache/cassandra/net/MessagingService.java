@@ -184,7 +184,7 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.TREE_REQUEST, AntiEntropyService.TreeRequest.serializer);
         put(Verb.TREE_RESPONSE, AntiEntropyService.Validator.serializer);
         put(Verb.STREAMING_REPAIR_REQUEST, StreamingRepairTask.serializer);
-        put(Verb.STREAMING_REPAIR_RESPONSE, UUIDGen.serializer);
+        put(Verb.STREAMING_REPAIR_RESPONSE, UUIDSerializer.serializer);
         put(Verb.GOSSIP_DIGEST_ACK, GossipDigestAck.serializer);
         put(Verb.GOSSIP_DIGEST_ACK2, GossipDigestAck2.serializer);
         put(Verb.GOSSIP_DIGEST_SYN, GossipDigestSyn.serializer);
@@ -209,7 +209,7 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.SNAPSHOT, null);
 
         put(Verb.MIGRATION_REQUEST, MigrationManager.MigrationsSerializer.instance);
-        put(Verb.SCHEMA_CHECK, UUIDGen.serializer);
+        put(Verb.SCHEMA_CHECK, UUIDSerializer.serializer);
         put(Verb.BOOTSTRAP_TOKEN, BootStrapper.StringSerializer.instance);
         put(Verb.REPLICATION_FINISHED, null);
     }};

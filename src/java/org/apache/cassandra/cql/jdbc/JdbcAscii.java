@@ -19,14 +19,14 @@ package org.apache.cassandra.cql.jdbc;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
 import java.sql.Types;
-
-import com.google.common.base.Charsets;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class JdbcAscii extends AbstractJdbcType<String>
 {
+    private static final Charset US_ASCII = Charset.forName("US-ASCII");
     public static final JdbcAscii instance = new JdbcAscii();
 
     JdbcAscii() {}
@@ -70,7 +70,7 @@ public class JdbcAscii extends AbstractJdbcType<String>
     {
         try
         {
-            return ByteBufferUtil.string(bytes, Charsets.US_ASCII);
+            return ByteBufferUtil.string(bytes, US_ASCII);
         }
         catch (CharacterCodingException e)
         {
@@ -95,6 +95,6 @@ public class JdbcAscii extends AbstractJdbcType<String>
 
     public ByteBuffer decompose(String value)
     {
-        return ByteBufferUtil.bytes(value, Charsets.US_ASCII);
+        return ByteBufferUtil.bytes(value, US_ASCII);
     }
 }

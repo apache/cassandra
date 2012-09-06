@@ -19,14 +19,14 @@ package org.apache.cassandra.cql.jdbc;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
 import java.sql.Types;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import com.google.common.base.Charsets;
-
 public class JdbcUTF8 extends AbstractJdbcType<String>
 {
+    private static final Charset UTF_8 = Charset.forName("UTF-8");
     public static final JdbcUTF8 instance = new JdbcUTF8();
 
     public JdbcUTF8() {}
@@ -95,6 +95,6 @@ public class JdbcUTF8 extends AbstractJdbcType<String>
 
     public ByteBuffer decompose(String value)
     {
-        return ByteBufferUtil.bytes(value, Charsets.UTF_8);
+        return ByteBufferUtil.bytes(value, UTF_8);
     }
 }

@@ -31,8 +31,6 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.UUID;
 
-import static com.google.common.base.Charsets.UTF_8;
-
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -76,6 +74,7 @@ import org.apache.cassandra.io.util.FileUtils;
  */
 public class ByteBufferUtil
 {
+    private static final Charset UTF_8 = Charset.forName("UTF-8");
     public static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
 
     public static int compareUnsigned(ByteBuffer o1, ByteBuffer o2)

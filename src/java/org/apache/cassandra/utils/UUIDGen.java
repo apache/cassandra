@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.*;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -27,16 +26,12 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
 
 /**
  * The goods are here: www.ietf.org/rfc/rfc4122.txt.
  */
 public class UUIDGen
 {
-    public static UUIDSerializer serializer = new UUIDSerializer();
-
     // A grand day! millis at 00:00:00.000 15 Oct 1582.
     private static final long START_EPOCH = -12219292800000L;
     private static final long clock = new Random(System.currentTimeMillis()).nextLong();
@@ -93,25 +88,6 @@ public class UUIDGen
     public static UUID getUUID(ByteBuffer raw)
     {
         return new UUID(raw.getLong(raw.position()), raw.getLong(raw.position() + 8));
-    }
-
-    public static class UUIDSerializer implements IVersionedSerializer<UUID>
-    {
-        public void serialize(UUID uuid, DataOutput out, int version) throws IOException
-        {
-            out.writeLong(uuid.getMostSignificantBits());
-            out.writeLong(uuid.getLeastSignificantBits());
-        }
-
-        public UUID deserialize(DataInput in, int version) throws IOException
-        {
-            return new UUID(in.readLong(), in.readLong());
-        }
-
-        public long serializedSize(UUID uuid, int version)
-        {
-            return TypeSizes.NATIVE.sizeof(uuid.getMostSignificantBits()) + TypeSizes.NATIVE.sizeof(uuid.getLeastSignificantBits());
-        }
     }
 
     /** decomposes a uuid into raw bytes. */

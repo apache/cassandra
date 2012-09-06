@@ -23,13 +23,12 @@ import java.io.IOException;
 import java.util.UUID;
 
 import org.apache.cassandra.config.Schema;
-
 import org.apache.cassandra.io.IColumnSerializer;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.ISSTableSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.UUIDSerializer;
 
 public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily>, ISSTableSerializer<ColumnFamily>
 {
@@ -171,7 +170,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
             dos.writeInt(oldId);
         }
         else
-            UUIDGen.serializer.serialize(cfId, dos, version);
+            UUIDSerializer.serializer.serialize(cfId, dos, version);
     }
 
     public UUID deserializeCfId(DataInput dis, int version) throws IOException
@@ -179,7 +178,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
         // create a ColumnFamily based on the cf id
         UUID cfId = (version < MessagingService.VERSION_12)
                      ? Schema.instance.convertOldCfId(dis.readInt())
-                     : UUIDGen.serializer.deserialize(dis, version);
+                     : UUIDSerializer.serializer.deserialize(dis, version);
 
         if (Schema.instance.getCF(cfId) == null)
             throw new UnknownColumnFamilyException("Couldn't find cfId=" + cfId, cfId);

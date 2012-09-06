@@ -1,4 +1,5 @@
 1.2-dev
+ * fix clientutil.jar dependencies (CASSANDRA-4566)
  * optimize WriteResponse (CASSANDRA-4548)
  * new metrics (CASSANDRA-4009)
  * redesign KEYS indexes to avoid read-before-write (CASSANDRA-2897)
