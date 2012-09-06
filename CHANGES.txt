@@ -1,3 +1,6 @@
+1.1.6
+  * (cql3) fix potential NPE with both equal and unequal restriction (CASSANDRA-4532)
+
 1.1.5
  * add SecondaryIndex.reload API (CASSANDRA-4581)
  * use millis + atomicint for commitlog segment creation instead of

@@ -1274,6 +1274,9 @@ public class SelectStatement implements CQLStatement
                     break;
             }
 
+            if (bounds == null)
+                throw new InvalidRequestException(String.format("%s cannot be restricted by both an equal and an inequal relation", name));
+
             if (bounds[b.idx] != null)
                 throw new InvalidRequestException(String.format("Invalid restrictions found on %s", name));
             bounds[b.idx] = t;
