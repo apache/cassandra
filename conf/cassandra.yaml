@@ -40,7 +40,7 @@ initial_token:
 hinted_handoff_enabled: true
 # this defines the maximum amount of time a dead host will have hints
 # generated.  After it has been dead this long, hints will be dropped.
-max_hint_window_in_ms: 3600000 # one hour
+max_hint_window_in_ms: 10800000 # 3 hours
 # throttle in KB's per second, per delivery thread
 hinted_handoff_throttle_in_kb: 1024
 # Number of threads with which to deliver hints;
