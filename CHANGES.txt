@@ -1,10 +1,3 @@
-1.1.6
-  * (cql3) fix potential NPE with both equal and unequal restriction (CASSANDRA-4532)
-  * (cql3) improves ORDER BY validation (CASSANDRA-4624)
-  * Fix potential deadlock during counter writes (CASSANDRA-4578)
-  * Fix cql error with ORDER BY when using IN (CASSANDRA-4612)
-
-
 1.1.5
  * add SecondaryIndex.reload API (CASSANDRA-4581)
  * use millis + atomicint for commitlog segment creation instead of
@@ -21,6 +14,10 @@
  * Respect five-minute flush moratorium after initial CL replay (CASSANDRA-4474)
  * Adds ntp as recommended in debian packaging (CASSANDRA-4606)
  * Configurable transport in CF Record{Reader|Writer} (CASSANDRA-4558)
+ * (cql3) fix potential NPE with both equal and unequal restriction (CASSANDRA-4532)
+ * (cql3) improves ORDER BY validation (CASSANDRA-4624)
+ * Fix potential deadlock during counter writes (CASSANDRA-4578)
+ * Fix cql error with ORDER BY when using IN (CASSANDRA-4612)
 Merged from 1.0:
  * increase Xss to 160k to accomodate latest 1.6 JVMs (CASSANDRA-4602)
  * fix toString of hint destination tokens (CASSANDRA-4568)
