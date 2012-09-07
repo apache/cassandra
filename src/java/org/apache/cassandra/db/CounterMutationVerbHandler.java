@@ -34,22 +34,33 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
 {
     private static final Logger logger = LoggerFactory.getLogger(CounterMutationVerbHandler.class);
 
-    public void doVerb(MessageIn<CounterMutation> message, String id)
+    public void doVerb(final MessageIn<CounterMutation> message, final String id)
     {
         try
         {
-            CounterMutation cm = message.payload;
+            final CounterMutation cm = message.payload;
             if (logger.isDebugEnabled())
               logger.debug("Applying forwarded " + cm);
 
             String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
-            StorageProxy.applyCounterMutationOnLeader(cm, localDataCenter).get();
-            WriteResponse response = new WriteResponse();
-            MessagingService.instance().sendReply(response.createMessage(), id, message.from);
+            // We should not wait for the result of the write in this thread,
+            // otherwise we could have a distributed deadlock between replicas
+            // running this VerbHandler (see #4578).
+            // Instead, we use a callback to send the response. Note that the callback
+            // will not be called if the request timeout, but this is ok
+            // because the coordinator of the counter mutation will timeout on
+            // it's own in that case.
+            StorageProxy.applyCounterMutationOnLeader(cm, localDataCenter, new Runnable(){
+                public void run()
+                {
+                    WriteResponse response = new WriteResponse();
+                    MessagingService.instance().sendReply(response.createMessage(), id, message.from);
+                }
+            });
         }
         catch (RequestExecutionException e)
         {
-            // The coordinator will timeout on itself, so let that go
+            // The coordinator will timeout on it's own so ignore
             logger.debug("counter error", e);
         }
         catch (IOException e)

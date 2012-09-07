@@ -50,10 +50,10 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
     private final NetworkTopologyStrategy strategy;
     private final HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
 
-    protected DatacenterSyncWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
+    protected DatacenterSyncWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
     {
         // Response is been managed by the map so make it 1 for the superclass.
-        super(writeEndpoints, consistencyLevel);
+        super(writeEndpoints, consistencyLevel, callback);
         assert consistencyLevel == ConsistencyLevel.EACH_QUORUM;
 
         this.table = table;
@@ -66,9 +66,9 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         }
     }
 
-    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
+    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
     {
-        return new DatacenterSyncWriteResponseHandler(writeEndpoints, consistencyLevel, table);
+        return new DatacenterSyncWriteResponseHandler(writeEndpoints, consistencyLevel, table, callback);
     }
 
     public void response(MessageIn message)
@@ -86,7 +86,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         }
 
         // all the quorum conditions are met
-        condition.signal();
+        signal();
     }
 
     protected int blockFor()

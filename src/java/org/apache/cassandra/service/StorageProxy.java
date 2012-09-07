@@ -186,7 +186,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 else
                 {
-                    responseHandlers.add(performWrite(mutation, consistency_level, localDataCenter, standardWritePerformer));
+                    responseHandlers.add(performWrite(mutation, consistency_level, localDataCenter, standardWritePerformer, null));
                 }
             }
 
@@ -243,11 +243,14 @@ public class StorageProxy implements StorageProxyMBean
      * @param performer the WritePerformer in charge of appliying the mutation
      * given the list of write endpoints (either standardWritePerformer for
      * standard writes or counterWritePerformer for counter writes).
+     * @param callback an optional callback to be run if and when the write is
+     * successful.
      */
     public static IWriteResponseHandler performWrite(IMutation mutation,
                                                      ConsistencyLevel consistency_level,
                                                      String localDataCenter,
-                                                     WritePerformer performer)
+                                                     WritePerformer performer,
+                                                     Runnable callback)
     throws UnavailableException, OverloadedException, IOException
     {
         String table = mutation.getTable();
@@ -255,7 +258,7 @@ public class StorageProxy implements StorageProxyMBean
 
         Collection<InetAddress> writeEndpoints = getWriteEndpoints(table, mutation.key());
 
-        IWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, consistency_level);
+        IWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, consistency_level, callback);
 
         // exit early if we can't fulfill the CL at this time
         responseHandler.assureSufficientLiveNodes();
@@ -492,7 +495,7 @@ public class StorageProxy implements StorageProxyMBean
             AbstractReplicationStrategy rs = Table.open(table).getReplicationStrategy();
             Collection<InetAddress> writeEndpoints = getWriteEndpoints(table, cm.key());
 
-            rs.getWriteResponseHandler(writeEndpoints, cm.consistency()).assureSufficientLiveNodes();
+            rs.getWriteResponseHandler(writeEndpoints, cm.consistency(), null).assureSufficientLiveNodes();
 
             // Forward the actual update to the chosen leader replica
             IWriteResponseHandler responseHandler = WriteResponseHandler.create(endpoint);
@@ -542,10 +545,10 @@ public class StorageProxy implements StorageProxyMBean
 
     // Must be called on a replica of the mutation. This replica becomes the
     // leader of this mutation.
-    public static IWriteResponseHandler applyCounterMutationOnLeader(CounterMutation cm, String localDataCenter)
+    public static IWriteResponseHandler applyCounterMutationOnLeader(CounterMutation cm, String localDataCenter, Runnable callback)
     throws UnavailableException, IOException, OverloadedException
     {
-        return performWrite(cm, cm.consistency(), localDataCenter, counterWritePerformer);
+        return performWrite(cm, cm.consistency(), localDataCenter, counterWritePerformer, callback);
     }
 
     // Same as applyCounterMutationOnLeader but must with the difference that it use the MUTATION stage to execute the write (while
@@ -553,7 +556,7 @@ public class StorageProxy implements StorageProxyMBean
     public static IWriteResponseHandler applyCounterMutationOnCoordinator(CounterMutation cm, String localDataCenter)
     throws UnavailableException, IOException, OverloadedException
     {
-        return performWrite(cm, cm.consistency(), localDataCenter, counterWriteOnCoordinatorPerformer);
+        return performWrite(cm, cm.consistency(), localDataCenter, counterWriteOnCoordinatorPerformer, null);
     }
 
     private static Runnable counterWriteTask(final IMutation mutation,
