@@ -17,6 +17,11 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
@@ -54,11 +59,18 @@ public class OptionsMessage extends Message.Request
 
     public Message.Response execute()
     {
-        SupportedMessage supported = new SupportedMessage();
-        supported.cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
+        List<String> cqlVersions = new ArrayList<String>();
+        cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
+
+        List<String> compressions = new ArrayList<String>();
         if (FrameCompressor.SnappyCompressor.instance != null)
-            supported.compressions.add("snappy");
-        return supported;
+            compressions.add("snappy");
+
+        Map<String, List<String>> supported = new HashMap<String, List<String>>();
+        supported.put(StartupMessage.CQL_VERSION, cqlVersions);
+        supported.put(StartupMessage.COMPRESSION, compressions);
+
+        return new SupportedMessage(supported);
     }
 
     @Override

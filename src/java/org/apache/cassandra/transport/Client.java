@@ -82,17 +82,18 @@ public class Client extends SimpleClient
         String msgType = iter.next().toUpperCase();
         if (msgType.equals("STARTUP"))
         {
-            EnumMap<StartupMessage.Option, Object> options = new EnumMap<StartupMessage.Option, Object>(StartupMessage.Option.class);
+            Map<String, String> options = new HashMap<String, String>();
+            options.put(StartupMessage.CQL_VERSION, "3.0.0");
             while (iter.hasNext())
             {
                String next = iter.next();
                if (next.toLowerCase().equals("snappy"))
                {
-                   options.put(StartupMessage.Option.COMPRESSION, "snappy");
+                   options.put(StartupMessage.COMPRESSION, "snappy");
                    connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
                }
             }
-            return new StartupMessage("3.0.0", options);
+            return new StartupMessage(options);
         }
         else if (msgType.equals("QUERY"))
         {

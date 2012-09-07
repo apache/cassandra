@@ -74,13 +74,14 @@ public class SimpleClient
     {
         establishConnection();
 
-        EnumMap<StartupMessage.Option, Object> options = new EnumMap<StartupMessage.Option, Object>(StartupMessage.Option.class);
+        Map<String, String> options = new HashMap<String, String>();
+        options.put(StartupMessage.CQL_VERSION, "3.0.0");
         if (useCompression)
         {
-            options.put(StartupMessage.Option.COMPRESSION, "snappy");
+            options.put(StartupMessage.COMPRESSION, "snappy");
             connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
         }
-        execute(new StartupMessage("3.0.0", options));
+        execute(new StartupMessage(options));
     }
 
     protected void establishConnection() throws IOException

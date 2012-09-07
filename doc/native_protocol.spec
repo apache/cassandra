@@ -161,6 +161,11 @@ Table of Contents
                    will be described when this is used.
     [option list]  A [short] n, followed by n [option].
 
+    [string map]      A [short] n, followed by n pair <k><v> where <k> and <v>
+                      are [string].
+    [string multimap] A [short] n, followed by n pair <k><v> where <k> is a
+                      [string] and <v> is a [string list].
+
 
 4. Messages
 
@@ -176,19 +181,16 @@ Table of Contents
   (in which case credentials will need to be provided using CREDENTIALS).
 
   This must be the first message of the connection, except for OPTIONS that can
-  be sent before to find out the option supported by the server. Once the
+  be sent before to find out the options supported by the server. Once the
   connection has been initialized, a client should not send any more STARTUP
   message.
 
-  The body is defined as:
-    <version><options>
-  where:
-    - <version> is a [string] representing the version of the CQL version to use.
-      Currently the only version supported is 3.0.0. Note that this is different
-      from the protocol version.
-    - <options> is an [option list]. Valid option ids are:
-        0x0001    Compression: the value is a [string] representing the
-                  algorithm to use (See section 5).
+  The body is a [string map] of options. Possible options are:
+    - "CQL_VERSION": the version of CQL to use. This option is mandatory and
+      currenty, the only version supported is "3.0.0". Note that this is
+      different from the protocol version.
+    - "COMPRESSION": the compression algorithm to use for frames (See section 5).
+      This is optional, if not specified no compression will be used.
 
 
 4.1.2. CREDENTIALS
@@ -284,10 +286,8 @@ Table of Contents
   Indicates which startup options are supported by the server. This message
   comes as a response to an OPTIONS message.
 
-  The body of a SUPPORTED message is a [string list] indicating which CQL
-  version the server support, followed by a second [string list] indicating
-  which compression algorithm is supported, if any (at the time of this writing,
-  only snappy compression is available if the library is in the classpath).
+  The body of a SUPPORTED message is a [string multimap]. This multimap gives
+  for each of the supported STARTUP options, the list of supported values.
 
 
 4.2.5. RESULT
@@ -397,7 +397,7 @@ Table of Contents
   use, which is done in the STARTUP message. As a consequence, a STARTUP message
   must never be compressed.  However, once the STARTUP frame has been received
   by the server can be compressed (including the response to the STARTUP
-  request). Frame do not have to compressed however, even if compression has
+  request). Frame do not have to be compressed however, even if compression has
   been agreed upon (a server may only compress frame above a certain size at its
   discretion). A frame body should be compressed if and only if the compressed
   flag (see Section 2.2) is set.

@@ -34,83 +34,29 @@ import org.apache.cassandra.utils.SemanticVersion;
  */
 public class StartupMessage extends Message.Request
 {
-    public enum Option implements OptionCodec.Codecable<Option>
-    {
-        COMPRESSION(1);
-
-        private final int id;
-
-        private Option(int id)
-        {
-            this.id = id;
-        }
-
-        public int getId()
-        {
-            return id;
-        }
-
-        public Object readValue(ChannelBuffer cb)
-        {
-            switch (this)
-            {
-                case COMPRESSION:
-                    return CBUtil.readString(cb);
-                default:
-                    throw new AssertionError();
-            }
-        }
-
-        public void writeValue(Object value, ChannelBuffer cb)
-        {
-            switch (this)
-            {
-                case COMPRESSION:
-                    assert value instanceof String;
-                    cb.writeBytes(CBUtil.stringToCB((String)value));
-                    break;
-            }
-        }
-
-        public int serializedValueSize(Object value)
-        {
-            switch (this)
-            {
-                case COMPRESSION:
-                    return 2 + ((String)value).getBytes(Charsets.UTF_8).length;
-                default:
-                    throw new AssertionError();
-            }
-        }
-    }
-
-    private static OptionCodec<Option> optionCodec = new OptionCodec<Option>(Option.class);
+    public static final String CQL_VERSION = "CQL_VERSION";
+    public static final String COMPRESSION = "COMPRESSION";
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {
         public StartupMessage decode(ChannelBuffer body)
         {
-            String verString = CBUtil.readString(body);
-
-            Map<Option, Object> options = optionCodec.decode(body);
-            return new StartupMessage(verString, options);
+            return new StartupMessage(CBUtil.readStringMap(body));
         }
 
         public ChannelBuffer encode(StartupMessage msg)
         {
-            ChannelBuffer vcb = CBUtil.stringToCB(msg.cqlVersion);
-            ChannelBuffer ocb = optionCodec.encode(msg.options);
-            return ChannelBuffers.wrappedBuffer(vcb, ocb);
+            ChannelBuffer cb = ChannelBuffers.dynamicBuffer();
+            CBUtil.writeStringMap(cb, msg.options);
+            return cb;
         }
     };
 
-    public final String cqlVersion;
-    public final Map<Option, Object> options;
+    public final Map<String, String> options;
 
-    public StartupMessage(String cqlVersion, Map<Option, Object> options)
+    public StartupMessage(Map<String, String> options)
     {
         super(Message.Type.STARTUP);
-        this.cqlVersion = cqlVersion;
         this.options = options;
     }
 
@@ -123,13 +69,17 @@ public class StartupMessage extends Message.Request
     {
         try
         {
+            String cqlVersion = options.get(CQL_VERSION);
+            if (cqlVersion == null)
+                throw new ProtocolException("Missing value CQL_VERSION in STARTUP message");
+
             connection.clientState().setCQLVersion(cqlVersion);
             if (connection.clientState().getCQLVersion().compareTo(new SemanticVersion("2.99.0")) < 0)
                 throw new ProtocolException(String.format("CQL version %s is not support by the binary protocol (supported version are >= 3.0.0)", cqlVersion));
 
-            if (options.containsKey(Option.COMPRESSION))
+            if (options.containsKey(COMPRESSION))
             {
-                String compression = ((String)options.get(Option.COMPRESSION)).toLowerCase();
+                String compression = options.get(COMPRESSION).toLowerCase();
                 if (compression.equals("snappy"))
                 {
                     if (FrameCompressor.SnappyCompressor.instance == null)
@@ -156,6 +106,6 @@ public class StartupMessage extends Message.Request
     @Override
     public String toString()
     {
-        return "STARTUP cqlVersion=" + cqlVersion;
+        return "STARTUP " + options;
     }
 }

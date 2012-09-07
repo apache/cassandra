@@ -19,6 +19,7 @@ package org.apache.cassandra.transport.messages;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -35,33 +36,23 @@ public class SupportedMessage extends Message.Response
     {
         public SupportedMessage decode(ChannelBuffer body)
         {
-            List<String> versions = CBUtil.readStringList(body);
-            List<String> compressions = CBUtil.readStringList(body);
-            return new SupportedMessage(versions, compressions);
+            return new SupportedMessage(CBUtil.readStringToStringListMap(body));
         }
 
         public ChannelBuffer encode(SupportedMessage msg)
         {
             ChannelBuffer cb = ChannelBuffers.dynamicBuffer();
-            CBUtil.writeStringList(cb, msg.cqlVersions);
-            CBUtil.writeStringList(cb, msg.compressions);
+            CBUtil.writeStringToStringListMap(cb, msg.supported);
             return cb;
         }
     };
 
-    public final List<String> cqlVersions;
-    public final List<String> compressions;
+    public final Map<String, List<String>> supported;
 
-    public SupportedMessage()
-    {
-        this(new ArrayList<String>(), new ArrayList<String>());
-    }
-
-    private SupportedMessage(List<String> cqlVersions, List<String> compressions)
+    public SupportedMessage(Map<String, List<String>> supported)
     {
         super(Message.Type.SUPPORTED);
-        this.cqlVersions = cqlVersions;
-        this.compressions = compressions;
+        this.supported = supported;
     }
 
     public ChannelBuffer encode()
@@ -72,6 +63,6 @@ public class SupportedMessage extends Message.Response
     @Override
     public String toString()
     {
-        return "SUPPORTED versions=" + cqlVersions + " compressions=" + compressions;
+        return "SUPPORTED " + supported;
     }
 }

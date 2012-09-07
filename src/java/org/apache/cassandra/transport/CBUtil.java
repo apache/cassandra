@@ -20,7 +20,9 @@ package org.apache.cassandra.transport;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -126,6 +128,52 @@ public abstract class CBUtil
         cb.writeShort(l.size());
         for (String str : l)
             cb.writeBytes(stringToCB(str));
+    }
+
+    public static Map<String, String> readStringMap(ChannelBuffer cb)
+    {
+        int length = cb.readUnsignedShort();
+        Map<String, String> m = new HashMap<String, String>(length);
+        for (int i = 0; i < length; i++)
+        {
+            String k = readString(cb).toUpperCase();
+            String v = readString(cb);
+            m.put(k, v);
+        }
+        return m;
+    }
+
+    public static void writeStringMap(ChannelBuffer cb, Map<String, String> m)
+    {
+        cb.writeShort(m.size());
+        for (Map.Entry<String, String> entry : m.entrySet())
+        {
+            cb.writeBytes(stringToCB(entry.getKey()));
+            cb.writeBytes(stringToCB(entry.getValue()));
+        }
+    }
+
+    public static Map<String, List<String>> readStringToStringListMap(ChannelBuffer cb)
+    {
+        int length = cb.readUnsignedShort();
+        Map<String, List<String>> m = new HashMap<String, List<String>>(length);
+        for (int i = 0; i < length; i++)
+        {
+            String k = readString(cb).toUpperCase();
+            List<String> v = readStringList(cb);
+            m.put(k, v);
+        }
+        return m;
+    }
+
+    public static void writeStringToStringListMap(ChannelBuffer cb, Map<String, List<String>> m)
+    {
+        cb.writeShort(m.size());
+        for (Map.Entry<String, List<String>> entry : m.entrySet())
+        {
+            cb.writeBytes(stringToCB(entry.getKey()));
+            writeStringList(cb, entry.getValue());
+        }
     }
 
     public static ByteBuffer readValue(ChannelBuffer cb)
