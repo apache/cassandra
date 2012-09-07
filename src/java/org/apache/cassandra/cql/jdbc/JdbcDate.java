@@ -108,7 +108,7 @@ public class JdbcDate extends AbstractJdbcType<Date>
 
     public int getJdbcType()
     {
-        return Types.DATE;
+        return Types.TIMESTAMP;
     }
 
     public Date compose(ByteBuffer bytes)
