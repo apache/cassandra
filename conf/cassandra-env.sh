@@ -184,12 +184,8 @@ if [ "`uname`" = "Linux" ] ; then
     # thread-per-client.  (Best practice is for client connections to
     # be pooled anyway.) Only do so on Linux where it is known to be
     # supported.
-    if startswith "$JVM_VERSION" '1.7.'
-    then
-        JVM_OPTS="$JVM_OPTS -Xss180k"
-    else
-        JVM_OPTS="$JVM_OPTS -Xss160k"
-    fi
+    # u34 and greater need 180k
+    JVM_OPTS="$JVM_OPTS -Xss180k"
 fi
 echo "xss = $JVM_OPTS"
 
