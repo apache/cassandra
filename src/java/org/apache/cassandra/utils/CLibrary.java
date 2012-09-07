@@ -189,7 +189,10 @@ public final class CLibrary
         }
         catch (IOException ex)
         {
-            logger.error("Unable to create hard link", ex);
+            String st = osname.startsWith("Windows")
+                      ? "Unable to create hard link.  This probably means your data directory path is too long.  Exception follows:"
+                      : "Unable to create hard link with exec.  Suggest installing JNA to avoid the need to exec entirely.  Exception follows: ";
+            logger.error(st, ex);
             throw ex;
         }
     }
