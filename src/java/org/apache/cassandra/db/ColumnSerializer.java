@@ -26,6 +26,7 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class ColumnSerializer implements IColumnSerializer
 {
@@ -105,6 +106,11 @@ public class ColumnSerializer implements IColumnSerializer
         else
         {
             long ts = dis.readLong();
+            long now = FBUtilities.timestampMicros();
+
+            if (ts > now) // fixing the timestamp from the future to be 'now' in micros
+                ts = now; // helps with CASSANDRA-4561 as remote nodes can send schema with wrong nanoTime() timestamps
+
             ByteBuffer value = ByteBufferUtil.readWithLength(dis);
             return (mask & COUNTER_UPDATE_MASK) != 0
                    ? new CounterUpdateColumn(name, value, ts)
