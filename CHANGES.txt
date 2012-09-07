@@ -51,6 +51,7 @@
  * add Murmur3Partitioner and make it default for new installations (CASSANDRA-3772)
  * (cql3) update pseudo-map syntax to use map syntax (CASSANDRA-4497)
  * Finer grained exceptions hierarchy and provides error code with exceptions (CASSANDRA-3979)
+ * Adds events push to binary protocol (CASSANDRA-4480)
 
 
 1.1.6

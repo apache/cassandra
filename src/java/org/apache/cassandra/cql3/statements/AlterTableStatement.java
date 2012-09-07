@@ -77,15 +77,19 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     }
                 }
 
+                Integer componentIndex = cfDef.isComposite ? ((CompositeType)meta.comparator).types.size() - 1 : null;
                 AbstractType<?> type = validator.getType();
                 if (type instanceof CollectionType)
                 {
                     if (!cfDef.isComposite)
                         throw new InvalidRequestException("Cannot use collection types with non-composite PRIMARY KEY");
 
+                    componentIndex--;
+
                     Map<ByteBuffer, CollectionType> collections = cfDef.hasCollections
                                                                 ? new HashMap<ByteBuffer, CollectionType>(cfDef.getCollectionType().defined)
                                                                 : new HashMap<ByteBuffer, CollectionType>();
+                    collections.put(columnName.key, (CollectionType)type);
                     ColumnToCollectionType newColType = ColumnToCollectionType.getInstance(collections);
                     List<AbstractType<?>> ctypes = new ArrayList<AbstractType<?>>(((CompositeType)cfm.comparator).types);
                     if (cfDef.hasCollections)
@@ -95,11 +99,11 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     cfm.comparator = CompositeType.getInstance(ctypes);
                 }
                 cfm.addColumnDefinition(new ColumnDefinition(columnName.key,
-                                                             validator.getType(),
+                                                             type,
                                                              null,
                                                              null,
                                                              null,
-                                                             cfDef.isComposite ? ((CompositeType)meta.comparator).types.size() - 1 : null));
+                                                             componentIndex));
                 break;
 
             case ALTER:

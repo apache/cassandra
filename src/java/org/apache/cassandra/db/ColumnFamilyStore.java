@@ -152,6 +152,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         maybeReloadCompactionStrategy();
 
         indexManager.reload();
+
+        // If the CF comparator has changed, we need to change the memtable,
+        // because the old one still aliases the previous comparator. We don't
+        // call forceFlush() because it can skip the switch if the memtable is
+        // clean, which we don't want here.
+        try
+        {
+            maybeSwitchMemtable(getMemtableThreadSafe(), true).get();
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
     }
 
     private void maybeReloadCompactionStrategy()
