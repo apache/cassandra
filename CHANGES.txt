@@ -4,6 +4,7 @@
  * (Hadoop) fix setting key length for old-style mapred api (CASSANDRA-4534)
  * (Hadoop) fix iterating through a resultset consisting entirely
    of tombstoned rows (CASSANDRA-4466)
+ * Fix multiple values for CurrentLocal NodeID (CASSANDRA-4626)
 
 
 1.0.11
