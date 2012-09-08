@@ -309,10 +309,10 @@ public class BulkLoader
                 opts.noProgress = cmd.hasOption(NOPROGRESS_OPTION);
 
                 if (cmd.hasOption(THROTTLE_MBITS))
-                    opts.throttle = Integer.valueOf(cmd.getOptionValue(THROTTLE_MBITS));
+                    opts.throttle = Integer.parseInt(cmd.getOptionValue(THROTTLE_MBITS));
 
                 if (cmd.hasOption(RPC_PORT_OPTION))
-                    opts.rpcPort = Integer.valueOf(cmd.getOptionValue(RPC_PORT_OPTION));
+                    opts.rpcPort = Integer.parseInt(cmd.getOptionValue(RPC_PORT_OPTION));
 
                 if (cmd.hasOption(INITIAL_HOST_ADDRESS_OPTION))
                 {

@@ -249,7 +249,7 @@ public class CFPropDefs {
         {
             try
             {
-                result = Double.parseDouble(value);
+                result = Double.valueOf(value);
             }
             catch (NumberFormatException e)
             {
@@ -271,7 +271,7 @@ public class CFPropDefs {
         {
             try
             {
-                result = Integer.parseInt(value);
+                result = Integer.valueOf(value);
             }
             catch (NumberFormatException e)
             {

@@ -73,7 +73,7 @@ public class DoubleType extends AbstractType<Double>
       Double d;
       try
       {
-          d = Double.parseDouble(source);
+          d = Double.valueOf(source);
       }
       catch (NumberFormatException e1)
       {

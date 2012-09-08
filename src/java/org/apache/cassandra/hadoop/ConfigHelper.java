@@ -332,7 +332,7 @@ public class ConfigHelper
 
     public static boolean getInputIsWide(Configuration conf)
     {
-        return Boolean.valueOf(conf.get(INPUT_WIDEROWS_CONFIG));
+        return Boolean.parseBoolean(conf.get(INPUT_WIDEROWS_CONFIG));
     }
 
     public static String getOutputColumnFamily(Configuration conf)

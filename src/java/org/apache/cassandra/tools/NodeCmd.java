@@ -1028,17 +1028,17 @@ public class NodeCmd
 
                 case SETCOMPACTIONTHROUGHPUT :
                     if (arguments.length != 1) { badUse("Missing value argument."); }
-                    probe.setCompactionThroughput(Integer.valueOf(arguments[0]));
+                    probe.setCompactionThroughput(Integer.parseInt(arguments[0]));
                     break;
 
                 case SETSTREAMTHROUGHPUT :
                     if (arguments.length != 1) { badUse("Missing value argument."); }
-                    probe.setStreamThroughput(Integer.valueOf(arguments[0]));
+                    probe.setStreamThroughput(Integer.parseInt(arguments[0]));
                     break;
 
                 case SETTRACEPROBABILITY :
                     if (arguments.length != 1) { badUse("Missing value argument."); }
-                    probe.setTraceProbability(Double.valueOf(arguments[0]));
+                    probe.setTraceProbability(Double.parseDouble(arguments[0]));
                     break;
 
                 case REBUILD :

@@ -97,8 +97,8 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
         Config.setLoadYaml(false);
         Config.setOutboundBindAny(true);
         this.conf = conf;
-        DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(Integer.valueOf(conf.get(STREAM_THROTTLE_MBITS, "0")));
-        maxFailures = Integer.valueOf(conf.get(MAX_FAILED_HOSTS, "0"));
+        DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(Integer.parseInt(conf.get(STREAM_THROTTLE_MBITS, "0")));
+        maxFailures = Integer.parseInt(conf.get(MAX_FAILED_HOSTS, "0"));
         String keyspace = ConfigHelper.getOutputKeyspace(conf);
         outputdir = new File(getOutputLocation() + File.separator + keyspace + File.separator + ConfigHelper.getOutputColumnFamily(conf)); //dir must be named by ks/cf for the loader
         outputdir.mkdirs();
@@ -138,7 +138,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
 
             if (cfType == CFType.SUPER)
                 subcomparator = BytesType.instance;
-            
+
             this.writer = new SSTableSimpleUnsortedWriter(
                     outputdir,
                     ConfigHelper.getOutputPartitioner(conf),
@@ -146,10 +146,10 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                     ConfigHelper.getOutputColumnFamily(conf),
                     BytesType.instance,
                     subcomparator,
-                    Integer.valueOf(conf.get(BUFFER_SIZE_IN_MB, "64")),
+                    Integer.parseInt(conf.get(BUFFER_SIZE_IN_MB, "64")),
                     ConfigHelper.getOutputCompressionParamaters(conf));
 
-            externalClient = new ExternalClient(ConfigHelper.getOutputInitialAddress(conf), 
+            externalClient = new ExternalClient(ConfigHelper.getOutputInitialAddress(conf),
                                                 ConfigHelper.getOutputRpcPort(conf),
                                                 username,
                                                 password);

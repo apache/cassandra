@@ -536,7 +536,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         else
             outputFormatClass = DEFAULT_OUTPUT_FORMAT;
         if (System.getenv(PIG_ALLOW_DELETES) != null)
-            allow_deletes = Boolean.valueOf(System.getenv(PIG_ALLOW_DELETES));
+            allow_deletes = Boolean.parseBoolean(System.getenv(PIG_ALLOW_DELETES));
     }
 
     private String getFullyQualifiedClassName(String classname)
@@ -557,10 +557,10 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
         widerows = DEFAULT_WIDEROW_INPUT;
         if (System.getenv(PIG_WIDEROW_INPUT) != null)
-            widerows = Boolean.valueOf(System.getProperty(PIG_WIDEROW_INPUT));
+            widerows = Boolean.parseBoolean(System.getProperty(PIG_WIDEROW_INPUT));
         usePartitionFilter = DEFAULT_USE_SECONDARY;
         if (System.getenv() != null)
-            usePartitionFilter = Boolean.valueOf(System.getenv(PIG_USE_SECONDARY));
+            usePartitionFilter = Boolean.parseBoolean(System.getenv(PIG_USE_SECONDARY));
 
         if (usePartitionFilter && getIndexExpressions() != null)
             ConfigHelper.setInputRange(conf, getIndexExpressions());
@@ -805,7 +805,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         // we have to do this again here for the check in writeColumnsFromTuple
         usePartitionFilter = DEFAULT_USE_SECONDARY;
         if (System.getenv() != null)
-            usePartitionFilter = Boolean.valueOf(System.getenv(PIG_USE_SECONDARY));
+            usePartitionFilter = Boolean.parseBoolean(System.getenv(PIG_USE_SECONDARY));
 
         initSchema(storeSignature);
     }

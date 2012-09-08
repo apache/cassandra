@@ -66,9 +66,9 @@ public class SemanticVersion implements Comparable<SemanticVersion>
 
         try
         {
-            this.major = Integer.valueOf(matcher.group(1));
-            this.minor = Integer.valueOf(matcher.group(2));
-            this.patch = Integer.valueOf(matcher.group(3));
+            this.major = Integer.parseInt(matcher.group(1));
+            this.minor = Integer.parseInt(matcher.group(2));
+            this.patch = Integer.parseInt(matcher.group(3));
 
             String pr = matcher.group(4);
             String bld = matcher.group(5);
