@@ -1,6 +1,7 @@
 1.1.6
  * Improve IAuthority interface by introducing fine-grained
    access permissions and grant/revoke commands (CASSANDRA-4490)
+ * fix assumption error in CLI when updating/describing keyspace (CASSANDRA-4322)
 
 
 1.1.5
