@@ -28,7 +28,6 @@ import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -46,7 +45,6 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
@@ -670,8 +668,10 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    private void internal_batch_mutate(Map<ByteBuffer,Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level)
-    throws RequestValidationException, UnavailableException, TimedOutException
+    private List<IMutation> createMutationList(ConsistencyLevel consistency_level,
+                                               Map<ByteBuffer,Map<String,List<Mutation>>> mutation_map,
+                                               boolean allowCounterMutations)
+    throws RequestValidationException
     {
         List<String> cfamsSeen = new ArrayList<String>();
         List<IMutation> rowMutations = new ArrayList<IMutation>();
@@ -731,11 +731,17 @@ public class CassandraServer implements Cassandra.Iface
             }
             if (rmStandard != null && !rmStandard.isEmpty())
                 rowMutations.add(rmStandard);
+
             if (rmCounter != null && !rmCounter.isEmpty())
-                rowMutations.add(new org.apache.cassandra.db.CounterMutation(rmCounter, ThriftConversion.fromThrift(consistency_level)));
+            {
+                if (allowCounterMutations)
+                    rowMutations.add(new CounterMutation(rmCounter, ThriftConversion.fromThrift(consistency_level)));
+                else
+                    throw new org.apache.cassandra.exceptions.InvalidRequestException("Counter mutations are not allowed in atomic batches");
+            }
         }
 
-        doInsert(consistency_level, rowMutations);
+        return rowMutations;
     }
 
     public void batch_mutate(Map<ByteBuffer,Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level)
@@ -759,7 +765,40 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            internal_batch_mutate(mutation_map, consistency_level);
+            doInsert(consistency_level, createMutationList(consistency_level, mutation_map, true));
+        }
+        catch (RequestValidationException e)
+        {
+            throw ThriftConversion.toThrift(e);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
+    }
+
+    public void atomic_batch_mutate(Map<ByteBuffer,Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException
+    {
+        if (startSessionIfRequested())
+        {
+            Map<String, String> traceParameters = Maps.newLinkedHashMap();
+            for (Map.Entry<ByteBuffer, Map<String, List<Mutation>>> mutationEntry : mutation_map.entrySet())
+            {
+                traceParameters.put(ByteBufferUtil.bytesToHex(mutationEntry.getKey()),
+                        Joiner.on(";").withKeyValueSeparator(":").join(mutationEntry.getValue()));
+            }
+            traceParameters.put("consistency_level", consistency_level.name());
+            Tracing.instance().begin("atomic_batch_mutate", traceParameters);
+        }
+        else
+        {
+            logger.debug("atomic_batch_mutate");
+        }
+
+        try
+        {
+            doInsert(consistency_level, createMutationList(consistency_level, mutation_map, false), true);
         }
         catch (RequestValidationException e)
         {
@@ -825,6 +864,12 @@ public class CassandraServer implements Cassandra.Iface
     private void doInsert(ConsistencyLevel consistency_level, List<? extends IMutation> mutations)
     throws UnavailableException, TimedOutException, org.apache.cassandra.exceptions.InvalidRequestException
     {
+        doInsert(consistency_level, mutations, false);
+    }
+
+    private void doInsert(ConsistencyLevel consistency_level, List<? extends IMutation> mutations, boolean mutateAtomically)
+    throws UnavailableException, TimedOutException, org.apache.cassandra.exceptions.InvalidRequestException
+    {
         org.apache.cassandra.db.ConsistencyLevel consistencyLevel = ThriftConversion.fromThrift(consistency_level);
         consistencyLevel.validateForWrite(state().getKeyspace());
         if (mutations.isEmpty())
@@ -833,7 +878,10 @@ public class CassandraServer implements Cassandra.Iface
         schedule(DatabaseDescriptor.getWriteRpcTimeout());
         try
         {
-            StorageProxy.mutate(mutations, consistencyLevel);
+            if (mutateAtomically)
+                StorageProxy.mutateAtomically((List<RowMutation>) mutations, consistencyLevel);
+            else
+                StorageProxy.mutate(mutations, consistencyLevel);
         }
         catch (RequestExecutionException e)
         {

@@ -67,6 +67,10 @@ Features
       configuration instead of erroring out indefinitely
     - event tracing can be configured per-connection ("trace_next_query")
       or globally/probabilistically ("nodetool settraceprobability")
+    - Atomic batches are now supported server side, where Cassandra will
+      guarantee that (at the price of pre-writing the batch to another node
+      first), all mutations in the batch will be applied, even if the
+      coordinator fails mid-batch.
 
 
 1.1.5

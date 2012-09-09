@@ -1113,11 +1113,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getColumnFamily(filter, gcBefore());
     }
 
-    public ColumnFamily getColumnFamily(QueryFilter filter, ISortedColumns.Factory factory)
-    {
-        return getColumnFamily(filter, gcBefore());
-    }
-
     public int gcBefore()
     {
         return (int) (System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
@@ -1371,7 +1366,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         QueryFilter filter = new QueryFilter(null, new QueryPath(columnFamily, superColumn, null), columnFilter);
 
-        List<Row> rows;
         final ViewFragment view = markReferenced(startWith, stopAt);
         try
         {

@@ -86,7 +86,10 @@ public class ThriftConversion
     {
         TimedOutException toe = new TimedOutException();
         if (e instanceof WriteTimeoutException)
+        {
             toe.setAcknowledged_by(((WriteTimeoutException)e).received);
+            toe.setAcknowledged_by_batchlog(((WriteTimeoutException)e).writtenToBatchlog);
+        }
         return toe;
     }
 }

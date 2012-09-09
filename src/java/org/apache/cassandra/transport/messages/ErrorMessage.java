@@ -79,7 +79,7 @@ public class ErrorMessage extends Message.Response
                         ConsistencyLevel cl = Enum.valueOf(ConsistencyLevel.class, CBUtil.readString(body));
                         int received = body.readInt();
                         int blockFor = body.readInt();
-                        te = new WriteTimeoutException(cl, received, blockFor);
+                        te = new WriteTimeoutException(cl, received, blockFor, false);
                     }
                     break;
                 case READ_TIMEOUT:

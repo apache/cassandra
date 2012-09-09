@@ -49,22 +49,33 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
   private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("TimedOutException");
 
   private static final org.apache.thrift.protocol.TField ACKNOWLEDGED_BY_FIELD_DESC = new org.apache.thrift.protocol.TField("acknowledged_by", org.apache.thrift.protocol.TType.I32, (short)1);
+  private static final org.apache.thrift.protocol.TField ACKNOWLEDGED_BY_BATCHLOG_FIELD_DESC = new org.apache.thrift.protocol.TField("acknowledged_by_batchlog", org.apache.thrift.protocol.TType.BOOL, (short)2);
 
   /**
-   * if a write operation was acknowledged some replicas but not enough to
+   * if a write operation was acknowledged by some replicas but not by enough to
    * satisfy the required ConsistencyLevel, the number of successful
-   * replies will be given here
+   * replies will be given here. In case of atomic_batch_mutate method this field
+   * will be set to -1 if the batch was written to the batchlog and to 0 if it wasn't.
    */
   public int acknowledged_by; // required
+  /**
+   * in case of atomic_batch_mutate method this field tells if the batch was written to the batchlog.
+   */
+  public boolean acknowledged_by_batchlog; // required
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     /**
-     * if a write operation was acknowledged some replicas but not enough to
+     * if a write operation was acknowledged by some replicas but not by enough to
      * satisfy the required ConsistencyLevel, the number of successful
-     * replies will be given here
+     * replies will be given here. In case of atomic_batch_mutate method this field
+     * will be set to -1 if the batch was written to the batchlog and to 0 if it wasn't.
      */
-    ACKNOWLEDGED_BY((short)1, "acknowledged_by");
+    ACKNOWLEDGED_BY((short)1, "acknowledged_by"),
+    /**
+     * in case of atomic_batch_mutate method this field tells if the batch was written to the batchlog.
+     */
+    ACKNOWLEDGED_BY_BATCHLOG((short)2, "acknowledged_by_batchlog");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -81,6 +92,8 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
       switch(fieldId) {
         case 1: // ACKNOWLEDGED_BY
           return ACKNOWLEDGED_BY;
+        case 2: // ACKNOWLEDGED_BY_BATCHLOG
+          return ACKNOWLEDGED_BY_BATCHLOG;
         default:
           return null;
       }
@@ -122,13 +135,16 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
 
   // isset id assignments
   private static final int __ACKNOWLEDGED_BY_ISSET_ID = 0;
-  private BitSet __isset_bit_vector = new BitSet(1);
+  private static final int __ACKNOWLEDGED_BY_BATCHLOG_ISSET_ID = 1;
+  private BitSet __isset_bit_vector = new BitSet(2);
 
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
     Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
     tmpMap.put(_Fields.ACKNOWLEDGED_BY, new org.apache.thrift.meta_data.FieldMetaData("acknowledged_by", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.ACKNOWLEDGED_BY_BATCHLOG, new org.apache.thrift.meta_data.FieldMetaData("acknowledged_by_batchlog", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.BOOL)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(TimedOutException.class, metaDataMap);
   }
@@ -143,6 +159,7 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
     __isset_bit_vector.clear();
     __isset_bit_vector.or(other.__isset_bit_vector);
     this.acknowledged_by = other.acknowledged_by;
+    this.acknowledged_by_batchlog = other.acknowledged_by_batchlog;
   }
 
   public TimedOutException deepCopy() {
@@ -153,21 +170,25 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
   public void clear() {
     setAcknowledged_byIsSet(false);
     this.acknowledged_by = 0;
+    setAcknowledged_by_batchlogIsSet(false);
+    this.acknowledged_by_batchlog = false;
   }
 
   /**
-   * if a write operation was acknowledged some replicas but not enough to
+   * if a write operation was acknowledged by some replicas but not by enough to
    * satisfy the required ConsistencyLevel, the number of successful
-   * replies will be given here
+   * replies will be given here. In case of atomic_batch_mutate method this field
+   * will be set to -1 if the batch was written to the batchlog and to 0 if it wasn't.
    */
   public int getAcknowledged_by() {
     return this.acknowledged_by;
   }
 
   /**
-   * if a write operation was acknowledged some replicas but not enough to
+   * if a write operation was acknowledged by some replicas but not by enough to
    * satisfy the required ConsistencyLevel, the number of successful
-   * replies will be given here
+   * replies will be given here. In case of atomic_batch_mutate method this field
+   * will be set to -1 if the batch was written to the batchlog and to 0 if it wasn't.
    */
   public TimedOutException setAcknowledged_by(int acknowledged_by) {
     this.acknowledged_by = acknowledged_by;
@@ -188,6 +209,35 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
     __isset_bit_vector.set(__ACKNOWLEDGED_BY_ISSET_ID, value);
   }
 
+  /**
+   * in case of atomic_batch_mutate method this field tells if the batch was written to the batchlog.
+   */
+  public boolean isAcknowledged_by_batchlog() {
+    return this.acknowledged_by_batchlog;
+  }
+
+  /**
+   * in case of atomic_batch_mutate method this field tells if the batch was written to the batchlog.
+   */
+  public TimedOutException setAcknowledged_by_batchlog(boolean acknowledged_by_batchlog) {
+    this.acknowledged_by_batchlog = acknowledged_by_batchlog;
+    setAcknowledged_by_batchlogIsSet(true);
+    return this;
+  }
+
+  public void unsetAcknowledged_by_batchlog() {
+    __isset_bit_vector.clear(__ACKNOWLEDGED_BY_BATCHLOG_ISSET_ID);
+  }
+
+  /** Returns true if field acknowledged_by_batchlog is set (has been assigned a value) and false otherwise */
+  public boolean isSetAcknowledged_by_batchlog() {
+    return __isset_bit_vector.get(__ACKNOWLEDGED_BY_BATCHLOG_ISSET_ID);
+  }
+
+  public void setAcknowledged_by_batchlogIsSet(boolean value) {
+    __isset_bit_vector.set(__ACKNOWLEDGED_BY_BATCHLOG_ISSET_ID, value);
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case ACKNOWLEDGED_BY:
@@ -198,6 +248,14 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
       }
       break;
 
+    case ACKNOWLEDGED_BY_BATCHLOG:
+      if (value == null) {
+        unsetAcknowledged_by_batchlog();
+      } else {
+        setAcknowledged_by_batchlog((Boolean)value);
+      }
+      break;
+
     }
   }
 
@@ -205,6 +263,9 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
     switch (field) {
     case ACKNOWLEDGED_BY:
       return Integer.valueOf(getAcknowledged_by());
+
+    case ACKNOWLEDGED_BY_BATCHLOG:
+      return Boolean.valueOf(isAcknowledged_by_batchlog());
 
     }
     throw new IllegalStateException();
@@ -219,6 +280,8 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
     switch (field) {
     case ACKNOWLEDGED_BY:
       return isSetAcknowledged_by();
+    case ACKNOWLEDGED_BY_BATCHLOG:
+      return isSetAcknowledged_by_batchlog();
     }
     throw new IllegalStateException();
   }
@@ -245,6 +308,15 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
         return false;
     }
 
+    boolean this_present_acknowledged_by_batchlog = true && this.isSetAcknowledged_by_batchlog();
+    boolean that_present_acknowledged_by_batchlog = true && that.isSetAcknowledged_by_batchlog();
+    if (this_present_acknowledged_by_batchlog || that_present_acknowledged_by_batchlog) {
+      if (!(this_present_acknowledged_by_batchlog && that_present_acknowledged_by_batchlog))
+        return false;
+      if (this.acknowledged_by_batchlog != that.acknowledged_by_batchlog)
+        return false;
+    }
+
     return true;
   }
 
@@ -256,6 +328,11 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
     builder.append(present_acknowledged_by);
     if (present_acknowledged_by)
       builder.append(acknowledged_by);
+
+    boolean present_acknowledged_by_batchlog = true && (isSetAcknowledged_by_batchlog());
+    builder.append(present_acknowledged_by_batchlog);
+    if (present_acknowledged_by_batchlog)
+      builder.append(acknowledged_by_batchlog);
 
     return builder.toHashCode();
   }
@@ -274,6 +351,16 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
     }
     if (isSetAcknowledged_by()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.acknowledged_by, typedOther.acknowledged_by);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetAcknowledged_by_batchlog()).compareTo(typedOther.isSetAcknowledged_by_batchlog());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetAcknowledged_by_batchlog()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.acknowledged_by_batchlog, typedOther.acknowledged_by_batchlog);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -303,6 +390,14 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 2: // ACKNOWLEDGED_BY_BATCHLOG
+          if (field.type == org.apache.thrift.protocol.TType.BOOL) {
+            this.acknowledged_by_batchlog = iprot.readBool();
+            setAcknowledged_by_batchlogIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
@@ -323,6 +418,11 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
       oprot.writeI32(this.acknowledged_by);
       oprot.writeFieldEnd();
     }
+    if (isSetAcknowledged_by_batchlog()) {
+      oprot.writeFieldBegin(ACKNOWLEDGED_BY_BATCHLOG_FIELD_DESC);
+      oprot.writeBool(this.acknowledged_by_batchlog);
+      oprot.writeFieldEnd();
+    }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
@@ -335,6 +435,12 @@ public class TimedOutException extends Exception implements org.apache.thrift.TB
     if (isSetAcknowledged_by()) {
       sb.append("acknowledged_by:");
       sb.append(this.acknowledged_by);
+      first = false;
+    }
+    if (isSetAcknowledged_by_batchlog()) {
+      if (!first) sb.append(", ");
+      sb.append("acknowledged_by_batchlog:");
+      sb.append(this.acknowledged_by_batchlog);
       first = false;
     }
     sb.append(")");

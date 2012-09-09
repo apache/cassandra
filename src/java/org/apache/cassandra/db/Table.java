@@ -338,7 +338,7 @@ public class Table
     public Row getRow(QueryFilter filter)
     {
         ColumnFamilyStore cfStore = getColumnFamilyStore(filter.getColumnFamilyName());
-        ColumnFamily columnFamily = cfStore.getColumnFamily(filter, ArrayBackedSortedColumns.factory());
+        ColumnFamily columnFamily = cfStore.getColumnFamily(filter);
         return new Row(filter.key, columnFamily);
     }
 

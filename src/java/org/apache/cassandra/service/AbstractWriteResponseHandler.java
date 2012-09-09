@@ -63,7 +63,7 @@ public abstract class AbstractWriteResponseHandler implements IWriteResponseHand
         }
 
         if (!success)
-            throw new WriteTimeoutException(consistencyLevel, ackCount(), blockFor());
+            throw new WriteTimeoutException(consistencyLevel, ackCount(), blockFor(), false);
     }
 
     protected abstract int ackCount();

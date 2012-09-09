@@ -55,7 +55,7 @@ namespace rb CassandraThrift
 # An effort should be made not to break forward-client-compatibility either
 # (e.g. one should avoid removing obsolete fields from the IDL), but no
 # guarantees in this respect are made by the Cassandra project.
-const string VERSION = "19.33.0"
+const string VERSION = "19.34.0"
 
 
 #
@@ -140,12 +140,18 @@ exception UnavailableException {
 
 /** RPC timeout was exceeded.  either a node failed mid-operation, or load was too high, or the requested op was too large. */
 exception TimedOutException {
-    /** 
-     * if a write operation was acknowledged some replicas but not enough to 
-     * satisfy the required ConsistencyLevel, the number of successful 
-     * replies will be given here
+    /**
+     * if a write operation was acknowledged by some replicas but not by enough to
+     * satisfy the required ConsistencyLevel, the number of successful
+     * replies will be given here. In case of atomic_batch_mutate method this field
+     * will be set to -1 if the batch was written to the batchlog and to 0 if it wasn't.
      */
     1: optional i32 acknowledged_by
+
+    /**
+     * in case of atomic_batch_mutate method this field tells if the batch was written to the batchlog.
+     */
+    2: optional bool acknowledged_by_batchlog
 }
 
 /** invalid authentication request (invalid keyspace, user does not exist, or credentials invalid) */
@@ -639,7 +645,6 @@ service Cassandra {
                       3:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
-
   /**
     Mutate many columns or super columns for many row keys. See also: Mutation.
 
@@ -648,7 +653,16 @@ service Cassandra {
   void batch_mutate(1:required map<binary, map<string, list<Mutation>>> mutation_map,
                     2:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
-       
+
+  /**
+    Atomically mutate many columns or super columns for many row keys. See also: Mutation.
+
+    mutation_map maps key to column family to a list of Mutation objects to take place at that scope.
+  **/
+  void atomic_batch_mutate(1:required map<binary, map<string, list<Mutation>>> mutation_map,
+                           2:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
+       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
   /**
    Truncate will mark and entire column family as deleted.
    From the user's perspective a successful call to truncate will result complete data deletion from cfname.

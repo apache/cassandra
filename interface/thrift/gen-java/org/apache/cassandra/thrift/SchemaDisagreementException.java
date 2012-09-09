@@ -43,6 +43,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * NOTE: This up outdated exception left for backward compatibility reasons,
+ * no actual schema agreement validation is done starting from Cassandra 1.2
+ * 
  * schemas are not in agreement across all nodes
  */
 public class SchemaDisagreementException extends Exception implements org.apache.thrift.TBase<SchemaDisagreementException, SchemaDisagreementException._Fields>, java.io.Serializable, Cloneable {

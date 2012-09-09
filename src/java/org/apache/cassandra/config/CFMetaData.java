@@ -192,6 +192,13 @@ public final class CFMetaData
                                                                + "  PRIMARY KEY (session_id, event_id)"
                                                                + ");", Tracing.TRACE_KS);
 
+    public static final CFMetaData BatchlogCF = compile(16, "CREATE TABLE " + SystemTable.BATCHLOG_CF + " ("
+                                                            + "id uuid PRIMARY KEY,"
+                                                            + "coordinator inet,"
+                                                            + "written_at timestamp,"
+                                                            + "data blob"
+                                                            + ") WITH COMMENT='uncommited batches' AND gc_grace_seconds=0");
+
     public enum Caching
     {
         ALL, KEYS_ONLY, ROWS_ONLY, NONE;

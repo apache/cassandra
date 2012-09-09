@@ -30,10 +30,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.base.Function;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.MapMaker;
-import com.google.common.collect.Multimap;
+import com.google.common.collect.*;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +40,9 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.RingPosition;
@@ -56,8 +56,10 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.net.*;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.WrappedRunnable;
 
 public class StorageProxy implements StorageProxyMBean
 {
@@ -233,6 +235,147 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /**
+     * See mutate. Adds additional steps before and after writing a batch.
+     * Before writing the batch (but after doing availability check against the FD for the row replicas):
+     *      write the entire batch to a batchlog elsewhere in the cluster.
+     * After: remove the batchlog entry (after writing hints for the batch rows, if necessary).
+     *
+     * @param mutations the RowMutations to be applied across the replicas
+     * @param consistency_level the consistency level for the operation
+     */
+    public static void mutateAtomically(List<RowMutation> mutations, ConsistencyLevel consistency_level)
+    throws UnavailableException, WriteTimeoutException
+    {
+        long startTime = System.nanoTime();
+
+        if (logger.isDebugEnabled())
+            logger.debug("Mutations/ConsistencyLevel are {}/{}", mutations, consistency_level);
+
+        List<WriteResponseHandlerWrapper> wrappers = new ArrayList<WriteResponseHandlerWrapper>(mutations.size());
+        String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
+
+        try
+        {
+            // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
+            for (RowMutation mutation : mutations)
+            {
+                WriteResponseHandlerWrapper wrapper = wrapResponseHandler(mutation, consistency_level);
+                // exit early if we can't fulfill the CL at this time.
+                wrapper.handler.assureSufficientLiveNodes();
+                wrappers.add(wrapper);
+            }
+
+            // write to the batchlog
+            Collection<InetAddress> batchlogEndpoints = getBatchlogEndpoints(localDataCenter);
+            UUID batchUUID = UUID.randomUUID();
+            syncWriteToBatchlog(mutations, localDataCenter, batchlogEndpoints, batchUUID);
+
+            // now actually perform the writes and wait for them to complete
+            syncWriteBatchedMutations(wrappers, localDataCenter, consistency_level);
+
+            // remove the batchlog entries asynchronously
+            asyncRemoveFromBatchlog(batchlogEndpoints, batchUUID);
+        }
+        catch (UnavailableException e)
+        {
+            writeMetrics.unavailables.mark();
+            ClientRequestMetrics.writeUnavailables.inc();
+            throw e;
+        }
+        catch (WriteTimeoutException e)
+        {
+            writeMetrics.timeouts.mark();
+            ClientRequestMetrics.writeTimeouts.inc();
+            throw e;
+        }
+        finally
+        {
+            writeMetrics.addNano(System.nanoTime() - startTime);
+        }
+    }
+
+    private static void syncWriteToBatchlog(List<RowMutation> mutations,
+                                            String localDataCenter,
+                                            Collection<InetAddress> endpoints,
+                                            UUID uuid)
+    throws WriteTimeoutException
+    {
+        RowMutation rm = BatchlogManager.getBatchlogMutationFor(mutations, uuid);
+        IWriteResponseHandler handler = WriteResponseHandler.create(endpoints, ConsistencyLevel.ONE, Table.SYSTEM_KS, null);
+
+        try
+        {
+            sendMessagesToOneDC(rm.createMessage(), endpoints, true, handler);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Error writing to batchlog", e);
+        }
+
+        try
+        {
+            handler.get();
+        }
+        catch (WriteTimeoutException e)
+        {
+            throw new WriteTimeoutException(e.consistency, 0, e.blockFor, false);
+        }
+    }
+
+    private static void asyncRemoveFromBatchlog(Collection<InetAddress> endpoints, UUID uuid)
+    {
+        RowMutation rm = new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(uuid));
+        rm.delete(new QueryPath(SystemTable.BATCHLOG_CF), FBUtilities.timestampMicros());
+        IWriteResponseHandler handler = WriteResponseHandler.create(endpoints, ConsistencyLevel.ANY, Table.SYSTEM_KS, null);
+
+        try
+        {
+            sendMessagesToOneDC(rm.createMessage(), endpoints, true, handler);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Error deleting batch " + uuid, e);
+        }
+    }
+
+    private static void syncWriteBatchedMutations(List<WriteResponseHandlerWrapper> wrappers,
+                                                  String localDataCenter,
+                                                  ConsistencyLevel consistencyLevel)
+    throws WriteTimeoutException
+    {
+        for (WriteResponseHandlerWrapper wrapper : wrappers)
+        {
+            try
+            {
+                sendToHintedEndpoints(wrapper.mutation, wrapper.endpoints, wrapper.handler, localDataCenter, consistencyLevel);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException("Error writing key " + ByteBufferUtil.bytesToHex(wrapper.mutation.key()), e);
+            }
+            catch (OverloadedException e)
+            {
+                // turn OE into TOE.
+                throw new WriteTimeoutException(consistencyLevel, -1, 0, true);
+            }
+        }
+
+        for (WriteResponseHandlerWrapper wrapper : wrappers)
+        {
+            try
+            {
+                wrapper.handler.get();
+            }
+            catch (WriteTimeoutException e)
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("Write timeout {} for {}", e, wrapper.mutation.toString(true));
+                throw new WriteTimeoutException(e.consistency, -1, e.blockFor, true);
+            }
+        }
+    }
+
+    /**
      * Perform the write of a mutation given a WritePerformer.
      * Gather the list of write endpoints, apply locally and/or forward the mutation to
      * said write endpoint (deletaged to the actual WritePerformer) and wait for the
@@ -267,12 +410,76 @@ public class StorageProxy implements StorageProxyMBean
         return responseHandler;
     }
 
-    private static Collection<InetAddress> getWriteEndpoints(String table, ByteBuffer key)
+    // same as above except does not initiate writes (but does perfrom availability checks).
+    private static WriteResponseHandlerWrapper wrapResponseHandler(RowMutation mutation, ConsistencyLevel consistency_level)
+    {
+        AbstractReplicationStrategy rs = Table.open(mutation.getTable()).getReplicationStrategy();
+        Collection<InetAddress> writeEndpoints = getWriteEndpoints(mutation.getTable(), mutation.key());
+        IWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, consistency_level, null);
+        return new WriteResponseHandlerWrapper(responseHandler, mutation, writeEndpoints);
+    }
+
+    // used by atomic_batch_mutate to decouple availability check from the write itself, caches consistency level and endpoints.
+    private static class WriteResponseHandlerWrapper
+    {
+        final IWriteResponseHandler handler;
+        final RowMutation mutation;
+        final Collection<InetAddress> endpoints;
+
+        WriteResponseHandlerWrapper(IWriteResponseHandler handler, RowMutation mutation, Collection<InetAddress> endpoints)
+        {
+            this.handler = handler;
+            this.mutation = mutation;
+            this.endpoints = endpoints;
+        }
+    }
+
+    public static Collection<InetAddress> getWriteEndpoints(String table, ByteBuffer key)
     {
         StorageService ss = StorageService.instance;
         Token tk = StorageService.getPartitioner().getToken(key);
         List<InetAddress> naturalEndpoints = ss.getNaturalEndpoints(table, tk);
         return ss.getTokenMetadata().getWriteEndpoints(tk, table, naturalEndpoints);
+    }
+
+    /*
+     * Replicas are picked manually:
+     * - replicas should be alive according to the failure detector
+     * - replicas should be in the local datacenter
+     * - choose min(2, number of qualifying candiates above)
+     * - allow the local node to be the only replica only if it's a single-node cluster
+     */
+    private static Collection<InetAddress> getBatchlogEndpoints(String localDataCenter) throws UnavailableException
+    {
+        // will include every known node including localhost.
+        Collection<InetAddress> localMembers = StorageService.instance.getTokenMetadata().getTopology().getDatacenterEndpoints().get(localDataCenter);
+
+        // special case for single-node datacenters
+        if (localMembers.size() == 1)
+            return localMembers;
+
+        // not a single-node cluster - don't count the local node.
+        localMembers.remove(FBUtilities.getBroadcastAddress());
+
+        // include only alive nodes
+        List<InetAddress> candidates = new ArrayList<InetAddress>(localMembers.size());
+        for (InetAddress member : localMembers)
+        {
+            if (FailureDetector.instance.isAlive(member))
+                candidates.add(member);
+        }
+
+        if (candidates.isEmpty())
+            throw new UnavailableException(ConsistencyLevel.ONE, 1, 0);
+
+        if (candidates.size() > 2)
+        {
+            IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+            snitch.sortByProximity(FBUtilities.getBroadcastAddress(), candidates);
+            candidates = candidates.subList(0, 2);
+        }
+
+        return candidates;
     }
 
     /**
@@ -368,18 +575,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 try
                 {
-                    UUID hostId = StorageService.instance.getTokenMetadata().getHostId(target);
-                    if ((hostId == null) && (MessagingService.instance().getVersion(target) < MessagingService.VERSION_12))
-                    {
-                        logger.warn("Unable to store hint for host with missing ID, {} (old node?)", target.toString());
-                        return;
-                    }
-                    assert hostId != null : "Missing host ID for " + target.getHostAddress();
-                    RowMutation hintedMutation = RowMutation.hintFor(mutation, hostId);
-                    hintedMutation.apply();
-
-                    totalHints.incrementAndGet();
-
+                    writeHintForMutation(mutation, target);
                     // Notify the handler only for CL == ANY
                     if (responseHandler != null && consistencyLevel == ConsistencyLevel.ANY)
                         responseHandler.response(null);
@@ -395,6 +591,21 @@ public class StorageProxy implements StorageProxyMBean
         return (Future<Void>) StageManager.getStage(Stage.MUTATION).submit(runnable);
     }
 
+    public static void writeHintForMutation(RowMutation mutation, InetAddress target) throws IOException
+    {
+        UUID hostId = StorageService.instance.getTokenMetadata().getHostId(target);
+        if ((hostId == null) && (MessagingService.instance().getVersion(target) < MessagingService.VERSION_12))
+        {
+            logger.warn("Unable to store hint for host with missing ID, {} (old node?)", target.toString());
+            return;
+        }
+        assert hostId != null : "Missing host ID for " + target.getHostAddress();
+        RowMutation hintedMutation = RowMutation.hintFor(mutation, hostId);
+        hintedMutation.apply();
+
+        totalHints.incrementAndGet();
+    }
+
     /**
      * for each datacenter, send a message to one node to relay the write to other replicas
      */
@@ -403,52 +614,56 @@ public class StorageProxy implements StorageProxyMBean
     {
         for (Map.Entry<String, Multimap<MessageOut, InetAddress>> entry: dcMessages.entrySet())
         {
-            String dataCenter = entry.getKey();
-
-            // send the messages corresponding to this datacenter
+            boolean isLocalDC = entry.getKey().equals(localDataCenter);
             for (Map.Entry<MessageOut, Collection<InetAddress>> messages: entry.getValue().asMap().entrySet())
             {
                 MessageOut message = messages.getKey();
+                Collection<InetAddress> targets = messages.getValue();
                 // a single message object is used for unhinted writes, so clean out any forwards
                 // from previous loop iterations
                 message = message.withHeaderRemoved(RowMutation.FORWARD_TO);
-                Iterator<InetAddress> iter = messages.getValue().iterator();
-                InetAddress target = iter.next();
-
-                // direct writes to local DC or old Cassadra versions
-                if (dataCenter.equals(localDataCenter) || MessagingService.instance().getVersion(target) < MessagingService.VERSION_11)
-                {
-                    // yes, the loop and non-loop code here are the same; this is clunky but we want to avoid
-                    // creating a second iterator since we already have a perfectly good one
-                    MessagingService.instance().sendRR(message, target, handler);
-                    while (iter.hasNext())
-                    {
-                        target = iter.next();
-                        MessagingService.instance().sendRR(message, target, handler);
-                    }
-                    continue;
-                }
-
-                // Add all the other destinations of the same message as a FORWARD_HEADER entry
-                FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-                DataOutputStream dos = new DataOutputStream(bos);
-                dos.writeInt(messages.getValue().size() - 1);
-                while (iter.hasNext())
-                {
-                    InetAddress destination = iter.next();
-                    CompactEndpointSerializationHelper.serialize(destination, dos);
-                    String id = MessagingService.instance().addCallback(handler, message, destination, message.getTimeout());
-                    dos.writeUTF(id);
-                    if (logger.isDebugEnabled())
-                        logger.debug("Adding FWD message to: " + destination + " with ID " + id);
-                }
-                message = message.withParameter(RowMutation.FORWARD_TO, bos.toByteArray());
-                // send the combined message + forward headers
-                String id = MessagingService.instance().sendRR(message, target, handler);
-                if (logger.isDebugEnabled())
-                    logger.debug("Sending message to: " + target + " with ID " + id);
+                sendMessagesToOneDC(message, targets, isLocalDC, handler);
             }
         }
+    }
+
+    private static void sendMessagesToOneDC(MessageOut message, Collection<InetAddress> targets, boolean localDC, IWriteResponseHandler handler) throws IOException
+    {
+        Iterator<InetAddress> iter = targets.iterator();
+        InetAddress target = iter.next();
+
+        // direct writes to local DC or old Cassandra versions
+        if (localDC || MessagingService.instance().getVersion(target) < MessagingService.VERSION_11)
+        {
+            // yes, the loop and non-loop code here are the same; this is clunky but we want to avoid
+            // creating a second iterator since we already have a perfectly good one
+            MessagingService.instance().sendRR(message, target, handler);
+            while (iter.hasNext())
+            {
+                target = iter.next();
+                MessagingService.instance().sendRR(message, target, handler);
+            }
+            return;
+        }
+
+        // Add all the other destinations of the same message as a FORWARD_HEADER entry
+        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        dos.writeInt(targets.size() - 1);
+        while (iter.hasNext())
+        {
+            InetAddress destination = iter.next();
+            CompactEndpointSerializationHelper.serialize(destination, dos);
+            String id = MessagingService.instance().addCallback(handler, message, destination, message.getTimeout());
+            dos.writeUTF(id);
+            if (logger.isDebugEnabled())
+                logger.debug("Adding FWD message to: " + destination + " with ID " + id);
+        }
+        message = message.withParameter(RowMutation.FORWARD_TO, bos.toByteArray());
+        // send the combined message + forward headers
+        String id = MessagingService.instance().sendRR(message, target, handler);
+        if (logger.isDebugEnabled())
+            logger.debug("Sending message to: " + target + " with ID " + id);
     }
 
     private static void insertLocal(final RowMutation rm, final IWriteResponseHandler responseHandler)

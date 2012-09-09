@@ -15,21 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.exceptions;
+package org.apache.cassandra.db;
 
-import java.net.InetAddress;
-import java.util.Set;
-import java.nio.ByteBuffer;
-
-import org.apache.cassandra.db.ConsistencyLevel;
-
-public class WriteTimeoutException extends RequestTimeoutException
+public interface BatchlogManagerMBean
 {
-    public final boolean writtenToBatchlog;
-
-    public WriteTimeoutException(ConsistencyLevel consistency, int received, int blockFor, boolean writtenToBatchlog)
-    {
-        super(ExceptionCode.WRITE_TIMEOUT, consistency, received, blockFor);
-        this.writtenToBatchlog = writtenToBatchlog;
-    }
 }
