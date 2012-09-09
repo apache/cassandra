@@ -95,7 +95,6 @@ public class TokenMetadata
 
     private static final Comparator<InetAddress> inetaddressCmp = new Comparator<InetAddress>()
     {
-        @Override
         public int compare(InetAddress o1, InetAddress o2)
         {
             return ByteBuffer.wrap(o1.getAddress()).compareTo(ByteBuffer.wrap(o2.getAddress()));
@@ -685,7 +684,7 @@ public class TokenMetadata
             return includeMin ? Iterators.singletonIterator(StorageService.getPartitioner().getMinimumToken())
                               : Iterators.<Token>emptyIterator();
 
-        final boolean insertMin = (includeMin && !ring.get(0).isMinimum()) ? true : false;
+        final boolean insertMin = includeMin && !ring.get(0).isMinimum();
         final int startIndex = firstTokenIndex(ring, start, insertMin);
         return new AbstractIterator<Token>()
         {
@@ -754,7 +753,7 @@ public class TokenMetadata
                 sb.append(System.getProperty("line.separator"));
                 for (Map.Entry<Token, InetAddress> entry : bootstrapTokens.entrySet())
                 {
-                    sb.append(entry.getValue() + ":" + entry.getKey());
+                    sb.append(entry.getValue()).append(":").append(entry.getKey());
                     sb.append(System.getProperty("line.separator"));
                 }
             }
@@ -793,7 +792,7 @@ public class TokenMetadata
         {
             for (Map.Entry<Range<Token>, InetAddress> rmap : entry.getValue().entries())
             {
-                sb.append(rmap.getValue() + ":" + rmap.getKey());
+                sb.append(rmap.getValue()).append(":").append(rmap.getKey());
                 sb.append(System.getProperty("line.separator"));
             }
         }
@@ -854,7 +853,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
-            Multimap<InetAddress, Token> cloned = HashMultimap.<InetAddress, Token>create();
+            Multimap<InetAddress, Token> cloned = HashMultimap.create();
             for (Map.Entry<Token, InetAddress> entry : tokenToEndpointMap.entrySet())
                 cloned.put(entry.getValue(), entry.getKey());
             return cloned;
