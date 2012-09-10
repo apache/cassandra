@@ -21,7 +21,7 @@ cluster_name: 'Test Cluster'
 #
 # If you already have a cluster with 1 token per node, and wish to migrate to 
 # multiple tokens per node, see http://wiki.apache.org/cassandra/Operations
-# num_tokens: 256
+num_tokens: 256
 
 # If you haven't specified num_tokens, or have set it to the default of 1 then
 # you should always specify InitialToken when setting up a production
