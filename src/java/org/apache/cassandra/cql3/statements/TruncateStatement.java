@@ -44,7 +44,7 @@ public class TruncateStatement extends CFStatement implements CQLStatement
 
     public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.WRITE);
+        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.DELETE);
     }
 
     public void validate(ClientState state) throws InvalidRequestException

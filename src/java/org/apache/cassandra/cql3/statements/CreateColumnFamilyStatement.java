@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.cassandra.auth.Permission;
 import org.apache.commons.lang.StringUtils;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
@@ -63,6 +65,11 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     {
         super(name);
         this.properties = properties;
+    }
+
+    public void checkAccess(ClientState state) throws InvalidRequestException
+    {
+        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.CREATE);
     }
 
     // Column definitions

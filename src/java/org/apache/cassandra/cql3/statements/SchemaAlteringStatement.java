@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.Schema;
@@ -70,14 +71,6 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
     }
 
     public abstract void announceMigration() throws RequestValidationException;
-
-    public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
-    {
-        if (isColumnFamilyLevel)
-            state.hasColumnFamilySchemaAccess(keyspace(), Permission.WRITE);
-        else
-            state.hasKeyspaceSchemaAccess(Permission.WRITE);
-    }
 
     @Override
     public void validate(ClientState state) throws RequestValidationException

@@ -18,9 +18,14 @@
 package org.apache.cassandra.cql3.statements;
 
 
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.config.*;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 
 public class DropIndexStatement extends SchemaAlteringStatement
@@ -31,6 +36,11 @@ public class DropIndexStatement extends SchemaAlteringStatement
     {
         super(new CFName());
         this.indexName = indexName;
+    }
+
+    public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
+    {
+        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.ALTER);
     }
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException

@@ -70,7 +70,7 @@ public class BatchStatement extends ModificationStatement
             // Avoid unnecessary authorizations.
             if (!(cfamsSeen.contains(statement.columnFamily())))
             {
-                state.hasColumnFamilyAccess(statement.keyspace(), statement.columnFamily(), Permission.WRITE);
+                state.hasColumnFamilyAccess(statement.keyspace(), statement.columnFamily(), Permission.UPDATE);
                 cfamsSeen.add(statement.columnFamily());
             }
         }

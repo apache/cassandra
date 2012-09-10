@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.PermissionDenied;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.cql.QueryProcessor;
@@ -48,6 +49,7 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.scheduler.IRequestScheduler;
@@ -324,7 +326,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            state().hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+            state().hasColumnFamilyAccess(column_parent.column_family, Permission.SELECT);
             return multigetSliceInternal(state().getKeyspace(), Collections.singletonList(key), column_parent,
                     predicate, consistency_level).get(key);
         }
@@ -361,7 +363,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            state().hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+            state().hasColumnFamilyAccess(column_parent.column_family, Permission.SELECT);
             return multigetSliceInternal(state().getKeyspace(), keys, column_parent, predicate, consistency_level);
         }
         catch (RequestValidationException e)
@@ -410,7 +412,7 @@ public class CassandraServer implements Cassandra.Iface
     throws RequestValidationException, NotFoundException, UnavailableException, TimedOutException
     {
         ClientState cState = state();
-        cState.hasColumnFamilyAccess(column_path.column_family, Permission.READ);
+        cState.hasColumnFamilyAccess(column_path.column_family, Permission.SELECT);
         String keyspace = cState.getKeyspace();
 
         CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_path.column_family);
@@ -485,7 +487,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             ClientState cState = state();
-            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.SELECT);
             Table table = Table.open(cState.getKeyspace());
             ColumnFamilyStore cfs = table.getColumnFamilyStore(column_parent.column_family);
 
@@ -586,7 +588,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             ClientState cState = state();
-            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.SELECT);
             String keyspace = cState.getKeyspace();
 
             Map<ByteBuffer, Integer> counts = new HashMap<ByteBuffer, Integer>();
@@ -613,7 +615,7 @@ public class CassandraServer implements Cassandra.Iface
     throws RequestValidationException, UnavailableException, TimedOutException
     {
         ClientState cState = state();
-        cState.hasColumnFamilyAccess(column_parent.column_family, Permission.WRITE);
+        cState.hasColumnFamilyAccess(column_parent.column_family, Permission.UPDATE);
 
         CFMetaData metadata = ThriftValidation.validateColumnFamily(cState.getKeyspace(), column_parent.column_family, false);
         ThriftValidation.validateKey(metadata, key);
@@ -695,7 +697,7 @@ public class CassandraServer implements Cassandra.Iface
                 // Avoid unneeded authorizations
                 if (!(cfamsSeen.contains(cfName)))
                 {
-                    cState.hasColumnFamilyAccess(cfName, Permission.WRITE);
+                    cState.hasColumnFamilyAccess(cfName, Permission.UPDATE);
                     cfamsSeen.add(cfName);
                 }
 
@@ -814,7 +816,7 @@ public class CassandraServer implements Cassandra.Iface
     throws RequestValidationException, UnavailableException, TimedOutException
     {
         ClientState cState = state();
-        cState.hasColumnFamilyAccess(column_path.column_family, Permission.WRITE);
+        cState.hasColumnFamilyAccess(column_path.column_family, Permission.DELETE);
 
         CFMetaData metadata = ThriftValidation.validateColumnFamily(cState.getKeyspace(), column_path.column_family, isCommutativeOp);
         ThriftValidation.validateKey(metadata, key);
@@ -897,7 +899,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         try
         {
-            state().hasKeyspaceSchemaAccess(Permission.READ);
+            state().hasKeyspaceAccess(table, Permission.USE);
 
             KSMetaData ksm = Schema.instance.getTableDefinition(table);
             if (ksm == null)
@@ -914,7 +916,6 @@ public class CassandraServer implements Cassandra.Iface
     public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TException, TimedOutException
     {
-
         if (startSessionIfRequested())
         {
             Map<String, String> traceParameters = ImmutableMap.of(
@@ -937,7 +938,7 @@ public class CassandraServer implements Cassandra.Iface
 
             ClientState cState = state();
             keyspace = cState.getKeyspace();
-            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.SELECT);
 
             metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family);
             ThriftValidation.validateColumnParent(metadata, column_parent);
@@ -1024,7 +1025,7 @@ public class CassandraServer implements Cassandra.Iface
 
             ClientState cState = state();
             String keyspace = cState.getKeyspace();
-            cState.hasColumnFamilyAccess(column_family, Permission.READ);
+            cState.hasColumnFamilyAccess(column_family, Permission.SELECT);
 
             CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_family);
             ThriftValidation.validateKeyRange(metadata, null, range);
@@ -1125,7 +1126,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             ClientState cState = state();
-            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.SELECT);
             String keyspace = cState.getKeyspace();
             CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family, false);
             ThriftValidation.validateColumnParent(metadata, column_parent);
@@ -1178,15 +1179,19 @@ public class CassandraServer implements Cassandra.Iface
     {
         try
         {
-            state().hasKeyspaceSchemaAccess(Permission.READ);
-
             Set<String> keyspaces = Schema.instance.getTables();
             List<KsDef> ksset = new ArrayList<KsDef>(keyspaces.size());
             for (String ks : keyspaces)
             {
                 try
                 {
+                    state().hasKeyspaceAccess(ks, Permission.USE);
                     ksset.add(describe_keyspace(ks));
+                }
+                catch (UnauthorizedException e)
+                {
+                    if (logger.isDebugEnabled())
+                        logger.debug("PermissionDenied: " + e.getMessage());
                 }
                 catch (NotFoundException nfe)
                 {
@@ -1296,7 +1301,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            state().hasColumnFamilySchemaAccess(Permission.WRITE);
+            state().hasColumnFamilyAccess(cf_def.name, Permission.CREATE);
             cf_def.unsetId(); // explicitly ignore any id set by client (Hector likes to set zero)
             CFMetaData cfm = CFMetaData.fromThrift(cf_def);
             if (cfm.getBloomFilterFpChance() == null)
@@ -1320,7 +1325,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            cState.hasColumnFamilySchemaAccess(Permission.WRITE);
+            cState.hasColumnFamilyAccess(column_family, Permission.DROP);
             MigrationManager.announceColumnFamilyDrop(cState.getKeyspace(), column_family);
             return Schema.instance.getVersion().toString();
         }
@@ -1334,10 +1339,11 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("add_keyspace");
+
         try
         {
             ThriftValidation.validateKeyspaceNotSystem(ks_def.name);
-            state().hasKeyspaceSchemaAccess(Permission.WRITE);
+            state().hasKeyspaceAccess(ks_def.name, Permission.CREATE);
             ThriftValidation.validateKeyspaceNotYetExisting(ks_def.name);
 
             // generate a meaningful error if the user setup keyspace and/or column definition incorrectly
@@ -1370,10 +1376,11 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("drop_keyspace");
+
         try
         {
             ThriftValidation.validateKeyspaceNotSystem(keyspace);
-            state().hasKeyspaceSchemaAccess(Permission.WRITE);
+            state().hasKeyspaceAccess(keyspace, Permission.DROP);
 
             MigrationManager.announceKeyspaceDrop(keyspace);
             return Schema.instance.getVersion().toString();
@@ -1391,10 +1398,11 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("update_keyspace");
+
         try
         {
             ThriftValidation.validateKeyspaceNotSystem(ks_def.name);
-            state().hasKeyspaceSchemaAccess(Permission.WRITE);
+            state().hasKeyspaceAccess(ks_def.name, Permission.ALTER);
             ThriftValidation.validateTable(ks_def.name);
             if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
                 throw new InvalidRequestException("Keyspace update must not contain any column family definitions.");
@@ -1412,14 +1420,16 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("update_column_family");
+
         try
         {
-            state().hasColumnFamilySchemaAccess(Permission.WRITE);
             if (cf_def.keyspace == null || cf_def.name == null)
                 throw new InvalidRequestException("Keyspace and CF name must be set.");
             CFMetaData oldCfm = Schema.instance.getCFMetaData(cf_def.keyspace, cf_def.name);
             if (oldCfm == null)
                 throw new InvalidRequestException("Could not find column family definition to modify.");
+
+            state().hasColumnFamilyAccess(cf_def.name, Permission.ALTER);
 
             CFMetaData.applyImplicitDefaults(cf_def);
             CFMetaData cfm = CFMetaData.fromThrift(cf_def);
@@ -1439,7 +1449,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            cState.hasColumnFamilyAccess(cfname, Permission.WRITE);
+            cState.hasColumnFamilyAccess(cfname, Permission.DELETE);
 
             if (startSessionIfRequested())
             {
@@ -1523,7 +1533,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             ClientState cState = state();
-            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.WRITE);
+            cState.hasColumnFamilyAccess(column_parent.column_family, Permission.UPDATE);
             String keyspace = cState.getKeyspace();
 
             CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family, true);

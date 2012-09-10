@@ -19,13 +19,14 @@ package org.apache.cassandra.service;
 
 import java.util.*;
 
+import org.apache.cassandra.auth.*;
+import org.apache.cassandra.cql3.CFName;
+import org.apache.cassandra.thrift.CqlResult;
+import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.auth.Resources;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql.CQLStatement;
@@ -183,20 +184,7 @@ public class ClientState
         cql3Prepared.clear();
     }
 
-    /**
-     * Confirms that the client thread has the given Permission for the Keyspace list.
-     */
-    public void hasKeyspaceSchemaAccess(Permission perm) throws UnauthorizedException, InvalidRequestException
-    {
-        validateLogin();
-
-        resourceClear();
-        Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
-
-        hasAccess(user, perms, perm, resource);
-    }
-
-    public void hasColumnFamilySchemaAccess(Permission perm) throws UnauthorizedException, InvalidRequestException
+    public void hasKeyspaceAccess(String keyspace, Permission perm) throws UnauthorizedException, InvalidRequestException
     {
         hasColumnFamilySchemaAccess(keyspace, perm);
     }
@@ -211,8 +199,8 @@ public class ClientState
         validateKeyspace(keyspace);
 
         // hardcode disallowing messing with system keyspace
-        if (keyspace.equalsIgnoreCase(Table.SYSTEM_KS) && perm == Permission.WRITE)
-            throw new UnauthorizedException("system keyspace is not user-modifiable");
+        if (keyspace.equalsIgnoreCase(Table.SYSTEM_KS) && (perm != Permission.USE))
+            throw new InvalidRequestException("system keyspace is not user-modifiable");
 
         resourceClear();
         resource.add(keyspace);
@@ -237,6 +225,12 @@ public class ClientState
 
         resourceClear();
         resource.add(keyspace);
+
+        // check if keyspace access is set to Permission.ALL
+        // (which means that user has all access on keyspace and it's underlying elements)
+        if (DatabaseDescriptor.getAuthority().authorize(user, resource).contains(Permission.FULL_ACCESS))
+            return;
+
         resource.add(columnFamily);
         Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
 
@@ -257,17 +251,54 @@ public class ClientState
     private static void validateKeyspace(String keyspace) throws InvalidRequestException
     {
         if (keyspace == null)
+        {
             throw new InvalidRequestException("You have not set a keyspace for this session");
+        }
     }
 
     private static void hasAccess(AuthenticatedUser user, Set<Permission> perms, Permission perm, List<Object> resource) throws UnauthorizedException
     {
-        if (perms.contains(perm))
-            return;
+        if (perms.contains(Permission.FULL_ACCESS))
+            return; // full access
+
+        if (perms.contains(Permission.NO_ACCESS))
+            throw new UnauthorizedException(String.format("%s does not have permission %s for %s",
+                                                          user,
+                                                          perm,
+                                                          Resources.toString(resource)));
+
+        boolean granular = false;
+
+        for (Permission p : perms)
+        {
+            // mixing of old and granular permissions is denied by IAuthorityContainer
+            // and CQL grammar so it's name to assume that once a granular permission is found
+            // all other permissions are going to be a subset of Permission.GRANULAR_PERMISSIONS
+            if (Permission.GRANULAR_PERMISSIONS.contains(p))
+            {
+                granular = true;
+                break;
+            }
+        }
+
+        if (granular)
+        {
+            if (perms.contains(perm))
+                return; // user has a given permission, perm is always one of Permission.GRANULAR_PERMISSIONS
+        }
+        else
+        {
+            for (Permission p : perms)
+            {
+                if (Permission.oldToNew.get(p).contains(perm))
+                    return;
+            }
+        }
+
         throw new UnauthorizedException(String.format("%s does not have permission %s for %s",
                                                       user,
                                                       perm,
-                                                       Resources.toString(resource)));
+                                                      Resources.toString(resource)));
     }
 
     /**
@@ -318,5 +349,20 @@ public class ClientState
         SemanticVersion cql3 = org.apache.cassandra.cql3.QueryProcessor.CQL_VERSION;
 
         return new SemanticVersion[]{ cql, cql3 };
+    }
+
+    public void grantPermission(Permission permission, String to, CFName on, boolean grantOption) throws UnauthorizedException, InvalidRequestException
+    {
+        DatabaseDescriptor.getAuthorityContainer().grant(user, permission, to, on, grantOption);
+    }
+
+    public void revokePermission(Permission permission, String from, CFName resource) throws UnauthorizedException, InvalidRequestException
+    {
+        DatabaseDescriptor.getAuthorityContainer().revoke(user, permission, from, resource);
+    }
+
+    public ResultMessage listPermissions(String username) throws UnauthorizedException, InvalidRequestException
+    {
+        return DatabaseDescriptor.getAuthorityContainer().listPermissions(username);
     }
 }

@@ -63,7 +63,12 @@ public final class KSMetaData
         if (cls.equals(LocalStrategy.class))
             throw new ConfigurationException("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
-        return new KSMetaData(name, cls, options, true, Collections.<CFMetaData>emptyList());
+        return newKeyspace(name, cls, options, Collections.<CFMetaData>emptyList());
+    }
+
+    public static KSMetaData newKeyspace(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> options, Iterable<CFMetaData> cfDefs)
+    {
+        return new KSMetaData(name, strategyClass, options, true, cfDefs);
     }
 
     public static KSMetaData cloneWith(KSMetaData ksm, Iterable<CFMetaData> cfDefs)
