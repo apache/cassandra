@@ -226,7 +226,7 @@ public final class CFMetaData
     public CFMetaData columnAliases(List<ByteBuffer> prop) {columnAliases = prop; updateCfDef(); return this;}
     public CFMetaData valueAlias(ByteBuffer prop) {valueAlias = prop; updateCfDef(); return this;}
     public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; updateCfDef(); return this;}
-    private CFMetaData columnMetadata(ColumnDefinition... cds)
+    public CFMetaData columnMetadata(ColumnDefinition... cds)
     {
         Map<ByteBuffer, ColumnDefinition> map = new HashMap<ByteBuffer, ColumnDefinition>();
         for (ColumnDefinition cd : cds)

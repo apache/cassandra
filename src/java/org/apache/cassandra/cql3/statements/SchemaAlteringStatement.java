@@ -18,19 +18,11 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.db.migration.*;
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
@@ -77,14 +69,6 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
     }
 
     public abstract void announceMigration() throws InvalidRequestException, ConfigurationException;
-
-    public void checkAccess(ClientState state) throws InvalidRequestException
-    {
-        if (isColumnFamilyLevel)
-            state.hasColumnFamilySchemaAccess(keyspace(), Permission.WRITE);
-        else
-            state.hasKeyspaceSchemaAccess(Permission.WRITE);
-    }
 
     @Override
     public void validate(ClientState state) throws InvalidRequestException, SchemaDisagreementException

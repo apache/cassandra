@@ -1,6 +1,4 @@
-package org.apache.cassandra.auth;
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,23 +15,20 @@ package org.apache.cassandra.auth;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
  */
+package org.apache.cassandra.auth;
 
-import java.util.EnumSet;
-import java.util.List;
+import org.apache.cassandra.thrift.InvalidRequestException;
 
-import org.apache.cassandra.config.ConfigurationException;
-
-public class AllowAllAuthority implements IAuthority
+public class PermissionDenied extends InvalidRequestException
 {
-    public EnumSet<Permission> authorize(AuthenticatedUser user, List<Object> resource)
+    public PermissionDenied(String reason)
     {
-        return Permission.ALL;
+        super(reason);
     }
 
-    public void validateConfiguration() throws ConfigurationException
+    public String getMessage()
     {
-        // pass
+        return why;
     }
 }

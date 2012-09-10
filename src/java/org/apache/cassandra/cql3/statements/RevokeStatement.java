@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,29 +18,49 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
 
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.cql3.CFName;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.*;
 
-public class DropColumnFamilyStatement extends SchemaAlteringStatement
+public class RevokeStatement extends ParsedStatement implements CQLStatement
 {
-    public DropColumnFamilyStatement(CFName name)
+    private final Permission permission;
+    private final String from;
+    private final CFName resource;
+
+    public RevokeStatement(Permission permission, String from, CFName resource)
     {
-        super(name);
+        this.permission = permission;
+        this.from = from;
+        this.resource = resource;
+    }
+
+    public int getBoundsTerms()
+    {
+        return 0;
     }
 
     public void checkAccess(ClientState state) throws InvalidRequestException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.DROP);
     }
 
-    public void announceMigration() throws ConfigurationException
+    public void validate(ClientState state) throws InvalidRequestException, SchemaDisagreementException
     {
-        MigrationManager.announceColumnFamilyDrop(keyspace(), columnFamily());
+    }
+
+    public CqlResult execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException
+    {
+        state.revokePermission(permission, from, resource);
+        return null;
+    }
+
+    public Prepared prepare() throws InvalidRequestException
+    {
+        return new Prepared(this);
     }
 }

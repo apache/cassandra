@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.statements;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
@@ -53,6 +54,11 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
         super();
         this.name = name;
         this.attrs = attrs;
+    }
+
+    public void checkAccess(ClientState state) throws InvalidRequestException
+    {
+        state.hasKeyspaceAccess(name, Permission.CREATE);
     }
 
     /**

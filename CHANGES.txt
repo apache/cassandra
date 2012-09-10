@@ -1,3 +1,8 @@
+1.1.6
+ * Improve IAuthority interface by introducing fine-grained
+   access permissions and grant/revoke commands (CASSANDRA-4490)
+
+
 1.1.5
  * add SecondaryIndex.reload API (CASSANDRA-4581)
  * use millis + atomicint for commitlog segment creation instead of

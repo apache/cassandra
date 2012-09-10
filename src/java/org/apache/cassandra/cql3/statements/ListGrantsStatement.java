@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,29 +18,36 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
 
-import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.cql3.CFName;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.*;
 
-public class DropColumnFamilyStatement extends SchemaAlteringStatement
+public class ListGrantsStatement extends ParsedStatement implements CQLStatement
 {
-    public DropColumnFamilyStatement(CFName name)
+    private final String username;
+
+    public ListGrantsStatement(String username)
     {
-        super(name);
+        this.username = username;
     }
 
     public void checkAccess(ClientState state) throws InvalidRequestException
+    {}
+
+    public void validate(ClientState state) throws InvalidRequestException, SchemaDisagreementException
+    {}
+
+    public CqlResult execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.DROP);
+        return state.listPermissions(username);
     }
 
-    public void announceMigration() throws ConfigurationException
+    @Override
+    public Prepared prepare() throws InvalidRequestException
     {
-        MigrationManager.announceColumnFamilyDrop(keyspace(), columnFamily());
+        return new Prepared(this);
     }
 }

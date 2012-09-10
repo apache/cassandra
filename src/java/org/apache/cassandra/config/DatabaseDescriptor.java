@@ -30,10 +30,7 @@ import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.AllowAllAuthenticator;
-import org.apache.cassandra.auth.AllowAllAuthority;
-import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.auth.IAuthority;
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.cache.IRowCacheProvider;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -75,6 +72,7 @@ public class DatabaseDescriptor
 
     private static IAuthenticator authenticator = new AllowAllAuthenticator();
     private static IAuthority authority = new AllowAllAuthority();
+    private static IAuthorityContainer authorityContainer;
 
     private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";
 
@@ -205,6 +203,8 @@ public class DatabaseDescriptor
                 authority = FBUtilities.<IAuthority>construct(conf.authority, "authority");
             authenticator.validateConfiguration();
             authority.validateConfiguration();
+
+            authorityContainer = new IAuthorityContainer(authority);
 
             /* Hashing strategy */
             if (conf.partitioner == null)
@@ -452,6 +452,9 @@ public class DatabaseDescriptor
 
             Schema.instance.addSystemTable(systemMeta);
 
+            // setup schema required for authorization
+            authorityContainer.setup();
+
             /* Load the seeds for node contact points */
             if (conf.seed_provider == null)
             {
@@ -573,6 +576,11 @@ public class DatabaseDescriptor
     public static IAuthority getAuthority()
     {
         return authority;
+    }
+
+    public static IAuthorityContainer getAuthorityContainer()
+    {
+        return authorityContainer;
     }
 
     public static int getThriftMaxMessageLength()
