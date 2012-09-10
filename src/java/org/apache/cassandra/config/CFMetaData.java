@@ -194,7 +194,6 @@ public final class CFMetaData
 
     public static final CFMetaData BatchlogCF = compile(16, "CREATE TABLE " + SystemTable.BATCHLOG_CF + " ("
                                                             + "id uuid PRIMARY KEY,"
-                                                            + "coordinator inet,"
                                                             + "written_at timestamp,"
                                                             + "data blob"
                                                             + ") WITH COMMENT='uncommited batches' AND gc_grace_seconds=0");

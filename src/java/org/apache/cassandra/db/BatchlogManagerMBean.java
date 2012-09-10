@@ -19,4 +19,20 @@ package org.apache.cassandra.db;
 
 public interface BatchlogManagerMBean
 {
+    /**
+     * Counts all batches currently in the batchlog.
+     *
+     * @return total batch count
+     */
+    public int countAllBatches();
+
+    /**
+     * @return total count of batches replayed since node start
+     */
+    public long getTotalBatchesReplayed();
+
+    /**
+     * Forces batchlog replay. Returns immediately if replay is already in progress.
+     */
+    public void forceBatchlogReplay();
 }

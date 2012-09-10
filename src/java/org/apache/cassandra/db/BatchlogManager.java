@@ -23,6 +23,8 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -32,17 +34,16 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
@@ -54,16 +55,17 @@ public class BatchlogManager implements BatchlogManagerMBean
 {
     private static final String MBEAN_NAME = "org.apache.cassandra.db:type=BatchlogManager";
     private static final int VERSION = MessagingService.VERSION_12;
-    private static final long TIMEOUT = 2 * DatabaseDescriptor.getRpcTimeout();
+    private static final long TIMEOUT = 2 * DatabaseDescriptor.getWriteRpcTimeout();
 
-    private static final ByteBuffer COORDINATOR = columnName("coordinator");
     private static final ByteBuffer WRITTEN_AT = columnName("written_at");
     private static final ByteBuffer DATA = columnName("data");
-    private static final SortedSet<ByteBuffer> META = ImmutableSortedSet.of(COORDINATOR, WRITTEN_AT);
 
     private static final Logger logger = LoggerFactory.getLogger(BatchlogManager.class);
 
     public static final BatchlogManager instance = new BatchlogManager();
+
+    private final AtomicLong totalBatchesReplayed = new AtomicLong();
+    private final AtomicBoolean isReplaying = new AtomicBoolean();
 
     public void start()
     {
@@ -90,15 +92,43 @@ public class BatchlogManager implements BatchlogManagerMBean
                                                             TimeUnit.MILLISECONDS);
     }
 
+    public int countAllBatches()
+    {
+        int count = 0;
+
+        for (Row row : getRangeSlice(new NamesQueryFilter(ImmutableSortedSet.<ByteBuffer>of())))
+        {
+            if (row.cf != null && !row.cf.isMarkedForDelete())
+                count++;
+        }
+
+        return count;
+    }
+
+    public long getTotalBatchesReplayed()
+    {
+        return totalBatchesReplayed.longValue();
+    }
+
+    public void forceBatchlogReplay()
+    {
+        Runnable runnable = new Runnable()
+        {
+            public void run()
+            {
+                replayAllFailedBatches();
+            }
+        };
+        StorageService.optionalTasks.execute(runnable);
+    }
+
     public static RowMutation getBatchlogMutationFor(Collection<RowMutation> mutations, UUID uuid)
     {
         long timestamp = FBUtilities.timestampMicros();
-        ByteBuffer coordinator = InetAddressType.instance.decompose(FBUtilities.getBroadcastAddress());
         ByteBuffer writtenAt = LongType.instance.decompose(timestamp / 1000);
         ByteBuffer data = serializeRowMutations(mutations);
 
         ColumnFamily cf = ColumnFamily.create(CFMetaData.BatchlogCF);
-        cf.addColumn(new Column(COORDINATOR, coordinator, timestamp));
         cf.addColumn(new Column(WRITTEN_AT, writtenAt, timestamp));
         cf.addColumn(new Column(DATA, data, timestamp));
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(uuid));
@@ -126,55 +156,38 @@ public class BatchlogManager implements BatchlogManagerMBean
         return ByteBuffer.wrap(bos.toByteArray());
     }
 
-    private static void replayAllFailedBatches()
+    private void replayAllFailedBatches()
     {
-        if (logger.isDebugEnabled())
-            logger.debug("Started replayAllFailedBatches");
-
-        ColumnFamilyStore store = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.BATCHLOG_CF);
-
-        if (store.isEmpty())
+        if (!isReplaying.compareAndSet(false, true))
             return;
 
-        IPartitioner partitioner = StorageService.getPartitioner();
-        RowPosition minPosition = partitioner.getMinimumToken().minKeyBound();
-        AbstractBounds<RowPosition> range = new Range<RowPosition>(minPosition, minPosition, partitioner);
-
-        List<Row> rows = store.getRangeSlice(null, range, Integer.MAX_VALUE, new NamesQueryFilter(META), null);
-
-        for (Row row : rows)
+        try
         {
-            if (row.cf.isMarkedForDelete())
-                continue;
+            logger.debug("Started replayAllFailedBatches");
 
-            IColumn coordinatorColumn = row.cf.getColumn(COORDINATOR);
-            IColumn writtenAtColumn = row.cf.getColumn(WRITTEN_AT);
-
-            if (coordinatorColumn == null || writtenAtColumn == null)
+            for (Row row : getRangeSlice(new NamesQueryFilter(WRITTEN_AT)))
             {
-                replayBatch(row.key);
-                continue;
+                if (row.cf == null || row.cf.isMarkedForDelete())
+                    continue;
+
+                IColumn writtenAt = row.cf.getColumn(WRITTEN_AT);
+                if (writtenAt == null || System.currentTimeMillis() > LongType.instance.compose(writtenAt.value()) + TIMEOUT)
+                    replayBatch(row.key);
             }
-
-            InetAddress coordinator = InetAddressType.instance.compose(coordinatorColumn.value());
-            long writtenAt = LongType.instance.compose(writtenAtColumn.value());
-            // if the batch is new and its coordinator is alive - give it a chance to complete naturally.
-            if (System.currentTimeMillis() < writtenAt + TIMEOUT && FailureDetector.instance.isAlive(coordinator))
-                continue;
-
-            replayBatch(row.key);
+        }
+        finally
+        {
+            isReplaying.set(false);
         }
 
-        if (logger.isDebugEnabled())
-            logger.debug("Finished replayAllFailedBatches");
+        logger.debug("Finished replayAllFailedBatches");
     }
 
-    private static void replayBatch(DecoratedKey key)
+    private void replayBatch(DecoratedKey key)
     {
         UUID uuid = UUIDType.instance.compose(key.key);
 
-        if (logger.isDebugEnabled())
-            logger.debug("Replaying batch {}", uuid);
+        logger.debug("Replaying batch {}", uuid);
 
         ColumnFamilyStore store = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.BATCHLOG_CF);
         QueryFilter filter = QueryFilter.getNamesFilter(key, new QueryPath(SystemTable.BATCHLOG_CF), DATA);
@@ -195,6 +208,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         }
 
         deleteBatch(key);
+        totalBatchesReplayed.incrementAndGet();
     }
 
     private static void writeHintsForSerializedMutations(ByteBuffer data) throws IOException
@@ -227,5 +241,14 @@ public class BatchlogManager implements BatchlogManagerMBean
     {
         ByteBuffer raw = UTF8Type.instance.decompose(name);
         return CFMetaData.BatchlogCF.getCfDef().getColumnNameBuilder().add(raw).build();
+    }
+
+    private static List<Row> getRangeSlice(IFilter columnFilter)
+    {
+        ColumnFamilyStore store = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.BATCHLOG_CF);
+        IPartitioner partitioner = StorageService.getPartitioner();
+        RowPosition minPosition = partitioner.getMinimumToken().minKeyBound();
+        AbstractBounds<RowPosition> range = new Range<RowPosition>(minPosition, minPosition, partitioner);
+        return store.getRangeSlice(null, range, Integer.MAX_VALUE, columnFilter, null);
     }
 }
