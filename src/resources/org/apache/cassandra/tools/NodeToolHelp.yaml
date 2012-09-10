@@ -1,0 +1,152 @@
+
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Help file for nodetool commands in Yaml.
+commands:
+  - name: ring
+    help: |
+      Print information about the token ring
+  - name: join
+    help: |
+      Join the ring
+  - name: info [-T/--tokens]
+    help: |
+      Print node information (uptime, load, ...)
+  - name: status
+    help: |
+      Print cluster information (state, load, IDs, ...)
+  - name: cfstats
+    help: |
+      Print statistics on column families
+  - name: version
+    help: |
+      Print cassandra version
+  - name: tpstats
+    help: |
+      Print usage statistics of thread pools
+  - name: proxyhistograms
+    help: |
+      Print statistic histograms for network operations
+  - name: drain
+    help: |
+      Drain the node (stop accepting writes and flush all column families)
+  - name: decommission
+    help: |
+      Decommission the *node I am connecting to*
+  - name: compactionstats
+    help: |
+      Print statistics on compactions
+  - name: disablegossip
+    help: |
+      Disable gossip (effectively marking the node dead)
+  - name: enablegossip
+    help: |
+      Reenable gossip
+  - name: disablethrift
+    help: |
+      Disable thrift server
+  - name: enablethrift
+    help: |
+      Reenable thrift server
+  - name: statusthrift
+    help: |
+      Status of thrift server
+  - name: gossipinfo
+    help: |
+      Shows the gossip information for the cluster
+  - name: invalidatekeycache
+    help: |
+      Invalidate the key cache
+  - name: invalidaterowcache
+    help: |
+      Invalidate the row cache
+  - name: resetlocalschema
+    help: |
+      Reset node's local schema and resync
+  - name: netstats [host]
+    help: |
+      Print network information on provided host (connecting node by default)
+  - name: move <new token>
+    help: |
+      Move node on the token ring to a new token
+  - name: removenode status|force|<ID>
+    help: |
+      Show status of current node removal, force completion of pending removal or remove provided ID
+  - name: setcompactionthroughput <value_in_mb>
+    help: |
+      Set the MB/s throughput cap for compaction in the system, or 0 to disable throttling.
+  - name: setstreamthroughput  <value_in_mb>
+    help: |
+      Set the MB/s throughput cap for streaming in the system, or 0 to disable throttling.
+  - name: describering [keyspace]
+    help: |
+      Shows the token ranges info of a given keyspace.
+  - name: rangekeysample
+    help: |
+      Shows the sampled keys held across all keyspaces.
+  - name: rebuild [src-dc-name]
+    help: |
+      Rebuild data by streaming from other nodes (similarly to bootstrap)
+  - name: settraceprobability [value]
+    help: |
+      Sets the probability for tracing any given request to value. 0 disables, 1 enables for all requests, 0 is the default
+  - name: snapshot [keyspaces...] -cf [columnfamilyName] -t [snapshotName]
+    help: |
+      Take a snapshot of the optionally specified column family of the specified keyspaces  using optional name snapshotName
+  - name: clearsnapshot [keyspaces...] -t [snapshotName]
+    help: |
+      Remove snapshots for the specified keyspaces. Either remove all snapshots or remove the snapshots with the given name.
+  - name: flush [keyspace] [cfnames]
+    help: |
+      Flush one or more column families
+  - name: repair [keyspace] [cfnames]
+    help: |
+      Repair one or more column families (use -pr to repair only the first range returned by the partitioner)
+  - name: cleanup [keyspace] [cfnames]
+    help: |
+      Run cleanup on one or more column families
+  - name: compact [keyspace] [cfnames]
+    help: |
+      Force a (major) compaction on one or more column families
+  - name: scrub [keyspace] [cfnames]
+    help: |
+      Scrub (rebuild sstables for) one or more column families
+  - name: upgradesstables [keyspace] [cfnames]
+    help: |
+      Scrub (rebuild sstables for) one or more column families
+  - name: getcompactionthreshold <keyspace> <cfname>
+    help: |
+      Print min and max compaction thresholds for a given column family
+  - name: cfhistograms <keyspace> <cfname>
+    help: |
+      Print statistic histograms for a given column family
+  - name: refresh <keyspace> <cf-name>
+    help: |
+      Load newly placed SSTables to the system without restart.
+  - name: rebuild_index <keyspace> <cf-name> <idx1,idx1>
+    help: |
+      a full rebuilds of native secondry index for a given column family. IndexNameExample: Standard3.IdxName,Standard3.IdxName1
+  - name: setcachecapacity <key-cache-capacity> <row-cache-capacity>
+    help: |
+      Set global key and row cache capacities (in MB units).
+  - name: getendpoints <keyspace> <cf> <key>
+    help: |
+      Print the end points that owns the key
+  - name: getsstables <keyspace> <cf> <key>
+    help: |
+      Print the sstable filenames that own the key
+

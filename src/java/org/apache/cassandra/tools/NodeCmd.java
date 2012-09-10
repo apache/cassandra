@@ -18,34 +18,54 @@
 package org.apache.cassandra.tools;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.lang.management.MemoryUsage;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.DecimalFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Maps;
-
-import org.apache.commons.cli.*;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
+import org.yaml.snakeyaml.Loader;
+import org.yaml.snakeyaml.TypeDescription;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.Constructor;
 
 public class NodeCmd
 {
@@ -142,78 +162,44 @@ public class NodeCmd
     private static void printUsage()
     {
         HelpFormatter hf = new HelpFormatter();
-        StringBuilder header = new StringBuilder();
-        header.append("\nAvailable commands:\n");
-        // No args
-        addCmdHelp(header, "ring", "Print information about the token ring");
-        addCmdHelp(header, "join", "Join the ring");
-        addCmdHelp(header, "info [-T/--tokens]", "Print node information (uptime, load, ...)");
-        addCmdHelp(header, "status", "Print cluster information (state, load, IDs, ...)");
-        addCmdHelp(header, "cfstats", "Print statistics on column families");
-        addCmdHelp(header, "version", "Print cassandra version");
-        addCmdHelp(header, "tpstats", "Print usage statistics of thread pools");
-        addCmdHelp(header, "proxyhistograms", "Print statistic histograms for network operations");
-        addCmdHelp(header, "drain", "Drain the node (stop accepting writes and flush all column families)");
-        addCmdHelp(header, "decommission", "Decommission the *node I am connecting to*");
-        addCmdHelp(header, "compactionstats", "Print statistics on compactions");
-        addCmdHelp(header, "disablegossip", "Disable gossip (effectively marking the node dead)");
-        addCmdHelp(header, "enablegossip", "Reenable gossip");
-        addCmdHelp(header, "disablethrift", "Disable thrift server");
-        addCmdHelp(header, "enablethrift", "Reenable thrift server");
-        addCmdHelp(header, "statusthrift", "Status of thrift server");
-        addCmdHelp(header, "gossipinfo", "Shows the gossip information for the cluster");
-        addCmdHelp(header, "invalidatekeycache", "Invalidate the key cache");
-        addCmdHelp(header, "invalidaterowcache", "Invalidate the row cache");
-        addCmdHelp(header, "resetlocalschema", "Reset node's local schema and resync");
-
-        // One arg
-        addCmdHelp(header, "netstats [host]", "Print network information on provided host (connecting node by default)");
-        addCmdHelp(header, "move <new token>", "Move node on the token ring to a new token");
-        addCmdHelp(header, "removenode status|force|<ID>", "Show status of current node removal, force completion of pending removal or remove provided ID");
-        addCmdHelp(header, "setcompactionthroughput <value_in_mb>", "Set the MB/s throughput cap for compaction in the system, or 0 to disable throttling.");
-        addCmdHelp(header, "setstreamthroughput <value_in_mb>", "Set the MB/s throughput cap for streaming in the system, or 0 to disable throttling.");
-        addCmdHelp(header, "describering [keyspace]", "Shows the token ranges info of a given keyspace.");
-        addCmdHelp(header, "rangekeysample", "Shows the sampled keys held across all keyspaces.");
-        addCmdHelp(header, "rebuild [src-dc-name]", "Rebuild data by streaming from other nodes (similarly to bootstrap)");
-        addCmdHelp(header, "settraceprobability [value]", "Sets the probability for tracing any given request to value. 0 disables, 1 enables for all requests, 0 is the default");
-
-        // Two args
-        addCmdHelp(header, "snapshot [keyspaces...] -cf [columnfamilyName] -t [snapshotName]", "Take a snapshot of the optionally specified column family of the specified keyspaces using optional name snapshotName");
-        addCmdHelp(header, "clearsnapshot [keyspaces...] -t [snapshotName]", "Remove snapshots for the specified keyspaces. Either remove all snapshots or remove the snapshots with the given name.");
-        addCmdHelp(header, "flush [keyspace] [cfnames]", "Flush one or more column family");
-        addCmdHelp(header, "repair [keyspace] [cfnames]", "Repair one or more column family (use -pr to repair only the first range returned by the partitioner)");
-        addCmdHelp(header, "cleanup [keyspace] [cfnames]", "Run cleanup on one or more column family");
-        addCmdHelp(header, "compact [keyspace] [cfnames]", "Force a (major) compaction on one or more column family");
-        addCmdHelp(header, "scrub [keyspace] [cfnames]", "Scrub (rebuild sstables for) one or more column family");
-
-        addCmdHelp(header, "upgradesstables [keyspace] [cfnames]", "Scrub (rebuild sstables for) one or more column family");
-        addCmdHelp(header, "getcompactionthreshold <keyspace> <cfname>", "Print min and max compaction thresholds for a given column family");
-        addCmdHelp(header, "cfhistograms <keyspace> <cfname>", "Print statistic histograms for a given column family");
-        addCmdHelp(header, "refresh <keyspace> <cf-name>", "Load newly placed SSTables to the system without restart.");
-        addCmdHelp(header, "rebuild_index <keyspace> <cf-name> <idx1,idx1>", "a full rebuilds of native secondry index for a given column family. IndexNameExample: Standard3.IdxName,Standard3.IdxName1");
-        addCmdHelp(header, "setcachecapacity <key-cache-capacity> <row-cache-capacity>", "Set global key and row cache capacities (in MB units).");
-
-        // Three args
-        addCmdHelp(header, "getendpoints <keyspace> <cf> <key>", "Print the end points that owns the key");
-        addCmdHelp(header, "getsstables <keyspace> <cf> <key>", "Print the sstable filenames that own the key");
-
-        // Four args
-        addCmdHelp(header, "setcompactionthreshold <keyspace> <cfname> <minthreshold> <maxthreshold>", "Set the min and max compaction thresholds for a given column family");
-        addCmdHelp(header, "stop <compaction_type>", "Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB, INDEX_BUILD");
-
+        StringBuilder header = new StringBuilder(512);
+        header.append("\nAvailable commands\n");
+        final NodeToolHelp ntHelp = loadHelp();
+        for(NodeToolHelp.NodeToolCommand cmd : ntHelp.commands)
+            addCmdHelp(header, cmd);
         String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
         hf.printHelp(usage, "", options, "");
         System.out.println(header.toString());
     }
 
-    private static void addCmdHelp(StringBuilder sb, String cmd, String description)
+    private static NodeToolHelp loadHelp()
     {
-        sb.append("  ").append(cmd);
-        // Ghetto indentation (trying, but not too hard, to not look too bad)
-        if (cmd.length() <= 20)
-            for (int i = cmd.length(); i < 22; ++i) sb.append(" ");
-        sb.append(" - ").append(description).append("\n");
+        final InputStream is = NodeCmd.class.getClassLoader().getResourceAsStream("org/apache/cassandra/tools/NodeToolHelp.yaml");
+        assert is != null;
+
+        try
+        {
+            final Constructor constructor = new Constructor(NodeToolHelp.class);
+            TypeDescription desc = new TypeDescription(NodeToolHelp.class);
+            desc.putListPropertyType("commands", NodeToolHelp.NodeToolCommand.class);
+            final Yaml yaml = new Yaml(new Loader(constructor));
+            return (NodeToolHelp)yaml.load(is);
+        }
+        finally
+        {
+            FileUtils.closeQuietly(is);
+        }
     }
+
+    private static void addCmdHelp(StringBuilder sb, NodeToolHelp.NodeToolCommand cmd)
+    {
+        sb.append("  ").append(cmd.name);
+        // Ghetto indentation (trying, but not too hard, to not look too bad)
+        if (cmd.name.length() <= 20)
+            for (int i = cmd.name.length(); i < 22; ++i) sb.append(" ");
+        sb.append(" - ").append(cmd.help);
+  }
+
 
     /**
      * Write a textual representation of the Cassandra ring.
