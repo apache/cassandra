@@ -56,6 +56,8 @@
  * Adds events push to binary protocol (CASSANDRA-4480)
  * Rewrite nodetool help (CASSANDRA-2293)
  * Make CQL3 the default for CQL (CASSANDRA-4640)
+ * update stress tool to be able to use CQL3 (CASSANDRA-4406)
+
 
 1.1.6
   * (cql3) fix potential NPE with both equal and unequal restriction (CASSANDRA-4532)

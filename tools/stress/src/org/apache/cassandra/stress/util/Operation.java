@@ -296,4 +296,11 @@ public abstract class Operation
 
         return statementId;
     }
+
+    protected String wrapInQuotesIfRequired(String string)
+    {
+        return session.cqlVersion.startsWith("3")
+                ? "\"" + string + "\""
+                : string;
+    }
 }

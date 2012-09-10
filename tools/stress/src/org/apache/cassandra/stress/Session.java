@@ -81,7 +81,8 @@ public class Session implements Serializable
         availableOptions.addOption("i",  "progress-interval",    true,   "Progress Report Interval (seconds), default:10");
         availableOptions.addOption("g",  "keys-per-call",        true,   "Number of keys to get_range_slices or multiget per call, default:1000");
         availableOptions.addOption("l",  "replication-factor",   true,   "Replication Factor to use when creating needed column families, default:1");
-        availableOptions.addOption("L",  "enable-cql",           false,  "Perform queries using CQL (Cassandra Query Language).");
+        availableOptions.addOption("L",  "enable-cql",           false,  "Perform queries using CQL2 (Cassandra Query Language v 2.0.0)");
+        availableOptions.addOption("L3", "enable-cql3",          false,  "Perform queries using CQL3 (Cassandra Query Language v 3.0.0)");
         availableOptions.addOption("P",  "use-prepared-statements", false, "Perform queries using prepared statements (only applicable to CQL).");
         availableOptions.addOption("e",  "consistency-level",    true,   "Consistency Level to use (ONE, QUORUM, LOCAL_QUORUM, EACH_QUORUM, ALL, ANY), default:ONE");
         availableOptions.addOption("x",  "create-index",         true,   "Type of index to create on needed column families (KEYS)");
@@ -131,6 +132,8 @@ public class Session implements Serializable
 
     // if we know exactly column names that we want to read (set by -Q option)
     public final List<ByteBuffer> columnNames;
+
+    public String cqlVersion;
 
     public final boolean averageSizeValues;
 
@@ -269,7 +272,17 @@ public class Session implements Serializable
                 replicationStrategyOptions.put("replication_factor", "1");
 
             if (cmd.hasOption("L"))
+            {
                 enable_cql = true;
+                cqlVersion = "2.0.0";
+            }
+
+            if (cmd.hasOption("L3"))
+            {
+                enable_cql = true;
+                cqlVersion = "3.0.0";
+            }
+
 
             if (cmd.hasOption("P"))
             {
@@ -539,6 +552,14 @@ public class Session implements Serializable
                      .setDefault_validation_class(DEFAULT_VALIDATOR)
                      .setCompression_options(compressionOptions);
 
+        if (!timeUUIDComparator)
+        {
+            for (int i = 0; i < getColumnsPerKey(); i++)
+            {
+                standardCfDef.addToColumn_metadata(new ColumnDef(ByteBufferUtil.bytes("C" + i), "BytesType"));
+            }
+        }
+
         if (indexType != null)
         {
             ColumnDef standardColumn = new ColumnDef(ByteBufferUtil.bytes("C1"), "BytesType");
@@ -620,6 +641,9 @@ public class Session implements Serializable
         try
         {
             transport.open();
+
+            if (enable_cql)
+                client.set_cql_version(cqlVersion);
 
             if (setKeyspace)
             {

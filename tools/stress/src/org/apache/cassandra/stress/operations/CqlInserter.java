@@ -54,13 +54,27 @@ public class CqlInserter extends Operation
         // Construct a query string once.
         if (cqlQuery == null)
         {
-            StringBuilder query = new StringBuilder("UPDATE Standard1 USING CONSISTENCY ")
+            StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired("Standard1"))
+                    .append(" USING CONSISTENCY ")
                     .append(session.getConsistencyLevel().toString()).append(" SET ");
 
             for (int i = 0; i < session.getColumnsPerKey(); i++)
             {
-                if (i > 0) query.append(',');
-                query.append("?=?");
+                if (i > 0)
+                    query.append(',');
+
+                if (session.timeUUIDComparator)
+                {
+                    if (session.cqlVersion.startsWith("3"))
+                        throw new UnsupportedOperationException("Cannot use UUIDs in column names with CQL3");
+
+                    query.append(wrapInQuotesIfRequired(UUIDGen.makeType1UUIDFromHost(Session.getLocalAddress()).toString()))
+                         .append(" = ?");
+                }
+                else
+                {
+                    query.append(wrapInQuotesIfRequired("C" + i)).append(" = ?");
+                }
             }
 
             query.append(" WHERE KEY=?");
@@ -70,18 +84,12 @@ public class CqlInserter extends Operation
         List<String> queryParms = new ArrayList<String>();
         for (int i = 0; i < session.getColumnsPerKey(); i++)
         {
-            // Column name
-            if (session.timeUUIDComparator)
-                queryParms.add(UUIDGen.makeType1UUIDFromHost(Session.getLocalAddress()).toString());
-            else
-                queryParms.add(new String("C" + i));
-
             // Column value
-            queryParms.add(new String(getUnQuotedCqlBlob(values.get(i % values.size()).array())));
+            queryParms.add(getUnQuotedCqlBlob(values.get(i % values.size()).array()));
         }
 
         String key = String.format("%0" + session.getTotalKeysLength() + "d", index);
-        queryParms.add(new String(getUnQuotedCqlBlob(key)));
+        queryParms.add(getUnQuotedCqlBlob(key));
 
         String formattedQuery = null;
 
@@ -120,11 +128,12 @@ public class CqlInserter extends Operation
 
         if (!success)
         {
-            error(String.format("Operation [%d] retried %d times - error inserting key %s %s%n",
+            error(String.format("Operation [%d] retried %d times - error inserting key %s %s%n with query %s",
                                 index,
                                 session.getRetryTimes(),
                                 key,
-                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
+                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")",
+                                cqlQuery));
         }
 
         session.operations.getAndIncrement();
