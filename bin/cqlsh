@@ -124,8 +124,10 @@ precedence over any defaults.""" % globals()
 parser = optparse.OptionParser(description=description, epilog=epilog,
                                usage="Usage: %prog [options] [host [port]]",
                                version='cqlsh ' + version)
-parser.add_option("-C", "--color", action="store_true",
-                  help="Enable color output.")
+parser.add_option("-C", "--color", action='store_true', dest='color',
+                  help='Always use color output')
+parser.add_option("--no-color", action='store_false', dest='color',
+                  help='Never use color output')
 parser.add_option("-u", "--username", help="Authenticate as user.")
 parser.add_option("-p", "--password", help="Authenticate using password.")
 parser.add_option('-k', '--keyspace', help='Authenticate to the given keyspace.')
@@ -2444,9 +2446,6 @@ def read_options(cmdlineargs, environment):
     optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
     optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey', 'tab')
     optvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
-    if optvalues.color is None:
-        # default yes if tty
-        optvalues.color = should_use_color()
     optvalues.debug = False
     optvalues.file = None
     optvalues.tty = sys.stdin.isatty()
@@ -2466,8 +2465,15 @@ def read_options(cmdlineargs, environment):
         port = arguments[1]
 
     if options.file is not None:
-        options.color = False
         options.tty = False
+
+    if optvalues.color in (True, False):
+        options.color = optvalues.color
+    else:
+        if options.file is not None:
+            options.color = False
+        else:
+            options.color = should_use_color()
 
     options.cqlversion, cqlvertup = full_cql_version(options.cqlversion)
     if cqlvertup[0] < 3:

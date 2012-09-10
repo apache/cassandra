@@ -472,6 +472,9 @@ public class DatabaseDescriptor
             // setup schema required for authorization
             authorityContainer.setup();
 
+            // setup schema required for authorization
+            authorityContainer.setup();
+
             /* Load the seeds for node contact points */
             if (conf.seed_provider == null)
             {

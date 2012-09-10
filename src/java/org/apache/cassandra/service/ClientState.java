@@ -226,7 +226,7 @@ public class ClientState
         resourceClear();
         resource.add(keyspace);
 
-        // check if keyspace access is set to Permission.ALL
+        // check if keyspace access is set to Permission.FULL_ACCESS
         // (which means that user has all access on keyspace and it's underlying elements)
         if (DatabaseDescriptor.getAuthority().authorize(user, resource).contains(Permission.FULL_ACCESS))
             return;
@@ -266,6 +266,7 @@ public class ClientState
                                                           user,
                                                           perm,
                                                           Resources.toString(resource)));
+
 
         boolean granular = false;
 
