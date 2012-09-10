@@ -11,6 +11,7 @@ by version X, but the inverse is not necessarily the case.)
 
 1.2
 ===
+
 Upgrading
 ---------
     - 1.2 is NOT network-compatible with versions older than 1.0.  That
@@ -45,13 +46,17 @@ Upgrading
     - The default partitioner was changed from RandomPartitioner to
       Murmur3Partitioner which provides faster hashing as well as
       improved performance with secondary indexes.
+    - The default version of CQL (and cqlsh) is now CQL3. CQL2 is still
+      available but you will have to use the thrift set_cql_version method
+      (that is already supported in 1.1) to use CQL2. For cqlsh, you will need
+      to use 'cqlsh -2'.
     - CQL3 is now considered final in this release. Compared to the beta
       version that is part of 1.1, this final version has a few additions
       (collections), but also some changes in the syntax for the options of the
       create/alter keyspace/table statements. Typically, the syntax to create a
       keyspace is now:
-        CREATE KEYSPACE ks WITH replication = { 'class' : 'CompactionStrategy',
-                                                'replication_faction' : 2 };
+        CREATE KEYSPACE ks WITH replication = { 'class' : 'SimpleStrategy',
+                                                'replication_factor' : 2 };
       Please refer to the CQL3 documentation for details.
 
 Features

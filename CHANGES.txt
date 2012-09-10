@@ -55,6 +55,7 @@
  * Finer grained exceptions hierarchy and provides error code with exceptions (CASSANDRA-3979)
  * Adds events push to binary protocol (CASSANDRA-4480)
  * Rewrite nodetool help (CASSANDRA-2293)
+ * Make CQL3 the default for CQL (CASSANDRA-4640)
 
 1.1.6
   * (cql3) fix potential NPE with both equal and unequal restriction (CASSANDRA-4532)
