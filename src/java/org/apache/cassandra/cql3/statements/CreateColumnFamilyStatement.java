@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.commons.lang.StringUtils;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
@@ -67,7 +68,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         this.properties = properties;
     }
 
-    public void checkAccess(ClientState state) throws InvalidRequestException
+    public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
         state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.CREATE);
     }

@@ -724,11 +724,13 @@ public class QueryProcessor
 
             case DROP_INDEX:
                 DropIndexStatement dropIdx = (DropIndexStatement)statement.statement;
-                clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
 
                 try
                 {
-                    MigrationManager.announceColumnFamilyUpdate(dropIdx.generateCFMetadataUpdate(clientState.getKeyspace()));
+                    CFMetaData updatedCF = dropIdx.generateCFMetadataUpdate(clientState.getKeyspace());
+                    clientState.hasColumnFamilyAccess(updatedCF.ksName, updatedCF.cfName, Permission.USE);
+
+                    MigrationManager.announceColumnFamilyUpdate(updatedCF);
                 }
                 catch (ConfigurationException e)
                 {
