@@ -2000,6 +2000,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                : 0;
     }
 
+    public int[] getSSTableCountPerLevel()
+    {
+        return compactionStrategy instanceof LeveledCompactionStrategy
+               ? ((LeveledCompactionStrategy) compactionStrategy).getAllLevelSize()
+               : null;
+    }
+
     public static class ViewFragment
     {
         public final List<SSTableReader> sstables;

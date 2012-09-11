@@ -756,6 +756,27 @@ public class NodeCmd
             {
                 outs.println("\t\tColumn Family: " + cfstore.getColumnFamilyName());
                 outs.println("\t\tSSTable count: " + cfstore.getLiveSSTableCount());
+                int[] leveledSStables = cfstore.getSSTableCountPerLevel();
+                if (leveledSStables != null)
+                {
+                    outs.print("\t\tSSTables in each level: [");
+                    for (int level = 0; level < leveledSStables.length; level++)
+                    {
+                        int count = leveledSStables[level];
+                        outs.print(count);
+                        long maxCount = 4L; // for L0
+                        if (level > 0)
+                            maxCount = (long) Math.pow(10, level);
+                        //  show max threshold for level when exceeded
+                        if (count > maxCount)
+                            outs.print("/" + maxCount);
+
+                        if (level < leveledSStables.length - 1)
+                            outs.print(", ");
+                        else
+                            outs.println("]");
+                    }
+                }
                 outs.println("\t\tSpace used (live): " + cfstore.getLiveDiskSpaceUsed());
                 outs.println("\t\tSpace used (total): " + cfstore.getTotalDiskSpaceUsed());
                 outs.println("\t\tNumber of Keys (estimate): " + cfstore.estimateKeys());

@@ -314,6 +314,14 @@ public class LeveledManifest
         return generations.length > i ? generations[i].size() : 0;
     }
 
+    public synchronized int[] getAllLevelSize()
+    {
+        int[] counts = new int[generations.length];
+        for (int i = 0; i < counts.length; i++)
+            counts[i] = generations[i].size();
+        return counts;
+    }
+
     private void logDistribution()
     {
         if (logger.isDebugEnabled())

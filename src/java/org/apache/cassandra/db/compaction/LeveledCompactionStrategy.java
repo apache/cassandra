@@ -88,6 +88,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         return manifest.getLevelSize(i);
     }
 
+    public int[] getAllLevelSize()
+    {
+        return manifest.getAllLevelSize();
+    }
+
     /**
      * the only difference between background and maximal in LCS is that maximal is still allowed
      * (by explicit user request) even when compaction is disabled.

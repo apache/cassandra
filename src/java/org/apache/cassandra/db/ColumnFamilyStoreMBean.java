@@ -323,4 +323,10 @@ public interface ColumnFamilyStoreMBean
      * @return the number of SSTables in L0.  Always return 0 if Leveled compaction is not enabled.
      */
     public int getUnleveledSSTables();
+
+    /**
+     * @return sstable count for each level. null unless leveled compaction is used.
+     *         array index corresponds to level(int[0] is for level 0, ...).
+     */
+    public int[] getSSTableCountPerLevel();
 }
