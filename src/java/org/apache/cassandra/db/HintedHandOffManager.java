@@ -29,6 +29,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,12 +57,9 @@ import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Throttle;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
-
-
 
 /**
  * The hint schema looks like this:
@@ -258,21 +256,6 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     private void deliverHintsToEndpointInternal(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, InterruptedException
     {
-        long hintSizes = 0;
-        Throttle hintThrottle = new Throttle("HintThrottle", new Throttle.ThroughputFunction()
-        {
-            public int targetThroughput()
-            {
-                if (DatabaseDescriptor.getHintedHandoffThrottleInKB() < 1)
-                    // throttling disabled
-                    return 0;
-                // total throughput
-                int totalBytesPerMS = (DatabaseDescriptor.getHintedHandoffThrottleInKB() * 1024) / 8 / 1000;
-                // per hint throughput (target bytes per MS)
-                return totalBytesPerMS / Math.max(1, executor.getActiveCount());
-            }
-        });
-
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.HINTS_CF);
         if (hintStore.isEmpty())
             return; // nothing to do, don't confuse users by logging a no-op handoff
@@ -318,6 +301,10 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             logger.debug("average hinted-row column size is {}; using pageSize of {}", averageColumnSize, pageSize);
         }
 
+        // rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
+        int throttleInKB = DatabaseDescriptor.getHintedHandoffThrottleInKB();
+        RateLimiter rateLimiter = RateLimiter.create(throttleInKB == 0 ? Double.MAX_VALUE : throttleInKB * 1024);
+
         delivery:
         while (true)
         {
@@ -357,10 +344,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                     if (rm != null)
                     {
                         MessageOut<RowMutation> message = rm.createMessage();
+                        rateLimiter.acquire(message.serializedSize(MessagingService.current_version));
                         sendMutation(endpoint, message);
-                        // throttle for the messages sent.
-                        hintSizes += message.serializedSize(MessagingService.current_version);
-                        hintThrottle.throttle(hintSizes);
                         rowsReplayed++;
                     }
                     deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
