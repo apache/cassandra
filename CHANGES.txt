@@ -64,6 +64,7 @@
  * Improve IAuthority interface by introducing fine-grained
    access permissions and grant/revoke commands (CASSANDRA-4490)
  * fix assumption error in CLI when updating/describing keyspace (CASSANDRA-4322)
+ * Adds offline sstablescrub to debian packaging (CASSANDRA-4642)
 
 
 1.1.5
