@@ -231,7 +231,7 @@ public class DeleteStatement extends ModificationStatement
         return String.format("DeleteStatement(name=%s, columns=%s, consistency=%s keys=%s)",
                              cfName,
                              columns,
-                             cLevel,
+                             getConsistencyLevel(),
                              whereClause);
     }
 }

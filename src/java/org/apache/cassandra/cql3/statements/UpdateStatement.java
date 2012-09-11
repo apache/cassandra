@@ -130,7 +130,7 @@ public class UpdateStatement extends ModificationStatement
         Map<ByteBuffer, ColumnGroupMap> rows = needsReading ? readRows(keys, builder, (CompositeType)cfDef.cfm.comparator) : null;
 
         List<IMutation> rowMutations = new LinkedList<IMutation>();
-        UpdateParameters params = new UpdateParameters(variables, getTimestamp(clientState), timeToLive);
+        UpdateParameters params = new UpdateParameters(variables, getTimestamp(clientState), getTimeToLive());
 
         for (ByteBuffer key: keys)
             rowMutations.add(mutationForKey(cfDef, key, builder, params, rows == null ? null : rows.get(key)));
@@ -304,7 +304,7 @@ public class UpdateStatement extends ModificationStatement
         // Deal here with the keyspace overwrite thingy to avoid mistake
         CFMetaData metadata = validateColumnFamily(keyspace(), columnFamily(), hasCommutativeOperation);
         if (hasCommutativeOperation)
-            cLevel.validateCounterForWrite(metadata);
+            getConsistencyLevel().validateCounterForWrite(metadata);
 
         cfDef = metadata.getCfDef();
 
@@ -429,7 +429,7 @@ public class UpdateStatement extends ModificationStatement
                              whereClause,
                              columns,
                              getConsistencyLevel(),
-                             timestamp,
-                             timeToLive);
+                             isSetTimestamp() ? getTimestamp(null) : "<now>",
+                             getTimeToLive());
     }
 }

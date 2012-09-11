@@ -103,7 +103,7 @@ public class BatchStatement extends ModificationStatement
         for (ModificationStatement statement : statements)
         {
             if (isSetTimestamp())
-                statement.timestamp = timestamp;
+                statement.setTimestamp(getTimestamp(clientState));
 
             List<IMutation> lm = statement.getMutations(clientState, variables);
             // Group mutation together, otherwise they won't get applied atomically
@@ -164,7 +164,7 @@ public class BatchStatement extends ModificationStatement
 
     public String toString()
     {
-        return String.format("BatchStatement(statements=%s, consistency=%s)", statements, cLevel);
+        return String.format("BatchStatement(statements=%s, consistency=%s)", statements, getConsistencyLevel());
     }
 
     private static class RowAndCounterMutation

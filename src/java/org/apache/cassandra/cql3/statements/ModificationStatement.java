@@ -42,9 +42,9 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
 {
     public static final ConsistencyLevel defaultConsistency = ConsistencyLevel.ONE;
 
-    protected final ConsistencyLevel cLevel;
-    protected Long timestamp;
-    protected final int timeToLive;
+    private final ConsistencyLevel cLevel;
+    private Long timestamp;
+    private final int timeToLive;
 
     public ModificationStatement(CFName name, Attributes attrs)
     {
@@ -96,6 +96,11 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
     public long getTimestamp(ClientState clientState)
     {
         return timestamp == null ? clientState.getTimestamp() : timestamp;
+    }
+
+    public void setTimestamp(long timestamp)
+    {
+        this.timestamp = timestamp;
     }
 
     public boolean isSetTimestamp()
