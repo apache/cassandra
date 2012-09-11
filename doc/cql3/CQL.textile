@@ -652,6 +652,7 @@ bc(syntax)..
                 | decimal
                 | double
                 | float
+                | inet
                 | int
                 | text
                 | timestamp
@@ -672,6 +673,7 @@ p. The following table gives additional informations on the native data types:
 |@decimal@  |Variable-precision decimal|
 |@double@   |64-bit IEEE-754 floating point|
 |@float@    |32-bit IEEE-754 floating point|
+|@inet@     |An IP address. It can be either 4 bytes long (IPv4) or 16 bytes long (IPv6)|
 |@int@      |32-bit signed int|
 |@text@     |UTF8 encoded string|
 |@timestamp@|A timestamp. See "Working with dates":#usingdates below for more information.|

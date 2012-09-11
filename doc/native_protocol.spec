@@ -384,6 +384,7 @@ Table of Contents
             0x000D    Varchar
             0x000E    Varint
             0x000F    Timeuuid
+            0x0010    Inet
             0x0020    List: the value is an [option], representing the type
                             of the elements of the list.
             0x0021    Map: the value is two [option], representing the types of the
