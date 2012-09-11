@@ -61,12 +61,9 @@
 
 
 1.1.6
-  * (cql3) fix potential NPE with both equal and unequal restriction (CASSANDRA-4532)
-  * (cql3) improves ORDER BY validation (CASSANDRA-4624)
-  * Fix potential deadlock during counter writes (CASSANDRA-4578)
-  * Fix cql error with ORDER BY when using IN (CASSANDRA-4612)
-  * Improve IAuthority interface by introducing fine-grained
-    access permissions and grant/revoke commands (CASSANDRA-4490)
+ * Improve IAuthority interface by introducing fine-grained
+   access permissions and grant/revoke commands (CASSANDRA-4490)
+ * fix assumption error in CLI when updating/describing keyspace (CASSANDRA-4322)
 
 
 1.1.5

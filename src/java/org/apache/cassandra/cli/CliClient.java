@@ -1064,7 +1064,7 @@ public class CliClient
             String mySchemaVersion = thriftClient.system_update_keyspace(updatedKsDef);
             sessionState.out.println(mySchemaVersion);
             keyspacesMap.remove(keyspaceName);
-            getKSMetaData(keySpace);
+            getKSMetaData(keyspaceName);
         }
         catch (InvalidRequestException e)
         {
@@ -1871,15 +1871,19 @@ public class CliClient
      * Returns true if this.keySpace is set, false otherwise
      * @return boolean
      */
+    private boolean hasKeySpace(boolean printError)
+    {
+        boolean hasKeyspace = keySpace != null;
+
+        if (!hasKeyspace && printError)
+            sessionState.err.println("Not authorized to a working keyspace.");
+
+        return hasKeyspace;
+    }
+
     private boolean hasKeySpace()
     {
-        if (keySpace == null)
-        {
-            sessionState.out.println("Not authenticated to a working keyspace.");
-            return false;
-        }
-
-        return true;
+        return hasKeySpace(true);
     }
 
     public String getKeySpace()
@@ -2145,8 +2149,18 @@ public class CliClient
 
         int argCount = statement.getChildCount();
 
-        keyspacesMap.remove(keySpace);
-        KsDef currentKeySpace = getKSMetaData(keySpace);
+        if (keySpace == null && argCount == 0)
+        {
+            sessionState.out.println("Authenticate to a Keyspace, before using `describe` or `describe <column_family>`");
+            return;
+        }
+
+        KsDef currentKeySpace = null;
+        if (keySpace != null)
+        {
+            keyspacesMap.remove(keySpace);
+            currentKeySpace = getKSMetaData(keySpace);
+        }
 
         if (argCount > 1) // in case somebody changes Cli grammar
             throw new RuntimeException("`describe` command take maximum one argument. See `help describe;`");
@@ -2958,7 +2972,7 @@ public class CliClient
 
         public void replayAssumptions(String keyspace)
         {
-            if (!CliMain.isConnected() || !hasKeySpace())
+            if (!CliMain.isConnected() || !hasKeySpace(false))
                 return;
 
             Map<String, Map<String, String>> cfAssumes = assumptions.get(keyspace);
