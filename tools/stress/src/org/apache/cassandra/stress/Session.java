@@ -47,6 +47,7 @@ public class Session implements Serializable
     // command line options
     public static final Options availableOptions = new Options();
 
+    public static final String KEYSPACE_NAME = "Keyspace1";
     public static final String DEFAULT_COMPARATOR = "AsciiType";
     public static final String DEFAULT_VALIDATOR  = "BytesType";
 
@@ -535,7 +536,7 @@ public class Session implements Serializable
     }
 
     /**
-     * Create Keyspace1 with Standard1 and Super1 column families
+     * Create Keyspace with Standard and Super/Counter column families
      */
     public void createKeySpaces()
     {
@@ -543,7 +544,7 @@ public class Session implements Serializable
         String defaultComparator = comparator == null ? DEFAULT_COMPARATOR : comparator;
 
         // column family for standard columns
-        CfDef standardCfDef = new CfDef("Keyspace1", "Standard1");
+        CfDef standardCfDef = new CfDef(KEYSPACE_NAME, "Standard1");
         Map<String, String> compressionOptions = new HashMap<String, String>();
         if (compression != null)
             compressionOptions.put("sstable_compression", compression);
@@ -568,19 +569,27 @@ public class Session implements Serializable
         }
 
         // column family with super columns
-        CfDef superCfDef = new CfDef("Keyspace1", "Super1").setColumn_type("Super");
+        CfDef superCfDef = new CfDef(KEYSPACE_NAME, "Super1").setColumn_type("Super");
         superCfDef.setComparator_type(DEFAULT_COMPARATOR)
                   .setSubcomparator_type(defaultComparator)
                   .setDefault_validation_class(DEFAULT_VALIDATOR)
                   .setCompression_options(compressionOptions);
 
         // column family for standard counters
-        CfDef counterCfDef = new CfDef("Keyspace1", "Counter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite).setCompression_options(compressionOptions);
+        CfDef counterCfDef = new CfDef(KEYSPACE_NAME, "Counter1").setComparator_type(defaultComparator)
+                                                                 .setComparator_type(defaultComparator)
+                                                                 .setDefault_validation_class("CounterColumnType")
+                                                                 .setReplicate_on_write(replicateOnWrite)
+                                                                 .setCompression_options(compressionOptions);
 
         // column family with counter super columns
-        CfDef counterSuperCfDef = new CfDef("Keyspace1", "SuperCounter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite).setColumn_type("Super").setCompression_options(compressionOptions);
+        CfDef counterSuperCfDef = new CfDef(KEYSPACE_NAME, "SuperCounter1").setComparator_type(defaultComparator)
+                                                                           .setDefault_validation_class("CounterColumnType")
+                                                                           .setReplicate_on_write(replicateOnWrite)
+                                                                           .setColumn_type("Super")
+                                                                           .setCompression_options(compressionOptions);
 
-        keyspace.setName("Keyspace1");
+        keyspace.setName(KEYSPACE_NAME);
         keyspace.setStrategy_class(replicationStrategy);
 
         if (!replicationStrategyOptions.isEmpty())
@@ -603,6 +612,17 @@ public class Session implements Serializable
         try
         {
             client.system_add_keyspace(keyspace);
+
+            /* CQL3 counter cf */
+            client.set_cql_version("3.0.0"); // just to create counter cf for cql3
+
+            client.set_keyspace(KEYSPACE_NAME);
+            client.execute_cql_query(createCounterCFStatementForCQL3(), Compression.NONE);
+
+            if (enable_cql)
+                client.set_cql_version(cqlVersion);
+            /* end */
+
             System.out.println(String.format("Created keyspaces. Sleeping %ss for propagation.", nodes.length));
             Thread.sleep(nodes.length * 1000); // seconds
         }
@@ -677,5 +697,20 @@ public class Session implements Serializable
         }
 
         return localInetAddress;
+    }
+
+    private ByteBuffer createCounterCFStatementForCQL3()
+    {
+        StringBuilder counter3 = new StringBuilder("CREATE TABLE \"Counter3\" (KEY blob PRIMARY KEY, ");
+
+        for (int i = 0; i < getColumnsPerKey(); i++)
+        {
+            counter3.append("c").append(i).append(" counter");
+            if (i != getColumnsPerKey() - 1)
+                counter3.append(", ");
+        }
+        counter3.append(");");
+
+        return ByteBufferUtil.bytes(counter3.toString());
     }
 }

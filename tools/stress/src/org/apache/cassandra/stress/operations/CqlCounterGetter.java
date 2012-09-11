@@ -50,9 +50,20 @@ public class CqlCounterGetter extends Operation
 
         if (cqlQuery == null)
         {
-            StringBuilder query = new StringBuilder("SELECT FIRST ").append(session.getColumnsPerKey())
-                    .append(" ''..'' FROM Counter1 USING CONSISTENCY ").append(session.getConsistencyLevel().toString())
-                    .append(" WHERE KEY=?");
+            StringBuilder query = new StringBuilder("SELECT ");
+
+            if (session.cqlVersion.startsWith("2"))
+                query.append("FIRST ").append(session.getColumnsPerKey()).append(" ''..''");
+            else
+                query.append("*");
+
+            String counterCF = session.cqlVersion.startsWith("2") ? "Counter1" : "Counter3";
+
+            query.append(" FROM ").append(wrapInQuotesIfRequired(counterCF))
+                                  .append(" USING CONSISTENCY ")
+                                  .append(session.getConsistencyLevel().toString())
+                                  .append(" WHERE KEY=?");
+
             cqlQuery = query.toString();
         }
 

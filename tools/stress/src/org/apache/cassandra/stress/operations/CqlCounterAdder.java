@@ -48,8 +48,12 @@ public class CqlCounterAdder extends Operation
 
         if (cqlQuery == null)
         {
-            StringBuilder query = new StringBuilder(
-                    "UPDATE Counter1 USING CONSISTENCY " + session.getConsistencyLevel().toString() + " SET ");
+            String counterCF = session.cqlVersion.startsWith("2") ? "Counter1" : "Counter3";
+
+            StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired(counterCF))
+                                                              .append(" USING CONSISTENCY ")
+                                                              .append(session.getConsistencyLevel())
+                                                              .append(" SET ");
 
             for (int i = 0; i < session.getColumnsPerKey(); i++)
             {
@@ -57,7 +61,6 @@ public class CqlCounterAdder extends Operation
                     query.append(",");
 
                 query.append('C').append(i).append("=C").append(i).append("+1");
-
             }
             query.append(" WHERE KEY=?");
             cqlQuery = query.toString();
