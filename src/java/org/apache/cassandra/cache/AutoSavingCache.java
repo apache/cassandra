@@ -20,7 +20,6 @@ package org.apache.cassandra.cache;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -142,16 +141,17 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 List<Future<Pair<K, V>>> futures = new ArrayList<Future<Pair<K, V>>>();
                 while (in.available() > 0)
                 {
-                    futures.add(cacheLoader.deserialize(in, cfs));
+                    Future<Pair<K, V>> entry = cacheLoader.deserialize(in, cfs);
+                    // Key cache entry can return null, if the SSTable doesn't exist.
+                    if (entry == null)
+                        continue;
+                    futures.add(entry);
                     count++;
                 }
 
                 for (Future<Pair<K, V>> future : futures)
                 {
                     Pair<K, V> entry = future.get();
-                    // Key cache entry can return null, if the SSTable doesn't exist.
-                    if (entry == null)
-                        continue;
                     put(entry.left, entry.right);
                 }
             }
