@@ -57,6 +57,7 @@
  * Rewrite nodetool help (CASSANDRA-2293)
  * Make CQL3 the default for CQL (CASSANDRA-4640)
  * update stress tool to be able to use CQL3 (CASSANDRA-4406)
+ * Accept all thrift update on CQL3 cf but don't expose their metadata (CASSANDRA-4377)
 
 
 1.1.6

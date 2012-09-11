@@ -179,7 +179,11 @@ public final class KSMetaData
     {
         List<CfDef> cfDefs = new ArrayList<CfDef>(cfMetaData.size());
         for (CFMetaData cfm : cfMetaData().values())
-            cfDefs.add(cfm.toThrift());
+        {
+            // Don't expose CF that cannot be correctly handle by thrift; see CASSANDRA-4377 for further details
+            if (!cfm.isThriftIncompatible())
+                cfDefs.add(cfm.toThrift());
+        }
         KsDef ksdef = new KsDef(name, strategyClass.getName(), cfDefs);
         ksdef.setStrategy_options(strategyOptions);
         ksdef.setDurable_writes(durableWrites);
