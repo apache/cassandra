@@ -303,7 +303,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
         private IColumn unthriftifyCounter(CounterColumn column)
         {
-            //CounterColumns read the nodeID from the System table, so need the StorageService running and access
+            //CounterColumns read the counterID from the System table, so need the StorageService running and access
             //to cassandra.yaml. To avoid a Hadoop needing access to yaml return a regular Column.
             return new org.apache.cassandra.db.Column(column.name, ByteBufferUtil.bytes(column.value), 0);
         }

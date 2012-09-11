@@ -26,7 +26,7 @@ import org.apache.cassandra.db.context.CounterContext;
 import static org.apache.cassandra.db.context.CounterContext.ContextState;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.NodeId;
+import org.apache.cassandra.utils.CounterId;
 
 public class SuperColumnTest
 {
@@ -48,23 +48,23 @@ public class SuperColumnTest
     	SuperColumn sc = new SuperColumn(ByteBufferUtil.bytes("sc1"), LongType.instance);
 
         state = ContextState.allocate(4, 1);
-        state.writeElement(NodeId.fromInt(1), 7L, 0L);
-        state.writeElement(NodeId.fromInt(2), 5L, 7L);
-        state.writeElement(NodeId.fromInt(4), 2L, 9L);
-        state.writeElement(NodeId.getLocalId(), 3L, 3L, true);
+        state.writeElement(CounterId.fromInt(1), 7L, 0L);
+        state.writeElement(CounterId.fromInt(2), 5L, 7L);
+        state.writeElement(CounterId.fromInt(4), 2L, 9L);
+        state.writeElement(CounterId.getLocalId(), 3L, 3L, true);
         sc.addColumn(new CounterColumn(getBytes(1), state.context, 3L, 0L));
 
         state = ContextState.allocate(4, 1);
-        state.writeElement(NodeId.fromInt(2), 3L, 4L);
-        state.writeElement(NodeId.fromInt(4), 4L, 1L);
-        state.writeElement(NodeId.fromInt(8), 9L, 0L);
-        state.writeElement(NodeId.getLocalId(), 9L, 5L, true);
+        state.writeElement(CounterId.fromInt(2), 3L, 4L);
+        state.writeElement(CounterId.fromInt(4), 4L, 1L);
+        state.writeElement(CounterId.fromInt(8), 9L, 0L);
+        state.writeElement(CounterId.getLocalId(), 9L, 5L, true);
         sc.addColumn(new CounterColumn(getBytes(1), state.context, 10L, 0L));
 
         state = ContextState.allocate(3, 0);
-        state.writeElement(NodeId.fromInt(2), 1L, 0L);
-        state.writeElement(NodeId.fromInt(3), 6L, 0L);
-        state.writeElement(NodeId.fromInt(7), 3L, 0L);
+        state.writeElement(CounterId.fromInt(2), 1L, 0L);
+        state.writeElement(CounterId.fromInt(3), 6L, 0L);
+        state.writeElement(CounterId.fromInt(7), 3L, 0L);
         sc.addColumn(new CounterColumn(getBytes(2), state.context, 9L, 0L));
 
     	assertNotNull(sc.getSubColumn(getBytes(1)));
@@ -72,11 +72,11 @@ public class SuperColumnTest
 
         // column: 1
         ContextState c1 = ContextState.allocate(5, 1);
-        c1.writeElement(NodeId.fromInt(1), 7L, 0L);
-        c1.writeElement(NodeId.fromInt(2), 5L, 7L);
-        c1.writeElement(NodeId.fromInt(4), 4L, 1L);
-        c1.writeElement(NodeId.fromInt(8), 9L, 0L);
-        c1.writeElement(NodeId.getLocalId(), 12L, 8L, true);
+        c1.writeElement(CounterId.fromInt(1), 7L, 0L);
+        c1.writeElement(CounterId.fromInt(2), 5L, 7L);
+        c1.writeElement(CounterId.fromInt(4), 4L, 1L);
+        c1.writeElement(CounterId.fromInt(8), 9L, 0L);
+        c1.writeElement(CounterId.getLocalId(), 12L, 8L, true);
         assert 0 == ByteBufferUtil.compareSubArrays(
             ((CounterColumn)sc.getSubColumn(getBytes(1))).value(),
             0,
@@ -86,9 +86,9 @@ public class SuperColumnTest
 
         // column: 2
         ContextState c2 = ContextState.allocate(3, 0);
-        c2.writeElement(NodeId.fromInt(2), 1L, 0L);
-        c2.writeElement(NodeId.fromInt(3), 6L, 0L);
-        c2.writeElement(NodeId.fromInt(7), 3L, 0L);
+        c2.writeElement(CounterId.fromInt(2), 1L, 0L);
+        c2.writeElement(CounterId.fromInt(3), 6L, 0L);
+        c2.writeElement(CounterId.fromInt(7), 3L, 0L);
         assert 0 == ByteBufferUtil.compareSubArrays(
             ((CounterColumn)sc.getSubColumn(getBytes(2))).value(),
             0,

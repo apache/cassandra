@@ -28,7 +28,6 @@ import static org.junit.Assert.fail;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.Util;
 import static org.apache.cassandra.db.context.CounterContext.ContextState;
@@ -42,23 +41,23 @@ public class CounterMutationTest extends SchemaLoader
         RowMutation rm;
         CounterMutation cm;
 
-        NodeId id1 = NodeId.getLocalId();
+        CounterId id1 = CounterId.getLocalId();
 
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.addCounter(new QueryPath("Counter1", null, ByteBufferUtil.bytes("Column1")), 3);
         cm = new CounterMutation(rm, ConsistencyLevel.ONE);
         cm.apply();
 
-        NodeId.renewLocalId(2L); // faking time of renewal for test
-        NodeId id2 = NodeId.getLocalId();
+        CounterId.renewLocalId(2L); // faking time of renewal for test
+        CounterId id2 = CounterId.getLocalId();
 
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.addCounter(new QueryPath("Counter1", null, ByteBufferUtil.bytes("Column1")), 4);
         cm = new CounterMutation(rm, ConsistencyLevel.ONE);
         cm.apply();
 
-        NodeId.renewLocalId(4L); // faking time of renewal for test
-        NodeId id3 = NodeId.getLocalId();
+        CounterId.renewLocalId(4L); // faking time of renewal for test
+        CounterId id3 = CounterId.getLocalId();
 
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.addCounter(new QueryPath("Counter1", null, ByteBufferUtil.bytes("Column1")), 5);
@@ -77,17 +76,17 @@ public class CounterMutationTest extends SchemaLoader
         assert c instanceof CounterColumn;
         assert ((CounterColumn)c).total() == 12L;
         ContextState s = new ContextState(c.value());
-        assert s.getNodeId().equals(id1);
+        assert s.getCounterId().equals(id1);
         assert s.getCount() == 0L;
         assert -s.getClock() > now - 1000 : " >";
         assert -s.getClock() <= now;
         s.moveToNext();
-        assert s.getNodeId().equals(id2);
+        assert s.getCounterId().equals(id2);
         assert s.getCount() == 0L;
         assert -s.getClock() > now - 1000;
         assert -s.getClock() <= now;
         s.moveToNext();
-        assert s.getNodeId().equals(id3);
+        assert s.getCounterId().equals(id3);
         assert s.getCount() == 12L;
 
         // Then collect old shards
@@ -97,7 +96,7 @@ public class CounterMutationTest extends SchemaLoader
         assert c instanceof CounterColumn;
         assert ((CounterColumn)c).total() == 12L;
         s = new ContextState(c.value());
-        assert s.getNodeId().equals(id3);
+        assert s.getCounterId().equals(id3);
         assert s.getCount() == 12L;
     }
 
@@ -140,12 +139,12 @@ public class CounterMutationTest extends SchemaLoader
     {
         // Renewing a bunch of times and checking we get the same thing from
         // the system table that what is in memory
-        NodeId.renewLocalId();
-        NodeId.renewLocalId();
-        NodeId.renewLocalId();
+        CounterId.renewLocalId();
+        CounterId.renewLocalId();
+        CounterId.renewLocalId();
 
-        List<NodeId.NodeIdRecord> inMem = NodeId.getOldLocalNodeIds();
-        List<NodeId.NodeIdRecord> onDisk = SystemTable.getOldLocalNodeIds();
+        List<CounterId.CounterIdRecord> inMem = CounterId.getOldLocalCounterIds();
+        List<CounterId.CounterIdRecord> onDisk = SystemTable.getOldLocalCounterIds();
 
         assert inMem.equals(onDisk);
     }
@@ -157,12 +156,12 @@ public class CounterMutationTest extends SchemaLoader
         int now = (int) (System.currentTimeMillis() / 1000);
 
         // Check that corrupted context created prior to #2968 are fixed by removeOldShards
-        NodeId id1 = NodeId.getLocalId();
-        NodeId.renewLocalId();
-        NodeId id2 = NodeId.getLocalId();
+        CounterId id1 = CounterId.getLocalId();
+        CounterId.renewLocalId();
+        CounterId id2 = CounterId.getLocalId();
 
         ContextState state = ContextState.allocate(3, 2);
-        state.writeElement(NodeId.fromInt(1), 1, 4, false);
+        state.writeElement(CounterId.fromInt(1), 1, 4, false);
         state.writeElement(id1, 3, 2, true);
         state.writeElement(id2, -100, 5, true); // corrupted!
 
@@ -170,14 +169,14 @@ public class CounterMutationTest extends SchemaLoader
 
         try
         {
-            ByteBuffer merger = ctx.computeOldShardMerger(state.context, Collections.<NodeId.NodeIdRecord>emptyList(), 0);
+            ByteBuffer merger = ctx.computeOldShardMerger(state.context, Collections.<CounterId.CounterIdRecord>emptyList(), 0);
             ctx.removeOldShards(ctx.merge(state.context, merger, HeapAllocator.instance), now);
             fail("RemoveOldShards should throw an exception if the current id is non-sensical");
         }
         catch (RuntimeException e) {}
 
-        NodeId.renewLocalId();
-        ByteBuffer merger = ctx.computeOldShardMerger(state.context, Collections.<NodeId.NodeIdRecord>emptyList(), 0);
+        CounterId.renewLocalId();
+        ByteBuffer merger = ctx.computeOldShardMerger(state.context, Collections.<CounterId.CounterIdRecord>emptyList(), 0);
         ByteBuffer cleaned = ctx.removeOldShards(ctx.merge(state.context, merger, HeapAllocator.instance), now);
         assert ctx.total(cleaned) == 11;
 

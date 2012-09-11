@@ -93,11 +93,11 @@ public final class CFMetaData
                                                         + "PRIMARY KEY (table_name, index_name)"
                                                         + ") WITH COMPACT STORAGE AND COMMENT='indexes that have been completed'");
 
-    public static final CFMetaData NodeIdCf = compile(6, "CREATE TABLE \"" + SystemTable.NODE_ID_CF + "\" ("
-                                                         + "key text,"
-                                                         + "id timeuuid,"
-                                                         + "PRIMARY KEY (key, id)"
-                                                         + ") WITH COMPACT STORAGE AND COMMENT='counter node IDs'");
+    public static final CFMetaData CounterIdCf = compile(6, "CREATE TABLE \"" + SystemTable.COUNTER_ID_CF + "\" ("
+                                                            + "key text,"
+                                                            + "id timeuuid,"
+                                                            + "PRIMARY KEY (key, id)"
+                                                            + ") WITH COMPACT STORAGE AND COMMENT='counter node IDs'");
 
     // new-style schema
     public static final CFMetaData SchemaKeyspacesCf = compile(8, "CREATE TABLE " + SystemTable.SCHEMA_KEYSPACES_CF + "("

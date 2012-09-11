@@ -29,7 +29,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.utils.NodeId;
+import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.Pair;
 
 public abstract class AbstractSSTableSimpleWriter
@@ -39,7 +39,7 @@ public abstract class AbstractSSTableSimpleWriter
     protected DecoratedKey currentKey;
     protected ColumnFamily columnFamily;
     protected SuperColumn currentSuperColumn;
-    protected final NodeId nodeid = NodeId.generate();
+    protected final CounterId counterid = CounterId.generate();
 
     public AbstractSSTableSimpleWriter(File directory, CFMetaData metadata, IPartitioner partitioner)
     {
@@ -151,7 +151,7 @@ public abstract class AbstractSSTableSimpleWriter
      */
     public void addCounterColumn(ByteBuffer name, long value)
     {
-        addColumn(new CounterColumn(name, CounterContext.instance().create(nodeid, 1L, value, false), System.currentTimeMillis()));
+        addColumn(new CounterColumn(name, CounterContext.instance().create(counterid, 1L, value, false), System.currentTimeMillis()));
     }
 
     /**

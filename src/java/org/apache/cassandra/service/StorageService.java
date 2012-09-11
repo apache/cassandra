@@ -425,7 +425,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (Boolean.parseBoolean(System.getProperty("cassandra.renew_counter_id", "false")))
         {
             logger.info("Renewing local node id (as requested)");
-            NodeId.renewLocalId();
+            CounterId.renewLocalId();
         }
 
         // daemon threads, like our executors', continue to run while shutdown hooks are invoked
@@ -495,7 +495,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         // have to start the gossip service before we can see any info on other nodes.  this is necessary
         // for bootstrap to get the load info it needs.
-        // (we won't be part of the storage ring though until we add a nodeId to our state, below.)
+        // (we won't be part of the storage ring though until we add a counterId to our state, below.)
         Gossiper.instance.register(this);
         Gossiper.instance.register(migrationManager);
         Gossiper.instance.start(SystemTable.incrementAndGetGeneration()); // needed for node-ring gathering.
@@ -1895,10 +1895,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (tableName.equals(Table.SYSTEM_KS))
             throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
 
-        NodeId.OneShotRenewer nodeIdRenewer = new NodeId.OneShotRenewer();
+        CounterId.OneShotRenewer counterIdRenewer = new CounterId.OneShotRenewer();
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
         {
-            cfStore.forceCleanup(nodeIdRenewer);
+            cfStore.forceCleanup(counterIdRenewer);
         }
     }
 

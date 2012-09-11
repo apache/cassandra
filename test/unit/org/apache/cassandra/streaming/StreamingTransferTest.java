@@ -42,8 +42,8 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
+import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.NodeId;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -196,10 +196,10 @@ public class StreamingTransferTest extends SchemaLoader
                 ColumnFamily cf = ColumnFamily.create(cfs.metadata);
                 ColumnFamily cfCleaned = ColumnFamily.create(cfs.metadata);
                 CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 1);
-                state.writeElement(NodeId.fromInt(2), 9L, 3L, true);
-                state.writeElement(NodeId.fromInt(4), 4L, 2L);
-                state.writeElement(NodeId.fromInt(6), 3L, 3L);
-                state.writeElement(NodeId.fromInt(8), 2L, 4L);
+                state.writeElement(CounterId.fromInt(2), 9L, 3L, true);
+                state.writeElement(CounterId.fromInt(4), 4L, 2L);
+                state.writeElement(CounterId.fromInt(6), 3L, 3L);
+                state.writeElement(CounterId.fromInt(8), 2L, 4L);
                 cf.addColumn(new CounterColumn(ByteBufferUtil.bytes(col),
                                                state.context,
                                                timestamp));

@@ -43,8 +43,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Constants;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.NodeId;
 
 import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
 
@@ -56,7 +56,7 @@ public class SystemTable
     public static final String PEERS_CF = "peers";
     public static final String LOCAL_CF = "local";
     public static final String INDEX_CF = "IndexInfo";
-    public static final String NODE_ID_CF = "NodeIdInfo";
+    public static final String COUNTER_ID_CF = "NodeIdInfo";
     public static final String HINTS_CF = "hints";
     public static final String BATCHLOG_CF = "batchlog";
     // see layout description in the DefsTable class header
@@ -446,21 +446,21 @@ public class SystemTable
      * Read the current local node id from the system table or null if no
      * such node id is recorded.
      */
-    public static NodeId getCurrentLocalNodeId()
+    public static CounterId getCurrentLocalCounterId()
     {
         ByteBuffer id = null;
         Table table = Table.open(Table.SYSTEM_KS);
 
-        // Get the last NodeId (since NodeId are timeuuid is thus ordered from the older to the newer one)
+        // Get the last CounterId (since CounterId are timeuuid is thus ordered from the older to the newer one)
         QueryFilter filter = QueryFilter.getSliceFilter(decorate(ALL_LOCAL_NODE_ID_KEY),
-                                                        new QueryPath(NODE_ID_CF),
+                                                        new QueryPath(COUNTER_ID_CF),
                                                         ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                         ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                         true,
                                                         1);
-        ColumnFamily cf = table.getColumnFamilyStore(NODE_ID_CF).getColumnFamily(filter);
+        ColumnFamily cf = table.getColumnFamilyStore(COUNTER_ID_CF).getColumnFamily(filter);
         if (cf != null && cf.getColumnCount() != 0)
-            return NodeId.wrap(cf.iterator().next().name());
+            return CounterId.wrap(cf.iterator().next().name());
         else
             return null;
     }
@@ -468,41 +468,41 @@ public class SystemTable
     /**
      * Write a new current local node id to the system table.
      *
-     * @param oldNodeId the previous local node id (that {@code newNodeId}
+     * @param oldCounterId the previous local node id (that {@code newCounterId}
      * replace) or null if no such node id exists (new node or removed system
      * table)
-     * @param newNodeId the new current local node id to record
+     * @param newCounterId the new current local node id to record
      * @param now microsecond time stamp.
      */
-    public static void writeCurrentLocalNodeId(NodeId oldNodeId, NodeId newNodeId, long now)
+    public static void writeCurrentLocalCounterId(CounterId oldCounterId, CounterId newCounterId, long now)
     {
         ByteBuffer ip = ByteBuffer.wrap(FBUtilities.getBroadcastAddress().getAddress());
 
-        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_KS, NODE_ID_CF);
-        cf.addColumn(new Column(newNodeId.bytes(), ip, now));
+        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_KS, COUNTER_ID_CF);
+        cf.addColumn(new Column(newCounterId.bytes(), ip, now));
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, ALL_LOCAL_NODE_ID_KEY);
         rm.add(cf);
         rm.apply();
-        forceBlockingFlush(NODE_ID_CF);
+        forceBlockingFlush(COUNTER_ID_CF);
     }
 
-    public static List<NodeId.NodeIdRecord> getOldLocalNodeIds()
+    public static List<CounterId.CounterIdRecord> getOldLocalCounterIds()
     {
-        List<NodeId.NodeIdRecord> l = new ArrayList<NodeId.NodeIdRecord>();
+        List<CounterId.CounterIdRecord> l = new ArrayList<CounterId.CounterIdRecord>();
 
         Table table = Table.open(Table.SYSTEM_KS);
-        QueryFilter filter = QueryFilter.getIdentityFilter(decorate(ALL_LOCAL_NODE_ID_KEY), new QueryPath(NODE_ID_CF));
-        ColumnFamily cf = table.getColumnFamilyStore(NODE_ID_CF).getColumnFamily(filter);
+        QueryFilter filter = QueryFilter.getIdentityFilter(decorate(ALL_LOCAL_NODE_ID_KEY), new QueryPath(COUNTER_ID_CF));
+        ColumnFamily cf = table.getColumnFamilyStore(COUNTER_ID_CF).getColumnFamily(filter);
 
-        NodeId previous = null;
+        CounterId previous = null;
         for (IColumn c : cf)
         {
             if (previous != null)
-                l.add(new NodeId.NodeIdRecord(previous, c.timestamp()));
+                l.add(new CounterId.CounterIdRecord(previous, c.timestamp()));
 
             // this will ignore the last column on purpose since it is the
             // current local node id
-            previous = NodeId.wrap(c.name());
+            previous = CounterId.wrap(c.name());
         }
         return l;
     }

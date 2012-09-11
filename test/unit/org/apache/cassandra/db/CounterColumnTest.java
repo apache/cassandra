@@ -35,10 +35,7 @@ import org.apache.cassandra.db.context.CounterContext;
 import static org.apache.cassandra.db.context.CounterContext.ContextState;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.utils.Allocator;
-import org.apache.cassandra.utils.HeapAllocator;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.NodeId;
+import org.apache.cassandra.utils.*;
 
 public class CounterColumnTest extends SchemaLoader
 {
@@ -52,7 +49,7 @@ public class CounterColumnTest extends SchemaLoader
 
     static
     {
-        idLength      = NodeId.LENGTH;
+        idLength      = CounterId.LENGTH;
         clockLength   = 8; // size of long
         countLength   = 8; // size of long
 
@@ -69,7 +66,7 @@ public class CounterColumnTest extends SchemaLoader
         assert delta == column.total();
         assert 1 == column.value().getShort(0);
         assert 0 == column.value().getShort(2);
-        assert NodeId.wrap(column.value(), 4).isLocalId();
+        assert CounterId.wrap(column.value(), 4).isLocalId();
         assert 1L == column.value().getLong(4 + 0*stepLength + idLength);
         assert delta == column.value().getLong(4 + 0*stepLength + idLength + clockLength);
     }
@@ -147,20 +144,20 @@ public class CounterColumnTest extends SchemaLoader
         assert ((CounterColumn)reconciled).timestampOfLastDelete() == right.getMarkedForDeleteAt();
 
         // live < live last delete
-        left  = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(NodeId.fromInt(1), 2L, 3L, false), 1L, Long.MIN_VALUE);
-        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(NodeId.fromInt(1), 1L, 1L, false), 4L, 3L);
+        left  = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(1), 2L, 3L, false), 1L, Long.MIN_VALUE);
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(1), 1L, 1L, false), 4L, 3L);
 
         assert left.reconcile(right) == right;
 
         // live last delete > live
-        left  = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(NodeId.fromInt(1), 2L, 3L, false), 6L, 5L);
-        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(NodeId.fromInt(1), 1L, 1L, false), 4L, 3L);
+        left  = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(1), 2L, 3L, false), 6L, 5L);
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(1), 1L, 1L, false), 4L, 3L);
 
         assert left.reconcile(right) == left;
 
         // live + live
-        left = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(NodeId.fromInt(1), 1L, 1L, false), 4L, Long.MIN_VALUE);
-        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(NodeId.fromInt(1), 2L, 3L, false), 1L, Long.MIN_VALUE);
+        left = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(1), 1L, 1L, false), 4L, Long.MIN_VALUE);
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(1), 2L, 3L, false), 1L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
         assert reconciled.name().equals(left.name());
@@ -168,7 +165,7 @@ public class CounterColumnTest extends SchemaLoader
         assert reconciled.timestamp() == 4L;
 
         left = reconciled;
-        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(NodeId.fromInt(2), 1L, 5L, false), 2L, Long.MIN_VALUE);
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(2), 1L, 5L, false), 2L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
         assert reconciled.name().equals(left.name());
@@ -176,7 +173,7 @@ public class CounterColumnTest extends SchemaLoader
         assert reconciled.timestamp() == 4L;
 
         left = reconciled;
-        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(NodeId.fromInt(2), 2L, 2L, false), 6L, Long.MIN_VALUE);
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(2), 2L, 2L, false), 6L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
         assert reconciled.name().equals(left.name());
@@ -187,11 +184,11 @@ public class CounterColumnTest extends SchemaLoader
         int hd = 2; // header
         assert hd + 2 * stepLength == context.remaining();
 
-        assert Util.equalsNodeId(NodeId.fromInt(1), context, hd + 0*stepLength);
+        assert Util.equalsCounterId(CounterId.fromInt(1), context, hd + 0 * stepLength);
         assert 2L == context.getLong(hd + 0*stepLength + idLength);
         assert 3L == context.getLong(hd + 0*stepLength + idLength + clockLength);
 
-        assert Util.equalsNodeId(NodeId.fromInt(2), context, hd + 1*stepLength);
+        assert Util.equalsCounterId(CounterId.fromInt(2), context, hd + 1 * stepLength);
         assert 2L == context.getLong(hd + 1*stepLength + idLength);
         assert 2L == context.getLong(hd + 1*stepLength + idLength + clockLength);
 
@@ -224,9 +221,9 @@ public class CounterColumnTest extends SchemaLoader
 
         // equality: equal nodes, all counts same
         left = ContextState.allocate(3, 0, allocator);
-        left.writeElement(NodeId.fromInt(3), 3L, 0L);
-        left.writeElement(NodeId.fromInt(6), 2L, 0L);
-        left.writeElement(NodeId.fromInt(9), 1L, 0L);
+        left.writeElement(CounterId.fromInt(3), 3L, 0L);
+        left.writeElement(CounterId.fromInt(6), 2L, 0L);
+        left.writeElement(CounterId.fromInt(9), 1L, 0L);
         right = new ContextState(ByteBufferUtil.clone(left.context), 2);
 
         leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), left.context,  1L);
@@ -235,15 +232,15 @@ public class CounterColumnTest extends SchemaLoader
 
         // greater than: left has superset of nodes (counts equal)
         left = ContextState.allocate(4, 0, allocator);
-        left.writeElement(NodeId.fromInt(3), 3L, 0L);
-        left.writeElement(NodeId.fromInt(6), 2L, 0L);
-        left.writeElement(NodeId.fromInt(9), 1L, 0L);
-        left.writeElement(NodeId.fromInt(12), 0L, 0L);
+        left.writeElement(CounterId.fromInt(3), 3L, 0L);
+        left.writeElement(CounterId.fromInt(6), 2L, 0L);
+        left.writeElement(CounterId.fromInt(9), 1L, 0L);
+        left.writeElement(CounterId.fromInt(12), 0L, 0L);
 
         right = ContextState.allocate(3, 0, allocator);
-        right.writeElement(NodeId.fromInt(3), 3L, 0L);
-        right.writeElement(NodeId.fromInt(6), 2L, 0L);
-        right.writeElement(NodeId.fromInt(9), 1L, 0L);
+        right.writeElement(CounterId.fromInt(3), 3L, 0L);
+        right.writeElement(CounterId.fromInt(6), 2L, 0L);
+        right.writeElement(CounterId.fromInt(9), 1L, 0L);
 
         leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), left.context,  1L);
         rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), right.context, 1L);
@@ -254,14 +251,14 @@ public class CounterColumnTest extends SchemaLoader
 
         // disjoint: right and left have disjoint node sets
         left = ContextState.allocate(3, 0, allocator);
-        left.writeElement(NodeId.fromInt(3), 1L, 0L);
-        left.writeElement(NodeId.fromInt(4), 1L, 0L);
-        left.writeElement(NodeId.fromInt(9), 1L, 0L);
+        left.writeElement(CounterId.fromInt(3), 1L, 0L);
+        left.writeElement(CounterId.fromInt(4), 1L, 0L);
+        left.writeElement(CounterId.fromInt(9), 1L, 0L);
 
         right = ContextState.allocate(3, 0, allocator);
-        right.writeElement(NodeId.fromInt(3), 1L, 0L);
-        right.writeElement(NodeId.fromInt(6), 1L, 0L);
-        right.writeElement(NodeId.fromInt(9), 1L, 0L);
+        right.writeElement(CounterId.fromInt(3), 1L, 0L);
+        right.writeElement(CounterId.fromInt(6), 1L, 0L);
+        right.writeElement(CounterId.fromInt(9), 1L, 0L);
 
         leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), left.context,  1L);
         rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), right.context, 1L);
@@ -274,10 +271,10 @@ public class CounterColumnTest extends SchemaLoader
     {
         Allocator allocator = HeapAllocator.instance;
         CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 2, allocator);
-        state.writeElement(NodeId.fromInt(1), 4L, 4L);
-        state.writeElement(NodeId.fromInt(2), 4L, 4L, true);
-        state.writeElement(NodeId.fromInt(3), 4L, 4L);
-        state.writeElement(NodeId.fromInt(4), 4L, 4L, true);
+        state.writeElement(CounterId.fromInt(1), 4L, 4L);
+        state.writeElement(CounterId.fromInt(2), 4L, 4L, true);
+        state.writeElement(CounterId.fromInt(3), 4L, 4L);
+        state.writeElement(CounterId.fromInt(4), 4L, 4L, true);
 
         CounterColumn original = new CounterColumn(ByteBufferUtil.bytes("x"), state.context, 1L);
         DataOutputBuffer bufOut = new DataOutputBuffer();
@@ -305,10 +302,10 @@ public class CounterColumnTest extends SchemaLoader
         MessageDigest digest2 = MessageDigest.getInstance("md5");
 
         CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 2, allocator);
-        state.writeElement(NodeId.fromInt(1), 4L, 4L);
-        state.writeElement(NodeId.fromInt(2), 4L, 4L, true);
-        state.writeElement(NodeId.fromInt(3), 4L, 4L);
-        state.writeElement(NodeId.fromInt(4), 4L, 4L, true);
+        state.writeElement(CounterId.fromInt(1), 4L, 4L);
+        state.writeElement(CounterId.fromInt(2), 4L, 4L, true);
+        state.writeElement(CounterId.fromInt(3), 4L, 4L);
+        state.writeElement(CounterId.fromInt(4), 4L, 4L, true);
 
         CounterColumn original = new CounterColumn(ByteBufferUtil.bytes("x"), state.context, 1L);
         CounterColumn cleared = new CounterColumn(ByteBufferUtil.bytes("x"), cc.clearAllDelta(state.context), 1L);

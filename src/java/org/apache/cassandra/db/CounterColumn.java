@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.net.InetAddress;
 import java.security.MessageDigest;
-import java.util.concurrent.TimeoutException;
 import java.util.Collection;
 
 import org.slf4j.Logger;
@@ -40,7 +39,6 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.service.IWriteResponseHandler;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.*;
 
 /**
@@ -243,16 +241,16 @@ public class CounterColumn extends Column
     }
 
     /**
-     * Check if a given nodeId is found in this CounterColumn context.
+     * Check if a given counterId is found in this CounterColumn context.
      */
-    public boolean hasNodeId(NodeId id)
+    public boolean hasCounterId(CounterId id)
     {
-        return contextManager.hasNodeId(value(), id);
+        return contextManager.hasCounterId(value(), id);
     }
 
     private CounterColumn computeOldShardMerger(int mergeBefore)
     {
-        ByteBuffer bb = contextManager.computeOldShardMerger(value(), NodeId.getOldLocalNodeIds(), mergeBefore);
+        ByteBuffer bb = contextManager.computeOldShardMerger(value(), CounterId.getOldLocalCounterIds(), mergeBefore);
         if (bb == null)
             return null;
         else

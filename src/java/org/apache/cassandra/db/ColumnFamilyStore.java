@@ -942,7 +942,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return maxFile;
     }
 
-    public void forceCleanup(NodeId.OneShotRenewer renewer) throws ExecutionException, InterruptedException
+    public void forceCleanup(CounterId.OneShotRenewer renewer) throws ExecutionException, InterruptedException
     {
         CompactionManager.instance.performCleanup(ColumnFamilyStore.this, renewer);
     }

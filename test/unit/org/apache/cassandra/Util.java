@@ -47,7 +47,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.NodeId;
+import org.apache.cassandra.utils.CounterId;
 
 import static org.junit.Assert.assertTrue;
 
@@ -199,9 +199,9 @@ public class Util
         return result;
     }
 
-    public static boolean equalsNodeId(NodeId n, ByteBuffer context, int offset)
+    public static boolean equalsCounterId(CounterId n, ByteBuffer context, int offset)
     {
-        return NodeId.wrap(context, context.position() + offset).equals(n);
+        return CounterId.wrap(context, context.position() + offset).equals(n);
     }
 
     public static ColumnFamily cloneAndRemoveDeleted(ColumnFamily cf, int gcBefore)

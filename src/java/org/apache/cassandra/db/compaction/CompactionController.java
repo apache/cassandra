@@ -76,7 +76,7 @@ public class CompactionController
         assert cfs != null;
         this.cfs = cfs;
         this.gcBefore = gcBefore;
-        // If we merge an old NodeId id, we must make sure that no further increment for that id are in an active memtable.
+        // If we merge an old CounterId id, we must make sure that no further increment for that id are in an active memtable.
         // For that, we must make sure that this id was renewed before the creation of the oldest unflushed memtable. We
         // add 5 minutes to be sure we're on the safe side in terms of thread safety (though we should be fine in our
         // current 'stop all write during memtable switch' situation).

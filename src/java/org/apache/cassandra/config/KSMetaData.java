@@ -83,7 +83,7 @@ public final class KSMetaData
                                                 CFMetaData.PeersCf,
                                                 CFMetaData.HintsCf,
                                                 CFMetaData.IndexCf,
-                                                CFMetaData.NodeIdCf,
+                                                CFMetaData.CounterIdCf,
                                                 CFMetaData.SchemaKeyspacesCf,
                                                 CFMetaData.SchemaColumnFamiliesCf,
                                                 CFMetaData.SchemaColumnsCf,

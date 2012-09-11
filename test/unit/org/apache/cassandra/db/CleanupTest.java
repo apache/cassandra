@@ -44,7 +44,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.NodeId;
+import org.apache.cassandra.utils.CounterId;
 import org.junit.Test;
 
 public class CleanupTest extends SchemaLoader
@@ -81,7 +81,7 @@ public class CleanupTest extends SchemaLoader
         assertEquals(LOOPS, rows.size());
 
         // with one token in the ring, owned by the local node, cleanup should be a no-op
-        CompactionManager.instance.performCleanup(cfs, new NodeId.OneShotRenewer());
+        CompactionManager.instance.performCleanup(cfs, new CounterId.OneShotRenewer());
 
         // ensure max timestamp of the sstables are retained post-cleanup
         assert expectedMaxTimestamps.equals(getMaxTimestampList(cfs));
@@ -127,7 +127,7 @@ public class CleanupTest extends SchemaLoader
         tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
 
-        CompactionManager.instance.performCleanup(cfs, new NodeId.OneShotRenewer());
+        CompactionManager.instance.performCleanup(cfs, new CounterId.OneShotRenewer());
 
         // row data should be gone
         rows = Util.getRangeSlice(cfs);

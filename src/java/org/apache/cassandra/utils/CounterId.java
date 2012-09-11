@@ -29,33 +29,33 @@ import com.google.common.base.Objects;
 import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.SystemTable;
 
-public class NodeId implements Comparable<NodeId>
+public class CounterId implements Comparable<CounterId>
 {
-    private static final Logger logger = LoggerFactory.getLogger(NodeId.class);
+    private static final Logger logger = LoggerFactory.getLogger(CounterId.class);
 
-    public static final int LENGTH = 16; // we assume a fixed length size for all NodeIds
+    public static final int LENGTH = 16; // we assume a fixed length size for all CounterIds
 
     // Lazy holder because this opens the system table and we want to avoid
     // having this triggered during class initialization
     private static class LocalIds
     {
-        static final LocalNodeIdHistory instance = new LocalNodeIdHistory();
+        static final LocalCounterIdHistory instance = new LocalCounterIdHistory();
     }
 
     private final ByteBuffer id;
 
-    private static LocalNodeIdHistory localIds()
+    private static LocalCounterIdHistory localIds()
     {
         return LocalIds.instance;
     }
 
-    public static NodeId getLocalId()
+    public static CounterId getLocalId()
     {
         return localIds().current.get();
     }
 
     /**
-     * Renew the local node id.
+     * Renew the local counter id.
      * To use only when this strictly necessary, as using this will make all
      * counter context grow with time.
      */
@@ -70,36 +70,36 @@ public class NodeId implements Comparable<NodeId>
     }
 
     /**
-     * Return the list of old local node id of this node.
-     * It is guaranteed that the returned list is sorted by growing node id
-     * (and hence the first item will be the oldest node id for this host)
+     * Return the list of old local counter id of this node.
+     * It is guaranteed that the returned list is sorted by growing counter id
+     * (and hence the first item will be the oldest counter id for this host)
      */
-    public static List<NodeIdRecord> getOldLocalNodeIds()
+    public static List<CounterIdRecord> getOldLocalCounterIds()
     {
         return localIds().olds;
     }
 
     /**
      * Function for test purposes, do not use otherwise.
-     * Pack an int in a valid NodeId so that the resulting ids respects the
+     * Pack an int in a valid CounterId so that the resulting ids respects the
      * numerical ordering. Used for creating handcrafted but easy to
      * understand contexts in unit tests (see CounterContextTest).
      */
-    public static NodeId fromInt(int n)
+    public static CounterId fromInt(int n)
     {
         long lowBits = 0xC000000000000000L | n;
-        return new NodeId(ByteBuffer.allocate(16).putLong(0, 0).putLong(8, lowBits));
+        return new CounterId(ByteBuffer.allocate(16).putLong(0, 0).putLong(8, lowBits));
     }
 
     /*
      * For performance reasons, this function interns the provided ByteBuffer.
      */
-    public static NodeId wrap(ByteBuffer id)
+    public static CounterId wrap(ByteBuffer id)
     {
-        return new NodeId(id);
+        return new CounterId(id);
     }
 
-    public static NodeId wrap(ByteBuffer bb, int offset)
+    public static CounterId wrap(ByteBuffer bb, int offset)
     {
         ByteBuffer dup = bb.duplicate();
         dup.position(offset);
@@ -107,17 +107,17 @@ public class NodeId implements Comparable<NodeId>
         return wrap(dup);
     }
 
-    private NodeId(ByteBuffer id)
+    private CounterId(ByteBuffer id)
     {
         if (id.remaining() != LENGTH)
-            throw new IllegalArgumentException("A NodeId representation is exactly " + LENGTH + " bytes");
+            throw new IllegalArgumentException("A CounterId representation is exactly " + LENGTH + " bytes");
 
         this.id = id;
     }
 
-    public static NodeId generate()
+    public static CounterId generate()
     {
-        return new NodeId(ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()))));
+        return new CounterId(ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()))));
     }
 
     /*
@@ -134,9 +134,9 @@ public class NodeId implements Comparable<NodeId>
         return equals(getLocalId());
     }
 
-    public int compareTo(NodeId o)
+    public int compareTo(CounterId o)
     {
-        return ByteBufferUtil.compareSubArrays(id, id.position(), o.id, o.id.position(), NodeId.LENGTH);
+        return ByteBufferUtil.compareSubArrays(id, id.position(), o.id, o.id.position(), CounterId.LENGTH);
     }
 
     @Override
@@ -153,7 +153,7 @@ public class NodeId implements Comparable<NodeId>
         if (o == null || getClass() != o.getClass())
             return false;
 
-        NodeId otherId = (NodeId)o;
+        CounterId otherId = (CounterId)o;
         return id.equals(otherId.id);
     }
 
@@ -166,7 +166,7 @@ public class NodeId implements Comparable<NodeId>
     public static class OneShotRenewer
     {
         private boolean renewed;
-        private final NodeId initialId;
+        private final CounterId initialId;
 
         public OneShotRenewer()
         {
@@ -176,7 +176,7 @@ public class NodeId implements Comparable<NodeId>
 
         public void maybeRenew(CounterColumn column)
         {
-            if (!renewed && column.hasNodeId(initialId))
+            if (!renewed && column.hasCounterId(initialId))
             {
                 renewLocalId();
                 renewed = true;
@@ -184,47 +184,47 @@ public class NodeId implements Comparable<NodeId>
         }
     }
 
-    private static class LocalNodeIdHistory
+    private static class LocalCounterIdHistory
     {
-        private final AtomicReference<NodeId> current;
-        private final List<NodeIdRecord> olds;
+        private final AtomicReference<CounterId> current;
+        private final List<CounterIdRecord> olds;
 
-        LocalNodeIdHistory()
+        LocalCounterIdHistory()
         {
-            NodeId id = SystemTable.getCurrentLocalNodeId();
+            CounterId id = SystemTable.getCurrentLocalCounterId();
             if (id == null)
             {
-                // no recorded local node id, generating a new one and saving it
+                // no recorded local counter id, generating a new one and saving it
                 id = generate();
-                logger.info("No saved local node id, using newly generated: {}", id);
-                SystemTable.writeCurrentLocalNodeId(null, id, FBUtilities.timestampMicros());
-                current = new AtomicReference<NodeId>(id);
-                olds = new CopyOnWriteArrayList<NodeIdRecord>();
+                logger.info("No saved local counter id, using newly generated: {}", id);
+                SystemTable.writeCurrentLocalCounterId(null, id, FBUtilities.timestampMicros());
+                current = new AtomicReference<CounterId>(id);
+                olds = new CopyOnWriteArrayList<CounterIdRecord>();
             }
             else
             {
-                logger.info("Saved local node id: {}", id);
-                current = new AtomicReference<NodeId>(id);
-                olds = new CopyOnWriteArrayList<NodeIdRecord>(SystemTable.getOldLocalNodeIds());
+                logger.info("Saved local counter id: {}", id);
+                current = new AtomicReference<CounterId>(id);
+                olds = new CopyOnWriteArrayList<CounterIdRecord>(SystemTable.getOldLocalCounterIds());
             }
         }
 
         synchronized void renewCurrent(long now)
         {
-            NodeId newNodeId = generate();
-            NodeId old = current.get();
-            SystemTable.writeCurrentLocalNodeId(old, newNodeId, now);
-            current.set(newNodeId);
-            olds.add(new NodeIdRecord(old, now));
+            CounterId newCounterId = generate();
+            CounterId old = current.get();
+            SystemTable.writeCurrentLocalCounterId(old, newCounterId, now);
+            current.set(newCounterId);
+            olds.add(new CounterIdRecord(old, now));
         }
     }
 
-    public static class NodeIdRecord
+    public static class CounterIdRecord
     {
-        public final NodeId id;
+        public final CounterId id;
         public final long timestamp;
 
-        public NodeIdRecord(NodeId id, long timestamp)
+        public CounterIdRecord(CounterId id, long timestamp)
         {
             this.id = id;
             this.timestamp = timestamp;
@@ -238,7 +238,7 @@ public class NodeId implements Comparable<NodeId>
             if (o == null || getClass() != o.getClass())
                 return false;
 
-            NodeIdRecord otherRecord = (NodeIdRecord)o;
+            CounterIdRecord otherRecord = (CounterIdRecord)o;
             return id.equals(otherRecord.id) && timestamp == otherRecord.timestamp;
         }
 
