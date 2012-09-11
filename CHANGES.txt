@@ -100,10 +100,7 @@ Merged from 1.0:
  * (Hadoop) fix setting key length for old-style mapred api (CASSANDRA-4534)
  * (Hadoop) fix iterating through a resultset consisting entirely
    of tombstoned rows (CASSANDRA-4466)
-<<<<<<< HEAD
  * Fix multiple values for CurrentLocal NodeID (CASSANDRA-4626)
-=======
->>>>>>> cassandra-1.1
 
 
  * munmap commitlog segments before rename (CASSANDRA-4337)
