@@ -35,7 +35,7 @@ import org.apache.cassandra.utils.MurmurHash;
  */
 public class Murmur3Partitioner extends AbstractPartitioner<LongToken>
 {
-    public static final LongToken MINIMUM = new LongToken(0L);
+    public static final LongToken MINIMUM = new LongToken(Long.MIN_VALUE);
     public static final long MAXIMUM = Long.MAX_VALUE;
 
     public DecoratedKey convertFromDiskFormat(ByteBuffer key)
@@ -74,18 +74,30 @@ public class Murmur3Partitioner extends AbstractPartitioner<LongToken>
         return MINIMUM;
     }
 
+    /**
+     * Generate the token of a key.
+     * Note that we need to ensure all generated token are strictly bigger than MINIMUM.
+     * In particular we don't want MINIMUM to correspond to any key because the range (MINIMUM, X] doesn't
+     * include MINIMUM but we use such range to select all data whose token is smaller than X.
+     */
     public LongToken getToken(ByteBuffer key)
     {
         if (key.remaining() == 0)
             return MINIMUM;
 
         long hash = MurmurHash.hash3_x64_128(key, key.position(), key.remaining(), 0)[0];
-        return new LongToken((hash < 0) ? -hash : hash);
+        return new LongToken(normalize(hash));
     }
 
     public LongToken getRandomToken()
     {
-        return new LongToken(FBUtilities.threadLocalRandom().nextLong());
+        return new LongToken(normalize(FBUtilities.threadLocalRandom().nextLong()));
+    }
+
+    private long normalize(long v)
+    {
+        // We exclude the MINIMUM value; see getToken()
+        return v == Long.MIN_VALUE ? Long.MAX_VALUE : v;
     }
 
     public boolean preservesOrder()
@@ -154,12 +166,6 @@ public class Murmur3Partitioner extends AbstractPartitioner<LongToken>
             try
             {
                 Long i = Long.valueOf(token);
-
-                if (i.compareTo(MINIMUM.token) < 0)
-                    throw new ConfigurationException("Token must be >= 0");
-
-                if (i.compareTo(MAXIMUM) > 0)
-                    throw new ConfigurationException("Token must be <= " + Long.MAX_VALUE);
             }
             catch (NumberFormatException e)
             {
