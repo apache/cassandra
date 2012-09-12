@@ -752,11 +752,10 @@ K_UPDATE:      U P D A T E;
 K_WITH:        W I T H;
 K_LIMIT:       L I M I T;
 K_USING:       U S I N G;
-K_ALL:         A L L;
 K_CONSISTENCY: C O N S I S T E N C Y;
 K_LEVEL:       ( O N E
                | Q U O R U M
-               | K_ALL
+               | A L L
                | A N Y
                | L O C A L '_' Q U O R U M
                | E A C H '_' Q U O R U M
