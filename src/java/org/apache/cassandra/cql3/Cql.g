@@ -169,6 +169,7 @@ cqlStatement returns [ParsedStatement stmt]
     | st15=grantStatement              { $stmt = st15; }
     | st16=revokeStatement             { $stmt = st16; }
     | st17=listGrantsStatement         { $stmt = st17; }
+    | st18=alterKeyspaceStatement      { $stmt = st18; }
     ;
 
 /*
@@ -373,8 +374,9 @@ batchStatementObjective returns [ModificationStatement statement]
  * CREATE KEYSPACE <KEYSPACE> WITH attr1 = value1 AND attr2 = value2;
  */
 createKeyspaceStatement returns [CreateKeyspaceStatement expr]
+    @init { KSPropDefs attrs = new KSPropDefs(); }
     : K_CREATE K_KEYSPACE ks=keyspaceName
-      K_WITH props=mapProperties { $expr = new CreateKeyspaceStatement(ks, props); }
+      K_WITH properties[attrs] { $expr = new CreateKeyspaceStatement(ks, attrs); }
     ;
 
 /**
@@ -424,6 +426,16 @@ createIndexStatement returns [CreateIndexStatement expr]
     ;
 
 /**
+ * ALTER KEYSPACE <KS> WITH <property> = <value>;
+ */
+alterKeyspaceStatement returns [AlterKeyspaceStatement expr]
+    @init { KSPropDefs attrs = new KSPropDefs(); }
+    : K_ALTER K_KEYSPACE ks=keyspaceName
+        K_WITH properties[attrs] { $expr = new AlterKeyspaceStatement(ks, attrs); }
+    ;
+
+
+/**
  * ALTER COLUMN FAMILY <CF> ALTER <column> TYPE <newtype>;
  * ALTER COLUMN FAMILY <CF> ADD <column> <newtype>;
  * ALTER COLUMN FAMILY <CF> DROP <column>;
@@ -438,8 +450,7 @@ alterTableStatement returns [AlterTableStatement expr]
           ( K_ALTER id=cident K_TYPE v=comparatorType { type = AlterTableStatement.Type.ALTER; }
           | K_ADD   id=cident v=comparatorType        { type = AlterTableStatement.Type.ADD; }
           | K_DROP  id=cident                         { type = AlterTableStatement.Type.DROP; }
-          | K_WITH  (property[props]
-                     ( K_AND property[props] )* { type = AlterTableStatement.Type.OPTS; })
+          | K_WITH  properties[props]                 { type = AlterTableStatement.Type.OPTS; }
           )
     {
         $expr = new AlterTableStatement(cf, type, id, v, props);
@@ -623,19 +634,18 @@ operation returns [Operation op]
     | '+' ml=map_literal { $op = MapOperation.Put(ml); }
     ;
 
-property[CFPropDefs props]
-    : k=cident '=' (simple=propertyValue { $props.addProperty(k.toString(), simple); }
-                   |   map=map_literal   { $props.addProperty(k.toString(), convertMap(map)); })
+properties[PropertyDefinitions props]
+    : property[props] (K_AND property[props])*
+    ;
+
+property[PropertyDefinitions props]
+    : k=cident '=' (simple=propertyValue { try { $props.addProperty(k.toString(), simple); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
+                   |   map=map_literal   { try { $props.addProperty(k.toString(), convertMap(map)); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } })
     ;
 
 propertyValue returns [String str]
     : v=(STRING_LITERAL | IDENT | INTEGER | FLOAT) { $str = $v.text; }
     | u=unreserved_keyword                         { $str = u; }
-    ;
-
-mapProperties returns [Map<String, Map<String, String>> props]
-    @init { $props = new HashMap<String, Map<String, String>>(); }
-    : k=cident '=' v=map_literal { $props.put(k.toString(), convertMap(v)); } (K_AND kn=cident '=' vn=map_literal { $props.put(kn.toString(), convertMap(vn)); } )*
     ;
 
 // Either a string or a list of terms

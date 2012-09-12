@@ -119,7 +119,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         return newCFMD;
     }
 
-    public void applyPropertiesTo(CFMetaData cfmd) throws InvalidRequestException, ConfigurationException
+    public void applyPropertiesTo(CFMetaData cfmd) throws RequestValidationException
     {
         cfmd.defaultValidator(defaultValidator)
             .columnMetadata(getColumns())

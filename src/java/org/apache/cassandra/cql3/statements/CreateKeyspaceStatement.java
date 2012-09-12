@@ -25,6 +25,7 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.KSPropDefs;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -37,13 +38,8 @@ import org.apache.cassandra.thrift.ThriftValidation;
 /** A <code>CREATE KEYSPACE</code> statement parsed from a CQL query. */
 public class CreateKeyspaceStatement extends SchemaAlteringStatement
 {
-    private static String REPLICATION_PARAMETERS_PREFIX = "replication";
-    private static String REPLICATION_STRATEGY_CLASS_KEY = "class";
-
     private final String name;
-    private final Map<String, Map<String, String>> attrs;
-    private String strategyClass;
-    private final Map<String, String> strategyOptions = new HashMap<String, String>();
+    private final KSPropDefs attrs;
 
     /**
      * Creates a new <code>CreateKeyspaceStatement</code> instance for a given
@@ -52,7 +48,7 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
      * @param name the name of the keyspace to create
      * @param attrs map of the raw keyword arguments that followed the <code>WITH</code> keyword.
      */
-    public CreateKeyspaceStatement(String name, Map<String, Map<String, String>> attrs)
+    public CreateKeyspaceStatement(String name, KSPropDefs attrs)
     {
         super();
         this.name = name;
@@ -83,35 +79,21 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
         if (name.length() > Schema.NAME_LENGTH)
             throw new InvalidRequestException(String.format("Keyspace names shouldn't be more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, name));
 
-        if (!attrs.containsKey(REPLICATION_PARAMETERS_PREFIX))
-            throw new InvalidRequestException("missing required argument '" +  REPLICATION_PARAMETERS_PREFIX + "'");
+        attrs.validate();
 
-        Map<String, String> replication_parameters = attrs.get(REPLICATION_PARAMETERS_PREFIX);
-
-        strategyClass = replication_parameters.get(REPLICATION_STRATEGY_CLASS_KEY);
-
-        if (strategyClass == null)
-            throw new InvalidRequestException("missing required field '" + REPLICATION_STRATEGY_CLASS_KEY + "' for '" + REPLICATION_PARAMETERS_PREFIX + "' option");
-
-        for (Map.Entry<String, String> entry : replication_parameters.entrySet())
-        {
-            if (entry.getKey().equals(REPLICATION_STRATEGY_CLASS_KEY))
-                continue;
-
-            strategyOptions.put(entry.getKey(), entry.getValue());
-        }
+        if (attrs.getReplicationStrategyClass() == null)
+            throw new ConfigurationException("Missing mandatory replication strategy class");
 
         // trial run to let ARS validate class + per-class options
         AbstractReplicationStrategy.createReplicationStrategy(name,
-                                                              AbstractReplicationStrategy.getClass(strategyClass),
+                                                              AbstractReplicationStrategy.getClass(attrs.getReplicationStrategyClass()),
                                                               StorageService.instance.getTokenMetadata(),
                                                               DatabaseDescriptor.getEndpointSnitch(),
-                                                              strategyOptions);
+                                                              attrs.getReplicationOptions());
     }
 
-    public void announceMigration() throws InvalidRequestException, ConfigurationException
+    public void announceMigration() throws RequestValidationException
     {
-        KSMetaData ksm = KSMetaData.newKeyspace(name, strategyClass, strategyOptions);
-        MigrationManager.announceNewKeyspace(ksm);
+        MigrationManager.announceNewKeyspace(attrs.asKSMetadata(name));
     }
 }

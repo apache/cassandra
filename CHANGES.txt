@@ -61,6 +61,7 @@
  * Replace Throttle with Guava's RateLimiter for HintedHandOff (CASSANDRA-4541)
  * fix counter add/get using CQL2 and CQL3 in stress tool (CASSANDRA-4633)
  * Add sstable count per level to cfstats (CASSANDRA-4537)
+ * (cql3) Add ALTER KEYSPACE statement (CASSANDRA-4611)
 
 
 1.1.6

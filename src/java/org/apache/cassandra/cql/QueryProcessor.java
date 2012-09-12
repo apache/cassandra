@@ -647,7 +647,8 @@ public class QueryProcessor
                 {
                     KSMetaData ksm = KSMetaData.newKeyspace(create.getName(),
                                                             create.getStrategyClass(),
-                                                            create.getStrategyOptions());
+                                                            create.getStrategyOptions(),
+                                                            true);
                     ThriftValidation.validateKeyspaceNotYetExisting(ksm.name);
                     MigrationManager.announceNewKeyspace(ksm);
                 }
