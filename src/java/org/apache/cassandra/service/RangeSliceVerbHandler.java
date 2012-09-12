@@ -36,7 +36,7 @@ public class RangeSliceVerbHandler implements IVerbHandler<RangeSliceCommand>
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeSliceVerbHandler.class);
 
-    static List<Row> executeLocally(RangeSliceCommand command) throws ExecutionException, InterruptedException
+    public static List<Row> executeLocally(RangeSliceCommand command) throws ExecutionException, InterruptedException
     {
         ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
         if (cfs.indexManager.hasIndexFor(command.row_filter))

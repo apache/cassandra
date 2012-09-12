@@ -143,7 +143,10 @@ public class QueryProcessor
         try
         {
             ClientState state = new ClientState(true);
-            ResultMessage result = processStatement(getStatement(query, state).statement, state, Collections.<ByteBuffer>emptyList());
+            state.setKeyspace(Table.SYSTEM_KS);
+            CQLStatement statement = getStatement(query, state).statement;
+            statement.validate(state);
+            ResultMessage result = statement.executeInternal(state);
             if (result instanceof ResultMessage.Rows)
                 return new UntypedResultSet(((ResultMessage.Rows)result).result);
             else

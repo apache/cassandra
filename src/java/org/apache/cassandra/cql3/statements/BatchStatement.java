@@ -119,7 +119,7 @@ public class BatchStatement extends ModificationStatement
         }
     }
 
-    public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables)
+    public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local)
     throws RequestExecutionException, RequestValidationException
     {
         Map<Pair<String, ByteBuffer>, RowAndCounterMutation> mutations = new HashMap<Pair<String, ByteBuffer>, RowAndCounterMutation>();
@@ -128,7 +128,7 @@ public class BatchStatement extends ModificationStatement
             if (isSetTimestamp())
                 statement.setTimestamp(getTimestamp(clientState));
 
-            List<IMutation> lm = statement.getMutations(clientState, variables);
+            List<IMutation> lm = statement.getMutations(clientState, variables, local);
             // Group mutation together, otherwise they won't get applied atomically
             for (IMutation m : lm)
             {

@@ -72,4 +72,9 @@ public class TruncateStatement extends CFStatement implements CQLStatement
         }
         return null;
     }
+
+    public ResultMessage executeInternal(ClientState state)
+    {
+        throw new UnsupportedOperationException();
+    }
 }

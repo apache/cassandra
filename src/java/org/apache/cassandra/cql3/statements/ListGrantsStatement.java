@@ -21,13 +21,12 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
-public class ListGrantsStatement extends ParsedStatement implements CQLStatement
+public class ListGrantsStatement extends PermissionAlteringStatement
 {
     private final String username;
 
@@ -36,20 +35,8 @@ public class ListGrantsStatement extends ParsedStatement implements CQLStatement
         this.username = username;
     }
 
-    public void checkAccess(ClientState state) throws InvalidRequestException
-    {}
-
-    public void validate(ClientState state) throws InvalidRequestException
-    {}
-
     public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws UnauthorizedException, InvalidRequestException
     {
         return state.listPermissions(username);
-    }
-
-    @Override
-    public Prepared prepare() throws InvalidRequestException
-    {
-        return new Prepared(this);
     }
 }

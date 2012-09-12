@@ -23,13 +23,12 @@ import java.util.List;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CFName;
-import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
-public class RevokeStatement extends ParsedStatement implements CQLStatement
+public class RevokeStatement extends PermissionAlteringStatement
 {
     private final Permission permission;
     private final String from;
@@ -42,27 +41,9 @@ public class RevokeStatement extends ParsedStatement implements CQLStatement
         this.resource = resource;
     }
 
-    public int getBoundsTerms()
-    {
-        return 0;
-    }
-
-    public void checkAccess(ClientState state) throws InvalidRequestException
-    {
-    }
-
-    public void validate(ClientState state) throws InvalidRequestException
-    {
-    }
-
     public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws UnauthorizedException, InvalidRequestException
     {
         state.revokePermission(permission, from, resource);
         return null;
-    }
-
-    public Prepared prepare() throws InvalidRequestException
-    {
-        return new Prepared(this);
     }
 }

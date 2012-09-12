@@ -23,13 +23,12 @@ import java.util.List;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CFName;
-import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
-public class GrantStatement extends ParsedStatement implements CQLStatement
+public class GrantStatement extends PermissionAlteringStatement
 {
     private final Permission permission;
     private final CFName resource;
@@ -44,25 +43,9 @@ public class GrantStatement extends ParsedStatement implements CQLStatement
         this.grantOption = grantOption;
     }
 
-    public int getBoundsTerms()
-    {
-        return 0;
-    }
-
-    public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
-    {}
-
-    public void validate(ClientState state) throws InvalidRequestException
-    {}
-
     public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws UnauthorizedException, InvalidRequestException
     {
         state.grantPermission(permission, username, resource, grantOption);
         return null;
-    }
-
-    public Prepared prepare() throws InvalidRequestException
-    {
-        return new Prepared(this);
     }
 }

@@ -42,8 +42,6 @@ import com.google.common.collect.Maps;
  */
 public abstract class SchemaAlteringStatement extends CFStatement implements CQLStatement
 {
-    private static final long timeLimitForSchemaAgreement = 10 * 1000;
-
     private final boolean isColumnFamilyLevel;
 
     protected SchemaAlteringStatement()
@@ -65,7 +63,8 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
             super.prepareKeyspace(state);
     }
 
-    public Prepared prepare() throws InvalidRequestException
+    @Override
+    public Prepared prepare()
     {
         return new Prepared(this);
     }
@@ -89,5 +88,11 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
             throw ex;
         }
         return null;
+    }
+
+    public ResultMessage executeInternal(ClientState state)
+    {
+        // executeInternal is for local query only, thus altering schema is not supported
+        throw new UnsupportedOperationException();
     }
 }

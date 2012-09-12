@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.AbstractIterator;
 import org.slf4j.Logger;
@@ -40,6 +41,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.RangeSliceVerbHandler;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -112,25 +114,59 @@ public class SelectStatement implements CQLStatement
 
     public ResultMessage.Rows execute(ClientState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
     {
-        return new ResultMessage.Rows(executeInternal(state, variables));
+        try
+        {
+            List<Row> rows = isKeyRange
+                           ? StorageProxy.getRangeSlice(getRangeCommand(variables), getConsistencyLevel())
+                           : StorageProxy.read(getSliceCommands(variables), getConsistencyLevel());
+
+            return processResults(rows, variables);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
-    public ResultSet executeInternal(ClientState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
+    private ResultMessage.Rows processResults(List<Row> rows, List<ByteBuffer> variables) throws RequestValidationException
     {
-        List<Row> rows;
-        if (isKeyRange)
-        {
-            rows = multiRangeSlice(variables);
-        }
-        else
-        {
-            rows = getSlice(variables);
-        }
-
         // Even for count, we need to process the result as it'll group some column together in sparse column families
         ResultSet rset = process(rows, variables);
         rset = parameters.isCount ? rset.makeCountResult() : rset;
-        return rset;
+        return new ResultMessage.Rows(rset);
+    }
+
+    static List<Row> readLocally(String keyspace, List<ReadCommand> cmds) throws IOException
+    {
+        Table table = Table.open(keyspace);
+        List<Row> rows = new ArrayList(cmds.size());
+        for (ReadCommand cmd : cmds)
+            rows.add(cmd.getRow(table));
+        return rows;
+    }
+
+    public ResultMessage.Rows executeInternal(ClientState state) throws RequestExecutionException, RequestValidationException
+    {
+        try
+        {
+            List<Row> rows = isKeyRange
+                           ? RangeSliceVerbHandler.executeLocally(getRangeCommand(Collections.<ByteBuffer>emptyList()))
+                           : readLocally(keyspace(), getSliceCommands(Collections.<ByteBuffer>emptyList()));
+
+            return processResults(rows, Collections.<ByteBuffer>emptyList());
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public ResultSet process(List<Row> rows) throws InvalidRequestException
@@ -149,7 +185,7 @@ public class SelectStatement implements CQLStatement
         return cfDef.cfm.cfName;
     }
 
-    private List<Row> getSlice(List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
+    private List<ReadCommand> getSliceCommands(List<ByteBuffer> variables) throws RequestValidationException
     {
         QueryPath queryPath = new QueryPath(columnFamily());
         Collection<ByteBuffer> keys = getKeys(variables);
@@ -177,46 +213,27 @@ public class SelectStatement implements CQLStatement
                 commands.add(new SliceByNamesReadCommand(keyspace(), key, queryPath, (NamesQueryFilter)filter));
             }
         }
-
-        try
-        {
-            return StorageProxy.read(commands, getConsistencyLevel());
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return commands;
     }
 
-    private List<Row> multiRangeSlice(List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
+    private RangeSliceCommand getRangeCommand(List<ByteBuffer> variables) throws RequestValidationException
     {
-        List<Row> rows;
         IFilter filter = makeFilter(variables);
         List<IndexExpression> expressions = getIndexExpressions(variables);
-
-        try
-        {
-            // The LIMIT provided by the user is the number of CQL row he wants returned.
-            // For NamesQueryFilter, this is the number of internal rows returned, since a NamesQueryFilter can only select one CQL row in a given internal row.
-            // For SliceQueryFilter however, we want to have getRangeSlice to count the number of columns, not the number of keys. Then
-            // SliceQueryFilter.collectReducedColumns will correctly columns having the same composite prefix using ColumnCounter.
-            boolean maxIsColumns = filter instanceof SliceQueryFilter;
-            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace(),
-                                                                    columnFamily(),
-                                                                    null,
-                                                                    filter,
-                                                                    getKeyBounds(variables),
-                                                                    expressions,
-                                                                    getLimit(),
-                                                                    maxIsColumns,
-                                                                    false),
-                                              getConsistencyLevel());
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        return rows;
+        // The LIMIT provided by the user is the number of CQL row he wants returned.
+        // For NamesQueryFilter, this is the number of internal rows returned, since a NamesQueryFilter can only select one CQL row in a given internal row.
+        // For SliceQueryFilter however, we want to have getRangeSlice to count the number of columns, not the number of keys. Then
+        // SliceQueryFilter.collectReducedColumns will correctly columns having the same composite prefix using ColumnCounter.
+        boolean maxIsColumns = filter instanceof SliceQueryFilter;
+        return new RangeSliceCommand(keyspace(),
+                                     columnFamily(),
+                                     null,
+                                     filter,
+                                     getKeyBounds(variables),
+                                     expressions,
+                                     getLimit(),
+                                     maxIsColumns,
+                                     false);
     }
 
     private AbstractBounds<RowPosition> getKeyBounds(List<ByteBuffer> variables) throws InvalidRequestException

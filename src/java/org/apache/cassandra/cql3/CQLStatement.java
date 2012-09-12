@@ -54,4 +54,11 @@ public interface CQLStatement
      * can assume that each bound term have a corresponding value.
      */
     public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws RequestValidationException, RequestExecutionException;
+
+    /**
+     * Variante of execute used for internal query against the system tables, and thus only query the local node.
+     *
+     * @param state the current client state
+     */
+    public ResultMessage executeInternal(ClientState state) throws RequestValidationException, RequestExecutionException;
 }
