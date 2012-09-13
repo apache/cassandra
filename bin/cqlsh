@@ -907,6 +907,7 @@ class Shell(cmd.Cmd):
             self.print_count_result(self.cursor)
         elif self.cursor.description is not _VOID_DESCRIPTION:
             self.print_result(self.cursor)
+        self.flush_output()
         return True
 
     # these next two functions are not guaranteed perfect; just checks if the
@@ -2387,6 +2388,9 @@ class Shell(cmd.Cmd):
         if out is None:
             out = self.query_out
         out.write(self.applycolor(str(text), color) + ('\n' if newline else ''))
+
+    def flush_output(self):
+        self.query_out.flush()
 
     def printerr(self, text, color=RED, newline=True, shownum=None):
         if shownum is None:
