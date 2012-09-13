@@ -883,6 +883,18 @@ class Shell(cmd.Cmd):
                 if trynum > self.num_retries:
                     return False
                 time.sleep(1*trynum)
+            except cql.ProgrammingError, err:
+                self.printerr(str(err))
+                # try reparsing as cql3; if successful, suggest -3
+                if self.cqlver_atleast(3):
+                    if self.parseable_as_cql2(statement):
+                        self.printerr("Perhaps you meant to use CQL 2? Try using"
+                                      " the -2 option when starting cqlsh.")
+                else:
+                    if self.parseable_as_cql3(statement):
+                        self.printerr("Perhaps you meant to use CQL 3? Try using"
+                                      " the -3 option when starting cqlsh.")
+                return False
             except CQL_ERRORS, err:
                 self.printerr(str(err))
                 return False
@@ -896,6 +908,17 @@ class Shell(cmd.Cmd):
         elif self.cursor.description is not _VOID_DESCRIPTION:
             self.print_result(self.cursor)
         return True
+
+    # these next two functions are not guaranteed perfect; just checks if the
+    # statement parses fully according to cqlsh's own understanding of the
+    # grammar. Changes to the language in Cassandra frequently don't get
+    # updated in cqlsh right away.
+
+    def parseable_as_cql3(self, statement):
+        return cql3handling.CqlRuleSet.lex_and_whole_match(statement) is not None
+
+    def parseable_as_cql2(self, statement):
+        return cqlhandling.CqlRuleSet.lex_and_whole_match(statement) is not None
 
     def determine_decoder_for(self, cfname, ksname=None):
         decoder = ErrorHandlingSchemaDecoder
