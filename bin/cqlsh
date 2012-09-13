@@ -154,6 +154,8 @@ else:
 
 debug_completion = bool(os.environ.get('CQLSH_DEBUG_COMPLETION', '') == 'YES')
 
+SYSTEM_KEYSPACES = ('system', 'system_traces')
+
 # we want the cql parser to understand our cqlsh-specific commands too
 my_commands_ending_with_newline = (
     'help',
@@ -593,7 +595,7 @@ class Shell(cmd.Cmd):
     def get_column_names(self, ksname, cfname):
         if ksname is None:
             ksname = self.current_keyspace
-        if ksname != 'system' and self.cqlver_atleast(3):
+        if ksname not in SYSTEM_KEYSPACES and self.cqlver_atleast(3):
             return self.get_column_names_from_layout(ksname, cfname)
         else:
             return self.get_column_names_from_cfdef(ksname, cfname)
@@ -624,7 +626,7 @@ class Shell(cmd.Cmd):
         return self.make_hacktastic_thrift_call('describe_version')
 
     def get_ring(self):
-        if self.current_keyspace is None:
+        if self.current_keyspace is None or self.current_keyspace in SYSTEM_KEYSPACES:
             raise NoKeyspaceError("Ring view requires a current non-system keyspace")
         return self.make_hacktastic_thrift_call('describe_ring', self.current_keyspace)
 
@@ -1063,7 +1065,7 @@ class Shell(cmd.Cmd):
         # no metainfo available from system.schema_* for system CFs, so we have
         # to use cfdef-based description for those.
 
-        if ksname != 'system' \
+        if ksname not in SYSTEM_KEYSPACES \
         and self.cqlver_atleast(3):
             try:
                 layout = self.get_columnfamily_layout(ksname, cfname)
@@ -1205,7 +1207,8 @@ class Shell(cmd.Cmd):
         print 'Partitioner: %s' % p
         snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
         print 'Snitch: %s\n' % snitch
-        if self.current_keyspace is not None and self.current_keyspace != 'system':
+        if self.current_keyspace is not None \
+        and self.current_keyspace not in SYSTEM_KEYSPACES:
             print "Range ownership:"
             ring = self.get_ring()
             for entry in ring:
