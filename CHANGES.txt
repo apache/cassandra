@@ -62,6 +62,7 @@
  * fix counter add/get using CQL2 and CQL3 in stress tool (CASSANDRA-4633)
  * Add sstable count per level to cfstats (CASSANDRA-4537)
  * (cql3) Add ALTER KEYSPACE statement (CASSANDRA-4611)
+ * (cql3) Allow defining default consistency levels (CASSANDRA-4448)
 
 
 1.1.6

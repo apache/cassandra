@@ -23,9 +23,10 @@ import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.RequestType;
@@ -76,11 +77,21 @@ public class BatchStatement extends ModificationStatement
         }
     }
 
+    @Override
+    public ConsistencyLevel getConsistencyLevel()
+    {
+        // We have validated that either the consistency is set, or all statements have the same default CL (see validate())
+        return isSetConsistencyLevel()
+             ? super.getConsistencyLevel()
+             : (statements.isEmpty() ? ConsistencyLevel.ONE : statements.get(0).getConsistencyLevel());
+    }
+
     public void validate(ClientState state) throws InvalidRequestException
     {
         if (getTimeToLive() != 0)
             throw new InvalidRequestException("Global TTL on the BATCH statement is not supported.");
 
+        ConsistencyLevel cLevel = null;
         for (ModificationStatement statement : statements)
         {
             if (statement.isSetConsistencyLevel())
@@ -92,7 +103,19 @@ public class BatchStatement extends ModificationStatement
             if (statement.getTimeToLive() < 0)
                 throw new InvalidRequestException("A TTL must be greater or equal to 0");
 
-            getConsistencyLevel().validateForWrite(statement.keyspace());
+            if (isSetConsistencyLevel())
+            {
+                getConsistencyLevel().validateForWrite(statement.keyspace());
+            }
+            else
+            {
+                // If no consistency is set for the batch, we need all the CF in the batch to have the same default consistency level,
+                // otherwise the batch is invalid (i.e. the user must explicitely set the CL)
+                ConsistencyLevel stmtCL = statement.getConsistencyLevel();
+                if (cLevel != null && cLevel != stmtCL)
+                    throw new InvalidRequestException("The tables involved in the BATCH have different default write consistency, you must explicitely set the BATCH consitency level with USING CONSISTENCY");
+                cLevel = stmtCL;
+            }
         }
     }
 

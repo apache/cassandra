@@ -189,7 +189,7 @@ useStatement returns [UseStatement stmt]
 selectStatement returns [SelectStatement.RawStatement expr]
     @init {
         boolean isCount = false;
-        ConsistencyLevel cLevel = ConsistencyLevel.ONE;
+        ConsistencyLevel cLevel = null;
         int limit = 10000;
         Map<ColumnIdentifier, Boolean> orderings = new LinkedHashMap<ColumnIdentifier, Boolean>();
     }

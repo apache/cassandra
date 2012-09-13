@@ -180,7 +180,7 @@ public class SelectStatement implements CQLStatement
 
         try
         {
-            return StorageProxy.read(commands, parameters.consistencyLevel);
+            return StorageProxy.read(commands, getConsistencyLevel());
         }
         catch (IOException e)
         {
@@ -205,7 +205,7 @@ public class SelectStatement implements CQLStatement
                                                                     getLimit(),
                                                                     true, // limit by columns, not keys
                                                                     false),
-                                              parameters.consistencyLevel);
+                                              getConsistencyLevel());
         }
         catch (IOException e)
         {
@@ -292,6 +292,11 @@ public class SelectStatement implements CQLStatement
         // Internally, we don't support exclusive bounds for slices. Instead,
         // we query one more element if necessary and exclude
         return sliceRestriction != null && !sliceRestriction.isInclusive(Bound.START) ? parameters.limit + 1 : parameters.limit;
+    }
+
+    private ConsistencyLevel getConsistencyLevel()
+    {
+        return parameters.consistencyLevel == null ? cfDef.cfm.getReadConsistencyLevel() : parameters.consistencyLevel;
     }
 
     private Collection<ByteBuffer> getKeys(final List<ByteBuffer> variables) throws InvalidRequestException
@@ -917,7 +922,8 @@ public class SelectStatement implements CQLStatement
         public ParsedStatement.Prepared prepare() throws InvalidRequestException
         {
             CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
-            parameters.consistencyLevel.validateForRead(keyspace());
+            if (parameters.consistencyLevel != null)
+                parameters.consistencyLevel.validateForRead(keyspace());
 
             if (parameters.limit <= 0)
                 throw new InvalidRequestException("LIMIT must be strictly positive");

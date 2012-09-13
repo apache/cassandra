@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.db.*;
@@ -31,7 +33,6 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.thrift.RequestType;
 import org.apache.cassandra.thrift.ThriftValidation;
 
@@ -80,7 +81,11 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
 
     public ConsistencyLevel getConsistencyLevel()
     {
-        return (cLevel != null) ? cLevel : defaultConsistency;
+        if (cLevel != null)
+            return cLevel;
+
+        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily());
+        return cfm == null ? ConsistencyLevel.ONE : cfm.getWriteConsistencyLevel();
     }
 
     /**

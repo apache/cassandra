@@ -131,6 +131,8 @@ public final class CFMetaData
                                                                      + "value_alias text,"
                                                                      + "column_aliases text,"
                                                                      + "compaction_strategy_options text,"
+                                                                     + "default_read_consistency text,"
+                                                                     + "default_write_consistency text,"
                                                                      + "PRIMARY KEY (keyspace_name, columnfamily_name)"
                                                                      + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
     public static final CFMetaData SchemaColumnsCf = compile(10, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNS_CF + "("
@@ -245,6 +247,11 @@ public final class CFMetaData
 
     public CompressionParameters compressionParameters;
 
+    // Default consistency levels for CQL3. The default for those values is ONE,
+    // but we keep the internal default to null as it help handling thrift compatibility
+    private ConsistencyLevel readConsistencyLevel;
+    private ConsistencyLevel writeConsistencyLevel;
+
     // Processed infos used by CQL. This can be fully reconstructed from the CFMedata,
     // so it's not saved on disk. It is however costlyish to recreate for each query
     // so we cache it here (and update on each relevant CFMetadata change)
@@ -268,6 +275,8 @@ public final class CFMetaData
     public CFMetaData compressionParameters(CompressionParameters prop) {compressionParameters = prop; return this;}
     public CFMetaData bloomFilterFpChance(Double prop) {bloomFilterFpChance = prop; return this;}
     public CFMetaData caching(Caching prop) {caching = prop; return this;}
+    public CFMetaData defaultReadCL(ConsistencyLevel prop) {readConsistencyLevel = prop; return this;}
+    public CFMetaData defaultWriteCL(ConsistencyLevel prop) {writeConsistencyLevel = prop; return this;}
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp, AbstractType<?> subcc)
     {
@@ -433,7 +442,9 @@ public final class CFMetaData
                       .compactionStrategyOptions(oldCFMD.compactionStrategyOptions)
                       .compressionParameters(oldCFMD.compressionParameters)
                       .bloomFilterFpChance(oldCFMD.bloomFilterFpChance)
-                      .caching(oldCFMD.caching);
+                      .caching(oldCFMD.caching)
+                      .defaultReadCL(oldCFMD.readConsistencyLevel)
+                      .defaultWriteCL(oldCFMD.writeConsistencyLevel);
     }
 
     /**
@@ -519,6 +530,16 @@ public final class CFMetaData
         return valueAlias;
     }
 
+    public ConsistencyLevel getReadConsistencyLevel()
+    {
+        return readConsistencyLevel == null ? ConsistencyLevel.ONE : readConsistencyLevel;
+    }
+
+    public ConsistencyLevel getWriteConsistencyLevel()
+    {
+        return writeConsistencyLevel == null ? ConsistencyLevel.ONE : writeConsistencyLevel;
+    }
+
     public CompressionParameters compressionParameters()
     {
         return compressionParameters;
@@ -581,6 +602,8 @@ public final class CFMetaData
             .append(compressionParameters, rhs.compressionParameters)
             .append(bloomFilterFpChance, rhs.bloomFilterFpChance)
             .append(caching, rhs.caching)
+            .append(readConsistencyLevel, rhs.readConsistencyLevel)
+            .append(writeConsistencyLevel, rhs.writeConsistencyLevel)
             .isEquals();
     }
 
@@ -611,6 +634,8 @@ public final class CFMetaData
             .append(compressionParameters)
             .append(bloomFilterFpChance)
             .append(caching)
+            .append(readConsistencyLevel)
+            .append(writeConsistencyLevel)
             .toHashCode();
     }
 
@@ -799,6 +824,11 @@ public final class CFMetaData
         }
         if (cfm.valueAlias != null)
             valueAlias = cfm.valueAlias;
+        if (cfm.readConsistencyLevel != null)
+            readConsistencyLevel = cfm.readConsistencyLevel;
+        if (cfm.writeConsistencyLevel != null)
+            writeConsistencyLevel = cfm.writeConsistencyLevel;
+
         bloomFilterFpChance = cfm.bloomFilterFpChance;
         caching = cfm.caching;
 
@@ -1258,6 +1288,10 @@ public final class CFMetaData
                                         : Column.create(valueAlias, timestamp, cfName, "value_alias"));
         cf.addColumn(Column.create(json(aliasesAsStrings(columnAliases)), timestamp, cfName, "column_aliases"));
         cf.addColumn(Column.create(json(compactionStrategyOptions), timestamp, cfName, "compaction_strategy_options"));
+        cf.addColumn(readConsistencyLevel == null ? DeletedColumn.create(ldt, timestamp, cfName, "default_read_consistency")
+                                                  : Column.create(readConsistencyLevel.toString(), timestamp, cfName, "default_read_consistency"));
+        cf.addColumn(writeConsistencyLevel == null ? DeletedColumn.create(ldt, timestamp, cfName, "default_write_consistency")
+                                                   : Column.create(writeConsistencyLevel.toString(), timestamp, cfName, "default_write_consistency"));
     }
 
     // Package protected for use by tests
@@ -1302,6 +1336,10 @@ public final class CFMetaData
             if (result.has("value_alias"))
                 cfm.valueAlias(result.getBytes("value_alias"));
             cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
+            if (result.has("default_read_consistency"))
+                cfm.defaultReadCL(Enum.valueOf(ConsistencyLevel.class, result.getString("default_read_consistency")));
+            if (result.has("default_write_consistency"))
+                cfm.defaultWriteCL(Enum.valueOf(ConsistencyLevel.class, result.getString("default_write_consistency")));
 
             return cfm;
         }
@@ -1465,6 +1503,8 @@ public final class CFMetaData
             .append("compressionOptions", compressionParameters.asThriftOptions())
             .append("bloomFilterFpChance", bloomFilterFpChance)
             .append("caching", caching)
+            .append("readConsistencyLevel", readConsistencyLevel)
+            .append("writeConsistencyLevel", writeConsistencyLevel)
             .toString();
     }
 }
