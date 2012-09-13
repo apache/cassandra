@@ -446,6 +446,10 @@ class ParsingRuleSet:
     def lex_and_parse(self, text, startsymbol='Start'):
         return self.parse(startsymbol, self.lex(text), init_bindings={'*SRC*': text})
 
+    def lex_and_whole_match(self, text, startsymbol='Start'):
+        tokens = self.lex(text)
+        return self.whole_match(startsymbol, tokens, srcstr=text)
+
     def complete(self, startsymbol, tokens, init_bindings=None):
         if init_bindings is None:
             init_bindings = {}
