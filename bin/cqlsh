@@ -753,7 +753,7 @@ class Shell(cmd.Cmd):
         key_alias = cfdef.key_alias
         if key_alias is None:
             key_alias = 'KEY'
-        return [key_alias] + [cm.name for cm in cfdef.column_metadata]
+        return [key_alias] + sorted([cm.name for cm in cfdef.column_metadata])
 
     # ===== thrift-dependent parts =====
 
@@ -1625,9 +1625,8 @@ class Shell(cmd.Cmd):
 
     def prep_export_dump(self, ks, cf, columns):
         if columns is None:
-            columnlist = '*'
-        else:
-            columnlist = ', '.join(map(self.cql_protect_name, columns))
+            columns = self.get_column_names(ks, cf)
+        columnlist = ', '.join(map(self.cql_protect_name, columns))
         # this limit is pretty awful. would be better to use row-key-paging, so
         # that the dump could be pretty easily aborted if necessary, but that
         # can be kind of tricky with cql3. Punt for now, until the real cursor
