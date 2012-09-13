@@ -813,6 +813,7 @@ class CqlTableDef:
         subtypes = subtypes[:len(self.key_components)]
         keycols = map(self.column_class, self.key_components, subtypes)
         normal_cols = map(self.column_class.from_layout, self.coldefs)
+        normal_cols.sort(key=lambda c: c.name)
         self.columns = keycols + value_cols + normal_cols
 
     def is_counter_col(self, colname):
