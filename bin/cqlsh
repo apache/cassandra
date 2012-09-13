@@ -408,6 +408,7 @@ class Shell(cmd.Cmd):
     show_line_nums = False
     debug = False
     stop = False
+    last_hist = None
     shunted_query_out = None
     csv_dialect_defaults = dict(delimiter=',', doublequote=False,
                                 escapechar='\\', quotechar='"')
@@ -797,6 +798,16 @@ class Shell(cmd.Cmd):
         self.do_exit()
 
     def handle_statement(self, tokens, srcstr):
+        # Concat multi-line statements and insert into history
+        if readline is not None:
+            nl_count = srcstr.count("\n")
+
+            new_hist = srcstr.replace("\n", " ").rstrip()
+
+            if nl_count > 1 and self.last_hist != new_hist:
+                readline.add_history(new_hist)
+
+            self.last_hist = new_hist
         cmdword = tokens[0][1]
         if cmdword == '?':
             cmdword = 'help'
