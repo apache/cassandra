@@ -94,6 +94,7 @@ DEFAULT_VALUE_COLORS = dict(
     int=GREEN,
     float=GREEN,
     decimal=GREEN,
+    inet=GREEN,
     boolean=GREEN,
     uuid=GREEN,
     collection=BLUE,

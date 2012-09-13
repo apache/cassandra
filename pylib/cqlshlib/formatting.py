@@ -105,6 +105,10 @@ def format_value_decimal(val, colormap, **_):
 def format_value_uuid(val, colormap, **_):
     return format_python_formatted_type(val, colormap, 'uuid')
 
+@formatter_for('inet')
+def formatter_value_inet(val, colormap, **_):
+    return format_python_formatted_type(val, colormap, 'inet')
+
 @formatter_for('boolean')
 def format_value_boolean(val, colormap, **_):
     return format_python_formatted_type(val, colormap, 'boolean')
