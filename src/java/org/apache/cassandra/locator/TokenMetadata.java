@@ -84,6 +84,8 @@ public class TokenMetadata
     // nodes which are migrating to the new tokens in the ring
     private final Set<Pair<Token, InetAddress>> movingEndpoints = new HashSet<Pair<Token, InetAddress>>();
 
+    // tokens which are migrating to new endpoints
+    private final Map<Token, InetAddress> relocatingTokens = new HashMap<Token, InetAddress>();
 
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
@@ -347,6 +349,33 @@ public class TokenMetadata
         }
     }
 
+    /**
+     * Add new relocating ranges (tokens moving from their respective endpoints, to another).
+     * @param tokens tokens being moved
+     * @param endpoint destination of moves
+     */
+    public void addRelocatingTokens(Collection<Token> tokens, InetAddress endpoint)
+    {
+        assert endpoint != null;
+        assert tokens != null && tokens.size() > 0;
+
+        lock.writeLock().lock();
+
+        try
+        {
+            for (Token token : tokens)
+            {
+                InetAddress prev = relocatingTokens.put(token, endpoint);
+                if (prev != null && !prev.equals(endpoint))
+                    logger.warn("Relocation of {} to {} overwrites previous to {}", new Object[]{token, endpoint, prev});
+            }
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
     public void removeEndpoint(InetAddress endpoint)
     {
         assert endpoint != null;
@@ -389,6 +418,38 @@ public class TokenMetadata
             }
 
             invalidateCaches();
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Remove pair of token/address from relocating ranges.
+     * @param endpoint
+     */
+    public void removeFromRelocating(Token token, InetAddress endpoint)
+    {
+        assert endpoint != null;
+        assert token != null;
+
+        lock.writeLock().lock();
+
+        try
+        {
+            InetAddress previous = relocatingTokens.remove(token);
+
+            if (previous == null)
+            {
+                logger.debug("Cannot remove {}, not found among the relocating (previously removed?)", token);
+            }
+            else if (!previous.equals(endpoint))
+            {
+                logger.warn(
+                        "Removal of relocating token {} with mismatched endpoint ({} != {})",
+                        new Object[]{token, endpoint, previous});
+            }
         }
         finally
         {
@@ -470,6 +531,22 @@ public class TokenMetadata
         }
     }
 
+    public boolean isRelocating(Token token)
+    {
+        assert token != null;
+
+        lock.readLock().lock();
+
+        try
+        {
+            return relocatingTokens.containsKey(token);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
     /**
      * Create a copy of TokenMetadata with only tokenToEndpointMap. That is, pending ranges,
      * bootstrap tokens and leaving endpoints are not included in the copy.
@@ -513,7 +590,7 @@ public class TokenMetadata
 
     /**
      * Create a copy of TokenMetadata with tokenToEndpointMap reflecting situation after all
-     * current leave and move operations have finished.
+     * current leave, move, and relocate operations have finished.
      *
      * @return new token metadata
      */
@@ -531,6 +608,9 @@ public class TokenMetadata
 
             for (Pair<Token, InetAddress> pair : movingEndpoints)
                 metadata.updateNormalToken(pair.left, pair.right);
+
+            for (Map.Entry<Token, InetAddress> relocating: relocatingTokens.entrySet())
+                metadata.updateNormalToken(relocating.getKey(), relocating.getValue());
 
             return metadata;
         }
@@ -652,6 +732,15 @@ public class TokenMetadata
     public Set<Pair<Token, InetAddress>> getMovingEndpoints()
     {
         return movingEndpoints;
+    }
+
+    /**
+     * Ranges which are migrating to new endpoints.
+     * @return set of token-address pairs of relocating ranges
+     */
+    public Map<Token, InetAddress> getRelocatingRanges()
+    {
+        return relocatingTokens;
     }
 
     public static int firstTokenIndex(final ArrayList ring, Token start, boolean insertMin)
