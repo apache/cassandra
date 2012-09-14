@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -291,6 +292,12 @@ public interface StorageServiceMBean
      * This node will unload its data onto its neighbors, and bootstrap to the new token.
      */
     public void move(String newToken) throws IOException, InterruptedException, ConfigurationException;
+
+    /**
+     * @param srcTokens tokens to move to this node
+     * @throws ConfigurationException when passed an invalid token string
+     */
+    public void relocate(Collection<String> srcTokens) throws ConfigurationException;
 
     /**
      * removeToken removes token (and all data associated with

@@ -889,6 +889,16 @@ public class TokenMetadata
         return sb.toString();
     }
 
+    public String printRelocatingRanges()
+    {
+        StringBuilder sb = new StringBuilder();
+
+        for (Map.Entry<Token, InetAddress> entry : relocatingTokens.entrySet())
+            sb.append(String.format("%s:%s%n", entry.getKey(), entry.getValue()));
+
+        return sb.toString();
+    }
+
     public void invalidateCaches()
     {
         for (AbstractReplicationStrategy subscriber : subscribers)

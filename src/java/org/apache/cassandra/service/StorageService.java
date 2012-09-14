@@ -163,7 +163,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /* the probability for tracing any particular request, 0 disables tracing and 1 enables for all */
     private double tracingProbability = 0.0;
 
-    private static enum Mode { NORMAL, CLIENT, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED }
+    private static enum Mode { NORMAL, CLIENT, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED, RELOCATING }
     private Mode operationMode;
 
     private final MigrationManager migrationManager = new MigrationManager();
@@ -1081,6 +1081,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * Other STATUS values that may be seen (possibly anywhere in the normal progression):
      * STATUS_MOVING,newtoken
      *   set if node is currently moving to a new token in the ring
+     * STATUS_RELOCATING,srcToken,srcToken,srcToken,...
+     *   set if the endpoint is in the process of relocating a token to itself
      * REMOVING_TOKEN,deadtoken
      *   set if the node is dead and is being removed by its REMOVAL_COORDINATOR
      * REMOVED_TOKEN,deadtoken
@@ -1112,6 +1114,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     handleStateLeft(endpoint, pieces);
                 else if (moveName.equals(VersionedValue.STATUS_MOVING))
                     handleStateMoving(endpoint, pieces);
+                else if (moveName.equals(VersionedValue.STATUS_RELOCATING))
+                    handleStateRelocating(endpoint, pieces);
         }
     }
 
@@ -1185,7 +1189,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param endpoint node
      * @param pieces STATE_NORMAL,token
      */
-    private void handleStateNormal(InetAddress endpoint, String[] pieces)
+    private void handleStateNormal(final InetAddress endpoint, String[] pieces)
     {
         assert pieces.length >= 2;
 
@@ -1212,10 +1216,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         Set<Token> tokensToUpdateInMetadata = new HashSet<Token>();
         Set<Token> tokensToUpdateInSystemTable = new HashSet<Token>();
+        Set<Token> localTokensToRemove = new HashSet<Token>();
         Set<InetAddress> endpointsToRemove = new HashSet<InetAddress>();
         Multimap<InetAddress, Token> epToTokenCopy = getTokenMetadata().getEndpointToTokenMapForReading();
 
-        for (Token token : tokens)
+        for (final Token token : tokens)
         {
             // we don't want to update if this node is responsible for the token and it has a later startup time than endpoint.
             InetAddress currentOwner = tokenMetadata.getEndpoint(token);
@@ -1231,6 +1236,33 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 // set state back to normal, since the node may have tried to leave, but failed and is now back up
                 // no need to persist, token/ip did not change
                 tokensToUpdateInMetadata.add(token);
+            }
+            else if (tokenMetadata.isRelocating(token) && tokenMetadata.getRelocatingRanges().get(token).equals(endpoint))
+            {
+                // Token was relocating, this is the bookkeeping that makes it official.
+                tokensToUpdateInMetadata.add(token);
+                if (!isClientMode)
+                    tokensToUpdateInSystemTable.add(token);
+
+                optionalTasks.schedule(new Runnable()
+                {
+                    public void run()
+                    {
+                        logger.info("Removing RELOCATION state for {} {}", endpoint, token);
+                        getTokenMetadata().removeFromRelocating(token, endpoint);
+                    }
+                }, RING_DELAY, TimeUnit.MILLISECONDS);
+
+                // We used to own this token; This token will need to be removed from system.local 
+                if (currentOwner.equals(FBUtilities.getBroadcastAddress()))
+                    localTokensToRemove.add(token);
+
+                logger.info("Token {} relocated to {}", token, endpoint);
+            }
+            else if (tokenMetadata.isRelocating(token))
+            {
+                logger.info("Token {} is relocating to {}, ignoring update from {}",
+                        new Object[]{token, tokenMetadata.getRelocatingRanges().get(token), endpoint});
             }
             else if (Gossiper.instance.compareEndpointStartup(endpoint, currentOwner) > 0)
             {
@@ -1249,6 +1281,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                                           currentOwner,
                                           token,
                                           endpoint));
+                if (logger.isDebugEnabled())
+                    logger.debug("Relocating ranges: {}", tokenMetadata.printRelocatingRanges());
             }
             else
             {
@@ -1257,6 +1291,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                                            currentOwner,
                                            token,
                                            endpoint));
+                if (logger.isDebugEnabled())
+                    logger.debug("Relocating ranges: {}", tokenMetadata.printRelocatingRanges());
             }
         }
 
@@ -1264,6 +1300,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         for (InetAddress ep : endpointsToRemove)
             Gossiper.instance.removeEndpoint(ep);
         SystemTable.updateTokens(endpoint, tokensToUpdateInSystemTable);
+        SystemTable.updateLocalTokens(Collections.<Token>emptyList(), localTokensToRemove);
 
         if (tokenMetadata.isMoving(endpoint)) // if endpoint was moving to a new token
             tokenMetadata.removeFromMoving(endpoint);
@@ -1346,6 +1383,26 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger.debug("Node " + endpoint + " state moving, new token " + token);
 
         tokenMetadata.addMovingEndpoint(token, endpoint);
+
+        calculatePendingRanges();
+    }
+
+    /**
+     * Handle one or more ranges (tokens) moving from their respective endpoints, to another.
+     * 
+     * @param endpoint the destination of the move
+     * @param pieces STATE_RELOCATING,token,token,...
+     */
+    private void handleStateRelocating(InetAddress endpoint, String[] pieces)
+    {
+        assert pieces.length >= 2;
+
+        List<Token> tokens = new ArrayList<Token>(pieces.length - 1);
+        for (String tStr : Arrays.copyOfRange(pieces, 1, pieces.length))
+            tokens.add(getPartitioner().getTokenFactory().fromString(tStr));
+
+        logger.debug("Tokens {} are relocating to {}", tokens, endpoint);
+        tokenMetadata.addRelocatingTokens(tokens, endpoint);
 
         calculatePendingRanges();
     }
@@ -1482,10 +1539,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         BiMultiValMap<Token, InetAddress> bootstrapTokens = tm.getBootstrapTokens();
         Set<InetAddress> leavingEndpoints = tm.getLeavingEndpoints();
 
-        if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && tm.getMovingEndpoints().isEmpty())
+        if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && tm.getMovingEndpoints().isEmpty() && tm.getRelocatingRanges().isEmpty())
         {
             if (logger.isDebugEnabled())
-                logger.debug("No bootstrapping, leaving or moving nodes -> empty pending ranges for {}", table);
+                logger.debug("No bootstrapping, leaving or moving nodes, and no relocating tokens -> empty pending ranges for {}", table);
             tm.setPendingRanges(table, pendingRanges);
             return;
         }
@@ -2538,8 +2595,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.moving(newToken));
         setMode(Mode.MOVING, String.format("Moving %s from %s to %s.", localAddress, getLocalTokens().iterator().next(), newToken), true);
 
-        RangeRelocator relocator = new RangeRelocator(Collections.singleton(newToken), tablesToProcess);
-
         setMode(Mode.MOVING, String.format("Sleeping %s ms before start streaming/fetching ranges", RING_DELAY), true);
         try
         {
@@ -2549,6 +2604,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             throw new RuntimeException("Sleep interrupted " + e.getMessage());
         }
+
+        RangeRelocator relocator = new RangeRelocator(Collections.singleton(newToken), tablesToProcess);
 
         if (relocator.streamsNeeded())
         {
@@ -2642,6 +2699,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     {
                         Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(toStream.right, tokenMetaClone));
                         Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(toStream.right, tokenMetaCloneAllSettled));
+                        logger.debug("Range:" + toStream + "Current endpoints: " + currentEndpoints + " New endpoints: " + newEndpoints);
                         rangeWithEndpoints.putAll(toStream, Sets.difference(newEndpoints, currentEndpoints));
                     }
 
@@ -2681,6 +2739,83 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             return requestRanges(rangesToFetch);
         }
+    }
+
+    public void relocate(Collection<String> srcTokens) throws ConfigurationException
+    {
+        List<Token> tokens = new ArrayList<Token>(srcTokens.size());
+        for (String srcT : srcTokens)
+        {
+            getPartitioner().getTokenFactory().validate(srcT);
+            tokens.add(getPartitioner().getTokenFactory().fromString(srcT));
+        }
+        relocateTokens(tokens);
+    }
+
+    private void relocateTokens(Collection<Token> srcTokens)
+    {
+        assert srcTokens != null;
+        InetAddress localAddress = FBUtilities.getBroadcastAddress();
+        Collection<Token> localTokens = getTokenMetadata().getTokens(localAddress);
+        Set<Token> tokens = new HashSet<Token>(srcTokens);
+
+        for (Token srcT : tokens)
+        {
+            if (localTokens.contains(srcT))
+            {
+                tokens.remove(srcT);
+                logger.warn("cannot move {}; source and destination match", srcT);
+            }
+        }
+
+        if (tokens.size() < 1)
+            logger.warn("no valid token arguments specified; nothing to relocate");
+
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.relocating(tokens));
+        setMode(Mode.RELOCATING, String.format("relocating %s to %s", tokens, localAddress.getHostAddress()), true);
+
+        List<String> tables = Schema.instance.getNonSystemTables();
+
+        setMode(Mode.RELOCATING, String.format("Sleeping %s ms before start streaming/fetching ranges", RING_DELAY), true);
+        try
+        {
+            Thread.sleep(RING_DELAY);
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException("Sleep interrupted " + e.getMessage());
+        }
+
+        RangeRelocator relocator = new RangeRelocator(tokens, tables);
+
+        if (relocator.streamsNeeded())
+        {
+            setMode(Mode.RELOCATING, "fetching new ranges and streaming old ranges", true);
+
+            relocator.logStreamsMap("[Relocate->STREAMING]");
+            CountDownLatch streamLatch = relocator.streams();
+
+            relocator.logRequestsMap("[Relocate->FETCHING]");
+            CountDownLatch fetchLatch = relocator.requests();
+
+            try
+            {
+                streamLatch.await();
+                fetchLatch.await();
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException("Interrupted latch while waiting for stream/fetch ranges to finish: " + e.getMessage());
+            }
+        }
+        else
+            setMode(Mode.RELOCATING, "no new ranges to stream/fetch", true);
+
+        Collection<Token> currentTokens = SystemTable.updateLocalTokens(tokens, Collections.<Token>emptyList());
+        tokenMetadata.updateNormalTokens(currentTokens, FBUtilities.getBroadcastAddress());
+        Gossiper.instance.addLocalApplicationState(ApplicationState.TOKENS, valueFactory.tokens(currentTokens));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(currentTokens));
+        setMode(Mode.NORMAL, false);
     }
 
     /**
@@ -3243,7 +3378,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     // adding difference ranges to fetch from a ring
                     toStream.addAll(r1.subtract(r2));
                     intersect = true;
-                    break;
                 }
             }
             if (!intersect)
@@ -3262,7 +3396,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     // adding difference ranges to fetch from a ring
                     toFetch.addAll(r2.subtract(r1));
                     intersect = true;
-                    break;
                 }
             }
             if (!intersect)
