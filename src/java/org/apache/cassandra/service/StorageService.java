@@ -2524,95 +2524,27 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.moving(newToken));
         setMode(Mode.MOVING, String.format("Moving %s from %s to %s.", localAddress, getLocalTokens().iterator().next(), newToken), true);
 
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+        RangeRelocator relocator = new RangeRelocator(Collections.singleton(newToken), tablesToProcess);
 
-        Map<String, Multimap<InetAddress, Range<Token>>> rangesToFetch = new HashMap<String, Multimap<InetAddress, Range<Token>>>();
-        Map<String, Multimap<Range<Token>, InetAddress>> rangesToStreamByTable = new HashMap<String, Multimap<Range<Token>, InetAddress>>();
-
-        TokenMetadata tokenMetaCloneAllSettled = tokenMetadata.cloneAfterAllSettled();
-        // clone to avoid concurrent modification in calculateNaturalEndpoints
-        TokenMetadata tokenMetaClone = tokenMetadata.cloneOnlyTokenMap();
-
-        // for each of the non system tables calculating new ranges
-        // which current node will handle after move to the new token
-        for (String table : tablesToProcess)
+        setMode(Mode.MOVING, String.format("Sleeping %s ms before start streaming/fetching ranges", RING_DELAY), true);
+        try
         {
-            // replication strategy of the current keyspace (aka table)
-            AbstractReplicationStrategy strategy = Table.open(table).getReplicationStrategy();
-
-            // getting collection of the currently used ranges by this keyspace
-            Collection<Range<Token>> currentRanges = getRangesForEndpoint(table, localAddress);
-            // collection of ranges which this node will serve after move to the new token
-            Collection<Range<Token>> updatedRanges = strategy.getPendingAddressRanges(tokenMetadata, newToken, localAddress);
-
-            // ring ranges and endpoints associated with them
-            // this used to determine what nodes should we ping about range data
-            Multimap<Range<Token>, InetAddress> rangeAddresses = strategy.getRangeAddresses(tokenMetaClone);
-
-            // calculated parts of the ranges to request/stream from/to nodes in the ring
-            Pair<Set<Range<Token>>, Set<Range<Token>>> rangesPerTable = calculateStreamAndFetchRanges(currentRanges, updatedRanges);
-
-            /**
-             * In this loop we are going through all ranges "to fetch" and determining
-             * nodes in the ring responsible for data we are interested in
-             */
-            Multimap<Range<Token>, InetAddress> rangesToFetchWithPreferredEndpoints = ArrayListMultimap.create();
-            for (Range<Token> toFetch : rangesPerTable.right)
-            {
-                for (Range<Token> range : rangeAddresses.keySet())
-                {
-                    if (range.contains(toFetch))
-                    {
-                        List<InetAddress> endpoints = snitch.getSortedListByProximity(localAddress, rangeAddresses.get(range));
-                        // storing range and preferred endpoint set
-                        rangesToFetchWithPreferredEndpoints.putAll(toFetch, endpoints);
-                    }
-                }
-            }
-
-            // calculating endpoints to stream current ranges to if needed
-            // in some situations node will handle current ranges as part of the new ranges
-            Multimap<Range<Token>, InetAddress> rangeWithEndpoints = HashMultimap.create();
-
-            for (Range<Token> toStream : rangesPerTable.left)
-            {
-                Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(toStream.right, tokenMetaClone));
-                Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(toStream.right, tokenMetaCloneAllSettled));
-                rangeWithEndpoints.putAll(toStream, Sets.difference(newEndpoints, currentEndpoints));
-            }
-
-            // associating table with range-to-endpoints map
-            rangesToStreamByTable.put(table, rangeWithEndpoints);
-
-            Multimap<InetAddress, Range<Token>> workMap = RangeStreamer.getWorkMap(rangesToFetchWithPreferredEndpoints);
-            rangesToFetch.put(table, workMap);
-
-            if (logger.isDebugEnabled())
-                logger.debug("Table {}: work map {}.", table, workMap);
+            Thread.sleep(RING_DELAY);
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException("Sleep interrupted " + e.getMessage());
         }
 
-        if (!rangesToStreamByTable.isEmpty() || !rangesToFetch.isEmpty())
+        if (relocator.streamsNeeded())
         {
-            setMode(Mode.MOVING, String.format("Sleeping %s ms before start streaming/fetching ranges", RING_DELAY), true);
-            try
-            {
-                Thread.sleep(RING_DELAY);
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException("Sleep interrupted " + e.getMessage());
-            }
-
             setMode(Mode.MOVING, "fetching new ranges and streaming old ranges", true);
-            if (logger.isDebugEnabled())
-                logger.debug("[Move->STREAMING] Work Map: " + rangesToStreamByTable);
 
-            CountDownLatch streamLatch = streamRanges(rangesToStreamByTable);
+            relocator.logStreamsMap("[Move->STREAMING]");
+            CountDownLatch streamLatch = relocator.streams();
 
-            if (logger.isDebugEnabled())
-                logger.debug("[Move->FETCHING] Work Map: " + rangesToFetch);
-
-            CountDownLatch fetchLatch = requestRanges(rangesToFetch);
+            relocator.logRequestsMap("[Move->FETCHING]");
+            CountDownLatch fetchLatch = relocator.requests();
 
             try
             {
@@ -2624,11 +2556,117 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 throw new RuntimeException("Interrupted latch while waiting for stream/fetch ranges to finish: " + e.getMessage());
             }
         }
+        else
+            setMode(Mode.MOVING, "No ranges to fetch/stream", true);
 
         setTokens(Collections.singleton(newToken)); // setting new token as we have everything settled
 
         if (logger.isDebugEnabled())
             logger.debug("Successfully moved to new token {}", getLocalTokens().iterator().next());
+    }
+
+    private class RangeRelocator
+    {
+        private Map<String, Multimap<InetAddress, Range<Token>>> rangesToFetch = new HashMap<String, Multimap<InetAddress, Range<Token>>>();
+        private Map<String, Multimap<Range<Token>, InetAddress>> rangesToStreamByTable = new HashMap<String, Multimap<Range<Token>, InetAddress>>();
+
+        private RangeRelocator(Collection<Token> tokens, List<String> tables)
+        {
+            calculateToFromStreams(tokens, tables);
+        }
+
+        private void calculateToFromStreams(Collection<Token> newTokens, List<String> tables)
+        {
+            InetAddress localAddress = FBUtilities.getBroadcastAddress();
+            IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+            TokenMetadata tokenMetaCloneAllSettled = tokenMetadata.cloneAfterAllSettled();
+            // clone to avoid concurrent modification in calculateNaturalEndpoints
+            TokenMetadata tokenMetaClone = tokenMetadata.cloneOnlyTokenMap();
+
+            for (String table : tables)
+            {
+                for (Token newToken : newTokens)
+                {
+                    // replication strategy of the current keyspace (aka table)
+                    AbstractReplicationStrategy strategy = Table.open(table).getReplicationStrategy();
+
+                    // getting collection of the currently used ranges by this keyspace
+                    Collection<Range<Token>> currentRanges = getRangesForEndpoint(table, localAddress);
+                    // collection of ranges which this node will serve after move to the new token
+                    Collection<Range<Token>> updatedRanges = strategy.getPendingAddressRanges(tokenMetadata, newToken, localAddress);
+
+                    // ring ranges and endpoints associated with them
+                    // this used to determine what nodes should we ping about range data
+                    Multimap<Range<Token>, InetAddress> rangeAddresses = strategy.getRangeAddresses(tokenMetaClone);
+
+                    // calculated parts of the ranges to request/stream from/to nodes in the ring
+                    Pair<Set<Range<Token>>, Set<Range<Token>>> rangesPerTable = calculateStreamAndFetchRanges(currentRanges, updatedRanges);
+
+                    /**
+                     * In this loop we are going through all ranges "to fetch" and determining
+                     * nodes in the ring responsible for data we are interested in
+                     */
+                    Multimap<Range<Token>, InetAddress> rangesToFetchWithPreferredEndpoints = ArrayListMultimap.create();
+                    for (Range<Token> toFetch : rangesPerTable.right)
+                    {
+                        for (Range<Token> range : rangeAddresses.keySet())
+                        {
+                            if (range.contains(toFetch))
+                            {
+                                List<InetAddress> endpoints = snitch.getSortedListByProximity(localAddress, rangeAddresses.get(range));
+                                // storing range and preferred endpoint set
+                                rangesToFetchWithPreferredEndpoints.putAll(toFetch, endpoints);
+                            }
+                        }
+                    }
+
+                    // calculating endpoints to stream current ranges to if needed
+                    // in some situations node will handle current ranges as part of the new ranges
+                    Multimap<Range<Token>, InetAddress> rangeWithEndpoints = HashMultimap.create();
+
+                    for (Range<Token> toStream : rangesPerTable.left)
+                    {
+                        Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(toStream.right, tokenMetaClone));
+                        Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(toStream.right, tokenMetaCloneAllSettled));
+                        rangeWithEndpoints.putAll(toStream, Sets.difference(newEndpoints, currentEndpoints));
+                    }
+
+                    // associating table with range-to-endpoints map
+                    rangesToStreamByTable.put(table, rangeWithEndpoints);
+
+                    Multimap<InetAddress, Range<Token>> workMap = RangeStreamer.getWorkMap(rangesToFetchWithPreferredEndpoints);
+                    rangesToFetch.put(table, workMap);
+
+                    if (logger.isDebugEnabled())
+                        logger.debug("Table {}: work map {}.", table, workMap);
+                }
+            }
+        }
+
+        private void logStreamsMap(String prefix)
+        {
+            logger.debug("{} Work map: {}", prefix, rangesToStreamByTable);
+        }
+
+        private void logRequestsMap(String prefix)
+        {
+            logger.debug("{} Work map: {}", prefix, rangesToFetch);
+        }
+
+        private boolean streamsNeeded()
+        {
+            return !rangesToStreamByTable.isEmpty() || !rangesToFetch.isEmpty();
+        }
+
+        private CountDownLatch streams()
+        {
+            return streamRanges(rangesToStreamByTable);
+        }
+
+        private CountDownLatch requests()
+        {
+            return requestRanges(rangesToFetch);
+        }
     }
 
     /**
