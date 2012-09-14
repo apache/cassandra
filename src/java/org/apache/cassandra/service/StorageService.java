@@ -173,6 +173,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     private static final AtomicInteger nextRepairCommand = new AtomicInteger();
 
+    private static ScheduledRangeTransferExecutorService rangeXferExecutor = new ScheduledRangeTransferExecutorService();
+
     public void finishBootstrapping()
     {
         isBootstrapMode = false;
@@ -2752,7 +2754,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         relocateTokens(tokens);
     }
 
-    private void relocateTokens(Collection<Token> srcTokens)
+    void relocateTokens(Collection<Token> srcTokens)
     {
         assert srcTokens != null;
         InetAddress localAddress = FBUtilities.getBroadcastAddress();
@@ -3504,5 +3506,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public double getTracingProbability()
     {
         return tracingProbability;
+    }
+
+    public void enableScheduledRangeXfers()
+    {
+        rangeXferExecutor.setup();
+    }
+
+    public void disableScheduledRangeXfers()
+    {
+        rangeXferExecutor.tearDown();
     }
 }

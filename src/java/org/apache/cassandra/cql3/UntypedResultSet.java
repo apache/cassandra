@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -122,6 +123,11 @@ public class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         public UUID getUUID(String column)
         {
             return UUIDType.instance.compose(data.get(column));
+        }
+
+        public Date getTimestamp(String column)
+        {
+            return DateType.instance.compose(data.get(column));
         }
 
         @Override

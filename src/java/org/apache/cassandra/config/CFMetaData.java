@@ -200,6 +200,11 @@ public final class CFMetaData
                                                             + "data blob"
                                                             + ") WITH COMMENT='uncommited batches' AND gc_grace_seconds=0");
 
+    public static final CFMetaData RangeXfersCf = compile(17, "CREATE TABLE " + SystemTable.RANGE_XFERS_CF + " ("
+                                                              + "token_bytes blob PRIMARY KEY,"
+                                                              + "requested_at timestamp"
+                                                              + ") WITH COMMENT='ranges requested for transfer here'");
+
     public enum Caching
     {
         ALL, KEYS_ONLY, ROWS_ONLY, NONE;

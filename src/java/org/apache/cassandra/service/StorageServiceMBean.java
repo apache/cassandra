@@ -457,4 +457,9 @@ public interface StorageServiceMBean
      * Returns the configured tracing probability.
      */
     public double getTracingProbability();
+
+    /** Begin processing of queued range transfers. */
+    public void enableScheduledRangeXfers();
+    /** Disable processing of queued range transfers. */
+    public void disableScheduledRangeXfers();
 }
