@@ -159,7 +159,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
                 else
                 {
                     assert type instanceof SetType;
-                    return Pair.<DataType, Object>create(LIST, ((SetType)type).elements);
+                    return Pair.<DataType, Object>create(SET, ((SetType)type).elements);
                 }
             }
             return Pair.<DataType, Object>create(CUSTOM, type.toString());
