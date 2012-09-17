@@ -451,8 +451,9 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static Collection<InetAddress> getBatchlogEndpoints(String localDataCenter) throws UnavailableException
     {
-        // will include every known node including localhost.
-        Collection<InetAddress> localMembers = StorageService.instance.getTokenMetadata().getTopology().getDatacenterEndpoints().get(localDataCenter);
+        // will include every known node in the DC, including localhost.
+        TokenMetadata.Topology topology = StorageService.instance.getTokenMetadata().cloneOnlyTokenMap().getTopology();
+        Collection<InetAddress> localMembers = topology.getDatacenterEndpoints().get(localDataCenter);
 
         // special case for single-node datacenters
         if (localMembers.size() == 1)
