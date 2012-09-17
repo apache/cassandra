@@ -70,6 +70,7 @@
    access permissions and grant/revoke commands (CASSANDRA-4490)
  * fix assumption error in CLI when updating/describing keyspace (CASSANDRA-4322)
  * Adds offline sstablescrub to debian packaging (CASSANDRA-4642)
+ * Automatic fixing of overlapping leveled sstables (CASSANDRA-4644)
 
 
 1.1.5
