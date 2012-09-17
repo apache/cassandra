@@ -169,32 +169,7 @@ public class StandaloneScrubber
     {
         System.out.println(String.format("Checking leveled manifest"));
         for (int i = 1; i <= manifest.getLevelCount(); ++i)
-        {
-            List<SSTableReader> sstables = new ArrayList<SSTableReader>(manifest.getLevel(i));
-            Collections.sort(sstables, SSTable.sstableComparator);
-            if (sstables.isEmpty())
-                continue;
-
-            Iterator<SSTableReader> iter = sstables.iterator();
-            SSTableReader previous = iter.next();
-            while (iter.hasNext())
-            {
-                SSTableReader current = iter.next();
-
-                if (previous.last.compareTo(current.first) >= 0)
-                {
-                    System.err.println(String.format("At level %d, %s [%s, %s] overlaps %s [%s, %s]", i,
-                                                     previous, previous.first, previous.last,
-                                                     current, current.first, current.last));
-                    System.out.println(String.format("Sending %s back to L0 to fix intra-level overlapping", current));
-                    manifest.sendBackToL0(current);
-                }
-                else
-                {
-                    previous = current;
-                }
-            }
-        }
+            manifest.repairOverlappingSSTables(i);
     }
 
     private static class Options
