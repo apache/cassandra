@@ -2536,15 +2536,27 @@ def setup_cqlruleset(cqlmodule):
         cqlruleset.completer_for(rulename, termname)(func)
     cqlruleset.commands_end_with_newline.update(my_commands_ending_with_newline)
 
-def main(options, hostname, port):
-    setup_cqlruleset(options.cqlmodule)
-
-    if os.path.exists(HISTORY) and readline is not None:
-        readline.read_history_file(HISTORY)
+def init_history():
+    if readline is not None:
+        try:
+            readline.read_history_file(HISTORY)
+        except IOError:
+            pass
         delims = readline.get_completer_delims()
         delims.replace("'", "")
         delims += '.'
         readline.set_completer_delims(delims)
+
+def save_history():
+    if readline is not None:
+        try:
+            readline.write_history_file(HISTORY)
+        except IOError:
+            pass
+
+def main(options, hostname, port):
+    setup_cqlruleset(options.cqlmodule)
+    init_history()
 
     if options.file is None:
         stdin = None
@@ -2580,9 +2592,7 @@ def main(options, hostname, port):
         shell.debug = True
 
     shell.cmdloop()
-
-    if readline is not None:
-        readline.write_history_file(HISTORY)
+    save_history()
 
 if __name__ == '__main__':
     main(*read_options(sys.argv[1:], os.environ))
