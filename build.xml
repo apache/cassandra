@@ -84,7 +84,7 @@
     <property name="maven-repository-id" value="apache.snapshots.https"/>
 
     <property name="test.timeout" value="60000" />
-    <property name="test.long.timeout" value="300000" />
+    <property name="test.long.timeout" value="600000" />
 
     <!-- http://cobertura.sourceforge.net/ -->
     <property name="cobertura.version" value="1.9.4.1"/>
