@@ -64,6 +64,7 @@
  * (cql3) Add ALTER KEYSPACE statement (CASSANDRA-4611)
  * (cql3) Allow defining default consistency levels (CASSANDRA-4448)
  * (cql3) Fix queries using LIMIT missing results (CASSANDRA-4579)
+ * fix cross-version gossip messaging (CASSANDRA-4576)
 
 
 1.1.6

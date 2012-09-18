@@ -63,7 +63,7 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
     public void serialize(GossipDigestAck gDigestAckMessage, DataOutput dos, int version) throws IOException
     {
         GossipDigestSerializationHelper.serialize(gDigestAckMessage.gDigestList, dos, version);
-        if (version <= MessagingService.VERSION_10)
+        if (version <= MessagingService.VERSION_11)
             dos.writeBoolean(true); // 0.6 compatibility
         dos.writeInt(gDigestAckMessage.epStateMap.size());
         for (Map.Entry<InetAddress, EndpointState> entry : gDigestAckMessage.epStateMap.entrySet())
@@ -77,7 +77,7 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
     public GossipDigestAck deserialize(DataInput dis, int version) throws IOException
     {
         List<GossipDigest> gDigestList = GossipDigestSerializationHelper.deserialize(dis, version);
-        if (version <= MessagingService.VERSION_10)
+        if (version <= MessagingService.VERSION_11)
             dis.readBoolean(); // 0.6 compatibility
         int size = dis.readInt();
         Map<InetAddress, EndpointState> epStateMap = new HashMap<InetAddress, EndpointState>(size);

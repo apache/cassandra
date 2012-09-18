@@ -260,14 +260,19 @@ public class VersionedValue implements Comparable<VersionedValue>
 
                 if ((type.equals(STATUS_NORMAL)) || type.equals(STATUS_BOOTSTRAPPING))
                 {
-                    assert pieces.length >= 3;
-                    outValue = versionString(pieces[0], pieces[2]);
+                    assert pieces.length >= 2;
+                    outValue = versionString(pieces[0], pieces[1]);
                 }
 
                 if (type.equals(STATUS_LEFT))
                 {
                     assert pieces.length >= 3;
-                    outValue = versionString(pieces[0], pieces[2], pieces[1]);
+
+                    // three component 'left' was adopted starting from Cassandra 1.0
+                    // previous versions have '<type>:<token>' format
+                    outValue = (version < MessagingService.VERSION_10)
+                                ? versionString(pieces[0], pieces[2])
+                                : versionString(pieces[0], pieces[2], pieces[1]);
                 }
 
                 if ((type.equals(REMOVAL_COORDINATOR)) || (type.equals(REMOVING_TOKEN)) || (type.equals(REMOVED_TOKEN)))
