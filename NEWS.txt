@@ -14,7 +14,7 @@ by version X, but the inverse is not necessarily the case.)
 
 Upgrading
 ---------
-    - 1.2 is NOT network-compatible with versions older than 1.0.  That
+    - 1.2 is NOT network-compatible with versions older than 1.0. That
       means if you want to do a rolling, zero-downtime upgrade, you'll need
       to upgrade first to 1.0.x or 1.1.x, and then to 1.2.  1.2 retains
       the ability to read data files from Cassandra versions at least
@@ -27,7 +27,7 @@ Upgrading
     - The hints schema was changed from 1.1 to 1.2. Cassandra automatically
       snapshots and then truncates the hints column family as part of
       starting up 1.2 for the first time.  Additionally, upgraded nodes
-      will not store new hints destined for older (pre-1.2) nodes.  It is
+      will not store new hints destined for older (pre-1.2) nodes. It is
       therefore recommended that you perform a cluster upgrade when all
       nodes are up.
     - The `nodetool removetoken` command (and corresponding JMX operation)
@@ -35,26 +35,27 @@ Upgrading
       incompatible with the earlier `nodetool removetoken`, and attempts to
       remove nodes in this way with a mixed 1.1 (or lower) / 1.2 cluster,
       is not supported.
-    - The somewhat ill-concieved CollatingOrderPreservingPartitioner
-      has been removed.  Use Murmur3Partitioner (recommended) or
+    - The somewhat ill-conceived CollatingOrderPreservingPartitioner
+      has been removed. Use Murmur3Partitioner (recommended) or
       ByteOrderedPartitioner instead.
     - Global option hinted_handoff_throttle_delay_in_ms has been removed.
       hinted_handoff_throttle_in_kb has been added instead.
     - The default bloom filter fp chance has been increased to 1%.
       This will save about 30% of the memory used by the old default.
       Existing columnfamilies will retain their old setting.
-    - The default partitioner was changed from RandomPartitioner to
-      Murmur3Partitioner which provides faster hashing as well as
-      improved performance with secondary indexes.
+    - The default partitioner (for new clusters; the partitioner cannot be
+      changed in existing clusters) was changed from RandomPartitioner to
+      Murmur3Partitioner which provides faster hashing as well as improved
+      performance with secondary indexes.
     - The default version of CQL (and cqlsh) is now CQL3. CQL2 is still
       available but you will have to use the thrift set_cql_version method
       (that is already supported in 1.1) to use CQL2. For cqlsh, you will need
       to use 'cqlsh -2'.
     - CQL3 is now considered final in this release. Compared to the beta
       version that is part of 1.1, this final version has a few additions
-      (collections), but also some changes in the syntax for the options of the
-      create/alter keyspace/table statements. Typically, the syntax to create a
-      keyspace is now:
+      (collections), but also some (incompatible) changes in the syntax for the
+      options of the create/alter keyspace/table statements. Typically, the
+      syntax to create a keyspace is now:
         CREATE KEYSPACE ks WITH replication = { 'class' : 'SimpleStrategy',
                                                 'replication_factor' : 2 };
       Please refer to the CQL3 documentation for details.
