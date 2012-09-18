@@ -196,6 +196,11 @@ public class SelectStatement implements CQLStatement
 
         try
         {
+            // The LIMIT provided by the user is the number of CQL row he wants returned.
+            // For NamesQueryFilter, this is the number of internal rows returned, since a NamesQueryFilter can only select one CQL row in a given internal row.
+            // For SliceQueryFilter however, we want to have getRangeSlice to count the number of columns, not the number of keys. Then
+            // SliceQueryFilter.collectReducedColumns will correctly columns having the same composite prefix using ColumnCounter.
+            boolean maxIsColumns = filter instanceof SliceQueryFilter;
             rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace(),
                                                                     columnFamily(),
                                                                     null,
@@ -203,7 +208,7 @@ public class SelectStatement implements CQLStatement
                                                                     getKeyBounds(variables),
                                                                     expressions,
                                                                     getLimit(),
-                                                                    true, // limit by columns, not keys
+                                                                    maxIsColumns,
                                                                     false),
                                               getConsistencyLevel());
         }

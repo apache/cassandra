@@ -63,6 +63,7 @@
  * Add sstable count per level to cfstats (CASSANDRA-4537)
  * (cql3) Add ALTER KEYSPACE statement (CASSANDRA-4611)
  * (cql3) Allow defining default consistency levels (CASSANDRA-4448)
+ * (cql3) Fix queries using LIMIT missing results (CASSANDRA-4579)
 
 
 1.1.6
