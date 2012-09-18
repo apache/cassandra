@@ -63,7 +63,13 @@ public class Murmur3Partitioner extends AbstractPartitioner<LongToken>
         else // wrapping case
         {
             BigInteger max = BigInteger.valueOf(MAXIMUM);
-            midpoint = max.add(r).subtract(l).shiftRight(1).add(l).mod(max);
+            BigInteger min = BigInteger.valueOf(MINIMUM.token);
+            // length of range we're bisecting is (R - min) + (max - L)
+            // so we add that to L giving
+            // L + ((R - min) + (max - L) / 2) = (L + R + max - min) / 2
+            midpoint = (max.subtract(min).add(l).add(r)).shiftRight(1);
+            if (midpoint.compareTo(max) > 0)
+                midpoint = min.add(midpoint.subtract(max));
         }
 
         return new LongToken(midpoint.longValue());
