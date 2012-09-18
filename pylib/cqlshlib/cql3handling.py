@@ -884,6 +884,7 @@ class CqlTableDef:
                 value_cols = [self.column_class(self.value_alias, self.default_validator)]
         else:
             value_cols = map(self.column_class.from_layout, self.coldefs)
+            value_cols.sort(key=lambda c: c.name)
 
         return partkey_cols + colalias_cols + value_cols
 
@@ -918,6 +919,7 @@ class CqlTableDef:
             warn(UnexpectedTableStructure("Dynamic storage CF has a value_alias (%r)"
                                           % (self.value_alias,)))
         value_cols = map(self.column_class.from_layout, self.coldefs)
+        value_cols.sort(key=lambda c: c.name)
 
         return partkey_cols + colalias_cols + value_cols
 

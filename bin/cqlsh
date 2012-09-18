@@ -1081,6 +1081,8 @@ class Shell(cmd.Cmd):
         self.prompt = prompt
 
     def cql_protect_name(self, name):
+        if isinstance(name, unicode):
+            name = name.encode('utf8')
         return cqlruleset.maybe_escape_name(name)
 
     def cql_protect_value(self, value):
