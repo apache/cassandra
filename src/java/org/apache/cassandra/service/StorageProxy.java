@@ -63,6 +63,7 @@ import org.apache.cassandra.utils.*;
 
 public class StorageProxy implements StorageProxyMBean
 {
+    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=StorageProxy";
     private static final Logger logger = LoggerFactory.getLogger(StorageProxy.class);
     private static final boolean OPTIMIZE_LOCAL_REQUESTS = true; // set to false to test messagingservice path on single node
 
@@ -99,7 +100,7 @@ public class StorageProxy implements StorageProxyMBean
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(new StorageProxy(), new ObjectName("org.apache.cassandra.db:type=StorageProxy"));
+            mbs.registerMBean(new StorageProxy(), new ObjectName(MBEAN_NAME));
         }
         catch (Exception e)
         {
