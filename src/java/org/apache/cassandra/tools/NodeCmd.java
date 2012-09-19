@@ -828,11 +828,11 @@ public class NodeCmd
         {
             output.println(String.format("%-10d%10s%18s%18s%18s%18s",
                                          offsets[i],
-                                         (i < sprh.length ? sprh[i] : ""),
-                                         (i < rwlh.length ? rwlh[i] : ""),
-                                         (i < rrlh.length ? rrlh[i] : ""),
-                                         (i < ersh.length ? ersh[i] : ""),
-                                         (i < ecch.length ? ecch[i] : "")));
+                                         (i < sprh.length ? sprh[i] : "0"),
+                                         (i < rwlh.length ? rwlh[i] : "0"),
+                                         (i < rrlh.length ? rrlh[i] : "0"),
+                                         (i < ersh.length ? ersh[i] : "0"),
+                                         (i < ecch.length ? ecch[i] : "0")));
         }
     }
 
@@ -851,9 +851,9 @@ public class NodeCmd
         {
             output.println(String.format("%-10d%18s%18s%18s",
                                         offsets[i],
-                                        (i < rrlh.length ? rrlh[i] : ""),
-                                        (i < rwlh.length ? rwlh[i] : ""),
-                                        (i < rrnglh.length ? rrnglh[i] : "")));
+                                        (i < rrlh.length ? rrlh[i] : "0"),
+                                        (i < rwlh.length ? rwlh[i] : "0"),
+                                        (i < rrnglh.length ? rrnglh[i] : "0")));
         }
     }
 
