@@ -141,7 +141,6 @@ public class NodeCmd
         StringBuilder header = new StringBuilder();
         header.append("\nAvailable commands:\n");
         // No args
-        addCmdHelp(header, "ring", "Print information about the token ring");
         addCmdHelp(header, "join", "Join the ring");
         addCmdHelp(header, "info", "Print node information (uptime, load, ...)");
         addCmdHelp(header, "cfstats", "Print statistics on column families");
@@ -162,6 +161,7 @@ public class NodeCmd
         addCmdHelp(header, "resetlocalschema", "Reset node's local schema and resync");
 
         // One arg
+        addCmdHelp(header, "ring [keyspace]", "Print information about the token ring for a given keyspace (for all keyspaces if it is not specified)");
         addCmdHelp(header, "netstats [host]", "Print network information on provided host (connecting node by default)");
         addCmdHelp(header, "move <new token>", "Move node on the token ring to a new token");
         addCmdHelp(header, "removetoken status|force|<token>", "Show status of current token removal, force completion of pending removal or remove providen token");
