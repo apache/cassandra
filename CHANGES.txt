@@ -1,3 +1,7 @@
+1.2-beta2
+ * adjust blockFor calculation to account for pending ranges due to node 
+   movement (CASSANDRA-833)
+
 1.2-beta1
  * add atomic_batch_mutate (CASSANDRA-4542, -4635)
  * increase default max_hint_window_in_ms to 3h (CASSANDRA-4632)
@@ -114,6 +118,7 @@ Merged from 1.0:
  * Fix multiple values for CurrentLocal NodeID (CASSANDRA-4626)
 
 
+1.1.3
  * munmap commitlog segments before rename (CASSANDRA-4337)
  * (JMX) rename getRangeKeySample to sampleKeyRange to avoid returning
    multi-MB results as an attribute (CASSANDRA-4452)
@@ -1179,7 +1184,6 @@ Merged from 0.8:
  * workaround large resultsets causing large allocation retention
    by nio sockets (CASSANDRA-2654)
  * fix nodetool ring use with Ec2Snitch (CASSANDRA-2733)
- * fix inconsistency window during bootstrap (CASSANDRA-833)
  * fix removing columns and subcolumns that are supressed by a row or
    supercolumn tombstone during replica resolution (CASSANDRA-2590)
  * support sstable2json against snapshot sstables (CASSANDRA-2386)

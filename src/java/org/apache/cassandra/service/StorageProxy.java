@@ -106,7 +106,7 @@ public class StorageProxy implements StorageProxyMBean
         standardWritePerformer = new WritePerformer()
         {
             public void apply(IMutation mutation,
-                              Collection<InetAddress> targets,
+                              Iterable<InetAddress> targets,
                               AbstractWriteResponseHandler responseHandler,
                               String localDataCenter,
                               ConsistencyLevel consistency_level)
@@ -126,7 +126,7 @@ public class StorageProxy implements StorageProxyMBean
         counterWritePerformer = new WritePerformer()
         {
             public void apply(IMutation mutation,
-                              Collection<InetAddress> targets,
+                              Iterable<InetAddress> targets,
                               AbstractWriteResponseHandler responseHandler,
                               String localDataCenter,
                               ConsistencyLevel consistency_level)
@@ -143,7 +143,7 @@ public class StorageProxy implements StorageProxyMBean
         counterWriteOnCoordinatorPerformer = new WritePerformer()
         {
             public void apply(IMutation mutation,
-                              Collection<InetAddress> targets,
+                              Iterable<InetAddress> targets,
                               AbstractWriteResponseHandler responseHandler,
                               String localDataCenter,
                               ConsistencyLevel consistency_level)
@@ -268,7 +268,7 @@ public class StorageProxy implements StorageProxyMBean
             // write to the batchlog
             Collection<InetAddress> batchlogEndpoints = getBatchlogEndpoints(localDataCenter);
             UUID batchUUID = UUID.randomUUID();
-            syncWriteToBatchlog(mutations, localDataCenter, batchlogEndpoints, batchUUID);
+            syncWriteToBatchlog(mutations, batchlogEndpoints, batchUUID);
 
             // now actually perform the writes and wait for them to complete
             syncWriteBatchedMutations(wrappers, localDataCenter, consistency_level);
@@ -295,13 +295,12 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     private static void syncWriteToBatchlog(List<RowMutation> mutations,
-                                            String localDataCenter,
                                             Collection<InetAddress> endpoints,
                                             UUID uuid)
     throws WriteTimeoutException
     {
         RowMutation rm = BatchlogManager.getBatchlogMutationFor(mutations, uuid);
-        AbstractWriteResponseHandler handler = WriteResponseHandler.create(endpoints, ConsistencyLevel.ONE, Table.SYSTEM_KS, null);
+        AbstractWriteResponseHandler handler = WriteResponseHandler.create(endpoints, Collections.<InetAddress>emptyList(), ConsistencyLevel.ONE, Table.SYSTEM_KS, null);
 
         try
         {
@@ -326,7 +325,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(uuid));
         rm.delete(new QueryPath(SystemTable.BATCHLOG_CF), FBUtilities.timestampMicros());
-        AbstractWriteResponseHandler handler = WriteResponseHandler.create(endpoints, ConsistencyLevel.ANY, Table.SYSTEM_KS, null);
+        AbstractWriteResponseHandler handler = WriteResponseHandler.create(endpoints, Collections.<InetAddress>emptyList(), ConsistencyLevel.ANY, Table.SYSTEM_KS, null);
 
         try
         {
@@ -347,7 +346,8 @@ public class StorageProxy implements StorageProxyMBean
         {
             try
             {
-                sendToHintedEndpoints(wrapper.mutation, wrapper.endpoints, wrapper.handler, localDataCenter, consistencyLevel);
+                Iterable<InetAddress> endpoints = Iterables.concat(wrapper.handler.naturalEndpoints, wrapper.handler.pendingEndpoints);
+                sendToHintedEndpoints(wrapper.mutation, endpoints, wrapper.handler, localDataCenter, consistencyLevel);
             }
             catch (IOException e)
             {
@@ -399,14 +399,16 @@ public class StorageProxy implements StorageProxyMBean
         String table = mutation.getTable();
         AbstractReplicationStrategy rs = Table.open(table).getReplicationStrategy();
 
-        Collection<InetAddress> writeEndpoints = getWriteEndpoints(table, mutation.key());
+        Token tk = StorageService.getPartitioner().getToken(mutation.key());
+        List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(table, tk);
+        Collection<InetAddress> pendingEndpoints = StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, table);
 
-        AbstractWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, consistency_level, callback);
+        AbstractWriteResponseHandler responseHandler = rs.getWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, callback);
 
         // exit early if we can't fulfill the CL at this time
         responseHandler.assureSufficientLiveNodes();
 
-        performer.apply(mutation, writeEndpoints, responseHandler, localDataCenter, consistency_level);
+        performer.apply(mutation, Iterables.concat(naturalEndpoints, pendingEndpoints), responseHandler, localDataCenter, consistency_level);
         return responseHandler;
     }
 
@@ -414,9 +416,12 @@ public class StorageProxy implements StorageProxyMBean
     private static WriteResponseHandlerWrapper wrapResponseHandler(RowMutation mutation, ConsistencyLevel consistency_level)
     {
         AbstractReplicationStrategy rs = Table.open(mutation.getTable()).getReplicationStrategy();
-        Collection<InetAddress> writeEndpoints = getWriteEndpoints(mutation.getTable(), mutation.key());
-        AbstractWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, consistency_level, null);
-        return new WriteResponseHandlerWrapper(responseHandler, mutation, writeEndpoints);
+        String table = mutation.getTable();
+        Token tk = StorageService.getPartitioner().getToken(mutation.key());
+        List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(table, tk);
+        Collection<InetAddress> pendingEndpoints = StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, table);
+        AbstractWriteResponseHandler responseHandler = rs.getWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, null);
+        return new WriteResponseHandlerWrapper(responseHandler, mutation);
     }
 
     // used by atomic_batch_mutate to decouple availability check from the write itself, caches consistency level and endpoints.
@@ -424,22 +429,12 @@ public class StorageProxy implements StorageProxyMBean
     {
         final AbstractWriteResponseHandler handler;
         final RowMutation mutation;
-        final Collection<InetAddress> endpoints;
 
-        WriteResponseHandlerWrapper(AbstractWriteResponseHandler handler, RowMutation mutation, Collection<InetAddress> endpoints)
+        WriteResponseHandlerWrapper(AbstractWriteResponseHandler handler, RowMutation mutation)
         {
             this.handler = handler;
             this.mutation = mutation;
-            this.endpoints = endpoints;
         }
-    }
-
-    public static Collection<InetAddress> getWriteEndpoints(String table, ByteBuffer key)
-    {
-        StorageService ss = StorageService.instance;
-        Token tk = StorageService.getPartitioner().getToken(key);
-        List<InetAddress> naturalEndpoints = ss.getNaturalEndpoints(table, tk);
-        return ss.getTokenMetadata().getWriteEndpoints(tk, table, naturalEndpoints);
     }
 
     /*
@@ -498,14 +493,14 @@ public class StorageProxy implements StorageProxyMBean
      * @throws TimeoutException if the hints cannot be written/enqueued
      */
     public static void sendToHintedEndpoints(final RowMutation rm,
-                                             Collection<InetAddress> targets,
+                                             Iterable<InetAddress> targets,
                                              AbstractWriteResponseHandler responseHandler,
                                              String localDataCenter,
                                              ConsistencyLevel consistency_level)
     throws IOException, OverloadedException
     {
         // Multimap that holds onto all the messages and addresses meant for a specific datacenter
-        Map<String, Multimap<MessageOut, InetAddress>> dcMessages = new HashMap<String, Multimap<MessageOut, InetAddress>>(targets.size());
+        Map<String, Multimap<MessageOut, InetAddress>> dcMessages = new HashMap<String, Multimap<MessageOut, InetAddress>>();
 
         for (InetAddress destination : targets)
         {
@@ -709,9 +704,11 @@ public class StorageProxy implements StorageProxyMBean
             // Exit now if we can't fulfill the CL here instead of forwarding to the leader replica
             String table = cm.getTable();
             AbstractReplicationStrategy rs = Table.open(table).getReplicationStrategy();
-            Collection<InetAddress> writeEndpoints = getWriteEndpoints(table, cm.key());
+            Token tk = StorageService.getPartitioner().getToken(cm.key());
+            List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(table, tk);
+            Collection<InetAddress> pendingEndpoints = StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, table);
 
-            rs.getWriteResponseHandler(writeEndpoints, cm.consistency(), null).assureSufficientLiveNodes();
+            rs.getWriteResponseHandler(naturalEndpoints, pendingEndpoints, cm.consistency(), null).assureSufficientLiveNodes();
 
             // Forward the actual update to the chosen leader replica
             AbstractWriteResponseHandler responseHandler = WriteResponseHandler.create(endpoint);
@@ -776,7 +773,7 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     private static Runnable counterWriteTask(final IMutation mutation,
-                                             final Collection<InetAddress> targets,
+                                             final Iterable<InetAddress> targets,
                                              final AbstractWriteResponseHandler responseHandler,
                                              final String localDataCenter,
                                              final ConsistencyLevel consistency_level)
@@ -793,8 +790,8 @@ public class StorageProxy implements StorageProxyMBean
                 responseHandler.response(null);
 
                 // then send to replicas, if any
-                targets.remove(FBUtilities.getBroadcastAddress());
-                if (cm.shouldReplicateOnWrite() && !targets.isEmpty())
+                Set<InetAddress> remotes = Sets.difference(ImmutableSet.copyOf(targets), ImmutableSet.of(FBUtilities.getBroadcastAddress()));
+                if (cm.shouldReplicateOnWrite() && !remotes.isEmpty())
                 {
                     // We do the replication on another stage because it involves a read (see CM.makeReplicationMutation)
                     // and we want to avoid blocking too much the MUTATION stage
@@ -803,7 +800,7 @@ public class StorageProxy implements StorageProxyMBean
                         public void runMayThrow() throws IOException, OverloadedException
                         {
                             // send mutation to other replica
-                            sendToHintedEndpoints(cm.makeReplicationMutation(), targets, responseHandler, localDataCenter, consistency_level);
+                            sendToHintedEndpoints(cm.makeReplicationMutation(), remotes, responseHandler, localDataCenter, consistency_level);
                         }
                     });
                 }
@@ -1478,7 +1475,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public interface WritePerformer
     {
-        public void apply(IMutation mutation, Collection<InetAddress> targets, AbstractWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException, OverloadedException;
+        public void apply(IMutation mutation, Iterable<InetAddress> targets, AbstractWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException, OverloadedException;
     }
 
     private static abstract class DroppableRunnable implements Runnable

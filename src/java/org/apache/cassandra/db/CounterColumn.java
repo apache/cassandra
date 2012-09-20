@@ -21,8 +21,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.net.InetAddress;
 import java.security.MessageDigest;
-import java.util.Collection;
+import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -366,14 +368,14 @@ public class CounterColumn extends Column
 
         StorageProxy.performWrite(rm, ConsistencyLevel.ANY, localDataCenter, new StorageProxy.WritePerformer()
         {
-            public void apply(IMutation mutation, Collection<InetAddress> targets, AbstractWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level)
+            public void apply(IMutation mutation, Iterable<InetAddress> targets, AbstractWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level)
             throws IOException, OverloadedException
             {
                 // We should only send to the remote replica, not the local one
-                targets.remove(local);
+                Set<InetAddress> remotes = Sets.difference(ImmutableSet.copyOf(targets), ImmutableSet.of(local));
                 // Fake local response to be a good lad but we won't wait on the responseHandler
                 responseHandler.response(null);
-                StorageProxy.sendToHintedEndpoints((RowMutation) mutation, targets, responseHandler, localDataCenter, consistency_level);
+                StorageProxy.sendToHintedEndpoints((RowMutation) mutation, remotes, responseHandler, localDataCenter, consistency_level);
             }
         }, null);
 

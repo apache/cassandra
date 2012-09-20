@@ -33,19 +33,21 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
 {
     private final SimpleCondition condition = new SimpleCondition();
     protected final long startTime;
-    protected final Collection<InetAddress> writeEndpoints;
+    protected final Collection<InetAddress> naturalEndpoints;
     protected final ConsistencyLevel consistencyLevel;
     protected final Runnable callback;
+    protected final Collection<InetAddress> pendingEndpoints;
 
     /**
+     * @param pendingEndpoints
      * @param callback A callback to be called when the write is successful.
-     * Note that this callback will *not* be called in case of an exception (timeout or unavailable).
      */
-    protected AbstractWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, Runnable callback)
+    protected AbstractWriteResponseHandler(Collection<InetAddress> naturalEndpoints, Collection<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, Runnable callback)
     {
+        this.pendingEndpoints = pendingEndpoints;
         startTime = System.currentTimeMillis();
         this.consistencyLevel = consistencyLevel;
-        this.writeEndpoints = writeEndpoints;
+        this.naturalEndpoints = naturalEndpoints;
         this.callback = callback;
     }
 
@@ -69,7 +71,12 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
 
     protected abstract int ackCount();
 
-    protected abstract int blockFor();
+    protected int blockFor()
+    {
+        return blockForCL() + pendingEndpoints.size();
+    }
+
+    protected abstract int blockForCL();
 
     /** null message means "response from local write" */
     public abstract void response(MessageIn msg);

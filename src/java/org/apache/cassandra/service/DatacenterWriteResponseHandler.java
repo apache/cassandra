@@ -20,12 +20,12 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.util.Collection;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
@@ -43,15 +43,15 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
         localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
     }
 
-    protected DatacenterWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
+    protected DatacenterWriteResponseHandler(Collection<InetAddress> naturalEndpoints, Collection<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
     {
-        super(writeEndpoints, consistencyLevel, table, callback);
+        super(naturalEndpoints, pendingEndpoints, consistencyLevel, table, callback);
         assert consistencyLevel == ConsistencyLevel.LOCAL_QUORUM;
     }
 
-    public static AbstractWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
+    public static AbstractWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Collection<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
     {
-        return new DatacenterWriteResponseHandler(writeEndpoints, consistencyLevel, table, callback);
+        return new DatacenterWriteResponseHandler(writeEndpoints, pendingEndpoints, consistencyLevel, table, callback);
     }
 
     @Override
@@ -68,7 +68,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     public void assureSufficientLiveNodes() throws UnavailableException
     {
         int liveNodes = 0;
-        for (InetAddress destination : writeEndpoints)
+        for (InetAddress destination : Iterables.concat(naturalEndpoints, pendingEndpoints))
         {
             if (localdc.equals(snitch.getDatacenter(destination)) && FailureDetector.instance.isAlive(destination))
                 liveNodes++;

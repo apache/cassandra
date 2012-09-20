@@ -917,32 +917,29 @@ public class TokenMetadata
         subscribers.remove(subscriber);
     }
 
-    /**
-     * write endpoints may be different from read endpoints, because read endpoints only need care about the
-     * "natural" nodes for a token, but write endpoints also need to account for nodes that are bootstrapping
-     * into the ring, and write data there too so that they stay up to date during the bootstrap process.
-     * Thus, this method may return more nodes than the Replication Factor.
-     *
-     * If possible, will return the same collection it was passed, for efficiency.
-     *
-     * Only ReplicationStrategy should care about this method (higher level users should only ask for Hinted).
-     */
-    public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
+    public Collection<InetAddress> pendingEndpointsFor(Token token, String table)
     {
         Map<Range<Token>, Collection<InetAddress>> ranges = getPendingRanges(table);
         if (ranges.isEmpty())
-            return naturalEndpoints;
+            return Collections.emptyList();
 
-        Set<InetAddress> endpoints = new HashSet<InetAddress>(naturalEndpoints);
-
+        Set<InetAddress> endpoints = new HashSet<InetAddress>();
         for (Map.Entry<Range<Token>, Collection<InetAddress>> entry : ranges.entrySet())
         {
             if (entry.getKey().contains(token))
-            {
                 endpoints.addAll(entry.getValue());
-            }
         }
 
+        return endpoints;
+    }
+
+    /**
+     * @Deprecated; retained for benefit of old tests
+     */
+    public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
+    {
+        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>();
+        Iterables.addAll(endpoints, Iterables.concat(naturalEndpoints, pendingEndpointsFor(token, table)));
         return endpoints;
     }
 

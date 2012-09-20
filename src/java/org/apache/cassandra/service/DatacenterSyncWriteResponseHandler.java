@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.exceptions.UnavailableException;
@@ -50,10 +52,10 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
     private final NetworkTopologyStrategy strategy;
     private final HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
 
-    protected DatacenterSyncWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
+    protected DatacenterSyncWriteResponseHandler(Collection<InetAddress> naturalEndpoints, Collection<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
     {
         // Response is been managed by the map so make it 1 for the superclass.
-        super(writeEndpoints, consistencyLevel, callback);
+        super(naturalEndpoints, pendingEndpoints, consistencyLevel, callback);
         assert consistencyLevel == ConsistencyLevel.EACH_QUORUM;
 
         this.table = table;
@@ -66,9 +68,9 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         }
     }
 
-    public static AbstractWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
+    public static AbstractWriteResponseHandler create(Collection<InetAddress> naturalEndpoints, Collection<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
     {
-        return new DatacenterSyncWriteResponseHandler(writeEndpoints, consistencyLevel, table, callback);
+        return new DatacenterSyncWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistencyLevel, table, callback);
     }
 
     public void response(MessageIn message)
@@ -89,7 +91,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         signal();
     }
 
-    protected int blockFor()
+    protected int blockForCL()
     {
         return consistencyLevel.blockFor(table);
     }
@@ -112,7 +114,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         for (String dc: strategy.getDatacenters())
             dcEndpoints.put(dc, new AtomicInteger());
 
-        for (InetAddress destination : writeEndpoints)
+        for (InetAddress destination : Iterables.concat(naturalEndpoints, pendingEndpoints))
         {
             if (FailureDetector.instance.isAlive(destination))
             {

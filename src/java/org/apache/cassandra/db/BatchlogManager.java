@@ -29,6 +29,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +45,7 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
@@ -221,7 +223,11 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     private static void writeHintsForMutation(RowMutation mutation) throws IOException
     {
-        for (InetAddress target : StorageProxy.getWriteEndpoints(mutation.getTable(), mutation.key()))
+        String table = mutation.getTable();
+        Token tk = StorageService.getPartitioner().getToken(mutation.key());
+        List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(table, tk);
+        Collection<InetAddress> pendingEndpoints = StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, table);
+        for (InetAddress target : Iterables.concat(naturalEndpoints, pendingEndpoints))
         {
             if (target.equals(FBUtilities.getBroadcastAddress()))
                 mutation.apply();

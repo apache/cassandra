@@ -26,15 +26,15 @@ import com.google.common.collect.Multimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterWriteResponseHandler;
-import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.WriteResponseHandler;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -114,18 +114,18 @@ public abstract class AbstractReplicationStrategy
      */
     public abstract List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata);
 
-    public AbstractWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistency_level, Runnable callback)
+    public AbstractWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> naturalEndpoints, Collection<InetAddress> pendingEndpoints, ConsistencyLevel consistency_level, Runnable callback)
     {
         if (consistency_level == ConsistencyLevel.LOCAL_QUORUM)
         {
             // block for in this context will be localnodes block.
-            return DatacenterWriteResponseHandler.create(writeEndpoints, consistency_level, table, callback);
+            return DatacenterWriteResponseHandler.create(naturalEndpoints, pendingEndpoints, consistency_level, table, callback);
         }
         else if (consistency_level == ConsistencyLevel.EACH_QUORUM)
         {
-            return DatacenterSyncWriteResponseHandler.create(writeEndpoints, consistency_level, table, callback);
+            return DatacenterSyncWriteResponseHandler.create(naturalEndpoints, pendingEndpoints, consistency_level, table, callback);
         }
-        return WriteResponseHandler.create(writeEndpoints, consistency_level, table, callback);
+        return WriteResponseHandler.create(naturalEndpoints, pendingEndpoints, consistency_level, table, callback);
     }
 
     /**
