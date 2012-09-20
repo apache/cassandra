@@ -24,11 +24,12 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.SimpleCondition;
 
-public abstract class AbstractWriteResponseHandler implements IWriteResponseHandler
+public abstract class AbstractWriteResponseHandler implements IAsyncCallback
 {
     private final SimpleCondition condition = new SimpleCondition();
     protected final long startTime;

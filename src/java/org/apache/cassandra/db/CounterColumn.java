@@ -37,7 +37,7 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.Allocator;
-import org.apache.cassandra.service.IWriteResponseHandler;
+import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.*;
 
@@ -366,7 +366,7 @@ public class CounterColumn extends Column
 
         StorageProxy.performWrite(rm, ConsistencyLevel.ANY, localDataCenter, new StorageProxy.WritePerformer()
         {
-            public void apply(IMutation mutation, Collection<InetAddress> targets, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level)
+            public void apply(IMutation mutation, Collection<InetAddress> targets, AbstractWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level)
             throws IOException, OverloadedException
             {
                 // We should only send to the remote replica, not the local one

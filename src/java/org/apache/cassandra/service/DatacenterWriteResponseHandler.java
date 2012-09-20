@@ -49,7 +49,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
         assert consistencyLevel == ConsistencyLevel.LOCAL_QUORUM;
     }
 
-    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
+    public static AbstractWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
     {
         return new DatacenterWriteResponseHandler(writeEndpoints, consistencyLevel, table, callback);
     }

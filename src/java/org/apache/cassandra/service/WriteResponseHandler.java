@@ -56,12 +56,12 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
         responses = new AtomicInteger(1);
     }
 
-    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
+    public static AbstractWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
     {
         return new WriteResponseHandler(writeEndpoints, consistencyLevel, table, callback);
     }
 
-    public static IWriteResponseHandler create(InetAddress endpoint)
+    public static AbstractWriteResponseHandler create(InetAddress endpoint)
     {
         return new WriteResponseHandler(endpoint);
     }
