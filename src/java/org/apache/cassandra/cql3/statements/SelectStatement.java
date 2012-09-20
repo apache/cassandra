@@ -790,7 +790,7 @@ public class SelectStatement implements CQLStatement
             }
         }
 
-        orderResults(cqlRows);
+        orderResults(selection, cqlRows);
 
         // Internal calls always return columns in the comparator order, even when reverse was set
         if (isReversed)
@@ -804,7 +804,7 @@ public class SelectStatement implements CQLStatement
     /**
      * Orders results when multiple keys are selected (using IN)
      */
-    private void orderResults(ResultSet cqlRows)
+    private void orderResults(List<Pair<CFDefinition.Name, Selector>> selection, ResultSet cqlRows)
     {
         // There is nothing to do if
         //   a. there are no results,
@@ -813,12 +813,13 @@ public class SelectStatement implements CQLStatement
         if (cqlRows.size() == 0 || parameters.orderings.isEmpty() || isKeyRange || !keyIsInRelation)
             return;
 
+
         // optimization when only *one* order condition was given
         // because there is no point of using composite comparator if there is only one order condition
         if (parameters.orderings.size() == 1)
         {
             CFDefinition.Name ordering = cfDef.get(parameters.orderings.keySet().iterator().next());
-            Collections.sort(cqlRows.rows, new SingleColumnComparator(getColumnPositionInSelect(ordering), ordering.type));
+            Collections.sort(cqlRows.rows, new SingleColumnComparator(getColumnPositionInSelect(selection, ordering), ordering.type));
             return;
         }
 
@@ -833,18 +834,18 @@ public class SelectStatement implements CQLStatement
         {
             CFDefinition.Name orderingColumn = cfDef.get(identifier);
             types.add(orderingColumn.type);
-            positions[idx++] = getColumnPositionInSelect(orderingColumn);
+            positions[idx++] = getColumnPositionInSelect(selection, orderingColumn);
         }
 
         Collections.sort(cqlRows.rows, new CompositeComparator(types, positions));
     }
 
     // determine position of column in the select clause
-    private int getColumnPositionInSelect(CFDefinition.Name columnName)
+    private int getColumnPositionInSelect(List<Pair<CFDefinition.Name, Selector>> selection, CFDefinition.Name columnName)
     {
-        for (int i = 0; i < selectedNames.size(); i++)
+        for (int i = 0; i < selection.size(); i++)
         {
-            if (selectedNames.get(i).left.equals(columnName))
+            if (selection.get(i).left.equals(columnName))
                 return i;
         }
 
