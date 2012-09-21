@@ -475,6 +475,12 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                     slice_reverse = Boolean.parseBoolean(urlQuery.get("reversed"));
                 if (urlQuery.containsKey("limit"))
                     limit = Integer.parseInt(urlQuery.get("limit"));
+                if (urlQuery.containsKey("allow_deletes"))
+                    allow_deletes = Boolean.parseBoolean(urlQuery.get("allow_deletes"));
+                if (urlQuery.containsKey("widerows"))
+                    widerows = Boolean.parseBoolean(urlQuery.get("widerows"));
+                if (urlQuery.containsKey("use_secondary"))
+                    usePartitionFilter = Boolean.parseBoolean(urlQuery.get("use_secondary"));
             }
             String[] parts = urlParts[0].split("/+");
             keyspace = parts[1];
@@ -482,7 +488,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
         catch (Exception e)
         {
-            throw new IOException("Expected 'cassandra://<keyspace>/<columnfamily>[?slice_start=<start>&slice_end=<end>[&reversed=true][&limit=1]]': " + e.getMessage());
+            throw new IOException("Expected 'cassandra://<keyspace>/<columnfamily>[?slice_start=<start>&slice_end=<end>[&reversed=true][&limit=1][&allow_deletes=true][widerows=true][use_secondary=true]]': " + e.getMessage());
         }
     }
 
@@ -928,7 +934,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                 mutation.deletion.setTimestamp(FBUtilities.timestampMicros());
             }
             else
-                throw new IOException("null found but deletes are disabled, set " + PIG_ALLOW_DELETES + "=true to enable");
+                throw new IOException("null found but deletes are disabled, set " + PIG_ALLOW_DELETES +
+                    "=true in environment or allow_deletes=true in URL to enable");
         }
         else
         {
@@ -970,7 +977,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                         mutation.deletion.setTimestamp(FBUtilities.timestampMicros());
                     }
                     else
-                        throw new IOException("SuperColumn deletion attempted with empty bag, but deletes are disabled, set " + PIG_ALLOW_DELETES + "=true to enable");
+                        throw new IOException("SuperColumn deletion attempted with empty bag, but deletes are disabled, set " +
+                            PIG_ALLOW_DELETES + "=true in environment or allow_deletes=true in URL to enable");
                 }
                 else
                 {
