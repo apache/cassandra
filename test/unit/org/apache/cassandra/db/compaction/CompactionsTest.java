@@ -62,47 +62,6 @@ public class CompactionsTest extends SchemaLoader
         testBlacklisting(LeveledCompactionStrategy.class.getCanonicalName());
     }
 
-    @Test
-    public void testStandardColumnCompactions() throws IOException, ExecutionException, InterruptedException
-    {
-        // this test does enough rows to force multiple block indexes to be used
-        Table table = Table.open(TABLE1);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
-
-        final int ROWS_PER_SSTABLE = 10;
-        final int SSTABLES = DatabaseDescriptor.getIndexInterval() * 3 / ROWS_PER_SSTABLE;
-
-        // disable compaction while flushing
-        cfs.disableAutoCompaction();
-
-        long maxTimestampExpected = Long.MIN_VALUE;
-        Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
-        for (int j = 0; j < SSTABLES; j++) {
-            for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
-                DecoratedKey key = Util.dk(String.valueOf(i % 2));
-                RowMutation rm = new RowMutation(TABLE1, key.key);
-                long timestamp = j * ROWS_PER_SSTABLE + i;
-                rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(String.valueOf(i / 2))),
-                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                       timestamp);
-                maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
-                rm.apply();
-                inserted.add(key);
-            }
-            cfs.forceBlockingFlush();
-            assertMaxTimestamp(cfs, maxTimestampExpected);
-            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(cfs).size());
-        }
-
-        forceCompactions(cfs);
-
-        assertEquals(inserted.size(), Util.getRangeSlice(cfs).size());
-
-        // make sure max timestamp of compacted sstables is recorded properly after compaction.
-        assertMaxTimestamp(cfs, maxTimestampExpected);
-        cfs.truncate();
-    }
-
     /**
      * Test to see if sstable has enough expired columns, it is compacted itself.
      */
@@ -205,48 +164,6 @@ public class CompactionsTest extends SchemaLoader
     }
 
     @Test
-    public void testSuperColumnCompactions() throws IOException, ExecutionException, InterruptedException
-    {
-        Table table = Table.open(TABLE1);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore("Super1");
-
-        final int ROWS_PER_SSTABLE = 10;
-        final int SSTABLES = DatabaseDescriptor.getIndexInterval() * 3 / ROWS_PER_SSTABLE;
-
-        //disable compaction while flushing
-        cfs.disableAutoCompaction();
-
-        long maxTimestampExpected = Long.MIN_VALUE;
-        Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
-        ByteBuffer superColumn = ByteBufferUtil.bytes("TestSuperColumn");
-        for (int j = 0; j < SSTABLES; j++)
-        {
-            for (int i = 0; i < ROWS_PER_SSTABLE; i++)
-            {
-                DecoratedKey key = Util.dk(String.valueOf(i % 2));
-                RowMutation rm = new RowMutation(TABLE1, key.key);
-                long timestamp = j * ROWS_PER_SSTABLE + i;
-                rm.add(new QueryPath("Super1", superColumn, ByteBufferUtil.bytes((long)(i / 2))),
-                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                       timestamp);
-                maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
-                rm.apply();
-                inserted.add(key);
-            }
-            cfs.forceBlockingFlush();
-            assertMaxTimestamp(cfs, maxTimestampExpected);
-            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(cfs, superColumn).size());
-        }
-
-        forceCompactions(cfs);
-
-        assertEquals(inserted.size(), Util.getRangeSlice(cfs, superColumn).size());
-
-        // make sure max timestamp of compacted sstables is recorded properly after compaction.
-        assertMaxTimestamp(cfs, maxTimestampExpected);
-    }
-
-    @Test
     public void testSuperColumnTombstones() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open(TABLE1);
@@ -283,34 +200,12 @@ public class CompactionsTest extends SchemaLoader
         assert sc.getSubColumns().isEmpty();
     }
 
-    public void assertMaxTimestamp(ColumnFamilyStore cfs, long maxTimestampExpected)
+    public static void assertMaxTimestamp(ColumnFamilyStore cfs, long maxTimestampExpected)
     {
         long maxTimestampObserved = Long.MIN_VALUE;
         for (SSTableReader sstable : cfs.getSSTables())
             maxTimestampObserved = Math.max(sstable.getMaxTimestamp(), maxTimestampObserved);
         assertEquals(maxTimestampExpected, maxTimestampObserved);
-    }
-
-    private void forceCompactions(ColumnFamilyStore cfs) throws ExecutionException, InterruptedException
-    {
-        // re-enable compaction with thresholds low enough to force a few rounds
-        cfs.setCompactionThresholds(2, 4);
-
-        // loop submitting parallel compactions until they all return 0
-        do
-        {
-            ArrayList<Future<?>> compactions = new ArrayList<Future<?>>();
-            for (int i = 0; i < 10; i++)
-                compactions.add(CompactionManager.instance.submitBackground(cfs));
-            // another compaction attempt will be launched in the background by
-            // each completing compaction: not much we can do to control them here
-            FBUtilities.waitOnFutures(compactions);
-        } while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0);
-
-        if (cfs.getSSTables().size() > 1)
-        {
-            CompactionManager.instance.performMaximal(cfs);
-        }
     }
 
     @Test
