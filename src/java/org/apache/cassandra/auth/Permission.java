@@ -39,7 +39,7 @@ public enum Permission
     NO_ACCESS,
 
     // schema management
-    USE,
+    DESCRIBE,
     CREATE,
     ALTER,
     DROP,
@@ -59,7 +59,7 @@ public enum Permission
      */
     public static final Map<Permission, EnumSet<Permission>> oldToNew = new HashMap<Permission, EnumSet<Permission>>(2)
     {{
-        put(READ,  EnumSet.of(USE, SELECT));
-        put(WRITE, EnumSet.range(USE, DELETE));
+        put(READ,  EnumSet.of(DESCRIBE, SELECT));
+        put(WRITE, EnumSet.range(DESCRIBE, DELETE));
     }};
 }

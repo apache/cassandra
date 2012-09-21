@@ -646,7 +646,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public KsDef describe_keyspace(String table) throws NotFoundException, InvalidRequestException
     {
-        state().hasKeyspaceAccess(table, Permission.USE);
+        state().hasKeyspaceAccess(table, Permission.DESCRIBE);
 
         KSMetaData ksm = Schema.instance.getTableDefinition(table);
         if (ksm == null)
