@@ -78,10 +78,13 @@ The following environment variables default to false but can be set to true to e
 
 PIG_WIDEROW_INPUT:  this enables loading of rows with many columns without
                     incurring memory pressure.  All columns will be in a bag and indexes are not
-                    supported.
+                    supported.  This can also be set in the LOAD url by adding
+                    the 'widerows=true' parameter.
 
 PIG_USE_SECONDARY:  this allows easy use of secondary indexes within your
                     script, by appending every index to the schema as 'index_$name', allowing
                     filtering of loaded rows with a statement like "FILTER rows BY index_color eq
-                    'blue'" if you have an index called 'color' defined.
+                    'blue'" if you have an index called 'color' defined.  This
+                    can also be set in the LOAD url by adding the
+                    'use_secondary=true' parameter.
 
