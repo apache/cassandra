@@ -120,7 +120,7 @@ public class QueryProcessor
     {
         try
         {
-            ClientState state = new ClientState();
+            ClientState state = new ClientState(true);
             ResultMessage result = processStatement(getStatement(query, state).statement, state, Collections.<ByteBuffer>emptyList());
             if (result instanceof ResultMessage.Rows)
                 return new UntypedResultSet(((ResultMessage.Rows)result).result);

@@ -73,11 +73,21 @@ public class ClientState
 
     private long clock;
 
+    // internalCall is used to mark ClientState as used by some internal component
+    // that should have an ability to modify system keyspace
+    private final boolean internalCall;
+
+    public ClientState()
+    {
+        this(false);
+    }
+
     /**
      * Construct a new, empty ClientState: can be reused after logout() or reset().
      */
-    public ClientState()
+    public ClientState(boolean internalCall)
     {
+        this.internalCall = internalCall;
         reset();
     }
 
@@ -230,7 +240,8 @@ public class ClientState
         resourceClear();
         resource.add(keyspace);
 
-        preventSystemKSModification(keyspace, perm);
+        if (!internalCall)
+            preventSystemKSModification(keyspace, perm);
 
         // check if keyspace access is set to Permission.FULL_ACCESS
         // (which means that user has all access on keyspace and it's underlying elements)
