@@ -899,7 +899,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         try
         {
-            state().hasKeyspaceAccess(table, Permission.USE);
+            state().hasKeyspaceAccess(table, Permission.DESCRIBE);
 
             KSMetaData ksm = Schema.instance.getTableDefinition(table);
             if (ksm == null)

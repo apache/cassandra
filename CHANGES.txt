@@ -74,6 +74,7 @@
  * Adds offline sstablescrub to debian packaging (CASSANDRA-4642)
  * Automatic fixing of overlapping leveled sstables (CASSANDRA-4644)
  * fix error when using ORDER BY with extended selections (CASSANDRA-4689)
+ * rename permission USE to DESCRIBE (CASSANDRA-4664)
 
 
 1.1.5

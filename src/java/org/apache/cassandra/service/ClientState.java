@@ -198,15 +198,19 @@ public class ClientState
         validateLogin();
         validateKeyspace(keyspace);
 
-        // hardcode disallowing messing with system keyspace
-        if (keyspace.equalsIgnoreCase(Table.SYSTEM_KS) && (perm != Permission.USE))
-            throw new InvalidRequestException("system keyspace is not user-modifiable");
+        preventSystemKSModification(keyspace, perm);
 
         resourceClear();
         resource.add(keyspace);
         Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
 
         hasAccess(user, perms, perm, resource);
+    }
+
+    private void preventSystemKSModification(String keyspace, Permission perm) throws InvalidRequestException
+    {
+        if (keyspace.equalsIgnoreCase(Table.SYSTEM_KS) && perm != Permission.SELECT && perm != Permission.DESCRIBE)
+            throw new InvalidRequestException("system keyspace is not user-modifiable.");
     }
 
     /**
@@ -225,6 +229,8 @@ public class ClientState
 
         resourceClear();
         resource.add(keyspace);
+
+        preventSystemKSModification(keyspace, perm);
 
         // check if keyspace access is set to Permission.FULL_ACCESS
         // (which means that user has all access on keyspace and it's underlying elements)
