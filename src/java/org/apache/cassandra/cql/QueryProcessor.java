@@ -729,7 +729,7 @@ public class QueryProcessor
                 try
                 {
                     CFMetaData updatedCF = dropIdx.generateCFMetadataUpdate(clientState.getKeyspace());
-                    clientState.hasColumnFamilyAccess(updatedCF.ksName, updatedCF.cfName, Permission.USE);
+                    clientState.hasColumnFamilyAccess(updatedCF.ksName, updatedCF.cfName, Permission.DESCRIBE);
 
                     MigrationManager.announceColumnFamilyUpdate(updatedCF);
                 }

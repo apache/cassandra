@@ -1185,7 +1185,7 @@ public class CassandraServer implements Cassandra.Iface
             {
                 try
                 {
-                    state().hasKeyspaceAccess(ks, Permission.USE);
+                    state().hasKeyspaceAccess(ks, Permission.DESCRIBE);
                     ksset.add(describe_keyspace(ks));
                 }
                 catch (UnauthorizedException e)
