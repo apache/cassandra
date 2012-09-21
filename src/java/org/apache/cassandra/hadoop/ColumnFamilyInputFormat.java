@@ -59,8 +59,8 @@ import org.slf4j.LoggerFactory;
  * At minimum, you need to set the CF and predicate (description of columns to extract from each row)
  * in your Hadoop job Configuration.  The ConfigHelper class is provided to make this
  * simple:
- *   ConfigHelper.setColumnFamily
- *   ConfigHelper.setSlicePredicate
+ *   ConfigHelper.setInputColumnFamily
+ *   ConfigHelper.setInputSlicePredicate
  *
  * You can also configure the number of rows per InputSplit with
  *   ConfigHelper.setInputSplitSize
@@ -91,16 +91,16 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
     {
         if (ConfigHelper.getInputKeyspace(conf) == null || ConfigHelper.getInputColumnFamily(conf) == null)
         {
-            throw new UnsupportedOperationException("you must set the keyspace and columnfamily with setColumnFamily()");
+            throw new UnsupportedOperationException("you must set the keyspace and columnfamily with setInputColumnFamily()");
         }
         if (ConfigHelper.getInputSlicePredicate(conf) == null)
         {
-            throw new UnsupportedOperationException("you must set the predicate with setPredicate");
+            throw new UnsupportedOperationException("you must set the predicate with setInputSlicePredicate");
         }
         if (ConfigHelper.getInputInitialAddress(conf) == null)
-            throw new UnsupportedOperationException("You must set the initial output address to a Cassandra node");
+            throw new UnsupportedOperationException("You must set the initial output address to a Cassandra node with setInputInitialAddress");
         if (ConfigHelper.getInputPartitioner(conf) == null)
-            throw new UnsupportedOperationException("You must set the Cassandra partitioner class");
+            throw new UnsupportedOperationException("You must set the Cassandra partitioner class with setInputPartitioner");
     }
 
     public List<InputSplit> getSplits(JobContext context) throws IOException
