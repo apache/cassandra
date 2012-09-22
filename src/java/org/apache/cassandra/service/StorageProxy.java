@@ -790,7 +790,7 @@ public class StorageProxy implements StorageProxyMBean
                 responseHandler.response(null);
 
                 // then send to replicas, if any
-                Set<InetAddress> remotes = Sets.difference(ImmutableSet.copyOf(targets), ImmutableSet.of(FBUtilities.getBroadcastAddress()));
+                final Set<InetAddress> remotes = Sets.difference(ImmutableSet.copyOf(targets), ImmutableSet.of(FBUtilities.getBroadcastAddress()));
                 if (cm.shouldReplicateOnWrite() && !remotes.isEmpty())
                 {
                     // We do the replication on another stage because it involves a read (see CM.makeReplicationMutation)
