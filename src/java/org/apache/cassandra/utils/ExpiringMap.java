@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -57,7 +58,7 @@ public class ExpiringMap<K, V>
     // if we use more ExpiringMaps we may want to add multiple threads to this executor
     private static final ScheduledExecutorService service = new DebuggableScheduledThreadPoolExecutor("EXPIRING-MAP-REAPER");
 
-    private final ConcurrentHashMap<K, CacheableObject<V>> cache = new ConcurrentHashMap<K, CacheableObject<V>>();
+    private final ConcurrentMap<K, CacheableObject<V>> cache = new ConcurrentHashMap<K, CacheableObject<V>>();
     private final long defaultExpiration;
 
     public ExpiringMap(long defaultExpiration)
