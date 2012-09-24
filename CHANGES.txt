@@ -75,13 +75,12 @@
  * use default consistency level in counter validation if none is
    explicitly provide (CASSANDRA-4700)
  * Improve IAuthority interface by introducing fine-grained
-   access permissions and grant/revoke commands (CASSANDRA-4490)
+   access permissions and grant/revoke commands (CASSANDRA-4490, 4644)
  * fix assumption error in CLI when updating/describing keyspace 
    (CASSANDRA-4322)
  * Adds offline sstablescrub to debian packaging (CASSANDRA-4642)
  * Automatic fixing of overlapping leveled sstables (CASSANDRA-4644)
  * fix error when using ORDER BY with extended selections (CASSANDRA-4689)
- * rename permission USE to DESCRIBE (CASSANDRA-4664)
 Merged from 1.0:
  * Switch from NBHM to CHM in MessagingService's callback map, which
    prevents OOM in long-running instances (CASSANDRA-4708)
