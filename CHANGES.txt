@@ -1,5 +1,6 @@
 1.0.12
  * Switch from NBHM to CHM in MessagingService's callback map, which
+   prevents OOM in long-running instances (CASSANDRA-4708)
  * increase Xss to 160k to accomodate latest 1.6 JVMs (CASSANDRA-4602)
  * fix toString of hint destination tokens (CASSANDRA-4568)
  * (Hadoop) fix setting key length for old-style mapred api (CASSANDRA-4534)
