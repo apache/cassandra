@@ -148,7 +148,7 @@ public class UpdateStatement extends AbstractModification
 
         CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, hasCommutativeOperation);
         if (hasCommutativeOperation)
-            validateCommutativeForWrite(metadata, cLevel);
+            validateCommutativeForWrite(metadata, getConsistencyLevel());
 
         QueryProcessor.validateKeyAlias(metadata, keyName);
 

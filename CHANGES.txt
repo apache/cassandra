@@ -1,4 +1,6 @@
 1.1.6
+ * use default consistency level in counter validation if none is
+   explicitly provide (CASSANDRA-4700)
  * Improve IAuthority interface by introducing fine-grained
    access permissions and grant/revoke commands (CASSANDRA-4490)
  * fix assumption error in CLI when updating/describing keyspace 
