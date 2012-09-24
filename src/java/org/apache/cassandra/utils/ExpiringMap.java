@@ -18,14 +18,16 @@
 
 package org.apache.cassandra.utils;
 
-import java.util.*;
+import java.util.Map;
+import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import com.google.common.base.Function;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ExpiringMap<K, V>
 {
@@ -57,7 +59,7 @@ public class ExpiringMap<K, V>
         }
     }
 
-    private final NonBlockingHashMap<K, CacheableObject<V>> cache = new NonBlockingHashMap<K, CacheableObject<V>>();
+    private final ConcurrentMap<K, CacheableObject<V>> cache = new ConcurrentHashMap<K, CacheableObject<V>>();
     private final Timer timer;
     private static int counter = 0;
     private final long defaultExpiration;
