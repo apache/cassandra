@@ -750,23 +750,46 @@ public class SSTableReader extends SSTable
                 return null;
         }
 
-        // scan the on-disk index, starting at the nearest sampled position
+        // scan the on-disk index, starting at the nearest sampled position.
+        // The check against IndexInterval is to be exit the loop in the EQ case when the key looked for is not present
+        // (bloom filter false positive).
+        int i = 0;
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition, INDEX_FILE_BUFFER_BYTES);
-        while (segments.hasNext())
+        while (segments.hasNext() && i < DatabaseDescriptor.getIndexInterval())
         {
             FileDataInput input = segments.next();
             try
             {
-                while (!input.isEOF())
+                while (!input.isEOF() && i < DatabaseDescriptor.getIndexInterval())
                 {
-                    // read key & data position from index entry
-                    DecoratedKey indexDecoratedKey = decodeKey(partitioner, descriptor, ByteBufferUtil.readWithShortLength(input));
-                    int comparison = indexDecoratedKey.compareTo(key);
-                    int v = op.apply(comparison);
-                    if (v == 0)
+                    i++;
+
+                    ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(input);
+
+                    boolean opSatisfied; // did we find an appropriate position for the op requested
+                    boolean exactMatch; // is the current position an exact match for the key, suitable for caching
+
+                    // Compare raw keys if possible for performance, otherwise compare decorated keys.
+                    if (op == Operator.EQ)
                     {
+                        opSatisfied = exactMatch = indexKey.equals(((DecoratedKey) key).key);
+                    }
+                    else
+                    {
+                        DecoratedKey indexDecoratedKey = decodeKey(partitioner, descriptor, indexKey);
+                        int comparison = indexDecoratedKey.compareTo(key);
+                        int v = op.apply(comparison);
+                        opSatisfied = (v == 0);
+                        exactMatch = (comparison == 0);
+                        if (v < 0)
+                            return null;
+                    }
+
+                    if (opSatisfied)
+                    {
+                        // read data position from index entry
                         RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(input, descriptor.version);
-                        if (comparison == 0 && keyCache != null && keyCache.getCapacity() > 0 && updateCacheAndStats)
+                        if (exactMatch && keyCache != null && keyCache.getCapacity() > 0 && updateCacheAndStats)
                         {
                             assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
                             DecoratedKey decoratedKey = (DecoratedKey)key;
@@ -777,12 +800,7 @@ public class SSTableReader extends SSTable
                             bloomFilterTracker.addTruePositive();
                         return indexEntry;
                     }
-                    if (v < 0)
-                    {
-                        if (op == Operator.EQ && updateCacheAndStats)
-                            bloomFilterTracker.addFalsePositive();
-                        return null;
-                    }
+
                     RowIndexEntry.serializer.skip(input, descriptor.version);
                 }
             }
