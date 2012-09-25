@@ -137,7 +137,7 @@ def format_value_timestamp(val, colormap, time_format, **_):
 
 @formatter_for('timeuuid')
 def format_value_timeuuid(val, colormap, time_format, **_):
-    utime = unix_time_from_uuid1(val)
+    utime = cqltypes.unix_time_from_uuid1(val)
     bval = time.strftime(time_format, time.localtime(utime))
     return colorme(bval, colormap, 'timestamp')
 
