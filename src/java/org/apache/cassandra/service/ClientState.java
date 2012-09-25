@@ -346,6 +346,13 @@ public class ClientState
         SemanticVersion cql = org.apache.cassandra.cql.QueryProcessor.CQL_VERSION;
         SemanticVersion cql3 = org.apache.cassandra.cql3.QueryProcessor.CQL_VERSION;
 
+        // We've made some backward incompatible changes between CQL3 beta1 and the final.
+        // It's ok because it was a beta, but it still mean we don't support 3.0.0-beta1 so reject it.
+        SemanticVersion cql3Beta = new SemanticVersion("3.0.0-beta1");
+        if (version.equals(cql3Beta))
+            throw new InvalidRequestException(String.format("There has been a few syntax breaking changes between 3.0.0-beta1 and 3.0.0 "
+                                                           + "(mainly the syntax for options of CREATE KEYSPACE and CREATE TABLE). 3.0.0-beta1 "
+                                                           + " is not supported; please upgrade to 3.0.0"));
         if (version.isSupportedBy(cql))
             cqlVersion = cql;
         else if (version.isSupportedBy(cql3))

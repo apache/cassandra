@@ -1,6 +1,7 @@
 1.2-beta2
  * adjust blockFor calculation to account for pending ranges due to node 
    movement (CASSANDRA-833)
+ * Change CQL version to 3.0.0 and stop accepting 3.0.0-beta1 (CASSANDRA-4649)
 
 1.2-beta1
  * add atomic_batch_mutate (CASSANDRA-4542, -4635)
