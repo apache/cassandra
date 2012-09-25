@@ -757,14 +757,14 @@ public class SSTableReader extends SSTable
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition, INDEX_FILE_BUFFER_BYTES);
         while (segments.hasNext() && i < DatabaseDescriptor.getIndexInterval())
         {
-            FileDataInput input = segments.next();
+            FileDataInput in = segments.next();
             try
             {
-                while (!input.isEOF() && i < DatabaseDescriptor.getIndexInterval())
+                while (!in.isEOF() && i < DatabaseDescriptor.getIndexInterval())
                 {
                     i++;
 
-                    ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(input);
+                    ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
 
                     boolean opSatisfied; // did we find an appropriate position for the op requested
                     boolean exactMatch; // is the current position an exact match for the key, suitable for caching
@@ -788,7 +788,7 @@ public class SSTableReader extends SSTable
                     if (opSatisfied)
                     {
                         // read data position from index entry
-                        RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(input, descriptor.version);
+                        RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(in, descriptor.version);
                         if (exactMatch && keyCache != null && keyCache.getCapacity() > 0 && updateCacheAndStats)
                         {
                             assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
@@ -801,17 +801,17 @@ public class SSTableReader extends SSTable
                         return indexEntry;
                     }
 
-                    RowIndexEntry.serializer.skip(input, descriptor.version);
+                    RowIndexEntry.serializer.skip(in, descriptor.version);
                 }
             }
             catch (IOException e)
             {
                 markSuspect();
-                throw new CorruptSSTableException(e, input.getPath());
+                throw new CorruptSSTableException(e, in.getPath());
             }
             finally
             {
-                FileUtils.closeQuietly(input);
+                FileUtils.closeQuietly(in);
             }
         }
 
