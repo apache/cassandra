@@ -31,6 +31,7 @@ import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.WriteType;
 
 /**
  * Handles blocking writes for ONE, ANY, TWO, THREE, QUORUM, and ALL consistency levels.
@@ -42,28 +43,23 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
     protected final AtomicInteger responses;
     private final int blockFor;
 
-    protected WriteResponseHandler(Collection<InetAddress> writeEndpoints, Collection<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
+    public WriteResponseHandler(Collection<InetAddress> writeEndpoints,
+                                Collection<InetAddress> pendingEndpoints,
+                                ConsistencyLevel consistencyLevel,
+                                String table,
+                                Runnable callback,
+                                WriteType writeType)
     {
-        super(writeEndpoints, pendingEndpoints, consistencyLevel, callback);
+        super(writeEndpoints, pendingEndpoints, consistencyLevel, callback, writeType);
         blockFor = consistencyLevel.blockFor(table);
         responses = new AtomicInteger(blockFor);
     }
 
-    protected WriteResponseHandler(InetAddress endpoint)
+    public WriteResponseHandler(InetAddress endpoint, WriteType writeType)
     {
-        super(Arrays.asList(endpoint), Collections.<InetAddress>emptyList(), ConsistencyLevel.ALL, null);
+        super(Arrays.asList(endpoint), Collections.<InetAddress>emptyList(), ConsistencyLevel.ALL, null, writeType);
         blockFor = 1;
         responses = new AtomicInteger(1);
-    }
-
-    public static AbstractWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Collection<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
-    {
-        return new WriteResponseHandler(writeEndpoints, pendingEndpoints, consistencyLevel, table, callback);
-    }
-
-    public static AbstractWriteResponseHandler create(InetAddress endpoint)
-    {
-        return new WriteResponseHandler(endpoint);
     }
 
     public void response(MessageIn m)

@@ -15,22 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.exceptions;
+package org.apache.cassandra.db;
 
-import java.net.InetAddress;
-import java.util.Set;
-import java.nio.ByteBuffer;
-
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.WriteType;
-
-public class WriteTimeoutException extends RequestTimeoutException
+public enum WriteType
 {
-    public final WriteType writeType;
-
-    public WriteTimeoutException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor)
-    {
-        super(ExceptionCode.WRITE_TIMEOUT, consistency, received, blockFor);
-        this.writeType = writeType;
-    }
+    SIMPLE,
+    BATCH,
+    UNLOGGED_BATCH,
+    COUNTER,
+    BATCH_LOG;
 }

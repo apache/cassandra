@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
@@ -76,18 +77,17 @@ public class ErrorMessage extends Message.Response
                     te = new TruncateException(msg);
                     break;
                 case WRITE_TIMEOUT:
-                    {
-                        ConsistencyLevel cl = Enum.valueOf(ConsistencyLevel.class, CBUtil.readString(body));
-                        int received = body.readInt();
-                        int blockFor = body.readInt();
-                        te = new WriteTimeoutException(cl, received, blockFor, false);
-                    }
-                    break;
                 case READ_TIMEOUT:
+                    ConsistencyLevel cl = Enum.valueOf(ConsistencyLevel.class, CBUtil.readString(body));
+                    int received = body.readInt();
+                    int blockFor = body.readInt();
+                    if (code == ExceptionCode.WRITE_TIMEOUT)
                     {
-                        ConsistencyLevel cl = Enum.valueOf(ConsistencyLevel.class, CBUtil.readString(body));
-                        int received = body.readInt();
-                        int blockFor = body.readInt();
+                        WriteType writeType = Enum.valueOf(WriteType.class, CBUtil.readString(body));
+                        te = new WriteTimeoutException(writeType, cl, received, blockFor);
+                    }
+                    else
+                    {
                         byte dataPresent = body.readByte();
                         te = new ReadTimeoutException(cl, received, blockFor, dataPresent != 0);
                     }
@@ -140,17 +140,29 @@ public class ErrorMessage extends Message.Response
                 case WRITE_TIMEOUT:
                 case READ_TIMEOUT:
                     RequestTimeoutException rte = (RequestTimeoutException)msg.error;
-                    ReadTimeoutException readEx = rte instanceof ReadTimeoutException
-                                                ? (ReadTimeoutException)rte
-                                                : null;
+                    boolean isWrite = msg.error.code() == ExceptionCode.WRITE_TIMEOUT;
+
                     ByteBuffer rteCl = ByteBufferUtil.bytes(rte.consistency.toString());
-                    acb = ChannelBuffers.buffer(2 + rteCl.remaining() + 8 + (readEx == null ? 0 : 1));
+                    ByteBuffer writeType = isWrite
+                                         ? ByteBufferUtil.bytes(((WriteTimeoutException)rte).writeType.toString())
+                                         : null;
+
+                    int extraSize = isWrite  ? 2 + writeType.remaining() : 1;
+                    acb = ChannelBuffers.buffer(2 + rteCl.remaining() + 8 + extraSize);
+
                     acb.writeShort((short)rteCl.remaining());
                     acb.writeBytes(rteCl);
                     acb.writeInt(rte.received);
                     acb.writeInt(rte.blockFor);
-                    if (readEx != null)
-                        acb.writeByte((byte)(readEx.dataPresent ? 1 : 0));
+                    if (isWrite)
+                    {
+                        acb.writeShort((short)writeType.remaining());
+                        acb.writeBytes(writeType);
+                    }
+                    else
+                    {
+                        acb.writeByte((byte)(((ReadTimeoutException)rte).dataPresent ? 1 : 0));
+                    }
                     break;
                 case UNPREPARED:
                     PreparedQueryNotFoundException pqnfe = (PreparedQueryNotFoundException)msg.error;

@@ -28,6 +28,7 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -43,15 +44,15 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
         localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
     }
 
-    protected DatacenterWriteResponseHandler(Collection<InetAddress> naturalEndpoints, Collection<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
+    public DatacenterWriteResponseHandler(Collection<InetAddress> naturalEndpoints,
+                                          Collection<InetAddress> pendingEndpoints,
+                                          ConsistencyLevel consistencyLevel,
+                                          String table,
+                                          Runnable callback,
+                                          WriteType writeType)
     {
-        super(naturalEndpoints, pendingEndpoints, consistencyLevel, table, callback);
+        super(naturalEndpoints, pendingEndpoints, consistencyLevel, table, callback, writeType);
         assert consistencyLevel == ConsistencyLevel.LOCAL_QUORUM;
-    }
-
-    public static AbstractWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Collection<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
-    {
-        return new DatacenterWriteResponseHandler(writeEndpoints, pendingEndpoints, consistencyLevel, table, callback);
     }
 
     @Override

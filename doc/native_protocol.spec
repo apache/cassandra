@@ -524,7 +524,7 @@ Table of Contents
     0x1003    Truncate_error: error during a truncation error.
     0x1100    Write_timeout: Timeout exception during a write request. The rest
               of the ERROR message body will be
-                <cl><received><blockfor>
+                <cl><received><blockfor><writeType>
               where:
                 <cl> is a [string] representing the consistency level of the
                      query having triggered the exception.
@@ -532,6 +532,22 @@ Table of Contents
                            acknowledged the request.
                 <blockfor> is the number of replica whose acknowledgement is
                            required to achieve <cl>.
+                <writeType> is a [string] that describe the type of the write
+                            that timeouted. The value of that string can be one
+                            of:
+                             - "SIMPLE": the write was a non-batched
+                               non-counter write.
+                             - "BATCH": the write was a (logged) batch write.
+                               If this type is received, it means the batch log
+                               has been successfully written (otherwise a
+                               "BATCH_LOG" type would have been send instead).
+                             - "UNLOGGED_BATCH": the write was an unlogged
+                               batch. Not batch log write has been attempted.
+                             - "COUNTER": the write was a counter write
+                               (batched or not).
+                             - "BATCH_LOG": the timeout occured during the
+                               write to the batch log when a (logged) batch
+                               write was requested.
     0x1200    Read_timeout: Timeout exception during a read request. The rest
               of the ERROR message body will be
                 <cl><received><blockfor><data_present>

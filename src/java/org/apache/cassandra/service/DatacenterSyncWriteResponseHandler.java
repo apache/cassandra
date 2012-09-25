@@ -33,6 +33,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -52,10 +53,15 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
     private final NetworkTopologyStrategy strategy;
     private final HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
 
-    protected DatacenterSyncWriteResponseHandler(Collection<InetAddress> naturalEndpoints, Collection<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
+    public DatacenterSyncWriteResponseHandler(Collection<InetAddress> naturalEndpoints,
+                                              Collection<InetAddress> pendingEndpoints,
+                                              ConsistencyLevel consistencyLevel,
+                                              String table,
+                                              Runnable callback,
+                                              WriteType writeType)
     {
         // Response is been managed by the map so make it 1 for the superclass.
-        super(naturalEndpoints, pendingEndpoints, consistencyLevel, callback);
+        super(naturalEndpoints, pendingEndpoints, consistencyLevel, callback, writeType);
         assert consistencyLevel == ConsistencyLevel.EACH_QUORUM;
 
         this.table = table;
@@ -66,11 +72,6 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
             int rf = strategy.getReplicationFactor(dc);
             responses.put(dc, new AtomicInteger((rf / 2) + 1));
         }
-    }
-
-    public static AbstractWriteResponseHandler create(Collection<InetAddress> naturalEndpoints, Collection<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table, Runnable callback)
-    {
-        return new DatacenterSyncWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistencyLevel, table, callback);
     }
 
     public void response(MessageIn message)

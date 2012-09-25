@@ -126,7 +126,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     private static void sendMutation(InetAddress endpoint, MessageOut<?> message) throws WriteTimeoutException
     {
-        AbstractWriteResponseHandler responseHandler = WriteResponseHandler.create(endpoint);
+        AbstractWriteResponseHandler responseHandler = new WriteResponseHandler(endpoint, WriteType.UNLOGGED_BATCH);
         MessagingService.instance().sendRR(message, endpoint, responseHandler);
         responseHandler.get();
     }

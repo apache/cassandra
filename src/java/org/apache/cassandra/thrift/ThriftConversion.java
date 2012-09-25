@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.thrift;
 
+import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -87,8 +88,12 @@ public class ThriftConversion
         TimedOutException toe = new TimedOutException();
         if (e instanceof WriteTimeoutException)
         {
-            toe.setAcknowledged_by(((WriteTimeoutException)e).received);
-            toe.setAcknowledged_by_batchlog(((WriteTimeoutException)e).writtenToBatchlog);
+            WriteTimeoutException wte = (WriteTimeoutException)e;
+            toe.setAcknowledged_by(wte.received);
+            if (wte.writeType == WriteType.BATCH_LOG)
+                toe.setAcknowledged_by_batchlog(false);
+            else if (wte.writeType == WriteType.BATCH)
+                toe.setAcknowledged_by_batchlog(true);
         }
         return toe;
     }
