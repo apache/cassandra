@@ -118,7 +118,7 @@ public class CounterMutation implements IMutation
         return false;
     }
 
-    public void apply() throws IOException
+    public void apply()
     {
         // transform all CounterUpdateColumn to CounterColumn: accomplished by localCopy
         RowMutation rm = new RowMutation(rowMutation.getTable(), ByteBufferUtil.clone(rowMutation.key()));

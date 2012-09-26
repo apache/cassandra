@@ -27,7 +27,7 @@ public interface IMutation
     public String getTable();
     public Collection<UUID> getColumnFamilyIds();
     public ByteBuffer key();
-    public void apply() throws IOException;
+    public void apply();
     public String toString(boolean shallow);
     public void addAll(IMutation m);
 }
