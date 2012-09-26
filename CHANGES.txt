@@ -4,6 +4,7 @@
    movement (CASSANDRA-833)
  * Change CQL version to 3.0.0 and stop accepting 3.0.0-beta1 (CASSANDRA-4649)
  * Make prepared statement global instead of per connection (CASSANDRA-4449)
+ * Fix scrubbing of CQL3 created tables (CASSANDRA-4685)
 
 1.2-beta1
  * add atomic_batch_mutate (CASSANDRA-4542, -4635)

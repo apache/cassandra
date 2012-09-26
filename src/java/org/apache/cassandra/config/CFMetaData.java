@@ -646,7 +646,7 @@ public final class CFMetaData
 
     public AbstractType<?> getValueValidator(ByteBuffer column)
     {
-        return getValueValidator(column_metadata.get(column));
+        return getValueValidator(getColumnDefinition(column));
     }
 
     public AbstractType<?> getValueValidator(ColumnDefinition columnDefinition)
@@ -932,9 +932,24 @@ public final class CFMetaData
         return def;
     }
 
-    public ColumnDefinition getColumnDefinition(ByteBuffer name)
+    public ColumnDefinition getColumnDefinition(ByteBuffer columnName)
     {
-        return column_metadata.get(name);
+        if (comparator instanceof CompositeType)
+        {
+            CompositeType composite = (CompositeType)comparator;
+            ByteBuffer[] components = composite.split(columnName);
+            for (ColumnDefinition def : column_metadata.values())
+            {
+                ByteBuffer toCompare = def.componentIndex == null ? columnName : components[def.componentIndex];
+                if (def.name.equals(toCompare))
+                    return def;
+            }
+            return null;
+        }
+        else
+        {
+            return column_metadata.get(columnName);
+        }
     }
 
     public ColumnDefinition getColumnDefinitionForIndex(String indexName)
