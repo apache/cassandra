@@ -160,7 +160,7 @@ public abstract class ResultMessage extends Message.Response
 
     public static class SetKeyspace extends ResultMessage
     {
-        private final String keyspace;
+        public final String keyspace;
 
         public SetKeyspace(String keyspace)
         {
