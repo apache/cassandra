@@ -1070,13 +1070,13 @@ public final class CFMetaData
         {
             for (ColumnDefinition def : column_metadata.values())
                 if (!(def.getValidator() instanceof CounterColumnType))
-                    throw new ConfigurationException("Cannot add a non counter column (" + comparator.getString(def.name) + ") in a counter column family");
+                    throw new ConfigurationException("Cannot add a non counter column (" + getColumnDefinitionComparator(def).getString(def.name) + ") in a counter column family");
         }
         else
         {
             for (ColumnDefinition def : column_metadata.values())
                 if (def.getValidator() instanceof CounterColumnType)
-                    throw new ConfigurationException("Cannot add a counter column (" + comparator.getString(def.name) + ") in a non counter column family");
+                    throw new ConfigurationException("Cannot add a counter column (" + getColumnDefinitionComparator(def).getString(def.name) + ") in a non counter column family");
         }
 
         // check if any of the columns has name equal to the cf.key_alias
