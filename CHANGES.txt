@@ -8,6 +8,7 @@
  * Adds offline sstablescrub to debian packaging (CASSANDRA-4642)
  * Automatic fixing of overlapping leveled sstables (CASSANDRA-4644)
  * fix error when using ORDER BY with extended selections (CASSANDRA-4689)
+ * (CQL3) Fix validation for IN queries for non-PK cols (CASSANDRA-4709)
 Merged from 1.0:
  * Switch from NBHM to CHM in MessagingService's callback map, which
    prevents OOM in long-running instances (CASSANDRA-4708)

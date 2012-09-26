@@ -1063,7 +1063,15 @@ public class SelectStatement implements CQLStatement
 
                 for (Map.Entry<CFDefinition.Name, Restriction> entry : stmt.metadataRestrictions.entrySet())
                 {
-                    if (entry.getValue().isEquality() && indexed.contains(entry.getKey().name.key))
+                    Restriction restriction = entry.getValue();
+                    if (!restriction.isEquality())
+                        continue;
+
+                    // We don't support IN for indexed values (basically this would require supporting a form of OR)
+                    if (restriction.eqValues.size() > 1)
+                        throw new InvalidRequestException("Cannot use IN operator on column not part of the PRIMARY KEY");
+
+                    if (indexed.contains(entry.getKey().name.key))
                     {
                         hasEq = true;
                         break;
