@@ -768,7 +768,10 @@ def create_ks_opt_completer(ctxt, cass):
         return ['strategy_class =']
     vals = ctxt.get_binding('optval')
     stratclass = dequote_value(vals[stratopt])
-    if stratclass in ('SimpleStrategy', 'OldNetworkTopologyStrategy'):
+    if stratclass in ('SimpleStrategy',
+                      'org.apache.cassandra.locator.SimpleStrategy',
+                      'OldNetworkTopologyStrategy',
+                      'org.apache.cassandra.locator.OldNetworkTopologyStrategy'):
         return ['strategy_options:replication_factor =']
     return [Hint('<strategy_option_name>')]
 
