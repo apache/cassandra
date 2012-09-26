@@ -158,14 +158,14 @@ public class DefsTable
         return keyspaces;
     }
 
-    public static void fixSchemaNanoTimestamps() throws IOException
+    public static void fixSchemaNanoTimestamps()
     {
         fixSchemaNanoTimestamp(SystemTable.SCHEMA_KEYSPACES_CF);
         fixSchemaNanoTimestamp(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
         fixSchemaNanoTimestamp(SystemTable.SCHEMA_COLUMNS_CF);
     }
 
-    private static void fixSchemaNanoTimestamp(String columnFamily) throws IOException
+    private static void fixSchemaNanoTimestamp(String columnFamily)
     {
         ColumnFamilyStore cfs = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(columnFamily);
 
@@ -303,8 +303,7 @@ public class DefsTable
      * Merge remote schema in form of row mutations with local and mutate ks/cf metadata objects
      * (which also involves fs operations on add/drop ks/cf)
      *
-     * @param data The data of the message from remote node with schema information
-     * @param version The version of the message
+     * @param mutations the schema changes to apply
      *
      * @throws ConfigurationException If one of metadata attributes has invalid value
      * @throws IOException If data was corrupted during transportation or failed to apply fs operations

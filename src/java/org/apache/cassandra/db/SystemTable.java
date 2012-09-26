@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -86,7 +87,7 @@ public class SystemTable
         return StorageService.getPartitioner().decorateKey(key);
     }
 
-    public static void finishStartup() throws IOException
+    public static void finishStartup()
     {
         DefsTable.fixSchemaNanoTimestamps();
         setupVersion();
@@ -115,7 +116,7 @@ public class SystemTable
     }
 
     /** if system data becomes incompatible across versions of cassandra, that logic (and associated purging) is managed here */
-    private static void upgradeSystemData() throws IOException, ExecutionException, InterruptedException
+    private static void upgradeSystemData() throws ExecutionException, InterruptedException
     {
         Table table = Table.open(Table.SYSTEM_KS);
         ColumnFamilyStore oldStatusCfs = table.getColumnFamilyStore(OLD_STATUS_CF);
@@ -128,7 +129,15 @@ public class SystemTable
             ColumnFamily oldCf = oldStatusCfs.getColumnFamily(filter);
             Iterator<IColumn> oldColumns = oldCf.columns.iterator();
 
-            String clusterName = ByteBufferUtil.string(oldColumns.next().value());
+            String clusterName = null;
+            try
+            {
+                clusterName = ByteBufferUtil.string(oldColumns.next().value());
+            }
+            catch (CharacterCodingException e)
+            {
+                throw new RuntimeException(e);
+            }
             // serialize the old token as a collection of (one )tokens.
             Token token = StorageService.getPartitioner().getTokenFactory().fromByteArray(oldColumns.next().value());
             String tokenBytes = ByteBufferUtil.bytesToHex(serializeTokens(Collections.singleton(token)));

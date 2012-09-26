@@ -117,7 +117,7 @@ public class CassandraDaemon
      *
      * @throws IOException
      */
-    protected void setup() throws IOException
+    protected void setup()
     {
         logger.info("JVM vendor/version: {}/{}", System.getProperty("java.vm.name"), System.getProperty("java.version") );
         logger.info("Heap size: {}/{}", Runtime.getRuntime().totalMemory(), Runtime.getRuntime().maxMemory());
@@ -259,7 +259,14 @@ public class CassandraDaemon
         }
 
         // replay the log if necessary
-        CommitLog.instance.recover();
+        try
+        {
+            CommitLog.instance.recover();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
 
         // enable auto compaction
         for (Table table : Table.all())

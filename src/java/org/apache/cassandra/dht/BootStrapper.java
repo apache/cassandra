@@ -67,7 +67,7 @@ public class BootStrapper
         tokenMetadata = tmd;
     }
 
-    public void bootstrap() throws IOException
+    public void bootstrap()
     {
         if (logger.isDebugEnabled())
             logger.debug("Beginning bootstrap process");
@@ -90,7 +90,7 @@ public class BootStrapper
      * otherwise, if num_tokens == 1, pick a token to assume half the load of the most-loaded node.
      * else choose num_tokens tokens at random
      */
-    public static Collection<Token> getBootstrapTokens(final TokenMetadata metadata, Map<InetAddress, Double> load) throws IOException, ConfigurationException
+    public static Collection<Token> getBootstrapTokens(final TokenMetadata metadata, Map<InetAddress, Double> load) throws ConfigurationException
     {
         Collection<String> initialTokens = DatabaseDescriptor.getInitialTokens();
         // if user specified tokens, use those

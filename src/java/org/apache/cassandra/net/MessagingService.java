@@ -383,7 +383,7 @@ public final class MessagingService implements MessagingServiceMBean
      *
      * @param localEp InetAddress whose port to listen on.
      */
-    public void listen(InetAddress localEp) throws IOException, ConfigurationException
+    public void listen(InetAddress localEp) throws ConfigurationException
     {
         callbacks.reset(); // hack to allow tests to stop/restart MS
         for (ServerSocket ss : getServerSocket(localEp))
@@ -395,19 +395,41 @@ public final class MessagingService implements MessagingServiceMBean
         listenGate.signalAll();
     }
 
-    private List<ServerSocket> getServerSocket(InetAddress localEp) throws IOException, ConfigurationException
+    private List<ServerSocket> getServerSocket(InetAddress localEp) throws ConfigurationException
     {
         final List<ServerSocket> ss = new ArrayList<ServerSocket>(2);
         if (DatabaseDescriptor.getEncryptionOptions().internode_encryption != EncryptionOptions.InternodeEncryption.none)
         {
-            ss.add(SSLFactory.getServerSocket(DatabaseDescriptor.getEncryptionOptions(), localEp, DatabaseDescriptor.getSSLStoragePort()));
+            try
+            {
+                ss.add(SSLFactory.getServerSocket(DatabaseDescriptor.getEncryptionOptions(), localEp, DatabaseDescriptor.getSSLStoragePort()));
+            }
+            catch (IOException e)
+            {
+                throw new ConfigurationException("Unable to create ssl socket");
+            }
             // setReuseAddress happens in the factory.
             logger.info("Starting Encrypted Messaging Service on SSL port {}", DatabaseDescriptor.getSSLStoragePort());
         }
 
-        ServerSocketChannel serverChannel = ServerSocketChannel.open();
+        ServerSocketChannel serverChannel = null;
+        try
+        {
+            serverChannel = ServerSocketChannel.open();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
         ServerSocket socket = serverChannel.socket();
-        socket.setReuseAddress(true);
+        try
+        {
+            socket.setReuseAddress(true);
+        }
+        catch (SocketException e)
+        {
+            throw new ConfigurationException("Insufficient permissions to setReuseAddress");
+        }
         InetSocketAddress address = new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort());
         try
         {
@@ -421,7 +443,11 @@ public final class MessagingService implements MessagingServiceMBean
                 throw new ConfigurationException("Unable to bind to address " + address
                                                  + ". Set listen_address in cassandra.yaml to an interface you can bind to, e.g., your private IP address on EC2");
             else
-                throw e;
+                throw new RuntimeException(e);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
         }
         logger.info("Starting Messaging Service on port {}", DatabaseDescriptor.getStoragePort());
         ss.add(socket);

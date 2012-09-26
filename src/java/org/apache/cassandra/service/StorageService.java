@@ -375,12 +375,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Schema.instance.updateVersionAndAnnounce();
     }
 
-    public synchronized void initServer() throws IOException, ConfigurationException
+    public synchronized void initServer() throws ConfigurationException
     {
         initServer(RING_DELAY);
     }
 
-    public synchronized void initServer(int delay) throws IOException, ConfigurationException
+    public synchronized void initServer(int delay) throws ConfigurationException
     {
         logger.info("Cassandra version: " + FBUtilities.getReleaseVersionString());
         logger.info("Thrift API version: " + Constants.VERSION);
@@ -487,7 +487,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
     }
 
-    private void joinTokenRing(int delay) throws IOException, ConfigurationException
+    private void joinTokenRing(int delay) throws ConfigurationException
     {
         logger.info("Starting up server gossip");
         joined = true;
@@ -806,7 +806,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger.debug(logMsg);
     }
 
-    private void bootstrap(Collection<Token> tokens) throws IOException
+    private void bootstrap(Collection<Token> tokens)
     {
         isBootstrapMode = true;
         SystemTable.updateTokens(tokens); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
