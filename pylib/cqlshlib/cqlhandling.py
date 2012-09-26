@@ -280,7 +280,9 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
             candidates = newcandidates
 
         # append a space for single, complete identifiers
-        if len(candidates) == 1 and candidates[0][-1].isalnum():
+        if len(candidates) == 1 and candidates[0][-1].isalnum()  \
+                                and lasttype != 'unclosedString' \
+                                and lasttype != 'unclosedName':
             candidates[0] += ' '
         return candidates, hints
 
