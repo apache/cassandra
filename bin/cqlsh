@@ -1884,7 +1884,7 @@ class Shell(cmd.Cmd):
         return names
 
     def columnize(self, slist, *a, **kw):
-        return cmd.Cmd.columnize(self, [u.upper() for u in slist], *a, **kw)
+        return cmd.Cmd.columnize(self, sorted([u.upper() for u in slist]), *a, **kw)
 
     def do_help(self, parsed):
         """
