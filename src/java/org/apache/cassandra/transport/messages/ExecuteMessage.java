@@ -25,8 +25,9 @@ import org.jboss.netty.buffer.ChannelBuffer;
 
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.transport.*;
+import org.apache.cassandra.utils.MD5Digest;
 
 public class ExecuteMessage extends Message.Request
 {
@@ -34,7 +35,7 @@ public class ExecuteMessage extends Message.Request
     {
         public ExecuteMessage decode(ChannelBuffer body)
         {
-            int id = body.readInt();
+            byte[] id = CBUtil.readBytes(body);
 
             int count = body.readUnsignedShort();
             List<ByteBuffer> values = new ArrayList<ByteBuffer>(count);
@@ -53,7 +54,7 @@ public class ExecuteMessage extends Message.Request
             //   - options
             int vs = msg.values.size();
             CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(2, 0, vs);
-            builder.add(CBUtil.intToCB(msg.statementId));
+            builder.add(CBUtil.bytesToCB(msg.statementId.bytes));
             builder.add(CBUtil.shortToCB(vs));
 
             // Values
@@ -64,10 +65,15 @@ public class ExecuteMessage extends Message.Request
         }
     };
 
-    public final int statementId;
+    public final MD5Digest statementId;
     public final List<ByteBuffer> values;
 
-    public ExecuteMessage(int statementId, List<ByteBuffer> values)
+    public ExecuteMessage(byte[] statementId, List<ByteBuffer> values)
+    {
+        this(MD5Digest.wrap(statementId), values);
+    }
+
+    public ExecuteMessage(MD5Digest statementId, List<ByteBuffer> values)
     {
         super(Message.Type.EXECUTE);
         this.statementId = statementId;
@@ -84,10 +90,10 @@ public class ExecuteMessage extends Message.Request
         try
         {
             ServerConnection c = (ServerConnection)connection;
-            CQLStatement statement = c.clientState().getCQL3Prepared().get(statementId);
+            CQLStatement statement = QueryProcessor.getPrepared(statementId);
 
             if (statement == null)
-                throw new InvalidRequestException(String.format("Prepared query with ID %d not found", statementId));
+                throw new PreparedQueryNotFoundException(statementId);
 
             return QueryProcessor.processPrepared(statement, c.clientState(), values);
         }

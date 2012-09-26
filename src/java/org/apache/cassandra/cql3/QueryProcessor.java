@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import org.antlr.runtime.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +35,7 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.SemanticVersion;
 
 public class QueryProcessor
@@ -41,6 +43,26 @@ public class QueryProcessor
     public static final SemanticVersion CQL_VERSION = new SemanticVersion("3.0.0");
 
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
+
+    public static final int MAX_CACHE_PREPARED = 100000; // Enough to keep buggy clients from OOM'ing us
+    private static final Map<MD5Digest, CQLStatement> preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
+                                                                               .maximumWeightedCapacity(MAX_CACHE_PREPARED)
+                                                                               .build();
+
+    private static final Map<Integer, CQLStatement> thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
+                                                                                   .maximumWeightedCapacity(MAX_CACHE_PREPARED)
+                                                                                   .build();
+
+
+    public static CQLStatement getPrepared(MD5Digest id)
+    {
+        return preparedStatements.get(id);
+    }
+
+    public static CQLStatement getPrepared(Integer id)
+    {
+        return thriftPreparedStatements.get(id);
+    }
 
     public static void validateKey(ByteBuffer key) throws InvalidRequestException
     {
@@ -151,20 +173,38 @@ public class QueryProcessor
         }
     }
 
-    public static ResultMessage.Prepared prepare(String queryString, ClientState clientState)
+    public static ResultMessage.Prepared prepare(String queryString, ClientState clientState, boolean forThrift)
     throws RequestValidationException
     {
         logger.trace("CQL QUERY: {}", queryString);
 
         ParsedStatement.Prepared prepared = getStatement(queryString, clientState);
-        int statementId = makeStatementId(queryString);
-        clientState.getCQL3Prepared().put(statementId, prepared.statement);
-        logger.trace(String.format("Stored prepared statement #%d with %d bind markers",
-                                   statementId,
-                                   prepared.statement.getBoundsTerms()));
+        ResultMessage.Prepared msg = storePreparedStatement(queryString, clientState, prepared, forThrift);
 
         assert prepared.statement.getBoundsTerms() == prepared.boundNames.size();
-        return new ResultMessage.Prepared(statementId, prepared.boundNames);
+        return msg;
+    }
+
+    private static ResultMessage.Prepared storePreparedStatement(String queryString, ClientState clientState, ParsedStatement.Prepared prepared, boolean forThrift)
+    {
+        if (forThrift)
+        {
+            int statementId = queryString.hashCode();
+            thriftPreparedStatements.put(statementId, prepared.statement);
+            logger.trace(String.format("Stored prepared statement #%d with %d bind markers",
+                                       statementId,
+                                       prepared.statement.getBoundsTerms()));
+            return ResultMessage.Prepared.forThrift(statementId, prepared.boundNames);
+        }
+        else
+        {
+            MD5Digest statementId = MD5Digest.compute(queryString);
+            logger.trace(String.format("Stored prepared statement %s with %d bind markers",
+                                       statementId,
+                                       prepared.statement.getBoundsTerms()));
+            preparedStatements.put(statementId, prepared.statement);
+            return new ResultMessage.Prepared(statementId, prepared.boundNames);
+        }
     }
 
     public static ResultMessage processPrepared(CQLStatement statement, ClientState clientState, List<ByteBuffer> variables)
@@ -186,12 +226,6 @@ public class QueryProcessor
         }
 
         return processStatement(statement, clientState, variables);
-    }
-
-    private static final int makeStatementId(String cql)
-    {
-        // use the hash of the string till something better is provided
-        return cql.hashCode();
     }
 
     private static ParsedStatement.Prepared getStatement(String queryStr, ClientState clientState)

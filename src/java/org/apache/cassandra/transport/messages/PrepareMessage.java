@@ -55,7 +55,7 @@ public class PrepareMessage extends Message.Request
     {
         try
         {
-            return QueryProcessor.prepare(query, ((ServerConnection)connection).clientState());
+            return QueryProcessor.prepare(query, ((ServerConnection)connection).clientState(), false);
         }
         catch (Exception e)
         {

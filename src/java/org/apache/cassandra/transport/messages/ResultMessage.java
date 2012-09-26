@@ -29,6 +29,7 @@ import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.thrift.CqlPreparedResult;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlResultType;
+import org.apache.cassandra.utils.MD5Digest;
 
 public abstract class ResultMessage extends Message.Response
 {
@@ -248,30 +249,40 @@ public abstract class ResultMessage extends Message.Response
         {
             public ResultMessage decode(ChannelBuffer body)
             {
-                int id = body.readInt();
-                return new Prepared(id, ResultSet.Metadata.codec.decode(body));
+                MD5Digest id = MD5Digest.wrap(CBUtil.readBytes(body));
+                return new Prepared(id, -1, ResultSet.Metadata.codec.decode(body));
             }
 
             public ChannelBuffer encode(ResultMessage msg)
             {
                 assert msg instanceof Prepared;
                 Prepared prepared = (Prepared)msg;
-                return ChannelBuffers.wrappedBuffer(CBUtil.intToCB(prepared.statementId), ResultSet.Metadata.codec.encode(prepared.metadata));
+                assert prepared.statementId != null;
+                return ChannelBuffers.wrappedBuffer(CBUtil.bytesToCB(prepared.statementId.bytes), ResultSet.Metadata.codec.encode(prepared.metadata));
             }
         };
 
-        public final int statementId;
+        public final MD5Digest statementId;
         public final ResultSet.Metadata metadata;
 
-        public Prepared(int statementId, List<ColumnSpecification> names)
+        // statement id for CQL-over-thrift compatibility. The binary protocol ignore that.
+        private final int thriftStatementId;
+
+        public Prepared(MD5Digest statementId, List<ColumnSpecification> names)
         {
-            this(statementId, new ResultSet.Metadata(names));
+            this(statementId, -1, new ResultSet.Metadata(names));
         }
 
-        private Prepared(int statementId, ResultSet.Metadata metadata)
+        public static Prepared forThrift(int statementId, List<ColumnSpecification> names)
+        {
+            return new Prepared(null, statementId, new ResultSet.Metadata(names));
+        }
+
+        private Prepared(MD5Digest statementId, int thriftStatementId, ResultSet.Metadata metadata)
         {
             super(Kind.PREPARED);
             this.statementId = statementId;
+            this.thriftStatementId = thriftStatementId;
             this.metadata = metadata;
         }
 
@@ -294,7 +305,7 @@ public abstract class ResultMessage extends Message.Response
                 namesString.add(name.toString());
                 typesString.add(TypeParser.getShortName(name.type));
             }
-            return new CqlPreparedResult(statementId, metadata.names.size()).setVariable_types(typesString).setVariable_names(namesString);
+            return new CqlPreparedResult(thriftStatementId, metadata.names.size()).setVariable_types(typesString).setVariable_names(namesString);
         }
 
         @Override

@@ -520,3 +520,7 @@ Table of Contents
                         already exists. If the query was attempting to create a
                         keyspace, <table> will be present but will be the empty
                         string.
+    0x2500    Unprepared: Can be thrown while a prepared statement tries to be
+              executed if the provide prepared statement ID is not known by
+              this host. The rest of the ERROR message body will be [bytes]
+              representing the unknown ID.

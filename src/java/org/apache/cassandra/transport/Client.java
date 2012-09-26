@@ -27,6 +27,7 @@ import com.google.common.base.Splitter;
 
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.utils.Hex;
 
 public class Client extends SimpleClient
 {
@@ -109,7 +110,7 @@ public class Client extends SimpleClient
         {
             try
             {
-                int id = Integer.parseInt(iter.next());
+                byte[] id = Hex.hexToBytes(iter.next());
                 List<ByteBuffer> values = new ArrayList<ByteBuffer>();
                 while(iter.hasNext())
                 {

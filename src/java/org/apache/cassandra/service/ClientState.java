@@ -65,12 +65,6 @@ public class ClientState
         }
     };
 
-    private final Map<Integer, org.apache.cassandra.cql3.CQLStatement> cql3Prepared = new LinkedHashMap<Integer, org.apache.cassandra.cql3.CQLStatement>(16, 0.75f, true) {
-        protected boolean removeEldestEntry(Map.Entry<Integer, org.apache.cassandra.cql3.CQLStatement> eldest) {
-            return size() > MAX_CACHE_PREPARED;
-        }
-    };
-
     private long clock;
 
     // internalCall is used to mark ClientState as used by some internal component
@@ -94,11 +88,6 @@ public class ClientState
     public Map<Integer, CQLStatement> getPrepared()
     {
         return prepared;
-    }
-
-    public Map<Integer, org.apache.cassandra.cql3.CQLStatement> getCQL3Prepared()
-    {
-        return cql3Prepared;
     }
 
     public String getRawKeyspace()
@@ -191,7 +180,6 @@ public class ClientState
         preparedTracingSession = null;
         resourceClear();
         prepared.clear();
-        cql3Prepared.clear();
     }
 
     public void hasKeyspaceAccess(String keyspace, Permission perm) throws UnauthorizedException, InvalidRequestException

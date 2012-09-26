@@ -111,6 +111,26 @@ public abstract class CBUtil
         return ChannelBuffers.wrappedBuffer(shortToCB(bytes.readableBytes()), bytes);
     }
 
+    public static ChannelBuffer bytesToCB(byte[] bytes)
+    {
+        return ChannelBuffers.wrappedBuffer(shortToCB(bytes.length), ChannelBuffers.wrappedBuffer(bytes));
+    }
+
+    public static byte[] readBytes(ChannelBuffer cb)
+    {
+        try
+        {
+            int length = cb.readUnsignedShort();
+            byte[] bytes = new byte[length];
+            cb.readBytes(bytes);
+            return bytes;
+        }
+        catch (IndexOutOfBoundsException e)
+        {
+            throw new ProtocolException("Not enough bytes to read a byte array preceded by it's 2 bytes length");
+        }
+    }
+
     public static ChannelBuffer longStringToCB(String str)
     {
         ChannelBuffer bytes = bytes(str);

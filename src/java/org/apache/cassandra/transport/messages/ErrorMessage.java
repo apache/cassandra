@@ -33,6 +33,7 @@ import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ServerError;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.MD5Digest;
 
 /**
  * Message to indicate an error to the client.
@@ -91,6 +92,12 @@ public class ErrorMessage extends Message.Response
                         te = new ReadTimeoutException(cl, received, blockFor, dataPresent != 0);
                     }
                     break;
+                case UNPREPARED:
+                    {
+                        MD5Digest id = MD5Digest.wrap(CBUtil.readBytes(body));
+                        te = new PreparedQueryNotFoundException(id);
+                    }
+                    break;
                 case SYNTAX_ERROR:
                     te = new SyntaxException(msg);
                     break;
@@ -144,6 +151,10 @@ public class ErrorMessage extends Message.Response
                     acb.writeInt(rte.blockFor);
                     if (readEx != null)
                         acb.writeByte((byte)(readEx.dataPresent ? 1 : 0));
+                    break;
+                case UNPREPARED:
+                    PreparedQueryNotFoundException pqnfe = (PreparedQueryNotFoundException)msg.error;
+                    acb = CBUtil.bytesToCB(pqnfe.id.bytes);
                     break;
                 case ALREADY_EXISTS:
                     AlreadyExistsException aee = (AlreadyExistsException)msg.error;

@@ -126,7 +126,7 @@ public class SimpleClient
         return (ResultMessage.Prepared)msg;
     }
 
-    public ResultMessage executePrepared(int statementId, List<ByteBuffer> values)
+    public ResultMessage executePrepared(byte[] statementId, List<ByteBuffer> values)
     {
         Message.Response msg = execute(new ExecuteMessage(statementId, values));
         assert msg instanceof ResultMessage;

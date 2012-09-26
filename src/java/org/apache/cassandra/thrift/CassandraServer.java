@@ -1705,7 +1705,7 @@ public class CassandraServer implements Cassandra.Iface
             if (cState.getCQLVersion().major == 2)
                 return QueryProcessor.prepare(queryString, cState);
             else
-                return org.apache.cassandra.cql3.QueryProcessor.prepare(queryString, cState).toThriftPreparedResult();
+                return org.apache.cassandra.cql3.QueryProcessor.prepare(queryString, cState, true).toThriftPreparedResult();
         }
         catch (RequestValidationException e)
         {
@@ -1741,10 +1741,13 @@ public class CassandraServer implements Cassandra.Iface
             }
             else
             {
-                org.apache.cassandra.cql3.CQLStatement statement = cState.getCQL3Prepared().get(itemId);
+                org.apache.cassandra.cql3.CQLStatement statement = org.apache.cassandra.cql3.QueryProcessor.getPrepared(itemId);
 
                 if (statement == null)
-                    throw new InvalidRequestException(String.format("Prepared query with ID %d not found", itemId));
+                    throw new InvalidRequestException(String.format("Prepared query with ID %d not found" +
+                                                                    " (either the query was not prepared on this host (maybe the host has been restarted?)" +
+                                                                    " or you have prepared more than %d queries and queries %d has been evicted from the internal cache)",
+                                                                    itemId, org.apache.cassandra.cql3.QueryProcessor.MAX_CACHE_PREPARED, itemId));
                 logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId,
                         statement.getBoundsTerms());
 
