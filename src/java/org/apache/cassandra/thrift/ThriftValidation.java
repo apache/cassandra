@@ -396,7 +396,7 @@ public class ThriftValidation
         if (!column.isSetTimestamp())
             throw new org.apache.cassandra.exceptions.InvalidRequestException("Column timestamp is required");
 
-        ColumnDefinition columnDef = metadata.getColumnDefinition(column.name);
+        ColumnDefinition columnDef = metadata.getColumnDefinitionFromColumnName(column.name);
         try
         {
             AbstractType<?> validator = metadata.getValueValidator(columnDef);

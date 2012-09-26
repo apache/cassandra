@@ -493,7 +493,7 @@ public class QueryProcessor
                                 if (c.isMarkedForDelete())
                                     continue;
 
-                                ColumnDefinition cd = metadata.getColumnDefinition(c.name());
+                                ColumnDefinition cd = metadata.getColumnDefinitionFromColumnName(c.name());
                                 if (cd != null)
                                     result.schema.value_types.put(c.name(), TypeParser.getShortName(cd.getValidator()));
 
@@ -531,7 +531,7 @@ public class QueryProcessor
                                 throw new AssertionError(e);
                             }
 
-                            ColumnDefinition cd = metadata.getColumnDefinition(name);
+                            ColumnDefinition cd = metadata.getColumnDefinitionFromColumnName(name);
                             if (cd != null)
                                 result.schema.value_types.put(name, TypeParser.getShortName(cd.getValidator()));
                             IColumn c = row.cf.getColumn(name);

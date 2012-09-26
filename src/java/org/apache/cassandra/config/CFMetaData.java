@@ -932,7 +932,23 @@ public final class CFMetaData
         return def;
     }
 
-    public ColumnDefinition getColumnDefinition(ByteBuffer columnName)
+    /**
+     * Returns the ColumnDefinition for {@code name}.
+     *
+     * Note that {@code name} correspond to the returned ColumnDefinition name,
+     * and in particular for composite cfs, it should usually be only a
+     * component of the full column name. If you have a full column name, use
+     * getColumnDefinitionFromColumnName instead.
+     */
+    public ColumnDefinition getColumnDefinition(ByteBuffer name)
+    {
+            return column_metadata.get(name);
+    }
+
+    /**
+     * Returns a ColumnDefinition given a full (internal) column name.
+     */
+    public ColumnDefinition getColumnDefinitionFromColumnName(ByteBuffer columnName)
     {
         if (comparator instanceof CompositeType)
         {
