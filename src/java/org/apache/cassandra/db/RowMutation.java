@@ -431,14 +431,18 @@ public class RowMutation implements IMutation
             RowMutation mutation = deserialize(dis, version);
 
             long now = FBUtilities.timestampMicros();
-            Map<Integer, ColumnFamily> fixedModifications = new HashMap<Integer, ColumnFamily>();
+            Map<UUID, ColumnFamily> fixedModifications = new HashMap<UUID, ColumnFamily>();
 
-            for (Map.Entry<Integer, ColumnFamily> modification : mutation.modifications_.entrySet())
+            for (Map.Entry<UUID, ColumnFamily> modification : mutation.modifications.entrySet())
             {
                 ColumnFamily cf = ColumnFamily.create(modification.getValue().metadata());
 
                 if (cf.isMarkedForDelete())
-                    cf.delete(cf.getLocalDeletionTime(), cf.getMarkedForDeleteAt() > now ? now : cf.getMarkedForDeleteAt());
+                {
+                    DeletionTime delTime = cf.deletionInfo().getTopLevelDeletion();
+                    cf.delete(new DeletionInfo(delTime.markedForDeleteAt > now ? now : delTime.markedForDeleteAt,
+                                               delTime.localDeletionTime));
+                }
 
                 for (IColumn column : modification.getValue().columns)
                 {
