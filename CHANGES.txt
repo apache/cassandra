@@ -1,4 +1,6 @@
 1.2-beta2
+ * add check to PropertyFileSnitch to verify presence of location for
+   local node (CASSANDRA-4728)
  * add PBSPredictor consistency modeler (CASSANDRA-4261)
  * remove vestiges of Thrift unframed mode (CASSANDRA-4729)
  * optimize single-row PK lookups (CASSANDRA-4710)

@@ -56,6 +56,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
     public PropertyFileSnitch() throws ConfigurationException
     {
         reloadConfiguration();
+
         try
         {
             FBUtilities.resourceToFile(RACK_PROPERTY_FILENAME);
@@ -107,7 +108,9 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
      */
     public String getDatacenter(InetAddress endpoint)
     {
-        return getEndpointInfo(endpoint)[0];
+        String[] info = getEndpointInfo(endpoint);
+        assert info != null : "No location defined for endpoint " + endpoint;
+        return info[0];
     }
 
     /**
@@ -118,7 +121,9 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
      */
     public String getRack(InetAddress endpoint)
     {
-        return getEndpointInfo(endpoint)[1];
+        String[] info = getEndpointInfo(endpoint);
+        assert info != null : "No location defined for endpoint " + endpoint;
+        return info[1];
     }
 
     public void reloadConfiguration() throws ConfigurationException
@@ -171,6 +176,9 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
                 reloadedMap.put(host, token);
             }
         }
+        if (!reloadedMap.containsKey(FBUtilities.getBroadcastAddress()))
+            throw new ConfigurationException(String.format("Snitch definitions at %s do not define a location for this node's broadcast address %s",
+                                                           RACK_PROPERTY_FILENAME, FBUtilities.getBroadcastAddress()));
 
         logger.debug("loaded network topology {}", FBUtilities.toString(reloadedMap));
         endpointMap = reloadedMap;
