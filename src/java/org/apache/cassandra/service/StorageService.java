@@ -859,7 +859,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.addLocalApplicationState(ApplicationState.SEVERITY, updated);
         return true;
     }
-    
+
     public double getSeverity(InetAddress endpoint)
     {
         VersionedValue event;
@@ -1255,7 +1255,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     }
                 }, RING_DELAY, TimeUnit.MILLISECONDS);
 
-                // We used to own this token; This token will need to be removed from system.local 
+                // We used to own this token; This token will need to be removed from system.local
                 if (currentOwner.equals(FBUtilities.getBroadcastAddress()))
                     localTokensToRemove.add(token);
 
@@ -1391,7 +1391,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     /**
      * Handle one or more ranges (tokens) moving from their respective endpoints, to another.
-     * 
+     *
      * @param endpoint the destination of the move
      * @param pieces STATE_RELOCATING,token,token,...
      */
@@ -1576,7 +1576,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         for (InetAddress endpoint : bootstrapTokens.inverse().keySet())
         {
             Collection<Token> tokens = bootstrapTokens.inverse().get(endpoint);
-            
+
             allLeftMetadata.updateNormalTokens(tokens, endpoint);
             for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
                 pendingRanges.put(range, endpoint);
@@ -2584,7 +2584,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger.error("Invalid request to move(Token); This node has more than one token and cannot be moved thusly.");
             throw new UnsupportedOperationException("This node has more than one token and cannot be moved thusly.");
         }
-        
+
         List<String> tablesToProcess = Schema.instance.getNonSystemTables();
 
         // checking if data is moving to this node
@@ -2761,11 +2761,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Collection<Token> localTokens = getTokenMetadata().getTokens(localAddress);
         Set<Token> tokens = new HashSet<Token>(srcTokens);
 
-        for (Token srcT : tokens)
+        Iterator<Token> it = tokens.iterator();
+        while (it.hasNext())
         {
+            Token srcT = it.next();
             if (localTokens.contains(srcT))
             {
-                tokens.remove(srcT);
+                it.remove();
                 logger.warn("cannot move {}; source and destination match", srcT);
             }
         }
@@ -3103,7 +3105,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * total ownership will be a multiple of the number of DC's and this value will then go up within each DC depending
      * on the number of replicas within itself. For DC unaware replication strategies, ownership without replication
      * will be 100%.
-     * 
+     *
      * @throws ConfigurationException
      */
     public LinkedHashMap<InetAddress, Float> effectiveOwnership(String keyspace) throws ConfigurationException
@@ -3114,7 +3116,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             throw new ConfigurationException("Non System keyspaces doesnt have the same topology");
 
         TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap();
-        
+
         if (keyspace == null)
             keyspace = Schema.instance.getNonSystemTables().get(0);
 
