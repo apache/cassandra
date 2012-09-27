@@ -398,7 +398,7 @@ public class CliClient
             return;
         }
 
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
 
         Tree columnTree = (columnSpecCnt >= 1)
                            ? columnFamilySpec.getChild(2)
@@ -460,7 +460,7 @@ public class CliClient
             throws InvalidRequestException, UnavailableException, TimedOutException, TException, IllegalAccessException, NotFoundException, InstantiationException, NoSuchFieldException
     {
 
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         ColumnParent parent = new ColumnParent(columnFamily);
         if(superColumnName != null)
             parent.setSuper_column(superColumnName);
@@ -564,7 +564,7 @@ public class CliClient
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         Tree columnFamilySpec = statement.getChild(0);
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
         ByteBuffer key = getKeyAsBytes(columnFamily, columnFamilySpec.getChild(1));
@@ -733,7 +733,7 @@ public class CliClient
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
 
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
 
         IndexClause clause = new IndexClause();
         String columnFamily = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
@@ -827,7 +827,7 @@ public class CliClient
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
 
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         // ^(NODE_COLUMN_ACCESS <cf> <key> <column>)
         Tree columnFamilySpec = statement.getChild(0);
         Tree keyTree = columnFamilySpec.getChild(1); // could be a function or regular text
@@ -1316,7 +1316,7 @@ public class CliClient
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
 
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
 
         // extract column family
         String columnFamily = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
@@ -2930,9 +2930,25 @@ public class CliClient
         return false;
     }
 
+    /**
+     * Print elapsed time. Print 2 fraction digits if eta is under 10 ms.
+     * @param startTime starting time in nanoseconds
+     */
     private void elapsedTime(long startTime)
     {
-        sessionState.out.println("Elapsed time: " + (System.currentTimeMillis() - startTime) + " msec(s).");
+        /** time elapsed in nanoseconds */
+        long eta = System.nanoTime() - startTime;
+
+        sessionState.out.print("Elapsed time: ");
+        if (eta < 10000000)
+        {
+            sessionState.out.print(Math.round(eta/10000.0)/100.0);
+        }
+        else
+        {
+            sessionState.out.print(Math.round(eta/1000000.0));
+        }
+        sessionState.out.println(" msec(s).");
     }
 
     class CfAssumptions
