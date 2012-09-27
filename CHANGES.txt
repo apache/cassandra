@@ -1,4 +1,5 @@
 1.1.6
+ * NTS will default unconfigured DC replicas to zero (CASSANDRA-4675)
  * use default consistency level in counter validation if none is
    explicitly provide (CASSANDRA-4700)
  * Improve IAuthority interface by introducing fine-grained
