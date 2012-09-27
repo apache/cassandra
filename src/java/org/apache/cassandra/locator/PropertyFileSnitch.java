@@ -48,7 +48,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
 {
     private static final Logger logger = LoggerFactory.getLogger(PropertyFileSnitch.class);
 
-    public static final String RACK_PROPERTY_FILENAME = "cassandra-topology.properties";
+    public static final String SNITCH_PROPERTIES_FILENAME = "cassandra-topology.properties";
 
     private static volatile Map<InetAddress, String[]> endpointMap;
     private static volatile String[] defaultDCRack;
@@ -59,7 +59,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
 
         try
         {
-            FBUtilities.resourceToFile(RACK_PROPERTY_FILENAME);
+            FBUtilities.resourceToFile(SNITCH_PROPERTIES_FILENAME);
             Runnable runnable = new WrappedRunnable()
             {
                 protected void runMayThrow() throws ConfigurationException
@@ -67,11 +67,11 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
                     reloadConfiguration();
                 }
             };
-            ResourceWatcher.watch(RACK_PROPERTY_FILENAME, runnable, 60 * 1000);
+            ResourceWatcher.watch(SNITCH_PROPERTIES_FILENAME, runnable, 60 * 1000);
         }
         catch (ConfigurationException ex)
         {
-            logger.debug(RACK_PROPERTY_FILENAME + " found, but does not look like a plain file. Will not watch it for changes");
+            logger.debug(SNITCH_PROPERTIES_FILENAME + " found, but does not look like a plain file. Will not watch it for changes");
         }
     }
 
@@ -134,12 +134,12 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         InputStream stream = null;
         try
         {
-            stream = getClass().getClassLoader().getResourceAsStream(RACK_PROPERTY_FILENAME);
+            stream = getClass().getClassLoader().getResourceAsStream(SNITCH_PROPERTIES_FILENAME);
             properties.load(stream);
         }
         catch (Exception e)
         {
-            throw new ConfigurationException("Unable to read " + RACK_PROPERTY_FILENAME, e);
+            throw new ConfigurationException("Unable to read " + SNITCH_PROPERTIES_FILENAME, e);
         }
         finally
         {
@@ -178,7 +178,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         }
         if (!reloadedMap.containsKey(FBUtilities.getBroadcastAddress()))
             throw new ConfigurationException(String.format("Snitch definitions at %s do not define a location for this node's broadcast address %s",
-                                                           RACK_PROPERTY_FILENAME, FBUtilities.getBroadcastAddress()));
+                                                           SNITCH_PROPERTIES_FILENAME, FBUtilities.getBroadcastAddress()));
 
         logger.debug("loaded network topology {}", FBUtilities.toString(reloadedMap));
         endpointMap = reloadedMap;

@@ -54,11 +54,11 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
         try
         {
             psnitch = new PropertyFileSnitch();
-            logger.info("Loaded " + PropertyFileSnitch.RACK_PROPERTY_FILENAME + " for compatibility");
+            logger.info("Loaded " + PropertyFileSnitch.SNITCH_PROPERTIES_FILENAME + " for compatibility");
         }
         catch (ConfigurationException e)
         {
-            logger.info("Unable to load " + PropertyFileSnitch.RACK_PROPERTY_FILENAME + "; compatibility mode disabled");
+            logger.info("Unable to load " + PropertyFileSnitch.SNITCH_PROPERTIES_FILENAME + "; compatibility mode disabled");
         }
     }
 
