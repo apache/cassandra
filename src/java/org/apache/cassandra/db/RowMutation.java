@@ -415,6 +415,52 @@ public class RowMutation implements IMutation
             return new RowMutation(table, key, modifications);
         }
 
+        /**
+         * Used only by o.a.c.service.MigrationManager to fix possibly broken System.nanoTime() timestamps
+         * of the schema migrations from remote nodes
+         *
+         * @param dis The source of the data
+         * @param version The version of remote node
+         *
+         * @return row mutation with fixed internal timestamps
+         *
+         * @throws IOException If data could not be read
+         */
+        public RowMutation deserializeFixingTimestamps(DataInput dis, int version) throws IOException
+        {
+            RowMutation mutation = deserialize(dis, version);
+
+            long now = FBUtilities.timestampMicros();
+            Map<Integer, ColumnFamily> fixedModifications = new HashMap<Integer, ColumnFamily>();
+
+            for (Map.Entry<Integer, ColumnFamily> modification : mutation.modifications_.entrySet())
+            {
+                ColumnFamily cf = ColumnFamily.create(modification.getValue().metadata());
+
+                if (cf.isMarkedForDelete())
+                    cf.delete(cf.getLocalDeletionTime(), cf.getMarkedForDeleteAt() > now ? now : cf.getMarkedForDeleteAt());
+
+                for (IColumn column : modification.getValue().columns)
+                {
+                    // don't clone if column already has a correct timestamp
+                    if (column.timestamp() <= now)
+                    {
+                        cf.addColumn(column);
+                        continue;
+                    }
+
+                    if (column.isMarkedForDelete())
+                        cf.addColumn(new DeletedColumn(column.name(), column.value(), now));
+                    else
+                        cf.addColumn(new Column(column.name(), column.value(), now));
+                }
+
+                fixedModifications.put(modification.getKey(), cf);
+            }
+
+            return new RowMutation(mutation.getTable(), mutation.key(), fixedModifications);
+        }
+
         public RowMutation deserialize(DataInput dis, int version) throws IOException
         {
             return deserialize(dis, version, IColumnSerializer.Flag.FROM_REMOTE);

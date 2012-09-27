@@ -174,7 +174,8 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
     public int getReplicationFactor(String dc)
     {
-        return datacenters.get(dc);
+        Integer replicas = datacenters.get(dc);
+        return replicas == null ? 0 : replicas;
     }
 
     public Set<String> getDatacenters()
