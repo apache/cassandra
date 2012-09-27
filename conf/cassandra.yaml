@@ -368,8 +368,6 @@ rpc_server_type: sync
 # rpc_recv_buff_size_in_bytes:
 
 # Frame size for thrift (maximum field length).
-# 0 disables TFramedTransport in favor of TSocket. This option
-# is deprecated; we strongly recommend using Framed mode.
 thrift_framed_transport_size_in_mb: 15
 
 # The max length of a thrift message, including all fields and

@@ -34,7 +34,6 @@ public class CliOptions
     // Command line options
     private static final String HOST_OPTION = "host";
     private static final String PORT_OPTION = "port";
-    private static final String UNFRAME_OPTION = "unframed";
     private static final String DEBUG_OPTION = "debug";
     private static final String USERNAME_OPTION = "username";
     private static final String PASSWORD_OPTION = "password";
@@ -67,7 +66,6 @@ public class CliOptions
 
         // options without argument
         options.addOption("B",  BATCH_OPTION,   "enabled batch mode (suppress output; errors are fatal)");
-        options.addOption(null, UNFRAME_OPTION, "use cassandra server's unframed transport");
         options.addOption(null, DEBUG_OPTION,   "display stack-traces (NOTE: We print strack-traces in the places where it makes sense even without --debug)");
         options.addOption("?",  HELP_OPTION,    "usage help");
         options.addOption("v",  VERBOSE_OPTION, "verbose output when using batch mode");
@@ -95,13 +93,6 @@ public class CliOptions
                 css.hostName = DEFAULT_HOST;
             }
 
-            // Look to see if frame has been specified
-            if (cmd.hasOption(UNFRAME_OPTION))
-            {
-                css.framed = false;
-            }
-
-            // Look to see if frame has been specified
             if (cmd.hasOption(DEBUG_OPTION))
             {
                 css.debug = true;

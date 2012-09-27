@@ -30,7 +30,6 @@ public class CliSessionState
 
     public String  hostName;      // cassandra server name
     public int     thriftPort;    // cassandra server's thrift port
-    public boolean framed = true; // cassandra server's framed transport
     public boolean debug = false; // print stack traces when errors occur in the CLI
     public String  username;      // cassandra login name (if SimpleAuthenticator is used)
     public String  password;      // cassandra login password (if SimpleAuthenticator is used)

@@ -61,14 +61,7 @@ public class CliMain
         if (transport != null)
             transport.close();
 
-        if (sessionState.framed)
-        {
-            transport = new TFramedTransport(socket);
-        }
-        else
-        {
-            transport = socket;
-        }
+        transport = new TFramedTransport(socket);
 
         TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
         Cassandra.Client cassandraClient = new Cassandra.Client(binaryProtocol);

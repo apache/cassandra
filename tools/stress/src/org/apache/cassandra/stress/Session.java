@@ -73,7 +73,6 @@ public class Session implements Serializable
         availableOptions.addOption("r",  "random",               false,  "Use random key generator (STDEV will have no effect), default:false");
         availableOptions.addOption("f",  "file",                 true,   "Write output to given file");
         availableOptions.addOption("p",  "port",                 true,   "Thrift port, default:9160");
-        availableOptions.addOption("m",  "unframed",             false,  "Use unframed transport, default:false");
         availableOptions.addOption("o",  "operation",            true,   "Operation to perform (INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTER_ADD, COUNTER_GET), default:INSERT");
         availableOptions.addOption("u",  "supercolumns",         true,   "Number of super columns per key, default:1");
         availableOptions.addOption("y",  "family-type",          true,   "Column Family Type (Super, Standard), default:Standard");
@@ -107,7 +106,6 @@ public class Session implements Serializable
     private int cardinality      = 50;
     private String[] nodes       = new String[] { "127.0.0.1" };
     private boolean random       = false;
-    private boolean unframed     = false;
     private int retryTimes       = 10;
     private int port             = 9160;
     private int superColumns     = 1;
@@ -222,9 +220,6 @@ public class Session implements Serializable
 
             if (cmd.hasOption("p"))
                 port = Integer.parseInt(cmd.getOptionValue("p"));
-
-            if (cmd.hasOption("m"))
-                unframed = Boolean.parseBoolean(cmd.getOptionValue("m"));
 
             if (cmd.hasOption("o"))
                 operation = Stress.Operations.valueOf(cmd.getOptionValue("o").toUpperCase());
@@ -414,11 +409,6 @@ public class Session implements Serializable
     public int getColumnSize()
     {
         return columnSize;
-    }
-
-    public boolean isUnframed()
-    {
-        return unframed;
     }
 
     public int getColumnsPerKey()
@@ -655,7 +645,7 @@ public class Session implements Serializable
         String currentNode = nodes[Stress.randomizer.nextInt(nodes.length)];
 
         TSocket socket = new TSocket(currentNode, port);
-        TTransport transport = (isUnframed()) ? socket : new TFramedTransport(socket);
+        TTransport transport = new TFramedTransport(socket);
         CassandraClient client = new CassandraClient(new TBinaryProtocol(transport));
 
         try

@@ -334,10 +334,8 @@ public class DatabaseDescriptor
             if (conf.thrift_framed_transport_size_in_mb <= 0)
                 throw new ConfigurationException("thrift_framed_transport_size_in_mb must be positive");
 
-            if (conf.thrift_framed_transport_size_in_mb > 0 && conf.thrift_max_message_length_in_mb < conf.thrift_framed_transport_size_in_mb)
-            {
-                throw new ConfigurationException("thrift_max_message_length_in_mb must be greater than thrift_framed_transport_size_in_mb when using TFramedTransport");
-            }
+            if (conf.thrift_max_message_length_in_mb < conf.thrift_framed_transport_size_in_mb)
+                throw new ConfigurationException("thrift_max_message_length_in_mb must be greater than thrift_framed_transport_size_in_mb");
 
             /* end point snitch */
             if (conf.endpoint_snitch == null)

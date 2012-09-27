@@ -1,4 +1,5 @@
 1.2-beta2
+ * remove vestiges of Thrift unframed mode (CASSANDRA-4729)
  * optimize single-row PK lookups (CASSANDRA-4710)
  * adjust blockFor calculation to account for pending ranges due to node 
    movement (CASSANDRA-833)

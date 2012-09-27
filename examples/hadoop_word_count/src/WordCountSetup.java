@@ -191,14 +191,13 @@ public class WordCountSetup
             logger.warn("cassandra.host or cassandra.port is not defined, using default");
         }
         return createConnection(System.getProperty("cassandra.host", "localhost"),
-                                Integer.valueOf(System.getProperty("cassandra.port", "9160")),
-                                Boolean.valueOf(System.getProperty("cassandra.framed", "true")));
+                                Integer.valueOf(System.getProperty("cassandra.port", "9160")));
     }
 
-    private static Cassandra.Client createConnection(String host, Integer port, boolean framed) throws TTransportException
+    private static Cassandra.Client createConnection(String host, Integer port) throws TTransportException
     {
         TSocket socket = new TSocket(host, port);
-        TTransport trans = framed ? new TFramedTransport(socket) : socket;
+        TTransport trans = new TFramedTransport(socket);
         trans.open();
         TProtocol protocol = new TBinaryProtocol(trans);
 
