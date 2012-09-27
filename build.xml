@@ -1134,6 +1134,11 @@
     </testmacro>
   </target>
 
+  <target name="pbs-test" depends="build-test" description="Tests PBS predictor">
+    <testmacro suitename="unit" inputdir="${test.unit.src}"
+      timeout="15000" filter="**/PBSPredictorTest.java"/>
+  </target>
+
   <target name="long-test" depends="build-test" description="Execute functional tests">
     <testmacro suitename="long" inputdir="${test.long.src}"
                timeout="${test.long.timeout}">

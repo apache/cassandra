@@ -36,18 +36,17 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.BootStrapper;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestAck2;
 import org.apache.cassandra.gms.GossipDigestSyn;
@@ -58,14 +57,12 @@ import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.metrics.DroppedMessageMetrics;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.security.SSLFactory;
-import org.apache.cassandra.service.AntiEntropyService;
-import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.*;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.streaming.compress.CompressedFileStreamTask;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public final class MessagingService implements MessagingServiceMBean
 {
@@ -555,6 +552,16 @@ public final class MessagingService implements MessagingServiceMBean
     public String sendRR(MessageOut message, InetAddress to, IMessageCallback cb, long timeout)
     {
         String id = addCallback(cb, message, to, timeout);
+
+        if (cb instanceof AbstractWriteResponseHandler)
+        {
+            PBSPredictor.instance().startWriteOperation(id);
+        }
+        else if (cb instanceof ReadCallback)
+        {
+            PBSPredictor.instance().startReadOperation(id);
+        }
+
         sendOneWay(message, id, to);
         return id;
     }
@@ -695,6 +702,21 @@ public final class MessagingService implements MessagingServiceMBean
         Runnable runnable = new MessageDeliveryTask(message, id, timestamp);
         ExecutorService stage = StageManager.getStage(message.getMessageType());
         assert stage != null : "No stage for message type " + message.verb;
+
+        if (message.verb == Verb.REQUEST_RESPONSE && PBSPredictor.instance().isLoggingEnabled())
+        {
+            IMessageCallback cb = MessagingService.instance().getRegisteredCallback(id).callback;
+
+            if (cb instanceof AbstractWriteResponseHandler)
+            {
+                PBSPredictor.instance().logWriteResponse(id, timestamp);
+            }
+            else if (cb instanceof ReadCallback)
+            {
+                PBSPredictor.instance().logReadResponse(id, timestamp);
+            }
+        }
+
         stage.execute(runnable);
     }
 

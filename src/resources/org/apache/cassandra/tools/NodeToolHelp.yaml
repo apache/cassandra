@@ -149,4 +149,6 @@ commands:
   - name: getsstables <keyspace> <cf> <key>
     help: |
       Print the sstable filenames that own the key
-
+  - name: predictconsistency <replication_factor> <time> [versions] [latency_percentile]
+    help: |
+      Predict latency and consistency "t" ms after writes

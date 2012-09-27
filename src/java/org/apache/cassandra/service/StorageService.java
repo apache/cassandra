@@ -405,6 +405,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             throw new AssertionError(e);
         }
 
+        PBSPredictor.instance().init();
+
         if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
         {
             logger.info("Loading persisted ring state");
