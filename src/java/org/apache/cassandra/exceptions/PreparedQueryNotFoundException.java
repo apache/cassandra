@@ -32,9 +32,9 @@ public class PreparedQueryNotFoundException extends RequestValidationException
 
     private static String makeMsg(MD5Digest id)
     {
-        return String.format("Prepared query with ID %d not found" +
+        return String.format("Prepared query with ID %s not found" +
                              " (either the query was not prepared on this host (maybe the host has been restarted?)" +
-                             " or you have prepared more than %d queries and queries %d has been evicted from the internal cache)",
+                             " or you have prepared more than %d queries and query %s has been evicted from the internal cache)",
                              id, QueryProcessor.MAX_CACHE_PREPARED, id);
     }
 }
