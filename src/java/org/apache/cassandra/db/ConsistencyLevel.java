@@ -35,8 +35,6 @@ public enum ConsistencyLevel
     LOCAL_QUORUM,
     EACH_QUORUM;
 
-    private static final String LOCAL_DC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
-
     public int blockFor(String table)
     {
         NetworkTopologyStrategy strategy = null;
@@ -56,7 +54,7 @@ public enum ConsistencyLevel
                 return Table.open(table).getReplicationStrategy().getReplicationFactor();
             case LOCAL_QUORUM:
                 strategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
-                return (strategy.getReplicationFactor(LOCAL_DC) / 2) + 1;
+                return (strategy.getReplicationFactor(DatabaseDescriptor.getLocalDataCenter()) / 2) + 1;
             case EACH_QUORUM:
                 strategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
                 int n = 0;

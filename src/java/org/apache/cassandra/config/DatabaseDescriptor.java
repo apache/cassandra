@@ -88,6 +88,8 @@ public class DatabaseDescriptor
     private static long keyCacheSizeInMB;
     private static IRowCacheProvider rowCacheProvider;
 
+    private static String localDC;
+
     /**
      * Inspect the classpath to find storage configuration file
      */
@@ -344,6 +346,8 @@ public class DatabaseDescriptor
             }
             snitch = createEndpointSnitch(conf.endpoint_snitch);
             EndpointSnitchInfo.create();
+
+            localDC = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
 
             /* Request Scheduler setup */
             requestSchedulerOptions = conf.request_scheduler_options;
@@ -1233,6 +1237,11 @@ public class DatabaseDescriptor
     public static boolean populateIOCacheOnFlush()
     {
         return conf.populate_io_cache_on_flush;
+    }
+
+    public static String getLocalDataCenter()
+    {
+        return localDC;
     }
 
     public static Config.InternodeCompression internodeCompression()
