@@ -11,8 +11,7 @@
  * Fix scrubbing of CQL3 created tables (CASSANDRA-4685)
  * (CQL3) Fix validation when using counter and regular columns in the same table
    (CASSANDRA-4706)
- * Fix bug starting Cassandra with simple authentication (CASSANDRA-4648
- * )
+ * Fix bug starting Cassandra with simple authentication (CASSANDRA-4648)
 
 1.2-beta1
  * add atomic_batch_mutate (CASSANDRA-4542, -4635)
