@@ -686,7 +686,9 @@ public class SSTableReader extends SSTable
             return;
 
         // avoid keeping a permanent reference to the original key buffer
-        keyCache.put(new KeyCacheKey(descriptor, ByteBufferUtil.clone(key.key)), info);
+        KeyCacheKey cacheKey = new KeyCacheKey(descriptor, ByteBufferUtil.clone(key.key));
+        logger.trace("Adding cache entry for {} -> {}", cacheKey, info);
+        keyCache.put(cacheKey, info);
     }
 
     public RowIndexEntry getCachedPosition(DecoratedKey key, boolean updateStats)
@@ -731,9 +733,13 @@ public class SSTableReader extends SSTable
         if ((op == Operator.EQ || op == Operator.GE) && (key instanceof DecoratedKey))
         {
             DecoratedKey decoratedKey = (DecoratedKey)key;
-            RowIndexEntry cachedPosition = getCachedPosition(new KeyCacheKey(descriptor, decoratedKey.key), updateCacheAndStats);
+            KeyCacheKey cacheKey = new KeyCacheKey(descriptor, decoratedKey.key);
+            RowIndexEntry cachedPosition = getCachedPosition(cacheKey, updateCacheAndStats);
             if (cachedPosition != null)
+            {
+                logger.trace("Cache hit for {} -> {}", cacheKey, cachedPosition);
                 return cachedPosition;
+            }
         }
 
         // next, see if the sampled index says it's impossible for the key to be present
@@ -793,6 +799,17 @@ public class SSTableReader extends SSTable
                         {
                             assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
                             DecoratedKey decoratedKey = (DecoratedKey)key;
+
+                            if (logger.isTraceEnabled())
+                            {
+                                // expensive sanity check!  see CASSANDRA-4687
+                                FileDataInput fdi = dfile.getSegment(indexEntry.position);
+                                DecoratedKey keyInDisk = SSTableReader.decodeKey(partitioner, descriptor, ByteBufferUtil.readWithShortLength(fdi));
+                                if (!keyInDisk.equals(key))
+                                    throw new AssertionError(String.format("%s != %s in %s", keyInDisk, key, fdi.getPath()));
+                                fdi.close();
+                            }
+
                             // store exact match for the key
                             cacheKey(decoratedKey, indexEntry);
                         }

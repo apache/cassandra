@@ -127,6 +127,7 @@ public class SSTableWriter extends SSTable
     private long beforeAppend(DecoratedKey decoratedKey)
     {
         assert decoratedKey != null : "Keys must not be null";
+        assert decoratedKey.key.remaining() > 0 : "Keys must not be empty";
         if (lastWrittenKey != null && lastWrittenKey.compareTo(decoratedKey) >= 0)
             throw new RuntimeException("Last written key " + lastWrittenKey + " >= current key " + decoratedKey + " writing into " + getFilename());
         return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
