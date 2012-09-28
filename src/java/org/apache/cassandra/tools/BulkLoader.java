@@ -23,6 +23,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -36,7 +37,6 @@ import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
 
 public class BulkLoader
 {
@@ -48,6 +48,8 @@ public class BulkLoader
     private static final String IGNORE_NODES_OPTION  = "ignore";
     private static final String INITIAL_HOST_ADDRESS_OPTION = "nodes";
     private static final String RPC_PORT_OPTION = "port";
+    private static final String USER_OPTION = "username";
+    private static final String PASSWD_OPTION = "password";
     private static final String THROTTLE_MBITS = "throttle";
 
     public static void main(String args[]) throws IOException
@@ -56,7 +58,7 @@ public class BulkLoader
         try
         {
             OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
-            SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(handler, options.hosts, options.rpcPort), handler);
+            SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(handler, options.hosts, options.rpcPort, options.user, options.passwd), handler);
             DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
             SSTableLoader.LoaderFuture future = loader.stream(options.ignores);
 
@@ -178,13 +180,17 @@ public class BulkLoader
         private final OutputHandler outputHandler;
         private final Set<InetAddress> hosts;
         private final int rpcPort;
+        private final String user;
+        private final String passwd;
 
-        public ExternalClient(OutputHandler outputHandler, Set<InetAddress> hosts, int port)
+        public ExternalClient(OutputHandler outputHandler, Set<InetAddress> hosts, int port, String user, String passwd)
         {
             super();
             this.outputHandler = outputHandler;
             this.hosts = hosts;
             this.rpcPort = port;
+            this.user = user;
+            this.passwd = passwd;
         }
 
         public void init(String keyspace)
@@ -197,7 +203,7 @@ public class BulkLoader
 
                     // Query endpoint to ranges map and schemas from thrift
                     InetAddress host = hostiter.next();
-                    Cassandra.Client client = createThriftClient(host.getHostAddress(), rpcPort);
+                    Cassandra.Client client = createThriftClient(host.getHostAddress(), rpcPort, this.user, this.passwd);
                     List<TokenRange> tokenRanges = client.describe_ring(keyspace);
                     List<KsDef> ksDefs = client.describe_keyspaces();
 
@@ -236,13 +242,22 @@ public class BulkLoader
             return cfs != null && cfs.contains(cfName);
         }
 
-        private static Cassandra.Client createThriftClient(String host, int port) throws TTransportException
+        private static Cassandra.Client createThriftClient(String host, int port, String user, String passwd) throws Exception
         {
             TSocket socket = new TSocket(host, port);
             TTransport trans = new TFramedTransport(socket);
             trans.open();
             TProtocol protocol = new TBinaryProtocol(trans);
-            return new Cassandra.Client(protocol);
+            Cassandra.Client client = new Cassandra.Client(protocol);
+            if (user != null && passwd != null)
+            {
+                Map<String, String> credentials = new HashMap<String, String>();
+                credentials.put(IAuthenticator.USERNAME_KEY, user);
+                credentials.put(IAuthenticator.PASSWORD_KEY, passwd);
+                AuthenticationRequest authenticationRequest = new AuthenticationRequest(credentials);
+                client.login(authenticationRequest);
+            }
+            return client;
         }
     }
 
@@ -254,6 +269,8 @@ public class BulkLoader
         public boolean verbose;
         public boolean noProgress;
         public int rpcPort = 9160;
+        public String user;
+        public String passwd;
         public int throttle = 0;
 
         public final Set<InetAddress> hosts = new HashSet<InetAddress>();
@@ -313,6 +330,12 @@ public class BulkLoader
 
                 if (cmd.hasOption(RPC_PORT_OPTION))
                     opts.rpcPort = Integer.parseInt(cmd.getOptionValue(RPC_PORT_OPTION));
+
+                if (cmd.hasOption(USER_OPTION))
+                    opts.user = cmd.getOptionValue(USER_OPTION);
+
+                if (cmd.hasOption(PASSWD_OPTION))
+                    opts.passwd = cmd.getOptionValue(PASSWD_OPTION);
 
                 if (cmd.hasOption(INITIAL_HOST_ADDRESS_OPTION))
                 {
@@ -379,6 +402,8 @@ public class BulkLoader
             options.addOption("d",  INITIAL_HOST_ADDRESS_OPTION, "initial hosts", "try to connect to these hosts (comma separated) initially for ring information");
             options.addOption("p",  RPC_PORT_OPTION, "rpc port", "port used for rpc (default 9160)");
             options.addOption("t",  THROTTLE_MBITS, "throttle", "throttle speed in Mbits (default unlimited)");
+            options.addOption("u",  USER_OPTION, "username", "username for cassandra authentication");
+            options.addOption("pw", PASSWD_OPTION, "password", "password for cassandra authentication");
             return options;
         }
 
