@@ -158,7 +158,9 @@ Table of Contents
                    string.
     [long string]  An [int] n, followed by n bytes representing an UTF-8 string.
     [string list]  A [short] n, followed by n [string].
-    [bytes]        An [int] n, followed by n bytes if n >= 0. If n < 0,
+    [bytes]        A [int] n, followed by n bytes if n >= 0. If n < 0,
+                   no byte should follow and the value represented is `null`.
+    [short bytes]  A [short] n, followed by n bytes if n >= 0. If n < 0,
                    no byte should follow and the value represented is `null`.
 
     [option]       A pair of <id><value> where <id> is a [short] representing
@@ -249,8 +251,8 @@ Table of Contents
   Executes a prepared query. The body of the message must be:
     <id><n><value_1>....<value_n>
   where:
-    - <id> is the prepared query ID. It's an [int] returned as a response to a
-      PREPARE message.
+    - <id> is the prepared query ID. It's the [short bytes] returned as a
+      response to a PREPARE message.
     - <n> is a [short] indicating the number of following values.
     - <value_1>...<value_n> are the [bytes] to use for bound variables in the
       prepared query.
@@ -411,7 +413,7 @@ Table of Contents
   The result to a PREPARE message. The rest of the body of a Prepared result is:
     <id><metadata>
   where:
-    - <id> is an [int] representing the prepared query ID.
+    - <id> is [short bytes] representing the prepared query ID.
     - <metadata> is defined exactly as for a Rows RESULT (See section 4.2.5.2).
 
 
@@ -522,5 +524,5 @@ Table of Contents
                         string.
     0x2500    Unprepared: Can be thrown while a prepared statement tries to be
               executed if the provide prepared statement ID is not known by
-              this host. The rest of the ERROR message body will be [bytes]
-              representing the unknown ID.
+              this host. The rest of the ERROR message body will be [short
+              bytes] representing the unknown ID.
