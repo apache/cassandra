@@ -82,10 +82,8 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
 
     private void checkOutputSpecs(Configuration conf)
     {
-        if (ConfigHelper.getOutputKeyspace(conf) == null || ConfigHelper.getOutputColumnFamily(conf) == null)
-        {
-            throw new UnsupportedOperationException("you must set the keyspace and columnfamily with setColumnFamily()");
-        }
+        if (ConfigHelper.getOutputKeyspace(conf) == null)
+            throw new UnsupportedOperationException("You must set the keyspace with setOutputKeyspace()");
         if (ConfigHelper.getOutputPartitioner(conf) == null)
             throw new UnsupportedOperationException("You must set the output partitioner to the one used by your Cassandra cluster");
         if (ConfigHelper.getOutputInitialAddress(conf) == null)

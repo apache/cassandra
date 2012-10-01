@@ -58,7 +58,7 @@ public class ConfigHelper
     private static final String OUTPUT_KEYSPACE_USERNAME_CONFIG = "cassandra.output.keyspace.username";
     private static final String OUTPUT_KEYSPACE_PASSWD_CONFIG = "cassandra.output.keyspace.passwd";
     private static final String INPUT_COLUMNFAMILY_CONFIG = "cassandra.input.columnfamily";
-    private static final String OUTPUT_COLUMNFAMILY_CONFIG = "cassandra.output.columnfamily";
+    private static final String OUTPUT_COLUMNFAMILY_CONFIG = "mapreduce.output.basename"; //this must == OutputFormat.BASE_OUTPUT_NAME
     private static final String INPUT_PREDICATE_CONFIG = "cassandra.input.predicate";
     private static final String INPUT_KEYRANGE_CONFIG = "cassandra.input.keyRange";
     private static final String INPUT_SPLIT_SIZE_CONFIG = "cassandra.input.split.size";
@@ -117,25 +117,43 @@ public class ConfigHelper
     }
 
     /**
-     * Set the keyspace and column family for the output of this job.
+     * Set the keyspace for the output of this job.
      *
      * @param conf Job configuration you are about to run
      * @param keyspace
-     * @param columnFamily
      */
-    public static void setOutputColumnFamily(Configuration conf, String keyspace, String columnFamily)
+    public static void setOutputKeyspace(Configuration conf, String keyspace)
     {
         if (keyspace == null)
         {
             throw new UnsupportedOperationException("keyspace may not be null");
         }
-        if (columnFamily == null)
-        {
-            throw new UnsupportedOperationException("columnfamily may not be null");
-        }
 
         conf.set(OUTPUT_KEYSPACE_CONFIG, keyspace);
-        conf.set(OUTPUT_COLUMNFAMILY_CONFIG, columnFamily);
+    }
+    
+    /**
+     * Set the column family for the input of this job.
+     *
+     * @param conf         Job configuration you are about to run
+     * @param columnFamily
+     */
+    public static void setOutputColumnFamily(Configuration conf, String columnFamily)
+    {
+    	conf.set(OUTPUT_COLUMNFAMILY_CONFIG, columnFamily);
+    }
+    
+    /**
+     * Set the column family for the input of this job.
+     *
+     * @param conf         Job configuration you are about to run
+     * @param keyspace
+     * @param columnFamily
+     */
+    public static void setOutputColumnFamily(Configuration conf, String keyspace, String columnFamily)
+    {
+    	setOutputKeyspace(conf, keyspace);
+    	setOutputColumnFamily(conf, columnFamily);
     }
 
     /**
@@ -329,15 +347,18 @@ public class ConfigHelper
     {
         return conf.get(INPUT_COLUMNFAMILY_CONFIG);
     }
+    
+    public static String getOutputColumnFamily(Configuration conf)
+    {
+    	if (conf.get(OUTPUT_COLUMNFAMILY_CONFIG) != null)
+    		return conf.get(OUTPUT_COLUMNFAMILY_CONFIG);
+    	else
+    		throw new UnsupportedOperationException("You must set the output column family using either setOutputColumnFamily or by adding a named output with MultipleOutputs");
+    }
 
     public static boolean getInputIsWide(Configuration conf)
     {
-        return Boolean.parseBoolean(conf.get(INPUT_WIDEROWS_CONFIG));
-    }
-
-    public static String getOutputColumnFamily(Configuration conf)
-    {
-        return conf.get(OUTPUT_COLUMNFAMILY_CONFIG);
+        return Boolean.valueOf(conf.get(INPUT_WIDEROWS_CONFIG));
     }
 
     public static String getReadConsistencyLevel(Configuration conf)
