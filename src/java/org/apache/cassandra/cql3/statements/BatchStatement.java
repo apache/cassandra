@@ -22,6 +22,7 @@ import java.util.*;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.IMutation;
@@ -78,49 +79,28 @@ public class BatchStatement extends ModificationStatement
         }
     }
 
-    @Override
-    public ConsistencyLevel getConsistencyLevel()
-    {
-        // We have validated that either the consistency is set, or all statements have the same default CL (see validate())
-        return isSetConsistencyLevel()
-             ? super.getConsistencyLevel()
-             : (statements.isEmpty() ? ConsistencyLevel.ONE : statements.get(0).getConsistencyLevel());
-    }
-
     public void validate(ClientState state) throws InvalidRequestException
     {
         if (getTimeToLive() != 0)
             throw new InvalidRequestException("Global TTL on the BATCH statement is not supported.");
 
-        ConsistencyLevel cLevel = null;
         for (ModificationStatement statement : statements)
         {
-            if (statement.isSetConsistencyLevel())
-                throw new InvalidRequestException("Consistency level must be set on the BATCH, not individual statements");
-
             if (isSetTimestamp() && statement.isSetTimestamp())
                 throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements");
 
             if (statement.getTimeToLive() < 0)
                 throw new InvalidRequestException("A TTL must be greater or equal to 0");
-
-            if (isSetConsistencyLevel())
-            {
-                getConsistencyLevel().validateForWrite(statement.keyspace());
-            }
-            else
-            {
-                // If no consistency is set for the batch, we need all the CF in the batch to have the same default consistency level,
-                // otherwise the batch is invalid (i.e. the user must explicitely set the CL)
-                ConsistencyLevel stmtCL = statement.getConsistencyLevel();
-                if (cLevel != null && cLevel != stmtCL)
-                    throw new InvalidRequestException("The tables involved in the BATCH have different default write consistency, you must explicitely set the BATCH consitency level with USING CONSISTENCY");
-                cLevel = stmtCL;
-            }
         }
     }
 
-    public Collection<? extends IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local)
+    protected void validateConsistency(ConsistencyLevel cl) throws InvalidRequestException
+    {
+        for (ModificationStatement statement : statements)
+            statement.validateConsistency(cl);
+    }
+
+    public Collection<? extends IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local, ConsistencyLevel cl)
     throws RequestExecutionException, RequestValidationException
     {
         Map<Pair<String, ByteBuffer>, IMutation> mutations = new HashMap<Pair<String, ByteBuffer>, IMutation>();
@@ -130,7 +110,7 @@ public class BatchStatement extends ModificationStatement
                 statement.setTimestamp(getTimestamp(clientState));
 
             // Group mutation together, otherwise they won't get applied atomically
-            for (IMutation m : statement.getMutations(clientState, variables, local))
+            for (IMutation m : statement.getMutations(clientState, variables, local, cl))
             {
                 if (m instanceof CounterMutation && type != Type.COUNTER)
                     throw new InvalidRequestException("Counter mutations are only allowed in COUNTER batches");
@@ -169,6 +149,6 @@ public class BatchStatement extends ModificationStatement
 
     public String toString()
     {
-        return String.format("BatchStatement(type=%s, statements=%s, consistency=%s)", type, statements, getConsistencyLevel());
+        return String.format("BatchStatement(type=%s, statements=%s)", type, statements);
     }
 }

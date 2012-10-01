@@ -48,8 +48,6 @@ public class CFPropDefs extends PropertyDefinitions
     public static final String KW_REPLICATEONWRITE = "replicate_on_write";
     public static final String KW_CACHING = "caching";
     public static final String KW_BF_FP_CHANCE = "bloom_filter_fp_chance";
-    public static final String KW_DEFAULT_R_CONSISTENCY = "default_read_consistency";
-    public static final String KW_DEFAULT_W_CONSISTENCY = "default_write_consistency";
 
     public static final String KW_COMPACTION = "compaction";
     public static final String KW_COMPRESSION = "compression";
@@ -70,8 +68,6 @@ public class CFPropDefs extends PropertyDefinitions
         keywords.add(KW_BF_FP_CHANCE);
         keywords.add(KW_COMPACTION);
         keywords.add(KW_COMPRESSION);
-        keywords.add(KW_DEFAULT_W_CONSISTENCY);
-        keywords.add(KW_DEFAULT_R_CONSISTENCY);
 
         obsoleteKeywords.add("compaction_strategy_class");
         obsoleteKeywords.add("compaction_strategy_options");
@@ -143,26 +139,6 @@ public class CFPropDefs extends PropertyDefinitions
 
         if (!getCompressionOptions().isEmpty())
             cfm.compressionParameters(CompressionParameters.create(getCompressionOptions()));
-
-        try
-        {
-            ConsistencyLevel readCL = getConsistencyLevel(KW_DEFAULT_R_CONSISTENCY);
-            if (readCL != null)
-            {
-                readCL.validateForRead(cfm.ksName);
-                cfm.defaultReadCL(readCL);
-            }
-            ConsistencyLevel writeCL = getConsistencyLevel(KW_DEFAULT_W_CONSISTENCY);
-            if (writeCL != null)
-            {
-                writeCL.validateForWrite(cfm.ksName);
-                cfm.defaultWriteCL(writeCL);
-            }
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new ConfigurationException(e.getMessage(), e.getCause());
-        }
     }
 
     public ConsistencyLevel getConsistencyLevel(String key) throws ConfigurationException, SyntaxException

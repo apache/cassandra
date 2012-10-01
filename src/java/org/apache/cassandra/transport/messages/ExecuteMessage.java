@@ -25,6 +25,7 @@ import org.jboss.netty.buffer.ChannelBuffer;
 
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.utils.MD5Digest;
@@ -42,7 +43,8 @@ public class ExecuteMessage extends Message.Request
             for (int i = 0; i < count; i++)
                 values.add(CBUtil.readValue(body));
 
-            return new ExecuteMessage(id, values);
+            ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
+            return new ExecuteMessage(id, values, consistency);
         }
 
         public ChannelBuffer encode(ExecuteMessage msg)
@@ -53,7 +55,7 @@ public class ExecuteMessage extends Message.Request
             //   - The values
             //   - options
             int vs = msg.values.size();
-            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(2, 0, vs);
+            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(3, 0, vs);
             builder.add(CBUtil.bytesToCB(msg.statementId.bytes));
             builder.add(CBUtil.shortToCB(vs));
 
@@ -61,23 +63,26 @@ public class ExecuteMessage extends Message.Request
             for (ByteBuffer value : msg.values)
                 builder.addValue(value);
 
+            builder.add(CBUtil.consistencyLevelToCB(msg.consistency));
             return builder.build();
         }
     };
 
     public final MD5Digest statementId;
     public final List<ByteBuffer> values;
+    public final ConsistencyLevel consistency;
 
-    public ExecuteMessage(byte[] statementId, List<ByteBuffer> values)
+    public ExecuteMessage(byte[] statementId, List<ByteBuffer> values, ConsistencyLevel consistency)
     {
-        this(MD5Digest.wrap(statementId), values);
+        this(MD5Digest.wrap(statementId), values, consistency);
     }
 
-    public ExecuteMessage(MD5Digest statementId, List<ByteBuffer> values)
+    public ExecuteMessage(MD5Digest statementId, List<ByteBuffer> values, ConsistencyLevel consistency)
     {
         super(Message.Type.EXECUTE);
         this.statementId = statementId;
         this.values = values;
+        this.consistency = consistency;
     }
 
     public ChannelBuffer encode()
@@ -95,7 +100,7 @@ public class ExecuteMessage extends Message.Request
             if (statement == null)
                 throw new PreparedQueryNotFoundException(statementId);
 
-            return QueryProcessor.processPrepared(statement, c.clientState(), values);
+            return QueryProcessor.processPrepared(statement, consistency, c.clientState(), values);
         }
         catch (Exception e)
         {
@@ -106,6 +111,6 @@ public class ExecuteMessage extends Message.Request
     @Override
     public String toString()
     {
-        return "EXECUTE " + statementId + " with " + values.size() + " values";
+        return "EXECUTE " + statementId + " with " + values.size() + " values at consistency " + consistency;
     }
 }

@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.service.ClientState;
@@ -48,7 +49,7 @@ public class UseStatement extends ParsedStatement implements CQLStatement
     {
     }
 
-    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException
+    public ResultMessage execute(ConsistencyLevel cl, ClientState state, List<ByteBuffer> variables) throws InvalidRequestException
     {
         state.setKeyspace(keyspace);
         return new ResultMessage.SetKeyspace(keyspace);

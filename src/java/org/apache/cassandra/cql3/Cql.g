@@ -42,7 +42,6 @@ options {
     import org.apache.cassandra.exceptions.InvalidRequestException;
     import org.apache.cassandra.exceptions.SyntaxException;
     import org.apache.cassandra.utils.Pair;
-    import org.apache.cassandra.db.ConsistencyLevel;
 }
 
 @members {
@@ -189,19 +188,16 @@ useStatement returns [UseStatement stmt]
 selectStatement returns [SelectStatement.RawStatement expr]
     @init {
         boolean isCount = false;
-        ConsistencyLevel cLevel = null;
         int limit = 10000;
         Map<ColumnIdentifier, Boolean> orderings = new LinkedHashMap<ColumnIdentifier, Boolean>();
     }
     : K_SELECT ( sclause=selectClause | (K_COUNT '(' sclause=selectCountClause ')' { isCount = true; }) )
       K_FROM cf=columnFamilyName
-      ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text.toUpperCase()); } )?
       ( K_WHERE wclause=whereClause )?
       ( K_ORDER K_BY orderByClause[orderings] ( ',' orderByClause[orderings] )* )?
       ( K_LIMIT rows=INTEGER { limit = Integer.parseInt($rows.text); } )?
       {
-          SelectStatement.Parameters params = new SelectStatement.Parameters(cLevel,
-                                                                             limit,
+          SelectStatement.Parameters params = new SelectStatement.Parameters(limit,
                                                                              orderings,
                                                                              isCount);
           $expr = new SelectStatement.RawStatement(cf, params, sclause, wclause);
@@ -240,9 +236,8 @@ orderByClause[Map<ColumnIdentifier, Boolean> orderings]
 /**
  * INSERT INTO <CF> (<column>, <column>, <column>, ...)
  * VALUES (<value>, <value>, <value>, ...)
- * USING CONSISTENCY <level> AND TIMESTAMP <long>;
+ * USING TIMESTAMP <long>;
  *
- * Consistency level is set to ONE by default
  */
 insertStatement returns [UpdateStatement expr]
     @init {
@@ -269,8 +264,7 @@ usingClauseDelete[Attributes attrs]
     ;
 
 usingClauseDeleteObjective[Attributes attrs]
-    : K_CONSISTENCY K_LEVEL  { attrs.cLevel = ConsistencyLevel.valueOf($K_LEVEL.text.toUpperCase()); }
-    | K_TIMESTAMP ts=INTEGER { attrs.timestamp = Long.valueOf($ts.text); }
+    : K_TIMESTAMP ts=INTEGER { attrs.timestamp = Long.valueOf($ts.text); }
     ;
 
 usingClauseObjective[Attributes attrs]
@@ -727,7 +721,6 @@ collection_type returns [ParsedType pt]
 
 unreserved_keyword returns [String str]
     : k=( K_KEY
-        | K_CONSISTENCY
         | K_CLUSTERING
         | K_LEVEL
         | K_COUNT
@@ -755,7 +748,6 @@ K_UPDATE:      U P D A T E;
 K_WITH:        W I T H;
 K_LIMIT:       L I M I T;
 K_USING:       U S I N G;
-K_CONSISTENCY: C O N S I S T E N C Y;
 K_LEVEL:       ( O N E
                | Q U O R U M
                | A L L

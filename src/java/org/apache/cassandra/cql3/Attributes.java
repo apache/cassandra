@@ -25,7 +25,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
  */
 public class Attributes
 {
-    public ConsistencyLevel cLevel;
     public Long timestamp;
     public int timeToLive;
 }

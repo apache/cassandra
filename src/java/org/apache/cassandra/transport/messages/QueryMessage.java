@@ -18,8 +18,10 @@
 package org.apache.cassandra.transport.messages;
 
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
 
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.transport.*;
 
@@ -33,21 +35,25 @@ public class QueryMessage extends Message.Request
         public QueryMessage decode(ChannelBuffer body)
         {
             String query = CBUtil.readLongString(body);
-            return new QueryMessage(query);
+            ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
+            return new QueryMessage(query, consistency);
         }
 
         public ChannelBuffer encode(QueryMessage msg)
         {
-            return CBUtil.longStringToCB(msg.query);
+
+            return ChannelBuffers.wrappedBuffer(CBUtil.longStringToCB(msg.query), CBUtil.consistencyLevelToCB(msg.consistency));
         }
     };
 
     public final String query;
+    public final ConsistencyLevel consistency;
 
-    public QueryMessage(String query)
+    public QueryMessage(String query, ConsistencyLevel consistency)
     {
         super(Message.Type.QUERY);
         this.query = query;
+        this.consistency = consistency;
     }
 
     public ChannelBuffer encode()
@@ -59,7 +65,7 @@ public class QueryMessage extends Message.Request
     {
         try
         {
-            return QueryProcessor.process(query, ((ServerConnection)connection).clientState());
+            return QueryProcessor.process(query, consistency, ((ServerConnection)connection).clientState());
         }
         catch (Exception e)
         {

@@ -25,8 +25,9 @@ import java.util.*;
 
 import com.google.common.base.Splitter;
 
-import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.utils.Hex;
 
 public class Client extends SimpleClient
@@ -99,7 +100,7 @@ public class Client extends SimpleClient
         else if (msgType.equals("QUERY"))
         {
             String query = line.substring(6);
-            return new QueryMessage(query);
+            return new QueryMessage(query, ConsistencyLevel.ONE);
         }
         else if (msgType.equals("PREPARE"))
         {
@@ -127,7 +128,7 @@ public class Client extends SimpleClient
                     }
                     values.add(bb);
                 }
-                return new ExecuteMessage(id, values);
+                return new ExecuteMessage(id, values, ConsistencyLevel.ONE);
             }
             catch (Exception e)
             {

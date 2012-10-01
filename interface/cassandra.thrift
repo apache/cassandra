@@ -55,7 +55,7 @@ namespace rb CassandraThrift
 # An effort should be made not to break forward-client-compatibility either
 # (e.g. one should avoid removing obsolete fields from the IDL), but no
 # guarantees in this respect are made by the Cassandra project.
-const string VERSION = "19.34.0"
+const string VERSION = "19.35.0"
 
 
 #
@@ -772,8 +772,14 @@ service Cassandra {
             2:UnavailableException ue,
             3:TimedOutException te,
             4:SchemaDisagreementException sde)
-            
-            
+
+  CqlResult execute_cql3_query(1:required binary query, 2:required Compression compression, 3:required ConsistencyLevel consistency)
+    throws (1:InvalidRequestException ire,
+            2:UnavailableException ue,
+            3:TimedOutException te,
+            4:SchemaDisagreementException sde)
+
+
   /**
    * Prepare a CQL (Cassandra Query Language) statement by compiling and returning
    * - the type of CQL statement
@@ -781,6 +787,9 @@ service Cassandra {
    * - a count of the discovered bound markers in the statement 
    */
   CqlPreparedResult prepare_cql_query(1:required binary query, 2:required Compression compression)
+    throws (1:InvalidRequestException ire)
+
+  CqlPreparedResult prepare_cql3_query(1:required binary query, 2:required Compression compression)
     throws (1:InvalidRequestException ire)
 
              
@@ -794,5 +803,14 @@ service Cassandra {
             3:TimedOutException te,
             4:SchemaDisagreementException sde)
 
+  CqlResult execute_prepared_cql3_query(1:required i32 itemId, 2:required list<binary> values, 3:required ConsistencyLevel consistency)
+    throws (1:InvalidRequestException ire,
+            2:UnavailableException ue,
+            3:TimedOutException te,
+            4:SchemaDisagreementException sde)
+
+  /**
+   * @Deprecated This is now a no-op. Please use the CQL3 specific methods instead.
+   */
   void set_cql_version(1: required string version) throws (1:InvalidRequestException ire)
 }

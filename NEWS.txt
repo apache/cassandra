@@ -63,6 +63,8 @@ Upgrading
       syntax to create a keyspace is now:
         CREATE KEYSPACE ks WITH replication = { 'class' : 'SimpleStrategy',
                                                 'replication_factor' : 2 };
+      Also, the consistency level cannot be set in the language anymore, but is
+      at the protocol level.
       Please refer to the CQL3 documentation for details.
 
 Features

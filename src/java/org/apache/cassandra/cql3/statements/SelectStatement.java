@@ -118,13 +118,18 @@ public class SelectStatement implements CQLStatement
         // Nothing to do, all validation has been done by RawStatement.prepare()
     }
 
-    public ResultMessage.Rows execute(ClientState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
+    public ResultMessage.Rows execute(ConsistencyLevel cl, ClientState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
     {
+        if (cl == null)
+            throw new InvalidRequestException("Invalid empty consistency level");
+
+        cl.validateForRead(keyspace());
+
         try
         {
             List<Row> rows = isKeyRange
-                           ? StorageProxy.getRangeSlice(getRangeCommand(variables), getConsistencyLevel())
-                           : StorageProxy.read(getSliceCommands(variables), getConsistencyLevel());
+                           ? StorageProxy.getRangeSlice(getRangeCommand(variables), cl)
+                           : StorageProxy.read(getSliceCommands(variables), cl);
 
             return processResults(rows, variables);
         }
@@ -320,11 +325,6 @@ public class SelectStatement implements CQLStatement
         // Internally, we don't support exclusive bounds for slices. Instead,
         // we query one more element if necessary and exclude
         return sliceRestriction != null && !sliceRestriction.isInclusive(Bound.START) ? parameters.limit + 1 : parameters.limit;
-    }
-
-    private ConsistencyLevel getConsistencyLevel()
-    {
-        return parameters.consistencyLevel == null ? cfDef.cfm.getReadConsistencyLevel() : parameters.consistencyLevel;
     }
 
     private Collection<ByteBuffer> getKeys(final List<ByteBuffer> variables) throws InvalidRequestException
@@ -971,8 +971,6 @@ public class SelectStatement implements CQLStatement
         public ParsedStatement.Prepared prepare() throws InvalidRequestException
         {
             CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
-            if (parameters.consistencyLevel != null)
-                parameters.consistencyLevel.validateForRead(keyspace());
 
             if (parameters.limit <= 0)
                 throw new InvalidRequestException("LIMIT must be strictly positive");
@@ -1280,12 +1278,11 @@ public class SelectStatement implements CQLStatement
         @Override
         public String toString()
         {
-            return String.format("SelectRawStatement[name=%s, selectClause=%s, whereClause=%s, isCount=%s, cLevel=%s, limit=%s]",
+            return String.format("SelectRawStatement[name=%s, selectClause=%s, whereClause=%s, isCount=%s, limit=%s]",
                     cfName,
                     selectClause,
                     whereClause,
                     parameters.isCount,
-                    parameters.consistencyLevel,
                     parameters.limit);
         }
     }
@@ -1428,13 +1425,11 @@ public class SelectStatement implements CQLStatement
     public static class Parameters
     {
         private final int limit;
-        private final ConsistencyLevel consistencyLevel;
         private final Map<ColumnIdentifier, Boolean> orderings;
         private final boolean isCount;
 
-        public Parameters(ConsistencyLevel consistency, int limit, Map<ColumnIdentifier, Boolean> orderings, boolean isCount)
+        public Parameters(int limit, Map<ColumnIdentifier, Boolean> orderings, boolean isCount)
         {
-            this.consistencyLevel = consistency;
             this.limit = limit;
             this.orderings = orderings;
             this.isCount = isCount;

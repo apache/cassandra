@@ -122,20 +122,20 @@ public class QueryProcessor
         }
     }
 
-    private static ResultMessage processStatement(CQLStatement statement, ClientState clientState, List<ByteBuffer> variables)
+    private static ResultMessage processStatement(CQLStatement statement, ConsistencyLevel cl, ClientState clientState, List<ByteBuffer> variables)
     throws RequestExecutionException, RequestValidationException
     {
         statement.checkAccess(clientState);
         statement.validate(clientState);
-        ResultMessage result = statement.execute(clientState, variables);
+        ResultMessage result = statement.execute(cl, clientState, variables);
         return result == null ? ResultMessage.Void.instance() : result;
     }
 
-    public static ResultMessage process(String queryString, ClientState clientState)
+    public static ResultMessage process(String queryString, ConsistencyLevel cl, ClientState clientState)
     throws RequestExecutionException, RequestValidationException
     {
         logger.trace("CQL QUERY: {}", queryString);
-        return processStatement(getStatement(queryString, clientState).statement, clientState, Collections.<ByteBuffer>emptyList());
+        return processStatement(getStatement(queryString, clientState).statement, cl, clientState, Collections.<ByteBuffer>emptyList());
     }
 
     public static UntypedResultSet processInternal(String query)
@@ -210,7 +210,7 @@ public class QueryProcessor
         }
     }
 
-    public static ResultMessage processPrepared(CQLStatement statement, ClientState clientState, List<ByteBuffer> variables)
+    public static ResultMessage processPrepared(CQLStatement statement, ConsistencyLevel cl, ClientState clientState, List<ByteBuffer> variables)
     throws RequestExecutionException, RequestValidationException
     {
         // Check to see if there are any bound variables to verify
@@ -228,7 +228,7 @@ public class QueryProcessor
                     logger.trace("[{}] '{}'", i+1, variables.get(i));
         }
 
-        return processStatement(statement, clientState, variables);
+        return processStatement(statement, cl, clientState, variables);
     }
 
     private static ParsedStatement.Prepared getStatement(String queryStr, ClientState clientState)

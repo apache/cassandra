@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.exceptions.*;
@@ -53,7 +54,7 @@ public interface CQLStatement
      * @param variables the values for bounded variables. The implementation
      * can assume that each bound term have a corresponding value.
      */
-    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws RequestValidationException, RequestExecutionException;
+    public ResultMessage execute(ConsistencyLevel cl, ClientState state, List<ByteBuffer> variables) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Variante of execute used for internal query against the system tables, and thus only query the local node.

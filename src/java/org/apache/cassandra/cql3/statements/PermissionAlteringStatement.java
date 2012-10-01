@@ -17,7 +17,12 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.nio.ByteBuffer;
+import java.util.List;
+
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -39,6 +44,13 @@ public abstract class PermissionAlteringStatement extends ParsedStatement implem
 
     public void validate(ClientState state)
     {}
+
+    public ResultMessage execute(ConsistencyLevel cl, ClientState state, List<ByteBuffer> variables) throws UnauthorizedException, InvalidRequestException
+    {
+        return execute(state, variables);
+    }
+
+    public abstract ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws UnauthorizedException, InvalidRequestException;
 
     public ResultMessage executeInternal(ClientState state)
     {

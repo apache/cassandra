@@ -174,6 +174,15 @@ Table of Contents
                    [byte] repesenting the IP address (in practice n can only be
                    either 4 (IPv4) or 16 (IPv6)), following by one [int]
                    representing the port.
+    [consistency]  A consistency level specification. This is a [string] having
+                   one of the following value: "", "ANY", "ONE", "TWO", "THREE",
+                   "QUORUM", "ALL", "LOCAL_QUORUM", "EACH_QUORUM". It is
+                   possible to provide an empty string, in which case a default
+                   consistency will be used server side. Providing an empty
+                   consistency level can also be useful to save bytes for cases
+                   where a [consistency] is required by the protocol but not
+                   strictly by the operation. The server never sends an empty
+                   [consistency] however.
 
     [string map]      A [short] n, followed by n pair <k><v> where <k> and <v>
                       are [string].
@@ -232,7 +241,10 @@ Table of Contents
 4.1.4. QUERY
 
   Performs a CQL query. The body of the message consists of a CQL query as a [long
-  string].
+  string] followed by the [consistency] for the operation.
+
+  Note that the consistency is ignored by some queries (USE, CREATE, ALTER,
+  TRUNCATE, ...).
 
   The server will respond to a QUERY message with a RESULT message, the content
   of which depends on the query.
@@ -250,13 +262,17 @@ Table of Contents
 4.1.6. EXECUTE
 
   Executes a prepared query. The body of the message must be:
-    <id><n><value_1>....<value_n>
+    <id><n><value_1>....<value_n><consistency>
   where:
     - <id> is the prepared query ID. It's the [short bytes] returned as a
       response to a PREPARE message.
     - <n> is a [short] indicating the number of following values.
     - <value_1>...<value_n> are the [bytes] to use for bound variables in the
       prepared query.
+    - <consistency> is the [consistency] level for the operation.
+
+  Note that the consistency is ignored by some (prepared) queries (USE, CREATE,
+  ALTER, TRUNCATE, ...).
 
   The response from the server will be a RESULT message.
 
@@ -509,8 +525,8 @@ Table of Contents
     0x1000    Unavailable exception. The rest of the ERROR message body will be
                 <cl><required><alive>
               where:
-                <cl> is a [string] representing the consistency level of the
-                     query having triggered the exception.
+                <cl> is the [consistency] level of the query having triggered
+                     the exception.
                 <required> is an [int] representing the number of node that
                            should be alive to respect <cl>
                 <alive> is an [int] representing the number of replica that
@@ -526,8 +542,8 @@ Table of Contents
               of the ERROR message body will be
                 <cl><received><blockfor><writeType>
               where:
-                <cl> is a [string] representing the consistency level of the
-                     query having triggered the exception.
+                <cl> is the [consistency] level of the query having triggered
+                     the exception.
                 <received> is an [int] representing the number of nodes having
                            acknowledged the request.
                 <blockfor> is the number of replica whose acknowledgement is
@@ -552,8 +568,8 @@ Table of Contents
               of the ERROR message body will be
                 <cl><received><blockfor><data_present>
               where:
-                <cl> is a [string] representing the consistency level of the
-                     query having triggered the exception.
+                <cl> is the [consistency] level of the query having triggered
+                     the exception.
                 <received> is an [int] representing the number of nodes having
                            answered the request.
                 <blockfor> is the number of replica whose response is

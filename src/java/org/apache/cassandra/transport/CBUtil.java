@@ -31,6 +31,8 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.util.CharsetUtil;
 
+import org.apache.cassandra.db.ConsistencyLevel;
+
 /**
  * ChannelBuffer utility methods.
  * Note that contrarily to ByteBufferUtil, these method do "read" the
@@ -128,6 +130,29 @@ public abstract class CBUtil
         catch (IndexOutOfBoundsException e)
         {
             throw new ProtocolException("Not enough bytes to read a byte array preceded by it's 2 bytes length");
+        }
+    }
+
+    public static ChannelBuffer consistencyLevelToCB(ConsistencyLevel consistency)
+    {
+        if (consistency == null)
+            return shortToCB(0);
+        else
+            return stringToCB(consistency.toString());
+    }
+
+    public static ConsistencyLevel readConsistencyLevel(ChannelBuffer cb)
+    {
+        String cl = CBUtil.readString(cb);
+        try
+        {
+            if (cl.isEmpty())
+                return null;
+            return Enum.valueOf(ConsistencyLevel.class, cl.toUpperCase());
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new ProtocolException("Unknown consistency level: " + cl);
         }
     }
 

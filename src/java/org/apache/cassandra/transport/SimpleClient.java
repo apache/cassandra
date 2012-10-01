@@ -36,6 +36,7 @@ import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.logging.InternalLoggerFactory;
 import org.jboss.netty.logging.Slf4JLoggerFactory;
 
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.ClientState;
 
@@ -112,9 +113,9 @@ public class SimpleClient
         execute(msg);
     }
 
-    public ResultMessage execute(String query)
+    public ResultMessage execute(String query, ConsistencyLevel consistency)
     {
-        Message.Response msg = execute(new QueryMessage(query));
+        Message.Response msg = execute(new QueryMessage(query, consistency));
         assert msg instanceof ResultMessage;
         return (ResultMessage)msg;
     }
@@ -126,9 +127,9 @@ public class SimpleClient
         return (ResultMessage.Prepared)msg;
     }
 
-    public ResultMessage executePrepared(byte[] statementId, List<ByteBuffer> values)
+    public ResultMessage executePrepared(byte[] statementId, List<ByteBuffer> values, ConsistencyLevel consistency)
     {
-        Message.Response msg = execute(new ExecuteMessage(statementId, values));
+        Message.Response msg = execute(new ExecuteMessage(statementId, values, consistency));
         assert msg instanceof ResultMessage;
         return (ResultMessage)msg;
     }

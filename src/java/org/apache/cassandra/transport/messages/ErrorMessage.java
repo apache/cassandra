@@ -61,7 +61,7 @@ public class ErrorMessage extends Message.Response
                     break;
                 case UNAVAILABLE:
                     {
-                        ConsistencyLevel cl = Enum.valueOf(ConsistencyLevel.class, CBUtil.readString(body));
+                        ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
                         int required = body.readInt();
                         int alive = body.readInt();
                         te = new UnavailableException(cl, required, alive);
@@ -132,10 +132,8 @@ public class ErrorMessage extends Message.Response
             {
                 case UNAVAILABLE:
                     UnavailableException ue = (UnavailableException)msg.error;
-                    ByteBuffer ueCl = ByteBufferUtil.bytes(ue.consistency.toString());
-
-                    acb = ChannelBuffers.buffer(2 + ueCl.remaining() + 8);
-                    acb.writeShort((short)ueCl.remaining());
+                    ChannelBuffer ueCl = CBUtil.consistencyLevelToCB(ue.consistency);
+                    acb = ChannelBuffers.buffer(ueCl.readableBytes() + 8);
                     acb.writeBytes(ueCl);
                     acb.writeInt(ue.required);
                     acb.writeInt(ue.alive);

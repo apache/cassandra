@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.operations.ListOperation;
 import org.apache.cassandra.cql3.operations.MapOperation;
 import org.apache.cassandra.cql3.operations.Operation;
 import org.apache.cassandra.cql3.operations.SetOperation;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.RowMutation;
@@ -60,7 +61,15 @@ public class DeleteStatement extends ModificationStatement
         this.toRemove = new ArrayList<Pair<CFDefinition.Name, Term>>(columns.size());
     }
 
-    public Collection<RowMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local)
+    protected void validateConsistency(ConsistencyLevel cl) throws InvalidRequestException
+    {
+        if (type == Type.COUNTER)
+            cl.validateCounterForWrite(cfDef.cfm);
+        else
+            cl.validateForWrite(cfDef.cfm.ksName);
+    }
+
+    public Collection<RowMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local, ConsistencyLevel cl)
     throws RequestExecutionException, RequestValidationException
     {
         // keys
@@ -90,7 +99,7 @@ public class DeleteStatement extends ModificationStatement
             }
         }
 
-        Map<ByteBuffer, ColumnGroupMap> rows = needsReading ? readRows(keys, builder, (CompositeType)cfDef.cfm.comparator, local) : null;
+        Map<ByteBuffer, ColumnGroupMap> rows = needsReading ? readRows(keys, builder, (CompositeType)cfDef.cfm.comparator, local, cl) : null;
 
         Collection<RowMutation> rowMutations = new ArrayList<RowMutation>(keys.size());
         UpdateParameters params = new UpdateParameters(variables, getTimestamp(clientState), -1);
@@ -228,10 +237,9 @@ public class DeleteStatement extends ModificationStatement
 
     public String toString()
     {
-        return String.format("DeleteStatement(name=%s, columns=%s, consistency=%s keys=%s)",
+        return String.format("DeleteStatement(name=%s, columns=%s, keys=%s)",
                              cfName,
                              columns,
-                             getConsistencyLevel(),
                              whereClause);
     }
 }

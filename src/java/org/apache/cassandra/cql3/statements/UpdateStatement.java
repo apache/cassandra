@@ -96,9 +96,16 @@ public class UpdateStatement extends ModificationStatement
         this.columns = null;
     }
 
+    protected void validateConsistency(ConsistencyLevel cl) throws InvalidRequestException
+    {
+        if (type == Type.COUNTER)
+            cl.validateCounterForWrite(cfDef.cfm);
+        else
+            cl.validateForWrite(cfDef.cfm.ksName);
+    }
 
     /** {@inheritDoc} */
-    public Collection<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local)
+    public Collection<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local, ConsistencyLevel cl)
     throws RequestExecutionException, RequestValidationException
     {
         List<ByteBuffer> keys = buildKeyNames(cfDef, processedKeys, variables);
@@ -125,13 +132,13 @@ public class UpdateStatement extends ModificationStatement
             }
         }
 
-        Map<ByteBuffer, ColumnGroupMap> rows = needsReading ? readRows(keys, builder, (CompositeType)cfDef.cfm.comparator, local) : null;
+        Map<ByteBuffer, ColumnGroupMap> rows = needsReading ? readRows(keys, builder, (CompositeType)cfDef.cfm.comparator, local, cl) : null;
 
         Collection<IMutation> mutations = new LinkedList<IMutation>();
         UpdateParameters params = new UpdateParameters(variables, getTimestamp(clientState), getTimeToLive());
 
         for (ByteBuffer key: keys)
-            mutations.add(mutationForKey(cfDef, key, builder, params, rows == null ? null : rows.get(key)));
+            mutations.add(mutationForKey(cfDef, key, builder, params, rows == null ? null : rows.get(key), cl));
 
         return mutations;
     }
@@ -196,7 +203,7 @@ public class UpdateStatement extends ModificationStatement
      *
      * @throws InvalidRequestException on the wrong request
      */
-    private IMutation mutationForKey(CFDefinition cfDef, ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params, ColumnGroupMap group)
+    private IMutation mutationForKey(CFDefinition cfDef, ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params, ColumnGroupMap group, ConsistencyLevel cl)
     throws InvalidRequestException
     {
         validateKey(key);
@@ -252,7 +259,7 @@ public class UpdateStatement extends ModificationStatement
             }
         }
 
-        return (hasCounterColumn) ? new CounterMutation(rm, getConsistencyLevel()) : rm;
+        return (hasCounterColumn) ? new CounterMutation(rm, cl) : rm;
     }
 
     private boolean addToMutation(ColumnFamily cf,
@@ -319,9 +326,6 @@ public class UpdateStatement extends ModificationStatement
 
         // Deal here with the keyspace overwrite thingy to avoid mistake
         CFMetaData metadata = validateColumnFamily(keyspace(), columnFamily(), type == Type.COUNTER);
-        if (type == Type.COUNTER)
-            getConsistencyLevel().validateCounterForWrite(metadata);
-
         cfDef = metadata.getCfDef();
 
         if (columns == null)
@@ -440,11 +444,10 @@ public class UpdateStatement extends ModificationStatement
 
     public String toString()
     {
-        return String.format("UpdateStatement(name=%s, keys=%s, columns=%s, consistency=%s, timestamp=%s, timeToLive=%s)",
+        return String.format("UpdateStatement(name=%s, keys=%s, columns=%s, timestamp=%s, timeToLive=%s)",
                              cfName,
                              whereClause,
                              columns,
-                             getConsistencyLevel(),
                              isSetTimestamp() ? getTimestamp(null) : "<now>",
                              getTimeToLive());
     }

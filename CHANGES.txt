@@ -30,6 +30,7 @@
  * Run leveled compaction in parallel (CASSANDRA-4310)
  * Fix potential NPE during CFS reload (CASSANDRA-4786)
  * Composite indexes may miss results (CASSANDRA-4796)
+ * Move consistency level to the protocol level (CASSANDRA-4734)
 
 
 1.2-beta1

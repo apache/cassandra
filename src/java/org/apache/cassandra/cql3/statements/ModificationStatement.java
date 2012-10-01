@@ -51,19 +51,17 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
 
     protected Type type;
 
-    private final ConsistencyLevel cLevel;
     private Long timestamp;
     private final int timeToLive;
 
     public ModificationStatement(CFName name, Attributes attrs)
     {
-        this(name, attrs.cLevel, attrs.timestamp, attrs.timeToLive);
+        this(name, attrs.timestamp, attrs.timeToLive);
     }
 
-    public ModificationStatement(CFName name, ConsistencyLevel cLevel, Long timestamp, int timeToLive)
+    public ModificationStatement(CFName name, Long timestamp, int timeToLive)
     {
         super(name);
-        this.cLevel = cLevel;
         this.timestamp = timestamp;
         this.timeToLive = timeToLive;
     }
@@ -80,14 +78,18 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
 
         if (timeToLive > ExpiringColumn.MAX_TTL)
             throw new InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", timeToLive, ExpiringColumn.MAX_TTL));
-
-        getConsistencyLevel().validateForWrite(keyspace());
     }
 
-    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
+    protected abstract void validateConsistency(ConsistencyLevel cl) throws InvalidRequestException;
+
+    public ResultMessage execute(ConsistencyLevel cl, ClientState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
     {
-        Collection<? extends IMutation> mutations = getMutations(state, variables, false);
-        ConsistencyLevel cl = getConsistencyLevel();
+        if (cl == null)
+            throw new InvalidRequestException("Invalid empty consistency level");
+
+        validateConsistency(cl);
+
+        Collection<? extends IMutation> mutations = getMutations(state, variables, false, cl);
 
         // The type should have been set by now or we have a bug
         assert type != null;
@@ -111,31 +113,11 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
         return null;
     }
 
-
     public ResultMessage executeInternal(ClientState state) throws RequestValidationException, RequestExecutionException
     {
-        for (IMutation mutation : getMutations(state, Collections.<ByteBuffer>emptyList(), true))
+        for (IMutation mutation : getMutations(state, Collections.<ByteBuffer>emptyList(), true, null))
             mutation.apply();
         return null;
-    }
-
-    public ConsistencyLevel getConsistencyLevel()
-    {
-        if (cLevel != null)
-            return cLevel;
-
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily());
-        return cfm == null ? ConsistencyLevel.ONE : cfm.getWriteConsistencyLevel();
-    }
-
-    /**
-     * True if an explicit consistency level was parsed from the statement.
-     *
-     * @return true if a consistency was parsed, false otherwise.
-     */
-    public boolean isSetConsistencyLevel()
-    {
-        return cLevel != null;
     }
 
     public long getTimestamp(ClientState clientState)
@@ -158,9 +140,18 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
         return timeToLive;
     }
 
-    protected Map<ByteBuffer, ColumnGroupMap> readRows(List<ByteBuffer> keys, ColumnNameBuilder builder, CompositeType composite, boolean local)
+    protected Map<ByteBuffer, ColumnGroupMap> readRows(List<ByteBuffer> keys, ColumnNameBuilder builder, CompositeType composite, boolean local, ConsistencyLevel cl)
     throws RequestExecutionException, RequestValidationException
     {
+        try
+        {
+            cl.validateForRead(keyspace());
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new InvalidRequestException(String.format("Write operation require a read but consistency %s is not supported on reads", cl));
+        }
+
         List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
         for (ByteBuffer key : keys)
         {
@@ -177,7 +168,7 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
         {
             List<Row> rows = local
                            ? SelectStatement.readLocally(keyspace(), commands)
-                           : StorageProxy.read(commands, getConsistencyLevel());
+                           : StorageProxy.read(commands, cl);
 
             Map<ByteBuffer, ColumnGroupMap> map = new HashMap<ByteBuffer, ColumnGroupMap>();
             for (Row row : rows)
@@ -212,7 +203,7 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
      * @return list of the mutations
      * @throws InvalidRequestException on invalid requests
      */
-    protected abstract Collection<? extends IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local)
+    protected abstract Collection<? extends IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local, ConsistencyLevel cl)
     throws RequestExecutionException, RequestValidationException;
 
     public abstract ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException;
