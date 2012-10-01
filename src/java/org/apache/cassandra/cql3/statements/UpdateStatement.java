@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.TimeoutException;
 
 import com.google.common.collect.ArrayListMultimap;
 
@@ -35,7 +34,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql.QueryProcessor.validateKey;
-
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
 /**
@@ -100,7 +98,7 @@ public class UpdateStatement extends ModificationStatement
 
 
     /** {@inheritDoc} */
-    public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local)
+    public Collection<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local)
     throws RequestExecutionException, RequestValidationException
     {
         List<ByteBuffer> keys = buildKeyNames(cfDef, processedKeys, variables);
@@ -129,13 +127,13 @@ public class UpdateStatement extends ModificationStatement
 
         Map<ByteBuffer, ColumnGroupMap> rows = needsReading ? readRows(keys, builder, (CompositeType)cfDef.cfm.comparator, local) : null;
 
-        List<IMutation> rowMutations = new LinkedList<IMutation>();
+        Collection<IMutation> mutations = new LinkedList<IMutation>();
         UpdateParameters params = new UpdateParameters(variables, getTimestamp(clientState), getTimeToLive());
 
         for (ByteBuffer key: keys)
-            rowMutations.add(mutationForKey(cfDef, key, builder, params, rows == null ? null : rows.get(key)));
+            mutations.add(mutationForKey(cfDef, key, builder, params, rows == null ? null : rows.get(key)));
 
-        return rowMutations;
+        return mutations;
     }
 
     // Returns the first empty component or null if none are

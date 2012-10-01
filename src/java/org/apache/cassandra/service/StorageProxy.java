@@ -167,7 +167,7 @@ public class StorageProxy implements StorageProxyMBean
      * @param mutations the mutations to be applied across the replicas
      * @param consistency_level the consistency level for the operation
      */
-    public static void mutate(List<? extends IMutation> mutations, ConsistencyLevel consistency_level)
+    public static void mutate(Collection<? extends IMutation> mutations, ConsistencyLevel consistency_level)
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
         logger.debug("Mutations/ConsistencyLevel are {}/{}", mutations, consistency_level);
@@ -243,7 +243,7 @@ public class StorageProxy implements StorageProxyMBean
      * @param mutations the RowMutations to be applied across the replicas
      * @param consistency_level the consistency level for the operation
      */
-    public static void mutateAtomically(List<RowMutation> mutations, ConsistencyLevel consistency_level)
+    public static void mutateAtomically(Collection<RowMutation> mutations, ConsistencyLevel consistency_level)
     throws UnavailableException, WriteTimeoutException
     {
         long startTime = System.nanoTime();
@@ -294,13 +294,15 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static void syncWriteToBatchlog(List<RowMutation> mutations,
-                                            Collection<InetAddress> endpoints,
-                                            UUID uuid)
+    private static void syncWriteToBatchlog(Collection<RowMutation> mutations, Collection<InetAddress> endpoints, UUID uuid)
     throws WriteTimeoutException
     {
         RowMutation rm = BatchlogManager.getBatchlogMutationFor(mutations, uuid);
-        AbstractWriteResponseHandler handler = WriteResponseHandler.create(endpoints, Collections.<InetAddress>emptyList(), ConsistencyLevel.ONE, Table.SYSTEM_KS, null);
+        AbstractWriteResponseHandler handler = WriteResponseHandler.create(endpoints,
+                                                                           Collections.<InetAddress>emptyList(),
+                                                                           ConsistencyLevel.ONE,
+                                                                           Table.SYSTEM_KS,
+                                                                           null);
 
         try
         {

@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
@@ -29,8 +28,8 @@ import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.thrift.RequestType;
-import org.apache.cassandra.thrift.ThriftValidation;
+import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -39,6 +38,12 @@ import org.apache.cassandra.utils.Pair;
  */
 public class BatchStatement extends ModificationStatement
 {
+    public static enum Type
+    {
+        LOGGED, UNLOGGED, COUNTER
+    }
+
+    protected final Type type;
     // statements to execute
     protected final List<ModificationStatement> statements;
 
@@ -46,12 +51,14 @@ public class BatchStatement extends ModificationStatement
      * Creates a new BatchStatement from a list of statements and a
      * Thrift consistency level.
      *
+     * @param type type of the batch
      * @param statements a list of UpdateStatements
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
-    public BatchStatement(List<ModificationStatement> statements, Attributes attrs)
+    public BatchStatement(Type type, List<ModificationStatement> statements, Attributes attrs)
     {
         super(null, attrs);
+        this.type = type;
         this.statements = statements;
     }
 
@@ -75,6 +82,28 @@ public class BatchStatement extends ModificationStatement
                 cfamsSeen.add(statement.columnFamily());
             }
         }
+    }
+
+    @Override
+    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
+    {
+        Collection<? extends IMutation> mutations = getMutations(state, variables, false);
+        ConsistencyLevel cl = getConsistencyLevel();
+
+        switch (type)
+        {
+            case LOGGED:
+                StorageProxy.mutateAtomically((Collection<RowMutation>) mutations, cl);
+                break;
+            case UNLOGGED:
+            case COUNTER:
+                StorageProxy.mutate(mutations, cl);
+                break;
+            default:
+                throw new AssertionError();
+        }
+
+        return null;
     }
 
     @Override
@@ -119,54 +148,35 @@ public class BatchStatement extends ModificationStatement
         }
     }
 
-    public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local)
+    public Collection<? extends IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local)
     throws RequestExecutionException, RequestValidationException
     {
-        Map<Pair<String, ByteBuffer>, RowAndCounterMutation> mutations = new HashMap<Pair<String, ByteBuffer>, RowAndCounterMutation>();
+        Map<Pair<String, ByteBuffer>, IMutation> mutations = new HashMap<Pair<String, ByteBuffer>, IMutation>();
         for (ModificationStatement statement : statements)
         {
             if (isSetTimestamp())
                 statement.setTimestamp(getTimestamp(clientState));
 
-            List<IMutation> lm = statement.getMutations(clientState, variables, local);
             // Group mutation together, otherwise they won't get applied atomically
-            for (IMutation m : lm)
+            for (IMutation m : statement.getMutations(clientState, variables, local))
             {
-                Pair<String, ByteBuffer> key = Pair.create(m.getTable(), m.key());
-                RowAndCounterMutation racm = mutations.get(key);
-                if (racm == null)
-                {
-                    racm = new RowAndCounterMutation();
-                    mutations.put(key, racm);
-                }
+                if (m instanceof CounterMutation && type != Type.COUNTER)
+                    throw new InvalidRequestException("Counter mutations are only allowed in COUNTER batches");
 
-                if (m instanceof CounterMutation)
-                {
-                    if (racm.cm == null)
-                        racm.cm = (CounterMutation)m;
-                    else
-                        racm.cm.addAll(m);
-                }
+                if (m instanceof RowMutation && type == Type.COUNTER)
+                    throw new InvalidRequestException("Only counter mutations are allowed in COUNTER batches");
+
+                Pair<String, ByteBuffer> key = Pair.create(m.getTable(), m.key());
+                IMutation existing = mutations.get(key);
+
+                if (existing == null)
+                    mutations.put(key, m);
                 else
-                {
-                    assert m instanceof RowMutation;
-                    if (racm.rm == null)
-                        racm.rm = (RowMutation)m;
-                    else
-                        racm.rm.addAll(m);
-                }
+                    existing.addAll(m);
             }
         }
 
-        List<IMutation> batch = new LinkedList<IMutation>();
-        for (RowAndCounterMutation racm : mutations.values())
-        {
-            if (racm.rm != null)
-                batch.add(racm.rm);
-            if (racm.cm != null)
-                batch.add(racm.cm);
-        }
-        return batch;
+        return mutations.values();
     }
 
     public ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException
@@ -187,12 +197,6 @@ public class BatchStatement extends ModificationStatement
 
     public String toString()
     {
-        return String.format("BatchStatement(statements=%s, consistency=%s)", statements, getConsistencyLevel());
-    }
-
-    private static class RowAndCounterMutation
-    {
-        public RowMutation rm;
-        public CounterMutation cm;
+        return String.format("BatchStatement(type=%s, statements=%s, consistency=%s)", type, statements, getConsistencyLevel());
     }
 }

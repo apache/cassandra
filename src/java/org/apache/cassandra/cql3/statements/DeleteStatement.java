@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
@@ -29,7 +28,6 @@ import org.apache.cassandra.cql3.operations.Operation;
 import org.apache.cassandra.cql3.operations.SetOperation;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DeletionInfo;
-import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -62,7 +60,7 @@ public class DeleteStatement extends ModificationStatement
         this.toRemove = new ArrayList<Pair<CFDefinition.Name, Term>>(columns.size());
     }
 
-    public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local)
+    public Collection<RowMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local)
     throws RequestExecutionException, RequestValidationException
     {
         // keys
@@ -94,7 +92,7 @@ public class DeleteStatement extends ModificationStatement
 
         Map<ByteBuffer, ColumnGroupMap> rows = needsReading ? readRows(keys, builder, (CompositeType)cfDef.cfm.comparator, local) : null;
 
-        List<IMutation> rowMutations = new ArrayList<IMutation>(keys.size());
+        Collection<RowMutation> rowMutations = new ArrayList<RowMutation>(keys.size());
         UpdateParameters params = new UpdateParameters(variables, getTimestamp(clientState), -1);
 
         for (ByteBuffer key : keys)

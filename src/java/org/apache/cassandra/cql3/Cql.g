@@ -353,14 +353,17 @@ deleteSelector returns [Selector s]
  */
 batchStatement returns [BatchStatement expr]
     @init {
-        Attributes attrs = new Attributes();
+        BatchStatement.Type type = BatchStatement.Type.LOGGED;
         List<ModificationStatement> statements = new ArrayList<ModificationStatement>();
+        Attributes attrs = new Attributes();
     }
-    : K_BEGIN K_BATCH ( usingClause[attrs] )?
+    : K_BEGIN
+      ( K_UNLOGGED { type = BatchStatement.Type.UNLOGGED; } | K_COUNTER { type = BatchStatement.Type.COUNTER; } )?
+      K_BATCH ( usingClause[attrs] )?
           s1=batchStatementObjective ';'? { statements.add(s1); } ( sN=batchStatementObjective ';'? { statements.add(sN); } )*
       K_APPLY K_BATCH
       {
-          return new BatchStatement(statements, attrs);
+          return new BatchStatement(type, statements, attrs);
       }
     ;
 
@@ -767,8 +770,9 @@ K_USE:         U S E;
 K_COUNT:       C O U N T;
 K_SET:         S E T;
 K_BEGIN:       B E G I N;
-K_APPLY:       A P P L Y;
+K_UNLOGGED:    U N L O G G E D;
 K_BATCH:       B A T C H;
+K_APPLY:       A P P L Y;
 K_TRUNCATE:    T R U N C A T E;
 K_DELETE:      D E L E T E;
 K_IN:          I N;

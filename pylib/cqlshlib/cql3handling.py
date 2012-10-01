@@ -449,7 +449,7 @@ def delete_opt_completer(ctxt, cass):
 explain_completion('deleteStatement', 'delcol', '<column_to_delete>')
 
 syntax_rules += r'''
-<batchStatement> ::= "BEGIN" "BATCH"
+<batchStatement> ::= "BEGIN" ( "UNLOGGED" | "COUNTER" )? "BATCH"
                         ( "USING" [batchopt]=<usingOption>
                                   ( "AND" [batchopt]=<usingOption> )* )?
                         [batchstmt]=<batchStatementMember> ";"
