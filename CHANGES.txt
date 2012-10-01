@@ -12,6 +12,7 @@
  * (CQL3) Fix validation when using counter and regular columns in the same table
    (CASSANDRA-4706)
  * Fix bug starting Cassandra with simple authentication (CASSANDRA-4648)
+ * Add support for batchlog in CQL3 (CASSANDRA-4545)
 
 1.2-beta1
  * add atomic_batch_mutate (CASSANDRA-4542, -4635)
