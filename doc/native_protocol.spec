@@ -160,8 +160,7 @@ Table of Contents
     [string list]  A [short] n, followed by n [string].
     [bytes]        A [int] n, followed by n bytes if n >= 0. If n < 0,
                    no byte should follow and the value represented is `null`.
-    [short bytes]  A [short] n, followed by n bytes if n >= 0. If n < 0,
-                   no byte should follow and the value represented is `null`.
+    [short bytes]  A [short] n, followed by n bytes if n >= 0.
 
     [option]       A pair of <id><value> where <id> is a [short] representing
                    the option id and <value> depends on that option (and can be
