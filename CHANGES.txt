@@ -102,6 +102,7 @@
  * fix re-created keyspace disappering after 1.1.5 upgrade (CASSANDRA-4698)
  * (CLI) display elapsed time in 2 fraction digits (CASSANDRA-3460)
  * add authentication support to sstableloader (CASSANDRA-4712)
+ * Fix CQL3 'is reversed' logic (CASSANDRA-4716)
 Merged from 1.0:
  * Switch from NBHM to CHM in MessagingService's callback map, which
    prevents OOM in long-running instances (CASSANDRA-4708)

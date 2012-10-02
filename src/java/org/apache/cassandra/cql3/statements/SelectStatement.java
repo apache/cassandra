@@ -82,9 +82,15 @@ public class SelectStatement implements CQLStatement
         START(0), END(1);
 
         public final int idx;
+
         Bound(int idx)
         {
             this.idx = idx;
+        }
+
+        public static Bound reverse(Bound b)
+        {
+            return b == START ? END : START;
         }
     };
 
@@ -291,8 +297,8 @@ public class SelectStatement implements CQLStatement
             // But we must preserve backward compatibility too (for mixed version cluster that is).
             int multiplier = cfDef.isCompact ? 1 : (cfDef.metadata.size() + 1);
             int toGroup = cfDef.isCompact ? -1 : cfDef.columns.size();
-            ColumnSlice slice = new ColumnSlice(getRequestedBound(isReversed ? Bound.END : Bound.START, variables),
-                                                getRequestedBound(isReversed ? Bound.START : Bound.END, variables));
+            ColumnSlice slice = new ColumnSlice(getRequestedBound(Bound.START, variables),
+                                                getRequestedBound(Bound.END, variables));
             SliceQueryFilter filter = new SliceQueryFilter(new ColumnSlice[]{slice},
                                                            isReversed,
                                                            getLimit(),
@@ -493,10 +499,15 @@ public class SelectStatement implements CQLStatement
         }
     }
 
-    private ByteBuffer buildBound(Bound b, Restriction[] restrictions, ColumnNameBuilder builder, List<ByteBuffer> variables) throws InvalidRequestException
+    private ByteBuffer buildBound(Bound bound, Restriction[] restrictions, ColumnNameBuilder builder, List<ByteBuffer> variables) throws InvalidRequestException
     {
-        for (Restriction r : restrictions)
+        for (CFDefinition.Name name : cfDef.columns.values())
         {
+            // In a restriction, we always have Bound.START < Bound.END for the "base" comparator.
+            // So if we're doing a reverse slice, we must inverse the bounds when giving them as start and end of the slice filter.
+            // But if the actual comparator itself is reversed, we must inversed the bounds too.
+            Bound b = isReversed == isReversedType(name) ? bound : Bound.reverse(bound);
+            Restriction r = columnRestrictions[name.position];
             if (r == null || (!r.isEquality() && r.bound(b) == null))
             {
                 // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
@@ -521,7 +532,7 @@ public class SelectStatement implements CQLStatement
             }
         }
         // Means no relation at all or everything was an equal
-        return (b == Bound.END) ? builder.buildAsEndOfRange() : builder.build();
+        return (bound == Bound.END) ? builder.buildAsEndOfRange() : builder.build();
     }
 
     private ByteBuffer getRequestedBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
@@ -928,6 +939,11 @@ public class SelectStatement implements CQLStatement
         }
     }
 
+    private static boolean isReversedType(CFDefinition.Name name)
+    {
+        return name.type instanceof ReversedType;
+    }
+
     public static class RawStatement extends CFStatement
     {
         private final Parameters parameters;
@@ -1220,11 +1236,6 @@ public class SelectStatement implements CQLStatement
 
 
             return new ParsedStatement.Prepared(stmt, Arrays.<ColumnSpecification>asList(names));
-        }
-
-        private static boolean isReversedType(CFDefinition.Name name)
-        {
-            return name.type instanceof ReversedType;
         }
 
         Restriction updateRestriction(CFDefinition.Name name, Restriction restriction, Relation newRel) throws InvalidRequestException
