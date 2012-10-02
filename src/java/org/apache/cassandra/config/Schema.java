@@ -64,6 +64,7 @@ public class Schema
 
     // 59adb24e-f3cd-3e02-97f0-5b395827453f
     public static final UUID emptyVersion;
+    public static final ImmutableSet<String> systemKeyspaceNames = ImmutableSet.of(Table.SYSTEM_KS, Tracing.TRACE_KS);
 
     static
     {
@@ -277,8 +278,7 @@ public class Schema
      */
     public List<String> getNonSystemTables()
     {
-        ImmutableSet<String> system = ImmutableSet.of(Table.SYSTEM_KS, Tracing.TRACE_KS);
-        return ImmutableList.copyOf(Sets.difference(tables.keySet(), system));
+        return ImmutableList.copyOf(Sets.difference(tables.keySet(), systemKeyspaceNames));
     }
 
     /**
@@ -387,8 +387,6 @@ public class Schema
      * (to make ColumnFamily lookup faster)
      *
      * @param cfm The ColumnFamily definition to load
-     *
-     * @throws ConfigurationException if ColumnFamily was already loaded
      */
     public void load(CFMetaData cfm)
     {

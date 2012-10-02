@@ -1,4 +1,5 @@
 1.2-beta2
+ * include metadata for system keyspace itself in schema tables (CASSANDRA-4416)
  * add check to PropertyFileSnitch to verify presence of location for
    local node (CASSANDRA-4728)
  * add PBSPredictor consistency modeler (CASSANDRA-4261)
@@ -7,13 +8,15 @@
  * adjust blockFor calculation to account for pending ranges due to node 
    movement (CASSANDRA-833)
  * Change CQL version to 3.0.0 and stop accepting 3.0.0-beta1 (CASSANDRA-4649)
- * (CQL3) Make prepared statement global instead of per connection (CASSANDRA-4449)
+ * (CQL3) Make prepared statement global instead of per connection 
+   (CASSANDRA-4449)
  * Fix scrubbing of CQL3 created tables (CASSANDRA-4685)
- * (CQL3) Fix validation when using counter and regular columns in the same table
-   (CASSANDRA-4706)
+ * (CQL3) Fix validation when using counter and regular columns in the same 
+   table (CASSANDRA-4706)
  * Fix bug starting Cassandra with simple authentication (CASSANDRA-4648)
  * Add support for batchlog in CQL3 (CASSANDRA-4545)
  * Add support for multiple column family outputs in CFOF (CASSANDRA-4208)
+
 
 1.2-beta1
  * add atomic_batch_mutate (CASSANDRA-4542, -4635)

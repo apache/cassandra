@@ -29,6 +29,8 @@ import com.google.common.collect.Multimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -102,6 +104,22 @@ public class SystemTable
         catch (InterruptedException e)
         {
             throw new RuntimeException(e);
+        }
+
+        // add entries to system schema columnfamilies for the hardcoded system definitions
+        for (String ksname : Schema.systemKeyspaceNames)
+        {
+            KSMetaData ksmd = Schema.instance.getKSMetaData(ksname);
+
+            // delete old, possibly obsolete entries in schema columnfamilies
+            for (String cfname : Arrays.asList(SystemTable.SCHEMA_KEYSPACES_CF, SystemTable.SCHEMA_COLUMNFAMILIES_CF, SystemTable.SCHEMA_COLUMNS_CF))
+            {
+                String req = String.format("DELETE FROM system.%s WHERE keyspace_name = '%s'", cfname, ksmd.name);
+                processInternal(req);
+            }
+
+            // (+1 to timestamp to make sure we don't get shadowed by the tombstones we just added)
+            ksmd.toSchema(FBUtilities.timestampMicros() + 1).apply();
         }
     }
 

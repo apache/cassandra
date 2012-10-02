@@ -501,12 +501,6 @@ public class SSTableExport
         String ssTableFileName = new File(cmd.getArgs()[0]).getAbsolutePath();
 
         DatabaseDescriptor.loadSchemas();
-        if (Schema.instance.getNonSystemTables().size() < 1)
-        {
-            String msg = "no non-system tables are defined";
-            System.err.println(msg);
-            throw new ConfigurationException(msg);
-        }
         Descriptor descriptor = Descriptor.fromFilename(ssTableFileName);
         if (Schema.instance.getCFMetaData(descriptor) == null)
         {

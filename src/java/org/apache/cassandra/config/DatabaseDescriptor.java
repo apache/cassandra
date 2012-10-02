@@ -464,8 +464,10 @@ public class DatabaseDescriptor
 
             // Hardcoded system tables
             List<KSMetaData> systemKeyspaces = Arrays.asList(KSMetaData.systemKeyspace(), KSMetaData.traceKeyspace());
+            assert systemKeyspaces.size() == Schema.systemKeyspaceNames.size();
             for (KSMetaData ksmd : systemKeyspaces)
             {
+                // install the definition
                 for (CFMetaData cfm : ksmd.cfMetaData().values())
                     Schema.instance.load(cfm);
                 Schema.instance.setTableDefinition(ksmd);

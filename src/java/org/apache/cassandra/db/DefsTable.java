@@ -127,8 +127,8 @@ public class DefsTable
     public static final String OLD_MIGRATIONS_CF = "Migrations";
     public static final String OLD_SCHEMA_CF = "Schema";
 
-    /* dumps current keyspace definitions to storage */
-    public static synchronized void dumpToStorage(Collection<KSMetaData> keyspaces)
+    /* saves keyspace definitions to system schema columnfamilies */
+    public static synchronized void save(Collection<KSMetaData> keyspaces)
     {
         long timestamp = System.currentTimeMillis();
 
@@ -289,7 +289,7 @@ public class DefsTable
             }
 
             // store deserialized keyspaces into new place
-            dumpToStorage(keyspaces);
+            save(keyspaces);
 
             logger.info("Truncating deprecated system column families (migrations, schema)...");
             dropColumnFamily(Table.SYSTEM_KS, OLD_MIGRATIONS_CF);
