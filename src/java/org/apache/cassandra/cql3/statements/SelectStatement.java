@@ -88,9 +88,15 @@ public class SelectStatement implements CQLStatement
         START(0), END(1);
 
         public final int idx;
+
         Bound(int idx)
         {
             this.idx = idx;
+        }
+
+        public static Bound reverse(Bound b)
+        {
+            return b == START ? END : START;
         }
     };
 
@@ -189,8 +195,8 @@ public class SelectStatement implements CQLStatement
         // ...a range (slice) of column names
         if (isColumnRange())
         {
-            ByteBuffer start = getRequestedBound(isReversed ? Bound.END : Bound.START, variables);
-            ByteBuffer finish = getRequestedBound(isReversed ? Bound.START : Bound.END, variables);
+            ByteBuffer start = getRequestedBound(Bound.START, variables);
+            ByteBuffer finish = getRequestedBound(Bound.END, variables);
 
             // Note that we use the total limit for every key. This is
             // potentially inefficient, but then again, IN + LIMIT is not a
@@ -478,13 +484,18 @@ public class SelectStatement implements CQLStatement
         }
     }
 
-    private ByteBuffer getRequestedBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
+    private ByteBuffer getRequestedBound(Bound bound, List<ByteBuffer> variables) throws InvalidRequestException
     {
         assert isColumnRange();
 
         ColumnNameBuilder builder = cfDef.getColumnNameBuilder();
-        for (Restriction r : columnRestrictions)
+        for (CFDefinition.Name name : cfDef.columns.values())
         {
+            // In a restriction, we always have Bound.START < Bound.END for the "base" comparator.
+            // So if we're doing a reverse slice, we must inverse the bounds when giving them as start and end of the slice filter.
+            // But if the actual comparator itself is reversed, we must inversed the bounds too.
+            Bound b = isReversed == isReversedType(name) ? bound : Bound.reverse(bound);
+            Restriction r = columnRestrictions[name.position];
             if (r == null || (!r.isEquality() && r.bound(b) == null))
             {
                 // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
@@ -926,6 +937,11 @@ public class SelectStatement implements CQLStatement
         return new CqlRow(key, thriftColumns);
     }
 
+    private static boolean isReversedType(CFDefinition.Name name)
+    {
+        return name.type instanceof ReversedType;
+    }
+
     public static class RawStatement extends CFStatement
     {
         private final Parameters parameters;
@@ -1157,11 +1173,6 @@ public class SelectStatement implements CQLStatement
                 throw new InvalidRequestException("Select using the token() function don't support IN clause");
 
             return new ParsedStatement.Prepared(stmt, Arrays.<CFDefinition.Name>asList(names));
-        }
-
-        private static boolean isReversedType(CFDefinition.Name name)
-        {
-            return name.type instanceof ReversedType;
         }
 
         Restriction updateRestriction(CFDefinition.Name name, Restriction restriction, Relation newRel) throws InvalidRequestException
