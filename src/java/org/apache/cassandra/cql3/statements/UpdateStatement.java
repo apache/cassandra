@@ -285,23 +285,30 @@ public class UpdateStatement extends ModificationStatement
 
     public ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException
     {
-        boolean hasCommutativeOperation = false;
-
         if (columns != null)
         {
             for (Pair<ColumnIdentifier, Operation> column : columns)
             {
                 if (column.right.getType() == Operation.Type.COUNTER)
-                    hasCommutativeOperation = true;
-
-                if (hasCommutativeOperation && column.right.getType() != Operation.Type.COUNTER)
+                {
+                    if (type == null)
+                        type = Type.COUNTER;
+                    else if (type != Type.COUNTER)
+                        throw new InvalidRequestException("Mix of counter and non-counter operations is not allowed.");
+                }
+                else if (type == Type.COUNTER)
+                {
                     throw new InvalidRequestException("Mix of counter and non-counter operations is not allowed.");
+                }
             }
         }
 
+        if (type == null)
+            type = Type.LOGGED;
+
         // Deal here with the keyspace overwrite thingy to avoid mistake
-        CFMetaData metadata = validateColumnFamily(keyspace(), columnFamily(), hasCommutativeOperation);
-        if (hasCommutativeOperation)
+        CFMetaData metadata = validateColumnFamily(keyspace(), columnFamily(), type == Type.COUNTER);
+        if (type == Type.COUNTER)
             getConsistencyLevel().validateCounterForWrite(metadata);
 
         cfDef = metadata.getCfDef();

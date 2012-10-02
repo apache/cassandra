@@ -14,7 +14,7 @@
  * (CQL3) Fix validation when using counter and regular columns in the same 
    table (CASSANDRA-4706)
  * Fix bug starting Cassandra with simple authentication (CASSANDRA-4648)
- * Add support for batchlog in CQL3 (CASSANDRA-4545)
+ * Add support for batchlog in CQL3 (CASSANDRA-4545, 4738)
  * Add support for multiple column family outputs in CFOF (CASSANDRA-4208)
  * Support repairing only the local DC nodes (CASSANDRA-4747)
 

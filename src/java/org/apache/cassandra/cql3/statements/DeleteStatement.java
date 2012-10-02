@@ -195,6 +195,8 @@ public class DeleteStatement extends ModificationStatement
     public ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException
     {
         CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+        type = metadata.getDefaultValidator().isCommutative() ? Type.COUNTER : Type.LOGGED;
+
         cfDef = metadata.getCfDef();
         UpdateStatement.processKeys(cfDef, whereClause, processedKeys, boundNames);
 

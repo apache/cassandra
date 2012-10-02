@@ -41,6 +41,13 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
 {
     public static final ConsistencyLevel defaultConsistency = ConsistencyLevel.ONE;
 
+    public static enum Type
+    {
+        LOGGED, UNLOGGED, COUNTER
+    }
+
+    protected Type type;
+
     private final ConsistencyLevel cLevel;
     private Long timestamp;
     private final int timeToLive;
@@ -73,9 +80,31 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
 
     public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
     {
-        StorageProxy.mutate(getMutations(state, variables, false), getConsistencyLevel());
+        Collection<? extends IMutation> mutations = getMutations(state, variables, false);
+        ConsistencyLevel cl = getConsistencyLevel();
+
+        // The type should have been set by now or we have a bug
+        assert type != null;
+
+        switch (type)
+        {
+            case LOGGED:
+                if (mutations.size() > 1)
+                    StorageProxy.mutateAtomically((Collection<RowMutation>) mutations, cl);
+                else
+                    StorageProxy.mutate(mutations, cl);
+                break;
+            case UNLOGGED:
+            case COUNTER:
+                StorageProxy.mutate(mutations, cl);
+                break;
+            default:
+                throw new AssertionError();
+        }
+
         return null;
     }
+
 
     public ResultMessage executeInternal(ClientState state) throws RequestValidationException, RequestExecutionException
     {

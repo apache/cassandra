@@ -38,12 +38,6 @@ import org.apache.cassandra.utils.Pair;
  */
 public class BatchStatement extends ModificationStatement
 {
-    public static enum Type
-    {
-        LOGGED, UNLOGGED, COUNTER
-    }
-
-    protected final Type type;
     // statements to execute
     protected final List<ModificationStatement> statements;
 
@@ -82,28 +76,6 @@ public class BatchStatement extends ModificationStatement
                 cfamsSeen.add(statement.columnFamily());
             }
         }
-    }
-
-    @Override
-    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
-    {
-        Collection<? extends IMutation> mutations = getMutations(state, variables, false);
-        ConsistencyLevel cl = getConsistencyLevel();
-
-        switch (type)
-        {
-            case LOGGED:
-                StorageProxy.mutateAtomically((Collection<RowMutation>) mutations, cl);
-                break;
-            case UNLOGGED:
-            case COUNTER:
-                StorageProxy.mutate(mutations, cl);
-                break;
-            default:
-                throw new AssertionError();
-        }
-
-        return null;
     }
 
     @Override
