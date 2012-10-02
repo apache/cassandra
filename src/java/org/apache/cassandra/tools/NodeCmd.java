@@ -69,6 +69,7 @@ public class NodeCmd
     private static final Pair<String, String> TOKENS_OPT = Pair.create("T", "tokens");
     private static final Pair<String, String> PRIMARY_RANGE_OPT = Pair.create("pr", "partitioner-range");
     private static final Pair<String, String> SNAPSHOT_REPAIR_OPT = Pair.create("snapshot", "with-snapshot");
+    private static final Pair<String, String> LOCAL_DC_REPAIR_OPT = Pair.create("local", "in-local-dc");
 
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 7199;
@@ -88,6 +89,7 @@ public class NodeCmd
         options.addOption(TOKENS_OPT,   false, "display all tokens");
         options.addOption(PRIMARY_RANGE_OPT, false, "only repair the first range returned by the partitioner for the node");
         options.addOption(SNAPSHOT_REPAIR_OPT, false, "repair one node at a time using snapshots");
+        options.addOption(LOCAL_DC_REPAIR_OPT, false, "only repair against nodes in the same datacenter");
     }
 
     public NodeCmd(NodeProbe probe)
@@ -1333,10 +1335,11 @@ public class NodeCmd
             {
                 case REPAIR  :
                     boolean snapshot = cmd.hasOption(SNAPSHOT_REPAIR_OPT.left);
+                    boolean localDC = cmd.hasOption(LOCAL_DC_REPAIR_OPT.left);
                     if (cmd.hasOption(PRIMARY_RANGE_OPT.left))
-                        probe.forceTableRepairPrimaryRange(keyspace, snapshot, columnFamilies);
+                        probe.forceTableRepairPrimaryRange(keyspace, snapshot, localDC, columnFamilies);
                     else
-                        probe.forceTableRepair(keyspace, snapshot, columnFamilies);
+                        probe.forceTableRepair(keyspace, snapshot, localDC, columnFamilies);
                     break;
                 case FLUSH   :
                     try { probe.forceTableFlush(keyspace, columnFamilies); }

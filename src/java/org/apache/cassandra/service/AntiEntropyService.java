@@ -26,6 +26,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +45,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.streaming.StreamingRepairTask;
 import org.apache.cassandra.utils.*;
@@ -113,9 +116,9 @@ public class AntiEntropyService
     /**
      * Requests repairs for the given table and column families, and blocks until all repairs have been completed.
      */
-    public RepairFuture submitRepairSession(Range<Token> range, String tablename, boolean isSequential, String... cfnames)
+    public RepairFuture submitRepairSession(Range<Token> range, String tablename, boolean isSequential, boolean isLocal, String... cfnames)
     {
-        RepairFuture futureTask = new RepairSession(range, tablename, isSequential, cfnames).getFuture();
+        RepairFuture futureTask = new RepairSession(range, tablename, isSequential, isLocal, cfnames).getFuture();
         executor.execute(futureTask);
         return futureTask;
     }
@@ -139,8 +142,14 @@ public class AntiEntropyService
 
     /**
      * Return all of the neighbors with whom we share the provided range.
+     *
+     * @param table table to repair
+     * @param toRepair token to repair
+     * @param isLocal need to use only nodes from local datacenter
+     *
+     * @return neighbors with whom we share the provided range
      */
-    static Set<InetAddress> getNeighbors(String table, Range<Token> toRepair)
+    static Set<InetAddress> getNeighbors(String table, Range<Token> toRepair, boolean isLocal)
     {
         StorageService ss = StorageService.instance;
         Map<Range<Token>, List<InetAddress>> replicaSets = ss.getRangeToAddressMap(table);
@@ -162,6 +171,14 @@ public class AntiEntropyService
 
         Set<InetAddress> neighbors = new HashSet<InetAddress>(replicaSets.get(rangeSuperSet));
         neighbors.remove(FBUtilities.getBroadcastAddress());
+
+        if (isLocal)
+        {
+            TokenMetadata.Topology topology = ss.getTokenMetadata().cloneOnlyTokenMap().getTopology();
+            Set<InetAddress> localEndpoints = Sets.newHashSet(topology.getDatacenterEndpoints().get(DatabaseDescriptor.getLocalDataCenter()));
+            return Sets.intersection(neighbors, localEndpoints);
+        }
+
         return neighbors;
     }
 
@@ -575,16 +592,16 @@ public class AntiEntropyService
 
         public RepairSession(TreeRequest req, String tablename, String... cfnames)
         {
-            this(req.sessionid, req.range, tablename, false, cfnames);
+            this(req.sessionid, req.range, tablename, false, false, cfnames);
             AntiEntropyService.instance.sessions.put(getName(), this);
         }
 
-        public RepairSession(Range<Token> range, String tablename, boolean isSequential, String... cfnames)
+        public RepairSession(Range<Token> range, String tablename, boolean isSequential, boolean isLocal, String... cfnames)
         {
-            this(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()).toString(), range, tablename, isSequential, cfnames);
+            this(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()).toString(), range, tablename, isSequential, isLocal, cfnames);
         }
 
-        private RepairSession(String id, Range<Token> range, String tablename, boolean isSequential, String[] cfnames)
+        private RepairSession(String id, Range<Token> range, String tablename, boolean isSequential, boolean isLocal, String[] cfnames)
         {
             this.sessionName = id;
             this.isSequential = isSequential;
@@ -592,7 +609,7 @@ public class AntiEntropyService
             this.cfnames = cfnames;
             assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
             this.range = range;
-            this.endpoints = AntiEntropyService.getNeighbors(tablename, range);
+            this.endpoints = AntiEntropyService.getNeighbors(tablename, range, isLocal);
         }
 
         public String getName()

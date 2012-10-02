@@ -16,7 +16,7 @@
  * Fix bug starting Cassandra with simple authentication (CASSANDRA-4648)
  * Add support for batchlog in CQL3 (CASSANDRA-4545)
  * Add support for multiple column family outputs in CFOF (CASSANDRA-4208)
-
+ * Support repairing only the local DC nodes (CASSANDRA-4747)
 
 1.2-beta1
  * add atomic_batch_mutate (CASSANDRA-4542, -4635)

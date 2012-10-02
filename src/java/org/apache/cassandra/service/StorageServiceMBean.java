@@ -265,12 +265,12 @@ public interface StorageServiceMBean
      * @param columnFamilies
      * @throws IOException
      */
-    public void forceTableRepair(String tableName, boolean isSequential, String... columnFamilies) throws IOException;
+    public void forceTableRepair(String tableName, boolean isSequential, boolean  isLocal, String... columnFamilies) throws IOException;
 
     /**
      * Triggers proactive repair but only for the node primary range.
      */
-    public void forceTableRepairPrimaryRange(String tableName, boolean isSequential, String... columnFamilies) throws IOException;
+    public void forceTableRepairPrimaryRange(String tableName, boolean isSequential, boolean  isLocal, String... columnFamilies) throws IOException;
 
     /**
      * Perform repair of a specific range.
@@ -278,7 +278,7 @@ public interface StorageServiceMBean
      * This allows incremental repair to be performed by having an external controller submitting repair jobs.
      * Note that the provided range much be a subset of one of the node local range.
      */
-    public void forceTableRepairRange(String beginToken, String endToken, String tableName, boolean isSequential, String... columnFamilies) throws IOException;
+    public void forceTableRepairRange(String beginToken, String endToken, String tableName, boolean isSequential, boolean  isLocal, String... columnFamilies) throws IOException;
 
     public void forceTerminateAllRepairSessions();
 

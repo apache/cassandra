@@ -22,7 +22,8 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.*;
 
-import org.apache.cassandra.config.Schema;
+import com.google.common.collect.Sets;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -31,6 +32,8 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.PrecompactedRow;
 import org.apache.cassandra.dht.IPartitioner;
@@ -39,13 +42,13 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+import static org.apache.cassandra.service.AntiEntropyService.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 
-import static org.apache.cassandra.service.AntiEntropyService.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
 {
@@ -169,7 +172,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range));
+            neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range, false));
         }
         assertEquals(expected, neighbors);
     }
@@ -192,7 +195,57 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range));
+            neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range, false));
+        }
+        assertEquals(expected, neighbors);
+    }
+
+    @Test
+    public void testGetNeighborsPlusOneInLocalDC() throws Throwable
+    {
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        
+        // generate rf+1 nodes, and ensure that all nodes are returned
+        Set<InetAddress> expected = addTokens(1 + Table.open(tablename).getReplicationStrategy().getReplicationFactor());
+        expected.remove(FBUtilities.getBroadcastAddress());
+        // remove remote endpoints
+        TokenMetadata.Topology topology = tmd.cloneOnlyTokenMap().getTopology();
+        HashSet<InetAddress> localEndpoints = Sets.newHashSet(topology.getDatacenterEndpoints().get(DatabaseDescriptor.getLocalDataCenter()));
+        expected = Sets.intersection(expected, localEndpoints);
+
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(tablename);
+        Set<InetAddress> neighbors = new HashSet<InetAddress>();
+        for (Range<Token> range : ranges)
+        {
+            neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range, true));
+        }
+        assertEquals(expected, neighbors);
+    }
+
+    @Test
+    public void testGetNeighborsTimesTwoInLocalDC() throws Throwable
+    {
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+
+        // generate rf*2 nodes, and ensure that only neighbors specified by the ARS are returned
+        addTokens(2 * Table.open(tablename).getReplicationStrategy().getReplicationFactor());
+        AbstractReplicationStrategy ars = Table.open(tablename).getReplicationStrategy();
+        Set<InetAddress> expected = new HashSet<InetAddress>();
+        for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddress()))
+        {
+            expected.addAll(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicaRange));
+        }
+        expected.remove(FBUtilities.getBroadcastAddress());
+        // remove remote endpoints
+        TokenMetadata.Topology topology = tmd.cloneOnlyTokenMap().getTopology();
+        HashSet<InetAddress> localEndpoints = Sets.newHashSet(topology.getDatacenterEndpoints().get(DatabaseDescriptor.getLocalDataCenter()));
+        expected = Sets.intersection(expected, localEndpoints);
+        
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(tablename);
+        Set<InetAddress> neighbors = new HashSet<InetAddress>();
+        for (Range<Token> range : ranges)
+        {
+            neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range, true));
         }
         assertEquals(expected, neighbors);
     }
