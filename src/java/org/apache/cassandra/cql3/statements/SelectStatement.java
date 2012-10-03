@@ -168,12 +168,19 @@ public class SelectStatement implements CQLStatement
         return process(rows, createSchema(), Collections.<ByteBuffer>emptyList());
     }
 
+    public static String getShortTypeName(AbstractType<?> type)
+    {
+        if (type instanceof ReversedType)
+            type = ((ReversedType)type).baseType;
+        return TypeParser.getShortName(type);
+    }
+
     private CqlMetadata createSchema()
     {
         return new CqlMetadata(new HashMap<ByteBuffer, String>(),
                                new HashMap<ByteBuffer, String>(),
-                               TypeParser.getShortName(cfDef.cfm.comparator),
-                               TypeParser.getShortName(cfDef.cfm.getDefaultValidator()));
+                               getShortTypeName(cfDef.cfm.comparator),
+                               getShortTypeName(cfDef.cfm.getDefaultValidator()));
     }
 
     public String keyspace()
@@ -616,22 +623,22 @@ public class SelectStatement implements CQLStatement
         if (p.right.hasFunction())
         {
             ByteBuffer nameAsRequested = ByteBufferUtil.bytes(p.right.toString());
-            schema.name_types.put(nameAsRequested, TypeParser.getShortName(cfDef.definitionType));
+            schema.name_types.put(nameAsRequested, getShortTypeName(cfDef.definitionType));
             switch (p.right.function())
             {
                 case WRITE_TIME:
-                    schema.value_types.put(nameAsRequested, TypeParser.getShortName(LongType.instance));
+                    schema.value_types.put(nameAsRequested, getShortTypeName(LongType.instance));
                     break;
                 case TTL:
-                    schema.value_types.put(nameAsRequested, TypeParser.getShortName(Int32Type.instance));
+                    schema.value_types.put(nameAsRequested, getShortTypeName(Int32Type.instance));
                     break;
             }
         }
         else
         {
             ByteBuffer nameAsRequested = p.right.id().key;
-            schema.name_types.put(nameAsRequested, TypeParser.getShortName(cfDef.getNameComparatorForResultSet(p.left)));
-            schema.value_types.put(nameAsRequested, TypeParser.getShortName(p.left.type));
+            schema.name_types.put(nameAsRequested, getShortTypeName(cfDef.getNameComparatorForResultSet(p.left)));
+            schema.value_types.put(nameAsRequested, getShortTypeName(p.left.type));
         }
     }
 

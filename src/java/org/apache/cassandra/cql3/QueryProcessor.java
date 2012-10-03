@@ -206,7 +206,7 @@ public class QueryProcessor
         List<String> var_names = new ArrayList<String>(prepared.boundNames.size());
         for (CFDefinition.Name n : prepared.boundNames)
         {
-            var_types.add(TypeParser.getShortName(n.type));
+            var_types.add(SelectStatement.getShortTypeName(n.type));
             var_names.add(n.name.toString());
         }
 
