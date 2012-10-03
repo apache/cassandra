@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -149,7 +150,7 @@ public class DefsTable
 
         for (Row row : serializedSchema)
         {
-            if (invalidSchemaRow(row))
+            if (invalidSchemaRow(row) || ignoredSchemaRow(row))
                 continue;
 
             keyspaces.add(KSMetaData.fromSchema(row, serializedColumnFamilies(row.key)));
@@ -230,6 +231,18 @@ public class DefsTable
     private static boolean invalidSchemaRow(Row row)
     {
         return row.cf == null || (row.cf.isMarkedForDelete() && row.cf.isEmpty());
+    }
+
+    private static boolean ignoredSchemaRow(Row row)
+    {
+        try
+        {
+            return Schema.systemKeyspaceNames.contains(ByteBufferUtil.string(row.key.key));
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public static ByteBuffer searchComposite(String name, boolean start)
