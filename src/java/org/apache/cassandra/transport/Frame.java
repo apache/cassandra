@@ -156,7 +156,7 @@ public class Frame
         }
 
         @Override
-        protected Object decode (ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer)
+        protected Object decode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer)
         throws Exception
         {
             ChannelBuffer frame = (ChannelBuffer) super.decode(ctx, channel, buffer);
@@ -165,13 +165,6 @@ public class Frame
                 return null;
             }
             return Frame.create(frame, connection);
-        }
-
-        @Override
-        protected ChannelBuffer extractFrame(ChannelBuffer buffer, int index, int length)
-        {
-            // Don't copy
-            return buffer.slice(index, length);
         }
     }
 
