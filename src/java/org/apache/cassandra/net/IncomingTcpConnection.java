@@ -179,7 +179,7 @@ public class IncomingTcpConnection extends Thread
 
         String id = input.readUTF();
         long timestamp = version >= MessagingService.VERSION_12
-                       ? (System.currentTimeMillis() & 0xFFFFFFFF00000000L) | ((input.readInt() << 2) >> 2)
+                       ? (System.currentTimeMillis() & 0xFFFFFFFF00000000L) | (((long) input.readInt() << 2) >> 2)
                        : System.currentTimeMillis();
 
         MessageIn message = MessageIn.read(input, version, id);
