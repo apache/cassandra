@@ -35,7 +35,7 @@ public class Config
 
     public Boolean auto_bootstrap = true;
     public volatile Boolean hinted_handoff_enabled = true;
-    public volatile Integer max_hint_window_in_ms = Integer.MAX_VALUE;
+    public volatile Integer max_hint_window_in_ms = 3600 * 1000; // one hour
 
     public SeedProviderDef seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
@@ -94,7 +94,7 @@ public class Config
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     public Integer column_index_size_in_kb = 64;
-    public Integer in_memory_compaction_limit_in_mb = 256;
+    public Integer in_memory_compaction_limit_in_mb = 64;
     public Integer concurrent_compactors = Runtime.getRuntime().availableProcessors();
     public volatile Integer compaction_throughput_mb_per_sec = 16;
     public Boolean multithreaded_compaction = false;
