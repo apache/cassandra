@@ -440,6 +440,14 @@ public class Memtable
                     ColumnFamily cf = entry.getValue();
                     if (cf.isMarkedForDelete())
                     {
+                        // When every node is up, there's no reason to write batchlog data out to sstables
+                        // (which in turn incurs cost like compaction) since the BL write + delete cancel each other out,
+                        // and BL data is strictly local, so we don't need to preserve tombstones for repair.
+                        // If we have a data row + row level tombstone, then writing it is effectively an expensive no-op so we skip it.
+                        // See CASSANDRA-4667.
+                        if (cfs.columnFamily.equals(SystemTable.BATCHLOG_CF) && cfs.table.name.equals(Table.SYSTEM_KS) && !cf.isEmpty())
+                            continue;
+
                         // Pedantically, you could purge column level tombstones that are past GcGRace when writing to the SSTable.
                         // But it can result in unexpected behaviour where deletes never make it to disk,
                         // as they are lost and so cannot override existing column values. So we only remove deleted columns if there

@@ -198,7 +198,8 @@ public final class CFMetaData
                                                             + "id uuid PRIMARY KEY,"
                                                             + "written_at timestamp,"
                                                             + "data blob"
-                                                            + ") WITH COMMENT='uncommited batches' AND gc_grace_seconds=0");
+                                                            + ") WITH COMMENT='uncommited batches' AND gc_grace_seconds=0 "
+                                                            + "AND COMPACTION={'class' : 'SizeTieredCompactionStrategy', 'min_threshold' : 2}");
 
     public static final CFMetaData RangeXfersCf = compile(17, "CREATE TABLE " + SystemTable.RANGE_XFERS_CF + " ("
                                                               + "token_bytes blob PRIMARY KEY,"

@@ -22,6 +22,7 @@ import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -35,6 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -46,12 +48,15 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.WrappedRunnable;
 
 public class BatchlogManager implements BatchlogManagerMBean
 {
@@ -81,9 +86,9 @@ public class BatchlogManager implements BatchlogManagerMBean
             throw new RuntimeException(e);
         }
 
-        Runnable runnable = new Runnable()
+        Runnable runnable = new WrappedRunnable()
         {
-            public void run()
+            public void runMayThrow() throws ExecutionException, InterruptedException
             {
                 replayAllFailedBatches();
             }
@@ -114,9 +119,9 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     public void forceBatchlogReplay()
     {
-        Runnable runnable = new Runnable()
+        Runnable runnable = new WrappedRunnable()
         {
-            public void run()
+            public void runMayThrow() throws ExecutionException, InterruptedException
             {
                 replayAllFailedBatches();
             }
@@ -158,7 +163,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         return ByteBuffer.wrap(bos.toByteArray());
     }
 
-    private void replayAllFailedBatches()
+    private void replayAllFailedBatches() throws ExecutionException, InterruptedException
     {
         if (!isReplaying.compareAndSet(false, true))
             return;
@@ -176,6 +181,8 @@ public class BatchlogManager implements BatchlogManagerMBean
                 if (writtenAt == null || System.currentTimeMillis() > LongType.instance.compose(writtenAt.value()) + TIMEOUT)
                     replayBatch(row.key);
             }
+
+            cleanup();
         }
         finally
         {
@@ -192,7 +199,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         logger.debug("Replaying batch {}", uuid);
 
         ColumnFamilyStore store = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.BATCHLOG_CF);
-        QueryFilter filter = QueryFilter.getNamesFilter(key, new QueryPath(SystemTable.BATCHLOG_CF), DATA);
+        QueryFilter filter = QueryFilter.getIdentityFilter(key, new QueryPath(SystemTable.BATCHLOG_CF));
         ColumnFamily batch = store.getColumnFamily(filter);
 
         if (batch == null || batch.isMarkedForDelete())
@@ -256,5 +263,17 @@ public class BatchlogManager implements BatchlogManagerMBean
         RowPosition minPosition = partitioner.getMinimumToken().minKeyBound();
         AbstractBounds<RowPosition> range = new Range<RowPosition>(minPosition, minPosition, partitioner);
         return store.getRangeSlice(null, range, Integer.MAX_VALUE, columnFilter, null);
+    }
+
+    /** force flush + compaction to reclaim space from replayed batches */
+    private void cleanup() throws ExecutionException, InterruptedException
+    {
+        ColumnFamilyStore cfs = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.BATCHLOG_CF);
+        cfs.forceBlockingFlush();
+        Collection<Descriptor> descriptors = new ArrayList<Descriptor>();
+        for (SSTableReader sstr : cfs.getSSTables())
+            descriptors.add(sstr.descriptor);
+        if (!descriptors.isEmpty()) // don't pollute the logs if there is nothing to compact.
+            CompactionManager.instance.submitUserDefined(cfs, descriptors, Integer.MAX_VALUE).get();
     }
 }

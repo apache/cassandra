@@ -1,4 +1,5 @@
 1.2-beta2
+ * optimize batchlog flushing to skip successful batches (CASSANDRA-4667)
  * include metadata for system keyspace itself in schema tables (CASSANDRA-4416)
  * add check to PropertyFileSnitch to verify presence of location for
    local node (CASSANDRA-4728)
