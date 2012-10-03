@@ -15,6 +15,7 @@
  * add authentication support to sstableloader (CASSANDRA-4712)
  * Fix CQL3 'is reversed' logic (CASSANDRA-4716)
  * (CQL3) Don't return ReversedType in result set metadata (CASSANDRA-4717)
+ * Pluggable Thrift transport factories for CLI (CASSANDRA-4609)
 Merged from 1.0:
  * Switch from NBHM to CHM in MessagingService's callback map, which
    prevents OOM in long-running instances (CASSANDRA-4708)
