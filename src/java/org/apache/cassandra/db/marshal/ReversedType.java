@@ -30,8 +30,7 @@ public class ReversedType<T> extends AbstractType<T>
     // interning instances
     private static final Map<AbstractType<?>, ReversedType> instances = new HashMap<AbstractType<?>, ReversedType>();
 
-    // package protected for unit tests sake
-    final AbstractType<T> baseType;
+    public final AbstractType<T> baseType;
 
     public static <T> ReversedType<T> getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {

@@ -103,6 +103,7 @@
  * (CLI) display elapsed time in 2 fraction digits (CASSANDRA-3460)
  * add authentication support to sstableloader (CASSANDRA-4712)
  * Fix CQL3 'is reversed' logic (CASSANDRA-4716)
+ * (CQL3) Don't return ReversedType in result set metadata (CASSANDRA-4717)
 Merged from 1.0:
  * Switch from NBHM to CHM in MessagingService's callback map, which
    prevents OOM in long-running instances (CASSANDRA-4708)

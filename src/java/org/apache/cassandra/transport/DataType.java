@@ -142,6 +142,11 @@ public enum DataType implements OptionCodec.Codecable<DataType>
 
     public static Pair<DataType, Object> fromType(AbstractType type)
     {
+        // For CQL3 clients, ReversedType is an implementation detail and they
+        // shouldn't have to care about it.
+        if (type instanceof ReversedType)
+            type = ((ReversedType)type).baseType;
+
         DataType dt = dataTypeMap.get(type);
         if (dt == null)
         {
