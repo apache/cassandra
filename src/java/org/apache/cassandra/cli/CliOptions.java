@@ -18,6 +18,7 @@
 package org.apache.cassandra.cli;
 
 import org.apache.commons.cli.*;
+import org.apache.thrift.transport.TTransportFactory;
 
 /**
  *
@@ -34,6 +35,7 @@ public class CliOptions
     // Command line options
     private static final String HOST_OPTION = "host";
     private static final String PORT_OPTION = "port";
+    private static final String TRANSPORT_FACTORY = "transport-factory";
     private static final String DEBUG_OPTION = "debug";
     private static final String USERNAME_OPTION = "username";
     private static final String PASSWORD_OPTION = "password";
@@ -63,6 +65,7 @@ public class CliOptions
         options.addOption("f",  FILE_OPTION,     "FILENAME", "load statements from the specific file");
         options.addOption(null, JMX_PORT_OPTION, "JMX-PORT", "JMX service port");
         options.addOption(null, SCHEMA_MIGRATION_WAIT_TIME,  "TIME", "Schema migration wait time (secs.), default is 10 secs");
+        options.addOption("tf", TRANSPORT_FACTORY, "TRANSPORT-FACTORY", "Fully-qualified TTransportFactory class name for creating a connection to cassandra");
 
         // options without argument
         options.addOption("B",  BATCH_OPTION,   "enabled batch mode (suppress output; errors are fatal)");
@@ -92,6 +95,9 @@ public class CliOptions
             {
                 css.hostName = DEFAULT_HOST;
             }
+
+            if (cmd.hasOption(TRANSPORT_FACTORY))
+                css.transportFactory = validateAndSetTransportFactory(cmd.getOptionValue(TRANSPORT_FACTORY));
 
             if (cmd.hasOption(DEBUG_OPTION))
             {
@@ -213,4 +219,21 @@ public class CliOptions
         }
     }
 
+    private static TTransportFactory validateAndSetTransportFactory(String transportFactory)
+    {
+        try
+        {
+            Class factory = Class.forName(transportFactory);
+
+            if(!TTransportFactory.class.isAssignableFrom(factory))
+                throw new IllegalArgumentException(String.format("transport factory '%s' " +
+                                                                 "not derived from TTransportFactory", transportFactory));
+
+            return (TTransportFactory) factory.newInstance();
+        }
+        catch (Exception e)
+        {
+            throw new IllegalArgumentException(String.format("Cannot create a transport factory '%s'.", transportFactory), e);
+        }
+    }
 }

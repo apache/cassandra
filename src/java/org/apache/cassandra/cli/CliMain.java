@@ -30,7 +30,6 @@ import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.thrift.*;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
@@ -61,14 +60,14 @@ public class CliMain
         if (transport != null)
             transport.close();
 
-        transport = new TFramedTransport(socket);
-
+        transport = sessionState.transportFactory.getTransport(socket);
         TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
         Cassandra.Client cassandraClient = new Cassandra.Client(binaryProtocol);
 
         try
         {
-            transport.open();
+            if (!transport.isOpen())
+                transport.open();
         }
         catch (Exception e)
         {
