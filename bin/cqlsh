@@ -32,7 +32,7 @@ exit 1
 from __future__ import with_statement
 
 description = "CQL Shell for Apache Cassandra"
-version = "2.2.0"
+version = "2.3.0"
 
 from StringIO import StringIO
 from itertools import groupby
@@ -112,6 +112,7 @@ HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
 DEFAULT_HOST = 'localhost'
 DEFAULT_PORT = 9160
 DEFAULT_CQLVER = '2'
+DEFAULT_TRANSPORT_FACTORY = 'cqlshlib.tfactory.regular_transport_factory'
 
 epilog = """Connects to %(DEFAULT_HOST)s:%(DEFAULT_PORT)d by default. These
 defaults can be changed by setting $CQLSH_HOST and/or $CQLSH_PORT. When a
@@ -128,8 +129,9 @@ parser.add_option("--no-color", action='store_false', dest='color',
 parser.add_option("-u", "--username", help="Authenticate as user.")
 parser.add_option("-p", "--password", help="Authenticate using password.")
 parser.add_option('-k', '--keyspace', help='Authenticate to the given keyspace.')
-parser.add_option("-f", "--file",
-                  help="Execute commands from FILE, then exit")
+parser.add_option("-f", "--file", help="Execute commands from FILE, then exit")
+parser.add_option("-t", "--transport-factory",
+                  help="Use the provided Thrift transport factory function.")
 parser.add_option('--debug', action='store_true',
                   help='Show additional debugging information')
 parser.add_option('--cqlversion', default=DEFAULT_CQLVER,
@@ -557,19 +559,22 @@ class Shell(cmd.Cmd):
     csv_dialect_defaults = dict(delimiter=',', doublequote=False,
                                 escapechar='\\', quotechar='"')
 
-    def __init__(self, hostname, port, color=False, username=None,
-                 password=None, encoding=None, stdin=None, tty=True,
+    def __init__(self, hostname, port, transport_factory, color=False,
+                 username=None, password=None, encoding=None, stdin=None, tty=True,
                  completekey='tab', use_conn=None, cqlver=None, keyspace=None):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
+        self.transport_factory = transport_factory
         self.username = username
         self.password = password
         self.keyspace = keyspace
         if use_conn is not None:
             self.conn = use_conn
         else:
-            self.conn = cql.connect(hostname, port, user=username, password=password)
+            transport = transport_factory(hostname, port, os.environ, CONFIG_FILE)
+            self.conn = cql.connect(hostname, port, user=username, password=password,
+                                    transport=transport)
             self.set_expanded_cql_version(cqlver)
             # we could set the keyspace through cql.connect(), but as of 1.0.10,
             # it doesn't quote the keyspace for USE :(
@@ -1794,9 +1799,9 @@ class Shell(cmd.Cmd):
         except IOError, e:
             self.printerr('Could not open %r: %s' % (fname, e))
             return
-        subshell = Shell(self.hostname, self.port, color=self.color,
-                         encoding=self.encoding, stdin=f, tty=False,
-                         use_conn=self.conn, cqlver=self.cql_version)
+        subshell = Shell(self.hostname, self.port, self.transport_factory,
+                         color=self.color, encoding=self.encoding, stdin=f,
+                         tty=False, use_conn=self.conn, cqlver=self.cql_version)
         subshell.cmdloop()
         f.close()
 
@@ -2627,6 +2632,21 @@ def should_use_color():
         pass
     return True
 
+def load_factory(name):
+    """
+    Attempts to load a transport factory function given its fully qualified
+    name, e.g. "cqlshlib.tfactory.regular_transport_factory"
+    """
+    parts = name.split('.')
+    module = ".".join(parts[:-1])
+    try:
+        t = __import__(module)
+        for part in parts[1:]:
+            t = getattr(t, part)
+        return t
+    except (ImportError, AttributeError):
+        sys.exit("Can't locate transport factory function %s" % name)
+
 def read_options(cmdlineargs, environment):
     configs = ConfigParser.SafeConfigParser()
     configs.read(CONFIG_FILE)
@@ -2635,6 +2655,8 @@ def read_options(cmdlineargs, environment):
     optvalues.username = option_with_default(configs.get, 'authentication', 'username')
     optvalues.password = option_with_default(configs.get, 'authentication', 'password')
     optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
+    optvalues.transport_factory = option_with_default(configs.get, 'connection', 'factory',
+                                                      DEFAULT_TRANSPORT_FACTORY)
     optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey', 'tab')
     optvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
     optvalues.debug = False
@@ -2657,6 +2679,8 @@ def read_options(cmdlineargs, environment):
 
     if options.file is not None:
         options.tty = False
+
+    options.transport_factory = load_factory(options.transport_factory)
 
     if optvalues.color in (True, False):
         options.color = optvalues.color
@@ -2725,6 +2749,7 @@ def main(options, hostname, port):
     try:
         shell = Shell(hostname,
                       port,
+                      options.transport_factory,
                       color=options.color,
                       username=options.username,
                       password=options.password,
