@@ -60,18 +60,18 @@ public final class KSMetaData
     }
 
     // For new user created keyspaces (through CQL)
-    public static KSMetaData newKeyspace(String name, String strategyName, Map<String, String> options) throws ConfigurationException
+    public static KSMetaData newKeyspace(String name, String strategyName, Map<String, String> options, boolean durableWrites) throws ConfigurationException
     {
         Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(strategyName);
         if (cls.equals(LocalStrategy.class))
             throw new ConfigurationException("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
-        return newKeyspace(name, cls, options, Collections.<CFMetaData>emptyList());
+        return newKeyspace(name, cls, options, durableWrites, Collections.<CFMetaData>emptyList());
     }
 
-    public static KSMetaData newKeyspace(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> options, Iterable<CFMetaData> cfDefs)
+    public static KSMetaData newKeyspace(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> options, boolean durablesWrites, Iterable<CFMetaData> cfDefs)
     {
-        return new KSMetaData(name, strategyClass, options, true, cfDefs);
+        return new KSMetaData(name, strategyClass, options, durablesWrites, cfDefs);
     }
 
     public static KSMetaData cloneWith(KSMetaData ksm, Iterable<CFMetaData> cfDefs)

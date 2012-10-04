@@ -144,6 +144,7 @@ cqlStatement returns [ParsedStatement stmt]
     | st15=grantStatement              { $stmt = st15; }
     | st16=revokeStatement             { $stmt = st16; }
     | st17=listGrantsStatement         { $stmt = st17; }
+    | st18=alterKeyspaceStatement      { $stmt = st18; }
     ;
 
 /*
@@ -341,8 +342,9 @@ batchStatementObjective returns [ModificationStatement statement]
  * CREATE KEYSPACE <KEYSPACE> WITH attr1 = value1 AND attr2 = value2;
  */
 createKeyspaceStatement returns [CreateKeyspaceStatement expr]
+    @init { KSPropDefs attrs = new KSPropDefs(); }
     : K_CREATE K_KEYSPACE ks=keyspaceName
-      K_WITH props=properties { $expr = new CreateKeyspaceStatement(ks, props); }
+      K_WITH properties[attrs] { $expr = new CreateKeyspaceStatement(ks, attrs); }
     ;
 
 /**
@@ -368,7 +370,7 @@ cfamColumns[CreateColumnFamilyStatement.RawStatement expr]
     ;
 
 cfamProperty[CreateColumnFamilyStatement.RawStatement expr]
-    : k=property '=' v=propertyValue { $expr.addProperty(k, v); }
+    : k=propertyKey '=' v=propertyValue { try { $expr.addProperty(k, v); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
     | K_COMPACT K_STORAGE { $expr.setCompactStorage(); }
     | K_CLUSTERING K_ORDER K_BY '(' cfamOrdering[expr] (',' cfamOrdering[expr])* ')'
     ;
@@ -387,6 +389,16 @@ createIndexStatement returns [CreateIndexStatement expr]
     ;
 
 /**
+ * ALTER KEYSPACE <KS> WITH <property> = <value>;
+ */
+alterKeyspaceStatement returns [AlterKeyspaceStatement expr]
+    @init { KSPropDefs attrs = new KSPropDefs(); }
+    : K_ALTER K_KEYSPACE ks=keyspaceName
+        K_WITH properties[attrs] { $expr = new AlterKeyspaceStatement(ks, attrs); }
+    ;
+
+
+/**
  * ALTER COLUMN FAMILY <CF> ALTER <column> TYPE <newtype>;
  * ALTER COLUMN FAMILY <CF> ADD <column> <newtype>;
  * ALTER COLUMN FAMILY <CF> DROP <column>;
@@ -395,13 +407,13 @@ createIndexStatement returns [CreateIndexStatement expr]
 alterTableStatement returns [AlterTableStatement expr]
     @init {
         AlterTableStatement.Type type = null;
-        props = new HashMap<String, String>();
+        CFPropDefs props = new CFPropDefs();
     }
     : K_ALTER K_COLUMNFAMILY cf=columnFamilyName
           ( K_ALTER id=cident K_TYPE v=comparatorType { type = AlterTableStatement.Type.ALTER; }
           | K_ADD   id=cident v=comparatorType        { type = AlterTableStatement.Type.ADD; }
           | K_DROP  id=cident                         { type = AlterTableStatement.Type.DROP; }
-          | K_WITH  props=properties                  { type = AlterTableStatement.Type.OPTS; }
+          | K_WITH  properties[props]                 { type = AlterTableStatement.Type.OPTS; }
           )
     {
         $expr = new AlterTableStatement(cf, type, id, v, props);
@@ -545,7 +557,15 @@ termPairWithOperation[Map<ColumnIdentifier, Operation> columns]
         )
     ;
 
-property returns [String str]
+properties[PropertyDefinitions props]
+    : property[props] (K_AND property[props])*
+    ;
+
+property[PropertyDefinitions props]
+    : k=propertyKey '=' simple=propertyValue { try { $props.addProperty(k, simple); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+    ;
+
+propertyKey returns [String str]
     @init{ StringBuilder sb = new StringBuilder(); }
     : c1=cident { sb.append(c1); } ( ':' cn=cident { sb.append(':').append(cn); } )* { $str = sb.toString(); }
     ;
@@ -553,11 +573,6 @@ property returns [String str]
 propertyValue returns [String str]
     : v=(STRING_LITERAL | IDENT | INTEGER | FLOAT) { $str = $v.text; }
     | u=unreserved_keyword                         { $str = u; }
-    ;
-
-properties returns [Map<String, String> props]
-    @init{ $props = new HashMap<String, String>(); }
-    : k1=property '=' v1=propertyValue { $props.put(k1, v1); } (K_AND kn=property '=' vn=propertyValue { $props.put(kn, vn); } )*
     ;
 
 relation returns [Relation rel]

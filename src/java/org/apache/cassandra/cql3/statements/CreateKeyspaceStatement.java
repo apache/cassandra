@@ -26,6 +26,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.KSPropDefs;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
@@ -38,9 +39,7 @@ import org.apache.cassandra.thrift.ThriftValidation;
 public class CreateKeyspaceStatement extends SchemaAlteringStatement
 {
     private final String name;
-    private final Map<String, String> attrs;
-    private String strategyClass;
-    private Map<String, String> strategyOptions = new HashMap<String, String>();
+    private final KSPropDefs attrs;
 
     /**
      * Creates a new <code>CreateKeyspaceStatement</code> instance for a given
@@ -49,7 +48,7 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
      * @param name the name of the keyspace to create
      * @param attrs map of the raw keyword arguments that followed the <code>WITH</code> keyword.
      */
-    public CreateKeyspaceStatement(String name, Map<String, String> attrs)
+    public CreateKeyspaceStatement(String name, KSPropDefs attrs)
     {
         super();
         this.name = name;
@@ -80,24 +79,19 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
         if (name.length() > Schema.NAME_LENGTH)
             throw new InvalidRequestException(String.format("Keyspace names shouldn't be more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, name));
 
-        // required
-        if (!attrs.containsKey("strategy_class"))
-            throw new InvalidRequestException("missing required argument \"strategy_class\"");
-        strategyClass = attrs.get("strategy_class");
-
-        // optional
-        for (String key : attrs.keySet())
-            if ((key.contains(":")) && (key.startsWith("strategy_options")))
-                strategyOptions.put(key.split(":")[1], attrs.get(key));
-
-        // trial run to let ARS validate class + per-class options
         try
         {
+            attrs.validate();
+
+            if (attrs.getReplicationStrategyClass() == null)
+                throw new ConfigurationException("Missing mandatory replication strategy class");
+
+            // trial run to let ARS validate class + per-class options
             AbstractReplicationStrategy.createReplicationStrategy(name,
-                                                                  AbstractReplicationStrategy.getClass(strategyClass),
+                                                                  AbstractReplicationStrategy.getClass(attrs.getReplicationStrategyClass()),
                                                                   StorageService.instance.getTokenMetadata(),
                                                                   DatabaseDescriptor.getEndpointSnitch(),
-                                                                  strategyOptions);
+                                                                  attrs.getReplicationOptions());
         }
         catch (ConfigurationException e)
         {
@@ -107,8 +101,7 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
-        KSMetaData ksm = KSMetaData.newKeyspace(name, strategyClass, strategyOptions);
         ThriftValidation.validateKeyspaceNotYetExisting(name);
-        MigrationManager.announceNewKeyspace(ksm);
+        MigrationManager.announceNewKeyspace(attrs.asKSMetadata(name));
     }
 }

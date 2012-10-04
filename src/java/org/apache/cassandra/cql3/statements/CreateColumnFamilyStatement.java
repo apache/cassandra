@@ -108,20 +108,25 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                                      comparator,
                                      null);
 
-            newCFMD.defaultValidator(defaultValidator)
-                   .columnMetadata(getColumns())
-                   .keyValidator(keyValidator)
-                   .keyAlias(keyAlias)
-                   .columnAliases(columnAliases)
-                   .valueAlias(valueAlias);
-
-            properties.applyToCFMetadata(newCFMD);
+            applyPropertiesTo(newCFMD);
         }
         catch (ConfigurationException e)
         {
             throw new InvalidRequestException(e.getMessage());
         }
         return newCFMD;
+    }
+
+    public void applyPropertiesTo(CFMetaData cfmd) throws InvalidRequestException, ConfigurationException
+    {
+        cfmd.defaultValidator(defaultValidator)
+            .columnMetadata(getColumns())
+            .keyValidator(keyValidator)
+            .keyAlias(keyAlias)
+            .columnAliases(columnAliases)
+            .valueAlias(valueAlias);
+
+        properties.applyToCFMetadata(cfmd);
     }
 
     public static class RawStatement extends CFStatement
@@ -277,7 +282,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
             columnAliases.add(alias);
         }
 
-        public void addProperty(String name, String value)
+        public void addProperty(String name, String value) throws InvalidRequestException
         {
             properties.addProperty(name, value);
         }
