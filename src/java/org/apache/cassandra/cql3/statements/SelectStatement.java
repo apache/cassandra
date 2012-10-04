@@ -334,8 +334,8 @@ public class SelectStatement implements CQLStatement
         if (isColumnRange())
         {
             SliceRange sliceRange = new SliceRange();
-            sliceRange.start = getRequestedBound(isReversed ? Bound.END : Bound.START, variables);
-            sliceRange.finish = getRequestedBound(isReversed ? Bound.START : Bound.END, variables);
+            sliceRange.start = getRequestedBound(Bound.START, variables);
+            sliceRange.finish = getRequestedBound(Bound.END, variables);
             sliceRange.reversed = isReversed;
             sliceRange.count = -1; // We use this for range slices, where the count is ignored in favor of the global column count
             thriftSlicePredicate.slice_range = sliceRange;
@@ -495,6 +495,11 @@ public class SelectStatement implements CQLStatement
     {
         assert isColumnRange();
 
+        // The end-of-component of composite doesn't depend on whether the
+        // component type is reversed or not (i.e. the ReversedType is applied
+        // to the component comparator but not to the end-of-component itself),
+        // it only depends on whether the slice is reversed
+        Bound eocBound = isReversed ? Bound.reverse(bound) : bound;
         ColumnNameBuilder builder = cfDef.getColumnNameBuilder();
         for (CFDefinition.Name name : cfDef.columns.values())
         {
@@ -508,7 +513,7 @@ public class SelectStatement implements CQLStatement
                 // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
                 // For composites, if there was preceding component and we're computing the end, we must change the last component
                 // End-Of-Component, otherwise we would be selecting only one record.
-                if (builder.componentCount() > 0 && b == Bound.END)
+                if (builder.componentCount() > 0 && eocBound == Bound.END)
                     return builder.buildAsEndOfRange();
                 else
                     return builder.build();
@@ -523,7 +528,7 @@ public class SelectStatement implements CQLStatement
             {
                 Term t = r.bound(b);
                 assert t != null;
-                return builder.add(t, r.getRelation(b), variables).build();
+                return builder.add(t, r.getRelation(eocBound, b), variables).build();
             }
         }
         // Means no relation at all or everything was an equal
@@ -1283,14 +1288,14 @@ public class SelectStatement implements CQLStatement
             return bounds[b.idx] == null || boundInclusive[b.idx];
         }
 
-        public Relation.Type getRelation(Bound b)
+        public Relation.Type getRelation(Bound eocBound, Bound inclusiveBound)
         {
-            switch (b)
+            switch (eocBound)
             {
                 case START:
-                    return boundInclusive[b.idx] ? Relation.Type.GTE : Relation.Type.GT;
+                    return boundInclusive[inclusiveBound.idx] ? Relation.Type.GTE : Relation.Type.GT;
                 case END:
-                    return boundInclusive[b.idx] ? Relation.Type.LTE : Relation.Type.LT;
+                    return boundInclusive[inclusiveBound.idx] ? Relation.Type.LTE : Relation.Type.LT;
             }
             throw new AssertionError();
         }

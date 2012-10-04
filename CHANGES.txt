@@ -13,7 +13,7 @@
  * fix re-created keyspace disappering after 1.1.5 upgrade (CASSANDRA-4698)
  * (CLI) display elapsed time in 2 fraction digits (CASSANDRA-3460)
  * add authentication support to sstableloader (CASSANDRA-4712)
- * Fix CQL3 'is reversed' logic (CASSANDRA-4716)
+ * Fix CQL3 'is reversed' logic (CASSANDRA-4716, 4759)
  * (CQL3) Don't return ReversedType in result set metadata (CASSANDRA-4717)
  * Pluggable Thrift transport factories for CLI (CASSANDRA-4609)
  * Backport adding AlterKeyspace statement (CASSANDRA-4611)
