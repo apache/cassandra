@@ -462,12 +462,13 @@ public class RowMutation implements IMutation, MessageProducer
 
             for (Map.Entry<Integer, ColumnFamily> modification : mutation.modifications_.entrySet())
             {
-                ColumnFamily cf = ColumnFamily.create(modification.getValue().metadata());
+                ColumnFamily cfOld = modification.getValue();
+                ColumnFamily cf = ColumnFamily.create(cfOld.metadata());
 
-                if (cf.isMarkedForDelete())
-                    cf.delete(cf.getLocalDeletionTime(), cf.getMarkedForDeleteAt() > now ? now : cf.getMarkedForDeleteAt());
+                if (cfOld.isMarkedForDelete())
+                    cf.delete(cfOld.getLocalDeletionTime(), cfOld.getMarkedForDeleteAt() > now ? now : cfOld.getMarkedForDeleteAt());
 
-                for (IColumn column : modification.getValue().columns)
+                for (IColumn column : cfOld.columns)
                 {
                     // don't clone if column already has a correct timestamp
                     if (column.timestamp() <= now)
