@@ -64,7 +64,6 @@ public class DatabaseDescriptor
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
     private static InetAddress broadcastAddress;
     private static InetAddress rpcAddress;
-    private static InetAddress nativeTransportAddress;
     private static SeedProvider seedProvider;
 
     /* Hashing strategy Random or OPHF */
@@ -314,23 +313,6 @@ public class DatabaseDescriptor
             else
             {
                 rpcAddress = FBUtilities.getLocalAddress();
-            }
-
-            /* Local IP or hostname to bind RPC server to */
-            if (conf.native_transport_address != null)
-            {
-                try
-                {
-                    nativeTransportAddress = InetAddress.getByName(conf.native_transport_address);
-                }
-                catch (UnknownHostException e)
-                {
-                    throw new ConfigurationException("Unknown host in native_transport_address" + conf.native_transport_address);
-                }
-            }
-            else
-            {
-                nativeTransportAddress = FBUtilities.getLocalAddress();
             }
 
             if (conf.thrift_framed_transport_size_in_mb <= 0)
@@ -986,7 +968,7 @@ public class DatabaseDescriptor
 
     public static InetAddress getNativeTransportAddress()
     {
-        return nativeTransportAddress;
+        return getRpcAddress();
     }
 
     public static int getNativeTransportPort()

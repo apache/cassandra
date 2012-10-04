@@ -308,12 +308,11 @@ listen_address: localhost
 # Whether to start the native transport server.
 # Currently, only the thrift server is started by default because the native
 # transport is considered beta.
+# Please note that the address on which the native transport is bound is the
+# same as the rpc_address. The port however is different and specified below.
 start_native_transport: false
-# The address to bind the CQL native transport to. The same remarks than for
-# rpc_address applies.
-native_transport_address: localhost
 # port for the CQL native transport to listen for clients on
-native_transport_port: 8000
+native_transport_port: 9042
 # The maximum of thread handling requests. The meaning is the same than
 # rpc_max_threads. The default is unlimited.
 #native_transport_max_threads: 2048

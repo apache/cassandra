@@ -19,6 +19,7 @@ package org.apache.cassandra.transport;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.EnumMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,6 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.EventMessage;
 
 public class Server implements CassandraDaemon.Server
@@ -206,11 +208,24 @@ public class Server implements CassandraDaemon.Server
             this.server = server;
         }
 
+        private InetAddress getRpcAddress(InetAddress endpoint)
+        {
+            try
+            {
+                return InetAddress.getByName(StorageService.instance.getRpcaddress(endpoint));
+            }
+            catch (UnknownHostException e)
+            {
+                // That should not happen, so log an error, but return the
+                // endpoint address since there's a good change this is right
+                logger.error("Problem retrieving RPC address for " + endpoint, e);
+                return endpoint;
+            }
+        }
+
         public void onJoin(InetAddress endpoint, EndpointState epState)
         {
-            // TODO: we don't gossip the native protocol ip/port yet, so use the
-            // endpoint address and ip on which this server is listening instead.
-            server.connectionTracker.send(Event.TopologyChange.newNode(endpoint, server.socket.getPort()));
+            server.connectionTracker.send(Event.TopologyChange.newNode(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
@@ -219,22 +234,22 @@ public class Server implements CassandraDaemon.Server
 
         public void onAlive(InetAddress endpoint, EndpointState state)
         {
-            server.connectionTracker.send(Event.StatusChange.nodeUp(endpoint, server.socket.getPort()));
+            server.connectionTracker.send(Event.StatusChange.nodeUp(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onDead(InetAddress endpoint, EndpointState state)
         {
-            server.connectionTracker.send(Event.StatusChange.nodeDown(endpoint, server.socket.getPort()));
+            server.connectionTracker.send(Event.StatusChange.nodeDown(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onRemove(InetAddress endpoint)
         {
-            server.connectionTracker.send(Event.TopologyChange.removedNode(endpoint, server.socket.getPort()));
+            server.connectionTracker.send(Event.TopologyChange.removedNode(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onRestart(InetAddress endpoint, EndpointState state)
         {
-            server.connectionTracker.send(Event.StatusChange.nodeUp(endpoint, server.socket.getPort()));
+            server.connectionTracker.send(Event.StatusChange.nodeUp(getRpcAddress(endpoint), server.socket.getPort()));
         }
     }
 }
