@@ -435,16 +435,17 @@ public class RowMutation implements IMutation
 
             for (Map.Entry<UUID, ColumnFamily> modification : mutation.modifications.entrySet())
             {
-                ColumnFamily cf = ColumnFamily.create(modification.getValue().metadata());
+                ColumnFamily cfOld = modification.getValue();
+                ColumnFamily cf = ColumnFamily.create(cfOld.metadata());
 
-                if (cf.isMarkedForDelete())
+                if (cfOld.isMarkedForDelete())
                 {
-                    DeletionTime delTime = cf.deletionInfo().getTopLevelDeletion();
-                    cf.delete(new DeletionInfo(delTime.markedForDeleteAt > now ? now : delTime.markedForDeleteAt,
-                                               delTime.localDeletionTime));
+                    DeletionTime dt = cfOld.deletionInfo().getTopLevelDeletion();
+                    cf.delete(new DeletionInfo(dt.markedForDeleteAt > now ? now : dt.markedForDeleteAt,
+                                               dt.localDeletionTime));
                 }
 
-                for (IColumn column : modification.getValue().columns)
+                for (IColumn column : cfOld.columns)
                 {
                     // don't clone if column already has a correct timestamp
                     if (column.timestamp() <= now)

@@ -102,7 +102,8 @@
  * Automatic fixing of overlapping leveled sstables (CASSANDRA-4644)
  * fix error when using ORDER BY with extended selections (CASSANDRA-4689)
  * (CQL3) Fix validation for IN queries for non-PK cols (CASSANDRA-4709)
- * fix re-created keyspace disappering after 1.1.5 upgrade (CASSANDRA-4698)
+ * fix re-created keyspace disappering after 1.1.5 upgrade 
+   (CASSANDRA-4698, 4752)
  * (CLI) display elapsed time in 2 fraction digits (CASSANDRA-3460)
  * add authentication support to sstableloader (CASSANDRA-4712)
  * Fix CQL3 'is reversed' logic (CASSANDRA-4716, 4759)
