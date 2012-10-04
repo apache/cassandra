@@ -47,10 +47,10 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     public static synchronized <K, V> MapType<K, V> getInstance(AbstractType<K> keys, AbstractType<V> values)
     {
         Pair<AbstractType<?>, AbstractType<?>> p = Pair.<AbstractType<?>, AbstractType<?>>create(keys, values);
-        MapType t = instances.get(p);
+        MapType<K, V> t = instances.get(p);
         if (t == null)
         {
-            t = new MapType(keys, values);
+            t = new MapType<K, V>(keys, values);
             instances.put(p, t);
         }
         return t;

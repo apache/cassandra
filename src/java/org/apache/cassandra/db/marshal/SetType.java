@@ -43,12 +43,12 @@ public class SetType<T> extends CollectionType<Set<T>>
         return getInstance(l.get(0));
     }
 
-    public static synchronized <T> SetType getInstance(AbstractType<T> elements)
+    public static synchronized <T> SetType<T> getInstance(AbstractType<T> elements)
     {
-        SetType t = instances.get(elements);
+        SetType<T> t = instances.get(elements);
         if (t == null)
         {
-            t = new SetType(elements);
+            t = new SetType<T>(elements);
             instances.put(elements, t);
         }
         return t;

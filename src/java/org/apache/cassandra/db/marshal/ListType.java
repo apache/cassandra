@@ -45,10 +45,10 @@ public class ListType<T> extends CollectionType<List<T>>
 
     public static synchronized <T> ListType<T> getInstance(AbstractType<T> elements)
     {
-        ListType t = instances.get(elements);
+        ListType<T> t = instances.get(elements);
         if (t == null)
         {
-            t = new ListType(elements);
+            t = new ListType<T>(elements);
             instances.put(elements, t);
         }
         return t;
