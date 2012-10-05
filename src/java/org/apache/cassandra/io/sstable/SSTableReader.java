@@ -84,7 +84,7 @@ public class SSTableReader extends SSTable
     private IndexSummary indexSummary;
     private Filter bf;
 
-    private InstrumentingCache<KeyCacheKey, RowIndexEntry> keyCache;
+    private final InstrumentingCache<KeyCacheKey, RowIndexEntry> keyCache = CacheService.instance.keyCache;
 
     private final BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
 
@@ -311,7 +311,6 @@ public class SSTableReader extends SSTable
 
     public void setTrackedBy(DataTracker tracker)
     {
-        keyCache = CacheService.instance.keyCache;
         deletingTask.setTracker(tracker);
     }
 
@@ -679,14 +678,14 @@ public class SSTableReader extends SSTable
     {
         CFMetaData.Caching caching = metadata.getCaching();
 
-        if (keyCache == null
-                || caching == CFMetaData.Caching.NONE
-                || caching == CFMetaData.Caching.ROWS_ONLY
-                || keyCache.getCapacity() == 0)
+        if (caching == CFMetaData.Caching.NONE
+            || caching == CFMetaData.Caching.ROWS_ONLY
+            || keyCache.getCapacity() == 0)
+        {
             return;
+        }
 
-        // avoid keeping a permanent reference to the original key buffer
-        KeyCacheKey cacheKey = new KeyCacheKey(descriptor, ByteBufferUtil.clone(key.key));
+        KeyCacheKey cacheKey = new KeyCacheKey(descriptor, key.key);
         logger.trace("Adding cache entry for {} -> {}", cacheKey, info);
         keyCache.put(cacheKey, info);
     }
@@ -698,7 +697,7 @@ public class SSTableReader extends SSTable
 
     private RowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
     {
-        if (keyCache != null && keyCache.getCapacity() > 0)
+        if (keyCache.getCapacity() > 0)
             return updateStats ? keyCache.get(unifiedKey) : keyCache.getInternal(unifiedKey);
         return null;
     }
@@ -798,7 +797,7 @@ public class SSTableReader extends SSTable
                     {
                         // read data position from index entry
                         RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(in, descriptor.version);
-                        if (exactMatch && keyCache != null && keyCache.getCapacity() > 0 && updateCacheAndStats)
+                        if (exactMatch && updateCacheAndStats)
                         {
                             assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
                             DecoratedKey decoratedKey = (DecoratedKey)key;

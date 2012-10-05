@@ -28,6 +28,9 @@ import org.apache.cassandra.utils.Pair;
 public class KeyCacheKey implements CacheKey
 {
     public final Descriptor desc;
+
+    // keeping an array instead of a ByteBuffer lowers the overhead of the key cache working set,
+    // without extra copies on lookup since client-provided key ByteBuffers will be array-backed already
     public final byte[] key;
 
     public KeyCacheKey(Descriptor desc, ByteBuffer key)
