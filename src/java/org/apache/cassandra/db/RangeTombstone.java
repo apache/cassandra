@@ -170,10 +170,9 @@ public class RangeTombstone extends Interval<ByteBuffer, DeletionTime> implement
                 toWrite.add(tombstone);
             }
 
-            TypeSizes typeSizes = TypeSizes.NATIVE;
             for (RangeTombstone tombstone : toWrite)
             {
-                size += tombstone.serializedSize(typeSizes);
+                size += tombstone.serializedSizeForSSTable();
                 atomCount++;
                 if (out != null)
                     atomSerializer.serializeForSSTable(tombstone, out);
