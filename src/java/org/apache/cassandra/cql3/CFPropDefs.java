@@ -105,7 +105,7 @@ public class CFPropDefs extends PropertyDefinitions
     {
         try
         {
-            String className = comparators.get(type);
+            String className = comparators.get(type.toLowerCase());
             if (className == null)
                 className = type;
             return TypeParser.parse(className);
