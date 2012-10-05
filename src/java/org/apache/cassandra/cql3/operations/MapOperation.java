@@ -30,6 +30,8 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.Pair;
 
@@ -81,6 +83,29 @@ public class MapOperation implements Operation
                 break;
             default:
                 throw new AssertionError("Unsupported Map operation: " + kind);
+        }
+    }
+
+    public static void doInsertFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, MapType validator, Term values, UpdateParameters params) throws InvalidRequestException
+    {
+        if (!values.isBindMarker())
+            throw new InvalidRequestException("Can't apply operation on column with " + validator + " type.");
+
+        cf.addAtom(params.makeTombstoneForOverwrite(builder.copy().build(), builder.copy().buildAsEndOfRange()));
+
+        try
+        {
+            Map<?, ?> m = validator.compose(params.variables.get(values.bindIndex));
+            for (Map.Entry<?, ?> entry : m.entrySet())
+            {
+                ByteBuffer name = builder.copy().add(validator.nameComparator().decompose(entry.getKey())).build();
+                ByteBuffer value = validator.valueComparator().decompose(entry.getValue());
+                cf.addColumn(params.makeColumn(name, value));
+            }
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
         }
     }
 

@@ -264,22 +264,33 @@ public class UpdateStatement extends ModificationStatement
     {
         Operation.Type type = valueOperation.getType();
 
-        if (type == Operation.Type.COLUMN || type == Operation.Type.COUNTER)
+        switch (type)
         {
-            if (valueDef != null && valueDef.type.isCollection())
-                throw new InvalidRequestException("Can't apply operation on column with " + valueDef.type + " type.");
+            case COLUMN:
+                if (valueDef != null && valueDef.type.isCollection())
+                {
+                    // This means this was a prepared statement where the whole collection was provided
+                    // For have to deserialize it since it will be multiple columns
+                    ((ColumnOperation)valueOperation).executePreparedCollection(cf, builder.copy(), (CollectionType)valueDef.type, params);
+                }
+                else
+                {
+                    valueOperation.execute(cf, builder.copy(), valueDef == null ? null : valueDef.type, params);
+                }
+                break;
+            case COUNTER:
+                if (valueDef != null && valueDef.type.isCollection())
+                    throw new InvalidRequestException("Cannot assign collection value to column with " + valueDef.type + " type.");
 
-            AbstractType<?> validator = valueDef == null ? null : valueDef.type;
-            valueOperation.execute(cf, builder.copy(), validator, params);
+                valueOperation.execute(cf, builder.copy(), valueDef == null ? null : valueDef.type, params);
+                break;
+            default:
+                if (!valueDef.type.isCollection())
+                    throw new InvalidRequestException("Can't apply collection operation on column with " + valueDef.type + " type.");
+
+                valueOperation.execute(cf, builder.copy(), (CollectionType) valueDef.type, params, list);
+                break;
         }
-        else
-        {
-            if (!valueDef.type.isCollection())
-                throw new InvalidRequestException("Can't apply collection operation on column with " + valueDef.type + " type.");
-
-            valueOperation.execute(cf, builder.copy(), (CollectionType) valueDef.type, params, list);
-        }
-
         return valueOperation.getType() == Operation.Type.COUNTER;
     }
 

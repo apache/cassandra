@@ -33,7 +33,8 @@ Table of Contents
         4.2.5.4. Prepared
       4.2.6. EVENT
   5. Compression
-  6. Error codes
+  6. Collection types
+  7. Error codes
 
 
 1. Overview
@@ -286,7 +287,7 @@ Table of Contents
   Indicates an error processing a request. The body of the message will be an
   error code ([int]) followed by a [string] error message. Then, depending on
   the exception, more content may follow. The error codes are defined in
-  Section 6, along with their additional content if any.
+  Section 7, along with their additional content if any.
 
 
 4.2.2. READY
@@ -452,7 +453,25 @@ Table of Contents
   flag (see Section 2.2) is set.
 
 
-6. Error codes
+6. Collection types
+
+  This section describe the serialization format for the collection types:
+  list, map and set. This serialization format is both useful to decode values
+  returned in RESULT messages but also to encode values for EXECUTE ones.
+
+  The serialization formats are:
+     List: a [short] n indicating the size of the list, followed by n elements.
+           Each element is [short bytes] representing the serialized element
+           value.
+     Map: a [short] n indicating the size of the map, followed by n entries.
+          Each entry is composed of two [short bytes] representing the key and
+          the value of the entry map.
+     Set: a [short] n indicating the size of the set, followed by n elements.
+          Each element is [short bytes] representing the serialized element
+          value.
+
+
+7. Error codes
 
   The supported error codes are described below:
     0x0000    Server error: something unexpected happened. This indicates a

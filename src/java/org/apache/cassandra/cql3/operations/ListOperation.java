@@ -31,6 +31,8 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
@@ -127,6 +129,31 @@ public class ListOperation implements Operation
     public void execute(ColumnFamily cf, ColumnNameBuilder builder, AbstractType<?> validator, UpdateParameters params) throws InvalidRequestException
     {
         throw new InvalidRequestException("List operations are only supported on List typed columns, but " + validator + " given.");
+    }
+
+    public static void doInsertFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, ListType validator, Term values, UpdateParameters params) throws InvalidRequestException
+    {
+        if (!values.isBindMarker())
+            throw new InvalidRequestException("Can't apply operation on column with " + validator + " type.");
+
+        cf.addAtom(params.makeTombstoneForOverwrite(builder.copy().build(), builder.copy().buildAsEndOfRange()));
+
+        try
+        {
+            List<?> l = validator.compose(params.variables.get(values.bindIndex));
+
+            for (int i = 0; i < l.size(); i++)
+            {
+                ColumnNameBuilder b = i == l.size() - 1 ? builder : builder.copy();
+                ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
+                ByteBuffer name = b.add(uuid).build();
+                cf.addColumn(params.makeColumn(name, validator.valueComparator().decompose(l.get(i))));
+            }
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
     }
 
     private void doSet(ColumnFamily cf, ColumnNameBuilder builder, UpdateParameters params, CollectionType validator, List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException

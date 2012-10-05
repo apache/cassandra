@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.marshal;
 
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -75,21 +76,33 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
 
     public Map<K, V> compose(ByteBuffer bytes)
     {
-        ByteBuffer input = bytes.duplicate();
-        int n = input.getShort();
-        Map<K, V> m = new LinkedHashMap<K, V>(n);
-        for (int i = 0; i < n; i++)
+        try
         {
-            int sk = input.getShort();
-            byte[] datak = new byte[sk];
-            input.get(datak);
+            ByteBuffer input = bytes.duplicate();
+            int n = input.getShort();
+            Map<K, V> m = new LinkedHashMap<K, V>(n);
+            for (int i = 0; i < n; i++)
+            {
+                int sk = input.getShort();
+                byte[] datak = new byte[sk];
+                input.get(datak);
+                ByteBuffer kbb = ByteBuffer.wrap(datak);
+                keys.validate(kbb);
 
-            int sv = input.getShort();
-            byte[] datav = new byte[sv];
-            input.get(datav);
-            m.put(keys.compose(ByteBuffer.wrap(datak)), values.compose(ByteBuffer.wrap(datav)));
+                int sv = input.getShort();
+                byte[] datav = new byte[sv];
+                input.get(datav);
+                ByteBuffer vbb = ByteBuffer.wrap(datav);
+                values.validate(vbb);
+
+                m.put(keys.compose(kbb), values.compose(vbb));
+            }
+            return m;
         }
-        return m;
+        catch (BufferUnderflowException e)
+        {
+            throw new MarshalException("Not enough bytes to read a map");
+        }
     }
 
     /**

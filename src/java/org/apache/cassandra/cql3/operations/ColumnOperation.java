@@ -27,6 +27,9 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -78,6 +81,23 @@ public class ColumnOperation implements Operation
     public void execute(ColumnFamily cf, ColumnNameBuilder builder, CollectionType validator, UpdateParameters params, List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
     {
         throw new InvalidRequestException("Column operations are only supported on simple types, but " + validator + " given.");
+    }
+
+    public void executePreparedCollection(ColumnFamily cf, ColumnNameBuilder builder, CollectionType validator, UpdateParameters params) throws InvalidRequestException
+    {
+
+        switch (validator.kind)
+        {
+            case LIST:
+                ListOperation.doInsertFromPrepared(cf, builder, (ListType)validator, value, params);
+                break;
+            case SET:
+                SetOperation.doInsertFromPrepared(cf, builder, (SetType)validator, value, params);
+                break;
+            case MAP:
+                MapOperation.doInsertFromPrepared(cf, builder, (MapType)validator, value, params);
+                break;
+        }
     }
 
     protected void doSet(ColumnFamily cf, ColumnNameBuilder builder, AbstractType<?> validator, UpdateParameters params) throws InvalidRequestException

@@ -18,7 +18,9 @@
 package org.apache.cassandra.cql3.operations;
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.cql3.Term;
@@ -27,6 +29,8 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -71,6 +75,30 @@ public class SetOperation implements Operation
     public void execute(ColumnFamily cf, ColumnNameBuilder builder, AbstractType<?> validator, UpdateParameters params) throws InvalidRequestException
     {
         throw new InvalidRequestException("Set operations are only supported on Set typed columns, but " + validator + " given.");
+    }
+
+    public static void doInsertFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, SetType validator, Term values, UpdateParameters params) throws InvalidRequestException
+    {
+        if (!values.isBindMarker())
+            throw new InvalidRequestException("Can't apply operation on column with " + validator + " type.");
+
+        cf.addAtom(params.makeTombstoneForOverwrite(builder.copy().build(), builder.copy().buildAsEndOfRange()));
+
+        try
+        {
+            Set<?> s = validator.compose(params.variables.get(values.bindIndex));
+            Iterator<?> iter = s.iterator();
+            while (iter.hasNext())
+            {
+                ColumnNameBuilder b = iter.hasNext() ? builder.copy() : builder;
+                ByteBuffer name = b.add(validator.nameComparator().decompose(iter.next())).build();
+                cf.addColumn(params.makeColumn(name, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+            }
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
     }
 
     private void doAdd(ColumnFamily cf, ColumnNameBuilder builder, CollectionType validator, UpdateParameters params) throws InvalidRequestException
