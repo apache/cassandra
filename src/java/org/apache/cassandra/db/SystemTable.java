@@ -238,7 +238,7 @@ public class SystemTable
                 continue;
 
             String req = "UPDATE system.%s SET tokens = tokens - %s WHERE peer = '%s'";
-            processInternal(String.format(req, PEERS_CF, serializeTokens(toRemove), entry.getKey()));
+            processInternal(String.format(req, PEERS_CF, serializeTokens(toRemove), entry.getKey().getHostAddress()));
         }
         forceBlockingFlush(PEERS_CF);
     }
