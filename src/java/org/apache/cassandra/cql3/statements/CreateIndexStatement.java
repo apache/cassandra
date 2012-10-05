@@ -37,6 +37,7 @@ import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.thrift.ThriftValidation;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 /** A <code>CREATE INDEX</code> statement parsed from a CQL query. */
 public class CreateIndexStatement extends SchemaAlteringStatement
@@ -110,5 +111,11 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
         cfm.addDefaultIndexNames();
         MigrationManager.announceColumnFamilyUpdate(cfm);
+    }
+
+    public ResultMessage.SchemaChange.Change changeType()
+    {
+        // Creating an index is akin to updating the CF
+        return ResultMessage.SchemaChange.Change.UPDATED;
     }
 }

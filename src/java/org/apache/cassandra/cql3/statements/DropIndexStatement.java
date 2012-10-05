@@ -27,6 +27,7 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class DropIndexStatement extends SchemaAlteringStatement
 {
@@ -78,5 +79,11 @@ public class DropIndexStatement extends SchemaAlteringStatement
         }
 
         return null;
+    }
+
+    public ResultMessage.SchemaChange.Change changeType()
+    {
+        // Dropping an index is akin to updating the CF
+        return ResultMessage.SchemaChange.Change.UPDATED;
     }
 }

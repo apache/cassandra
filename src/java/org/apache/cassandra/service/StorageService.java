@@ -166,7 +166,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private static enum Mode { NORMAL, CLIENT, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED, RELOCATING }
     private Mode operationMode;
 
-    private final MigrationManager migrationManager = new MigrationManager();
+    private final MigrationManager migrationManager = MigrationManager.instance;
 
     /* Used for tracking drain progress */
     private volatile int totalCFs, remainingCFs;

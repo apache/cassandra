@@ -31,6 +31,7 @@ Table of Contents
         4.2.5.2. Rows
         4.2.5.3. Set_keyspace
         4.2.5.4. Prepared
+        4.2.5.5. Schema_change
       4.2.6. EVENT
   5. Compression
   6. Collection types
@@ -328,7 +329,8 @@ Table of Contents
     0x0001    Void: for results carrying no information.
     0x0002    Rows: for results to select queries, returning a set of rows.
     0x0003    Set_keyspace: the result to a `use` query.
-    0x0004    Prepared: result to a PREPARE message
+    0x0004    Prepared: result to a PREPARE message.
+    0x0005    Schema_change: the result to a schema altering query.
 
   The body for each kind (after the [int] kind) is defined below.
 
@@ -416,6 +418,24 @@ Table of Contents
     - <id> is [short bytes] representing the prepared query ID.
     - <metadata> is defined exactly as for a Rows RESULT (See section 4.2.5.2).
 
+4.2.5.5. Schema_change
+
+  The result to a schema altering query (creation/update/drop of a
+  keyspace/table/index). The body (after the kind [int]) is composed of 3
+  [string]:
+    <change><keyspace><table>
+  where:
+    - <change> describe the type of change that has occured. It can be one of
+      "CREATED", "UPDATED" or "DROPPED".
+    - <keyspace> is the name of the affected keyspace or the keyspace of the
+      affected table.
+    - <table> is the name of the affected table. <table> will be empty (i.e.
+      the empty string "") if the change was affecting a keyspace and not a
+      table.
+
+  Note that queries to create and drop an index are considered as change
+  updating the table the index is on.
+
 
 4.2.6. EVENT
 
@@ -434,6 +454,12 @@ Table of Contents
       consists of a [string] and an [inet], corresponding respectively to the
       type of status change ("UP" or "DOWN") followed by the address of the
       concerned node.
+    - "SCHEMA_CHANGE": events related to schema change. The body of the message
+      (after the event type) consists of 3 [string] corresponding respectively
+      to the type of schema change ("CREATED", "UPDATED" or "DROPPED"),
+      followed by the name of the affected keyspace and the name of the
+      affected table within that keyspace. For changes that affect a keyspace
+      directly, the table name will be empty (i.e. the empty string "").
 
   All EVENT message have a streamId of -1 (Section 2.3).
 

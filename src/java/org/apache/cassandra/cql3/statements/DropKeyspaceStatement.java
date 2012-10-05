@@ -25,6 +25,7 @@ import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.ThriftValidation;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class DropKeyspaceStatement extends SchemaAlteringStatement
 {
@@ -42,6 +43,12 @@ public class DropKeyspaceStatement extends SchemaAlteringStatement
     }
 
     @Override
+    public String keyspace()
+    {
+        return keyspace;
+    }
+
+    @Override
     public void validate(ClientState state) throws RequestValidationException
     {
         super.validate(state);
@@ -51,5 +58,10 @@ public class DropKeyspaceStatement extends SchemaAlteringStatement
     public void announceMigration() throws ConfigurationException
     {
         MigrationManager.announceKeyspaceDrop(keyspace);
+    }
+
+    public ResultMessage.SchemaChange.Change changeType()
+    {
+        return ResultMessage.SchemaChange.Change.DROPPED;
     }
 }

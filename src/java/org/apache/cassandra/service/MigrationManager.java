@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.ArrayList;
@@ -54,6 +55,22 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     private static final Logger logger = LoggerFactory.getLogger(MigrationManager.class);
 
     private static final ByteBuffer LAST_MIGRATION_KEY = ByteBufferUtil.bytes("Last Migration");
+
+    public static final MigrationManager instance = new MigrationManager();
+
+    private final List<IMigrationListener> listeners = new CopyOnWriteArrayList<IMigrationListener>();
+
+    private MigrationManager() {}
+
+    public void register(IMigrationListener listener)
+    {
+        listeners.add(listener);
+    }
+
+    public void unregister(IMigrationListener listener)
+    {
+        listeners.remove(listener);
+    }
 
     public void onJoin(InetAddress endpoint, EndpointState epState)
     {}
@@ -105,6 +122,42 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public static boolean isReadyForBootstrap()
     {
         return StageManager.getStage(Stage.MIGRATION).getActiveCount() == 0;
+    }
+
+    public void notifyCreateKeyspace(KSMetaData ksm)
+    {
+        for (IMigrationListener listener : listeners)
+            listener.onCreateKeyspace(ksm.name);
+    }
+
+    public void notifyCreateColumnFamily(CFMetaData cfm)
+    {
+        for (IMigrationListener listener : listeners)
+            listener.onCreateColumnFamly(cfm.ksName, cfm.cfName);
+    }
+
+    public void notifyUpdateKeyspace(KSMetaData ksm)
+    {
+        for (IMigrationListener listener : listeners)
+            listener.onUpdateKeyspace(ksm.name);
+    }
+
+    public void notifyUpdateColumnFamily(CFMetaData cfm)
+    {
+        for (IMigrationListener listener : listeners)
+            listener.onUpdateColumnFamly(cfm.ksName, cfm.cfName);
+    }
+
+    public void notifyDropKeyspace(KSMetaData ksm)
+    {
+        for (IMigrationListener listener : listeners)
+            listener.onDropKeyspace(ksm.name);
+    }
+
+    public void notifyDropColumnFamily(CFMetaData cfm)
+    {
+        for (IMigrationListener listener : listeners)
+            listener.onDropColumnFamly(cfm.ksName, cfm.cfName);
     }
 
     public static void announceNewKeyspace(KSMetaData ksm) throws ConfigurationException

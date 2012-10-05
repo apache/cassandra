@@ -56,7 +56,8 @@ public abstract class ResultMessage extends Message.Response
         VOID         (1, Void.subcodec),
         ROWS         (2, Rows.subcodec),
         SET_KEYSPACE (3, SetKeyspace.subcodec),
-        PREPARED     (4, Prepared.subcodec);
+        PREPARED     (4, Prepared.subcodec),
+        SCHEMA_CHANGE(5, SchemaChange.subcodec);
 
         public final int id;
         public final Message.Codec<ResultMessage> subcodec;
@@ -312,6 +313,77 @@ public abstract class ResultMessage extends Message.Response
         public String toString()
         {
             return "RESULT PREPARED " + statementId + " " + metadata;
+        }
+    }
+
+    public static class SchemaChange extends ResultMessage
+    {
+        public enum Change { CREATED, UPDATED, DROPPED }
+
+        public final Change change;
+        public final String keyspace;
+        public final String columnFamily;
+
+        public SchemaChange(Change change, String keyspace)
+        {
+            this(change, keyspace, "");
+        }
+
+        public SchemaChange(Change change, String keyspace, String columnFamily)
+        {
+            super(Kind.SCHEMA_CHANGE);
+            this.change = change;
+            this.keyspace = keyspace;
+            this.columnFamily = columnFamily;
+        }
+
+        public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
+        {
+            public ResultMessage decode(ChannelBuffer body)
+            {
+                String cStr = CBUtil.readString(body);
+                Change change = null;
+                try
+                {
+                    change = Enum.valueOf(Change.class, cStr.toUpperCase());
+                }
+                catch (IllegalStateException e)
+                {
+                    throw new ProtocolException("Unknown Schema change action: " + cStr);
+                }
+
+                String keyspace = CBUtil.readString(body);
+                String columnFamily = CBUtil.readString(body);
+                return new SchemaChange(change, keyspace, columnFamily);
+
+            }
+
+            public ChannelBuffer encode(ResultMessage msg)
+            {
+                assert msg instanceof SchemaChange;
+                SchemaChange scm = (SchemaChange)msg;
+
+                ChannelBuffer a = CBUtil.stringToCB(scm.change.toString());
+                ChannelBuffer k = CBUtil.stringToCB(scm.keyspace);
+                ChannelBuffer c = CBUtil.stringToCB(scm.columnFamily);
+                return ChannelBuffers.wrappedBuffer(a, k, c);
+            }
+        };
+
+        protected ChannelBuffer encodeBody()
+        {
+            return subcodec.encode(this);
+        }
+
+        public CqlResult toThriftResult()
+        {
+            return new CqlResult(CqlResultType.VOID);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "RESULT schema change " + change + " on " + keyspace + (columnFamily.isEmpty() ? "" : "." + columnFamily);
         }
     }
 }

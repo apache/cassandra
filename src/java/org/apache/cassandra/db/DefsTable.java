@@ -44,6 +44,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.avro.KsDef;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -486,7 +487,10 @@ public class DefsTable
         Schema.instance.load(ksm);
 
         if (!StorageService.instance.isClientMode())
+        {
             Table.open(ksm.name);
+            MigrationManager.instance.notifyCreateKeyspace(ksm);
+        }
     }
 
     private static void addColumnFamily(CFMetaData cfm)
@@ -504,7 +508,10 @@ public class DefsTable
         Schema.instance.setTableDefinition(ksm);
 
         if (!StorageService.instance.isClientMode())
+        {
             Table.open(ksm.name).initCf(cfm.cfId, cfm.cfName, true);
+            MigrationManager.instance.notifyCreateColumnFamily(cfm);
+        }
     }
 
     private static void updateKeyspace(KSMetaData newState)
@@ -518,7 +525,10 @@ public class DefsTable
         try
         {
             if (!StorageService.instance.isClientMode())
+            {
                 Table.open(newState.name).createReplicationStrategy(newKsm);
+                MigrationManager.instance.notifyUpdateKeyspace(newKsm);
+            }
         }
         catch (ConfigurationException e)
         {
@@ -537,6 +547,7 @@ public class DefsTable
         {
             Table table = Table.open(cfm.ksName);
             table.getColumnFamilyStore(cfm.cfName).reload();
+            MigrationManager.instance.notifyUpdateColumnFamily(cfm);
         }
     }
 
@@ -565,6 +576,10 @@ public class DefsTable
         // remove the table from the static instances.
         Table.clear(ksm.name);
         Schema.instance.clearTableDefinition(ksm);
+        if (!StorageService.instance.isClientMode())
+        {
+            MigrationManager.instance.notifyDropKeyspace(ksm);
+        }
     }
 
     private static void dropColumnFamily(String ksName, String cfName) throws IOException
@@ -587,6 +602,7 @@ public class DefsTable
             if (DatabaseDescriptor.isAutoSnapshot())
                 cfs.snapshot(Table.getTimestampedSnapshotName(cfs.columnFamily));
             Table.open(ksm.name).dropCf(cfm.cfId);
+            MigrationManager.instance.notifyDropColumnFamily(cfm);
         }
     }
 

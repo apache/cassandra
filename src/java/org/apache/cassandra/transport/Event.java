@@ -25,7 +25,7 @@ import org.jboss.netty.buffer.ChannelBuffers;
 
 public abstract class Event
 {
-    public enum Type { TOPOLOGY_CHANGE, STATUS_CHANGE }
+    public enum Type { TOPOLOGY_CHANGE, STATUS_CHANGE, SCHEMA_CHANGE }
 
     public final Type type;
 
@@ -42,6 +42,8 @@ public abstract class Event
                 return TopologyChange.deserializeEvent(cb);
             case STATUS_CHANGE:
                 return StatusChange.deserializeEvent(cb);
+            case SCHEMA_CHANGE:
+                return SchemaChange.deserializeEvent(cb);
         }
         throw new AssertionError();
     }
@@ -141,6 +143,50 @@ public abstract class Event
         public String toString()
         {
             return status + " " + node;
+        }
+    }
+
+    public static class SchemaChange extends Event
+    {
+        public enum Change { CREATED, UPDATED, DROPPED }
+
+        public final Change change;
+        public final String keyspace;
+        public final String table;
+
+        public SchemaChange(Change change, String keyspace, String table)
+        {
+            super(Type.SCHEMA_CHANGE);
+            this.change = change;
+            this.keyspace = keyspace;
+            this.table = table;
+        }
+
+        public SchemaChange(Change change, String keyspace)
+        {
+            this(change, keyspace, "");
+        }
+
+        // Assumes the type has already by been deserialized
+        private static SchemaChange deserializeEvent(ChannelBuffer cb)
+        {
+            Change change = Enum.valueOf(Change.class, CBUtil.readString(cb).toUpperCase());
+            String keyspace = CBUtil.readString(cb);
+            String table = CBUtil.readString(cb);
+            return new SchemaChange(change, keyspace, table);
+        }
+
+        protected ChannelBuffer serializeEvent()
+        {
+            return ChannelBuffers.wrappedBuffer(CBUtil.stringToCB(change.toString()),
+                                                CBUtil.stringToCB(keyspace),
+                                                CBUtil.stringToCB(table));
+        }
+
+        @Override
+        public String toString()
+        {
+            return change + " " + keyspace + (table.isEmpty() ? "" : "." + table);
         }
     }
 }

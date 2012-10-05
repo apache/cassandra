@@ -24,6 +24,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class DropColumnFamilyStatement extends SchemaAlteringStatement
 {
@@ -40,5 +41,10 @@ public class DropColumnFamilyStatement extends SchemaAlteringStatement
     public void announceMigration() throws ConfigurationException
     {
         MigrationManager.announceColumnFamilyDrop(keyspace(), columnFamily());
+    }
+
+    public ResultMessage.SchemaChange.Change changeType()
+    {
+        return ResultMessage.SchemaChange.Change.DROPPED;
     }
 }

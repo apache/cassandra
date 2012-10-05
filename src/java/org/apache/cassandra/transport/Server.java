@@ -37,6 +37,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.service.IMigrationListener;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.EventMessage;
 
@@ -60,7 +62,9 @@ public class Server implements CassandraDaemon.Server
     public Server(InetSocketAddress socket)
     {
         this.socket = socket;
-        Gossiper.instance.register(new EventNotifier(this));
+        EventNotifier notifier = new EventNotifier(this);
+        Gossiper.instance.register(notifier);
+        MigrationManager.instance.register(notifier);
     }
 
     public Server(String hostname, int port)
@@ -199,7 +203,7 @@ public class Server implements CassandraDaemon.Server
       }
     }
 
-    private static class EventNotifier implements IEndpointStateChangeSubscriber
+    private static class EventNotifier implements IEndpointStateChangeSubscriber, IMigrationListener
     {
         private final Server server;
 
@@ -250,6 +254,36 @@ public class Server implements CassandraDaemon.Server
         public void onRestart(InetAddress endpoint, EndpointState state)
         {
             server.connectionTracker.send(Event.StatusChange.nodeUp(getRpcAddress(endpoint), server.socket.getPort()));
+        }
+
+        public void onCreateKeyspace(String ksName)
+        {
+            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, ksName));
+        }
+
+        public void onCreateColumnFamly(String ksName, String cfName)
+        {
+            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, ksName, cfName));
+        }
+
+        public void onUpdateKeyspace(String ksName)
+        {
+            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, ksName));
+        }
+
+        public void onUpdateColumnFamly(String ksName, String cfName)
+        {
+            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, ksName, cfName));
+        }
+
+        public void onDropKeyspace(String ksName)
+        {
+            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, ksName));
+        }
+
+        public void onDropColumnFamly(String ksName, String cfName)
+        {
+            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, ksName, cfName));
         }
     }
 }

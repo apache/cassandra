@@ -34,6 +34,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ThriftValidation;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 /** A <code>CREATE KEYSPACE</code> statement parsed from a CQL query. */
 public class CreateKeyspaceStatement extends SchemaAlteringStatement
@@ -53,6 +54,12 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
         super();
         this.name = name;
         this.attrs = attrs;
+    }
+
+    @Override
+    public String keyspace()
+    {
+        return name;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -95,5 +102,10 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
     public void announceMigration() throws RequestValidationException
     {
         MigrationManager.announceNewKeyspace(attrs.asKSMetadata(name));
+    }
+
+    public ResultMessage.SchemaChange.Change changeType()
+    {
+        return ResultMessage.SchemaChange.Change.CREATED;
     }
 }

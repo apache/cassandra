@@ -69,6 +69,8 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
         return new Prepared(this);
     }
 
+    public abstract ResultMessage.SchemaChange.Change changeType();
+
     public abstract void announceMigration() throws RequestValidationException;
 
     @Override
@@ -80,6 +82,8 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
         try
         {
             announceMigration();
+            String tableName = cfName == null || columnFamily() == null ? "" : columnFamily();
+            return new ResultMessage.SchemaChange(changeType(), keyspace(), tableName);
         }
         catch (ConfigurationException e)
         {
@@ -87,7 +91,6 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
             ex.initCause(e);
             throw ex;
         }
-        return null;
     }
 
     public ResultMessage executeInternal(ClientState state)

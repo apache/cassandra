@@ -28,6 +28,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class AlterKeyspaceStatement extends SchemaAlteringStatement
 {
@@ -39,6 +40,12 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
         super();
         this.name = name;
         this.attrs = attrs;
+    }
+
+    @Override
+    public String keyspace()
+    {
+        return name;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -82,5 +89,10 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
             throw new InvalidRequestException("Unknown keyspace " + name);
 
         MigrationManager.announceKeyspaceUpdate(attrs.asKSMetadataUpdate(ksm));
+    }
+
+    public ResultMessage.SchemaChange.Change changeType()
+    {
+        return ResultMessage.SchemaChange.Change.UPDATED;
     }
 }

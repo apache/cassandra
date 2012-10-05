@@ -48,6 +48,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 /** A <code>CREATE COLUMNFAMILY</code> parsed from a CQL query statement. */
 public class CreateColumnFamilyStatement extends SchemaAlteringStatement
@@ -98,6 +99,11 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     public void announceMigration() throws RequestValidationException
     {
         MigrationManager.announceNewColumnFamily(getCFMetaData());
+    }
+
+    public ResultMessage.SchemaChange.Change changeType()
+    {
+        return ResultMessage.SchemaChange.Change.CREATED;
     }
 
     /**
