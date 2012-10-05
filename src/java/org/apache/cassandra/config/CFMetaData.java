@@ -158,13 +158,19 @@ public final class CFMetaData
                                                          + "AND COMMENT='hints awaiting delivery'");
 
     public static final CFMetaData PeersCf = compile(12, "CREATE TABLE " + SystemTable.PEERS_CF + " ("
-                                                         + "token_bytes blob PRIMARY KEY,"
-                                                         + "peer inet"
+                                                         + "peer inet PRIMARY KEY,"
+                                                         + "ring_id uuid,"
+                                                         + "tokens set<blob>,"
+                                                         + "schema_version uuid,"
+                                                         + "release_version text,"
+                                                         + "rpc_address inet,"
+                                                         + "data_center text,"
+                                                         + "rack text"
                                                          + ") WITH COMMENT='known peers in the cluster'");
 
     public static final CFMetaData LocalCf = compile(13, "CREATE TABLE " + SystemTable.LOCAL_CF + " ("
                                                          + "key text PRIMARY KEY,"
-                                                         + "token_bytes blob,"
+                                                         + "tokens set<blob>,"
                                                          + "cluster_name text,"
                                                          + "gossip_generation int,"
                                                          + "bootstrapped text,"

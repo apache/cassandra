@@ -20,6 +20,7 @@
  * Support repairing only the local DC nodes (CASSANDRA-4747)
  * Use rpc_address for binary protocol and change default port (CASSANRA-4751)
  * Fix use of collections in prepared statements (CASSANDRA-4739)
+ * Store more information into peers table (CASSANDRA-4351)
 
 
 1.2-beta1

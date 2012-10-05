@@ -25,7 +25,8 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
+import com.google.common.collect.SetMultimap;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -158,9 +159,9 @@ public class SystemTable
             }
             // serialize the old token as a collection of (one )tokens.
             Token token = StorageService.getPartitioner().getTokenFactory().fromByteArray(oldColumns.next().value());
-            String tokenBytes = ByteBufferUtil.bytesToHex(serializeTokens(Collections.singleton(token)));
+            String tokenBytes = serializeTokens(Collections.singleton(token));
             // (assume that any node getting upgraded was bootstrapped, since that was stored in a separate row for no particular reason)
-            String req = "INSERT INTO system.%s (key, cluster_name, token_bytes, bootstrapped) VALUES ('%s', '%s', '%s', '%s')";
+            String req = "INSERT INTO system.%s (key, cluster_name, tokens, bootstrapped) VALUES ('%s', '%s', '%s', '%s')";
             processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, clusterName, tokenBytes, BootstrapState.COMPLETED.name()));
 
             oldStatusCfs.truncate();
@@ -185,14 +186,43 @@ public class SystemTable
             return;
         }
 
-        IPartitioner p = StorageService.getPartitioner();
-        for (Token token : tokens)
-        {
-            String req = "INSERT INTO system.%s (token_bytes, peer) VALUES ('%s', '%s')";
-            String tokenBytes = ByteBufferUtil.bytesToHex(p.getTokenFactory().toByteArray(token));
-            processInternal(String.format(req, PEERS_CF, tokenBytes, ep.getHostAddress()));
-        }
+        String req = "INSERT INTO system.%s (peer, tokens) VALUES ('%s', %s)";
+        processInternal(String.format(req, PEERS_CF, ep.getHostAddress(), serializeTokens(tokens)));
         forceBlockingFlush(PEERS_CF);
+    }
+
+    public static synchronized void updatePeerInfo(InetAddress ep, String columnName, String value)
+    {
+        if (ep.equals(FBUtilities.getBroadcastAddress()))
+            return;
+
+        String req = "INSERT INTO system.%s (peer, %s) VALUES ('%s', '%s')";
+        processInternal(String.format(req, PEERS_CF, columnName, ep.getHostAddress(), value));
+    }
+
+    private static String serializeTokens(Collection<Token> tokens)
+    {
+        Token.TokenFactory factory = StorageService.getPartitioner().getTokenFactory();
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        Iterator<Token> iter = tokens.iterator();
+        while (iter.hasNext())
+        {
+            sb.append("'").append(ByteBufferUtil.bytesToHex(factory.toByteArray(iter.next()))).append("'");
+            if (iter.hasNext())
+                sb.append(",");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private static Collection<Token> deserializeTokens(Collection<ByteBuffer> tokensBytes)
+    {
+        Token.TokenFactory factory = StorageService.getPartitioner().getTokenFactory();
+        List<Token> tokens = new ArrayList<Token>(tokensBytes.size());
+        for (ByteBuffer tk : tokensBytes)
+            tokens.add(factory.fromByteArray(tk));
+        return tokens;
     }
 
     /**
@@ -200,13 +230,15 @@ public class SystemTable
      */
     public static synchronized void removeTokens(Collection<Token> tokens)
     {
-        IPartitioner p = StorageService.getPartitioner();
-
-        for (Token token : tokens)
+        Set<Token> tokenSet = new HashSet<Token>(tokens);
+        for (Map.Entry<InetAddress, Collection<Token>> entry : loadTokens().asMap().entrySet())
         {
-            String req = "DELETE FROM system.%s WHERE token_bytes = '%s'";
-            String tokenBytes = ByteBufferUtil.bytesToHex(p.getTokenFactory().toByteArray(token));
-            processInternal(String.format(req, PEERS_CF, tokenBytes));
+            Set<Token> toRemove = Sets.intersection(tokenSet, ((Set<Token>)entry.getValue())).immutableCopy();
+            if (toRemove.isEmpty())
+                continue;
+
+            String req = "UPDATE system.%s SET tokens = tokens - %s WHERE peer = '%s'";
+            processInternal(String.format(req, PEERS_CF, serializeTokens(toRemove), entry.getKey()));
         }
         forceBlockingFlush(PEERS_CF);
     }
@@ -216,9 +248,8 @@ public class SystemTable
     */
     public static synchronized void updateTokens(Collection<Token> tokens)
     {
-        String req = "INSERT INTO system.%s (key, token_bytes) VALUES ('%s', '%s')";
-        String tokenBytes = ByteBufferUtil.bytesToHex(serializeTokens(tokens));
-        processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, tokenBytes));
+        String req = "INSERT INTO system.%s (key, tokens) VALUES ('%s', %s)";
+        processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, serializeTokens(tokens)));
         forceBlockingFlush(LOCAL_CF);
     }
 
@@ -235,53 +266,6 @@ public class SystemTable
         tokens.removeAll(rmTokens);
         tokens.addAll(addTokens);
         updateTokens(tokens);
-        return tokens;
-    }
-
-    /** Serialize a collection of tokens to bytes */
-    private static ByteBuffer serializeTokens(Collection<Token> tokens)
-    {
-        // Guesstimate the total number of bytes needed
-        int estCapacity = (tokens.size() * 16) + (tokens.size() * 2);
-        ByteBuffer toks = ByteBuffer.allocate(estCapacity);
-        IPartitioner p = StorageService.getPartitioner();
-
-        for (Token token : tokens)
-        {
-            ByteBuffer tokenBytes = p.getTokenFactory().toByteArray(token);
-
-            // If we blow the buffer, grow it by double
-            if (toks.remaining() < (2 + tokenBytes.remaining()))
-            {
-                estCapacity = estCapacity * 2;
-                ByteBuffer newToks = ByteBuffer.allocate(estCapacity);
-                toks.flip();
-                newToks.put(toks);
-                toks = newToks;
-            }
-
-            toks.putShort((short)tokenBytes.remaining());
-            toks.put(tokenBytes);
-        }
-
-        toks.flip();
-        return toks;
-    }
-
-    private static Collection<Token> deserializeTokens(ByteBuffer tokenBytes)
-    {
-        List<Token> tokens = new ArrayList<Token>();
-        IPartitioner p = StorageService.getPartitioner();
-
-        while(tokenBytes.hasRemaining())
-        {
-            short len = tokenBytes.getShort();
-            ByteBuffer dup = tokenBytes.slice();
-            dup.limit(len);
-            tokenBytes.position(tokenBytes.position() + len);
-            tokens.add(p.getTokenFactory().fromByteArray(dup));
-        }
-
         return tokens;
     }
 
@@ -305,13 +289,15 @@ public class SystemTable
      * Return a map of stored tokens to IP addresses
      *
      */
-    public static Multimap<InetAddress, Token> loadTokens()
+    public static SetMultimap<InetAddress, Token> loadTokens()
     {
-        IPartitioner p = StorageService.getPartitioner();
-
-        Multimap<InetAddress, Token> tokenMap = HashMultimap.create();
-        for (UntypedResultSet.Row row : processInternal("SELECT * FROM system." + PEERS_CF))
-            tokenMap.put(row.getInetAddress("peer"), p.getTokenFactory().fromByteArray(row.getBytes("token_bytes")));
+        SetMultimap<InetAddress, Token> tokenMap = HashMultimap.create();
+        for (UntypedResultSet.Row row : processInternal("SELECT peer, tokens FROM system." + PEERS_CF))
+        {
+            InetAddress peer = row.getInetAddress("peer");
+            if (row.has("tokens"))
+                tokenMap.putAll(peer, deserializeTokens(row.getSet("tokens", BytesType.instance)));
+        }
 
         return tokenMap;
     }
@@ -361,11 +347,11 @@ public class SystemTable
 
     public static Collection<Token> getSavedTokens()
     {
-        String req = "SELECT token_bytes FROM system.%s WHERE key='%s'";
+        String req = "SELECT tokens FROM system.%s WHERE key='%s'";
         UntypedResultSet result = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
-        return result.isEmpty() || !result.one().has("token_bytes")
+        return result.isEmpty() || !result.one().has("tokens")
              ? Collections.<Token>emptyList()
-             : deserializeTokens(result.one().getBytes("token_bytes"));
+             : deserializeTokens(result.one().<ByteBuffer>getSet("tokens", BytesType.instance));
     }
 
     public static int incrementAndGetGeneration()

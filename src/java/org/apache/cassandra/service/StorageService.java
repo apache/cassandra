@@ -1120,6 +1120,25 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     handleStateMoving(endpoint, pieces);
                 else if (moveName.equals(VersionedValue.STATUS_RELOCATING))
                     handleStateRelocating(endpoint, pieces);
+                break;
+            case RELEASE_VERSION:
+                SystemTable.updatePeerInfo(endpoint, "release_version", value.value);
+                break;
+            case DC:
+                SystemTable.updatePeerInfo(endpoint, "data_center", value.value);
+                break;
+            case RACK:
+                SystemTable.updatePeerInfo(endpoint, "rack", value.value);
+                break;
+            case RPC_ADDRESS:
+                SystemTable.updatePeerInfo(endpoint, "rpc_address", value.value);
+                break;
+            case SCHEMA:
+                SystemTable.updatePeerInfo(endpoint, "schema_version", value.value);
+                break;
+            case HOST_ID:
+                SystemTable.updatePeerInfo(endpoint, "ring_id", value.value);
+                break;
         }
     }
 
