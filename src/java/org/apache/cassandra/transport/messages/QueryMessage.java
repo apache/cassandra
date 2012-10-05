@@ -20,9 +20,7 @@ package org.apache.cassandra.transport.messages;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.RequestTimeoutException;
-import org.apache.cassandra.exceptions.UnavailableException;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.transport.*;
 
 /**
@@ -65,12 +63,8 @@ public class QueryMessage extends Message.Request
         }
         catch (Exception e)
         {
-            if (!((e instanceof UnavailableException)
-               || (e instanceof InvalidRequestException)
-               || (e instanceof RequestTimeoutException)))
-            {
+            if (!((e instanceof RequestValidationException) || (e instanceof RequestExecutionException)))
                 logger.error("Unexpected error during query", e);
-            }
             return ErrorMessage.fromException(e);
         }
     }

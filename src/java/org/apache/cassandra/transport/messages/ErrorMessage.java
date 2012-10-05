@@ -181,7 +181,7 @@ public class ErrorMessage extends Message.Response
             return new ErrorMessage((TransportException)e);
 
         // Unexpected exception
-        logger.debug("Unexpected exception during request", e);
+        logger.error("Unexpected exception during request", e);
         return new ErrorMessage(new ServerError(e));
     }
 

@@ -127,6 +127,9 @@ public class Term
                 throw new AssertionError("a marker Term was encountered with no index value");
 
             ByteBuffer value = variables.get(bindIndex);
+            // We don't yet support null values in prepared statements
+            if (value == null)
+                throw new InvalidRequestException("Invalid null value for prepared variable " + bindIndex);
             validator.validate(value);
             return value;
         }
