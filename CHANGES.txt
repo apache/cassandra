@@ -114,6 +114,7 @@
  * Backport adding AlterKeyspace statement (CASSANDRA-4611)
  * (CQL3) Correcty accept upper-case data types (CASSANDRA-4770)
  * Add binary protocol events for schema changes (CASSANDRA-4684)
+ * Add ability to use custom TServerFactory implementations (CASSANDRA-4608)
 Merged from 1.0:
  * Switch from NBHM to CHM in MessagingService's callback map, which
    prevents OOM in long-running instances (CASSANDRA-4708)

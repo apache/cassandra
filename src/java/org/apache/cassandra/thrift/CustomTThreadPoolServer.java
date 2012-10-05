@@ -17,18 +17,27 @@
  */
 package org.apache.cassandra.thrift;
 
+import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.ClientState;
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
+import org.apache.thrift.transport.TServerTransport;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
@@ -215,6 +224,60 @@ public class CustomTThreadPoolServer extends TServer
             {
                 outputTransport.close();
             }
+        }
+    }
+
+    public static class Factory implements TServerFactory
+    {
+        public TServer buildTServer(Args args)
+        {
+            final InetSocketAddress addr = args.addr;
+            TServerTransport serverTransport;
+            try
+            {
+                serverTransport = new TCustomServerSocket(addr, args.keepAlive, args.sendBufferSize, args.recvBufferSize);
+            }
+            catch (TTransportException e)
+            {
+                throw new RuntimeException(String.format("Unable to create thrift socket to %s:%s", addr.getAddress(), addr.getPort()), e);
+            }
+            // ThreadPool Server and will be invocation per connection basis...
+            TThreadPoolServer.Args serverArgs = new TThreadPoolServer.Args(serverTransport)
+                                                                     .minWorkerThreads(DatabaseDescriptor.getRpcMinThreads())
+                                                                     .maxWorkerThreads(DatabaseDescriptor.getRpcMaxThreads())
+                                                                     .inputTransportFactory(args.inTransportFactory)
+                                                                     .outputTransportFactory(args.outTransportFactory)
+                                                                     .inputProtocolFactory(args.tProtocolFactory)
+                                                                     .outputProtocolFactory(args.tProtocolFactory)
+                                                                     .processor(args.processor);
+            ExecutorService executorService = new CleaningThreadPool(args.cassandraServer.clientState, serverArgs.minWorkerThreads, serverArgs.maxWorkerThreads);
+            return new CustomTThreadPoolServer(serverArgs, executorService);
+        }
+    }
+
+    /**
+     * A subclass of Java's ThreadPoolExecutor which implements Jetty's ThreadPool
+     * interface (for integration with Avro), and performs ClientState cleanup.
+     *
+     * (Note that the tasks being executed perform their own while-command-process
+     * loop until the client disconnects.)
+     */
+    private static class CleaningThreadPool extends ThreadPoolExecutor
+    {
+        private final ThreadLocal<ClientState> state;
+
+        public CleaningThreadPool(ThreadLocal<ClientState> state, int minWorkerThread, int maxWorkerThreads)
+        {
+            super(minWorkerThread, maxWorkerThreads, 60, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new NamedThreadFactory("Thrift"));
+            this.state = state;
+        }
+
+        @Override
+        protected void afterExecute(Runnable r, Throwable t)
+        {
+            super.afterExecute(r, t);
+            DebuggableThreadPoolExecutor.logExceptionsAfterExecute(r, t);
+            state.get().logout();
         }
     }
 }

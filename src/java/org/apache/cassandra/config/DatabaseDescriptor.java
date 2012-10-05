@@ -390,8 +390,6 @@ public class DatabaseDescriptor
             if (conf.stream_throughput_outbound_megabits_per_sec == null)
                 conf.stream_throughput_outbound_megabits_per_sec = 400;
 
-            if (!ThriftServer.rpc_server_types.contains(conf.rpc_server_type.toLowerCase()))
-                throw new ConfigurationException("Unknown rpc_server_type: " + conf.rpc_server_type);
             if (conf.rpc_min_threads == null)
                 conf.rpc_min_threads = 16;
 
