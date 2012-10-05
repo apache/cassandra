@@ -41,6 +41,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -208,7 +209,7 @@ public class SystemTable
         Iterator<Token> iter = tokens.iterator();
         while (iter.hasNext())
         {
-            sb.append("'").append(ByteBufferUtil.bytesToHex(factory.toByteArray(iter.next()))).append("'");
+            sb.append("'").append(factory.toString(iter.next())).append("'");
             if (iter.hasNext())
                 sb.append(",");
         }
@@ -216,12 +217,12 @@ public class SystemTable
         return sb.toString();
     }
 
-    private static Collection<Token> deserializeTokens(Collection<ByteBuffer> tokensBytes)
+    private static Collection<Token> deserializeTokens(Collection<String> tokensStrings)
     {
         Token.TokenFactory factory = StorageService.getPartitioner().getTokenFactory();
-        List<Token> tokens = new ArrayList<Token>(tokensBytes.size());
-        for (ByteBuffer tk : tokensBytes)
-            tokens.add(factory.fromByteArray(tk));
+        List<Token> tokens = new ArrayList<Token>(tokensStrings.size());
+        for (String tk : tokensStrings)
+            tokens.add(factory.fromString(tk));
         return tokens;
     }
 
@@ -296,7 +297,7 @@ public class SystemTable
         {
             InetAddress peer = row.getInetAddress("peer");
             if (row.has("tokens"))
-                tokenMap.putAll(peer, deserializeTokens(row.getSet("tokens", BytesType.instance)));
+                tokenMap.putAll(peer, deserializeTokens(row.getSet("tokens", UTF8Type.instance)));
         }
 
         return tokenMap;
@@ -351,7 +352,7 @@ public class SystemTable
         UntypedResultSet result = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
         return result.isEmpty() || !result.one().has("tokens")
              ? Collections.<Token>emptyList()
-             : deserializeTokens(result.one().<ByteBuffer>getSet("tokens", BytesType.instance));
+             : deserializeTokens(result.one().<String>getSet("tokens", UTF8Type.instance));
     }
 
     public static int incrementAndGetGeneration()

@@ -160,7 +160,7 @@ public final class CFMetaData
     public static final CFMetaData PeersCf = compile(12, "CREATE TABLE " + SystemTable.PEERS_CF + " ("
                                                          + "peer inet PRIMARY KEY,"
                                                          + "ring_id uuid,"
-                                                         + "tokens set<blob>,"
+                                                         + "tokens set<varchar>,"
                                                          + "schema_version uuid,"
                                                          + "release_version text,"
                                                          + "rpc_address inet,"
@@ -170,7 +170,7 @@ public final class CFMetaData
 
     public static final CFMetaData LocalCf = compile(13, "CREATE TABLE " + SystemTable.LOCAL_CF + " ("
                                                          + "key text PRIMARY KEY,"
-                                                         + "tokens set<blob>,"
+                                                         + "tokens set<varchar>,"
                                                          + "cluster_name text,"
                                                          + "gossip_generation int,"
                                                          + "bootstrapped text,"
