@@ -20,18 +20,21 @@ package org.apache.cassandra.service;
 
 import java.util.*;
 
-import org.apache.cassandra.auth.*;
-import org.apache.cassandra.cql3.CFName;
-import org.apache.cassandra.thrift.CqlResult;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.PermissionDenied;
+import org.apache.cassandra.auth.Resources;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql.CQLStatement;
+import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.thrift.AuthenticationException;
+import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.SemanticVersion;
 
@@ -145,6 +148,7 @@ public class ClientState
         resourceClear();
         prepared.clear();
         cql3Prepared.clear();
+        cqlVersion = DEFAULT_CQL_VERSION;
     }
 
     public void hasKeyspaceAccess(String keyspace, Permission perm) throws InvalidRequestException
