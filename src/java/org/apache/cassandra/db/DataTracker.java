@@ -123,13 +123,17 @@ public class DataTracker
 
     public void replaceFlushed(Memtable memtable, SSTableReader sstable)
     {
+        // sstable may be null if we flushed batchlog and nothing needed to be retained
+
         if (!cfstore.isValid())
         {
             View currentView, newView;
             do
             {
                 currentView = view.get();
-                newView = currentView.replaceFlushed(memtable, sstable).replace(Arrays.asList(sstable), Collections.<SSTableReader>emptyList());
+                newView = currentView.replaceFlushed(memtable, sstable);
+                if (sstable != null)
+                    newView = newView.replace(Arrays.asList(sstable), Collections.<SSTableReader>emptyList());
             }
             while (!view.compareAndSet(currentView, newView));
             return;
@@ -143,10 +147,12 @@ public class DataTracker
         }
         while (!view.compareAndSet(currentView, newView));
 
-        addNewSSTablesSize(Arrays.asList(sstable));
-
-        notifyAdded(sstable);
-        incrementallyBackup(sstable);
+        if (sstable != null)
+        {
+            addNewSSTablesSize(Arrays.asList(sstable));
+            notifyAdded(sstable);
+            incrementallyBackup(sstable);
+        }
     }
 
     public void incrementallyBackup(final SSTableReader sstable)
@@ -504,7 +510,9 @@ public class DataTracker
         public View replaceFlushed(Memtable flushedMemtable, SSTableReader newSSTable)
         {
             Set<Memtable> newPending = ImmutableSet.copyOf(Sets.difference(memtablesPendingFlush, Collections.singleton(flushedMemtable)));
-            List<SSTableReader> newSSTables = newSSTables(newSSTable);
+            List<SSTableReader> newSSTables = newSSTable == null
+                                            ? Collections.<SSTableReader>emptyList()
+                                            : newSSTables(newSSTable);
             SSTableIntervalTree intervalTree = buildIntervalTree(newSSTables);
             return new View(memtable, newPending, Collections.unmodifiableList(newSSTables), compacting, intervalTree);
         }
@@ -530,6 +538,7 @@ public class DataTracker
 
         private List<SSTableReader> newSSTables(SSTableReader newSSTable)
         {
+            assert newSSTable != null;
             // not performance-sensitive, don't obsess over doing a selection merge here
             return newSSTables(Collections.<SSTableReader>emptyList(), Collections.singletonList(newSSTable));
         }

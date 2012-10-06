@@ -457,9 +457,19 @@ public class Memtable
                     writer.append((DecoratedKey)entry.getKey(), cf);
                 }
 
-                ssTable = writer.closeAndOpenReader();
-                logger.info(String.format("Completed flushing %s (%d bytes) for commitlog position %s",
-                            ssTable.getFilename(), new File(ssTable.getFilename()).length(), context.get()));
+                if (writer.getFilePointer() > 0)
+                {
+                    ssTable = writer.closeAndOpenReader();
+                    logger.info(String.format("Completed flushing %s (%d bytes) for commitlog position %s",
+                                              ssTable.getFilename(), new File(ssTable.getFilename()).length(), context.get()));
+                }
+                else
+                {
+                    writer.abort();
+                    ssTable = null;
+                    logger.info("Completed flushing; nothing needed to be retained.  Commitlog position was {}",
+                                context.get());
+                }
                 return ssTable;
             }
             catch (Throwable e)
