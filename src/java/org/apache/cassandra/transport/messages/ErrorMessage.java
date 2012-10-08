@@ -113,7 +113,10 @@ public class ErrorMessage extends Message.Response
                 case ALREADY_EXISTS:
                     String ksName = CBUtil.readString(body);
                     String cfName = CBUtil.readString(body);
-                    te = new AlreadyExistsException(ksName, cfName);
+                    if (cfName.isEmpty())
+                        te = new AlreadyExistsException(ksName);
+                    else
+                        te = new AlreadyExistsException(ksName, cfName);
                     break;
             }
             return new ErrorMessage(te);

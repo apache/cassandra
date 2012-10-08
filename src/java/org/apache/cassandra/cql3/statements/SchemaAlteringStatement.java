@@ -79,18 +79,9 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
 
     public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws RequestValidationException
     {
-        try
-        {
-            announceMigration();
-            String tableName = cfName == null || columnFamily() == null ? "" : columnFamily();
-            return new ResultMessage.SchemaChange(changeType(), keyspace(), tableName);
-        }
-        catch (ConfigurationException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.toString());
-            ex.initCause(e);
-            throw ex;
-        }
+        announceMigration();
+        String tableName = cfName == null || columnFamily() == null ? "" : columnFamily();
+        return new ResultMessage.SchemaChange(changeType(), keyspace(), tableName);
     }
 
     public ResultMessage executeInternal(ClientState state)
