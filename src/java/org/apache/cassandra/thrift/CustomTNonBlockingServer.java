@@ -19,7 +19,7 @@ package org.apache.cassandra.thrift;
 
 import java.net.InetSocketAddress;
 
-import org.apache.cassandra.service.SocketSessionManagementService;
+import org.apache.cassandra.service.ThriftSessionManager;
 import org.apache.thrift.server.TNonblockingServer;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.TNonblockingServerTransport;
@@ -37,7 +37,7 @@ public class CustomTNonBlockingServer extends TNonblockingServer
     protected boolean requestInvoke(FrameBuffer frameBuffer)
     {
         TNonblockingSocket socket = (TNonblockingSocket) frameBuffer.trans_;
-        SocketSessionManagementService.remoteSocket.set(socket.getSocketChannel().socket().getRemoteSocketAddress());
+        ThriftSessionManager.instance.setCurrentSocket(socket.getSocketChannel().socket().getRemoteSocketAddress());
         frameBuffer.invoke();
         return true;
     }

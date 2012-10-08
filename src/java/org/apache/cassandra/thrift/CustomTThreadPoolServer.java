@@ -18,6 +18,7 @@
 package org.apache.cassandra.thrift;
 
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
@@ -28,10 +29,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ThriftSessionManager;
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TProtocol;
@@ -179,8 +179,11 @@ public class CustomTThreadPoolServer extends TServer
             TTransport outputTransport = null;
             TProtocol inputProtocol = null;
             TProtocol outputProtocol = null;
+            SocketAddress socket = null;
             try
             {
+                socket = ((TCustomSocket) client_).getSocket().getRemoteSocketAddress();
+                ThriftSessionManager.instance.setCurrentSocket(socket);
                 processor = processorFactory_.getProcessor(client_);
                 inputTransport = inputTransportFactory_.getTransport(client_);
                 outputTransport = outputTransportFactory_.getTransport(client_);
@@ -213,6 +216,8 @@ public class CustomTThreadPoolServer extends TServer
             finally
             {
                 activeClients.decrementAndGet();
+                if (socket != null)
+                    ThriftSessionManager.instance.connectionComplete(socket);
             }
 
             if (inputTransport != null)
@@ -250,34 +255,13 @@ public class CustomTThreadPoolServer extends TServer
                                                                      .inputProtocolFactory(args.tProtocolFactory)
                                                                      .outputProtocolFactory(args.tProtocolFactory)
                                                                      .processor(args.processor);
-            ExecutorService executorService = new CleaningThreadPool(args.cassandraServer.clientState, serverArgs.minWorkerThreads, serverArgs.maxWorkerThreads);
+            ExecutorService executorService = new ThreadPoolExecutor(serverArgs.minWorkerThreads,
+                                                                     serverArgs.maxWorkerThreads,
+                                                                     60,
+                                                                     TimeUnit.SECONDS,
+                                                                     new SynchronousQueue<Runnable>(),
+                                                                     new NamedThreadFactory("Thrift"));
             return new CustomTThreadPoolServer(serverArgs, executorService);
-        }
-    }
-
-    /**
-     * A subclass of Java's ThreadPoolExecutor which implements Jetty's ThreadPool
-     * interface (for integration with Avro), and performs ClientState cleanup.
-     *
-     * (Note that the tasks being executed perform their own while-command-process
-     * loop until the client disconnects.)
-     */
-    private static class CleaningThreadPool extends ThreadPoolExecutor
-    {
-        private final ThreadLocal<ClientState> state;
-
-        public CleaningThreadPool(ThreadLocal<ClientState> state, int minWorkerThread, int maxWorkerThreads)
-        {
-            super(minWorkerThread, maxWorkerThreads, 60, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new NamedThreadFactory("Thrift"));
-            this.state = state;
-        }
-
-        @Override
-        protected void afterExecute(Runnable r, Throwable t)
-        {
-            super.afterExecute(r, t);
-            DebuggableThreadPoolExecutor.logExceptionsAfterExecute(r, t);
-            state.get().logout();
         }
     }
 }

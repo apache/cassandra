@@ -19,7 +19,6 @@ package org.apache.cassandra.thrift;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
@@ -35,8 +34,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.auth.PermissionDenied;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.cql.QueryProcessor;
 import org.apache.cassandra.db.*;
@@ -46,9 +47,9 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -70,16 +71,6 @@ public class CassandraServer implements Cassandra.Iface
     private final static List<Column> EMPTY_SUBCOLUMNS = Collections.emptyList();
     private final static List<CounterColumn> EMPTY_COUNTER_SUBCOLUMNS = Collections.emptyList();
 
-    // thread local state containing session information
-    public final ThreadLocal<ClientState> clientState = new ThreadLocal<ClientState>()
-    {
-        @Override
-        public ClientState initialValue()
-        {
-            return new ClientState();
-        }
-    };
-
     /*
      * RequestScheduler to perform the scheduling of incoming requests
      */
@@ -92,17 +83,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public ClientState state()
     {
-        SocketAddress remoteSocket = SocketSessionManagementService.remoteSocket.get();
-        if (remoteSocket == null)
-            return clientState.get();
-
-        ClientState cState = SocketSessionManagementService.instance.get(remoteSocket);
-        if (cState == null)
-        {
-            cState = new ClientState();
-            SocketSessionManagementService.instance.put(remoteSocket, cState);
-        }
-        return cState;
+        return ThriftSessionManager.instance.currentSession();
     }
 
     protected Map<DecoratedKey, ColumnFamily> readColumnFamily(List<ReadCommand> commands, org.apache.cassandra.db.ConsistencyLevel consistency_level)
