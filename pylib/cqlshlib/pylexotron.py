@@ -118,19 +118,24 @@ class matcher:
 
     @staticmethod
     def try_registered_completion(ctxt, symname, completions):
+        debugging = ctxt.get_binding('*DEBUG*', False)
         if ctxt.remainder or completions is None:
             return False
         try:
             completer = ctxt.get_completer(symname)
         except KeyError:
             return False
+        if debugging:
+            print "Trying completer %r with %r" % (completer, ctxt)
         try:
             new_compls = completer(ctxt)
         except Exception:
-            if ctxt.get_binding('*DEBUG*', False):
+            if debugging:
                 import traceback
                 traceback.print_exc()
             return False
+        if debugging:
+            print "got %r" % (new_compls,)
         completions.update(new_compls)
         return True
 
@@ -290,6 +295,9 @@ class terminal_type_matcher(matcher):
         elif completions is not None:
             self.submatcher.match(ctxt, completions)
         return []
+
+    def __repr__(self):
+        return '%s(%r, %r)' % (self.__class__.__name__, self.tokentype, self.submatcher)
 
 class ParsingRuleSet:
     RuleSpecScanner = SaferScanner([

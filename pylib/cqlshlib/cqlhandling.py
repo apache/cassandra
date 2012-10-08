@@ -24,6 +24,8 @@ from cql import cqltypes
 
 Hint = pylexotron.Hint
 
+SYSTEM_KEYSPACES = ('system',)
+
 class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
     keywords = set((
         'select', 'from', 'where', 'and', 'key', 'insert', 'update', 'with',
@@ -82,6 +84,13 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         'SimpleStrategy',
         'OldNetworkTopologyStrategy',
         'NetworkTopologyStrategy'
+    )
+
+    replication_factor_strategies = (
+        'SimpleStrategy',
+        'org.apache.cassandra.locator.SimpleStrategy',
+        'OldNetworkTopologyStrategy',
+        'org.apache.cassandra.locator.OldNetworkTopologyStrategy'
     )
 
     consistency_levels = (
@@ -385,7 +394,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         cqlword = cqlword.strip()
         if cqlword == '':
             return cqlword
-        if cqlword[0] == "'":
+        if cqlword[0] == "'" and cqlword[-1] == "'":
             cqlword = cqlword[1:-1].replace("''", "'")
         return cqlword
 
@@ -736,10 +745,7 @@ def create_ks_opt_completer(ctxt, cass):
         return ['strategy_class =']
     vals = ctxt.get_binding('optval')
     stratclass = dequote_value(vals[stratopt])
-    if stratclass in ('SimpleStrategy',
-                      'org.apache.cassandra.locator.SimpleStrategy',
-                      'OldNetworkTopologyStrategy',
-                      'org.apache.cassandra.locator.OldNetworkTopologyStrategy'):
+    if stratclass in CqlRuleSet.replication_factor_strategies:
         return ['strategy_options:replication_factor =']
     return [Hint('<strategy_option_name>')]
 

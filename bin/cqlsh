@@ -441,6 +441,14 @@ class Shell(cmd.Cmd):
         self.cursor = self.conn.cursor()
         self.get_connection_versions()
 
+        # use 3.0.0-beta1 syntax if explicitly requested, or if using
+        # cassandra < 1.2. this only affects use of cql3; cql2 syntax
+        # in either case is the same.
+        if self.cassandraver_atleast(1, 2) and not self.is_cql3_beta():
+            cql3handling.use_post_3_0_0_syntax()
+        else:
+            cql3handling.use_pre_3_0_0_syntax()
+
         self.current_keyspace = keyspace
 
         self.color = color
@@ -472,6 +480,9 @@ class Shell(cmd.Cmd):
         self.set_cql_version(ver)
         self.cql_version = ver
         self.cql_ver_tuple = vertuple
+
+    def is_cql3_beta(self):
+        return self.cql_ver_tuple == (3, 0, 0, 'beta1')
 
     def cqlver_atleast(self, major, minor=0, patch=0):
         return self.cql_ver_tuple[:3] >= (major, minor, patch)
@@ -596,6 +607,11 @@ class Shell(cmd.Cmd):
         raise ColumnFamilyNotFound("Unconfigured column family %r" % (cfname,))
 
     def get_columnfamily_names(self, ksname=None):
+        if self.cqlver_atleast(3) and ksname not in SYSTEM_KEYSPACES:
+            # since cql3 tables may be left out of thrift results, but
+            # info on tables in system keyspaces still aren't included
+            # in system.schema_*
+            return self.get_columnfamily_names_cql3(ksname=ksname)
         return [c.name for c in self.get_columnfamilies(ksname)]
 
     def get_index_names(self, ksname=None):
@@ -680,6 +696,18 @@ class Shell(cmd.Cmd):
     # ===== end thrift-dependent parts =====
 
     # ===== cql3-dependent parts =====
+
+    def get_columnfamily_names_cql3(self, ksname=None):
+        if ksname is None:
+            ksname = self.current_keyspace
+        if self.cassandraver_atleast(1, 2):
+            cf_q = """select columnfamily_name from system.schema_columnfamilies
+                       where keyspace_name=:ks"""
+        else:
+            cf_q = """select "columnfamily" from system.schema_columnfamilies
+                       where "keyspace"=:ks"""
+        self.cursor.execute(cf_q, {'ks': ksname})
+        return [row[0] for row in self.cursor.fetchall()]
 
     def get_columnfamily_layout(self, ksname, cfname):
         if ksname is None:
@@ -853,7 +881,9 @@ class Shell(cmd.Cmd):
         return self.perform_statement(cqlruleset.cql_extract_orig(tokens, srcstr))
 
     def handle_parse_error(self, cmdword, tokens, parsed, srcstr):
-        if cmdword.lower() == 'select':
+        if cmdword.lower() in ('select', 'insert', 'update', 'delete', 'truncate',
+                               'create', 'drop', 'alter', 'grant', 'revoke',
+                               'batch', 'list'):
             # hey, maybe they know about some new syntax we don't. type
             # assumptions won't work, but maybe the query will.
             return self.perform_statement(cqlruleset.cql_extract_orig(tokens, srcstr))
@@ -1105,10 +1135,20 @@ class Shell(cmd.Cmd):
     def print_recreate_keyspace(self, ksdef, out):
         stratclass = trim_if_present(ksdef.strategy_class, 'org.apache.cassandra.locator.')
         ksname = self.cql_protect_name(ksdef.name)
-        out.write("CREATE KEYSPACE %s WITH strategy_class = %s"
-                   % (ksname, self.cql_protect_value(stratclass)))
-        for opname, opval in ksdef.strategy_options.iteritems():
-            out.write("\n  AND strategy_options:%s = %s" % (opname, self.cql_protect_value(opval)))
+        if self.cqlver_atleast(3) and not self.is_cql3_beta():
+            out.write("CREATE KEYSPACE %s WITH replication = {\n" % ksname)
+            out.write("  'class': %s" % self.cql_protect_value(stratclass))
+            for opname, opval in ksdef.strategy_options.iteritems():
+                out.write(",\n  %s: %s" % (self.cql_protect_value(opname),
+                                           self.cql_protect_value(opval)))
+            out.write("\n}")
+            if not ksdef.durable_writes:
+                out.write(" AND durable_writes = 'false'")
+        else:
+            out.write("CREATE KEYSPACE %s WITH strategy_class = %s"
+                       % (ksname, self.cql_protect_value(stratclass)))
+            for opname, opval in ksdef.strategy_options.iteritems():
+                out.write("\n  AND strategy_options:%s = %s" % (opname, self.cql_protect_value(opval)))
         out.write(';\n')
 
         if ksdef.cf_defs:
@@ -1224,24 +1264,42 @@ class Shell(cmd.Cmd):
             out.write(' WITH COMPACT STORAGE')
             joiner = 'AND'
 
+        # TODO: this should display CLUSTERING ORDER BY information too.
+        # work out how to determine that from a layout.
+
         cf_opts = []
-        for option in cqlruleset.columnfamily_layout_options:
-            optval = getattr(layout, option, None)
+        for cql3option, layoutoption in cqlruleset.columnfamily_layout_options:
+            if layoutoption is None:
+                layoutoption = cql3option
+            optval = getattr(layout, layoutoption, None)
             if optval is None:
                 continue
-            if option == 'row_cache_provider':
-                optval = trim_if_present(optval, 'org.apache.cassandra.cache.')
-            elif option == 'compaction_strategy_class':
+            elif layoutoption == 'compaction_strategy_class':
                 optval = trim_if_present(optval, 'org.apache.cassandra.db.compaction.')
-            cf_opts.append((option, self.cql_protect_value(optval)))
-        for option, _ in cqlruleset.columnfamily_layout_map_options:
-            optmap = getattr(layout, option, {})
-            for k, v in optmap.items():
-                if option == 'compression_parameters' and k == 'sstable_compression':
-                    v = trim_if_present(v, 'org.apache.cassandra.io.compress.')
-                cf_opts.append(('%s:%s' % (option, k.encode('ascii')), self.cql_protect_value(v)))
+            cf_opts.append((cql3option, self.cql_protect_value(optval)))
+        for cql3option, layoutoption, _ in cqlruleset.columnfamily_layout_map_options:
+            if layoutoption is None:
+                layoutoption = cql3option
+            optmap = getattr(layout, layoutoption, {})
+            if layoutoption == 'compression_parameters':
+                compclass = optmap.get('sstable_compression')
+                if compclass is not None:
+                    optmap['sstable_compression'] = \
+                            trim_if_present(compclass, 'org.apache.cassandra.io.compress.')
+            if self.cqlver_atleast(3) and not self.is_cql3_beta():
+                cf_opts.append((cql3option, optmap))
+            else:
+                for k, v in optmap.items():
+                    cf_opts.append(('%s:%s' % (cql3option, k.encode('ascii')),
+                                    self.cql_protect_value(v)))
         if cf_opts:
             for optname, optval in cf_opts:
+                if isinstance(optval, dict):
+                    optval = '{%s}' % ', '.join(['%s: %s' % (self.cql_protect_value(k),
+                                                             self.cql_protect_value(v))
+                                                 for (k, v) in optval.items()])
+                    if optval == '{}':
+                        continue
                 out.write(" %s\n  %s=%s" % (joiner, optname, optval))
                 joiner = 'AND'
         out.write(";\n")
