@@ -19,7 +19,6 @@
 
 package org.apache.cassandra.thrift;
 
-import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,14 +26,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.AbstractCassandraDaemon;
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
-import org.apache.thrift.transport.TServerTransport;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
@@ -221,34 +217,6 @@ public class CustomTThreadPoolServer extends TServer
             {
                 outputTransport.close();
             }
-        }
-    }
-
-    public static class Factory implements TServerFactory
-    {
-        public TServer buildTServer(Args args)
-        {
-            final InetSocketAddress addr = args.addr;
-            TServerTransport serverTransport;
-            try
-            {
-                serverTransport = new TCustomServerSocket(addr, args.keepAlive, args.sendBufferSize, args.recvBufferSize);
-            }
-            catch (TTransportException e)
-            {
-                throw new RuntimeException(String.format("Unable to create thrift socket to %s:%s", addr.getAddress(), addr.getPort()), e);
-            }
-            // ThreadPool Server and will be invocation per connection basis...
-            TThreadPoolServer.Args serverArgs = new TThreadPoolServer.Args(serverTransport)
-                                                                     .minWorkerThreads(DatabaseDescriptor.getRpcMinThreads())
-                                                                     .maxWorkerThreads(DatabaseDescriptor.getRpcMaxThreads())
-                                                                     .inputTransportFactory(args.inTransportFactory)
-                                                                     .outputTransportFactory(args.outTransportFactory)
-                                                                     .inputProtocolFactory(args.tProtocolFactory)
-                                                                     .outputProtocolFactory(args.tProtocolFactory)
-                                                                     .processor(args.processor);
-            ExecutorService executorService = new AbstractCassandraDaemon.CleaningThreadPool(args.cassandraServer.clientState, serverArgs.minWorkerThreads, serverArgs.maxWorkerThreads);
-            return new CustomTThreadPoolServer(serverArgs, executorService);
         }
     }
 }

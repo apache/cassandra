@@ -287,7 +287,7 @@ rpc_port: 9160
 # enable or disable keepalive on rpc connections
 rpc_keepalive: true
 
-# Cassandra provides three out-of-the-box options for the RPC Server:
+# Cassandra provides three options for the RPC Server:
 #
 # sync  -> One connection per thread in the rpc pool (see below).
 #          For a very large number of clients, memory will be your limiting
@@ -305,9 +305,6 @@ rpc_keepalive: true
 #
 # The default is sync because on Windows hsha is about 30% slower.  On Linux,
 # sync/hsha performance is about the same, with hsha of course using less memory.
-#
-# Alternatively,  can provide your own RPC server by providing the fully-qualified class name
-# of an o.a.c.t.TServerFactory that can create an instance of it.
 rpc_server_type: sync
 
 # Uncomment rpc_min|max|thread to set request pool size.

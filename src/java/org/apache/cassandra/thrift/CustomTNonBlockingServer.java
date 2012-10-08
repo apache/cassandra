@@ -21,14 +21,9 @@ package org.apache.cassandra.thrift;
  */
 
 
-import java.net.InetSocketAddress;
-
 import org.apache.cassandra.service.SocketSessionManagementService;
 import org.apache.thrift.server.TNonblockingServer;
-import org.apache.thrift.server.TServer;
-import org.apache.thrift.transport.TNonblockingServerTransport;
 import org.apache.thrift.transport.TNonblockingSocket;
-import org.apache.thrift.transport.TTransportException;
 
 public class CustomTNonBlockingServer extends TNonblockingServer
 {
@@ -44,31 +39,5 @@ public class CustomTNonBlockingServer extends TNonblockingServer
         SocketSessionManagementService.remoteSocket.set(socket.getSocketChannel().socket().getRemoteSocketAddress());
         frameBuffer.invoke();
         return true;
-    }
-
-    public static class Factory implements TServerFactory
-    {
-        public TServer buildTServer(Args args)
-        {
-            final InetSocketAddress addr = args.addr;
-            TNonblockingServerTransport serverTransport;
-            try
-            {
-                serverTransport = new TCustomNonblockingServerSocket(addr, args.keepAlive, args.sendBufferSize, args.recvBufferSize);
-            }
-            catch (TTransportException e)
-            {
-                throw new RuntimeException(String.format("Unable to create thrift socket to %s:%s", addr.getAddress(), addr.getPort()), e);
-            }
-
-            // This is single threaded hence the invocation will be all
-            // in one thread.
-            TNonblockingServer.Args serverArgs = new TNonblockingServer.Args(serverTransport).inputTransportFactory(args.inTransportFactory)
-                                                                                             .outputTransportFactory(args.outTransportFactory)
-                                                                                             .inputProtocolFactory(args.tProtocolFactory)
-                                                                                             .outputProtocolFactory(args.tProtocolFactory)
-                                                                                             .processor(args.processor);
-            return new CustomTNonBlockingServer(serverArgs);
-        }
     }
 }
