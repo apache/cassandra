@@ -22,9 +22,12 @@ import java.util.*;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.Pair;
 
-public class SizeTieredCompactionStrategyTest
+public class SizeTieredCompactionStrategyTest extends SchemaLoader
 {
     @Test
     public void testGetBuckets()
@@ -37,7 +40,11 @@ public class SizeTieredCompactionStrategyTest
             pairs.add(pair);
         }
 
-        List<List<String>> buckets = SizeTieredCompactionStrategy.getBuckets(pairs, 2);
+        ColumnFamilyStore cfs = Table.open("Keyspace1").getColumnFamilyStore("Standard1");
+        Map<String, String> opts = new HashMap<String, String>();
+        opts.put(SizeTieredCompactionStrategy.MIN_SSTABLE_SIZE_KEY, "2");
+        SizeTieredCompactionStrategy strategy = new SizeTieredCompactionStrategy(cfs, opts);
+        List<List<String>> buckets = strategy.getBuckets(pairs);
         assertEquals(3, buckets.size());
 
         for (List<String> bucket : buckets)
@@ -57,7 +64,7 @@ public class SizeTieredCompactionStrategyTest
             pairs.add(pair);
         }
 
-        buckets = SizeTieredCompactionStrategy.getBuckets(pairs, 2);
+        buckets = strategy.getBuckets(pairs);
         assertEquals(2, buckets.size());
 
         for (List<String> bucket : buckets)
@@ -78,7 +85,9 @@ public class SizeTieredCompactionStrategyTest
             pairs.add(pair);
         }
 
-        buckets = SizeTieredCompactionStrategy.getBuckets(pairs, 10); // notice the min is 10
+        opts.put(SizeTieredCompactionStrategy.MIN_SSTABLE_SIZE_KEY, "10");
+        strategy = new SizeTieredCompactionStrategy(cfs, opts);
+        buckets = strategy.getBuckets(pairs); // notice the min is 10
         assertEquals(1, buckets.size());
     }
 }

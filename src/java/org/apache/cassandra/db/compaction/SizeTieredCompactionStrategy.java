@@ -32,8 +32,15 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(SizeTieredCompactionStrategy.class);
     protected static final long DEFAULT_MIN_SSTABLE_SIZE = 50L * 1024L * 1024L;
+    protected static final double DEFAULT_BUCKET_LOW = 0.5;
+    protected static final double DEFAULT_BUCKET_HIGH = 1.5;
     protected static final String MIN_SSTABLE_SIZE_KEY = "min_sstable_size";
+    protected static final String BUCKET_LOW_KEY = "bucket_low";
+    protected static final String BUCKET_HIGH_KEY = "bucket_high";
+
     protected long minSSTableSize;
+    protected double bucketLow;
+    protected double bucketHigh;
     protected volatile int estimatedRemainingTasks;
 
     public SizeTieredCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
@@ -42,6 +49,16 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         this.estimatedRemainingTasks = 0;
         String optionValue = options.get(MIN_SSTABLE_SIZE_KEY);
         minSSTableSize = optionValue == null ? DEFAULT_MIN_SSTABLE_SIZE : Long.parseLong(optionValue);
+        optionValue = options.get(BUCKET_LOW_KEY);
+        bucketLow = optionValue == null ? DEFAULT_BUCKET_LOW : Double.parseDouble(optionValue);
+        optionValue = options.get(BUCKET_HIGH_KEY);
+        bucketHigh = optionValue == null ? DEFAULT_BUCKET_HIGH : Double.parseDouble(optionValue);
+        if (bucketHigh <= bucketLow)
+        {
+            logger.warn("Bucket low/high marks for {} incorrect, using defaults.", cfs.getColumnFamilyName());
+            bucketLow = DEFAULT_BUCKET_LOW;
+            bucketHigh = DEFAULT_BUCKET_HIGH;
+        }
         cfs.setCompactionThresholds(cfs.metadata.getMinCompactionThreshold(), cfs.metadata.getMaxCompactionThreshold());
     }
 
@@ -54,7 +71,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         }
 
         Set<SSTableReader> candidates = cfs.getUncompactingSSTables();
-        List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(filterSuspectSSTables(candidates)), minSSTableSize);
+        List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(filterSuspectSSTables(candidates)));
         logger.debug("Compaction buckets are {}", buckets);
         updateEstimatedCompactionsByTasks(buckets);
 
@@ -141,7 +158,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     /*
      * Group files of similar size into buckets.
      */
-    static <T> List<List<T>> getBuckets(Collection<Pair<T, Long>> files, long minSSTableSize)
+    <T> List<List<T>> getBuckets(Collection<Pair<T, Long>> files)
     {
         // Sort the list in order to get deterministic results during the grouping below
         List<Pair<T, Long>> sortedFiles = new ArrayList<Pair<T, Long>>(files);
@@ -167,7 +184,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             {
                 List<T> bucket = entry.getValue();
                 long oldAverageSize = entry.getKey();
-                if ((size > (oldAverageSize / 2) && size < (3 * oldAverageSize) / 2)
+                if ((size > (oldAverageSize * bucketLow) && size < (oldAverageSize * bucketHigh))
                     || (size < minSSTableSize && oldAverageSize < minSSTableSize))
                 {
                     // remove and re-add under new new average size

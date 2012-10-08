@@ -22,6 +22,7 @@
  * Use rpc_address for binary protocol and change default port (CASSANRA-4751)
  * Fix use of collections in prepared statements (CASSANDRA-4739)
  * Store more information into peers table (CASSANDRA-4351)
+ * Configurable bucket size for size tiered compaction (CASSANDRA-4704)
 
 
 1.2-beta1
