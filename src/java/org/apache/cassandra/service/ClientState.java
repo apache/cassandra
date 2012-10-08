@@ -180,6 +180,7 @@ public class ClientState
         preparedTracingSession = null;
         resourceClear();
         prepared.clear();
+        cqlVersion = DEFAULT_CQL_VERSION;
     }
 
     public void hasKeyspaceAccess(String keyspace, Permission perm) throws UnauthorizedException, InvalidRequestException
