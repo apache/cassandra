@@ -21,6 +21,14 @@
  * (CQL3) Don't return ReversedType in result set metadata (CASSANDRA-4717)
  * Backport adding AlterKeyspace statement (CASSANDRA-4611)
  * (CQL3) Correcty accept upper-case data types (CASSANDRA-4770)
+ * (cqlsh) Fix table completion for CREATE KEYSPACE (CASSANDRA-4334)
+ * Support allow_deletes for Hadoop clusters (CASSANDRA-4499)
+ * (cqlsh) Provide consistent ordering for COPY TO and COPY FROM (CASSANDRA-4594)
+ * Fix race when setting cql version with thrift sync server (CASSANDRA-4657)
+ * (CQL3) Fix start IN queries with ORDER BY (CASSANDRA-4689)
+ * (cqlsh) Fix auto completion with fully qualified names (CASSANDRA-4423)
+ * (CLI) allow to insert double values (CASSANDRA-4661)
+ * (cqlsh) Multi-line support for history buffer (CASSANDRA-4666)
 Merged from 1.0:
  * Switch from NBHM to CHM in MessagingService's callback map, which
    prevents OOM in long-running instances (CASSANDRA-4708)
