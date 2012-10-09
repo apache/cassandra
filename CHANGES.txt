@@ -1,4 +1,6 @@
 1.1.6
+ * Fix HH to compact with correct gcBefore, which avoids wiping out
+   undelivered hints (CASSANDRA-4772)
  * LCS will merge up to 32 L0 sstables as intended (CASSANDRA-4778)
  * NTS will default unconfigured DC replicas to zero (CASSANDRA-4675)
  * use default consistency level in counter validation if none is
