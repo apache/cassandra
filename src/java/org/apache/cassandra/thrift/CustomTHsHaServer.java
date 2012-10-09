@@ -22,6 +22,7 @@ package org.apache.cassandra.thrift;
 
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.spi.SelectorProvider;
@@ -30,9 +31,15 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.SocketSessionManagementService;
 import org.apache.thrift.server.TNonblockingServer;
+import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.TNonblockingServerTransport;
 import org.apache.thrift.transport.TNonblockingSocket;
 import org.apache.thrift.transport.TNonblockingTransport;
@@ -342,5 +349,37 @@ public class CustomTHsHaServer extends TNonblockingServer
         // Dont change the interest here, this has to be done by the selector
         // thread because the method is not synchronized with the rest of the
         // selectors threads.
+    }
+
+    public static class Factory implements TServerFactory
+    {
+        public TServer buildTServer(Args args)
+        {
+            final InetSocketAddress addr = args.addr;
+            TNonblockingServerTransport serverTransport;
+            try
+            {
+                serverTransport = new TCustomNonblockingServerSocket(addr, args.keepAlive, args.sendBufferSize, args.recvBufferSize);
+            }
+            catch (TTransportException e)
+            {
+                throw new RuntimeException(String.format("Unable to create thrift socket to %s:%s", addr.getAddress(), addr.getPort()), e);
+            }
+
+            // This is NIO selector service but the invocation will be Multi-Threaded with the Executor service.
+            ExecutorService executorService = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getRpcMinThreads(),
+                                                                               DatabaseDescriptor.getRpcMaxThreads(),
+                                                                               60L,
+                                                                               TimeUnit.SECONDS,
+                                                                               new SynchronousQueue<Runnable>(),
+                                                                               new NamedThreadFactory("RPC-Thread"), "RPC-THREAD-POOL");
+            TNonblockingServer.Args serverArgs = new TNonblockingServer.Args(serverTransport).inputTransportFactory(args.inTransportFactory)
+                                                                               .outputTransportFactory(args.outTransportFactory)
+                                                                               .inputProtocolFactory(args.tProtocolFactory)
+                                                                               .outputProtocolFactory(args.tProtocolFactory)
+                                                                               .processor(args.processor);
+            // Check for available processors in the system which will be equal to the IO Threads.
+            return new CustomTHsHaServer(serverArgs, executorService, Runtime.getRuntime().availableProcessors());
+        }
     }
 }

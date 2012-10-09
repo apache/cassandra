@@ -62,9 +62,9 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
     }
 
     private static Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
-    private final static String SYNC = "sync";
-    private final static String ASYNC = "async";
-    private final static String HSHA = "hsha";
+    public final static String SYNC = "sync";
+    public final static String ASYNC = "async";
+    public final static String HSHA = "hsha";
     public final static List<String> rpc_server_types = Arrays.asList(SYNC, ASYNC, HSHA);
     private ThriftServer server;
 
