@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.tracing;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -26,12 +24,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Stopwatch;
 
-import org.apache.cassandra.thrift.ColumnParent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * ThreadLocal state for a tracing session. The presence of an instance of this class as a ThreadLocal denotes that an

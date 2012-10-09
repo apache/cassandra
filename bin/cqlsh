@@ -39,6 +39,7 @@ from itertools import groupby
 from contextlib import contextmanager, closing
 from glob import glob
 from functools import partial
+from uuid import UUID
 
 import cmd
 import sys
@@ -172,6 +173,7 @@ my_commands_ending_with_newline = (
     'source',
     'capture',
     'debug',
+    'tracing',
     'exit',
     'quit'
 )
@@ -195,6 +197,7 @@ cqlsh_extra_syntax_rules = r'''
                    | <copyCommand>
                    | <debugCommand>
                    | <helpCommand>
+                   | <tracingCommand>
                    | <exitCommand>
                    ;
 
@@ -240,6 +243,9 @@ cqlsh_extra_syntax_rules = r'''
 
 <helpCommand> ::= ( "HELP" | "?" ) [topic]=( <identifier> | <stringLiteral> )*
                 ;
+
+<tracingCommand> ::= "TRACING" ( switch=( "ON" | "OFF" ) )?
+                   ;
 
 <exitCommand> ::= "exit" | "quit"
                 ;
@@ -419,6 +425,7 @@ class Shell(cmd.Cmd):
     def __init__(self, hostname, port, transport_factory, color=False,
                  username=None, password=None, encoding=None, stdin=None, tty=True,
                  completekey='tab', use_conn=None, cqlver=None, keyspace=None,
+                 tracing_enabled=False,
                  display_time_format=DEFAULT_TIME_FORMAT,
                  display_float_precision=DEFAULT_FLOAT_PRECISION):
         cmd.Cmd.__init__(self, completekey=completekey)
@@ -428,6 +435,7 @@ class Shell(cmd.Cmd):
         self.username = username
         self.password = password
         self.keyspace = keyspace
+        self.tracing_enabled = tracing_enabled
         if use_conn is not None:
             self.conn = use_conn
         else:
@@ -694,6 +702,9 @@ class Shell(cmd.Cmd):
         except cql.cassandra.ttypes.InvalidRequestException, e:
             raise VersionNotSupported(e.why)
 
+    def trace_next_query(self):
+        return self.make_hacktastic_thrift_call('trace_next_query')
+
     def make_hacktastic_thrift_call(self, call, *args):
         client = self.conn.client
         return getattr(client, call)(*args)
@@ -912,7 +923,7 @@ class Shell(cmd.Cmd):
         (CQL 3).
         """
         ksname = parsed.get_binding('ksname')
-        if self.perform_statement(parsed.extract_orig()):
+        if self.perform_statement_untraced(parsed.extract_orig()):
             self.current_keyspace = self.cql_unprotect_name(ksname)
 
     def do_select(self, parsed):
@@ -946,6 +957,16 @@ class Shell(cmd.Cmd):
         self.perform_statement(parsed.extract_orig(), decoder=decoder)
 
     def perform_statement(self, statement, decoder=None):
+        if self.tracing_enabled:
+            session_id = UUID(bytes=self.trace_next_query())
+            result = self.perform_statement_untraced(statement, decoder=None)
+            time.sleep(0.5) # trace writes are async so we wait a little.
+            self.print_trace(session_id)
+            return result
+        else:
+            return self.perform_statement_untraced(statement, decoder=None)
+
+    def perform_statement_untraced(self, statement, decoder=None):
         if not statement:
             return False
         trynum = 1
@@ -985,6 +1006,9 @@ class Shell(cmd.Cmd):
             self.print_result(self.cursor)
         self.flush_output()
         return True
+
+    def print_trace(self, session_id):
+        self.perform_statement_untraced("SELECT * FROM system_traces.events WHERE session_id = '%s'" % session_id)
 
     # these next two functions are not guaranteed perfect; just checks if the
     # statement parses fully according to cqlsh's own understanding of the
@@ -1558,7 +1582,7 @@ class Shell(cmd.Cmd):
         cql = prepq % valstring
         if self.debug:
             print "Import using CQL: %s" % cql
-        return self.perform_statement(cql)
+        return self.perform_statement_untraced(cql)
 
     def perform_csv_export(self, ks, cf, columns, fname, opts):
         dialect_options = self.csv_dialect_defaults.copy()
@@ -1819,6 +1843,52 @@ class Shell(cmd.Cmd):
         self.query_out = f
         self.color = False
         print 'Now capturing query output to %r.' % (fname,)
+
+    def do_tracing(self, parsed):
+        """
+        TRACING [cqlsh with CQL 3.0.0 or higher only]
+
+          Enables or disables request tracing.
+
+        TRACING ON
+
+          Enables tracing for all further requests.
+
+        TRACING OFF
+
+          Disables tracing.
+
+        TRACING
+
+          TRACING with no arguments shows the current tracing status.
+        """
+        if not self.cqlver_atleast(3):
+            self.printerr('Tracing requires CQL version 3.0.0 or higher.')
+            return
+
+        switch = parsed.get_binding('switch')
+        if switch is None:
+            if self.tracing_enabled:
+                print "Tracing is currently enabled. Use TRACING OFF to disable"
+            else:
+                print "Tracing is currently disabled. Use TRACING ON to enable."
+            return
+
+        if switch.upper() == 'ON':
+            if self.tracing_enabled:
+                self.printerr('Tracing is already enabled. '
+                              'Use TRACING OFF to disable.')
+                return
+            self.tracing_enabled = True
+            print 'Now tracing requests.'
+            return
+
+        if switch.upper() == 'OFF':
+            if not self.tracing_enabled:
+                self.printerr('Tracing is not enabled.')
+                return
+            self.tracing_enabled = False
+            print 'Disabled tracing.'
 
     def do_exit(self, parsed=None):
         """
