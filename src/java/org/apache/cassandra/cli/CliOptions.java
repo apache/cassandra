@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,6 +18,7 @@
 package org.apache.cassandra.cli;
 
 import org.apache.commons.cli.*;
+import org.apache.thrift.transport.TTransportFactory;
 
 /**
  *
@@ -26,7 +27,7 @@ import org.apache.commons.cli.*;
  */
 public class CliOptions
 {
-    private static CLIOptions options = null; // Info about command line options
+    private static final CLIOptions options; // Info about command line options
 
     // Name of the command line tool (used for error messages)
     private static final String TOOL_NAME = "cassandra-cli";
@@ -34,7 +35,7 @@ public class CliOptions
     // Command line options
     private static final String HOST_OPTION = "host";
     private static final String PORT_OPTION = "port";
-    private static final String UNFRAME_OPTION = "unframed";
+    private static final String TRANSPORT_FACTORY = "transport-factory";
     private static final String DEBUG_OPTION = "debug";
     private static final String USERNAME_OPTION = "username";
     private static final String PASSWORD_OPTION = "password";
@@ -64,10 +65,10 @@ public class CliOptions
         options.addOption("f",  FILE_OPTION,     "FILENAME", "load statements from the specific file");
         options.addOption(null, JMX_PORT_OPTION, "JMX-PORT", "JMX service port");
         options.addOption(null, SCHEMA_MIGRATION_WAIT_TIME,  "TIME", "Schema migration wait time (secs.), default is 10 secs");
+        options.addOption("tf", TRANSPORT_FACTORY, "TRANSPORT-FACTORY", "Fully-qualified TTransportFactory class name for creating a connection to cassandra");
 
         // options without argument
         options.addOption("B",  BATCH_OPTION,   "enabled batch mode (suppress output; errors are fatal)");
-        options.addOption(null, UNFRAME_OPTION, "use cassandra server's unframed transport");
         options.addOption(null, DEBUG_OPTION,   "display stack-traces (NOTE: We print strack-traces in the places where it makes sense even without --debug)");
         options.addOption("?",  HELP_OPTION,    "usage help");
         options.addOption("v",  VERBOSE_OPTION, "verbose output when using batch mode");
@@ -95,13 +96,9 @@ public class CliOptions
                 css.hostName = DEFAULT_HOST;
             }
 
-            // Look to see if frame has been specified
-            if (cmd.hasOption(UNFRAME_OPTION))
-            {
-                css.framed = false;
-            }
+            if (cmd.hasOption(TRANSPORT_FACTORY))
+                css.transportFactory = validateAndSetTransportFactory(cmd.getOptionValue(TRANSPORT_FACTORY));
 
-            // Look to see if frame has been specified
             if (cmd.hasOption(DEBUG_OPTION))
             {
                 css.debug = true;
@@ -120,7 +117,7 @@ public class CliOptions
             // Look for authentication credentials (username and password)
             if (cmd.hasOption(USERNAME_OPTION))
             {
-            	css.username = cmd.getOptionValue(USERNAME_OPTION);
+                css.username = cmd.getOptionValue(USERNAME_OPTION);
             }
             else
             {
@@ -129,7 +126,7 @@ public class CliOptions
 
             if (cmd.hasOption(PASSWORD_OPTION))
             {
-            	css.password = cmd.getOptionValue(PASSWORD_OPTION);
+                css.password = cmd.getOptionValue(PASSWORD_OPTION);
             }
             else
             {
@@ -139,7 +136,7 @@ public class CliOptions
             // Look for keyspace
             if (cmd.hasOption(KEYSPACE_OPTION))
             {
-            	css.keyspace = cmd.getOptionValue(KEYSPACE_OPTION);
+                css.keyspace = cmd.getOptionValue(KEYSPACE_OPTION);
             }
 
             if (cmd.hasOption(BATCH_OPTION))
@@ -176,7 +173,7 @@ public class CliOptions
             // Abort if there are any unrecognized arguments left
             if (cmd.getArgs().length > 0)
             {
-                System.err.printf("Unknown argument: %s\n", cmd.getArgs()[0]);
+                System.err.printf("Unknown argument: %s%n", cmd.getArgs()[0]);
                 System.err.println();
                 printUsage();
                 System.exit(1);
@@ -222,4 +219,21 @@ public class CliOptions
         }
     }
 
+    private static TTransportFactory validateAndSetTransportFactory(String transportFactory)
+    {
+        try
+        {
+            Class factory = Class.forName(transportFactory);
+
+            if(!TTransportFactory.class.isAssignableFrom(factory))
+                throw new IllegalArgumentException(String.format("transport factory '%s' " +
+                                                                 "not derived from TTransportFactory", transportFactory));
+
+            return (TTransportFactory) factory.newInstance();
+        }
+        catch (Exception e)
+        {
+            throw new IllegalArgumentException(String.format("Cannot create a transport factory '%s'.", transportFactory), e);
+        }
+    }
 }

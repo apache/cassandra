@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.cli;
 
 import java.io.BufferedReader;
@@ -31,7 +30,6 @@ import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.thrift.*;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
@@ -44,9 +42,9 @@ public class CliMain
 
     private static TTransport transport = null;
     private static Cassandra.Client thriftClient = null;
-    public  static CliSessionState sessionState = new CliSessionState();
+    public  static final CliSessionState sessionState = new CliSessionState();
     private static CliClient cliClient;
-    private static CliCompleter completer = new CliCompleter();
+    private static final CliCompleter completer = new CliCompleter();
     private static int lineNumber = 1;
 
     /**
@@ -62,21 +60,14 @@ public class CliMain
         if (transport != null)
             transport.close();
 
-        if (sessionState.framed)
-        {
-            transport = new TFramedTransport(socket);
-        }
-        else
-        {
-            transport = socket;
-        }
-
+        transport = sessionState.transportFactory.getTransport(socket);
         TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
         Cassandra.Client cassandraClient = new Cassandra.Client(binaryProtocol);
 
         try
         {
-            transport.open();
+            if (!transport.isOpen())
+                transport.open();
         }
         catch (Exception e)
         {
@@ -105,7 +96,7 @@ public class CliMain
             {
                 thriftClient = null;
                 sessionState.err.println("Exception during authentication to the cassandra node, " +
-                		"Verify the keyspace exists, and that you are using the correct credentials.");
+                                         "Verify the keyspace exists, and that you are using the correct credentials.");
                 return;
             }
             catch (AuthorizationException e)
@@ -207,7 +198,7 @@ public class CliMain
         completer.setCandidateStrings(strs);
     }
 
-    public static void processStatement(String query) throws CharacterCodingException, ClassNotFoundException, TException, TimedOutException, SchemaDisagreementException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException
+    public static void processStatement(String query) throws CharacterCodingException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, SchemaDisagreementException
     {
         cliClient.executeCLIStatement(query);
     }

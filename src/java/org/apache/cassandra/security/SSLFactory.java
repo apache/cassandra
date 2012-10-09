@@ -127,7 +127,7 @@ public final class SSLFactory
         return ctx;
     }
 
-    private static String[] filterCipherSuites(String[] supported, String[] desired)
+    public static String[] filterCipherSuites(String[] supported, String[] desired)
     {
         Set<String> des = Sets.newHashSet(desired);
         Set<String> return_ = Sets.intersection(Sets.newHashSet(supported), des);

@@ -1,5 +1,6 @@
 1.1.5.1
  * Add ability to use custom TServerFactory implementations (CASSANDRA-4608)
+ * Pluggable Thrift transport factories for CLI (CASSANDRA-4609)
 
 1.1.5
  * add SecondaryIndex.reload API (CASSANDRA-4581)
