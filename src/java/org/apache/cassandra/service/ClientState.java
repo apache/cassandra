@@ -21,7 +21,6 @@ import java.util.*;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.cql3.CFName;
-import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -156,10 +155,7 @@ public class ClientState
      */
     public void login(Map<? extends CharSequence,? extends CharSequence> credentials) throws AuthenticationException
     {
-        AuthenticatedUser user = DatabaseDescriptor.getAuthenticator().authenticate(credentials);
-        if (logger.isDebugEnabled())
-            logger.debug("logged in: {}", user);
-        this.user = user;
+        this.user = DatabaseDescriptor.getAuthenticator().authenticate(credentials);
     }
 
     private void resourceClear()
