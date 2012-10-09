@@ -479,7 +479,7 @@ public class LeveledManifest
                 candidates.addAll(overlapping(candidates, generations[1]));
             }
 
-            return candidates;
+            return candidates.size() > 1 ? candidates : Collections.<SSTableReader>emptyList();
         }
 
         // for non-L0 compactions, pick up where we left off last time
