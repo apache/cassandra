@@ -20,6 +20,8 @@ package org.apache.cassandra.thrift;
 
 import java.net.InetSocketAddress;
 
+import javax.net.ssl.SSLContext;
+
 import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.TTransportFactory;
@@ -39,5 +41,7 @@ public interface TServerFactory
         public Integer sendBufferSize;
         public Integer recvBufferSize;
         public boolean keepAlive;
+        public SSLContext ctx;
+        public String[] cipherSuits;
     }
 }

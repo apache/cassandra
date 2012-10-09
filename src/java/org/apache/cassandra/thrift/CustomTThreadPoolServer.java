@@ -24,6 +24,8 @@ import java.net.SocketTimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.net.ssl.SSLContext;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -232,7 +234,7 @@ public class CustomTThreadPoolServer extends TServer
             TServerTransport serverTransport;
             try
             {
-                serverTransport = new TCustomServerSocket(addr, args.keepAlive, args.sendBufferSize, args.recvBufferSize);
+                serverTransport = new TCustomServerSocket(addr, args.keepAlive, args.sendBufferSize, args.recvBufferSize, args.ctx, args.cipherSuits);
             }
             catch (TTransportException e)
             {

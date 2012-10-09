@@ -27,6 +27,9 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLServerSocket;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,13 +63,24 @@ public class TCustomServerSocket extends TServerTransport
      * @throws TTransportException
      */
     public TCustomServerSocket(InetSocketAddress bindAddr, boolean keepAlive, Integer sendBufferSize,
-            Integer recvBufferSize)
+            Integer recvBufferSize, SSLContext ctx, String[] suites)
             throws TTransportException
     {
         try
         {
-            // Make server socket
-            serverSocket_ = new ServerSocket();
+            if (ctx != null)
+            {           
+                // Make ssl server socket            
+                serverSocket_ = (SSLServerSocket)ctx.getServerSocketFactory().createServerSocket();
+                serverSocket_.setReuseAddress(true);
+                ((SSLServerSocket) serverSocket_).setEnabledCipherSuites(suites);
+            }
+            else
+            {
+                // make server socket
+                serverSocket_ = new ServerSocket();
+            }
+            
             // Prevent 2MSL delay problem on server restarts
             serverSocket_.setReuseAddress(true);
             // Bind to listening port
