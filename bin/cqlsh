@@ -113,6 +113,9 @@ DEFAULT_HOST = 'localhost'
 DEFAULT_PORT = 9160
 DEFAULT_CQLVER = '2'
 
+DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S%z'
+DEFAULT_FLOAT_PRECISION = 3
+
 epilog = """Connects to %(DEFAULT_HOST)s:%(DEFAULT_PORT)d by default. These
 defaults can be changed by setting $CQLSH_HOST and/or $CQLSH_PORT. When a
 host (and optional port number) are given on the command line, they take
@@ -546,8 +549,6 @@ class Shell(cmd.Cmd):
     continue_prompt = "   ... "
     keyspace_prompt          = "cqlsh:%s> "
     keyspace_continue_prompt = "%s    ... "
-    display_time_format = '%Y-%m-%d %H:%M:%S%z'
-    display_float_precision = 3
     num_retries = 4
     show_line_nums = False
     debug = False
@@ -559,7 +560,9 @@ class Shell(cmd.Cmd):
 
     def __init__(self, hostname, port, color=False, username=None,
                  password=None, encoding=None, stdin=None, tty=True,
-                 completekey='tab', use_conn=None, cqlver=None, keyspace=None):
+                 completekey='tab', use_conn=None, cqlver=None, keyspace=None,
+                 display_time_format=DEFAULT_TIME_FORMAT,
+                 display_float_precision=DEFAULT_FLOAT_PRECISION):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
@@ -582,6 +585,8 @@ class Shell(cmd.Cmd):
         self.current_keyspace = keyspace
 
         self.color = color
+        self.display_time_format = display_time_format
+        self.display_float_precision = display_float_precision
         if encoding is None:
             encoding = locale.getpreferredencoding()
         self.encoding = encoding
@@ -1796,7 +1801,9 @@ class Shell(cmd.Cmd):
             return
         subshell = Shell(self.hostname, self.port, color=self.color,
                          encoding=self.encoding, stdin=f, tty=False,
-                         use_conn=self.conn, cqlver=self.cql_version)
+                         use_conn=self.conn, cqlver=self.cql_version,
+                         display_time_format=self.display_time_format,
+                         display_float_precision=self.display_float_precision)
         subshell.cmdloop()
         f.close()
 
@@ -2610,6 +2617,16 @@ def option_with_default(cparser_getter, section, option, default=None):
     except ConfigParser.Error:
         return default
 
+def raw_option_with_default(configs, section, option, default=None):
+    """
+    Same (almost) as option_with_default() but won't do any string interpolation.
+    Useful for config values that include '%' symbol, e.g. time format string.
+    """
+    try:
+        return configs.get(section, option, raw=True)
+    except ConfigParser.Error:
+        return default
+
 def should_use_color():
     if not sys.stdout.isatty():
         return False
@@ -2637,6 +2654,10 @@ def read_options(cmdlineargs, environment):
     optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
     optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey', 'tab')
     optvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
+    optvalues.time_format = raw_option_with_default(configs, 'ui', 'time_format',
+                                                    DEFAULT_TIME_FORMAT)
+    optvalues.float_precision = option_with_default(configs.getint, 'ui', 'float_precision',
+                                                    DEFAULT_FLOAT_PRECISION)
     optvalues.debug = False
     optvalues.file = None
     optvalues.tty = sys.stdin.isatty()
@@ -2732,7 +2753,9 @@ def main(options, hostname, port):
                       tty=options.tty,
                       completekey=options.completekey,
                       cqlver=options.cqlversion,
-                      keyspace=options.keyspace)
+                      keyspace=options.keyspace,
+                      display_time_format=options.time_format,
+                      display_float_precision=options.float_precision)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS, e:
