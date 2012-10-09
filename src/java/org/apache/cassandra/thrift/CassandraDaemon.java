@@ -140,7 +140,7 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
                     serverTransport = new TCustomServerSocket(new InetSocketAddress(listenAddr, listenPort),
                                                               DatabaseDescriptor.getRpcKeepAlive(),
                                                               DatabaseDescriptor.getRpcSendBufferSize(),
-                                                              DatabaseDescriptor.getRpcRecvBufferSize());
+                                                              DatabaseDescriptor.getRpcRecvBufferSize(), null, null);
                 }
                 catch (TTransportException e)
                 {
