@@ -1034,6 +1034,7 @@ commands:
             - integer
             - lexicaluuid: if used without arguments generates a new random uuid
             - long
+            - double
             - timeuuid: if used without arguments generates a new time uuid
             - utf8
 

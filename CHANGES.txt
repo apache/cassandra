@@ -1,4 +1,5 @@
 1.2-beta2
+ * cassandra-cli: allow Double value type to be inserted to a column (CASSANDRA-4661)
  * Add ability to use custom TServerFactory implementations (CASSANDRA-4608)
  * optimize batchlog flushing to skip successful batches (CASSANDRA-4667)
  * include metadata for system keyspace itself in schema tables (CASSANDRA-4416)

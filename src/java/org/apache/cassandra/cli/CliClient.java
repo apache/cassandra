@@ -71,6 +71,7 @@ public class CliClient
         TIMEUUID      (TimeUUIDType.instance),
         UTF8          (UTF8Type.instance),
         ASCII         (AsciiType.instance),
+        DOUBLE        (DoubleType.instance),
         COUNTERCOLUMN (CounterColumnType.instance);
 
         private AbstractType<?> validator;
