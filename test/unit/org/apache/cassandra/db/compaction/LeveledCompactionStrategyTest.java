@@ -65,7 +65,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
 
         LeveledCompactionStrategy strat = (LeveledCompactionStrategy)store.getCompactionStrategy();
 
-        while (strat.getLevelSize(0) > 0)
+        while (strat.getLevelSize(0) > 1)
         {
             store.forceMajorCompaction();
             Thread.sleep(200);
