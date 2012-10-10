@@ -125,7 +125,7 @@ public class IncomingStreamReader
         ColumnFamilyStore cfs = Table.open(localFile.desc.ksname).getColumnFamilyStore(localFile.desc.cfname);
         DecoratedKey key;
         SSTableWriter writer = new SSTableWriter(localFile.getFilename(), remoteFile.estimatedKeys);
-        CompactionController controller = new CompactionController(cfs, Collections.<SSTableReader>emptyList(), Integer.MIN_VALUE, true);
+        CompactionController controller = new CompactionController(cfs, Collections.<SSTableReader>emptyList(), Integer.MIN_VALUE);
 
         try
         {

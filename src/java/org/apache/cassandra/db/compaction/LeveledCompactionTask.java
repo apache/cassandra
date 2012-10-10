@@ -19,7 +19,6 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.Collection;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -29,35 +28,10 @@ public class LeveledCompactionTask extends CompactionTask
 {
     private final int sstableSizeInMB;
 
-    private final CountDownLatch latch = new CountDownLatch(1);
-
     public LeveledCompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, final int gcBefore, int sstableSizeInMB)
     {
         super(cfs, sstables, gcBefore);
         this.sstableSizeInMB = sstableSizeInMB;
-    }
-
-    @Override
-    public int execute(CompactionManager.CompactionExecutorStatsCollector collector)
-    {
-        try
-        {
-            return super.execute(collector);
-        }
-        finally
-        {
-            latch.countDown();
-        }
-    }
-
-    public boolean isDone()
-    {
-        return latch.getCount() == 0;
-    }
-
-    public boolean markSSTablesForCompaction(int min, int max)
-    {
-        return super.markSSTablesForCompaction(1, Integer.MAX_VALUE);
     }
 
     @Override
@@ -67,20 +41,8 @@ public class LeveledCompactionTask extends CompactionTask
     }
 
     @Override
-    protected boolean isCompactionInteresting(Set<SSTableReader> toCompact)
-    {
-        return true;
-    }
-
-    @Override
     protected boolean partialCompactionsAcceptable()
     {
         return false;
-    }
-
-    @Override
-    protected void cancel()
-    {
-        latch.countDown();
     }
 }

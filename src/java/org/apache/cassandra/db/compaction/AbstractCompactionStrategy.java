@@ -66,22 +66,24 @@ public abstract class AbstractCompactionStrategy
     public void shutdown() { }
 
     /**
-     * @return the next background/minor compaction task to run; null if nothing to do.
      * @param gcBefore throw away tombstones older than this
+     * @return the next background/minor compaction task to run; null if nothing to do.
+     * Is responsible for marking its sstables as compaction-pending.
      */
     public abstract AbstractCompactionTask getNextBackgroundTask(final int gcBefore);
 
     /**
+     * @param gcBefore throw away tombstones older than this
      * @return a compaction task that should be run to compact this columnfamilystore
      * as much as possible.  Null if nothing to do.
-     * @param gcBefore throw away tombstones older than this
      */
     public abstract AbstractCompactionTask getMaximalTask(final int gcBefore);
 
     /**
+     * @param sstables SSTables to compact. Must be marked as compacting.
+     * @param gcBefore throw away tombstones older than this
      * @return a compaction task corresponding to the requested sstables.
      * Will not be null. (Will throw if user requests an invalid compaction.)
-     * @param gcBefore throw away tombstones older than this
      */
     public abstract AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore);
 
@@ -96,16 +98,9 @@ public abstract class AbstractCompactionStrategy
     public abstract long getMaxSSTableSize();
 
     /**
-     * @return true if checking for whether a key exists, ignoring @param sstablesToIgnore,
-     * is going to be expensive
-     */
-    public abstract boolean isKeyExistenceExpensive(Set<? extends SSTable> sstablesToIgnore);
-
-    /**
      * Filters SSTables that are to be blacklisted from the given collection
      *
      * @param originalCandidates The collection to check for blacklisted SSTables
-     *
      * @return list of the SSTables with blacklisted ones filtered out
      */
     public static List<SSTableReader> filterSuspectSSTables(Collection<SSTableReader> originalCandidates)

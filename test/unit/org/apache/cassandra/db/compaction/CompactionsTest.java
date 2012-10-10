@@ -25,7 +25,6 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
@@ -99,7 +98,7 @@ public class CompactionsTest extends SchemaLoader
         // enable compaction, submit background and wait for it to complete
         store.setMinimumCompactionThreshold(2);
         store.setMaximumCompactionThreshold(4);
-        FBUtilities.waitOnFuture(CompactionManager.instance.submitBackground(store));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(store));
         while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0)
             TimeUnit.SECONDS.sleep(1);
 
@@ -147,7 +146,7 @@ public class CompactionsTest extends SchemaLoader
 
         store.setMinimumCompactionThreshold(2);
         store.setMaximumCompactionThreshold(4);
-        FBUtilities.waitOnFuture(CompactionManager.instance.submitBackground(store));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(store));
         while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0)
             TimeUnit.SECONDS.sleep(1);
 
@@ -251,7 +250,7 @@ public class CompactionsTest extends SchemaLoader
         assert tmpSSTable != null;
 
         // Force compaction on first sstables. Since each row is in only one sstable, we will be using EchoedRow.
-        Util.compact(cfs, toCompact, false);
+        Util.compact(cfs, toCompact);
         assertEquals(2, cfs.getSSTables().size());
 
         // Now, we remove the sstable that was just created to force the use of EchoedRow (so that it doesn't hide the problem)
@@ -313,7 +312,7 @@ public class CompactionsTest extends SchemaLoader
             if (!sstablesBefore.contains(sstable))
                 toCompact.add(sstable);
 
-        Util.compact(cfs, toCompact, forceDeserialize);
+        Util.compact(cfs, toCompact);
 
         cf = cfs.getColumnFamily(filter);
         assert cf == null || cf.isEmpty() : "should be empty: " + cf;

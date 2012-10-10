@@ -29,7 +29,9 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ConcurrentHashMultiset;
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Multiset;
 import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +54,10 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.CounterId;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.WrappedRunnable;
 
 /**
  * A singleton which manages a private executor of ongoing compactions. A readwrite lock
@@ -100,6 +105,7 @@ public class CompactionManager implements CompactionManagerMBean
     private final CompactionExecutor executor = new CompactionExecutor();
     private final CompactionExecutor validationExecutor = new ValidationExecutor();
     private final CompactionMetrics metrics = new CompactionMetrics(executor, validationExecutor);
+    private final Multiset<ColumnFamilyStore> compactingCF = ConcurrentHashMultiset.create();
 
     /**
      * @return A lock, for which acquisition means no compactions can run.
@@ -114,56 +120,76 @@ public class CompactionManager implements CompactionManagerMBean
      * It's okay to over-call (within reason) since the compactions are single-threaded,
      * and if a call is unnecessary, it will just be no-oped in the bucketing phase.
      */
-    public Future<?> submitBackground(final ColumnFamilyStore cfs)
+    public List<Future<?>> submitBackground(final ColumnFamilyStore cfs)
     {
+        int count = compactingCF.count(cfs);
+        if (count > 0 && executor.getActiveCount() >= executor.getMaximumPoolSize())
+        {
+            logger.debug("Background compaction is still running for {}.{} ({} remaining). Skipping",
+                         new Object[] {cfs.table.name, cfs.columnFamily, count});
+            return Collections.emptyList();
+        }
+
         logger.debug("Scheduling a background task check for {}.{} with {}",
                      new Object[] {cfs.table.name,
                                    cfs.columnFamily,
                                    cfs.getCompactionStrategy().getClass().getSimpleName()});
-        Runnable runnable = new Runnable()
+        List<Future<?>> futures = new ArrayList<Future<?>>();
+        // if we have room for more compactions, then fill up executor
+        while (executor.getActiveCount() + futures.size() < executor.getMaximumPoolSize())
         {
-            public void run()
+            futures.add(executor.submit(new BackgroundCompactionTask(cfs)));
+            compactingCF.add(cfs);
+        }
+        return futures;
+    }
+
+    // the actual sstables to compact are not determined until we run the BCT; that way, if new sstables
+    // are created between task submission and execution, we execute against the most up-to-date information
+    class BackgroundCompactionTask implements Runnable
+    {
+        private final ColumnFamilyStore cfs;
+
+        BackgroundCompactionTask(ColumnFamilyStore cfs)
+        {
+            this.cfs = cfs;
+        }
+
+        public void run()
+        {
+            compactionLock.readLock().lock();
+            try
             {
-                compactionLock.readLock().lock();
+                logger.debug("Checking {}.{}", cfs.table.name, cfs.columnFamily); // log after we get the lock so we can see delays from that if any
+                if (!cfs.isValid())
+                {
+                    logger.debug("Aborting compaction for dropped CF");
+                    return;
+                }
+
+                AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
+                AbstractCompactionTask task = strategy.getNextBackgroundTask(getDefaultGcBefore(cfs));
+                if (task == null)
+                {
+                    logger.debug("No tasks available");
+                    return;
+                }
                 try
                 {
-                    logger.debug("Checking {}.{}", cfs.table.name, cfs.columnFamily); // log after we get the lock so we can see delays from that if any
-                    if (!cfs.isValid())
-                    {
-                        logger.debug("Aborting compaction for dropped CF");
-                        return;
-                    }
-
-                    AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
-                    AbstractCompactionTask task = strategy.getNextBackgroundTask(getDefaultGcBefore(cfs));
-                    if (task == null)
-                    {
-                        logger.debug("No tasks available");
-                        return;
-                    }
-                    if (!task.markSSTablesForCompaction())
-                    {
-                        logger.debug("Unable to mark SSTables for {}", task);
-                        return;
-                    }
-
-                    try
-                    {
-                        task.execute(metrics);
-                    }
-                    finally
-                    {
-                        task.unmarkSSTables();
-                    }
-                    submitBackground(cfs);
+                    task.execute(metrics);
                 }
                 finally
                 {
-                    compactionLock.readLock().unlock();
+                    task.unmarkSSTables();
                 }
             }
-        };
-        return executor.submit(runnable);
+            finally
+            {
+                compactingCF.remove(cfs);
+                compactionLock.readLock().unlock();
+            }
+            submitBackground(cfs);
+        }
     }
 
     private static interface AllSSTablesOperation
@@ -171,7 +197,7 @@ public class CompactionManager implements CompactionManagerMBean
         public void perform(ColumnFamilyStore store, Collection<SSTableReader> sstables) throws IOException;
     }
 
-    private void performAllSSTableOperation(final ColumnFamilyStore cfStore, final AllSSTablesOperation operation) throws InterruptedException, ExecutionException
+    private void performAllSSTableOperation(final ColumnFamilyStore cfs, final AllSSTablesOperation operation) throws InterruptedException, ExecutionException
     {
         Callable<Object> runnable = new Callable<Object>()
         {
@@ -180,9 +206,16 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.writeLock().lock();
                 try
                 {
-                    Collection<SSTableReader> sstables = cfStore.getDataTracker().markCompacting(cfStore.getSSTables(), 1, Integer.MAX_VALUE);
-                    if (sstables == null || sstables.isEmpty())
-                        return this;
+                    Collection<SSTableReader> sstables;
+                    while (true)
+                    {
+                        sstables = cfs.getDataTracker().getUncompactingSSTables();
+                        if (sstables.isEmpty())
+                            return this;
+                        if (cfs.getDataTracker().markCompacting(sstables))
+                            break;
+                    }
+
                     try
                     {
                         // downgrade the lock acquisition
@@ -190,7 +223,7 @@ public class CompactionManager implements CompactionManagerMBean
                         compactionLock.writeLock().unlock();
                         try
                         {
-                            operation.perform(cfStore, sstables);
+                            operation.perform(cfs, sstables);
                         }
                         finally
                         {
@@ -199,7 +232,7 @@ public class CompactionManager implements CompactionManagerMBean
                     }
                     finally
                     {
-                        cfStore.getDataTracker().unmarkCompacting(sstables);
+                        cfs.getDataTracker().unmarkCompacting(sstables);
                     }
                     return this;
                 }
@@ -237,7 +270,7 @@ public class CompactionManager implements CompactionManagerMBean
                     // SSTables are marked by the caller
                     // NOTE: it is important that the task create one and only one sstable, even for Leveled compaction (see LeveledManifest.replace())
                     CompactionTask task = new CompactionTask(cfs, Collections.singletonList(sstable), NO_GC);
-                    task.isUserDefined(true);
+                    task.setUserDefined(true);
                     task.setCompactionType(OperationType.UPGRADE_SSTABLES);
                     task.execute(metrics);
                 }
@@ -284,8 +317,6 @@ public class CompactionManager implements CompactionManagerMBean
                 {
                     AbstractCompactionTask task = cfStore.getCompactionStrategy().getMaximalTask(gcBefore);
                     if (task == null)
-                        return;
-                    if (!task.markSSTablesForCompaction(0, Integer.MAX_VALUE))
                         return;
                     try
                     {
@@ -376,7 +407,6 @@ public class CompactionManager implements CompactionManagerMBean
                         }
                     }
 
-                    Collection<SSTableReader> toCompact;
                     try
                     {
                         if (sstables.isEmpty())
@@ -384,18 +414,18 @@ public class CompactionManager implements CompactionManagerMBean
                             logger.info("No file to compact for user defined compaction");
                         }
                         // attempt to schedule the set
-                        else if ((toCompact = cfs.getDataTracker().markCompacting(sstables, 1, Integer.MAX_VALUE)) != null)
+                        else if (cfs.getDataTracker().markCompacting(sstables))
                         {
                             // success: perform the compaction
                             try
                             {
                                 AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
-                                AbstractCompactionTask task = strategy.getUserDefinedTask(toCompact, gcBefore);
+                                AbstractCompactionTask task = strategy.getUserDefinedTask(sstables, gcBefore);
                                 task.execute(metrics);
                             }
                             finally
                             {
-                                cfs.getDataTracker().unmarkCompacting(toCompact);
+                                cfs.getDataTracker().unmarkCompacting(sstables);
                             }
                         }
                         else
@@ -537,7 +567,7 @@ public class CompactionManager implements CompactionManagerMBean
                 continue;
             }
 
-            CompactionController controller = new CompactionController(cfs, Collections.singletonList(sstable), getDefaultGcBefore(cfs), false);
+            CompactionController controller = new CompactionController(cfs, Collections.singletonList(sstable), getDefaultGcBefore(cfs));
             long startTime = System.currentTimeMillis();
 
             long totalkeysWritten = 0;

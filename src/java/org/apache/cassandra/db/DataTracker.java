@@ -172,46 +172,23 @@ public class DataTracker
     }
 
     /**
-     * @return A subset of the given active sstables that have been marked compacting,
-     * or null if the thresholds cannot be met: files that are marked compacting must
-     * later be unmarked using unmarkCompacting.
+     * @return true if we are able to mark the given @param sstables as compacted, before anyone else
      *
      * Note that we could acquire references on the marked sstables and release them in
      * unmarkCompacting, but since we will never call markCompacted on a sstable marked
      * as compacting (unless there is a serious bug), we can skip this.
      */
-    public Set<SSTableReader> markCompacting(Collection<SSTableReader> tomark, int min, int max)
+    public boolean markCompacting(Collection<SSTableReader> sstables)
     {
-        if (max < min || max < 1)
-            return null;
-        if (tomark == null || tomark.isEmpty())
-            return null;
+        assert sstables != null && !sstables.isEmpty();
 
-        View currentView, newView;
-        Set<SSTableReader> subset = null;
-        // order preserving set copy of the input
-        Set<SSTableReader> remaining = new LinkedHashSet<SSTableReader>(tomark);
-        do
-        {
-            currentView = view.get();
+        View currentView = view.get();
+        Set<SSTableReader> inactive = Sets.difference(ImmutableSet.copyOf(sstables), currentView.compacting);
+        if (inactive.size() < sstables.size())
+            return false;
 
-            // find the subset that is active and not already compacting
-            remaining.removeAll(currentView.compacting);
-            remaining.retainAll(currentView.sstables);
-            if (remaining.size() < min)
-                // cannot meet the min threshold
-                return null;
-
-            // cap the newly compacting items into a subset set
-            subset = new HashSet<SSTableReader>();
-            Iterator<SSTableReader> iter = remaining.iterator();
-            for (int added = 0; added < max && iter.hasNext(); added++)
-                subset.add(iter.next());
-
-            newView = currentView.markCompacting(subset);
-        }
-        while (!view.compareAndSet(currentView, newView));
-        return subset;
+        View newView = currentView.markCompacting(inactive);
+        return view.compareAndSet(currentView, newView);
     }
 
     /**
@@ -447,6 +424,11 @@ public class DataTracker
         for (SSTableReader sstable : sstables)
             intervals.add(Interval.<RowPosition, SSTableReader>create(sstable.first, sstable.last, sstable));
         return new SSTableIntervalTree(intervals);
+    }
+
+    public Set<SSTableReader> getCompacting()
+    {
+        return getView().compacting;
     }
 
     public static class SSTableIntervalTree extends IntervalTree<RowPosition, SSTableReader, Interval<RowPosition, SSTableReader>>

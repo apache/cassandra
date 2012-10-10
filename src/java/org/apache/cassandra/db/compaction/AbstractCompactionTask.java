@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.Collection;
-import java.util.Set;
 
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -42,55 +41,12 @@ public abstract class AbstractCompactionTask extends DiskAwareRunnable
 
     public abstract int execute(CompactionExecutorStatsCollector collector);
 
-    public ColumnFamilyStore getColumnFamilyStore()
-    {
-        return cfs;
-    }
-
-    public Collection<SSTableReader> getSSTables()
-    {
-        return sstables;
-    }
-
-    /**
-     * Try to mark the sstable to compact as compacting.
-     * It returns true if some sstables have been marked for compaction, false
-     * otherwise.
-     * This *must* be called before calling execute(). Moreover,
-     * unmarkSSTables *must* always be called after execute() if this
-     * method returns true.
-     */
-    public boolean markSSTablesForCompaction()
-    {
-        int min = isUserDefined ? 1 : cfs.getMinimumCompactionThreshold();
-        int max = isUserDefined ? Integer.MAX_VALUE : cfs.getMaximumCompactionThreshold();
-        return markSSTablesForCompaction(min, max);
-    }
-
-    public boolean markSSTablesForCompaction(int min, int max)
-    {
-        Set<SSTableReader> marked = cfs.getDataTracker().markCompacting(sstables, min, max);
-
-        if (marked == null || marked.isEmpty())
-        {
-            cancel();
-            return false;
-        }
-
-        this.sstables = marked;
-        return true;
-    }
-
     public void unmarkSSTables()
     {
         cfs.getDataTracker().unmarkCompacting(sstables);
     }
 
-    // Can be overriden for action that need to be performed if the task won't
-    // execute (if sstable can't be marked successfully)
-    protected void cancel() {}
-
-    public AbstractCompactionTask isUserDefined(boolean isUserDefined)
+    public AbstractCompactionTask setUserDefined(boolean isUserDefined)
     {
         this.isUserDefined = isUserDefined;
         return this;

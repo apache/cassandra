@@ -25,6 +25,7 @@
  * Fix use of collections in prepared statements (CASSANDRA-4739)
  * Store more information into peers table (CASSANDRA-4351)
  * Configurable bucket size for size tiered compaction (CASSANDRA-4704)
+ * Run leveled compaction in parallel (CASSANDRA-4310)
 
 
 1.2-beta1

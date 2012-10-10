@@ -62,7 +62,7 @@ public class CompactionController
         }
     });
 
-    public CompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
+    public CompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore)
     {
         this(cfs,
              gcBefore,

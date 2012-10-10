@@ -72,7 +72,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
                                        new PreCompactingController(cfs, sstables, gcBefore, false));
         AbstractCompactionIterable parallel = new ParallelCompactionIterable(OperationType.UNKNOWN,
                                                                              strategy.getScanners(sstables),
-                                                                             new CompactionController(cfs, sstables, gcBefore, false),
+                                                                             new CompactionController(cfs, sstables, gcBefore),
                                                                              0);
         assertBytes(cfs, sstables, eager, parallel);
     }
@@ -318,7 +318,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     {
         public LazilyCompactingController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
         {
-            super(cfs, sstables, gcBefore, forceDeserialize);
+            super(cfs, sstables, gcBefore);
         }
 
         @Override
@@ -332,7 +332,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     {
         public PreCompactingController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
         {
-            super(cfs, sstables, gcBefore, forceDeserialize);
+            super(cfs, sstables, gcBefore);
         }
 
         @Override

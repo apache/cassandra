@@ -102,9 +102,6 @@ public class CompactionTask extends AbstractCompactionTask
         // it is not empty, it may compact down to nothing if all rows are deleted.
         assert sstables != null && dataDirectory != null;
 
-        if (!isCompactionInteresting(toCompact))
-            return;
-
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.columnFamily);
 
@@ -112,7 +109,7 @@ public class CompactionTask extends AbstractCompactionTask
         for (SSTableReader sstable : toCompact)
             assert sstable.descriptor.cfname.equals(cfs.columnFamily);
 
-        CompactionController controller = new CompactionController(cfs, toCompact, gcBefore, isUserDefined);
+        CompactionController controller = new CompactionController(cfs, toCompact, gcBefore);
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,
         // so in our single-threaded compaction world this is a valid way of determining if we're compacting
         // all the sstables (that existed when we started)
@@ -246,22 +243,9 @@ public class CompactionTask extends AbstractCompactionTask
         return !isUserDefined;
     }
 
-    //extensibility point for other strategies that may want to limit the upper bounds of the sstable segment size
+    // extensibility point for other strategies that may want to limit the upper bounds of the sstable segment size
     protected boolean newSSTableSegmentThresholdReached(SSTableWriter writer)
     {
-        return false;
-    }
-
-    /**
-     * @return true if the proposed compaction is worth proceeding with.  We allow leveled compaction to
-     * override this to allow "promoting" sstables from one level to another w/o rewriting them, if there is no overlapping.
-     */
-    protected boolean isCompactionInteresting(Set<SSTableReader> toCompact)
-    {
-        if (isUserDefined || toCompact.size() >= 2)
-            return true;
-        logger.info(String.format("Nothing to compact in %s.  Use forceUserDefinedCompaction if you wish to force compaction of single sstables (e.g. for tombstone collection)",
-                                   cfs.getColumnFamilyName()));
         return false;
     }
 

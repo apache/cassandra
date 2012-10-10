@@ -19,8 +19,8 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.*;
 import com.google.common.primitives.Doubles;
@@ -44,9 +44,9 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     private static final Logger logger = LoggerFactory.getLogger(LeveledCompactionStrategy.class);
     private static final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
 
-    private final LeveledManifest manifest;
+    @VisibleForTesting
+    final LeveledManifest manifest;
     private final int maxSSTableSizeInMB;
-    private final AtomicReference<LeveledCompactionTask> task = new AtomicReference<LeveledCompactionTask>();
 
     public LeveledCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -105,15 +105,8 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         return getMaximalTask(gcBefore);
     }
 
-    public AbstractCompactionTask getMaximalTask(int gcBefore)
+    public synchronized AbstractCompactionTask getMaximalTask(int gcBefore)
     {
-        LeveledCompactionTask currentTask = task.get();
-        if (currentTask != null && !currentTask.isDone())
-        {
-            logger.debug("Compaction still in progress for {}", this);
-            return null;
-        }
-
         Collection<SSTableReader> sstables = manifest.getCompactionCandidates();
         OperationType op = OperationType.COMPACTION;
         if (sstables.isEmpty())
@@ -129,11 +122,15 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
             op = OperationType.TOMBSTONE_COMPACTION;
         }
 
-        LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, sstables, gcBefore, this.maxSSTableSizeInMB);
+        if (!cfs.getDataTracker().markCompacting(sstables))
+        {
+            logger.debug("Unable to mark {} for compaction; probably a user-defined compaction got in the way", sstables);
+            return null;
+        }
+
+        LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, sstables, gcBefore, maxSSTableSizeInMB);
         newTask.setCompactionType(op);
-        return task.compareAndSet(currentTask, newTask)
-               ? newTask
-               : null;
+        return newTask;
     }
 
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
@@ -175,12 +172,6 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     public long getMaxSSTableSize()
     {
         return maxSSTableSizeInMB * 1024L * 1024L;
-    }
-
-    public boolean isKeyExistenceExpensive(Set<? extends SSTable> sstablesToIgnore)
-    {
-        Set<SSTableReader> L0 = ImmutableSet.copyOf(manifest.getLevel(0));
-        return Sets.difference(L0, sstablesToIgnore).size() + manifest.getLevelCount() > 20;
     }
 
     public List<ICompactionScanner> getScanners(Collection<SSTableReader> sstables, Range<Token> range)

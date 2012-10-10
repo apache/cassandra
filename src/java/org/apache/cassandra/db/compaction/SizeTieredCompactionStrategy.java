@@ -24,7 +24,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.Pair;
 
@@ -62,7 +61,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         cfs.setCompactionThresholds(cfs.metadata.getMinCompactionThreshold(), cfs.metadata.getMaxCompactionThreshold());
     }
 
-    public AbstractCompactionTask getNextBackgroundTask(final int gcBefore)
+    public synchronized AbstractCompactionTask getNextBackgroundTask(final int gcBefore)
     {
         if (cfs.isCompactionDisabled())
         {
@@ -128,8 +127,14 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
                 return n / sstables.size();
             }
         });
-        // when bucket only contains just one sstable, set userDefined to true to force single sstable compaction
-        return new CompactionTask(cfs, smallestBucket, gcBefore).isUserDefined(smallestBucket.size() == 1);
+
+        if (!cfs.getDataTracker().markCompacting(smallestBucket))
+        {
+            logger.debug("Unable to mark {} for compaction; probably a user-defined compaction got in the way", smallestBucket);
+            return null;
+        }
+
+        return new CompactionTask(cfs, smallestBucket, gcBefore);
     }
 
     public AbstractCompactionTask getMaximalTask(final int gcBefore)
@@ -139,7 +144,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore)
     {
-        return new CompactionTask(cfs, sstables, gcBefore).isUserDefined(true);
+        return new CompactionTask(cfs, sstables, gcBefore).setUserDefined(true);
     }
 
     public int getEstimatedRemainingTasks()
@@ -217,19 +222,9 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         estimatedRemainingTasks = n;
     }
 
-    public long getMinSSTableSize()
-    {
-        return minSSTableSize;
-    }
-
     public long getMaxSSTableSize()
     {
         return Long.MAX_VALUE;
-    }
-
-    public boolean isKeyExistenceExpensive(Set<? extends SSTable> sstablesToIgnore)
-    {
-        return cfs.getSSTables().size() - sstablesToIgnore.size() > 20;
     }
 
     public String toString()
