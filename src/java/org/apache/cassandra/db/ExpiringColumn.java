@@ -43,6 +43,8 @@ import org.apache.cassandra.utils.HeapAllocator;
  */
 public class ExpiringColumn extends Column
 {
+    public static final int MAX_TTL = 20 * 365 * 24 * 60 * 60; // 20 years in seconds
+
     private final int localExpirationTime;
     private final int timeToLive;
 
