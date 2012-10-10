@@ -26,11 +26,14 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
+
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 
@@ -74,6 +77,9 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
     {
         if (timeToLive < 0)
             throw new InvalidRequestException("A TTL must be greater or equal to 0");
+
+        if (timeToLive > ExpiringColumn.MAX_TTL)
+            throw new InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", timeToLive, ExpiringColumn.MAX_TTL));
 
         getConsistencyLevel().validateForWrite(keyspace());
     }

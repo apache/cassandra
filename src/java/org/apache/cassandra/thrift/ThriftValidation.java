@@ -310,12 +310,19 @@ public class ThriftValidation
 
     private static void validateTtl(Column column) throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        if (column.isSetTtl() && column.ttl <= 0)
+        if (column.isSetTtl())
         {
-            throw new org.apache.cassandra.exceptions.InvalidRequestException("ttl must be positive");
+            if (column.ttl <= 0)
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("ttl must be positive");
+
+            if (column.ttl > ExpiringColumn.MAX_TTL)
+                throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", column.ttl, ExpiringColumn.MAX_TTL));
         }
-        // if it's not set, then it should be zero -- here we are just checking to make sure Thrift doesn't change that contract with us.
-        assert column.isSetTtl() || column.ttl == 0;
+        else
+        {
+            // if it's not set, then it should be zero -- here we are just checking to make sure Thrift doesn't change that contract with us.
+            assert column.ttl == 0;
+        }
     }
 
     public static void validateMutation(CFMetaData metadata, Mutation mut)
@@ -414,7 +421,7 @@ public class ThriftValidation
                                                                       (isSubColumn ? metadata.subcolumnComparator : metadata.comparator).getString(column.name)));
         }
 
-        // Indexed column values cannot be larger than 64K.  See CASSANDRA-3057/4240 for more details       
+        // Indexed column values cannot be larger than 64K.  See CASSANDRA-3057/4240 for more details
         if (!Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validate(column))
                     throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Can't index column value of size %d for index %s in CF %s of KS %s",
                                                                               column.value.remaining(),
