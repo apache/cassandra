@@ -897,15 +897,15 @@ public class NodeCmd
                                                                              percentileLatency);
 
                     if(r == 1 && w == 1) {
-                        output.printf("%dms after a given write, with maximum version staleness of k=%d\n", timeAfterWrite, numVersions);
+                        output.printf("%dms after a given write, with maximum version staleness of k=%d%n", timeAfterWrite, numVersions);
                     }
 
-                    output.printf("N=%d, R=%d, W=%d\n", replicationFactor, r, w);
-                    output.printf("Probability of consistent reads: %f\n", result.getConsistencyProbability());
-                    output.printf("Average read latency: %fms (%.3fth %%ile %dms)\n", result.getAverageReadLatency(),
+                    output.printf("N=%d, R=%d, W=%d%n", replicationFactor, r, w);
+                    output.printf("Probability of consistent reads: %f%n", result.getConsistencyProbability());
+                    output.printf("Average read latency: %fms (%.3fth %%ile %dms)%n", result.getAverageReadLatency(),
                                                                                    result.getPercentileReadLatencyPercentile()*100,
                                                                                    result.getPercentileReadLatencyValue());
-                    output.printf("Average write latency: %fms (%.3fth %%ile %dms)\n\n", result.getAverageWriteLatency(),
+                    output.printf("Average write latency: %fms (%.3fth %%ile %dms)%n%n", result.getAverageWriteLatency(),
                                                                                       result.getPercentileWriteLatencyPercentile()*100,
                                                                                       result.getPercentileWriteLatencyValue());
                 } catch (Exception e) {
