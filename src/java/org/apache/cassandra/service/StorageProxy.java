@@ -762,9 +762,6 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     ReadCommand command = repairCommands.get(i);
                     RepairCallback handler = repairResponseHandlers.get(i);
-                    // wait for the repair writes to be acknowledged, to minimize impact on any replica that's
-                    // behind on writes in case the out-of-sync row is read multiple times in quick succession
-                    FBUtilities.waitOnFutures(handler.resolver.repairResults, DatabaseDescriptor.getRpcTimeout());
 
                     Row row;
                     try
@@ -776,6 +773,11 @@ public class StorageProxy implements StorageProxyMBean
                         throw new AssertionError(e); // full data requested from each node here, no digests should be sent
                     }
 
+                    // wait for the repair writes to be acknowledged, to minimize impact on any replica that's
+                    // behind on writes in case the out-of-sync row is read multiple times in quick succession
+                    FBUtilities.waitOnFutures(handler.resolver.repairResults, DatabaseDescriptor.getRpcTimeout());
+
+                    // retry any potential short reads
                     ReadCommand retryCommand = command.maybeGenerateRetryCommand(handler, row);
                     if (retryCommand != null)
                     {
