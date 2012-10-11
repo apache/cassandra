@@ -37,6 +37,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;
+import static org.apache.cassandra.Util.expiringColumn;
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -318,6 +319,43 @@ public class TableTest extends SchemaLoader
 
                 cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), ByteBufferUtil.bytes("col0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2);
                 assertColumns(cf);
+            }
+        };
+
+        reTest(table.getColumnFamilyStore("Standard1"), verify);
+    }
+
+    @Test
+    public void testGetSliceWithExpiration() throws Throwable
+    {
+        // tests slicing against data from one row with expiring column in a memtable and then flushed to an sstable
+        final Table table = Table.open("Keyspace1");
+        final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+        final DecoratedKey ROW = Util.dk("row5");
+
+        RowMutation rm = new RowMutation("Keyspace1", ROW.key);
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        cf.addColumn(column("col1", "val1", 1L));
+        cf.addColumn(expiringColumn("col2", "val2", 1L, 1));
+        cf.addColumn(column("col3", "val3", 1L));
+
+        rm.add(cf);
+        rm.apply();
+        cfStore.forceBlockingFlush();
+
+        Runnable verify = new WrappedRunnable()
+        {
+            public void runMayThrow() throws Exception
+            {
+                ColumnFamily cf;
+
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 2);
+                assertColumns(cf, "col1", "col2");
+                assertColumns(ColumnFamilyStore.removeDeleted(cf, Integer.MAX_VALUE), "col1");
+
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), ByteBufferUtil.bytes("col2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+                assertColumns(cf, "col2");
+                assertColumns(ColumnFamilyStore.removeDeleted(cf, Integer.MAX_VALUE));
             }
         };
 

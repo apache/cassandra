@@ -25,6 +25,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -46,12 +47,12 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
@@ -123,13 +124,6 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             }
         };
         StorageService.optionalTasks.scheduleWithFixedDelay(runnable, 10, 10, TimeUnit.MINUTES);
-    }
-
-    private static void sendMutation(InetAddress endpoint, MessageOut<?> message) throws WriteTimeoutException
-    {
-        AbstractWriteResponseHandler responseHandler = new WriteResponseHandler(endpoint, WriteType.UNLOGGED_BATCH);
-        MessagingService.instance().sendRR(message, endpoint, responseHandler);
-        responseHandler.get();
     }
 
     private static void deleteHint(ByteBuffer tokenBytes, ByteBuffer columnName, long timestamp) throws IOException
@@ -287,10 +281,10 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         // find the hints for the node using its token.
         UUID hostId = StorageService.instance.getTokenMetadata().getHostId(endpoint);
         logger.info("Started hinted handoff for host: {} with IP: {}", hostId, endpoint);
-        ByteBuffer hostIdBytes = ByteBuffer.wrap(UUIDGen.decompose(hostId));
+        final ByteBuffer hostIdBytes = ByteBuffer.wrap(UUIDGen.decompose(hostId));
         DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(hostIdBytes);
 
-        int rowsReplayed = 0;
+        final AtomicInteger rowsReplayed = new AtomicInteger(0);
         ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
         int pageSize = PAGE_SIZE;
@@ -307,15 +301,28 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         int throttleInKB = DatabaseDescriptor.getHintedHandoffThrottleInKB();
         RateLimiter rateLimiter = RateLimiter.create(throttleInKB == 0 ? Double.MAX_VALUE : throttleInKB * 1024);
 
-        delivery:
         while (true)
         {
             QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(SystemTable.HINTS_CF), startColumn, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, pageSize);
             ColumnFamily hintsPage = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), (int)(System.currentTimeMillis() / 1000));
             if (pagingFinished(hintsPage, startColumn))
-                break;
+            {
+                if (ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(startColumn))
+                {
+                    // we've started from the beginning and could not find anything (only maybe tombstones)
+                    break;
+                }
+                else
+                {
+                    // restart query from the first column until we read an empty row;
+                    // that will tell us everything was delivered successfully with no timeouts
+                    startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+                    continue;
+                }
 
-            for (IColumn hint : hintsPage.getSortedColumns())
+            }
+
+            for (final IColumn hint : hintsPage.getSortedColumns())
             {
                 // Skip tombstones:
                 // if we iterate quickly enough, it's possible that we could request a new page in the same millisecond
@@ -338,29 +345,33 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 catch (UnknownColumnFamilyException e)
                 {
                     logger.debug("Skipping delivery of hint for deleted columnfamily", e);
-                    rm = null;
+                    deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
+                    continue;
                 }
 
-                try
+                MessageOut<RowMutation> message = rm.createMessage();
+                rateLimiter.acquire(message.serializedSize(MessagingService.current_version));
+                WrappedRunnable callback = new WrappedRunnable()
                 {
-                    if (rm != null)
+                    public void runMayThrow() throws IOException
                     {
-                        MessageOut<RowMutation> message = rm.createMessage();
-                        rateLimiter.acquire(message.serializedSize(MessagingService.current_version));
-                        sendMutation(endpoint, message);
-                        rowsReplayed++;
+                        rowsReplayed.incrementAndGet();
+                        deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
                     }
-                    deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
-                }
-                catch (WriteTimeoutException e)
-                {
-                    logger.info(String.format("Timed out replaying hints to %s; aborting further deliveries", endpoint));
-                    break delivery;
-                }
+                };
+                IAsyncCallback responseHandler = new WriteResponseHandler(endpoint, WriteType.UNLOGGED_BATCH, callback);
+                MessagingService.instance().sendRR(message, endpoint, responseHandler);
+            }
+
+            // check if node is still alive and we should continue delivery process
+            if (!FailureDetector.instance.isAlive(endpoint))
+            {
+                logger.debug("Endpoint {} died during hint delivery, aborting", endpoint);
+                return;
             }
         }
 
-        if (rowsReplayed > 0)
+        if (rowsReplayed.get() > 0)
         {
             try
             {
@@ -489,4 +500,5 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         }
         return rows;
     }
+
 }

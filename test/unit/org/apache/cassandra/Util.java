@@ -80,6 +80,11 @@ public class Util
         return new Column(ByteBufferUtil.bytes(name), ByteBufferUtil.bytes(value), timestamp);
     }
 
+    public static Column expiringColumn(String name, String value, long timestamp, int ttl)
+    {
+        return new ExpiringColumn(ByteBufferUtil.bytes(name), ByteBufferUtil.bytes(value), timestamp, ttl);
+    }
+
     public static Column counterColumn(String name, long value, long timestamp)
     {
         return new CounterUpdateColumn(ByteBufferUtil.bytes(name), value, timestamp);
