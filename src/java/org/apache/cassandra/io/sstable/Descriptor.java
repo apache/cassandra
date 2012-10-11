@@ -61,6 +61,7 @@ public class Descriptor
         // hc (1.0.4): records partitioner in metadata component
         // hd (1.0.10): includes row tombstones in maxtimestamp
         // he (1.1.3): includes ancestors generation in metadata component
+        // hf (1.1.6): marker that replay position corresponds to 1.1.5+ millis-based id (see CASSANDRA-4782)
         // ia (1.2.0): column indexes are promoted to the index file
         //             records estimated histogram of deletion times in tombstones
         //             bloom filter (keys and columns) upgraded to Murmur3
@@ -74,6 +75,7 @@ public class Descriptor
         public final boolean hasEncodedKeys;
         public final boolean isLatestVersion;
         public final boolean metadataIncludesReplayPosition;
+        public final boolean metadataIncludesModernReplayPosition;
         public final boolean tracksMaxTimestamp;
         public final boolean hasCompressionRatio;
         public final boolean hasPartitioner;
@@ -89,9 +91,11 @@ public class Descriptor
             hasIntRowSize = version.compareTo("d") < 0;
             hasEncodedKeys = version.compareTo("e") < 0;
             metadataIncludesReplayPosition = version.compareTo("g") >= 0;
-            tracksMaxTimestamp = version.compareTo("hd") >= 0;
             hasCompressionRatio = version.compareTo("hb") >= 0;
             hasPartitioner = version.compareTo("hc") >= 0;
+            tracksMaxTimestamp = version.compareTo("hd") >= 0;
+            hasAncestors = version.compareTo("he") >= 0;
+            metadataIncludesModernReplayPosition = version.compareTo("hf") >= 0;
             tracksTombstones = version.compareTo("ia") >= 0;
             hasPromotedIndexes = version.compareTo("ia") >= 0;
             isLatestVersion = version.compareTo(current_version) == 0;
@@ -101,7 +105,6 @@ public class Descriptor
                 filterType = FilterFactory.Type.MURMUR2;
             else
                 filterType = FilterFactory.Type.MURMUR3;
-            hasAncestors = version.compareTo("he") >= 0;
         }
 
         /**
