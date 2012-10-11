@@ -131,7 +131,7 @@ public class ConfigHelper
 
         conf.set(OUTPUT_KEYSPACE_CONFIG, keyspace);
     }
-    
+
     /**
      * Set the column family for the input of this job.
      *
@@ -142,7 +142,7 @@ public class ConfigHelper
     {
     	conf.set(OUTPUT_COLUMNFAMILY_CONFIG, columnFamily);
     }
-    
+
     /**
      * Set the column family for the input of this job.
      *
@@ -347,7 +347,7 @@ public class ConfigHelper
     {
         return conf.get(INPUT_COLUMNFAMILY_CONFIG);
     }
-    
+
     public static String getOutputColumnFamily(Configuration conf)
     {
     	if (conf.get(OUTPUT_COLUMNFAMILY_CONFIG) != null)
@@ -358,7 +358,7 @@ public class ConfigHelper
 
     public static boolean getInputIsWide(Configuration conf)
     {
-        return Boolean.valueOf(conf.get(INPUT_WIDEROWS_CONFIG));
+        return Boolean.parseBoolean(conf.get(INPUT_WIDEROWS_CONFIG));
     }
 
     public static String getReadConsistencyLevel(Configuration conf)
