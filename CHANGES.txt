@@ -1,4 +1,5 @@
 1.1.6
+ * fix commitlog replay for nanotime-infected sstables (CASSANDRA-4782)
  * preflight check ttl for maximum of 20 years (CASSANDRA-4771)
  * Fix HH to compact with correct gcBefore, which avoids wiping out
    undelivered hints (CASSANDRA-4772)

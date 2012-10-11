@@ -59,7 +59,8 @@ public class Descriptor
     // hc (1.0.4): records partitioner in metadata component
     // hd (1.0.10): includes row tombstones in maxtimestamp
     // he (1.1.3): includes ancestors generation in metadata component
-    public static final String CURRENT_VERSION = "he";
+    // hf (1.1.6): marker that replay position corresponds to 1.1.5+ millis-based id (see CASSANDRA-4782)
+    public static final String CURRENT_VERSION = "hf";
 
     public final File directory;
     /** version has the following format: <code>[a-z]+</code> */
@@ -76,6 +77,7 @@ public class Descriptor
     public final boolean isLatestVersion;
     public final boolean usesOldBloomFilter;
     public final boolean metadataIncludesReplayPosition;
+    public final boolean metadataIncludesModernReplayPosition;
     public final boolean tracksMaxTimestamp;
     public final boolean hasCompressionRatio;
     public final boolean hasPartitioner;
@@ -109,6 +111,7 @@ public class Descriptor
         hasCompressionRatio = version.compareTo("hb") >= 0;
         hasPartitioner = version.compareTo("hc") >= 0;
         hasAncestors = version.compareTo("he") >= 0;
+        metadataIncludesModernReplayPosition = version.compareTo("hf") >= 0;
         isLatestVersion = version.compareTo(CURRENT_VERSION) == 0;
     }
 

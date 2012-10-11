@@ -217,6 +217,12 @@ public class SSTableMetadata
             ReplayPosition replayPosition = desc.metadataIncludesReplayPosition
                                           ? ReplayPosition.serializer.deserialize(dis)
                                           : ReplayPosition.NONE;
+            if (!desc.metadataIncludesModernReplayPosition)
+            {
+                // replay position may be "from the future" thanks to older versions generating them with nanotime.
+                // make sure we don't omit replaying something that we should.  see CASSANDRA-4782
+                replayPosition = ReplayPosition.NONE;
+            }
             long maxTimestamp = desc.containsTimestamp() ? dis.readLong() : Long.MIN_VALUE;
             if (!desc.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
                 maxTimestamp = Long.MIN_VALUE;
