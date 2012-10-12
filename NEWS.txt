@@ -20,6 +20,11 @@ Upgrading
       the ability to read data files from Cassandra versions at least
       back to 0.6, so a non-rolling upgrade remains possible with just
       one step.
+    - If you using counters and upgrading from a version prior to
+      1.1.6, you should drain existing Cassandra nodes prior to the
+      upgrade to prevent overcount during commitlog replay (see
+      CASSANDRA-4782).  For non-counter uses, drain is not required
+      but is a good practice to minimize restart time.
     - Server clock synchronization is more important in 1.2; replicas
       will use a coordinator-provided timestamp to determine when a
       request has timed out and is thus not worth proceeding with.

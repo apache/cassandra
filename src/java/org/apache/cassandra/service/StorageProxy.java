@@ -978,6 +978,17 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     ReadCommand command = repairCommands.get(i);
                     RepairCallback handler = repairResponseHandlers.get(i);
+
+                    Row row;
+                    try
+                    {
+                        row = handler.get();
+                    }
+                    catch (DigestMismatchException e)
+                    {
+                        throw new AssertionError(e); // full data requested from each node here, no digests should be sent
+                    }
+
                     try
                     {
                         // wait for the repair writes to be acknowledged, to minimize impact on any replica that's
@@ -990,16 +1001,7 @@ public class StorageProxy implements StorageProxyMBean
                         throw new ReadTimeoutException(consistency_level, blockFor, blockFor, true);
                     }
 
-                    Row row;
-                    try
-                    {
-                        row = handler.get();
-                    }
-                    catch (DigestMismatchException e)
-                    {
-                        throw new AssertionError(e); // full data requested from each node here, no digests should be sent
-                    }
-
+                    // retry any potential short reads
                     ReadCommand retryCommand = command.maybeGenerateRetryCommand(handler, row);
                     if (retryCommand != null)
                     {

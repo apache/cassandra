@@ -55,6 +55,13 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
         responses = new AtomicInteger(blockFor);
     }
 
+    public WriteResponseHandler(InetAddress endpoint, WriteType writeType, Runnable callback)
+    {
+        super(Arrays.asList(endpoint), Collections.<InetAddress>emptyList(), ConsistencyLevel.ALL, callback, writeType);
+        blockFor = 1;
+        responses = new AtomicInteger(1);
+    }
+
     public WriteResponseHandler(InetAddress endpoint, WriteType writeType)
     {
         super(Arrays.asList(endpoint), Collections.<InetAddress>emptyList(), ConsistencyLevel.ALL, null, writeType);
