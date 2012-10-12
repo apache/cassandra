@@ -23,6 +23,7 @@ import java.io.RandomAccessFile;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -373,5 +374,16 @@ public class CommitLogSegment
     public int position()
     {
         return buffer.position();
+    }
+
+    
+    public static class CommitLogSegmentFileComparator implements Comparator<File>
+    {
+        public int compare(File f, File f2)
+        {
+            CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(f.getName());
+            CommitLogDescriptor desc2 = CommitLogDescriptor.fromFileName(f2.getName());
+            return (int) (desc.id - desc2.id);        
+        }
     }
 }
