@@ -83,8 +83,6 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 
     private final static String DEFAULT_INPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyInputFormat";
     private final static String DEFAULT_OUTPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyOutputFormat";
-    private final static boolean DEFAULT_WIDEROW_INPUT = false;
-    private final static boolean DEFAULT_USE_SECONDARY = false;
 
     private final static String PARTITION_FILTER_SIGNATURE = "cassandra.partition.filter";
 
@@ -106,8 +104,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private String inputFormatClass;
     private String outputFormatClass;
     private int limit;
-    private boolean widerows;
-    private boolean usePartitionFilter;
+    private boolean widerows = false;
+    private boolean usePartitionFilter = false;
     // wide row hacks
     private ByteBuffer lastKey;
     private Map<ByteBuffer,IColumn> lastRow;
@@ -567,11 +565,9 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             SlicePredicate predicate = new SlicePredicate().setSlice_range(range);
             ConfigHelper.setInputSlicePredicate(conf, predicate);
         }
-        widerows = DEFAULT_WIDEROW_INPUT;
         if (System.getenv(PIG_WIDEROW_INPUT) != null)
-            widerows = Boolean.valueOf(System.getProperty(PIG_WIDEROW_INPUT));
-        usePartitionFilter = DEFAULT_USE_SECONDARY;
-        if (System.getenv() != null)
+            widerows = Boolean.valueOf(System.getenv(PIG_WIDEROW_INPUT));
+        if (System.getenv(PIG_USE_SECONDARY) != null)
             usePartitionFilter = Boolean.valueOf(System.getenv(PIG_USE_SECONDARY));
 
         if (usePartitionFilter && getIndexExpressions() != null)
@@ -815,8 +811,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             throw new IOException("PIG_OUTPUT_PARTITIONER or PIG_PARTITIONER environment variable not set");
 
         // we have to do this again here for the check in writeColumnsFromTuple
-        usePartitionFilter = DEFAULT_USE_SECONDARY;
-        if (System.getenv() != null)
+        if (System.getenv(PIG_USE_SECONDARY) != null)
             usePartitionFilter = Boolean.valueOf(System.getenv(PIG_USE_SECONDARY));
 
         initSchema(storeSignature);
