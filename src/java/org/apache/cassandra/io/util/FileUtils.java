@@ -245,14 +245,6 @@ public class FileUtils
         }
     }
 
-    public static class FileComparator implements Comparator<File>
-    {
-        public int compare(File f, File f2)
-        {
-            return (int)(f.lastModified() - f2.lastModified());
-        }
-    }
-
     public static void createDirectory(String directory)
     {
         createDirectory(new File(directory));

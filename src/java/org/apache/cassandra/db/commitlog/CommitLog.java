@@ -122,7 +122,7 @@ public class CommitLog implements CommitLogMBean
         }
         else
         {
-            Arrays.sort(files, new FileUtils.FileComparator());
+            Arrays.sort(files, new CommitLogSegment.CommitLogSegmentFileComparator());
             logger.info("Replaying " + StringUtils.join(files, ", "));
             replayed = recover(files);
             logger.info("Log replay complete, " + replayed + " replayed mutations");
