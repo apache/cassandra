@@ -49,7 +49,6 @@ public class SSTableWriter extends SSTable
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
     private final SSTableMetadata.Collector sstableMetadataCollector;
-    private final TypeSizes typeSizes = TypeSizes.NATIVE;
 
     public SSTableWriter(String filename, long keyCount)
     {
@@ -101,7 +100,7 @@ public class SSTableWriter extends SSTable
         else
         {
             dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-            dataFile = SequentialWriter.open(new File(getFilename()), 
+            dataFile = SequentialWriter.open(new File(getFilename()),
 			                      !DatabaseDescriptor.populateIOCacheOnFlush());
             dataFile.setComputeDigest();
         }

@@ -22,7 +22,6 @@ import java.util.Comparator;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -36,8 +35,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class DecoratedKey extends RowPosition
 {
-    private static final IPartitioner partitioner = StorageService.getPartitioner();
-
     public static final Comparator<DecoratedKey> comparator = new Comparator<DecoratedKey>()
     {
         public int compare(DecoratedKey o1, DecoratedKey o2)

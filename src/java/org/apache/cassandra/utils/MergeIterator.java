@@ -70,7 +70,6 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
     /** A MergeIterator that consumes multiple input values per output value. */
     private static final class ManyToOne<In,Out> extends MergeIterator<In,Out>
     {
-        public final Comparator<In> comp;
         // a queue for return: all candidates must be open and have at least one item
         protected final PriorityQueue<Candidate<In>> queue;
         // a stack of the last consumed candidates, so that we can lazily call 'advance()'
@@ -80,7 +79,6 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         public ManyToOne(List<? extends CloseableIterator<In>> iters, Comparator<In> comp, Reducer<In,Out> reducer)
         {
             super(iters, reducer);
-            this.comp = comp;
             this.queue = new PriorityQueue<Candidate<In>>(Math.max(1, iters.size()));
             for (CloseableIterator<In> iter : iters)
             {

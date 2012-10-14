@@ -75,13 +75,6 @@ public class BootStrapperTest extends SchemaLoader
             InetAddress.getByName("127.0.0.14"),
             InetAddress.getByName("127.0.0.15"),
         };
-        UUID[] bootstrapHostIds = new UUID[]
-        {
-            UUID.randomUUID(),
-            UUID.randomUUID(),
-            UUID.randomUUID(),
-            UUID.randomUUID(),
-        };
         Map<InetAddress, Double> load = new HashMap<InetAddress, Double>();
         for (int i = 0; i < addrs.length; i++)
         {

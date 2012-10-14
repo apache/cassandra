@@ -177,7 +177,6 @@ public class BulkLoader
     static class ExternalClient extends SSTableLoader.Client
     {
         private final Map<String, Set<String>> knownCfs = new HashMap<String, Set<String>>();
-        private final OutputHandler outputHandler;
         private final Set<InetAddress> hosts;
         private final int rpcPort;
         private final String user;
@@ -186,7 +185,6 @@ public class BulkLoader
         public ExternalClient(OutputHandler outputHandler, Set<InetAddress> hosts, int port, String user, String passwd)
         {
             super();
-            this.outputHandler = outputHandler;
             this.hosts = hosts;
             this.rpcPort = port;
             this.user = user;

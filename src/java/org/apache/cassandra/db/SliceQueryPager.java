@@ -30,7 +30,6 @@ public class SliceQueryPager implements Iterator<ColumnFamily>
     public final DecoratedKey key;
 
     private ColumnSlice[] slices;
-    private ColumnFamily current;
     private boolean exhausted;
 
     public SliceQueryPager(ColumnFamilyStore cfs, DecoratedKey key, ColumnSlice[] slices)

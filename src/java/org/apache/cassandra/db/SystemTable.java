@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -42,7 +41,6 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
@@ -479,7 +477,6 @@ public class SystemTable
      */
     public static CounterId getCurrentLocalCounterId()
     {
-        ByteBuffer id = null;
         Table table = Table.open(Table.SYSTEM_KS);
 
         // Get the last CounterId (since CounterId are timeuuid is thus ordered from the older to the newer one)
