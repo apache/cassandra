@@ -91,11 +91,6 @@ public class RangeSliceCommand implements IReadCommand
         this(keyspace, column_family, super_column, predicate, range, null, maxResults, false, false);
     }
 
-    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, IFilter predicate, AbstractBounds<RowPosition> range, int maxResults, boolean maxIsColumns, boolean isPaging)
-    {
-        this(keyspace, column_family, super_column, predicate, range, null, maxResults, maxIsColumns, false);
-    }
-
     public RangeSliceCommand(String keyspace, ColumnParent column_parent, IFilter predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults)
     {
         this(keyspace, column_parent.getColumn_family(), column_parent.super_column, predicate, range, row_filter, maxResults, false, false);
