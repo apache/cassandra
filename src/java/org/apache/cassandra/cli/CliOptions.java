@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cli;
 
+import org.apache.cassandra.thrift.TClientSocketFactory;
 import org.apache.commons.cli.*;
 import org.apache.thrift.transport.TTransportFactory;
 
@@ -36,6 +37,7 @@ public class CliOptions
     private static final String HOST_OPTION = "host";
     private static final String PORT_OPTION = "port";
     private static final String TRANSPORT_FACTORY = "transport-factory";
+    private static final String CLIENT_SOCKET_FACTORY = "client-socket-factory";
     private static final String DEBUG_OPTION = "debug";
     private static final String USERNAME_OPTION = "username";
     private static final String PASSWORD_OPTION = "password";
@@ -66,6 +68,7 @@ public class CliOptions
         options.addOption(null, JMX_PORT_OPTION, "JMX-PORT", "JMX service port");
         options.addOption(null, SCHEMA_MIGRATION_WAIT_TIME,  "TIME", "Schema migration wait time (secs.), default is 10 secs");
         options.addOption("tf", TRANSPORT_FACTORY, "TRANSPORT-FACTORY", "Fully-qualified TTransportFactory class name for creating a connection to cassandra");
+        options.addOption("csf", CLIENT_SOCKET_FACTORY, "CLIENT_SOCKET_FACTORY", "Fully-qualified TClientSocketFactory class name for creating a socket to cassandra");
 
         // options without argument
         options.addOption("B",  BATCH_OPTION,   "enabled batch mode (suppress output; errors are fatal)");
@@ -99,6 +102,9 @@ public class CliOptions
             if (cmd.hasOption(TRANSPORT_FACTORY))
                 css.transportFactory = validateAndSetTransportFactory(cmd.getOptionValue(TRANSPORT_FACTORY));
 
+            if (cmd.hasOption(CLIENT_SOCKET_FACTORY))
+                css.clientSocketFactory = validateAndSetClientSocketFactory(cmd.getOptionValue(CLIENT_SOCKET_FACTORY));
+            
             if (cmd.hasOption(DEBUG_OPTION))
             {
                 css.debug = true;
@@ -234,6 +240,24 @@ public class CliOptions
         catch (Exception e)
         {
             throw new IllegalArgumentException(String.format("Cannot create a transport factory '%s'.", transportFactory), e);
+        }
+    }
+    
+    private static TClientSocketFactory validateAndSetClientSocketFactory(String clientSocketFactory)
+    {
+        try
+        {
+            Class factory = Class.forName(clientSocketFactory);
+
+            if(!TTransportFactory.class.isAssignableFrom(factory))
+                throw new IllegalArgumentException(String.format("transport factory '%s' " +
+                                                                 "not derived from TClientSocketFactory", clientSocketFactory));
+
+            return (TClientSocketFactory) factory.newInstance();
+        }
+        catch (Exception e)
+        {
+            throw new IllegalArgumentException(String.format("Cannot create a transport factory '%s'.", clientSocketFactory), e);
         }
     }
 }
