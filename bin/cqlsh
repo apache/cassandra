@@ -234,8 +234,12 @@ cqlsh_extra_syntax_rules = r'''
                          ( "WITH" <copyOption> ( "AND" <copyOption> )* )?
                 ;
 
-<copyOption> ::= [optnames]=<cfOptionName> "=" [optvals]=<cfOptionVal>
+<copyOption> ::= [optnames]=<identifier> "=" [optvals]=<copyOptionVal>
                ;
+
+<copyOptionVal> ::= <identifier>
+                  | <stringLiteral>
+                  ;
 
 # avoiding just "DEBUG" so that this rule doesn't get treated as a terminal
 <debugCommand> ::= "DEBUG" "THINGS"?
