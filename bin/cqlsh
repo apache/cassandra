@@ -121,6 +121,11 @@ DEFAULT_TRANSPORT_FACTORY = 'cqlshlib.tfactory.regular_transport_factory'
 DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S%z'
 DEFAULT_FLOAT_PRECISION = 3
 
+if readline is not None and 'libedit' in readline.__doc__:
+    DEFAULT_COMPLETEKEY = '\t'
+else:
+    DEFAULT_COMPLETEKEY = 'tab'
+
 epilog = """Connects to %(DEFAULT_HOST)s:%(DEFAULT_PORT)d by default. These
 defaults can be changed by setting $CQLSH_HOST and/or $CQLSH_PORT. When a
 host (and optional port number) are given on the command line, they take
@@ -428,8 +433,8 @@ class Shell(cmd.Cmd):
 
     def __init__(self, hostname, port, transport_factory, color=False,
                  username=None, password=None, encoding=None, stdin=None, tty=True,
-                 completekey='tab', use_conn=None, cqlver=None, keyspace=None,
-                 tracing_enabled=False,
+                 completekey=DEFAULT_COMPLETEKEY, use_conn=None,
+                 cqlver=None, keyspace=None, tracing_enabled=False,
                  display_time_format=DEFAULT_TIME_FORMAT,
                  display_float_precision=DEFAULT_FLOAT_PRECISION):
         cmd.Cmd.__init__(self, completekey=completekey)
@@ -780,7 +785,11 @@ class Shell(cmd.Cmd):
             else:
                 old_completer = readline.get_completer()
                 readline.set_completer(self.complete)
-                readline.parse_and_bind(self.completekey+": complete")
+                if 'libedit' in readline.__doc__:
+                    readline.parse_and_bind("bind -e")
+                    readline.parse_and_bind("bind '" + self.completekey + "' rl_complete")
+                else:
+                    readline.parse_and_bind(self.completekey + ": complete")
         try:
             yield
         finally:
@@ -2692,7 +2701,8 @@ def read_options(cmdlineargs, environment):
     optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
     optvalues.transport_factory = option_with_default(configs.get, 'connection', 'factory',
                                                       DEFAULT_TRANSPORT_FACTORY)
-    optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey', 'tab')
+    optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
+                                                DEFAULT_COMPLETEKEY)
     optvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
     optvalues.time_format = raw_option_with_default(configs, 'ui', 'time_format',
                                                     DEFAULT_TIME_FORMAT)
