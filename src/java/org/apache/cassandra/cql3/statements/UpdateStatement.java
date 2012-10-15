@@ -113,10 +113,8 @@ public class UpdateStatement extends ModificationStatement
         ColumnNameBuilder builder = cfDef.getColumnNameBuilder();
         buildColumnNames(cfDef, processedKeys, builder, variables, true);
 
-        // Lists SET operation incurs a read. Do that now. Note that currently,
-        // if there is at least one list, we just read the whole "row" (in the CQL sense of
-        // row) to simplify. Once #3885 is in, we can improve.
-        boolean needsReading = false;
+        // Lists SET operation incurs a read.
+        List<ByteBuffer> toRead = null;
         for (Map.Entry<CFDefinition.Name, Operation> entry : processedColumns.entries())
         {
             CFDefinition.Name name = entry.getKey();
@@ -127,12 +125,14 @@ public class UpdateStatement extends ModificationStatement
 
             if (value.requiresRead())
             {
-                needsReading = true;
+                if (toRead == null)
+                    toRead = new ArrayList<ByteBuffer>();
+                toRead.add(name.name.key);
                 break;
             }
         }
 
-        Map<ByteBuffer, ColumnGroupMap> rows = needsReading ? readRows(keys, builder, (CompositeType)cfDef.cfm.comparator, local, cl) : null;
+        Map<ByteBuffer, ColumnGroupMap> rows = toRead != null ? readRows(keys, builder, toRead, (CompositeType)cfDef.cfm.comparator, local, cl) : null;
 
         Collection<IMutation> mutations = new LinkedList<IMutation>();
         UpdateParameters params = new UpdateParameters(variables, getTimestamp(clientState), getTimeToLive());
@@ -255,7 +255,8 @@ public class UpdateStatement extends ModificationStatement
             for (Map.Entry<CFDefinition.Name, Operation> entry : processedColumns.entries())
             {
                 CFDefinition.Name name = entry.getKey();
-                hasCounterColumn |= addToMutation(cf, builder.copy().add(name.name.key), name, entry.getValue(), params, group == null ? null : group.getCollection(name.name.key));
+                Operation op = entry.getValue();
+                hasCounterColumn |= addToMutation(cf, builder.copy().add(name.name.key), name, op, params, group == null || !op.requiresRead() ? null : group.getCollection(name.name.key));
             }
         }
 

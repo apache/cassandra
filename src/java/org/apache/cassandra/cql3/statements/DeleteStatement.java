@@ -86,7 +86,7 @@ public class DeleteStatement extends ModificationStatement
             throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s since %s specified", firstEmpty, toRemove.iterator().next().left));
 
         // Lists DISCARD operation incurs a read. Do that now.
-        boolean needsReading = false;
+        List<ByteBuffer> toRead = null;
         for (Pair<CFDefinition.Name, Term> p : toRemove)
         {
             CFDefinition.Name name = p.left;
@@ -94,12 +94,14 @@ public class DeleteStatement extends ModificationStatement
 
             if ((name.type instanceof ListType) && value != null)
             {
-                needsReading = true;
+                if (toRead == null)
+                    toRead = new ArrayList<ByteBuffer>();
+                toRead.add(name.name.key);
                 break;
             }
         }
 
-        Map<ByteBuffer, ColumnGroupMap> rows = needsReading ? readRows(keys, builder, (CompositeType)cfDef.cfm.comparator, local, cl) : null;
+        Map<ByteBuffer, ColumnGroupMap> rows = toRead != null ? readRows(keys, builder, toRead, (CompositeType)cfDef.cfm.comparator, local, cl) : null;
 
         Collection<RowMutation> rowMutations = new ArrayList<RowMutation>(keys.size());
         UpdateParameters params = new UpdateParameters(variables, getTimestamp(clientState), -1);

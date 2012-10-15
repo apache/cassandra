@@ -29,7 +29,9 @@ import org.apache.cassandra.cql3.*;
 
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.db.IMutation;
@@ -140,7 +142,7 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
         return timeToLive;
     }
 
-    protected Map<ByteBuffer, ColumnGroupMap> readRows(List<ByteBuffer> keys, ColumnNameBuilder builder, CompositeType composite, boolean local, ConsistencyLevel cl)
+    protected Map<ByteBuffer, ColumnGroupMap> readRows(List<ByteBuffer> keys, ColumnNameBuilder builder, List<ByteBuffer> toRead, CompositeType composite, boolean local, ConsistencyLevel cl)
     throws RequestExecutionException, RequestValidationException
     {
         try
@@ -152,17 +154,20 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
             throw new InvalidRequestException(String.format("Write operation require a read but consistency %s is not supported on reads", cl));
         }
 
+        ColumnSlice[] slices = new ColumnSlice[toRead.size()];
+        for (int i = 0; i < toRead.size(); i++)
+        {
+            ByteBuffer start = builder.copy().add(toRead.get(i)).build();
+            ByteBuffer finish = builder.copy().add(toRead.get(i)).buildAsEndOfRange();
+            slices[i] = new ColumnSlice(start, finish);
+        }
+
         List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
         for (ByteBuffer key : keys)
-        {
             commands.add(new SliceFromReadCommand(keyspace(),
                                                   key,
                                                   new QueryPath(columnFamily()),
-                                                  builder.copy().build(),
-                                                  builder.copy().buildAsEndOfRange(),
-                                                  false,
-                                                  Integer.MAX_VALUE));
-        }
+                                                  new SliceQueryFilter(slices, false, Integer.MAX_VALUE)));
 
         try
         {

@@ -1075,7 +1075,7 @@ public class SelectStatement implements CQLStatement
                 }
                 // We only support IN for the last name and for compact storage so far
                 // TODO: #3885 allows us to extend to non compact as well, but that remains to be done
-                else if (cfDef.isCompact && restriction.eqValues.size() > 1 && i != stmt.columnRestrictions.length - 1)
+                else if (restriction.eqValues.size() > 1 && (!cfDef.isCompact || i != stmt.columnRestrictions.length - 1))
                 {
                     throw new InvalidRequestException(String.format("PRIMARY KEY part %s cannot be restricted by IN relation", cname));
                 }
@@ -1124,7 +1124,7 @@ public class SelectStatement implements CQLStatement
                     {
                         // We only support IN for the last name so far
                         if (i != stmt.keyRestrictions.length - 1)
-                            throw new InvalidRequestException(String.format("partition KEY part %s cannot be restricted by IN relation (only the last part of the partition key can)", cname));
+                            throw new InvalidRequestException(String.format("Partition KEY part %s cannot be restricted by IN relation (only the last part of the partition key can)", cname));
                         stmt.keyIsInRelation = true;
                     }
                 }

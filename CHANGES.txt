@@ -34,6 +34,7 @@
  * Composite indexes may miss results (CASSANDRA-4796)
  * Move consistency level to the protocol level (CASSANDRA-4734, 4824)
  * Fix Subcolumn slice ends not respected (CASSANDRA-4826)
+ * Fix Assertion error in cql3 select (CASSANDRA-4783)
 Merged from 1.1:
  * fix indexing empty column values (CASSANDRA-4832)
  * allow JdbcDate to compose null Date objects (CASSANDRA-4830)
