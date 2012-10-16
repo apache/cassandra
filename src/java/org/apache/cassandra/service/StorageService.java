@@ -640,7 +640,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     if (DatabaseDescriptor.getNumTokens() == 1)
                         logger.warn("Generated random token " + tokens + ". Random tokens will result in an unbalanced ring; see http://wiki.apache.org/cassandra/Operations");
                     else
-                        logger.info("Generated random tokens.");
+                        logger.info("Generated random tokens. tokens are {}", tokens);
                 }
                 else
                 {
@@ -716,12 +716,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             if (!current.isEmpty())
                 for (InetAddress existing : current)
                     Gossiper.instance.replacedEndpoint(existing);
-            logger.info("Bootstrap/Replace/Move completed! Now serving reads.");
+            logger.info("Startup completed! Now serving reads.");
             assert tokenMetadata.sortedTokens().size() > 0;
         }
         else
         {
-            logger.info("Bootstrap complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
+            logger.info("Startup complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
         }
     }
 
@@ -837,6 +837,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Tracing.instance();
         setMode(Mode.JOINING, "Starting to bootstrap...", true);
         new BootStrapper(FBUtilities.getBroadcastAddress(), tokens, tokenMetadata).bootstrap(); // handles token update
+        logger.info("Bootstrap completed! for the tokens {}", tokens);
     }
 
     public boolean isBootstrapMode()
