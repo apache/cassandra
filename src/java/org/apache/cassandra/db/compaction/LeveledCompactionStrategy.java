@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.*;
 import org.slf4j.Logger;
@@ -47,7 +48,8 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledCompactionStrategy.class);
 
-    private final LeveledManifest manifest;
+    @VisibleForTesting
+    final LeveledManifest manifest;
     private final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
     private final int maxSSTableSizeInMB;
     private final AtomicReference<LeveledCompactionTask> task = new AtomicReference<LeveledCompactionTask>();
@@ -237,7 +239,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
                     positionOffset += currentScanner.getLengthInBytes();
                     currentScanner.close();
                     if (!sstableIterator.hasNext())
+                    {
+                        // reset to null so getCurrentPosition does not return wrong value
+                        currentScanner = null;
                         return endOfData();
+                    }
                     currentScanner = sstableIterator.next().getDirectScanner(range);
                 }
             }

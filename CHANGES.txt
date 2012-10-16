@@ -1,3 +1,6 @@
+1.1.7
+ * fix wrong leveled compaction progress calculation (CASSANDRA-4807)
+
 1.1.6
  * Wait for writes on synchronous read digest mismatch (CASSANDRA-4792)
  * fix commitlog replay for nanotime-infected sstables (CASSANDRA-4782)
