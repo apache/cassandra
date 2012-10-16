@@ -239,7 +239,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
                     positionOffset += currentScanner.getLengthInBytes();
                     currentScanner.close();
                     if (!sstableIterator.hasNext())
+                    {
+                        // reset to null so getCurrentPosition does not return wrong value
+                        currentScanner = null;
                         return endOfData();
+                    }
                     currentScanner = sstableIterator.next().getDirectScanner(range);
                 }
             }

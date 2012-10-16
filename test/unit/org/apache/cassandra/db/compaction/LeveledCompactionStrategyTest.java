@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 
 import org.junit.Test;
 
@@ -30,6 +31,8 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -82,5 +85,44 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         AntiEntropyService.TreeRequest req = new AntiEntropyService.TreeRequest("1", FBUtilities.getLocalAddress(), range, p);
         AntiEntropyService.Validator validator = new AntiEntropyService.Validator(req);
         CompactionManager.instance.submitValidation(store, validator).get();
+    }
+
+    @Test
+    public void testCompactionProgress() throws Exception
+    {
+        String ksname = "Keyspace1";
+        String cfname = "StandardLeveled";
+        Table table = Table.open(ksname);
+        ColumnFamilyStore store = table.getColumnFamilyStore(cfname);
+
+        // make sure we have SSTables in L1
+        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]);
+        int rows = 2;
+        int columns = 10;
+        for (int r = 0; r < rows; r++)
+        {
+            DecoratedKey key = Util.dk(String.valueOf(r));
+            RowMutation rm = new RowMutation(ksname, key.key);
+            for (int c = 0; c < columns; c++)
+            {
+                rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes("column" + c)), value, 0);
+            }
+            rm.apply();
+            store.forceBlockingFlush();
+        }
+        store.forceMajorCompaction();
+
+        LeveledCompactionStrategy strat = (LeveledCompactionStrategy)store.getCompactionStrategy();
+        assert strat.getLevelSize(1) > 0;
+
+        // get LeveledScanner for level 1 sstables
+        Collection<SSTableReader> sstables = strat.manifest.getLevel(1);
+        ICompactionScanner scanner = strat.getScanners(sstables).get(0);
+        // scan through to the end
+        while (scanner.hasNext())
+            scanner.next();
+
+        // scanner.getCurrentPosition should be equal to total bytes of L1 sstables
+        assert scanner.getCurrentPosition() == SSTable.getTotalBytes(sstables);
     }
 }
