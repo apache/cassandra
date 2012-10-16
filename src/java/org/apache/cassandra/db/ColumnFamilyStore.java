@@ -156,10 +156,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // If the CF comparator has changed, we need to change the memtable,
         // because the old one still aliases the previous comparator. We don't
         // call forceFlush() because it can skip the switch if the memtable is
-        // clean, which we don't want here.
+        // clean, which we don't want here. Also, because there can be a race
+        // between the time we acquire the current memtable and we flush it
+        // (another thread can have flushed it first), we attempt the switch
+        // until we know the memtable has the current comparator.
         try
         {
-            maybeSwitchMemtable(getMemtableThreadSafe(), true).get();
+            while (true)
+            {
+                AbstractType comparator = metadata.comparator;
+                Memtable memtable = getMemtableThreadSafe();
+                if (memtable.initialComparator == comparator)
+                    break;
+
+                Future future = maybeSwitchMemtable(getMemtableThreadSafe(), true);
+                if (future != null)
+                    future.get();
+            }
         }
         catch (ExecutionException e)
         {

@@ -41,6 +41,7 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.filter.AbstractColumnIterator;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
@@ -101,10 +102,16 @@ public class Memtable
         };
     };
 
+    // Record the comparator of the CFS at the creation of the memtable. This
+    // is only used when a user update the CF comparator, to know if the
+    // memtable was created with the new or old comparator.
+    public final AbstractType initialComparator;
+
     public Memtable(ColumnFamilyStore cfs)
     {
         this.cfs = cfs;
         this.creationTime = System.currentTimeMillis();
+        this.initialComparator = cfs.metadata.comparator;
 
         Callable<Set<Object>> provider = new Callable<Set<Object>>()
         {

@@ -234,40 +234,40 @@ public final class CFMetaData
     public final String ksName;                       // name of keyspace
     public final String cfName;                       // name of this column family
     public final ColumnFamilyType cfType;             // standard, super
-    public AbstractType<?> comparator;          // bytes, long, timeuuid, utf8, etc.
-    public AbstractType<?> subcolumnComparator; // like comparator, for supercolumns
+    public volatile AbstractType<?> comparator;          // bytes, long, timeuuid, utf8, etc.
+    public volatile AbstractType<?> subcolumnComparator; // like comparator, for supercolumns
 
     //OPTIONAL
-    private String comment;                           // default none, for humans only
-    private double readRepairChance;                  // default 1.0 (always), chance [0.0,1.0] of read repair
-    private double dcLocalReadRepairChance;           // default 0.0
-    private boolean replicateOnWrite;                 // default false
-    private int gcGraceSeconds;                       // default 864000 (ten days)
-    private AbstractType<?> defaultValidator;         // default BytesType (no-op), use comparator types
-    private AbstractType<?> keyValidator;             // default BytesType (no-op), use comparator types
-    private int minCompactionThreshold;               // default 4
-    private int maxCompactionThreshold;               // default 32
-    private List<ByteBuffer> keyAliases = new ArrayList<ByteBuffer>();
-    private List<ByteBuffer> columnAliases = new ArrayList<ByteBuffer>();
-    private ByteBuffer valueAlias;                    // default NULL
-    private Double bloomFilterFpChance;               // default NULL
-    private Caching caching;                          // default KEYS_ONLY (possible: all, key_only, row_only, none)
+    private volatile String comment;                           // default none, for humans only
+    private volatile double readRepairChance;                  // default 1.0 (always), chance [0.0,1.0] of read repair
+    private volatile double dcLocalReadRepairChance;           // default 0.0
+    private volatile boolean replicateOnWrite;                 // default false
+    private volatile int gcGraceSeconds;                       // default 864000 (ten days)
+    private volatile AbstractType<?> defaultValidator;         // default BytesType (no-op), use comparator types
+    private volatile AbstractType<?> keyValidator;             // default BytesType (no-op), use comparator types
+    private volatile int minCompactionThreshold;               // default 4
+    private volatile int maxCompactionThreshold;               // default 32
+    private volatile List<ByteBuffer> keyAliases = new ArrayList<ByteBuffer>();
+    private volatile List<ByteBuffer> columnAliases = new ArrayList<ByteBuffer>();
+    private volatile ByteBuffer valueAlias;                    // default NULL
+    private volatile Double bloomFilterFpChance;               // default NULL
+    private volatile Caching caching;                          // default KEYS_ONLY (possible: all, key_only, row_only, none)
 
-    Map<ByteBuffer, ColumnDefinition> column_metadata;
-    public Class<? extends AbstractCompactionStrategy> compactionStrategyClass;
-    public Map<String, String> compactionStrategyOptions;
+    volatile Map<ByteBuffer, ColumnDefinition> column_metadata;
+    public volatile Class<? extends AbstractCompactionStrategy> compactionStrategyClass;
+    public volatile Map<String, String> compactionStrategyOptions;
 
-    public CompressionParameters compressionParameters;
+    public volatile CompressionParameters compressionParameters;
 
     // Default consistency levels for CQL3. The default for those values is ONE,
     // but we keep the internal default to null as it help handling thrift compatibility
-    private ConsistencyLevel readConsistencyLevel;
-    private ConsistencyLevel writeConsistencyLevel;
+    private volatile ConsistencyLevel readConsistencyLevel;
+    private volatile ConsistencyLevel writeConsistencyLevel;
 
     // Processed infos used by CQL. This can be fully reconstructed from the CFMedata,
     // so it's not saved on disk. It is however costlyish to recreate for each query
     // so we cache it here (and update on each relevant CFMetadata change)
-    private CFDefinition cqlCfDef;
+    private volatile CFDefinition cqlCfDef;
 
     public CFMetaData comment(String prop) { comment = enforceCommentNotNull(prop); return this;}
     public CFMetaData readRepairChance(double prop) {readRepairChance = prop; return this;}
