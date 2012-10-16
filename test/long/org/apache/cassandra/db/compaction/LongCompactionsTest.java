@@ -116,6 +116,7 @@ public class LongCompactionsTest extends SchemaLoader
         // this test does enough rows to force multiple block indexes to be used
         Table table = Table.open(TABLE1);
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
+        cfs.clearUnsafe();
 
         final int ROWS_PER_SSTABLE = 10;
         final int SSTABLES = DatabaseDescriptor.getIndexInterval() * 3 / ROWS_PER_SSTABLE;
