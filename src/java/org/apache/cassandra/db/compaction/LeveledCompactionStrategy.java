@@ -187,7 +187,9 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         List<ICompactionScanner> scanners = new ArrayList<ICompactionScanner>(sstables.size());
         for (Integer level : byLevel.keySet())
         {
-            if (level == 0)
+            // level can be -1 when sstables are added to DataTracker but not to LeveledManifest
+            // since we don't know which level those sstable belong yet, we simply do the same as L0 sstables.
+            if (level <= 0)
             {
                 // L0 makes no guarantees about overlapping-ness.  Just create a direct scanner for each
                 for (SSTableReader sstable : byLevel.get(level))
