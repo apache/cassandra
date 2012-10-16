@@ -178,11 +178,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     {
         Multimap<Integer, SSTableReader> byLevel = ArrayListMultimap.create();
         for (SSTableReader sstable : sstables)
-        {
-            int level = manifest.levelOf(sstable);
-            assert level >= 0;
-            byLevel.get(level).add(sstable);
-        }
+            byLevel.get(manifest.levelOf(sstable)).add(sstable);
 
         List<ICompactionScanner> scanners = new ArrayList<ICompactionScanner>(sstables.size());
         for (Integer level : byLevel.keySet())
