@@ -64,7 +64,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
                 rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes("column" + c)), value, 0);
             }
             rm.apply();
-            store.forceFlush();
+            store.forceBlockingFlush();
         }
 
         LeveledCompactionStrategy strat = (LeveledCompactionStrategy)store.getCompactionStrategy();
