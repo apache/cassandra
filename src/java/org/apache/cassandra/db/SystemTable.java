@@ -43,6 +43,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Constants;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -125,12 +126,15 @@ public class SystemTable
 
     private static void setupVersion()
     {
-        String req = "INSERT INTO system.%s (key, release_version, cql_version, thrift_version) VALUES ('%s', '%s', '%s', '%s')";
+        String req = "INSERT INTO system.%s (key, release_version, cql_version, thrift_version, data_center, rack) VALUES ('%s', '%s', '%s', '%s', '%s', '%s')";
+        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         processInternal(String.format(req, LOCAL_CF,
                                          LOCAL_KEY,
                                          FBUtilities.getReleaseVersionString(),
                                          QueryProcessor.CQL_VERSION.toString(),
-                                         Constants.VERSION));
+                                         Constants.VERSION,
+                                         snitch.getDatacenter(FBUtilities.getBroadcastAddress()),
+                                         snitch.getRack(FBUtilities.getBroadcastAddress())));
     }
 
     /** if system data becomes incompatible across versions of cassandra, that logic (and associated purging) is managed here */

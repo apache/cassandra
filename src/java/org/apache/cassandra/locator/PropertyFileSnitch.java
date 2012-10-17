@@ -184,5 +184,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         endpointMap = reloadedMap;
         if (StorageService.instance != null) // null check tolerates circular dependency; see CASSANDRA-4145
             StorageService.instance.getTokenMetadata().invalidateCaches();
+
+        StorageService.instance.gossipSnitchInfo();
     }
 }

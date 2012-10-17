@@ -105,13 +105,4 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
             return DEFAULT_DC;
         return state.getApplicationState(ApplicationState.DC).value;
     }
-
-    @Override
-    public void gossiperStarting()
-    {
-        // Share EC2 info via gossip.  We have to wait until Gossiper is initialized though.
-        logger.info("Ec2Snitch adding ApplicationState ec2region=" + ec2region + " ec2zone=" + ec2zone);
-        Gossiper.instance.addLocalApplicationState(ApplicationState.DC, StorageService.instance.valueFactory.datacenter(ec2region));
-        Gossiper.instance.addLocalApplicationState(ApplicationState.RACK, StorageService.instance.valueFactory.rack(ec2zone));
-    }
 }

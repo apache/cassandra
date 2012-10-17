@@ -25,7 +25,7 @@
  * Support repairing only the local DC nodes (CASSANDRA-4747)
  * Use rpc_address for binary protocol and change default port (CASSANRA-4751)
  * Fix use of collections in prepared statements (CASSANDRA-4739)
- * Store more information into peers table (CASSANDRA-4351)
+ * Store more information into peers table (CASSANDRA-4351, 4814)
  * Configurable bucket size for size tiered compaction (CASSANDRA-4704)
  * Run leveled compaction in parallel (CASSANDRA-4310)
  * Fix potential NPE during CFS reload (CASSANDRA-4786)

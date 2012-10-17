@@ -506,6 +506,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // gossip network proto version
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
         Gossiper.instance.addLocalApplicationState(ApplicationState.HOST_ID, valueFactory.hostId(SystemTable.getLocalHostId()));
+        // gossip snitch infos (local DC and rack)
+        gossipSnitchInfo();
         // gossip schema version when gossiper is running
         Schema.instance.updateVersionAndAnnounce();
         // add rpc listening info
@@ -723,6 +725,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             logger.info("Startup complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
         }
+    }
+
+    public void gossipSnitchInfo()
+    {
+        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+        String dc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
+        String rack = snitch.getRack(FBUtilities.getBroadcastAddress());
+        Gossiper.instance.addLocalApplicationState(ApplicationState.DC, StorageService.instance.valueFactory.datacenter(dc));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.RACK, StorageService.instance.valueFactory.rack(rack));
     }
 
     public synchronized void joinRing() throws IOException, ConfigurationException

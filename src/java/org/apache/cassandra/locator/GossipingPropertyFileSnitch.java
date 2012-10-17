@@ -24,6 +24,7 @@ import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,6 +100,9 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
      */
     public String getDatacenter(InetAddress endpoint)
     {
+        if (endpoint.equals(FBUtilities.getBroadcastAddress()))
+            return myDC;
+
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         if (epState == null || epState.getApplicationState(ApplicationState.DC) == null)
         {
@@ -118,6 +122,9 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
      */
     public String getRack(InetAddress endpoint)
     {
+        if (endpoint.equals(FBUtilities.getBroadcastAddress()))
+            return myRack;
+
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         if (epState == null || epState.getApplicationState(ApplicationState.RACK) == null)
         {
@@ -127,14 +134,5 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
                 return psnitch.getRack(endpoint);
         }
         return epState.getApplicationState(ApplicationState.RACK).value;
-    }
-
-    @Override
-    public void gossiperStarting()
-    {
-        // Share info via gossip.
-        logger.info("Adding ApplicationState DC=" + myDC + " rack=" + myRack);
-        Gossiper.instance.addLocalApplicationState(ApplicationState.DC, StorageService.instance.valueFactory.datacenter(myDC));
-        Gossiper.instance.addLocalApplicationState(ApplicationState.RACK, StorageService.instance.valueFactory.rack(myRack));
     }
 }

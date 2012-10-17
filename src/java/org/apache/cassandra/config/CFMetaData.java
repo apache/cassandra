@@ -177,7 +177,9 @@ public final class CFMetaData
                                                          + "ring_id uuid,"
                                                          + "release_version text,"
                                                          + "thrift_version text,"
-                                                         + "cql_version text"
+                                                         + "cql_version text,"
+                                                         + "data_center text,"
+                                                         + "rack text"
                                                          + ") WITH COMMENT='information about the local node'");
 
     public static final CFMetaData TraceSessionsCf = compile(14, "CREATE TABLE " + Tracing.SESSIONS_CF + " ("
