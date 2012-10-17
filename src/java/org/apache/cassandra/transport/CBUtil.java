@@ -135,25 +135,12 @@ public abstract class CBUtil
 
     public static ChannelBuffer consistencyLevelToCB(ConsistencyLevel consistency)
     {
-        if (consistency == null)
-            return shortToCB(0);
-        else
-            return stringToCB(consistency.toString());
+        return shortToCB(consistency.code);
     }
 
     public static ConsistencyLevel readConsistencyLevel(ChannelBuffer cb)
     {
-        String cl = CBUtil.readString(cb);
-        try
-        {
-            if (cl.isEmpty())
-                return null;
-            return Enum.valueOf(ConsistencyLevel.class, cl.toUpperCase());
-        }
-        catch (IllegalArgumentException e)
-        {
-            throw new ProtocolException("Unknown consistency level: " + cl);
-        }
+        return ConsistencyLevel.fromCode(cb.readUnsignedShort());
     }
 
     public static ChannelBuffer longStringToCB(String str)

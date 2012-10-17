@@ -23,17 +23,47 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.transport.ProtocolException;
 
 public enum ConsistencyLevel
 {
-    ANY,
-    ONE,
-    TWO,
-    THREE,
-    QUORUM,
-    ALL,
-    LOCAL_QUORUM,
-    EACH_QUORUM;
+    ANY         (0),
+    ONE         (1),
+    TWO         (2),
+    THREE       (3),
+    QUORUM      (4),
+    ALL         (5),
+    LOCAL_QUORUM(6),
+    EACH_QUORUM (7);
+
+    // Used by the binary protocol
+    public final int code;
+    private static final ConsistencyLevel[] codeIdx;
+    static
+    {
+        int maxCode = -1;
+        for (ConsistencyLevel cl : ConsistencyLevel.values())
+            maxCode = Math.max(maxCode, cl.code);
+        codeIdx = new ConsistencyLevel[maxCode + 1];
+        for (ConsistencyLevel cl : ConsistencyLevel.values())
+        {
+            if (codeIdx[cl.code] != null)
+                throw new IllegalStateException("Duplicate code");
+            codeIdx[cl.code] = cl;
+        }
+    }
+
+    private ConsistencyLevel(int code)
+    {
+        this.code = code;
+    }
+
+    public static ConsistencyLevel fromCode(int code)
+    {
+        if (code < 0 || code >= codeIdx.length)
+            throw new ProtocolException(String.format("Unknown code %d for a consistency level", code));
+        return codeIdx[code];
+    }
 
     public int blockFor(String table)
     {

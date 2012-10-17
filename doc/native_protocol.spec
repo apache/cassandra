@@ -171,10 +171,14 @@ Table of Contents
     [option list]  A [short] n, followed by n [option].
     [inet]         An address (ip and port) to a node. It consists of one
                    [byte] n, that represents the address size, followed by n
-                   [byte] repesenting the IP address (in practice n can only be
+                   [byte] representing the IP address (in practice n can only be
                    either 4 (IPv4) or 16 (IPv6)), following by one [int]
                    representing the port.
-    [consistency]  A consistency level specification. This is a [string] having
+    [consistency]  A consistency level specification. This is a [short]
+                   representing a consistency level with the following
+                   correspondence:
+
+                   having
                    one of the following value: "", "ANY", "ONE", "TWO", "THREE",
                    "QUORUM", "ALL", "LOCAL_QUORUM", "EACH_QUORUM". It is
                    possible to provide an empty string, in which case a default
