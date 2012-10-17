@@ -53,6 +53,8 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
     private static volatile Map<InetAddress, String[]> endpointMap;
     private static volatile String[] defaultDCRack;
 
+    private volatile boolean gossipStarted;
+
     public PropertyFileSnitch() throws ConfigurationException
     {
         reloadConfiguration();
@@ -185,6 +187,13 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         if (StorageService.instance != null) // null check tolerates circular dependency; see CASSANDRA-4145
             StorageService.instance.getTokenMetadata().invalidateCaches();
 
-        StorageService.instance.gossipSnitchInfo();
+        if (gossipStarted)
+            StorageService.instance.gossipSnitchInfo();
+    }
+
+    @Override
+    public void gossiperStarting()
+    {
+        gossipStarted = true;
     }
 }
