@@ -248,6 +248,7 @@ public final class CFMetaData
     private volatile AbstractType<?> keyValidator;             // default BytesType (no-op), use comparator types
     private volatile int minCompactionThreshold;               // default 4
     private volatile int maxCompactionThreshold;               // default 32
+    // Both those aliases list can be null padded if only some of the position have been given an alias through ALTER TABLE .. RENAME
     private volatile List<ByteBuffer> keyAliases = new ArrayList<ByteBuffer>();
     private volatile List<ByteBuffer> columnAliases = new ArrayList<ByteBuffer>();
     private volatile ByteBuffer valueAlias;                    // default NULL
@@ -795,23 +796,13 @@ public final class CFMetaData
         maxCompactionThreshold = cfm.maxCompactionThreshold;
 
         /*
-         * We don't allow changing the number of aliases (removal would be plain wrong and we've decided to no support addition since it would
-         * only make sense in very few cases).
-         * However, since thrift doesn't know about aliases (expect for the key aliases, but even then it doesn't support composite ones), we
-         * don't want to reject update that don't set the aliases at all.
+         * Because thrift updates don't know about aliases, we should ignore
+         * the case where the new aliases are empty.
          */
         if (!cfm.keyAliases.isEmpty())
-        {
-            if (keyAliases.size() != cfm.keyAliases.size())
-                throw new ConfigurationException("Cannot change the number of key aliases");
             keyAliases = cfm.keyAliases;
-        }
         if (!cfm.columnAliases.isEmpty())
-        {
-            if (columnAliases.size() != cfm.columnAliases.size())
-                throw new ConfigurationException("Cannot change the number of column aliases");
             columnAliases = cfm.columnAliases;
-        }
         if (cfm.valueAlias != null)
             valueAlias = cfm.valueAlias;
 

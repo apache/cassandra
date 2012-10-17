@@ -39,21 +39,23 @@ public class AlterTableStatement extends SchemaAlteringStatement
 {
     public static enum Type
     {
-        ADD, ALTER, DROP, OPTS
+        ADD, ALTER, DROP, OPTS, RENAME
     }
 
     public final Type oType;
     public final ParsedType validator;
     public final ColumnIdentifier columnName;
     private final CFPropDefs cfProps;
+    private final Map<ColumnIdentifier, ColumnIdentifier> renames;
 
-    public AlterTableStatement(CFName name, Type type, ColumnIdentifier columnName, ParsedType validator, CFPropDefs cfProps)
+    public AlterTableStatement(CFName name, Type type, ColumnIdentifier columnName, ParsedType validator, CFPropDefs cfProps, Map<ColumnIdentifier, ColumnIdentifier> renames)
     {
         super(name);
         this.oType = type;
         this.columnName = columnName;
         this.validator = validator; // used only for ADD/ALTER commands
         this.cfProps = cfProps;
+        this.renames = renames;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -67,7 +69,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
         CFMetaData cfm = meta.clone();
 
         CFDefinition cfDef = meta.getCfDef();
-        CFDefinition.Name name = this.oType == Type.OPTS ? null : cfDef.get(columnName);
+        CFDefinition.Name name = columnName == null ? null : cfDef.get(columnName);
         switch (oType)
         {
             case ADD:
@@ -116,7 +118,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
 
             case ALTER:
                 if (name == null)
-                    throw new InvalidRequestException(String.format("Column %s was not found in CF %s", columnName, columnFamily()));
+                    throw new InvalidRequestException(String.format("Column %s was not found in table %s", columnName, columnFamily()));
 
                 switch (name.kind)
                 {
@@ -156,7 +158,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 if (cfDef.isCompact)
                     throw new InvalidRequestException("Cannot drop columns from a compact CF");
                 if (name == null)
-                    throw new InvalidRequestException(String.format("Column %s was not found in CF %s", columnName, columnFamily()));
+                    throw new InvalidRequestException(String.format("Column %s was not found in table %s", columnName, columnFamily()));
 
                 switch (name.kind)
                 {
@@ -182,9 +184,55 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 cfProps.validate();
                 cfProps.applyToCFMetadata(cfm);
                 break;
+            case RENAME:
+                for (Map.Entry<ColumnIdentifier, ColumnIdentifier> entry : renames.entrySet())
+                {
+                    CFDefinition.Name from = cfDef.get(entry.getKey());
+                    ColumnIdentifier to = entry.getValue();
+                    if (from == null)
+                        throw new InvalidRequestException(String.format("Column %s was not found in table %s", entry.getKey(), columnFamily()));
+
+                    CFDefinition.Name exists = cfDef.get(to);
+                    if (exists != null)
+                        throw new InvalidRequestException(String.format("Cannot rename column %s in table %s to %s; another column of that name already exist", from, columnFamily(), to));
+
+                    switch (from.kind)
+                    {
+                        case KEY_ALIAS:
+                            cfm.keyAliases(rename(from.position, to, cfm.getKeyAliases()));
+                            break;
+                        case COLUMN_ALIAS:
+                            cfm.columnAliases(rename(from.position, to, cfm.getColumnAliases()));
+                            break;
+                        case VALUE_ALIAS:
+                            cfm.valueAlias(to.key);
+                            break;
+                        case COLUMN_METADATA:
+                            throw new InvalidRequestException(String.format("Cannot rename non PRIMARY KEY part %s", from));
+                    }
+                }
+                break;
         }
 
         MigrationManager.announceColumnFamilyUpdate(cfm);
+    }
+
+    private static List<ByteBuffer> rename(int pos, ColumnIdentifier newName, List<ByteBuffer> aliases)
+    {
+        if (pos < aliases.size())
+        {
+            List<ByteBuffer> newList = new ArrayList<ByteBuffer>(aliases);
+            newList.set(pos, newName.key);
+            return newList;
+        }
+        else
+        {
+            List<ByteBuffer> newList = new ArrayList<ByteBuffer>(pos + 1);
+            for (int i = 0; i < pos; ++i)
+                newList.add(i < aliases.size() ? aliases.get(i) : null);
+            newList.add(newName.key);
+            return newList;
+        }
     }
 
     public String toString()

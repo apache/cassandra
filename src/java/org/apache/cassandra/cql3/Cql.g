@@ -437,20 +437,25 @@ alterKeyspaceStatement returns [AlterKeyspaceStatement expr]
  * ALTER COLUMN FAMILY <CF> ADD <column> <newtype>;
  * ALTER COLUMN FAMILY <CF> DROP <column>;
  * ALTER COLUMN FAMILY <CF> WITH <property> = <value>;
+ * ALTER COLUMN FAMILY <CF> RENAME <column> TO <column>;
  */
 alterTableStatement returns [AlterTableStatement expr]
     @init {
         AlterTableStatement.Type type = null;
         CFPropDefs props = new CFPropDefs();
+        Map<ColumnIdentifier, ColumnIdentifier> renames = new HashMap<ColumnIdentifier, ColumnIdentifier>();
     }
     : K_ALTER K_COLUMNFAMILY cf=columnFamilyName
           ( K_ALTER id=cident K_TYPE v=comparatorType { type = AlterTableStatement.Type.ALTER; }
           | K_ADD   id=cident v=comparatorType        { type = AlterTableStatement.Type.ADD; }
           | K_DROP  id=cident                         { type = AlterTableStatement.Type.DROP; }
           | K_WITH  properties[props]                 { type = AlterTableStatement.Type.OPTS; }
+          | K_RENAME                                  { type = AlterTableStatement.Type.RENAME; }
+               id1=cident K_TO toId1=cident { renames.put(id1, toId1); }
+               ( K_AND idn=cident K_TO toIdn=cident { renames.put(idn, toIdn); } )*
           )
     {
-        $expr = new AlterTableStatement(cf, type, id, v, props);
+        $expr = new AlterTableStatement(cf, type, id, v, props, renames);
     }
     ;
 
@@ -783,6 +788,7 @@ K_VALUES:      V A L U E S;
 K_TIMESTAMP:   T I M E S T A M P;
 K_TTL:         T T L;
 K_ALTER:       A L T E R;
+K_RENAME:      R E N A M E;
 K_ADD:         A D D;
 K_TYPE:        T Y P E;
 K_COMPACT:     C O M P A C T;
