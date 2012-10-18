@@ -19,6 +19,8 @@ package org.apache.cassandra.thrift;
 
 import java.net.InetSocketAddress;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.service.ThriftSessionManager;
 import org.apache.thrift.server.TNonblockingServer;
 import org.apache.thrift.server.TServer;
@@ -46,6 +48,9 @@ public class CustomTNonBlockingServer extends TNonblockingServer
     {
         public TServer buildTServer(Args args)
         {
+            if(!DatabaseDescriptor.getClientEncryptionOptions().internode_encryption.equals(EncryptionOptions.InternodeEncryption.none))
+                throw new RuntimeException("Client SSL is not supported for non-blocking sockets. Please remove client ssl from the configuration.");
+
             final InetSocketAddress addr = args.addr;
             TNonblockingServerTransport serverTransport;
             try

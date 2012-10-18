@@ -31,15 +31,19 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.service.ThriftSessionManager;
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
+import org.apache.thrift.transport.TSSLTransportFactory;
+import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TServerTransport;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
+import org.apache.thrift.transport.TSSLTransportFactory.TSSLTransportParameters;
 
 
 /**
@@ -240,7 +244,20 @@ public class CustomTThreadPoolServer extends TServer
             TServerTransport serverTransport;
             try
             {
-                serverTransport = new TCustomServerSocket(addr, args.keepAlive, args.sendBufferSize, args.recvBufferSize);
+                final EncryptionOptions clientEnc = DatabaseDescriptor.getClientEncryptionOptions();
+                if(EncryptionOptions.InternodeEncryption.all == clientEnc.internode_encryption)
+                {
+                    logger.info("enabling encrypted thrift connections between client and server");
+                    TSSLTransportParameters params = new TSSLTransportParameters(clientEnc.protocol, clientEnc.cipher_suites);
+                    params.setKeyStore(clientEnc.keystore, clientEnc.keystore_password);
+                    params.setTrustStore(clientEnc.truststore, clientEnc.truststore_password);
+                    TServerSocket sslServer = TSSLTransportFactory.getServerSocket(addr.getPort(), 0, addr.getAddress(), params);
+                    serverTransport = new TCustomServerSocket(sslServer.getServerSocket(), args.keepAlive, args.sendBufferSize, args.recvBufferSize);
+                }
+                else
+                {
+                    serverTransport = new TCustomServerSocket(addr, args.keepAlive, args.sendBufferSize, args.recvBufferSize);
+                }
             }
             catch (TTransportException e)
             {

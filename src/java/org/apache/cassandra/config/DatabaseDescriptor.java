@@ -442,6 +442,13 @@ public class DatabaseDescriptor
 
             rowCacheProvider = FBUtilities.newCacheProvider(conf.row_cache_provider);
 
+            if(conf.encryption_options != null)
+            {
+                logger.warn("Please rename encryption_options as server_encryption_options in the yaml");
+                //operate under the assumption that server_encryption_options is not set in yaml rather than both
+                conf.server_encryption_options = conf.encryption_options;
+            }
+
             // Hardcoded system tables
             List<KSMetaData> systemKeyspaces = Arrays.asList(KSMetaData.systemKeyspace(), KSMetaData.traceKeyspace());
             assert systemKeyspaces.size() == Schema.systemKeyspaceNames.size();
@@ -1080,9 +1087,14 @@ public class DatabaseDescriptor
         conf.dynamic_snitch_badness_threshold = dynamicBadnessThreshold;
     }
 
-    public static EncryptionOptions getEncryptionOptions()
+    public static EncryptionOptions getServerEncryptionOptions()
     {
-        return conf.encryption_options;
+        return conf.server_encryption_options;
+    }
+
+    public static EncryptionOptions getClientEncryptionOptions()
+    {
+        return conf.client_encryption_options;
     }
 
     public static double getFlushLargestMemtablesAt()

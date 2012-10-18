@@ -47,6 +47,13 @@ public class CliOptions
     private static final String VERBOSE_OPTION  = "verbose";
     private static final String SCHEMA_MIGRATION_WAIT_TIME = "schema-mwt";
 
+    private static final String SSL_TRUSTSTORE = "truststore";
+    private static final String SSL_TRUSTSTORE_PW = "truststore-password";
+    private static final String SSL_PROTOCOL = "ssl-protocol";
+    private static final String SSL_ALGORITHM = "ssl-alg";
+    private static final String SSL_STORE_TYPE = "store-type";
+    private static final String SSL_CIPHER_SUITES = "ssl-ciphers";
+
     // Default values for optional command line arguments
     private static final String DEFAULT_HOST        = "127.0.0.1";
     private static final int    DEFAULT_THRIFT_PORT = 9160;
@@ -66,6 +73,14 @@ public class CliOptions
         options.addOption(null, JMX_PORT_OPTION, "JMX-PORT", "JMX service port");
         options.addOption(null, SCHEMA_MIGRATION_WAIT_TIME,  "TIME", "Schema migration wait time (secs.), default is 10 secs");
         options.addOption("tf", TRANSPORT_FACTORY, "TRANSPORT-FACTORY", "Fully-qualified TTransportFactory class name for creating a connection to cassandra");
+
+        // ssl connection-related options
+        options.addOption("ts", SSL_TRUSTSTORE, "TRUSTSTORE", "SSL: full path to truststore");
+        options.addOption("tspw", SSL_TRUSTSTORE_PW, "TRUSTSTORE-PASSWORD", "SSL: full path to truststore");
+        options.addOption("prtcl", SSL_PROTOCOL, "PROTOCOL", "SSL: connections protocol to use (default: TLS)");
+        options.addOption("alg", SSL_ALGORITHM, "ALGORITHM", "SSL: algorithm (default: SunX509)");
+        options.addOption("st", SSL_STORE_TYPE, "STORE-TYPE", "SSL: type of store");
+        options.addOption("ciphers", SSL_CIPHER_SUITES, "CIPHER-SUITES", "SSL: comma-separated list of encryption suites to use");
 
         // options without argument
         options.addOption("B",  BATCH_OPTION,   "enabled batch mode (suppress output; errors are fatal)");
@@ -97,7 +112,9 @@ public class CliOptions
             }
 
             if (cmd.hasOption(TRANSPORT_FACTORY))
+            {
                 css.transportFactory = validateAndSetTransportFactory(cmd.getOptionValue(TRANSPORT_FACTORY));
+            }
 
             if (cmd.hasOption(DEBUG_OPTION))
             {
@@ -168,6 +185,36 @@ public class CliOptions
             if (cmd.hasOption(SCHEMA_MIGRATION_WAIT_TIME))
             {
                 css.schema_mwt = Integer.parseInt(cmd.getOptionValue(SCHEMA_MIGRATION_WAIT_TIME)) * 1000;
+            }
+
+            if(cmd.hasOption(SSL_TRUSTSTORE))
+            {
+                css.encOptions.truststore = cmd.getOptionValue(SSL_TRUSTSTORE);
+            }
+
+            if(cmd.hasOption(SSL_TRUSTSTORE_PW))
+            {
+                css.encOptions.truststore_password = cmd.getOptionValue(SSL_TRUSTSTORE_PW);
+            }
+
+            if(cmd.hasOption(SSL_PROTOCOL))
+            {
+                css.encOptions.protocol = cmd.getOptionValue(SSL_PROTOCOL);
+            }
+
+            if(cmd.hasOption(SSL_ALGORITHM))
+            {
+                css.encOptions.algorithm = cmd.getOptionValue(SSL_ALGORITHM);
+            }
+
+            if(cmd.hasOption(SSL_STORE_TYPE))
+            {
+                css.encOptions.store_type = cmd.getOptionValue(SSL_STORE_TYPE);
+            }
+
+            if(cmd.hasOption(SSL_CIPHER_SUITES))
+            {
+                css.encOptions.cipher_suites = cmd.getOptionValue(SSL_CIPHER_SUITES).split(",");
             }
 
             // Abort if there are any unrecognized arguments left

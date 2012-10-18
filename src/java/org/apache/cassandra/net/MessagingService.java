@@ -395,11 +395,11 @@ public final class MessagingService implements MessagingServiceMBean
     private List<ServerSocket> getServerSocket(InetAddress localEp) throws ConfigurationException
     {
         final List<ServerSocket> ss = new ArrayList<ServerSocket>(2);
-        if (DatabaseDescriptor.getEncryptionOptions().internode_encryption != EncryptionOptions.InternodeEncryption.none)
+        if (DatabaseDescriptor.getServerEncryptionOptions().internode_encryption != EncryptionOptions.InternodeEncryption.none)
         {
             try
             {
-                ss.add(SSLFactory.getServerSocket(DatabaseDescriptor.getEncryptionOptions(), localEp, DatabaseDescriptor.getSSLStoragePort()));
+                ss.add(SSLFactory.getServerSocket(DatabaseDescriptor.getServerEncryptionOptions(), localEp, DatabaseDescriptor.getSSLStoragePort()));
             }
             catch (IOException e)
             {

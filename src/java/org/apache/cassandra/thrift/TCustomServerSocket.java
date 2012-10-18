@@ -80,6 +80,15 @@ public class TCustomServerSocket extends TServerTransport
         this.recvBufferSize = recvBufferSize;
     }
 
+    public TCustomServerSocket(ServerSocket socket, boolean keepAlive, Integer sendBufferSize, Integer recvBufferSize)
+            throws TTransportException
+    {
+        this.serverSocket = socket;
+        this.keepAlive = keepAlive;
+        this.sendBufferSize = sendBufferSize;
+        this.recvBufferSize = recvBufferSize;
+    }
+
     @Override
     protected TCustomSocket acceptImpl() throws TTransportException
     {

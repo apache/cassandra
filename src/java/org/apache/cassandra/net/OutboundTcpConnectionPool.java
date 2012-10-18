@@ -117,9 +117,9 @@ public class OutboundTcpConnectionPool
         if (isEncryptedChannel())
         {
             if (Config.getOutboundBindAny())
-                return SSLFactory.getSocket(DatabaseDescriptor.getEncryptionOptions(), endPoint(), DatabaseDescriptor.getSSLStoragePort());
+                return SSLFactory.getSocket(DatabaseDescriptor.getServerEncryptionOptions(), endPoint(), DatabaseDescriptor.getSSLStoragePort());
             else
-                return SSLFactory.getSocket(DatabaseDescriptor.getEncryptionOptions(), endPoint(), DatabaseDescriptor.getSSLStoragePort(), FBUtilities.getLocalAddress(), 0);
+                return SSLFactory.getSocket(DatabaseDescriptor.getServerEncryptionOptions(), endPoint(), DatabaseDescriptor.getSSLStoragePort(), FBUtilities.getLocalAddress(), 0);
         }
         else
         {
@@ -137,7 +137,7 @@ public class OutboundTcpConnectionPool
 
     boolean isEncryptedChannel()
     {
-        switch (DatabaseDescriptor.getEncryptionOptions().internode_encryption)
+        switch (DatabaseDescriptor.getServerEncryptionOptions().internode_encryption)
         {
             case none:
                 return false; // if nothing needs to be encrypted then return immediately.

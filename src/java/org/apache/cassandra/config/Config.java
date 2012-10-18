@@ -124,7 +124,10 @@ public class Config
     public RequestSchedulerId request_scheduler_id;
     public RequestSchedulerOptions request_scheduler_options;
 
-    public EncryptionOptions encryption_options = new EncryptionOptions();
+    public EncryptionOptions server_encryption_options = new EncryptionOptions();
+    public EncryptionOptions client_encryption_options = new EncryptionOptions();
+    // this encOptions is for backward compatibility (a warning is logged by DatabaseDescriptor)
+    public EncryptionOptions encryption_options;
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 
