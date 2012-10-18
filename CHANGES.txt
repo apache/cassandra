@@ -31,6 +31,12 @@
  * Fix potential NPE during CFS reload (CASSANDRA-4786)
  * Composite indexes may miss results (CASSANDRA-4796)
  * Move consistency level to the protocol level (CASSANDRA-4734, 4824)
+Merged from 1.1:
+ * allow JdbcDate to compose null Date objects (CASSANDRA-4830)
+ * fix possible stackoverflow when compacting 1000s of sstables
+   (CASSANDRA-4765)
+ * fix wrong leveled compaction progress calculation (CASSANDRA-4807)
+ * add a close() method to CRAR to prevent leaking file descriptors (CASSANDRA-4820)
 
 
 1.2-beta1
@@ -100,13 +106,6 @@
  * (cql3) Allow defining default consistency levels (CASSANDRA-4448)
  * (cql3) Fix queries using LIMIT missing results (CASSANDRA-4579)
  * fix cross-version gossip messaging (CASSANDRA-4576)
-
-1.1.7
- * allow JdbcDate to compose null Date objects (CASSANDRA-4830)
- * fix possible stackoverflow when compacting 1000s of sstables
-   (CASSANDRA-4765)
- * fix wrong leveled compaction progress calculation (CASSANDRA-4807)
- * add a close() method to CRAR to prevent leaking file descriptors (CASSANDRA-4820)
 
 1.1.6
  * Wait for writes on synchronous read digest mismatch (CASSANDRA-4792)
