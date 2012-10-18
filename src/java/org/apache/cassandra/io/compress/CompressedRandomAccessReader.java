@@ -155,6 +155,13 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     }
 
     @Override
+    public void close() throws IOException
+    {
+        super.close();
+        source.close();
+    }
+
+    @Override
     public String toString()
     {
         return String.format("%s - chunk length %d, data length %d.", getPath(), metadata.chunkLength(), metadata.dataLength);

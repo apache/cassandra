@@ -865,6 +865,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public Set<SSTableReader> getOverlappingSSTables(Collection<SSTableReader> sstables)
     {
+        logger.debug("Checking for sstables overlapping {}", sstables);
+
         // a normal compaction won't ever have an empty sstables list, but we create a skeleton
         // compaction controller for streaming, and that passes an empty list.
         if (sstables.isEmpty())
@@ -877,7 +879,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             Set<SSTableReader> overlaps = ImmutableSet.copyOf(tree.search(Interval.<RowPosition, SSTableReader>create(sstable.first, sstable.last)));
             assert overlaps.contains(sstable);
-            results = results == null ? overlaps : Sets.union(results, overlaps);
+            results = results == null ? overlaps : Sets.union(results, overlaps).immutableCopy();
         }
         results = Sets.difference(results, ImmutableSet.copyOf(sstables));
 

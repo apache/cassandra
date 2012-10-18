@@ -913,7 +913,6 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-
             String keyspace = null;
             CFMetaData metadata = null;
 
