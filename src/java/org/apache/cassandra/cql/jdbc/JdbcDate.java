@@ -113,7 +113,9 @@ public class JdbcDate extends AbstractJdbcType<Date>
 
     public Date compose(ByteBuffer bytes)
     {
-        return new Date(ByteBufferUtil.toLong(bytes));
+        return bytes.remaining() > 0
+             ? new Date(ByteBufferUtil.toLong(bytes))
+             : null;
     }
 
     public ByteBuffer decompose(Date value)
