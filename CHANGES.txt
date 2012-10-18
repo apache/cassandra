@@ -1,4 +1,5 @@
 1.1.7
+ * allow JdbcDate to compose null Date objects (CASSANDRA-4830)
  * fix possible stackoverflow when compacting 1000s of sstables
    (CASSANDRA-4765)
  * fix wrong leveled compaction progress calculation (CASSANDRA-4807)
