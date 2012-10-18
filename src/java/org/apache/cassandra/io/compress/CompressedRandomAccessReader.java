@@ -155,10 +155,17 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     }
 
     @Override
-    public void close() throws IOException
+    public void close()
     {
         super.close();
-        source.close();
+        try
+        {
+            source.close();
+        }
+        catch (IOException e)
+        {
+            throw new FSReadError(e, getPath());
+        }
     }
 
     @Override
