@@ -1,4 +1,6 @@
 1.1.7
+ * fix possible stackoverflow when compacting 1000s of sstables
+   (CASSANDRA-4765)
  * fix wrong leveled compaction progress calculation (CASSANDRA-4807)
  * add a close() method to CRAR to prevent leaking file descriptors (CASSANDRA-4820)
 
