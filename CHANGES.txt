@@ -1,3 +1,7 @@
+1.1.7
+ * fix indexing empty column values (CASSANDRA-4832)
+
+
 1.1.6
  * Wait for writes on synchronous read digest mismatch (CASSANDRA-4792)
  * fix commitlog replay for nanotime-infected sstables (CASSANDRA-4782)
