@@ -27,6 +27,5 @@ def regular_transport_factory(host, port, env, config_file):
     * env ..........: environment variables (os.environ) - not used by this implementation.
     * config_file ..: path to cqlsh config file - not used by this implementation.
     """
-    socket = TSocket.TSocket(host, port)
-    socket.open()
-    return TTransport.TFramedTransport(socket)
+    tsocket = TSocket.TSocket(host, port)
+    return TTransport.TFramedTransport(tsocket)

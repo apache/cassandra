@@ -218,6 +218,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
          | <float>
          | <uuid>
          ;
+
 <tokenDefinition> ::= token="TOKEN" "(" <term> ( "," <term> )* ")"
                     | <stringLiteral>
                     ;
@@ -728,7 +729,6 @@ syntax_rules += r'''
                  ;
 <selectStatement> ::= "SELECT" <selectClause>
                         "FROM" cf=<columnFamilyName>
-                          ("USING" "CONSISTENCY" selcl=<consistencylevel>)?
                           ("WHERE" <whereClause>)?
                           ("ORDER" "BY" <orderByClause> ( "," <orderByClause> )* )?
                           ("LIMIT" <wholenumber>)?
@@ -752,10 +752,6 @@ syntax_rules += r'''
 <orderByClause> ::= [ordercol]=<cident> ( "ASC" | "DESC" )?
                   ;
 '''
-
-@completer_for('selectStatement', 'selcl')
-def select_statement_consistencylevel(ctxt, cass):
-    return [cl for cl in CqlRuleSet.consistency_levels if cl != 'ANY']
 
 @completer_for('orderByClause', 'ordercol')
 def select_order_column_completer(ctxt, cass):
@@ -815,8 +811,7 @@ syntax_rules += r'''
                       ( "USING" [insertopt]=<usingOption>
                                 ( "AND" [insertopt]=<usingOption> )* )?
                     ;
-<usingOption> ::= "CONSISTENCY" <consistencylevel>
-                | "TIMESTAMP" <wholenumber>
+<usingOption> ::= "TIMESTAMP" <wholenumber>
                 | "TTL" <wholenumber>
                 ;
 '''
@@ -860,7 +855,7 @@ def insert_valcomma_completer(ctxt, cass):
 
 @completer_for('insertStatement', 'insertopt')
 def insert_option_completer(ctxt, cass):
-    opts = set('CONSISTENCY TIMESTAMP TTL'.split())
+    opts = set('TIMESTAMP TTL'.split())
     for opt in ctxt.get_binding('insertopt', ()):
         opts.discard(opt.split()[0])
     return opts
@@ -882,7 +877,7 @@ syntax_rules += r'''
 
 @completer_for('updateStatement', 'updateopt')
 def insert_option_completer(ctxt, cass):
-    opts = set('CONSISTENCY TIMESTAMP TTL'.split())
+    opts = set('TIMESTAMP TTL'.split())
     for opt in ctxt.get_binding('updateopt', ()):
         opts.discard(opt.split()[0])
     return opts
@@ -953,14 +948,13 @@ syntax_rules += r'''
                     ;
 <deleteSelector> ::= delcol=<cident> ( memberbracket="[" memberselector=<term> "]" )?
                    ;
-<deleteOption> ::= "CONSISTENCY" <consistencylevel>
-                 | "TIMESTAMP" <wholenumber>
+<deleteOption> ::= "TIMESTAMP" <wholenumber>
                  ;
 '''
 
 @completer_for('deleteStatement', 'delopt')
 def delete_opt_completer(ctxt, cass):
-    opts = set('CONSISTENCY TIMESTAMP'.split())
+    opts = set('TIMESTAMP'.split())
     for opt in ctxt.get_binding('delopt', ()):
         opts.discard(opt.split()[0])
     return opts
@@ -988,7 +982,7 @@ syntax_rules += r'''
 
 @completer_for('batchStatement', 'batchopt')
 def batch_opt_completer(ctxt, cass):
-    opts = set('CONSISTENCY TIMESTAMP'.split())
+    opts = set('TIMESTAMP'.split())
     for opt in ctxt.get_binding('batchopt', ()):
         opts.discard(opt.split()[0])
     return opts
