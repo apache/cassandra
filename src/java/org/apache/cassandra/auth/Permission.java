@@ -52,6 +52,7 @@ public enum Permission
     public static final EnumSet<Permission> ALL = EnumSet.allOf(Permission.class);
     public static final EnumSet<Permission> NONE = EnumSet.noneOf(Permission.class);
     public static final EnumSet<Permission> GRANULAR_PERMISSIONS = EnumSet.range(FULL_ACCESS, SELECT);
+    public static final EnumSet<Permission> ALLOWED_SYSTEM_ACTIONS = EnumSet.of(DESCRIBE, UPDATE, DELETE, SELECT);
 
     /**
      * Maps old permissions to the new ones as we want to support old client IAuthority implementations
