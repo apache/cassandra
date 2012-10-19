@@ -462,6 +462,14 @@ truncate_rpc_timeout_in_ms: 300000
 # The default timeout for other, miscellaneous operations
 rpc_timeout_in_ms: 10000
 
+# Enable operation timeout information exchange between nodes to accurately
+# measure request timeouts, If disabled cassandra will assuming the request
+# was forwarded to the replica instantly by the coordinator
+#
+# Warning: before enabling this property make sure to ntp is installed
+# and the times are synchronized between the nodes.
+cross_node_timeout: false
+
 # Enable socket timeout for streaming operation.
 # When a timeout occurs during streaming, streaming is retried from the start
 # of the current file. This *can* involve re-streaming an important amount of

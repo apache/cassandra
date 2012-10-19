@@ -58,6 +58,8 @@ public class Config
 
     public Integer streaming_socket_timeout_in_ms = new Integer(0);
 
+    public boolean cross_node_timeout = false;
+
     public volatile Double phi_convict_threshold = 8.0;
 
     public Integer concurrent_reads = 8;

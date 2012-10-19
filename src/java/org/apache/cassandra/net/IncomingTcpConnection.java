@@ -24,6 +24,7 @@ import java.net.Socket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.streaming.IncomingStreamReader;
@@ -178,9 +179,14 @@ public class IncomingTcpConnection extends Thread
             input.readInt(); // size of entire message. in 1.0+ this is just a placeholder
 
         String id = input.readUTF();
-        long timestamp = version >= MessagingService.VERSION_12
-                       ? (System.currentTimeMillis() & 0xFFFFFFFF00000000L) | (((input.readInt() & 0xFFFFFFFFL) << 2) >> 2)
-                       : System.currentTimeMillis();
+        long timestamp = System.currentTimeMillis();;
+        if (version >= MessagingService.VERSION_12)
+        {
+            // make sure to readInt, even if cross_node_to is not enabled
+            int partial = input.readInt();
+            if (DatabaseDescriptor.hasCrossNodeTimeout())
+                timestamp = (timestamp & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
+        }
 
         MessageIn message = MessageIn.read(input, version, id);
         if (message == null)

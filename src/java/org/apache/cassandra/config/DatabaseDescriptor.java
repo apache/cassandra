@@ -786,6 +786,11 @@ public class DatabaseDescriptor
         conf.truncate_rpc_timeout_in_ms = timeOutInMillis;
     }
 
+    public static boolean hasCrossNodeTimeout()
+    {
+        return conf.cross_node_timeout;
+    }
+
     // not part of the Verb enum so we can change timeouts easily via JMX
     public static long getTimeout(MessagingService.Verb verb)
     {
