@@ -176,17 +176,15 @@ Table of Contents
                    representing the port.
     [consistency]  A consistency level specification. This is a [short]
                    representing a consistency level with the following
-                   correspondence:
-
-                   having
-                   one of the following value: "", "ANY", "ONE", "TWO", "THREE",
-                   "QUORUM", "ALL", "LOCAL_QUORUM", "EACH_QUORUM". It is
-                   possible to provide an empty string, in which case a default
-                   consistency will be used server side. Providing an empty
-                   consistency level can also be useful to save bytes for cases
-                   where a [consistency] is required by the protocol but not
-                   strictly by the operation. The server never sends an empty
-                   [consistency] however.
+                   correspondance:
+                     0x0000    ANY
+                     0x0001    ONE
+                     0x0002    TWO
+                     0x0003    THREE
+                     0x0004    QUORUM
+                     0x0005    ALL
+                     0x0006    LOCAL_QUORUM
+                     0x0007    EACH_QUORUM
 
     [string map]      A [short] n, followed by n pair <k><v> where <k> and <v>
                       are [string].
