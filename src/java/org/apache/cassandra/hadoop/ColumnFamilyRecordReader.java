@@ -145,11 +145,10 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         predicate = ConfigHelper.getInputSlicePredicate(conf);
         boolean widerows = ConfigHelper.getInputIsWide(conf);
         isEmptyPredicate = isEmptyPredicate(predicate);
-        totalRowCount = ConfigHelper.getInputSplitSize(conf);
+        totalRowCount = (int) this.split.getLength();
         batchSize = ConfigHelper.getRangeBatchSize(conf);
         cfName = ConfigHelper.getInputColumnFamily(conf);
         consistencyLevel = ConsistencyLevel.valueOf(ConfigHelper.getReadConsistencyLevel(conf));
-
 
         keyspace = ConfigHelper.getInputKeyspace(conf);
 
@@ -189,7 +188,11 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     public boolean nextKeyValue() throws IOException
     {
         if (!iter.hasNext())
+        {
+            logger.debug("Finished scanning " + iter.rowsRead() + " rows (estimate was: " + totalRowCount + ")");
             return false;
+        }
+
         currentRow = iter.next();
         return true;
     }
@@ -482,7 +485,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> next = wideColumns.next();
             lastColumn = next.right.values().iterator().next().name();
 
-            maybeCountRow(next);
+            maybeIncreaseRowCounter(next);
             return next;
         }
 
@@ -491,7 +494,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
          * Increases the row counter only if we really moved to the next row.
          * @param next just fetched row slice
          */
-        private void maybeCountRow(Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> next)
+        private void maybeIncreaseRowCounter(Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> next)
         {
             ByteBuffer currentKey = next.left;
             if (!currentKey.equals(lastCountedKey))
