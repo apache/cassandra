@@ -30,6 +30,8 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.apache.cassandra.hadoop.ColumnFamilySplit;
+import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1226,20 +1228,34 @@ public class CassandraServer implements Cassandra.Iface
         return DatabaseDescriptor.getEndpointSnitch().getClass().getName();
     }
 
+    @Deprecated
     public List<String> describe_splits(String cfName, String start_token, String end_token, int keys_per_split)
     throws TException, InvalidRequestException
+    {
+        List<CfSplit> splits = describe_splits_ex(cfName, start_token, end_token, keys_per_split);
+        List<String> result = new ArrayList<String>(splits.size() + 1);
+
+        result.add(splits.get(0).getStart_token());
+        for (CfSplit cfSplit : splits)
+            result.add(cfSplit.getEnd_token());
+
+        return result;
+    }
+
+    public List<CfSplit> describe_splits_ex(String cfName, String start_token, String end_token, int keys_per_split)
+    throws InvalidRequestException, TException
     {
         try
         {
             // TODO: add keyspace authorization call post CASSANDRA-1425
             Token.TokenFactory tf = StorageService.getPartitioner().getTokenFactory();
-            List<Token> tokens = StorageService.instance.getSplits(state().getKeyspace(), cfName, new Range<Token>(tf.fromString(start_token), tf.fromString(end_token)), keys_per_split);
-            List<String> splits = new ArrayList<String>(tokens.size());
-            for (Token token : tokens)
-            {
-                splits.add(tf.toString(token));
-            }
-            return splits;
+            Range<Token> tr = new Range<Token>(tf.fromString(start_token), tf.fromString(end_token));
+            List<Pair<Range<Token>, Long>> splits =
+                    StorageService.instance.getSplits(state().getKeyspace(), cfName, tr, keys_per_split);
+            List<CfSplit> result = new ArrayList<CfSplit>(splits.size());
+            for (Pair<Range<Token>, Long> split : splits)
+                result.add(new CfSplit(split.left.left.toString(), split.left.right.toString(), split.right));
+            return result;
         }
         catch (RequestValidationException e)
         {

@@ -31,27 +31,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.KeyRange;
-import org.apache.cassandra.thrift.TokenRange;
-import org.apache.commons.lang.StringUtils;
+import org.apache.cassandra.thrift.*;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapred.*;
-import org.apache.hadoop.mapreduce.InputFormat;
-import org.apache.hadoop.mapreduce.InputSplit;
-import org.apache.hadoop.mapreduce.JobContext;
-import org.apache.hadoop.mapreduce.RecordReader;
-import org.apache.hadoop.mapreduce.TaskAttemptContext;
-import org.apache.hadoop.mapreduce.TaskAttemptID;
+import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapreduce.*;
 import org.apache.thrift.TException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Hadoop InputFormat allowing map/reduce against Cassandra rows within one ColumnFamily.
@@ -204,7 +197,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         public List<InputSplit> call() throws Exception
         {
             ArrayList<InputSplit> splits = new ArrayList<InputSplit>();
-            List<String> tokens = getSubSplits(keyspace, cfName, range, conf);
+            List<CfSplit> subSplits = getSubSplits(keyspace, cfName, range, conf);
             assert range.rpc_endpoints.size() == range.endpoints.size() : "rpc_endpoints size must match endpoints size";
             // turn the sub-ranges into InputSplits
             String[] endpoints = range.endpoints.toArray(new String[range.endpoints.size()]);
@@ -219,15 +212,21 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
             }
 
             Token.TokenFactory factory = partitioner.getTokenFactory();
-            for (int i = 1; i < tokens.size(); i++)
+            for (CfSplit subSplit : subSplits)
             {
-                Token left = factory.fromString(tokens.get(i - 1));
-                Token right = factory.fromString(tokens.get(i));
+                Token left = factory.fromString(subSplit.getStart_token());
+                Token right = factory.fromString(subSplit.getEnd_token());
                 Range<Token> range = new Range<Token>(left, right, partitioner);
                 List<Range<Token>> ranges = range.isWrapAround() ? range.unwrap() : ImmutableList.of(range);
                 for (Range<Token> subrange : ranges)
                 {
-                    ColumnFamilySplit split = new ColumnFamilySplit(factory.toString(subrange.left), factory.toString(subrange.right), endpoints);
+                    ColumnFamilySplit split =
+                            new ColumnFamilySplit(
+                                    factory.toString(subrange.left),
+                                    factory.toString(subrange.right),
+                                    subSplit.getRow_count(),
+                                    endpoints);
+
                     logger.debug("adding " + split);
                     splits.add(split);
                 }
@@ -236,7 +235,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         }
     }
 
-    private List<String> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf) throws IOException
+    private List<CfSplit> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf) throws IOException
     {
         int splitsize = ConfigHelper.getInputSplitSize(conf);
         for (int i = 0; i < range.rpc_endpoints.size(); i++)
@@ -250,7 +249,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
             {
                 Cassandra.Client client = ConfigHelper.createConnection(conf, host, ConfigHelper.getInputRpcPort(conf));
                 client.set_keyspace(keyspace);
-                return client.describe_splits(cfName, range.start_token, range.end_token, splitsize);
+                return client.describe_splits_ex(cfName, range.start_token, range.end_token, splitsize);
             }
             catch (IOException e)
             {

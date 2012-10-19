@@ -31,9 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import static com.google.common.base.Charsets.ISO_8859_1;
 import com.google.common.collect.*;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -42,13 +40,17 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -62,9 +64,13 @@ import org.apache.cassandra.net.ResponseVerbHandler;
 import org.apache.cassandra.service.AntiEntropyService.RepairFuture;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.streaming.*;
-import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.thrift.Constants;
+import org.apache.cassandra.thrift.EndpointDetails;
+import org.apache.cassandra.thrift.TokenRange;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
+
+import static com.google.common.base.Charsets.ISO_8859_1;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -2427,28 +2433,50 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * @return list of Tokens (_not_ keys!) breaking up the data this node is responsible for into pieces of roughly keysPerSplit
+     * @return list of Token ranges (_not_ keys!) together with estimated key count,
+     *      breaking up the data this node is responsible for into pieces of roughly keysPerSplit
      */
-    public List<Token> getSplits(String table, String cfName, Range<Token> range, int keysPerSplit)
+    public List<Pair<Range<Token>, Long>> getSplits(String table, String cfName, Range<Token> range, int keysPerSplit)
     {
-        List<Token> tokens = new ArrayList<Token>();
-        // we use the actual Range token for the first and last brackets of the splits to ensure correctness
-        tokens.add(range.left);
-
         Table t = Table.open(table);
         ColumnFamilyStore cfs = t.getColumnFamilyStore(cfName);
         List<DecoratedKey> keys = keySamples(Collections.singleton(cfs), range);
-        int splits = keys.size() * DatabaseDescriptor.getIndexInterval() / keysPerSplit;
 
-        if (keys.size() >= splits)
+        final long totalRowCountEstimate = (keys.size() + 1) * DatabaseDescriptor.getIndexInterval();
+
+        // splitCount should be much smaller than number of key samples, to avoid huge sampling error
+        final int minSamplesPerSplit = 4;
+        final int maxSplitCount = keys.size() / minSamplesPerSplit + 1;
+        final int splitCount = Math.max(1, Math.min(maxSplitCount, (int)(totalRowCountEstimate / keysPerSplit)));
+
+        List<Token> tokens = keysToTokens(range, keys);
+        return getSplits(tokens, splitCount);
+    }
+
+    private List<Pair<Range<Token>, Long>> getSplits(List<Token> tokens, int splitCount)
+    {
+        final double step = (double) (tokens.size() - 1) / splitCount;
+        int prevIndex = 0;
+        Token prevToken = tokens.get(0);
+        List<Pair<Range<Token>, Long>> splits = Lists.newArrayListWithExpectedSize(splitCount);
+        for (int i = 1; i <= splitCount; i++)
         {
-            for (int i = 1; i < splits; i++)
-            {
-                int index = i * (keys.size() / splits);
-                tokens.add(keys.get(index).token);
-            }
+            int index = (int) Math.round(i * step);
+            Token token = tokens.get(index);
+            long rowCountEstimate = (index - prevIndex) * DatabaseDescriptor.getIndexInterval();
+            splits.add(Pair.create(new Range<Token>(prevToken, token), rowCountEstimate));
+            prevIndex = index;
+            prevToken = token;
         }
+        return splits;
+    }
 
+    private List<Token> keysToTokens(Range<Token> range, List<DecoratedKey> keys)
+    {
+        List<Token> tokens = Lists.newArrayListWithExpectedSize(keys.size() + 2);
+        tokens.add(range.left);
+        for (DecoratedKey key : keys)
+            tokens.add(key.token);
         tokens.add(range.right);
         return tokens;
     }
