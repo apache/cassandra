@@ -1,4 +1,5 @@
 1.2-beta2
+ * make TRACE verb droppable (CASSANDRA-4672)
  * fix BulkLoader recognition of CQL3 columnfamilies (CASSANDRA-4755)
  * Sort commitlog segments for replay by id instead of mtime (CASSANDRA-4793)
  * Make hint delivery asynchronous (CASSANDRA-4761)

@@ -269,6 +269,7 @@ public final class MessagingService implements MessagingServiceMBean
      * drop internal messages like bootstrap or repair notifications.
      */
     public static final EnumSet<Verb> DROPPABLE_VERBS = EnumSet.of(Verb.BINARY,
+                                                                   Verb._TRACE,
                                                                    Verb.MUTATION,
                                                                    Verb.READ_REPAIR,
                                                                    Verb.READ,
