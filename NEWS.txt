@@ -20,6 +20,11 @@ Upgrading
       the ability to read data files from Cassandra versions at least
       back to 0.6, so a non-rolling upgrade remains possible with just
       one step.
+    - The default partitioner for new clusters is Murmur3Partitioner,
+      which is about 10% faster for index-intensive workloads.  Partitioners
+      cannot be changed once data is in the cluster, however, so if you are
+      switching to the 1.2 cassandra.yaml, you should change this to
+      RandomPartitioner or whatever your old partitioner was.
     - If you using counters and upgrading from a version prior to
       1.1.6, you should drain existing Cassandra nodes prior to the
       upgrade to prevent overcount during commitlog replay (see

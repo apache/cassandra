@@ -62,16 +62,13 @@ authority: org.apache.cassandra.auth.AllowAllAuthority
 # The partitioner is responsible for distributing rows (by key) across
 # nodes in the cluster.  Any IPartitioner may be used, including your
 # own as long as it is on the classpath.  Out of the box, Cassandra
-# provides org.apache.cassandra.dht.RandomPartitioner
-# org.apache.cassandra.dht.ByteOrderedPartitioner,
-# org.apache.cassandra.dht.OrderPreservingPartitioner (deprecated),
-# and org.apache.cassandra.dht.CollatingOrderPreservingPartitioner
-# (deprecated).
+# provides org.apache.cassandra.dht.{Murmur3Partitioner, RandomPartitioner
+# ByteOrderedPartitioner, OrderPreservingPartitioner (deprecated)}.
 # 
 # - RandomPartitioner distributes rows across the cluster evenly by md5.
-#   When in doubt, this is the best option.
+#   This is the default prior to 1.2 and is retained for compatibility.
 # - Murmur3Partitioner is similar to RandomPartioner but uses Murmur3_128
-#   Hash Function instead of md5
+#   Hash Function instead of md5.  When in doubt, this is the best option.
 # - ByteOrderedPartitioner orders rows lexically by key bytes.  BOP allows
 #   scanning rows in key order, but the ordering can generate hot spots
 #   for sequential insertion workloads.
