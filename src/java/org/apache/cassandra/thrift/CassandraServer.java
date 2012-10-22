@@ -428,25 +428,28 @@ public class CassandraServer implements Cassandra.Iface
                                                    Integer.MAX_VALUE);
         }
 
-        int requestedCount = predicate.slice_range.count;
+        final int requestedCount = predicate.slice_range.count;
+        int remaining = requestedCount;
         int pages = 0;
         while (true)
         {
-            predicate.slice_range.count = Math.min(pageSize, requestedCount);
+            predicate.slice_range.count = Math.min(pageSize, Math.max(2, remaining)); // fetch at least two columns
             columns = get_slice(key, column_parent, predicate, consistency_level);
             if (columns.isEmpty())
                 break;
 
-            ColumnOrSuperColumn firstColumn = columns.get(columns.size() - 1);
             ByteBuffer firstName = getName(columns.get(0));
             int newColumns = pages == 0 || !firstName.equals(predicate.slice_range.start) ? columns.size() : columns.size() - 1;
             totalCount += newColumns;
-            requestedCount -= newColumns;
+            // if we over-counted, just return original limit
+            if (totalCount > requestedCount)
+                return requestedCount;
+            remaining -= newColumns;
             pages++;
             // We're done if either:
             //   - We've querying the number of columns requested by the user
             //   - The last page wasn't full
-            if (requestedCount == 0 || columns.size() < predicate.slice_range.count)
+            if (remaining == 0 || columns.size() < predicate.slice_range.count)
                 break;
             else
                 predicate.slice_range.start = getName(columns.get(columns.size() - 1));
