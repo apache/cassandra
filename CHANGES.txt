@@ -1,4 +1,5 @@
 1.2-beta2
+ * fix BulkLoader recognition of CQL3 columnfamilies (CASSANDRA-4755)
  * Sort commitlog segments for replay by id instead of mtime (CASSANDRA-4793)
  * Make hint delivery asynchronous (CASSANDRA-4761)
  * Pluggable Thrift transport factories for CLI and cqlsh (CASSANDRA-4609, 4610)

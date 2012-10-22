@@ -23,15 +23,19 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
+import org.apache.commons.cli.*;
+
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.streaming.PendingFile;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.OutputHandler;
-import org.apache.commons.cli.*;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TFramedTransport;
@@ -162,7 +166,7 @@ public class BulkLoader
 
             sb.append("[total: ").append(totalSize == 0 ? 100L : totalProgress * 100L / totalSize).append(" - ");
             sb.append(mbPerSec(deltaProgress, deltaTime)).append("MB/s");
-            sb.append(" (avg: ").append(mbPerSec(totalProgress, time - startTime)).append("MB/s)]");;
+            sb.append(" (avg: ").append(mbPerSec(totalProgress, time - startTime)).append("MB/s)]");
             System.out.print(sb.toString());
             return done;
         }
@@ -176,7 +180,7 @@ public class BulkLoader
 
     static class ExternalClient extends SSTableLoader.Client
     {
-        private final Map<String, Set<String>> knownCfs = new HashMap<String, Set<String>>();
+        private final Set<String> knownCfs = new HashSet<String>();
         private final Set<InetAddress> hosts;
         private final int rpcPort;
         private final String user;
@@ -198,17 +202,14 @@ public class BulkLoader
             {
                 try
                 {
-
                     // Query endpoint to ranges map and schemas from thrift
                     InetAddress host = hostiter.next();
                     Cassandra.Client client = createThriftClient(host.getHostAddress(), rpcPort, this.user, this.passwd);
-                    List<TokenRange> tokenRanges = client.describe_ring(keyspace);
-                    List<KsDef> ksDefs = client.describe_keyspaces();
 
                     setPartitioner(client.describe_partitioner());
                     Token.TokenFactory tkFactory = getPartitioner().getTokenFactory();
 
-                    for (TokenRange tr : tokenRanges)
+                    for (TokenRange tr : client.describe_ring(keyspace))
                     {
                         Range<Token> range = new Range<Token>(tkFactory.fromString(tr.start_token), tkFactory.fromString(tr.end_token));
                         for (String ep : tr.endpoints)
@@ -217,13 +218,13 @@ public class BulkLoader
                         }
                     }
 
-                    for (KsDef ksDef : ksDefs)
-                    {
-                        Set<String> cfs = new HashSet<String>();
-                        for (CfDef cfDef : ksDef.cf_defs)
-                            cfs.add(cfDef.name);
-                        knownCfs.put(ksDef.name, cfs);
-                    }
+                    String query = String.format("SELECT columnfamily_name FROM %s.%s WHERE keyspace_name = '%s'",
+                                                 Table.SYSTEM_KS,
+                                                 SystemTable.SCHEMA_COLUMNFAMILIES_CF,
+                                                 keyspace);
+                    CqlResult result = client.execute_cql3_query(ByteBufferUtil.bytes(query), Compression.NONE, ConsistencyLevel.ONE);
+                    for (CqlRow row : result.rows)
+                        knownCfs.add(new String(row.getColumns().get(0).getValue(), "UTF8"));
                     break;
                 }
                 catch (Exception e)
@@ -236,8 +237,7 @@ public class BulkLoader
 
         public boolean validateColumnFamily(String keyspace, String cfName)
         {
-            Set<String> cfs = knownCfs.get(keyspace);
-            return cfs != null && cfs.contains(cfName);
+            return knownCfs.contains(cfName);
         }
 
         private static Cassandra.Client createThriftClient(String host, int port, String user, String passwd) throws Exception
