@@ -25,6 +25,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
+import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -104,7 +105,7 @@ public class SliceQueryFilter implements IFilter
         // we clone shallow, then add, under the theory that generally we're interested in a relatively small number of subcolumns.
         // this may be a poor assumption.
         SuperColumn scFiltered = superColumn.cloneMeShallow();
-        Iterator<IColumn> subcolumns;
+        final Iterator<IColumn> subcolumns;
         if (reversed)
         {
             List<IColumn> columnsAsList = new ArrayList<IColumn>(superColumn.getSubColumns());
@@ -114,20 +115,27 @@ public class SliceQueryFilter implements IFilter
         {
             subcolumns = superColumn.getSubColumns().iterator();
         }
-
-        // iterate until we get to the "real" start column
-        Comparator<ByteBuffer> comparator = reversed ? superColumn.getComparator().reverseComparator : superColumn.getComparator();
-        while (subcolumns.hasNext())
+        final Comparator<ByteBuffer> comparator = reversed ? superColumn.getComparator().reverseComparator : superColumn.getComparator();
+        Iterator<IColumn> results = new AbstractIterator<IColumn>()
         {
-            IColumn column = subcolumns.next();
-            if (comparator.compare(column.name(), start()) >= 0)
+            protected IColumn computeNext()
             {
-                subcolumns = Iterators.concat(Iterators.singletonIterator(column), subcolumns);
-                break;
+                while (subcolumns.hasNext())
+                {
+                    IColumn subcolumn = subcolumns.next();
+                    // iterate until we get to the "real" start column
+                    if (comparator.compare(subcolumn.name(), start()) < 0)
+                        continue;
+                    // exit loop when columns are out of the range.
+                    if (finish().remaining() > 0 && comparator.compare(subcolumn.name(), finish()) > 0)
+                        break;
+                    return subcolumn;
+                }
+                return endOfData();
             }
-        }
+        };
         // subcolumns is either empty now, or has been redefined in the loop above. either is ok.
-        collectReducedColumns(scFiltered, subcolumns, gcBefore);
+        collectReducedColumns(scFiltered, results, gcBefore);
         return scFiltered;
     }
 

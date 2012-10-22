@@ -31,6 +31,7 @@
  * Fix potential NPE during CFS reload (CASSANDRA-4786)
  * Composite indexes may miss results (CASSANDRA-4796)
  * Move consistency level to the protocol level (CASSANDRA-4734, 4824)
+ * Fix Subcolumn slice ends not respected (CASSANDRA-4826)
 Merged from 1.1:
  * fix indexing empty column values (CASSANDRA-4832)
  * allow JdbcDate to compose null Date objects (CASSANDRA-4830)
