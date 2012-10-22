@@ -83,7 +83,7 @@ public class StreamIn
         Directories.DataDirectory localDir = Directories.getLocationCapableOfSize(remote.size);
         if (localDir == null)
             throw new RuntimeException("Insufficient disk space to store " + remote.size + " bytes");
-        Descriptor localdesc = Descriptor.fromFilename(cfStore.getTempSSTablePath(localDir.location));
+        Descriptor localdesc = Descriptor.fromFilename(cfStore.getTempSSTablePath(cfStore.directories.getLocationForDisk(localDir.location)));
 
         return new PendingFile(localdesc, remote);
     }
