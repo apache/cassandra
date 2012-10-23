@@ -132,8 +132,8 @@ public class StorageProxy implements StorageProxyMBean
                               ConsistencyLevel consistency_level)
             throws IOException
             {
-                if (logger.isDebugEnabled())
-                    logger.debug("insert writing local & replicate " + mutation.toString(true));
+                if (logger.isTraceEnabled())
+                    logger.trace("insert writing local & replicate " + mutation.toString(true));
 
                 Runnable runnable = counterWriteTask(mutation, targets, responseHandler, localDataCenter, consistency_level);
                 runnable.run();
@@ -149,8 +149,8 @@ public class StorageProxy implements StorageProxyMBean
                               ConsistencyLevel consistency_level)
             throws IOException
             {
-                if (logger.isDebugEnabled())
-                    logger.debug("insert writing local & replicate " + mutation.toString(true));
+                if (logger.isTraceEnabled())
+                    logger.trace("insert writing local & replicate " + mutation.toString(true));
 
                 Runnable runnable = counterWriteTask(mutation, targets, responseHandler, localDataCenter, consistency_level);
                 StageManager.getStage(Stage.MUTATION).execute(runnable);
@@ -170,7 +170,7 @@ public class StorageProxy implements StorageProxyMBean
     public static void mutate(Collection<? extends IMutation> mutations, ConsistencyLevel consistency_level)
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
-        logger.debug("Mutations/ConsistencyLevel are {}/{}", mutations, consistency_level);
+        logger.trace("Mutations/ConsistencyLevel are {}/{}", mutations, consistency_level);
         final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
 
         long startTime = System.nanoTime();
@@ -248,9 +248,7 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
         long startTime = System.nanoTime();
-
-        if (logger.isDebugEnabled())
-            logger.debug("Mutations/ConsistencyLevel are {}/{}", mutations, consistency_level);
+        logger.trace("Mutations/ConsistencyLevel are {}/{}", mutations, consistency_level);
 
         List<WriteResponseHandlerWrapper> wrappers = new ArrayList<WriteResponseHandlerWrapper>(mutations.size());
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
@@ -508,8 +506,8 @@ public class StorageProxy implements StorageProxyMBean
                 else
                 {
                     // belongs on a different server
-                    if (logger.isDebugEnabled())
-                        logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + destination);
+                    if (logger.isTraceEnabled())
+                        logger.trace("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + destination);
 
                     String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
                     Multimap<MessageOut, InetAddress> messages = dcMessages.get(dc);
@@ -550,8 +548,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             public void runMayThrow() throws IOException
             {
-                if (logger.isDebugEnabled())
-                    logger.debug("Adding hint for " + target);
+                logger.debug("Adding hint for {}", target);
 
                 try
                 {
@@ -636,20 +633,19 @@ public class StorageProxy implements StorageProxyMBean
             CompactEndpointSerializationHelper.serialize(destination, dos);
             String id = MessagingService.instance().addCallback(handler, message, destination, message.getTimeout());
             dos.writeUTF(id);
-            if (logger.isDebugEnabled())
-                logger.debug("Adding FWD message to: " + destination + " with ID " + id);
+            logger.trace("Adding FWD message to {}@{}", id, destination);
         }
         message = message.withParameter(RowMutation.FORWARD_TO, bos.toByteArray());
         // send the combined message + forward headers
         String id = MessagingService.instance().sendRR(message, target, handler);
-        if (logger.isDebugEnabled())
-            logger.debug("Sending message to: " + target + " with ID " + id);
+        logger.trace("Sending message to {}@{}", id, target);
     }
 
     private static void insertLocal(final RowMutation rm, final AbstractWriteResponseHandler responseHandler)
     {
-        if (logger.isDebugEnabled())
-            logger.debug("insert writing local " + rm.toString(true));
+        if (logger.isTraceEnabled())
+            logger.trace("insert writing local " + rm.toString(true));
+
         Runnable runnable = new DroppableRunnable(MessagingService.Verb.MUTATION)
         {
             public void runMayThrow() throws IOException
@@ -697,8 +693,8 @@ public class StorageProxy implements StorageProxyMBean
             // Forward the actual update to the chosen leader replica
             AbstractWriteResponseHandler responseHandler = new WriteResponseHandler(endpoint, WriteType.COUNTER);
 
-            if (logger.isDebugEnabled())
-                logger.debug("forwarding counter update of key " + ByteBufferUtil.bytesToHex(cm.key()) + " to " + endpoint);
+            if (logger.isTraceEnabled())
+                logger.trace("forwarding counter update of key " + ByteBufferUtil.bytesToHex(cm.key()) + " to " + endpoint);
             MessagingService.instance().sendRR(cm.makeMutationMessage(), endpoint, responseHandler);
             return responseHandler;
         }
@@ -868,7 +864,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 ReadCommand command = commands.get(i);
                 assert !command.isDigestQuery();
-                logger.debug("Command/ConsistencyLevel is {}/{}", command, consistency_level);
+                logger.trace("Command/ConsistencyLevel is {}/{}", command, consistency_level);
 
                 List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table,
                                                                                               command.key);
@@ -884,12 +880,12 @@ public class StorageProxy implements StorageProxyMBean
                 InetAddress dataPoint = handler.endpoints.get(0);
                 if (dataPoint.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
                 {
-                    logger.debug("reading data locally");
+                    logger.trace("reading data locally");
                     StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(command, handler));
                 }
                 else
                 {
-                    logger.debug("reading data from {}", dataPoint);
+                    logger.trace("reading data from {}", dataPoint);
                     MessagingService.instance().sendRR(command.createMessage(), dataPoint, handler);
                 }
 
@@ -902,14 +898,14 @@ public class StorageProxy implements StorageProxyMBean
                 MessageOut message = null;
                 for (InetAddress digestPoint : handler.endpoints.subList(1, handler.endpoints.size()))
                 {
-                    if (digestPoint.equals(FBUtilities.getBroadcastAddress()))
+                    if (digestPoint.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
                     {
-                        logger.debug("reading digest locally");
+                        logger.trace("reading digest locally");
                         StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(digestCommand, handler));
                     }
                     else
                     {
-                        logger.debug("reading digest from {}", digestPoint);
+                        logger.trace("reading digest from {}", digestPoint);
                         // (We lazy-construct the digest Message object since it may not be necessary if we
                         // are doing a local digest read, or no digest reads at all.)
                         if (message == null)
@@ -935,9 +931,6 @@ public class StorageProxy implements StorageProxyMBean
                         command.maybeTrim(row);
                         rows.add(row);
                     }
-
-                    if (logger.isDebugEnabled())
-                        logger.debug("Read: " + (System.currentTimeMillis() - startTime2) + " ms.");
                 }
                 catch (ReadTimeoutException ex)
                 {
@@ -947,8 +940,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 catch (DigestMismatchException ex)
                 {
-                    if (logger.isDebugEnabled())
-                        logger.debug("Digest mismatch: {}", ex.toString());
+                    logger.debug("Digest mismatch: {}", ex.toString());
                     RowRepairResolver resolver = new RowRepairResolver(command.table, command.key);
                     RepairCallback repairHandler = new RepairCallback(resolver, handler.endpoints);
 
@@ -1005,7 +997,7 @@ public class StorageProxy implements StorageProxyMBean
                     ReadCommand retryCommand = command.maybeGenerateRetryCommand(handler, row);
                     if (retryCommand != null)
                     {
-                        logger.debug("issuing retry for read command");
+                        logger.debug("Issuing retry for read command");
                         if (commandsToRetry == Collections.EMPTY_LIST)
                             commandsToRetry = new ArrayList<ReadCommand>();
                         commandsToRetry.add(retryCommand);
@@ -1039,8 +1031,7 @@ public class StorageProxy implements StorageProxyMBean
 
         protected void runMayThrow() throws IOException
         {
-            if (logger.isDebugEnabled())
-                logger.debug("LocalReadRunnable reading " + command);
+            logger.trace("LocalReadRunnable reading {}", command);
 
             Table table = Table.open(command.table);
             Row r = command.getRow(table);
@@ -1065,8 +1056,7 @@ public class StorageProxy implements StorageProxyMBean
 
         protected void runMayThrow() throws ExecutionException, InterruptedException
         {
-            if (logger.isDebugEnabled())
-                logger.debug("LocalReadRunnable reading " + command);
+            logger.trace("LocalReadRunnable reading {}", command);
 
             RangeSliceReply result = new RangeSliceReply(RangeSliceVerbHandler.executeLocally(command));
             MessagingService.instance().addLatency(FBUtilities.getBroadcastAddress(), System.currentTimeMillis() - start);
@@ -1086,8 +1076,8 @@ public class StorageProxy implements StorageProxyMBean
     public static List<Row> getRangeSlice(RangeSliceCommand command, ConsistencyLevel consistency_level)
     throws IOException, UnavailableException, ReadTimeoutException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("Command/ConsistencyLevel is {}/{}", command.toString(), consistency_level);
+        logger.debug("Determining replicas to query");
+        logger.trace("Command/ConsistencyLevel is {}/{}", command.toString(), consistency_level);
         long startTime = System.nanoTime();
         List<Row> rows;
         // now scan until we have enough results
@@ -1116,9 +1106,11 @@ public class StorageProxy implements StorageProxyMBean
                 ReadCallback<RangeSliceReply, Iterable<Row>> handler = getReadCallback(resolver, nodeCmd, consistency_level, liveEndpoints);
                 handler.assureSufficientLiveNodes();
                 resolver.setSources(handler.endpoints);
-                if (handler.endpoints.size() == 1 && handler.endpoints.get(0).equals(FBUtilities.getBroadcastAddress()))
+                if (handler.endpoints.size() == 1
+                    && handler.endpoints.get(0).equals(FBUtilities.getBroadcastAddress())
+                    && OPTIMIZE_LOCAL_REQUESTS)
                 {
-                    logger.debug("reading data locally");
+                    logger.trace("reading data locally");
                     StageManager.getStage(Stage.READ).execute(new LocalRangeSliceRunnable(nodeCmd, handler));
                 }
                 else
@@ -1127,8 +1119,7 @@ public class StorageProxy implements StorageProxyMBean
                     for (InetAddress endpoint : handler.endpoints)
                     {
                         MessagingService.instance().sendRR(message, endpoint, handler);
-                        if (logger.isDebugEnabled())
-                            logger.debug("reading " + nodeCmd + " from " + endpoint);
+                        logger.trace("reading {} from {}", nodeCmd, endpoint);
                     }
                 }
 
@@ -1138,14 +1129,13 @@ public class StorageProxy implements StorageProxyMBean
                     {
                         rows.add(row);
                         columnsCount += row.getLiveColumnCount();
-                        logger.debug("range slices read {}", row.key);
+                        logger.trace("range slices read {}", row.key);
                     }
                     FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getWriteRpcTimeout());
                 }
                 catch (TimeoutException ex)
                 {
-                    if (logger.isDebugEnabled())
-                        logger.debug("Range slice timeout: {}", ex.toString());
+                    logger.debug("Range slice timeout: {}", ex.toString());
                     // We actually got all response at that point
                     int blockFor = consistency_level.blockFor(command.keyspace);
                     throw new ReadTimeoutException(consistency_level, blockFor, blockFor, true);
@@ -1194,7 +1184,7 @@ public class StorageProxy implements StorageProxyMBean
             public void response(MessageIn<UUID> message)
             {
                 // record the response from the remote node.
-                logger.debug("Received schema check response from {}", message.from.getHostAddress());
+                logger.trace("Received schema check response from {}", message.from.getHostAddress());
                 versions.put(message.from, message.payload);
                 latch.countDown();
             }
@@ -1219,7 +1209,7 @@ public class StorageProxy implements StorageProxyMBean
             throw new AssertionError("This latch shouldn't have been interrupted.");
         }
 
-        logger.debug("My version is {}", myVersion);
+        logger.trace("My version is {}", myVersion);
 
         // maps versions to hosts that are on that version.
         Map<String, List<String>> results = new HashMap<String, List<String>>();
@@ -1263,8 +1253,7 @@ public class StorageProxy implements StorageProxyMBean
         // special case for bounds containing exactly 1 (non-minimum) token
         if (queryRange instanceof Bounds && queryRange.left.equals(queryRange.right) && !queryRange.left.isMinimum(StorageService.getPartitioner()))
         {
-            if (logger.isDebugEnabled())
-                logger.debug("restricted single token match for query {}", queryRange);
+            logger.trace("restricted single token match for query {}", queryRange);
             return Collections.singletonList(queryRange);
         }
 
@@ -1300,7 +1289,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         ranges.add(remainder);
         if (logger.isDebugEnabled())
-            logger.debug("restricted ranges for query {} are {}", queryRange, ranges);
+            logger.trace("restricted ranges for query {} are {}", queryRange, ranges);
 
         return ranges;
     }
@@ -1407,7 +1396,7 @@ public class StorageProxy implements StorageProxyMBean
 
         boolean hintWindowExpired = Gossiper.instance.getEndpointDowntime(ep) > DatabaseDescriptor.getMaxHintWindow();
         if (hintWindowExpired)
-            logger.debug("not hinting {} which has been down {}ms", ep, Gossiper.instance.getEndpointDowntime(ep));
+            logger.trace("not hinting {} which has been down {}ms", ep, Gossiper.instance.getEndpointDowntime(ep));
         return !hintWindowExpired;
     }
 
@@ -1438,16 +1427,15 @@ public class StorageProxy implements StorageProxyMBean
         final TruncateResponseHandler responseHandler = new TruncateResponseHandler(blockFor);
 
         // Send out the truncate calls and track the responses with the callbacks.
-        logger.debug("Starting to send truncate messages to hosts {}", allEndpoints);
+        logger.trace("Starting to send truncate messages to hosts {}", allEndpoints);
         final Truncation truncation = new Truncation(keyspace, cfname);
         MessageOut<Truncation> message = truncation.createMessage();
         for (InetAddress endpoint : allEndpoints)
             MessagingService.instance().sendRR(message, endpoint, responseHandler);
 
         // Wait for all
-        logger.debug("Sent all truncate messages, now waiting for {} responses", blockFor);
+        logger.trace("Sent all truncate messages, now waiting for {} responses", blockFor);
         responseHandler.get();
-        logger.debug("truncate done");
     }
 
     /**

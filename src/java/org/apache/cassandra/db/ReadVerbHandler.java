@@ -49,9 +49,7 @@ public class ReadVerbHandler implements IVerbHandler<ReadCommand>
             MessageOut<ReadResponse> reply = new MessageOut<ReadResponse>(MessagingService.Verb.REQUEST_RESPONSE,
                                                                           getResponse(command, row),
                                                                           ReadResponse.serializer);
-            if (logger.isDebugEnabled())
-                logger.debug(String.format("Read key %s; sending response to %s@%s",
-                                            ByteBufferUtil.bytesToHex(command.key), id, message.from));
+            logger.debug("Sending response to {}", message.from);
             MessagingService.instance().sendReply(reply, id, message.from);
         }
         catch (IOException ex)
@@ -64,8 +62,8 @@ public class ReadVerbHandler implements IVerbHandler<ReadCommand>
     {
         if (command.isDigestQuery())
         {
-            if (logger.isDebugEnabled())
-                logger.debug("digest is " + ByteBufferUtil.bytesToHex(ColumnFamily.digest(row.cf)));
+            if (logger.isTraceEnabled())
+                logger.trace("digest is " + ByteBufferUtil.bytesToHex(ColumnFamily.digest(row.cf)));
             return new ReadResponse(ColumnFamily.digest(row.cf));
         }
         else

@@ -1185,6 +1185,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore)
     {
         assert columnFamily.equals(filter.getColumnFamilyName()) : filter.getColumnFamilyName();
+        logger.debug("Executing single-partition query");
 
         ColumnFamily result = null;
 
@@ -1210,14 +1211,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 UUID cfId = Schema.instance.getId(table.name, columnFamily);
                 if (cfId == null)
                 {
-                    logger.debug("no id found for {}.{}", table.name, columnFamily);
+                    logger.trace("no id found for {}.{}", table.name, columnFamily);
                     return null;
                 }
 
                 ColumnFamily cached = getThroughCache(cfId, filter);
                 if (cached == null)
                 {
-                    logger.debug("cached row is empty");
+                    logger.trace("cached row is empty");
                     return null;
                 }
 
@@ -1229,7 +1230,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             metric.readLatency.addNano(System.nanoTime() - start);
         }
 
-        logger.debug("Read {} columns", result == null ? 0 : result.getColumnCount());
+        logger.debug("Read {} cells", result == null ? 0 : result.getColumnCount());
         return result;
     }
 
@@ -1406,8 +1407,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     if (!range.contains(key))
                         return computeNext();
 
-                    if (logger.isDebugEnabled())
-                        logger.debug("scanned " + key);
+                    logger.trace("scanned {}", key);
 
                     // TODO this is necessary because when we collate supercolumns together, we don't check
                     // their subcolumns for relevance, so we need to do a second prune post facto here.
@@ -1438,6 +1438,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, int maxResults, IFilter columnFilter, List<IndexExpression> rowFilter, boolean maxIsColumns, boolean isPaging)
     {
+        logger.debug("Executing seq scan");
         return filter(getSequentialIterator(superColumn, range, columnFilter), ExtendedFilter.create(this, columnFilter, rowFilter, maxResults, maxIsColumns, isPaging));
     }
 
@@ -1448,13 +1449,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IFilter dataFilter, boolean maxIsColumns)
     {
+        logger.debug("Executing indexed scan");
         return indexManager.search(clause, range, maxResults, dataFilter, maxIsColumns);
     }
 
     public List<Row> filter(AbstractScanIterator rowIterator, ExtendedFilter filter)
     {
-        if (logger.isDebugEnabled())
-            logger.debug("Filtering {} for rows matching {}", rowIterator, filter);
+        logger.trace("Filtering {} for rows matching {}", rowIterator, filter);
         List<Row> rows = new ArrayList<Row>();
         int columnsCount = 0;
         try
@@ -1480,7 +1481,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     if (!filter.isSatisfiedBy(data, null))
                         continue;
 
-                    logger.debug("{} satisfies all filter expressions", data);
+                    logger.trace("{} satisfies all filter expressions", data);
                     // cut the resultset back to what was requested, if necessary
                     data = filter.prune(data);
                 }

@@ -36,8 +36,7 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
         try
         {
             RowMutation rm = message.payload;
-            if (logger.isDebugEnabled())
-              logger.debug("Applying " + rm);
+            logger.debug("Applying mutation");
 
             // Check if there were any forwarding headers in this message
             InetAddress replyTo = message.from;
@@ -55,8 +54,7 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
 
             rm.apply();
             WriteResponse response = new WriteResponse();
-            if (logger.isDebugEnabled())
-              logger.debug(rm + " applied.  Sending response to " + id + "@" + replyTo);
+            logger.debug("Sending response to {}", replyTo);
             MessagingService.instance().sendReply(response.createMessage(), id, replyTo);
         }
         catch (IOException e)
@@ -81,8 +79,7 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
             // Send a message to each of the addresses on our Forward List
             InetAddress address = CompactEndpointSerializationHelper.deserialize(dis);
             String id = dis.readUTF();
-            if (logger.isDebugEnabled())
-                logger.debug("Forwarding message to " + address + " with= ID: " + id);
+            logger.debug("Forwarding message to {}@{}", id, address);
             // Let the response go back to the coordinator
             MessagingService.instance().sendOneWay(message, id, address);
         }

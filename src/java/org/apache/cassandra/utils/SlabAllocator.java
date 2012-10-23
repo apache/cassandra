@@ -95,7 +95,7 @@ public class SlabAllocator extends Allocator
                 // we won race - now we need to actually do the expensive allocation step
                 region.init();
                 regionCount++;
-                logger.debug("{} regions now allocated in {}", regionCount, this);
+                logger.trace("{} regions now allocated in {}", regionCount, this);
                 return region;
             }
             // someone else won race - that's fine, we'll try to grab theirs

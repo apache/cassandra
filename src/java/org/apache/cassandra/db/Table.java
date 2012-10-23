@@ -358,14 +358,17 @@ public class Table
     public void apply(RowMutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
         if (!mutation.getTable().equals(Tracing.TRACE_KS))
-            logger.debug("applying mutation");
+            logger.debug("Acquiring switchLock");
 
         // write the mutation to the commitlog and memtables
         switchLock.readLock().lock();
         try
         {
             if (writeCommitLog)
+            {
+                logger.debug("Appending to commitlog");
                 CommitLog.instance.add(mutation);
+            }
 
             DecoratedKey key = StorageService.getPartitioner().decorateKey(mutation.key());
             for (ColumnFamily cf : mutation.getColumnFamilies())
@@ -377,6 +380,7 @@ public class Table
                     continue;
                 }
 
+                logger.debug("Adding to memtable");
                 cfs.apply(key, cf, updateIndexes ? cfs.indexManager.updaterFor(key, true) : SecondaryIndexManager.nullUpdater);
             }
         }

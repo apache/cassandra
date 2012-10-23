@@ -79,8 +79,8 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         this.consistencyLevel = consistencyLevel;
         sortForConsistencyLevel(endpoints);
         this.endpoints = resolver instanceof RowRepairResolver ? endpoints : filterEndpoints(endpoints);
-        if (logger.isDebugEnabled())
-            logger.debug(String.format("Blockfor is %s; setting up requests to %s", blockfor, StringUtils.join(this.endpoints, ",")));
+        if (logger.isTraceEnabled())
+            logger.trace(String.format("Blockfor is %s; setting up requests to %s", blockfor, StringUtils.join(this.endpoints, ",")));
     }
 
     /**

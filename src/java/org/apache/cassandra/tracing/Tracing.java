@@ -250,5 +250,4 @@ public class Tracing
         checkState(sessionBytes.length == 16);
         state.set(new TraceState(message.from, UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes))));
     }
-
 }

@@ -590,7 +590,7 @@ public final class MessagingService implements MessagingServiceMBean
             logger.trace(FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to);
 
         if (to.equals(FBUtilities.getBroadcastAddress()))
-            logger.debug("Message-to-self {} going over MessagingService", message);
+            logger.trace("Message-to-self {} going over MessagingService", message);
 
         // message sinks are a testing hook
         MessageOut processedMessage = SinkManager.processOutboundMessage(message, id, to);
@@ -692,9 +692,7 @@ public final class MessagingService implements MessagingServiceMBean
     public void receive(MessageIn message, String id, long timestamp)
     {
         Tracing.instance().initializeFromMessage(message);
-
-        if (logger.isTraceEnabled())
-            logger.trace(FBUtilities.getBroadcastAddress() + " received " + message.verb + " from " + id + "@" + message.from);
+        logger.debug("Request received from {}", message.from);
 
         message = SinkManager.processInboundMessage(message, id);
         if (message == null)
