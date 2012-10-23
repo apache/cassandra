@@ -1021,7 +1021,9 @@ class Shell(cmd.Cmd):
         return True
 
     def print_trace(self, session_id):
-        self.perform_statement_untraced("SELECT * FROM system_traces.events WHERE session_id = '%s'" % session_id)
+        out = self.query_out
+        out.write('\nTracing session: %s\n\n' % session_id)
+        self.perform_statement_untraced("SELECT activity, happened_at, source, source_elapsed FROM system_traces.events WHERE session_id = '%s'" % session_id)
 
     # these next two functions are not guaranteed perfect; just checks if the
     # statement parses fully according to cqlsh's own understanding of the
