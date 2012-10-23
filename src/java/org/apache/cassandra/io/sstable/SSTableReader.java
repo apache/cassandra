@@ -84,7 +84,7 @@ public class SSTableReader extends SSTable
     private IndexSummary indexSummary;
     private Filter bf;
 
-    private final InstrumentingCache<KeyCacheKey, RowIndexEntry> keyCache = CacheService.instance.keyCache;
+    private InstrumentingCache<KeyCacheKey, RowIndexEntry> keyCache;
 
     private final BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
 
@@ -312,6 +312,10 @@ public class SSTableReader extends SSTable
     public void setTrackedBy(DataTracker tracker)
     {
         deletingTask.setTracker(tracker);
+        // under normal operation we can do this at any time, but SSTR is also used outside C* proper,
+        // e.g. by BulkLoader, which does not initialize the cache.  As a kludge, we set up the cache
+        // here when we know we're being wired into the rest of the server infrastructure.
+        keyCache = CacheService.instance.keyCache;
     }
 
     void loadBloomFilter() throws IOException
@@ -680,6 +684,7 @@ public class SSTableReader extends SSTable
 
         if (caching == CFMetaData.Caching.NONE
             || caching == CFMetaData.Caching.ROWS_ONLY
+            || keyCache == null
             || keyCache.getCapacity() == 0)
         {
             return;
@@ -697,7 +702,7 @@ public class SSTableReader extends SSTable
 
     private RowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
     {
-        if (keyCache.getCapacity() > 0)
+        if (keyCache != null && keyCache.getCapacity() > 0)
             return updateStats ? keyCache.get(unifiedKey) : keyCache.getInternal(unifiedKey);
         return null;
     }
