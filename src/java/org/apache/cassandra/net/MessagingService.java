@@ -132,8 +132,8 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.TRUNCATE, Stage.MUTATION);
         put(Verb.READ, Stage.READ);
         put(Verb.REQUEST_RESPONSE, Stage.REQUEST_RESPONSE);
-        put(Verb.STREAM_REPLY, Stage.MISC); // TODO does this really belong on misc? I've just copied old behavior here
-        put(Verb.STREAM_REQUEST, Stage.STREAM);
+        put(Verb.STREAM_REPLY, Stage.MISC); // actually handled by FileStreamTask and streamExecutors
+        put(Verb.STREAM_REQUEST, Stage.MISC);
         put(Verb.RANGE_SLICE, Stage.READ);
         put(Verb.BOOTSTRAP_TOKEN, Stage.MISC);
         put(Verb.TREE_REQUEST, Stage.ANTI_ENTROPY);
