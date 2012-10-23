@@ -17,20 +17,24 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
+import java.nio.charset.Charset;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArraySet;
 
+import com.google.common.base.Predicates;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
-
-import org.apache.cassandra.db.DecoratedKey;
+import com.google.common.io.Files;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -103,7 +107,7 @@ public abstract class SSTable
             assert component.type != Component.Type.COMPACTED_MARKER;
 
         this.compression = dataComponents.contains(Component.COMPRESSION_INFO);
-        this.components = Collections.unmodifiableSet(dataComponents);
+        this.components = new CopyOnWriteArraySet<Component>(dataComponents);
         this.metadata = metadata;
         this.partitioner = partitioner;
     }
@@ -183,21 +187,11 @@ public abstract class SSTable
     }
 
     /**
-     * @return A Descriptor,Component pair, or null if not a valid sstable component.
+     * @return A Descriptor,Component pair. If component is of unknown type, returns CUSTOM component.
      */
     public static Pair<Descriptor,Component> tryComponentFromFilename(File dir, String name)
     {
-        try
-        {
-            return Component.fromFilename(dir, name);
-        }
-        catch (Exception e)
-        {
-            if (!"snapshots".equals(name) && !"backups".equals(name)
-                    && !name.contains(".json"))
-                logger.warn("Invalid file '{}' in data directory {}.", name, dir);
-            return null;
-        }
+        return Component.fromFilename(dir, name);
     }
 
     /**
@@ -205,14 +199,37 @@ public abstract class SSTable
      */
     static Set<Component> componentsFor(final Descriptor desc)
     {
-        Set<Component> components = Sets.newHashSetWithExpectedSize(Component.TYPES.size());
-        for (Component.Type componentType : Component.TYPES)
+        try
+        {
+            try
+            {
+                return readTOC(desc);
+            }
+            catch (FileNotFoundException e)
+            {
+                Set<Component> components = discoverComponentsFor(desc);
+                if (!components.contains(Component.TOC))
+                    components.add(Component.TOC);
+                appendTOC(desc, components);
+                return components;
+            }
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+    }
+
+    private static Set<Component> discoverComponentsFor(Descriptor desc)
+    {
+        Set<Component.Type> knownTypes = Sets.difference(Component.TYPES, Collections.singleton(Component.Type.CUSTOM));
+        Set<Component> components = Sets.newHashSetWithExpectedSize(knownTypes.size());
+        for (Component.Type componentType : knownTypes)
         {
             Component component = new Component(componentType);
             if (new File(desc.filenameFor(component)).exists())
                 components.add(component);
         }
-
         return components;
     }
 
@@ -260,5 +277,61 @@ public abstract class SSTable
         return getClass().getSimpleName() + "(" +
                "path='" + getFilename() + '\'' +
                ')';
+    }
+
+    /**
+     * Reads the list of components from the TOC component.
+     * @return set of components found in the TOC
+     */
+    protected static Set<Component> readTOC(Descriptor descriptor) throws IOException
+    {
+        File tocFile = new File(descriptor.filenameFor(Component.TOC));
+        List<String> componentNames = Files.readLines(tocFile, Charset.defaultCharset());
+        Set<Component> components = Sets.newHashSetWithExpectedSize(componentNames.size());
+        for (String componentName : componentNames)
+        {
+            Component component = new Component(Component.Type.fromRepresentation(componentName), componentName);
+            if (!new File(descriptor.filenameFor(component)).exists())
+                logger.error("Missing component: " + descriptor.filenameFor(component));
+            else
+                components.add(component);
+        }
+        return components;
+    }
+
+    /**
+     * Appends new component names to the TOC component.
+     */
+    protected static void appendTOC(Descriptor descriptor, Collection<Component> components)
+    {
+        File tocFile = new File(descriptor.filenameFor(Component.TOC));
+        PrintWriter w = null;
+        try
+        {
+            w = new PrintWriter(new FileWriter(tocFile, true));
+            for (Component component : components)
+                w.println(component.name);
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, tocFile);
+        }
+        finally
+        {
+            FileUtils.closeQuietly(w);
+        }
+    }
+
+    /**
+     * Registers new custom components. Used by custom compaction strategies.
+     * Adding a component for the second time is a no-op.
+     * Don't remove this - this method is a part of the public API, intended for use by custom compaction strategies.
+     * @param newComponents collection of components to be added
+     */
+    public synchronized void addComponents(Collection<Component> newComponents)
+    {
+        Collection<Component> componentsToAdd = Collections2.filter(newComponents, Predicates.not(Predicates.in(components)));
+        appendTOC(descriptor, componentsToAdd);
+        components.addAll(componentsToAdd);
     }
 }

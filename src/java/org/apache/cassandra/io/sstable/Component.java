@@ -34,7 +34,7 @@ public class Component
     public static final char separator = '-';
 
     final static EnumSet<Type> TYPES = EnumSet.allOf(Type.class);
-    enum Type
+    public enum Type
     {
         // the base data for an sstable: the remaining components can be regenerated
         // based on the data component
@@ -54,7 +54,11 @@ public class Component
         // holds sha1 sum of the data file (to be checked by sha1sum)
         DIGEST("Digest.sha1"),
         // holds SSTable Index Summary and Boundaries
-        SUMMARY("Summary.db");
+        SUMMARY("Summary.db"),
+        // table of contents, stores the list of all components for the sstable
+        TOC("TOC.txt"),
+        // custom component, used by e.g. custom compaction strategy
+        CUSTOM(null);
 
         final String repr;
         Type(String repr)
@@ -67,34 +71,37 @@ public class Component
             for (Type type : TYPES)
                 if (repr.equals(type.repr))
                     return type;
-            throw new RuntimeException("Invalid SSTable component: '" + repr + "'");
+            return CUSTOM;
         }
     }
 
     // singleton components for types that don't need ids
-    public final static Component DATA = new Component(Type.DATA, -1);
-    public final static Component PRIMARY_INDEX = new Component(Type.PRIMARY_INDEX, -1);
-    public final static Component FILTER = new Component(Type.FILTER, -1);
-    public final static Component COMPACTED_MARKER = new Component(Type.COMPACTED_MARKER, -1);
-    public final static Component COMPRESSION_INFO = new Component(Type.COMPRESSION_INFO, -1);
-    public final static Component STATS = new Component(Type.STATS, -1);
-    public final static Component DIGEST = new Component(Type.DIGEST, -1);
-    public final static Component SUMMARY = new Component(Type.SUMMARY, -1);
+    public final static Component DATA = new Component(Type.DATA);
+    public final static Component PRIMARY_INDEX = new Component(Type.PRIMARY_INDEX);
+    public final static Component FILTER = new Component(Type.FILTER);
+    public final static Component COMPACTED_MARKER = new Component(Type.COMPACTED_MARKER);
+    public final static Component COMPRESSION_INFO = new Component(Type.COMPRESSION_INFO);
+    public final static Component STATS = new Component(Type.STATS);
+    public final static Component DIGEST = new Component(Type.DIGEST);
+    public final static Component SUMMARY = new Component(Type.SUMMARY);
+    public final static Component TOC = new Component(Type.TOC);
 
     public final Type type;
-    public final int id;
+    public final String name;
     public final int hashCode;
 
     public Component(Type type)
     {
-        this(type, -1);
+        this(type, type.repr);
+        assert type != Type.CUSTOM;
     }
 
-    public Component(Type type, int id)
+    public Component(Type type, String name)
     {
+        assert name != null : "Component name cannot be null";
         this.type = type;
-        this.id = id;
-        this.hashCode = Objects.hashCode(type, id);
+        this.name = name;
+        this.hashCode = Objects.hashCode(type, name);
     }
 
     /**
@@ -102,7 +109,7 @@ public class Component
      */
     public String name()
     {
-        return type.repr;
+        return name;
     }
 
     /**
@@ -120,14 +127,16 @@ public class Component
         Component component;
         switch(type)
         {
-            case DATA:              component = Component.DATA;             break;
-            case PRIMARY_INDEX:     component = Component.PRIMARY_INDEX;    break;
-            case FILTER:            component = Component.FILTER;           break;
-            case COMPACTED_MARKER:  component = Component.COMPACTED_MARKER; break;
-            case COMPRESSION_INFO:  component = Component.COMPRESSION_INFO; break;
-            case STATS:             component = Component.STATS;            break;
-            case DIGEST:            component = Component.DIGEST;           break;
+            case DATA:              component = Component.DATA;                         break;
+            case PRIMARY_INDEX:     component = Component.PRIMARY_INDEX;                break;
+            case FILTER:            component = Component.FILTER;                       break;
+            case COMPACTED_MARKER:  component = Component.COMPACTED_MARKER;             break;
+            case COMPRESSION_INFO:  component = Component.COMPRESSION_INFO;             break;
+            case STATS:             component = Component.STATS;                        break;
+            case DIGEST:            component = Component.DIGEST;                       break;
             case SUMMARY:           component = Component.SUMMARY;          break;
+            case TOC:               component = Component.TOC;                          break;
+            case CUSTOM:            component = new Component(Type.CUSTOM, path.right); break;
             default:
                  throw new IllegalStateException();
         }
@@ -149,7 +158,7 @@ public class Component
         if (!(o instanceof Component))
             return false;
         Component that = (Component)o;
-        return this.type == that.type && this.id == that.id;
+        return this.type == that.type && this.name.equals(that.name);
     }
 
     @Override
