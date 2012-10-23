@@ -33,7 +33,6 @@ import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Maps;
 import org.apache.commons.cli.*;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.PBSPredictionResult;
 import org.apache.cassandra.service.PBSPredictorMBean;
@@ -49,8 +48,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingServiceMBean;
-import org.apache.cassandra.service.CacheServiceMBean;
-import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 import org.yaml.snakeyaml.Loader;
@@ -1440,8 +1437,13 @@ public class NodeCmd
             String[] toReturn = new String[params.size() - 1];
 
             for (int i = 1; i < params.size(); i++)
-                toReturn[i - 1] = (String) params.get(i);
-
+            {
+                String parm = (String) params.get(i);
+                // why? look at CASSANDRA-4808
+                if (parm.startsWith("\\"))
+                    parm = parm.substring(1);
+                toReturn[i - 1] = parm;
+            }
             return toReturn;
         }
     }

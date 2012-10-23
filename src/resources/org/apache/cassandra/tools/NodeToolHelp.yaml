@@ -82,7 +82,7 @@ commands:
       Print network information on provided host (connecting node by default)
   - name: move <new token>
     help: |
-      Move node on the token ring to a new token
+      Move node on the token ring to a new token. (for -ve tokens, use \\ to escape, Example: move \\-123)
   - name: removenode status|force|<ID>
     help: |
       Show status of current node removal, force completion of pending removal or remove provided ID
