@@ -1438,7 +1438,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, int maxResults, IFilter columnFilter, List<IndexExpression> rowFilter, boolean maxIsColumns, boolean isPaging)
     {
-        logger.debug("Executing seq scan");
+        logger.debug("Executing seq scan for {}..{}", range.left, range.right);
         return filter(getSequentialIterator(superColumn, range, columnFilter), ExtendedFilter.create(this, columnFilter, rowFilter, maxResults, maxIsColumns, isPaging));
     }
 
@@ -1449,7 +1449,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IFilter dataFilter, boolean maxIsColumns)
     {
-        logger.debug("Executing indexed scan");
+        logger.debug("Executing indexed scan for {}..{}", range.left, range.right);
         return indexManager.search(clause, range, maxResults, dataFilter, maxIsColumns);
     }
 
