@@ -1,4 +1,5 @@
 1.1.7
+ * fix get_paged_slice to wrap to next row correctly (CASSANDRA-4816)
  * fix indexing empty column values (CASSANDRA-4832)
  * allow JdbcDate to compose null Date objects (CASSANDRA-4830)
  * fix possible stackoverflow when compacting 1000s of sstables
