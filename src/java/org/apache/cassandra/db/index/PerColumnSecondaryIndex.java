@@ -19,7 +19,6 @@ package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.FBUtilities;
@@ -58,7 +57,7 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
     {
         return getIndexName();
     }
-    
+
     @Override
     public boolean validate(Column column)
     {

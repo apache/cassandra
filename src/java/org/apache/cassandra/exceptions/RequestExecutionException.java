@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.exceptions;
 
-import org.apache.cassandra.db.ConsistencyLevel;
-
 public abstract class RequestExecutionException extends CassandraException
 {
     protected RequestExecutionException(ExceptionCode code, String msg)

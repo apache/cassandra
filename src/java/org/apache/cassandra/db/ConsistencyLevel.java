@@ -22,7 +22,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.transport.ProtocolException;
 
 public enum ConsistencyLevel

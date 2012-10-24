@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.net.MessageIn;
-
 import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,8 +25,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
-
-import com.google.common.primitives.Longs;
 
 import org.apache.cassandra.thrift.InvalidRequestException;
 
@@ -286,7 +282,7 @@ public class PBSPredictor implements PBSPredictorMBean
         return list.get((int) (list.size() * percentile));
     }
 
-    /* 
+    /*
      * For our trials, sample the latency for the (replicaNumber)th
      * reply for one of WARS
      * if replicaNumber > the number of replicas we have data for

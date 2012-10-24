@@ -22,7 +22,6 @@ package org.apache.cassandra.auth;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
-import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 /**

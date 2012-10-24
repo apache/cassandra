@@ -18,7 +18,6 @@
 package org.apache.cassandra.cache;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
 
 import org.apache.cassandra.io.sstable.Descriptor;

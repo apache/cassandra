@@ -18,12 +18,10 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 
 /**

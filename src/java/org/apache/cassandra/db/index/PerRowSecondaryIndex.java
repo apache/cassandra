@@ -19,12 +19,9 @@ package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.util.List;
-import java.util.SortedSet;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -67,7 +64,7 @@ public abstract class PerRowSecondaryIndex extends SecondaryIndex
             throw new RuntimeException(e);
         }
     }
-    
+
     @Override
     public boolean validate(Column column)
     {

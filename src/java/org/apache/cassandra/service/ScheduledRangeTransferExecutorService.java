@@ -31,7 +31,6 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,7 +62,7 @@ public class ScheduledRangeTransferExecutorService
             LOG.warn("Unabled to shutdown; Scheduler never enabled");
             return;
         }
- 
+
         LOG.info("Shutting down range transfer scheduler");
         scheduler.shutdownNow();
     }

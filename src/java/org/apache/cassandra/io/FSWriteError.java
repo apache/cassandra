@@ -19,8 +19,6 @@ package org.apache.cassandra.io;
 
 import java.io.File;
 
-import org.apache.cassandra.io.sstable.Descriptor;
-
 public class FSWriteError extends FSError
 {
     public FSWriteError(Throwable cause, File path)

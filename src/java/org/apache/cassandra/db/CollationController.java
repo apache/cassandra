@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -107,7 +106,7 @@ public class CollationController
             long mostRecentRowTombstone = Long.MIN_VALUE;
             for (SSTableReader sstable : view.sstables)
             {
-                // if we've already seen a row tombstone with a timestamp greater 
+                // if we've already seen a row tombstone with a timestamp greater
                 // than the most recent update to this sstable, we're done, since the rest of the sstables
                 // will also be older
                 if (sstable.getMaxTimestamp() < mostRecentRowTombstone)
@@ -237,7 +236,7 @@ public class CollationController
             long mostRecentRowTombstone = Long.MIN_VALUE;
             for (SSTableReader sstable : view.sstables)
             {
-                // if we've already seen a row tombstone with a timestamp greater 
+                // if we've already seen a row tombstone with a timestamp greater
                 // than the most recent update to this sstable, we can skip it
                 if (sstable.getMaxTimestamp() < mostRecentRowTombstone)
                     continue;

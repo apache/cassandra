@@ -24,8 +24,6 @@ import java.util.*;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 public class SetType<T> extends CollectionType<Set<T>>

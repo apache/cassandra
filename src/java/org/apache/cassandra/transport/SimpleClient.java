@@ -38,7 +38,6 @@ import org.jboss.netty.logging.Slf4JLoggerFactory;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.transport.messages.*;
-import org.apache.cassandra.service.ClientState;
 
 public class SimpleClient
 {

@@ -21,7 +21,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Counter;
 import com.yammer.metrics.core.Gauge;
 import com.yammer.metrics.core.Meter;
 import com.yammer.metrics.core.MetricName;

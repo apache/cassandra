@@ -23,8 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 
 import org.apache.cassandra.transport.messages.ResultMessage;

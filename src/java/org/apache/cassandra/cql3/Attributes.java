@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.cql3;
 
-import org.apache.cassandra.db.ConsistencyLevel;
-
 /**
  * Utility class for the Parser to gather attributes for modification
  * statements.

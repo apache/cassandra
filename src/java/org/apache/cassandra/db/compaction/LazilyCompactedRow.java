@@ -23,7 +23,6 @@ import java.security.MessageDigest;
 import java.util.Iterator;
 import java.util.List;
 
-import com.google.common.base.Functions;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
 import org.slf4j.Logger;
@@ -37,7 +36,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.StreamingHistogram;
 

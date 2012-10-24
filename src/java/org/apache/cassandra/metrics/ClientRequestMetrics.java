@@ -25,7 +25,6 @@ import java.util.concurrent.TimeUnit;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Counter;
 import com.yammer.metrics.core.Meter;
-import com.yammer.metrics.core.MetricName;
 
 public class ClientRequestMetrics extends LatencyMetrics
 {

@@ -17,10 +17,6 @@
  */
 package org.apache.cassandra.exceptions;
 
-import java.net.InetAddress;
-import java.util.Set;
-import java.nio.ByteBuffer;
-
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 

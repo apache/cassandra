@@ -21,11 +21,8 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /** A term parsed from a CQL statement. */

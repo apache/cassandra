@@ -20,7 +20,6 @@ package org.apache.cassandra.gms;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.ISerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

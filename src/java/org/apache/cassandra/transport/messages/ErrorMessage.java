@@ -18,7 +18,6 @@
 package org.apache.cassandra.transport.messages;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.TimeoutException;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -32,7 +31,6 @@ import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ServerError;
-import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MD5Digest;
 

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.index;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
@@ -31,7 +30,6 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.index.keys.KeysIndex;
@@ -45,7 +43,6 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Abstract base class for different types of secondary indexes.
@@ -75,7 +72,7 @@ public abstract class SecondaryIndex
     public abstract void init();
 
     /**
-     * Reload an existing index following a change to its configuration, 
+     * Reload an existing index following a change to its configuration,
      * or that of the indexed column(s). Differs from init() in that we expect
      * expect new resources (such as CFS for a KEYS index) to be created by
      * init() but not here

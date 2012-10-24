@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.index;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Set;
 
 import org.apache.cassandra.db.ColumnFamilyStore;

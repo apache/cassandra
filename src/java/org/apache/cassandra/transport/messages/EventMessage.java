@@ -18,7 +18,6 @@
 package org.apache.cassandra.transport.messages;
 
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Message;

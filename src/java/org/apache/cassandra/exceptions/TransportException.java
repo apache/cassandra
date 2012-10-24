@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.exceptions;
 
-import java.nio.ByteBuffer;
-
 public interface TransportException
 {
     /**

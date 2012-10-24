@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.io.IOException;
 import java.util.Collection;
 import java.util.UUID;
 

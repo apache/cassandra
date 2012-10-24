@@ -19,7 +19,6 @@ package org.apache.cassandra.transport.messages;
 
 import java.util.Map;
 
-import com.google.common.base.Charsets;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 

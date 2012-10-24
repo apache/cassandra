@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.transport;
 
-import java.nio.ByteBuffer;
-
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.exceptions.TransportException;
 

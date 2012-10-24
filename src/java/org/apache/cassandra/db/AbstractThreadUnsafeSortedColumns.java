@@ -19,11 +19,7 @@ package org.apache.cassandra.db;
 
 import java.util.Iterator;
 
-import com.google.common.base.Function;
-
-import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.utils.Allocator;
 
 public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumns
 {
