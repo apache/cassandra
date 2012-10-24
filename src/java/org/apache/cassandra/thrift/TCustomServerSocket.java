@@ -64,24 +64,28 @@ public class TCustomServerSocket extends TServerTransport
      * @throws TTransportException
      */
     public TCustomServerSocket(InetSocketAddress bindAddr, boolean keepAlive, Integer sendBufferSize,
+            Integer recvBufferSize)
+            throws TTransportException
+    {
+        this(bindAddr, keepAlive, sendBufferSize, recvBufferSize, null, null);
+    }
+    
+    /**
+     * Allows fine-tuning of the server socket including keep-alive, reuse of addresses, send and receive buffer sizes.
+     *
+     * @param bindAddr
+     * @param keepAlive
+     * @param sendBufferSize
+     * @param recvBufferSize
+     * @throws TTransportException
+     */
+    public TCustomServerSocket(InetSocketAddress bindAddr, boolean keepAlive, Integer sendBufferSize,
             Integer recvBufferSize, SSLContext ctx, String[] suites)
             throws TTransportException
     {
         try
         {
-            if (ctx != null)
-            {           
-                // Make ssl server socket            
-                serverSocket_ = (SSLServerSocket)ctx.getServerSocketFactory().createServerSocket();
-                serverSocket_.setReuseAddress(true);
-                String[] suits = SSLFactory.filterCipherSuites(((SSLServerSocket)serverSocket_).getSupportedCipherSuites(), suites);
-                ((SSLServerSocket) serverSocket_).setEnabledCipherSuites(suits);
-            }
-            else
-            {
-                // make server socket
-                serverSocket_ = new ServerSocket();
-            }
+            serverSocket_ = (ctx != null) ? createSSLServerSocket(ctx, suites) : new ServerSocket();
             
             // Prevent 2MSL delay problem on server restarts
             serverSocket_.setReuseAddress(true);
@@ -195,5 +199,14 @@ public class TCustomServerSocket extends TServerTransport
         // The thread-safeness of this is dubious, but Java documentation suggests
         // that it is safe to do this from a different thread context
         close();
+    }
+    
+    private  ServerSocket createSSLServerSocket(SSLContext ctx, String[] suites) throws IOException
+    {
+        ServerSocket serverSocket = (SSLServerSocket)ctx.getServerSocketFactory().createServerSocket();
+        serverSocket.setReuseAddress(true);
+        String[] suits = SSLFactory.filterCipherSuites(((SSLServerSocket)serverSocket).getSupportedCipherSuites(), suites);
+        ((SSLServerSocket) serverSocket).setEnabledCipherSuites(suits);
+        return serverSocket;
     }
 }

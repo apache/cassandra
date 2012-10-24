@@ -249,7 +249,7 @@ public class CliOptions
         {
             Class factory = Class.forName(clientSocketFactory);
 
-            if(!TTransportFactory.class.isAssignableFrom(factory))
+            if(!TClientSocketFactory.class.isAssignableFrom(factory))
                 throw new IllegalArgumentException(String.format("transport factory '%s' " +
                                                                  "not derived from TClientSocketFactory", clientSocketFactory));
 
