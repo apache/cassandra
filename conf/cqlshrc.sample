@@ -25,11 +25,24 @@ password = !!bang!!$
 color = on
 completekey = tab
 
+[cql]
+version = 3.0
+
 [connection]
 hostname = 127.0.0.1
 port = 9160
+; enable below for ssl
+;factory = cqlshlib.ssl.ssl_transport_factory
 
-[cql]
-version = 2.0
+;[ssl]
+;certfile = ~/keys/cassandra.cert
+;; optional - true by default.
+;validate = true
+
+;; optional section, overrides default certfile in [ssl] section, if present
+;[certfiles]
+;192.168.1.3 = ~/keys/cassandra01.cert
+;192.168.1.4 = ~/keys/cassandra02.cert
+
 
 ; vim: set ft=dosini :
