@@ -19,17 +19,9 @@ package org.apache.cassandra.db;
 
 import java.util.*;
 
-<<<<<<< HEAD
-
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-||||||| merged common ancestors
-
-import org.apache.cassandra.db.columniterator.IColumnIterator;
-=======
-import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.IColumnIteratorFactory;
 import org.apache.cassandra.db.columniterator.LazyColumnIterator;
->>>>>>> cassandra-1.1
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
