@@ -19,6 +19,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -128,33 +129,6 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         return l.toArray(new ByteBuffer[l.size()]);
     }
 
-    public String getString(ByteBuffer bytes)
-    {
-        StringBuilder sb = new StringBuilder();
-        ByteBuffer bb = bytes.duplicate();
-        int i = 0;
-
-        while (bb.remaining() > 0)
-        {
-            if (bb.remaining() != bytes.remaining())
-                sb.append(":");
-
-            AbstractType<?> comparator = getAndAppendComparator(i, bb, sb);
-            ByteBuffer value = getWithShortLength(bb);
-
-            sb.append(comparator.getString(value));
-
-            byte b = bb.get();
-            if (b != 0)
-            {
-                sb.append(":!");
-                break;
-            }
-            ++i;
-        }
-        return sb.toString();
-    }
-
     public static class CompositeComponent
     {
         public AbstractType comparator;
@@ -188,16 +162,87 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     }
 
     /*
-     * FIXME: this would break if some of the component string representation
-     * contains ':'. None of our current comparator do so, so this is probably
-     * not an urgent matter, but this could break for custom comparator.
-     * (DynamicCompositeType would break on '@' too)
+     * Escapes all occurences of the ':' character from the input, replacing them by "\:".
+     * Furthermore, if the last character is '\' or '!', a '!' is appended.
      */
+    static String escape(String input)
+    {
+        if (input.isEmpty())
+            return input;
+
+        String res = input.replaceAll(":", "\\\\:");
+        char last = res.charAt(res.length() - 1);
+        return last == '\\' || last == '!' ? res + '!' : res;
+    }
+
+    /*
+     * Reverses the effect of espace().
+     * Replaces all occurences of "\:" by ":" and remove last character if it is '!'.
+     */
+    static String unescape(String input)
+    {
+        if (input.isEmpty())
+            return input;
+
+        String res = input.replaceAll("\\\\:", ":");
+        char last = res.charAt(res.length() - 1);
+        return last == '!' ? res.substring(0, res.length() - 1) : res;
+    }
+
+    /*
+     * Split the input on character ':', unless the previous character is '\'.
+     */
+    static List<String> split(String input)
+    {
+        if (input.isEmpty())
+            return Collections.<String>emptyList();
+
+        List<String> res = new ArrayList<String>();
+        int prev = 0;
+        for (int i = 0; i < input.length(); i++)
+        {
+            if (input.charAt(i) != ':' || (i > 0 && input.charAt(i-1) == '\\'))
+                continue;
+
+            res.add(input.substring(prev, i));
+            prev = i + 1;
+        }
+        res.add(input.substring(prev, input.length()));
+        return res;
+    }
+
+    public String getString(ByteBuffer bytes)
+    {
+        StringBuilder sb = new StringBuilder();
+        ByteBuffer bb = bytes.duplicate();
+        int i = 0;
+
+        while (bb.remaining() > 0)
+        {
+            if (bb.remaining() != bytes.remaining())
+                sb.append(":");
+
+            AbstractType<?> comparator = getAndAppendNextComparator(i, bb, sb);
+            ByteBuffer value = getWithShortLength(bb);
+
+            sb.append(escape(comparator.getString(value)));
+
+            byte b = bb.get();
+            if (b != 0)
+            {
+                sb.append(":!");
+                break;
+            }
+            ++i;
+        }
+        return sb.toString();
+    }
+
     public ByteBuffer fromString(String source)
     {
-        String[] parts = source.split(":");
-        List<ByteBuffer> components = new ArrayList<ByteBuffer>(parts.length);
-        List<ParsedComparator> comparators = new ArrayList<ParsedComparator>(parts.length);
+        List<String> parts = split(source);
+        List<ByteBuffer> components = new ArrayList<ByteBuffer>(parts.size());
+        List<ParsedComparator> comparators = new ArrayList<ParsedComparator>(parts.size());
         int totalLength = 0, i = 0;
         boolean lastByteIsOne = false;
 
@@ -213,7 +258,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
             AbstractType<?> type = p.getAbstractType();
             part = p.getRemainingPart();
 
-            ByteBuffer component = type.fromString(part);
+            ByteBuffer component = type.fromString(unescape(part));
             totalLength += p.getComparatorSerializedSize() + 2 + component.remaining() + 1;
             components.add(component);
             comparators.add(p);
