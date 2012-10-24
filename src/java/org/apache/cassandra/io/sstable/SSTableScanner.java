@@ -21,14 +21,16 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 
-import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.RowPosition;
+import org.apache.cassandra.db.columniterator.IColumnIteratorFactory;
+import org.apache.cassandra.db.columniterator.LazyColumnIterator;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SSTableScanner implements ICompactionScanner
@@ -210,8 +212,8 @@ public class SSTableScanner implements ICompactionScanner
         {
             try
             {
-                DecoratedKey currentKey;
-                RowIndexEntry currentEntry;
+                final DecoratedKey currentKey;
+                final RowIndexEntry currentEntry;
 
                 if (row == null)
                 {
@@ -236,7 +238,13 @@ public class SSTableScanner implements ICompactionScanner
                 }
 
                 assert !dfile.isEOF();
-                return row = filter.getSSTableColumnIterator(sstable, dfile, currentKey, currentEntry);
+                return row = new LazyColumnIterator(currentKey, new IColumnIteratorFactory()
+                {
+                    public OnDiskAtomIterator create()
+                    {
+                        return filter.getSSTableColumnIterator(sstable, dfile, currentKey, currentEntry);
+                    }
+                });
             }
             catch (IOException e)
             {

@@ -19,9 +19,17 @@ package org.apache.cassandra.db;
 
 import java.util.*;
 
-import com.google.common.collect.AbstractIterator;
+<<<<<<< HEAD
 
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+||||||| merged common ancestors
+
+import org.apache.cassandra.db.columniterator.IColumnIterator;
+=======
+import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.columniterator.IColumnIteratorFactory;
+import org.apache.cassandra.db.columniterator.LazyColumnIterator;
+>>>>>>> cassandra-1.1
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
@@ -122,7 +130,7 @@ public class RowIteratorFactory
     /**
      * Get a ColumnIterator for a specific key in the memtable.
      */
-    private static class ConvertToColumnIterator extends AbstractIterator<OnDiskAtomIterator> implements CloseableIterator<OnDiskAtomIterator>
+    private static class ConvertToColumnIterator implements CloseableIterator<OnDiskAtomIterator>
     {
         private final QueryFilter filter;
         private final Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter;
@@ -133,14 +141,33 @@ public class RowIteratorFactory
             this.iter = iter;
         }
 
-        public OnDiskAtomIterator computeNext()
+        public boolean hasNext()
         {
-            if (iter.hasNext())
+            return iter.hasNext();
+        }
+
+        /*
+         * Note that when doing get_paged_slice, we reset the start of the queryFilter after we've fetched the
+         * first row. This means that this iterator should not use in any way the filter to fetch a row before
+         * we call next(). Which prevents us for using guava AbstractIterator.
+         * This is obviously rather fragile and we should consider refactoring that code, but such refactor will go
+         * deep into the storage engine code so this will have to do until then.
+         */
+        public OnDiskAtomIterator next()
+        {
+            final Map.Entry<DecoratedKey, ColumnFamily> entry = iter.next();
+            return new LazyColumnIterator(entry.getKey(), new IColumnIteratorFactory()
             {
-                Map.Entry<DecoratedKey, ColumnFamily> entry = iter.next();
-                return filter.getMemtableColumnIterator(entry.getValue(), entry.getKey());
-            }
-            return endOfData();
+                public OnDiskAtomIterator create()
+                {
+                    return filter.getMemtableColumnIterator(entry.getValue(), entry.getKey());
+                }
+            });
+        }
+
+        public void remove()
+        {
+            throw new UnsupportedOperationException();
         }
 
         public void close()
