@@ -106,7 +106,7 @@ if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
 from cqlshlib import cqlhandling, cql3handling, pylexotron
-from cqlshlib.displaying import (RED, BLUE, ANSI_RESET, COLUMN_NAME_COLORS,
+from cqlshlib.displaying import (MAGENTA, RED, BLUE, ANSI_RESET, COLUMN_NAME_COLORS,
                                  FormattedValue, colorme)
 from cqlshlib.formatting import format_by_type
 from cqlshlib.util import trim_if_present
@@ -1021,9 +1021,13 @@ class Shell(cmd.Cmd):
         return True
 
     def print_trace(self, session_id):
-        out = self.query_out
-        out.write('\nTracing session: %s\n\n' % session_id)
-        self.perform_statement_untraced("SELECT activity, source, source_elapsed FROM system_traces.events WHERE session_id = '%s'" % session_id)
+        self.writeresult('Tracing session: ', color=MAGENTA, newline=False)
+        self.writeresult(session_id)
+        self.writeresult('')
+        self.perform_statement_untraced("SELECT activity, event_id, source, source_elapsed "
+                                        "FROM system_traces.events "
+                                        "WHERE session_id = '%s'" % (session_id,),
+                                        decoder=TraceSchemaDecoder)
 
     # these next two functions are not guaranteed perfect; just checks if the
     # statement parses fully according to cqlsh's own understanding of the
@@ -2644,6 +2648,22 @@ class ErrorHandlingSchemaDecoder(OverrideableSchemaDecoder):
     def value_decode_error(self, err, namebytes, valuebytes, expectedtype):
         return DecodeError(valuebytes, err, expectedtype, colname=namebytes)
 
+class TraceSchemaDecoder(cql.decoders.SchemaDecoder):
+    def __init__(self, schema):
+        cql.decoders.SchemaDecoder.__init__(self, schema)
+
+    def decode_metadata_and_type(self, namebytes):
+        # override event_id columnname and type.
+        if namebytes == 'event_id':
+            return u'timestamp', 'timestamp', cql.cqltypes.UTF8Type, cql.cqltypes.UTF8Type
+        return cql.decoders.SchemaDecoder.decode_metadata_and_type(self, namebytes)
+
+    def decode_value(self, valbytes, vtype, colname):
+        if colname == 'timestamp':
+            millis = (UUID(bytes=valbytes).get_time() - 0x01b21dd213814000) / 10000
+            s, ms = divmod(millis, 1000)
+            return time.strftime('%H:%M:%S', time.localtime(s)) + ',' + str(ms).rjust(3, '0')
+        return cql.decoders.SchemaDecoder.decode_value(self, valbytes, vtype, colname)
 
 def option_with_default(cparser_getter, section, option, default=None):
     try:
