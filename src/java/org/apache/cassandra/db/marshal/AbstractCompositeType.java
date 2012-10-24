@@ -222,7 +222,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
             if (bb.remaining() != bytes.remaining())
                 sb.append(":");
 
-            AbstractType<?> comparator = getAndAppendNextComparator(i, bb, sb);
+            AbstractType<?> comparator = getAndAppendComparator(i, bb, sb);
             ByteBuffer value = getWithShortLength(bb);
 
             sb.append(escape(comparator.getString(value)));
