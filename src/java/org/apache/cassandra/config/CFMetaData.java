@@ -197,7 +197,6 @@ public final class CFMetaData
                                                                + "  source inet,"
                                                                + "  thread text,"
                                                                + "  activity text,"
-                                                               + "  happened_at timestamp,"
                                                                + "  source_elapsed int,"
                                                                + "  PRIMARY KEY (session_id, event_id)"
                                                                + ");", Tracing.TRACE_KS);
