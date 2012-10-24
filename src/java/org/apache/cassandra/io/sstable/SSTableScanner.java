@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 
+import org.apache.cassandra.db.columniterator.IColumnIteratorFactory;
+import org.apache.cassandra.db.columniterator.LazyColumnIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -175,7 +177,7 @@ public class SSTableScanner implements ICompactionScanner
                     file.seek(finishedAt);
                 assert !file.isEOF();
 
-                DecoratedKey<?> key = SSTableReader.decodeKey(sstable.partitioner,
+                final DecoratedKey<?> key = SSTableReader.decodeKey(sstable.partitioner,
                                                            sstable.descriptor,
                                                            ByteBufferUtil.readWithShortLength(file));
                 long dataSize = SSTableReader.readRowSize(file, sstable.descriptor);
@@ -189,7 +191,13 @@ public class SSTableScanner implements ICompactionScanner
                 }
                 else
                 {
-                    return row = filter.getSSTableColumnIterator(sstable, file, key);
+                    return row = new LazyColumnIterator(key, new IColumnIteratorFactory()
+                    {
+                        public IColumnIterator create()
+                        {
+                            return filter.getSSTableColumnIterator(sstable, file, key);
+                        }
+                    });
                 }
             }
             catch (IOException e)
@@ -210,7 +218,7 @@ public class SSTableScanner implements ICompactionScanner
                    "finishedAt:" + finishedAt +
                    ")";
     }
-}
+    }
 
     @Override
     public String toString() {
