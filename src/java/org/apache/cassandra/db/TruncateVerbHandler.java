@@ -49,7 +49,7 @@ public class TruncateVerbHandler implements IVerbHandler<Truncation>
         logger.debug("Truncate operation succeeded at this host");
 
         TruncateResponse response = new TruncateResponse(t.keyspace, t.columnFamily, true);
-        logger.debug("{} applied.  Sending response to {}@{} ", new Object[]{ t, id, message.from });
+        logger.debug("{} applied.  Enqueuing response to {}@{} ", new Object[]{ t, id, message.from });
         MessagingService.instance().sendReply(response.createMessage(), id, message.from);
     }
 

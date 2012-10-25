@@ -54,7 +54,7 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
 
             rm.apply();
             WriteResponse response = new WriteResponse();
-            logger.debug("Sending response to {}", replyTo);
+            logger.debug("Enqueuing response to {}", replyTo);
             MessagingService.instance().sendReply(response.createMessage(), id, replyTo);
         }
         catch (IOException e)

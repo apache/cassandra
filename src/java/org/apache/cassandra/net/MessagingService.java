@@ -692,7 +692,7 @@ public final class MessagingService implements MessagingServiceMBean
     public void receive(MessageIn message, String id, long timestamp)
     {
         Tracing.instance().initializeFromMessage(message);
-        logger.debug("Request received from {}", message.from);
+        logger.debug("Messsage received from {}", message.from);
 
         message = SinkManager.processInboundMessage(message, id);
         if (message == null)

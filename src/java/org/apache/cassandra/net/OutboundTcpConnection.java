@@ -23,6 +23,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.nio.ByteBuffer;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -30,7 +31,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 import org.xerial.snappy.SnappyOutputStream;
 
 import org.apache.cassandra.config.Config;
@@ -164,6 +167,13 @@ public class OutboundTcpConnection extends Thread
     {
         try
         {
+            byte[] sessionBytes = qm.message.parameters.get(Tracing.TRACE_HEADER);
+            if (sessionBytes != null)
+            {
+                Tracing.instance().continueExistingSession(UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes)));
+                logger.debug("Sending message to {}", poolReference.endPoint());
+            }
+
             write(qm.message, qm.id, qm.timestamp, out, targetVersion);
             completed++;
             if (active.peek() == null)
@@ -227,8 +237,8 @@ public class OutboundTcpConnection extends Thread
             }
             catch (IOException e)
             {
-                if (logger.isDebugEnabled())
-                    logger.debug("exception closing connection to " + poolReference.endPoint(), e);
+                if (logger.isTraceEnabled())
+                    logger.trace("exception closing connection to " + poolReference.endPoint(), e);
             }
             out = null;
             socket = null;
@@ -270,7 +280,7 @@ public class OutboundTcpConnection extends Thread
 
                     if (targetVersion < maxTargetVersion && targetVersion < MessagingService.current_version)
                     {
-                        logger.debug("Detected higher max version {} (using {}); will reconnect when queued messages are done",
+                        logger.trace("Detected higher max version {} (using {}); will reconnect when queued messages are done",
                                      maxTargetVersion, targetVersion);
                         MessagingService.instance().setVersion(poolReference.endPoint(), Math.min(MessagingService.current_version, maxTargetVersion));
                         softCloseSocket();
@@ -281,7 +291,7 @@ public class OutboundTcpConnection extends Thread
                     if (shouldCompressConnection())
                     {
                         out.flush();
-                        logger.debug("Upgrading OutputStream to be compressed");
+                        logger.trace("Upgrading OutputStream to be compressed");
                         out = new DataOutputStream(new SnappyOutputStream(new BufferedOutputStream(socket.getOutputStream())));
                     }
                 }

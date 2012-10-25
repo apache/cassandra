@@ -170,6 +170,7 @@ public class StorageProxy implements StorageProxyMBean
     public static void mutate(Collection<? extends IMutation> mutations, ConsistencyLevel consistency_level)
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
+        logger.debug("Determining replicas for mutation");
         logger.trace("Mutations/ConsistencyLevel are {}/{}", mutations, consistency_level);
         final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
 
@@ -247,6 +248,7 @@ public class StorageProxy implements StorageProxyMBean
     public static void mutateAtomically(Collection<RowMutation> mutations, ConsistencyLevel consistency_level)
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
+        logger.debug("Determining replicas for atomic batch");
         long startTime = System.nanoTime();
         logger.trace("Mutations/ConsistencyLevel are {}/{}", mutations, consistency_level);
 

@@ -49,7 +49,7 @@ public class ReadVerbHandler implements IVerbHandler<ReadCommand>
             MessageOut<ReadResponse> reply = new MessageOut<ReadResponse>(MessagingService.Verb.REQUEST_RESPONSE,
                                                                           getResponse(command, row),
                                                                           ReadResponse.serializer);
-            logger.debug("Sending response to {}", message.from);
+            logger.debug("Enqueuing response to {}", message.from);
             MessagingService.instance().sendReply(reply, id, message.from);
         }
         catch (IOException ex)

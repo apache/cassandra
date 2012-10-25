@@ -44,7 +44,7 @@ public class IndexScanVerbHandler implements IVerbHandler<IndexScanCommand>
                                         command.index_clause.count,
                                         ThriftValidation.asIFilter(command.predicate, cfs.getComparator()));
             RangeSliceReply reply = new RangeSliceReply(rows);
-            logger.debug("Sending response to {}", message.from);
+            logger.debug("Enqueuing response to {}", message.from);
             MessagingService.instance().sendReply(reply.createMessage(), id, message.from);
         }
         catch (Exception ex)

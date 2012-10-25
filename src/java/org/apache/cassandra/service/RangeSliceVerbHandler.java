@@ -55,7 +55,7 @@ public class RangeSliceVerbHandler implements IVerbHandler<RangeSliceCommand>
                 throw new RuntimeException("Cannot service reads while bootstrapping!");
             }
             RangeSliceReply reply = new RangeSliceReply(executeLocally(message.payload));
-            logger.debug("Sending response to {}", message.from);
+            logger.debug("Enqueuing response to {}", message.from);
             MessagingService.instance().sendReply(reply.createMessage(), id, message.from);
         }
         catch (Exception ex)

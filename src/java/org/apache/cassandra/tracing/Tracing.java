@@ -248,11 +248,15 @@ public class Tracing
         }
 
         assert sessionBytes.length == 16;
-
         UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
         TraceState ts = initiatedSessions.get(sessionId);
         if (ts == null)
             ts = new TraceState(message.from, sessionId);
         state.set(ts);
+    }
+
+    public void continueExistingSession(UUID sessionId)
+    {
+        state.set(initiatedSessions.get(sessionId));
     }
 }
