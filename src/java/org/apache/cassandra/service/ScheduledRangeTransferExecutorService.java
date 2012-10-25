@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.service;
 
+import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
+
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Date;
@@ -33,8 +35,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
 
 public class ScheduledRangeTransferExecutorService
 {
@@ -74,7 +74,7 @@ class RangeTransfer implements Runnable
 
     public void run()
     {
-        UntypedResultSet res = processInternal("SELECT * FROM system." + SystemTable.RANGE_XFERS_CF + " LIMIT 1");
+        UntypedResultSet res = processInternal("SELECT * FROM system." + SystemTable.RANGE_XFERS_CF);
 
         if (res.size() < 1)
         {
