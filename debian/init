@@ -141,6 +141,7 @@ do_start()
         -outfile /var/log/$NAME/output.log \
         -cp `classpath` \
         -Dlog4j.configuration=log4j-server.properties \
+        -Dlog4j.defaultInitOverride=true \
         -XX:HeapDumpPath="$cassandra_home/java_`date +%s`.hprof" \
         -XX:ErrorFile="$cassandra_home/hs_err_`date +%s`.log" \
         $JVM_OPTS \
