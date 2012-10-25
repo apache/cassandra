@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -170,8 +171,10 @@ public class OutboundTcpConnection extends Thread
             byte[] sessionBytes = qm.message.parameters.get(Tracing.TRACE_HEADER);
             if (sessionBytes != null)
             {
-                Tracing.instance().continueExistingSession(UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes)));
+                UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
+                Tracing.instance().continueExistingSession(sessionId);
                 logger.debug("Sending message to {}", poolReference.endPoint());
+                Tracing.instance().maybeStopNonlocalSession(sessionId);
             }
 
             write(qm.message, qm.id, qm.timestamp, out, targetVersion);

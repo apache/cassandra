@@ -36,14 +36,16 @@ public class TraceState
     public final InetAddress coordinator;
     public final Stopwatch watch;
     public final ByteBuffer sessionIdBytes;
+    public final boolean isLocallyOwned;
 
-    public TraceState(InetAddress coordinator, UUID sessionId)
+    public TraceState(InetAddress coordinator, UUID sessionId, boolean locallyOwned)
     {
         assert coordinator != null;
         assert sessionId != null;
 
         this.coordinator = coordinator;
         this.sessionId = sessionId;
+        this.isLocallyOwned = locallyOwned;
         sessionIdBytes = ByteBufferUtil.bytes(sessionId);
         watch = new Stopwatch();
         watch.start();

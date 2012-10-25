@@ -80,8 +80,7 @@ public class Tracing
 
     private final ThreadLocal<TraceState> state = new ThreadLocal<TraceState>();
 
-    /** sessions that were initiated on this node */
-    private final Map<UUID, TraceState> initiatedSessions = new ConcurrentHashMap<UUID, TraceState>();
+    private final Map<UUID, TraceState> sessions = new ConcurrentHashMap<UUID, TraceState>();
 
     public static void addColumn(ColumnFamily cf, ByteBuffer name, Object value)
     {
@@ -153,13 +152,30 @@ public class Tracing
     {
         assert state.get() == null;
 
-        TraceState ts = new TraceState(localAddress, sessionId);
+        TraceState ts = new TraceState(localAddress, sessionId, true);
         state.set(ts);
-        initiatedSessions.put(sessionId, ts);
+        sessions.put(sessionId, ts);
 
         return sessionId;
     }
 
+    /**
+     * Removes the state data but does not log it as complete.
+     * For use by replica nodes, after replying to the master.
+     *
+     * Note: checking that the session exists is the job of the caller.
+     */
+    public void maybeStopNonlocalSession(UUID sessionId)
+    {
+        TraceState state = sessions.get(sessionId);
+        assert state != null;
+        if (!state.isLocallyOwned)
+            sessions.remove(state.sessionId);
+    }
+
+    /**
+     * Stop the session and record its complete.  Called by coodinator when request is complete.
+     */
     public void stopSession()
     {
         TraceState state = this.state.get();
@@ -186,7 +202,7 @@ public class Tracing
                 }
             });
 
-            initiatedSessions.remove(state.sessionId);
+            sessions.remove(state.sessionId);
             this.state.set(null);
         }
     }
@@ -249,14 +265,20 @@ public class Tracing
 
         assert sessionBytes.length == 16;
         UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
-        TraceState ts = initiatedSessions.get(sessionId);
+        TraceState ts = sessions.get(sessionId);
         if (ts == null)
-            ts = new TraceState(message.from, sessionId);
+        {
+            ts = new TraceState(message.from, sessionId, false);
+            sessions.put(sessionId, ts);
+        }
         state.set(ts);
     }
 
+    /**
+     * Activate @param sessionId representing a session we've already seen
+     */
     public void continueExistingSession(UUID sessionId)
     {
-        state.set(initiatedSessions.get(sessionId));
+        state.set(sessions.get(sessionId));
     }
 }
