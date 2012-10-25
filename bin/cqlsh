@@ -246,7 +246,7 @@ cqlsh_extra_syntax_rules = r'''
 <debugCommand> ::= "DEBUG" "THINGS"?
                  ;
 
-<helpCommand> ::= ( "HELP" | "?" ) [topic]=( <identifier> | <stringLiteral> )*
+<helpCommand> ::= ( "HELP" | "?" ) [topic]=( /[a-z_]*/ )*
                 ;
 
 <exitCommand> ::= "exit" | "quit"
