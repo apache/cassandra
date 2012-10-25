@@ -30,7 +30,7 @@ public class Term
 {
     public enum Type
     {
-        STRING, INTEGER, UUID, FLOAT, QMARK;
+        STRING, INTEGER, UUID, FLOAT, BOOLEAN, QMARK;
 
         static Type forInt(int type)
         {
@@ -42,6 +42,8 @@ public class Term
                 return UUID;
             else if (type == CqlParser.FLOAT)
                 return FLOAT;
+            else if (type == CqlParser.K_TRUE || type == CqlParser.K_FALSE)
+                return BOOLEAN;
             else if (type == CqlParser.QMARK)
                 return QMARK;
 

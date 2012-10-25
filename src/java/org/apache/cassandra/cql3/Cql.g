@@ -578,7 +578,7 @@ map_literal returns [Map<Term, Term> value]
     ;
 
 term returns [Term term]
-    : t=(STRING_LITERAL | UUID | INTEGER | FLOAT ) { $term = new Term($t.text, $t.type); }
+    : t=(STRING_LITERAL | UUID | INTEGER | FLOAT | K_TRUE | K_FALSE ) { $term = new Term($t.text, $t.type); }
     | t=QMARK                                      { $term = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
     ;
 
@@ -641,7 +641,7 @@ property[PropertyDefinitions props]
     ;
 
 propertyValue returns [String str]
-    : v=(STRING_LITERAL | IDENT | INTEGER | FLOAT) { $str = $v.text; }
+    : v=(STRING_LITERAL | IDENT | INTEGER | FLOAT | K_TRUE | K_FALSE) { $str = $v.text; }
     | u=unreserved_keyword                         { $str = u; }
     ;
 
@@ -822,6 +822,9 @@ K_WRITETIME:   W R I T E T I M E;
 
 K_MAP:         M A P;
 K_LIST:        L I S T;
+
+K_TRUE:        T R U E;
+K_FALSE:       F A L S E;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

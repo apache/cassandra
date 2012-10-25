@@ -208,6 +208,9 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <brackets> ::=      /[][{}]/ ;
 
 <integer> ::= "-"? <wholenumber> ;
+<boolean> ::= "true"
+            | "false"
+            ;
 
 <unclosedString>  ::= /'([^']|'')*/ ;
 <unclosedName>    ::= /"([^"]|"")*/ ;
@@ -217,6 +220,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
          | <integer>
          | <float>
          | <uuid>
+         | <boolean>
          ;
 
 <tokenDefinition> ::= token="TOKEN" "(" <term> ( "," <term> )* ")"
@@ -841,6 +845,8 @@ def insert_newval_completer(ctxt, cass):
         return ['{']
     if coltype == 'list':
         return ['[']
+    if coltype == 'boolean':
+        return ['true', 'false']
     return [Hint('<value for %s (%s)>' % (maybe_escape_name(curcol),
                                           cqltype.cql_parameterized_type()))]
 
