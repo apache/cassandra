@@ -20,14 +20,15 @@
  */
 package org.apache.cassandra.tracing;
 
-import static com.google.common.base.Preconditions.checkState;
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -48,8 +49,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
  * A trace session context. Able to track and store trace sessions. A session is usually a user initiated query, and may
@@ -79,6 +79,9 @@ public class Tracing
     private InetAddress localAddress = FBUtilities.getLocalAddress();
 
     private final ThreadLocal<TraceState> state = new ThreadLocal<TraceState>();
+
+    /** sessions that were initiated on this node */
+    private final Map<UUID, TraceState> initiatedSessions = new ConcurrentHashMap<UUID, TraceState>();
 
     public static void addColumn(ColumnFamily cf, ByteBuffer name, Object value)
     {
@@ -141,11 +144,6 @@ public class Tracing
         return instance != null && instance.state.get() != null;
     }
 
-    public void reset()
-    {
-        state.set(null);
-    }
-
     public UUID newSession()
     {
         return newSession(TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes())));
@@ -157,6 +155,7 @@ public class Tracing
 
         TraceState ts = new TraceState(localAddress, sessionId);
         state.set(ts);
+        initiatedSessions.put(sessionId, ts);
 
         return sessionId;
     }
@@ -187,7 +186,8 @@ public class Tracing
                 }
             });
 
-            reset();
+            initiatedSessions.remove(state.sessionId);
+            this.state.set(null);
         }
     }
 
@@ -247,7 +247,12 @@ public class Tracing
             return;
         }
 
-        checkState(sessionBytes.length == 16);
-        state.set(new TraceState(message.from, UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes))));
+        assert sessionBytes.length == 16;
+
+        UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
+        TraceState ts = initiatedSessions.get(sessionId);
+        if (ts == null)
+            ts = new TraceState(message.from, sessionId);
+        state.set(ts);
     }
 }
