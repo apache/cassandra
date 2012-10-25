@@ -89,7 +89,7 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
 
         validateConsistency(cl);
 
-        Collection<? extends IMutation> mutations = getMutations(state, variables, false, cl);
+        Collection<? extends IMutation> mutations = getMutations(state, variables, false, cl, state.getTimestamp());
 
         // The type should have been set by now or we have a bug
         assert type != null;
@@ -115,14 +115,14 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
 
     public ResultMessage executeInternal(ClientState state) throws RequestValidationException, RequestExecutionException
     {
-        for (IMutation mutation : getMutations(state, Collections.<ByteBuffer>emptyList(), true, null))
+        for (IMutation mutation : getMutations(state, Collections.<ByteBuffer>emptyList(), true, null, state.getTimestamp()))
             mutation.apply();
         return null;
     }
 
-    public long getTimestamp(ClientState clientState)
+    public long getTimestamp(long now)
     {
-        return timestamp == null ? clientState.getTimestamp() : timestamp;
+        return timestamp == null ? now : timestamp;
     }
 
     public void setTimestamp(long timestamp)
@@ -202,11 +202,13 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
      * @param clientState current client status
      * @param variables value for prepared statement markers
      * @param local if true, any requests (for collections) performed by getMutation should be done locally only.
+     * @param cl the consistency to use for the potential reads involved in generating the mutations (for lists set/delete operations)
+     * @param now the current timestamp in microseconds to use if no timestamp is user provided.
      *
      * @return list of the mutations
      * @throws InvalidRequestException on invalid requests
      */
-    protected abstract Collection<? extends IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local, ConsistencyLevel cl)
+    protected abstract Collection<? extends IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
     throws RequestExecutionException, RequestValidationException;
 
     public abstract ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException;

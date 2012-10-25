@@ -46,7 +46,7 @@ public class ListOperation implements Operation
      * For prepend, we need to be able to generate unique but decreasing time
      * UUID, which is a bit challenging. To do that, given a time in milliseconds,
      * we adds a number representing the 100-nanoseconds precision and make sure
-     * that within the same millisecond, that number is always increasing. We
+     * that within the same millisecond, that number is always decreasing. We
      * do rely on the fact that the user will only provide decreasing
      * milliseconds timestamp for that purpose.
      */
@@ -72,8 +72,8 @@ public class ListOperation implements Operation
 
             assert millis <= current.millis;
             PrecisionTime next = millis < current.millis
-                    ? new PrecisionTime(millis, 0)
-                    : new PrecisionTime(millis, current.nanos + 1);
+                    ? new PrecisionTime(millis, 9999)
+                    : new PrecisionTime(millis, Math.max(0, current.nanos - 1));
 
             if (last.compareAndSet(current, next))
                 return next;
@@ -180,11 +180,9 @@ public class ListOperation implements Operation
     {
         long time = REFERENCE_TIME - (System.currentTimeMillis() - REFERENCE_TIME);
 
-        // We do the loop in reverse order because getNext() will create increasing time but we want the last
-        // value in the prepended list to have the lower time
-        for (int i = values.size() - 1; i >= 0; i--)
+        for (int i = 0; i < values.size(); i++)
         {
-            ColumnNameBuilder b = i == 0 ? builder : builder.copy();
+            ColumnNameBuilder b = i == values.size() - 1 ? builder : builder.copy();
             PrecisionTime pt = getNextTime(time);
             ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(pt.millis, pt.nanos));
             ByteBuffer name = b.add(uuid).build();
@@ -261,6 +259,12 @@ public class ListOperation implements Operation
     public static Operation DiscardKey(List<Term> values)
     {
         return new ListOperation(values, Kind.DISCARD_IDX);
+    }
+
+    @Override
+    public String toString()
+    {
+        return "ListOperation(" + kind + ", " + values + ")";
     }
 
     private int validateListIdx(Term value, List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException

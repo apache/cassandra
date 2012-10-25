@@ -105,7 +105,7 @@ public class UpdateStatement extends ModificationStatement
     }
 
     /** {@inheritDoc} */
-    public Collection<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local, ConsistencyLevel cl)
+    public Collection<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
     throws RequestExecutionException, RequestValidationException
     {
         List<ByteBuffer> keys = buildKeyNames(cfDef, processedKeys, variables);
@@ -135,7 +135,7 @@ public class UpdateStatement extends ModificationStatement
         Map<ByteBuffer, ColumnGroupMap> rows = toRead != null ? readRows(keys, builder, toRead, (CompositeType)cfDef.cfm.comparator, local, cl) : null;
 
         Collection<IMutation> mutations = new LinkedList<IMutation>();
-        UpdateParameters params = new UpdateParameters(variables, getTimestamp(clientState), getTimeToLive());
+        UpdateParameters params = new UpdateParameters(variables, getTimestamp(now), getTimeToLive());
 
         for (ByteBuffer key: keys)
             mutations.add(mutationForKey(cfDef, key, builder, params, rows == null ? null : rows.get(key), cl));
@@ -449,7 +449,7 @@ public class UpdateStatement extends ModificationStatement
                              cfName,
                              whereClause,
                              columns,
-                             isSetTimestamp() ? getTimestamp(null) : "<now>",
+                             isSetTimestamp() ? getTimestamp(-1) : "<now>",
                              getTimeToLive());
     }
 }

@@ -69,7 +69,7 @@ public class DeleteStatement extends ModificationStatement
             cl.validateForWrite(cfDef.cfm.ksName);
     }
 
-    public Collection<RowMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local, ConsistencyLevel cl)
+    public Collection<RowMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
     throws RequestExecutionException, RequestValidationException
     {
         // keys
@@ -104,7 +104,7 @@ public class DeleteStatement extends ModificationStatement
         Map<ByteBuffer, ColumnGroupMap> rows = toRead != null ? readRows(keys, builder, toRead, (CompositeType)cfDef.cfm.comparator, local, cl) : null;
 
         Collection<RowMutation> rowMutations = new ArrayList<RowMutation>(keys.size());
-        UpdateParameters params = new UpdateParameters(variables, getTimestamp(clientState), -1);
+        UpdateParameters params = new UpdateParameters(variables, getTimestamp(now), -1);
 
         for (ByteBuffer key : keys)
             rowMutations.add(mutationForKey(cfDef, key, builder, isRange, params, rows == null ? null : rows.get(key)));
