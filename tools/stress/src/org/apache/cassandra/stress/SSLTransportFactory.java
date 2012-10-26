@@ -15,11 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cli.transport;
+package org.apache.cassandra.stress;
 
 import org.apache.cassandra.cli.transport.FramedTransportFactory;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.Stress;
 import org.apache.thrift.transport.TSSLTransportFactory;
 import org.apache.thrift.transport.TSSLTransportFactory.TSSLTransportParameters;
 import org.apache.thrift.transport.TTransport;
