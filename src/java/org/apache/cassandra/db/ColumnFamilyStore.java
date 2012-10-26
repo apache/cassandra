@@ -1157,11 +1157,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (cached instanceof RowCacheSentinel)
             {
                 // Some other read is trying to cache the value, just do a normal non-caching read
+                logger.debug("Row cache miss (race)");
                 return getTopLevelColumns(filter, Integer.MIN_VALUE, false);
             }
+            logger.debug("Row cache hit");
             return (ColumnFamily) cached;
         }
 
+        logger.debug("Row cache miss");
         RowCacheSentinel sentinel = new RowCacheSentinel();
         boolean sentinelSuccess = CacheService.instance.rowCache.putIfAbsent(key, sentinel);
 
@@ -1185,29 +1188,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore)
     {
         assert columnFamily.equals(filter.getColumnFamilyName()) : filter.getColumnFamilyName();
-        logger.debug("Executing single-partition query");
 
         ColumnFamily result = null;
 
         long start = System.nanoTime();
         try
         {
-
-            if (!isRowCacheEnabled())
+            if (isRowCacheEnabled())
             {
-                ColumnFamily cf = getTopLevelColumns(filter, gcBefore, false);
-
-                if (cf == null)
-                    return null;
-
-                // TODO this is necessary because when we collate supercolumns together, we don't check
-                // their subcolumns for relevance, so we need to do a second prune post facto here.
-                result = cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
-
-            }
-            else
-            {
-
                 UUID cfId = Schema.instance.getId(table.name, columnFamily);
                 if (cfId == null)
                 {
@@ -1224,13 +1212,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 result = filterColumnFamily(cached, filter, gcBefore);
             }
+            else
+            {
+                ColumnFamily cf = getTopLevelColumns(filter, gcBefore, false);
+
+                if (cf == null)
+                    return null;
+
+                // TODO this is necessary because when we collate supercolumns together, we don't check
+                // their subcolumns for relevance, so we need to do a second prune post facto here.
+                result = cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
+
+            }
         }
         finally
         {
             metric.readLatency.addNano(System.nanoTime() - start);
         }
 
-        logger.debug("Read {} cells", result == null ? 0 : result.getColumnCount());
         return result;
     }
 
@@ -1353,6 +1352,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore, boolean forCache)
     {
+        logger.debug("Executing single-partition query");
         CollationController controller = new CollationController(this, forCache, filter, gcBefore);
         ColumnFamily columns = controller.getTopLevelColumns();
         metric.updateSSTableIterated(controller.getSstablesIterated());

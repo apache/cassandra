@@ -71,7 +71,7 @@ public class CollationController
      */
     private ColumnFamily collectTimeOrderedData()
     {
-        logger.debug("collectTimeOrderedData");
+        logger.trace("collectTimeOrderedData");
 
         // AtomicSortedColumns doesn't work for super columi ns (see #3821)
         ISortedColumns.Factory factory = mutableColumns
@@ -79,9 +79,11 @@ public class CollationController
                                        : TreeMapBackedSortedColumns.factory();
         ColumnFamily container = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());
         List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>();
+        logger.debug("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
         try
         {
+            logger.debug("Merging memtable contents");
             for (Memtable memtable : view.memtables)
             {
                 OnDiskAtomIterator iter = filter.getMemtableColumnIterator(memtable);
@@ -130,6 +132,7 @@ public class CollationController
 
                     container.delete(cf);
                     sstablesIterated++;
+                    logger.debug("Merging data from sstable {}", sstable.descriptor.generation);
                     while (iter.hasNext())
                         container.addAtom(iter.next());
                 }
@@ -162,6 +165,7 @@ public class CollationController
                 }
             };
             ColumnFamily returnCF = container.cloneMeShallow();
+            logger.debug("Final collate");
             filter.collateOnDiskAtom(returnCF, Collections.singletonList(toCollate), gcBefore);
 
             // "hoist up" the requested data into a more recent sstable
@@ -169,6 +173,7 @@ public class CollationController
                 && !cfs.isCompactionDisabled()
                 && cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
             {
+                logger.debug("Defragmenting requested data");
                 RowMutation rm = new RowMutation(cfs.table.name, new Row(filter.key, returnCF.cloneMe()));
                 // skipping commitlog and index updates is fine since we're just de-fragmenting existing data
                 Table.open(rm.getTable()).apply(rm, false, false);
@@ -212,17 +217,19 @@ public class CollationController
      */
     private ColumnFamily collectAllData()
     {
-        logger.debug("collectAllData");
+        logger.trace("collectAllData");
         // AtomicSortedColumns doesn't work for super columns (see #3821)
         ISortedColumns.Factory factory = mutableColumns
                                        ? cfs.metadata.cfType == ColumnFamilyType.Super ? ThreadSafeSortedColumns.factory() : AtomicSortedColumns.factory()
                                        : ArrayBackedSortedColumns.factory();
+        logger.debug("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
         List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>(Iterables.size(view.memtables) + view.sstables.size());
         ColumnFamily returnCF = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());
 
         try
         {
+            logger.debug("Merging memtable contents");
             for (Memtable memtable : view.memtables)
             {
                 OnDiskAtomIterator iter = filter.getMemtableColumnIterator(memtable);
@@ -276,6 +283,7 @@ public class CollationController
             if (iterators.isEmpty())
                 return null;
 
+            logger.debug("Merging data from memtables and sstables");
             filter.collateOnDiskAtom(returnCF, iterators, gcBefore);
 
             // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
