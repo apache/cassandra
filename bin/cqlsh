@@ -1220,8 +1220,7 @@ class Shell(cmd.Cmd):
         # no metainfo available from system.schema_* for system CFs, so we have
         # to use cfdef-based description for those.
 
-        if ksname not in SYSTEM_KEYSPACES \
-        and self.cqlver_atleast(3):
+        if self.cqlver_atleast(3) and not self.is_cql3_beta():
             try:
                 layout = self.get_columnfamily_layout(ksname, cfname)
             except CQL_ERRORS:
