@@ -132,14 +132,31 @@ formatter_for('counter')(format_integer_type)
 
 @formatter_for('timestamp')
 def format_value_timestamp(val, colormap, time_format, **_):
-    bval = time.strftime(time_format, time.localtime(val))
+    bval = strftime(time_format, val)
     return colorme(bval, colormap, 'timestamp')
 
 @formatter_for('timeuuid')
 def format_value_timeuuid(val, colormap, time_format, **_):
     utime = cqltypes.unix_time_from_uuid1(val)
-    bval = time.strftime(time_format, time.localtime(utime))
+    bval = strftime(time_format, utime)
     return colorme(bval, colormap, 'timestamp')
+
+def strftime(time_format, seconds):
+    local = time.localtime(seconds)
+    formatted = time.strftime(time_format, local)
+    if local.tm_isdst != 0:
+        offset = -time.altzone
+    else:
+        offset = -time.timezone
+    if formatted[-4] != '0000' or time_format[-2] != '%z' or offset == 0:
+        return formatted
+    # deal with %z on platforms where it isn't supported. see CASSANDRA-4746.
+    if offset < 0:
+        sign = '-'
+    else:
+        sign = '+'
+    hours, minutes = divmod(abs(offset) / 60, 60)
+    return formatted[:-5] + sign + '{0:0=2}{1:0=2}'.format(hours, minutes)
 
 @formatter_for('text')
 def format_value_text(val, encoding, colormap, **_):
