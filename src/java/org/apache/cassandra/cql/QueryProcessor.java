@@ -718,7 +718,7 @@ public class QueryProcessor
 
             case CREATE_COLUMNFAMILY:
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
-                clientState.hasColumnFamilySchemaAccess(createCf.getName(), Permission.CREATE);
+                clientState.hasColumnFamilySchemaAccess(keyspace, Permission.CREATE);
                 validateSchemaAgreement();
 
                 try

@@ -8,6 +8,8 @@
  * add a close() method to CRAR to prevent leaking file descriptors (CASSANDRA-4820)
  * fix potential infinite loop in get_count (CASSANDRA-4833)
  * fix compositeType.{get/from}String methods (CASSANDRA-4842)
+ * (CQL) fix CREATE COLUMNFAMILY permissions check (CASSANDRA-4864)
+
 
 1.1.6
  * Wait for writes on synchronous read digest mismatch (CASSANDRA-4792)
