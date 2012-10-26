@@ -30,8 +30,7 @@ import org.apache.thrift.transport.TFramedTransport;
 
 public class ThriftServer implements CassandraDaemon.Server
 {
-    protected static CassandraDaemon instance;
-    private static Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
+    private static Logger logger = LoggerFactory.getLogger(ThriftServer.class);
     final static String SYNC = "sync";
     final static String ASYNC = "async";
     final static String HSHA = "hsha";
