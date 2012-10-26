@@ -121,11 +121,8 @@ public class Memory
 
     private void checkPosition(long offset)
     {
-        if (peer == 0)
-            throw new IllegalStateException("Memory was freed");
-
-        if (offset < 0 || offset >= size)
-            throw new IndexOutOfBoundsException("Illegal offset: " + offset + ", size: " + size);
+        assert peer != 0 : "Memory was freed";
+        assert offset >= 0 && offset < size : "Illegal offset: " + offset + ", size: " + size;
     }
 
     public void free()

@@ -52,11 +52,4 @@ public class FreeableMemory extends Memory
         if (references.decrementAndGet() == 0)
             free();
     }
-
-    @Override
-    public byte getByte(long offset)
-    {
-        assert peer != 0;
-        return super.getByte(offset);
-    }
 }
