@@ -97,12 +97,6 @@ public class OpenBitSet implements Serializable {
       return bits[pageIdx];
   }
 
-  /** Contructs an OpenBitset from a BitSet
-  */
-  public OpenBitSet(BitSet bits) {
-    this(bits.length());
-  }
-
   /** Returns the current capacity in bits (1 greater than the index of the last bit) */
   public long capacity() { return ((long)wlen) << 6; }
 
@@ -151,15 +145,6 @@ public class OpenBitSet implements Serializable {
     long bitmask = 1L << bit;
     // TODO perfectionist one can implement this using bit operations
     return (bits[i / PAGE_SIZE][i % PAGE_SIZE ] & bitmask) != 0;
-  }
-
-  /** returns 1 if the bit is set, 0 if not.
-   * The index should be less than the OpenBitSet size
-   */
-  public int getBit(int index) {
-    int i = index >> 6;                // div 64
-    int bit = index & 0x3f;            // mod 64
-    return ((int)(bits[i / PAGE_SIZE][i % PAGE_SIZE ]>>>bit)) & 0x01;
   }
 
   /**
@@ -302,75 +287,6 @@ public class OpenBitSet implements Serializable {
     }
   }
 
-
-
-  /** Sets a bit and returns the previous value.
-   * The index should be less than the OpenBitSet size.
-   */
-  public boolean getAndSet(int index) {
-    int wordNum = index >> 6;      // div 64
-    int bit = index & 0x3f;     // mod 64
-    long bitmask = 1L << bit;
-    boolean val = (bits[wordNum / PAGE_SIZE][wordNum % PAGE_SIZE] & bitmask) != 0;
-    bits[wordNum / PAGE_SIZE][wordNum % PAGE_SIZE] |= bitmask;
-    return val;
-  }
-
-  /** Sets a bit and returns the previous value.
-   * The index should be less than the OpenBitSet size.
-   */
-  public boolean getAndSet(long index) {
-    int wordNum = (int)(index >> 6);      // div 64
-    int bit = (int)index & 0x3f;     // mod 64
-    long bitmask = 1L << bit;
-    boolean val = (bits[wordNum / PAGE_SIZE][wordNum % PAGE_SIZE] & bitmask) != 0;
-    bits[wordNum / PAGE_SIZE][wordNum % PAGE_SIZE] |= bitmask;
-    return val;
-  }
-
-  /** flips a bit.
-   * The index should be less than the OpenBitSet size.
-   */
-  public void flip(int index) {
-    int wordNum = index >> 6;      // div 64
-    int bit = index & 0x3f;     // mod 64
-    long bitmask = 1L << bit;
-    bits[wordNum / PAGE_SIZE][wordNum % PAGE_SIZE] ^= bitmask;
-  }
-
-  /**
-   * flips a bit.
-   * The index should be less than the OpenBitSet size.
-   */
-  public void flip(long index) {
-    int wordNum = (int)(index >> 6);   // div 64
-    int bit = (int)index & 0x3f;       // mod 64
-    long bitmask = 1L << bit;
-    bits[wordNum / PAGE_SIZE][wordNum % PAGE_SIZE] ^= bitmask;
-  }
-
-  /** flips a bit and returns the resulting bit value.
-   * The index should be less than the OpenBitSet size.
-   */
-  public boolean flipAndGet(int index) {
-    int wordNum = index >> 6;      // div 64
-    int bit = index & 0x3f;     // mod 64
-    long bitmask = 1L << bit;
-    bits[wordNum / PAGE_SIZE][wordNum % PAGE_SIZE] ^= bitmask;
-    return (bits[wordNum / PAGE_SIZE][wordNum % PAGE_SIZE] & bitmask) != 0;
-  }
-
-  /** flips a bit and returns the resulting bit value.
-   * The index should be less than the OpenBitSet size.
-   */
-  public boolean flipAndGet(long index) {
-    int wordNum = (int)(index >> 6);   // div 64
-    int bit = (int)index & 0x3f;       // mod 64
-    long bitmask = 1L << bit;
-    bits[wordNum / PAGE_SIZE][wordNum % PAGE_SIZE] ^= bitmask;
-    return (bits[wordNum / PAGE_SIZE][wordNum % PAGE_SIZE] & bitmask) != 0;
-  }
-
   /** @return the number of set bits */
   public long cardinality()
   {
@@ -379,48 +295,6 @@ public class OpenBitSet implements Serializable {
         bitCount+=BitUtil.pop_array(bits[i],0,wlen);
 
     return bitCount;
-  }
-
-  /** Returns the index of the first set bit starting at the index specified.
-   *  -1 is returned if there are no more set bits.
-   */
-  public int nextSetBit(int index) {
-    int i = index>>6;
-    if (i>=wlen) return -1;
-    int subIndex = index & 0x3f;      // index within the word
-    long word = bits[i / PAGE_SIZE][ i % PAGE_SIZE] >> subIndex;  // skip all the bits to the right of index
-
-    if (word!=0) {
-      return (i<<6) + subIndex + BitUtil.ntz(word);
-    }
-
-    while(++i < wlen) {
-      word = bits[i / PAGE_SIZE][i % PAGE_SIZE];
-      if (word!=0) return (i<<6) + BitUtil.ntz(word);
-    }
-
-    return -1;
-  }
-
-  /** Returns the index of the first set bit starting at the index specified.
-   *  -1 is returned if there are no more set bits.
-   */
-  public long nextSetBit(long index) {
-    int i = (int)(index>>>6);
-    if (i>=wlen) return -1;
-    int subIndex = (int)index & 0x3f; // index within the word
-    long word = bits[i / PAGE_SIZE][i % PAGE_SIZE] >>> subIndex;  // skip all the bits to the right of index
-
-    if (word!=0) {
-      return (((long)i)<<6) + (subIndex + BitUtil.ntz(word));
-    }
-
-    while(++i < wlen) {
-      word = bits[i / PAGE_SIZE][i % PAGE_SIZE];
-      if (word!=0) return (((long)i)<<6) + BitUtil.ntz(word);
-    }
-
-    return -1;
   }
 
   /** this = this AND other */
