@@ -19,15 +19,15 @@ package org.apache.cassandra.io.util;
 
 import java.io.IOException;
 
-import org.apache.cassandra.cache.FreeableMemory;
+import org.apache.cassandra.cache.RefCountedMemory;
 
 
 public class MemoryInputStream extends AbstractDataInput
 {
-    private final FreeableMemory mem;
+    private final RefCountedMemory mem;
     private int position = 0;
 
-    public MemoryInputStream(FreeableMemory mem)
+    public MemoryInputStream(RefCountedMemory mem)
     {
         this.mem = mem;
     }

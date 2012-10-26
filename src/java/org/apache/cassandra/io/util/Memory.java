@@ -21,6 +21,9 @@ import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
 
+/**
+ * An off-heap region of memory that must be manually free'd when no longer needed.
+ */
 public class Memory
 {
     private static final Unsafe unsafe;
