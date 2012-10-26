@@ -709,10 +709,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             future.get();
     }
 
-    public void updateRowCache(DecoratedKey key, ColumnFamily columnFamily)
+    public void maybeUpdateRowCache(DecoratedKey key, ColumnFamily columnFamily)
     {
-        if (metadata.cfId == null)
-            return; // secondary index
+        if (!isRowCacheEnabled())
+            return;
 
         RowCacheKey cacheKey = new RowCacheKey(metadata.cfId, key);
 
@@ -750,7 +750,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         Memtable mt = getMemtableThreadSafe();
         mt.put(key, columnFamily, indexer);
-        updateRowCache(key, columnFamily);
+        maybeUpdateRowCache(key, columnFamily);
         metric.writeLatency.addNano(System.nanoTime() - start);
 
         // recompute liveRatio, if we have doubled the number of ops since last calculated

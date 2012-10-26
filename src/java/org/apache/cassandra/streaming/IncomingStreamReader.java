@@ -157,7 +157,7 @@ public class IncomingStreamReader
 
                         // update cache
                         ColumnFamily cf = row.getFullColumnFamily();
-                        cfs.updateRowCache(key, cf);
+                        cfs.maybeUpdateRowCache(key, cf);
                     }
                     else
                     {
