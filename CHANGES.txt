@@ -5,6 +5,7 @@
 1.1.7
  * fix get_paged_slice to wrap to next row correctly (CASSANDRA-4816)
  * fix indexing empty column values (CASSANDRA-4832)
+ * (CQL) fix CREATE COLUMNFAMILY permissions check (CASSANDRA-4864)
 
 
 1.1.6
