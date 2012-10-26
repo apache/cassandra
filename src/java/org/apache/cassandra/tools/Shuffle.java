@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -197,7 +198,7 @@ public class Shuffle extends AbstractJmxClient
      */
     public void enableRelocations(String...endpoints)
     {
-        enableRelocations(endpoints);
+        enableRelocations(Arrays.asList(endpoints));
     }
 
     /**
