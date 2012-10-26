@@ -230,7 +230,7 @@ public class Shuffle extends AbstractJmxClient
      */
     public void disableRelocations(String...endpoints)
     {
-        disableRelocations(endpoints);
+        disableRelocations(Arrays.asList(endpoints));
     }
 
     /**
