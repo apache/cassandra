@@ -133,7 +133,14 @@ public class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public <T> Set<T> getSet(String column, AbstractType<T> type)
         {
-            return SetType.getInstance(type).compose(data.get(column));
+            ByteBuffer raw = data.get(column);
+            return raw == null ? null : SetType.getInstance(type).compose(raw);
+        }
+
+        public <K, V> Map<K, V> getMap(String column, AbstractType<K> keyType, AbstractType<V> valueType)
+        {
+            ByteBuffer raw = data.get(column);
+            return raw == null ? null : MapType.getInstance(keyType, valueType).compose(raw);
         }
 
         @Override
