@@ -116,16 +116,7 @@ public class CFPropDefs {
 
     public void validate() throws InvalidRequestException
     {
-        String compStrategy = getPropertyString(KW_COMPACTION_STRATEGY_CLASS, CFMetaData.DEFAULT_COMPACTION_STRATEGY_CLASS);
-
-        try
-        {
-            compactionStrategyClass = CFMetaData.createCompactionStrategy(compStrategy);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new InvalidRequestException(e.getMessage());
-        }
+        compactionStrategyClass = CFMetaData.DEFAULT_COMPACTION_STRATEGY_CLASS;
 
         // we need to remove parent:key = value pairs from the main properties
         Set<String> propsToRemove = new HashSet<String>();

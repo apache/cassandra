@@ -106,7 +106,7 @@ public class ColumnIndex
          * Serializes the index into in-memory structure with all required components
          * such as Bloom Filter, index block size, IndexInfo list
          *
-         * @param columns Column family to create index for
+         * @param cf Column family to create index for
          *
          * @return information about index - it's Bloom Filter, block size and IndexInfo list
          */

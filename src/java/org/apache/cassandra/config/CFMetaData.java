@@ -72,7 +72,7 @@ public final class CFMetaData
     public final static int DEFAULT_GC_GRACE_SECONDS = 864000;
     public final static int DEFAULT_MIN_COMPACTION_THRESHOLD = 4;
     public final static int DEFAULT_MAX_COMPACTION_THRESHOLD = 32;
-    public final static String DEFAULT_COMPACTION_STRATEGY_CLASS = "SizeTieredCompactionStrategy";
+    public final static Class<? extends AbstractCompactionStrategy> DEFAULT_COMPACTION_STRATEGY_CLASS = SizeTieredCompactionStrategy.class;
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
     public final static Caching DEFAULT_CACHING_STRATEGY = Caching.KEYS_ONLY;
 
@@ -240,27 +240,27 @@ public final class CFMetaData
     public volatile AbstractType<?> subcolumnComparator; // like comparator, for supercolumns
 
     //OPTIONAL
-    private volatile String comment;                           // default none, for humans only
-    private volatile double readRepairChance;                  // default 1.0 (always), chance [0.0,1.0] of read repair
-    private volatile double dcLocalReadRepairChance;           // default 0.0
-    private volatile boolean replicateOnWrite;                 // default false
-    private volatile int gcGraceSeconds;                       // default 864000 (ten days)
-    private volatile AbstractType<?> defaultValidator;         // default BytesType (no-op), use comparator types
-    private volatile AbstractType<?> keyValidator;             // default BytesType (no-op), use comparator types
-    private volatile int minCompactionThreshold;               // default 4
-    private volatile int maxCompactionThreshold;               // default 32
+    private volatile String comment = "";
+    private volatile double readRepairChance = DEFAULT_READ_REPAIR_CHANCE;
+    private volatile double dcLocalReadRepairChance = DEFAULT_DCLOCAL_READ_REPAIR_CHANCE;
+    private volatile boolean replicateOnWrite = DEFAULT_REPLICATE_ON_WRITE;
+    private volatile int gcGraceSeconds = DEFAULT_GC_GRACE_SECONDS;
+    private volatile AbstractType<?> defaultValidator = BytesType.instance;
+    private volatile AbstractType<?> keyValidator = BytesType.instance;
+    private volatile int minCompactionThreshold = DEFAULT_MIN_COMPACTION_THRESHOLD;
+    private volatile int maxCompactionThreshold = DEFAULT_MAX_COMPACTION_THRESHOLD;
     // Both those aliases list can be null padded if only some of the position have been given an alias through ALTER TABLE .. RENAME
     private volatile List<ByteBuffer> keyAliases = new ArrayList<ByteBuffer>();
     private volatile List<ByteBuffer> columnAliases = new ArrayList<ByteBuffer>();
-    private volatile ByteBuffer valueAlias;                    // default NULL
-    private volatile Double bloomFilterFpChance;               // default NULL
-    private volatile Caching caching;                          // default KEYS_ONLY (possible: all, key_only, row_only, none)
+    private volatile ByteBuffer valueAlias = null;
+    private volatile Double bloomFilterFpChance = null;
+    private volatile Caching caching = DEFAULT_CACHING_STRATEGY;
 
-    volatile Map<ByteBuffer, ColumnDefinition> column_metadata;
-    public volatile Class<? extends AbstractCompactionStrategy> compactionStrategyClass;
-    public volatile Map<String, String> compactionStrategyOptions;
+    volatile Map<ByteBuffer, ColumnDefinition> column_metadata = new HashMap<ByteBuffer,ColumnDefinition>();
+    public volatile Class<? extends AbstractCompactionStrategy> compactionStrategyClass = DEFAULT_COMPACTION_STRATEGY_CLASS;
+    public volatile Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
 
-    public volatile CompressionParameters compressionParameters;
+    public volatile CompressionParameters compressionParameters = new CompressionParameters(null);
 
     // Processed infos used by CQL. This can be fully reconstructed from the CFMedata,
     // so it's not saved on disk. It is however costlyish to recreate for each query
@@ -301,7 +301,7 @@ public final class CFMetaData
         subcolumnComparator = enforceSubccDefault(type, subcc);
         cfId = id;
 
-        this.init();
+        updateCfDef(); // init cqlCfDef
     }
 
     private static CFMetaData compile(int id, String cql, String keyspace)
@@ -341,33 +341,6 @@ public final class CFMetaData
 
     private void init()
     {
-        // Set a bunch of defaults
-        readRepairChance             = DEFAULT_READ_REPAIR_CHANCE;
-        dcLocalReadRepairChance      = DEFAULT_DCLOCAL_READ_REPAIR_CHANCE;
-        replicateOnWrite             = DEFAULT_REPLICATE_ON_WRITE;
-        gcGraceSeconds               = DEFAULT_GC_GRACE_SECONDS;
-        minCompactionThreshold       = DEFAULT_MIN_COMPACTION_THRESHOLD;
-        maxCompactionThreshold       = DEFAULT_MAX_COMPACTION_THRESHOLD;
-        caching                      = DEFAULT_CACHING_STRATEGY;
-
-        // Defaults strange or simple enough to not need a DEFAULT_T for
-        defaultValidator = BytesType.instance;
-        keyValidator = BytesType.instance;
-        comment = "";
-        valueAlias = null;
-        column_metadata = new HashMap<ByteBuffer,ColumnDefinition>();
-
-        try
-        {
-            compactionStrategyClass = createCompactionStrategy(DEFAULT_COMPACTION_STRATEGY_CLASS);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new AssertionError(e);
-        }
-        compactionStrategyOptions = new HashMap<String, String>();
-
-        compressionParameters = new CompressionParameters(null);
         updateCfDef(); // init cqlCfDef
     }
 
@@ -657,7 +630,7 @@ public final class CFMetaData
         if (!cf_def.isSetMax_compaction_threshold())
             cf_def.setMax_compaction_threshold(CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD);
         if (cf_def.compaction_strategy == null)
-            cf_def.compaction_strategy = DEFAULT_COMPACTION_STRATEGY_CLASS;
+            cf_def.compaction_strategy = DEFAULT_COMPACTION_STRATEGY_CLASS.getSimpleName();
         if (cf_def.compaction_strategy_options == null)
             cf_def.compaction_strategy_options = Collections.emptyMap();
         if (!cf_def.isSetCompression_options())

@@ -1,5 +1,6 @@
 package org.apache.cassandra.utils;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public class AlwaysPresentFilter implements IFilter
