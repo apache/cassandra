@@ -39,7 +39,7 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class NamesQueryFilter implements IFilter
+public class NamesQueryFilter implements IDiskAtomFilter
 {
     public static final Serializer serializer = new Serializer();
 

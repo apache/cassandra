@@ -28,7 +28,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
-import org.apache.cassandra.db.filter.IFilter;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
@@ -38,6 +38,7 @@ import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.IFilter;
 
 public class RowRepairResolver extends AbstractRowResolver
 {
@@ -45,7 +46,7 @@ public class RowRepairResolver extends AbstractRowResolver
     public List<IAsyncResult> repairResults = Collections.emptyList();
     private final SliceQueryFilter filter; // can be null if names query
 
-    public RowRepairResolver(String table, ByteBuffer key, IFilter qFilter)
+    public RowRepairResolver(String table, ByteBuffer key, IDiskAtomFilter qFilter)
     {
         super(key, table);
         this.filter = qFilter instanceof SliceQueryFilter ? (SliceQueryFilter)qFilter : null;

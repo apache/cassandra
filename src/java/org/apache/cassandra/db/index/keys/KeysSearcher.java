@@ -83,7 +83,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
     }
 
     @Override
-    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IFilter dataFilter, boolean maxIsColumns)
+    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean maxIsColumns)
     {
         assert clause != null && !clause.isEmpty();
         ExtendedFilter filter = ExtendedFilter.create(baseCfs, dataFilter, clause, maxResults, maxIsColumns, false);
@@ -201,7 +201,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
 
                         // as in CFS.filter - extend the filter to ensure we include the columns 
                         // from the index expressions, just in case they weren't included in the initialFilter
-                        IFilter extraFilter = filter.getExtraFilter(data);
+                        IDiskAtomFilter extraFilter = filter.getExtraFilter(data);
                         if (extraFilter != null)
                         {
                             ColumnFamily cf = baseCfs.getColumnFamily(new QueryFilter(dk, path, extraFilter));

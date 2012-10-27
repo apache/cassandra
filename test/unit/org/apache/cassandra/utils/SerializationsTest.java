@@ -33,7 +33,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testBloomFilterWrite(Type murmur, boolean offheap) throws IOException
     {
-        Filter bf = FilterFactory.getFilter(1000000, 0.0001, murmur, offheap);
+        IFilter bf = FilterFactory.getFilter(1000000, 0.0001, murmur, offheap);
         for (int i = 0; i < 100; i++)
             bf.add(StorageService.getPartitioner().getTokenFactory().toByteArray(StorageService.getPartitioner().getRandomToken()));
         DataOutputStream out = getOutput("utils.BloomFilter.bin");

@@ -39,7 +39,7 @@ public class LegacyBloomFilterTest
         bf = LegacyBloomFilter.getFilter(FilterTestHelper.ELEMENTS, FilterTestHelper.MAX_FAILURE_RATE);
     }
 
-    public static Filter testSerialize(LegacyBloomFilter f) throws IOException
+    public static IFilter testSerialize(LegacyBloomFilter f) throws IOException
     {
         f.add(ByteBufferUtil.bytes("a"));
         DataOutputBuffer out = new DataOutputBuffer();

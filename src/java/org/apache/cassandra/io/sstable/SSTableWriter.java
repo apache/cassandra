@@ -428,7 +428,7 @@ public class SSTableWriter extends SSTable
         private final SequentialWriter indexFile;
         public final SegmentedFile.Builder builder;
         public final IndexSummary summary;
-        public final Filter bf;
+        public final IFilter bf;
         private FileMark mark;
 
         IndexWriter(long keyCount)

@@ -27,7 +27,7 @@ import java.util.List;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.Filter;
+import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.FilterFactory;
 
 public class RowIndexEntry
@@ -69,7 +69,7 @@ public class RowIndexEntry
         return Collections.<IndexHelper.IndexInfo>emptyList();
     }
 
-    public Filter bloomFilter()
+    public IFilter bloomFilter()
     {
         throw new UnsupportedOperationException();
     }
@@ -119,7 +119,7 @@ public class RowIndexEntry
                     List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
                     for (int i = 0; i < entries; i++)
                         columnsIndex.add(IndexHelper.IndexInfo.deserialize(dis));
-                    Filter bf = FilterFactory.deserialize(dis, version.filterType, false);
+                    IFilter bf = FilterFactory.deserialize(dis, version.filterType, false);
                     return new IndexedEntry(position, delInfo, columnsIndex, bf);
                 }
                 else
@@ -157,9 +157,9 @@ public class RowIndexEntry
     {
         private final DeletionInfo deletionInfo;
         private final List<IndexHelper.IndexInfo> columnsIndex;
-        private final Filter bloomFilter;
+        private final IFilter bloomFilter;
 
-        private IndexedEntry(long position, DeletionInfo deletionInfo, List<IndexHelper.IndexInfo> columnsIndex, Filter bloomFilter)
+        private IndexedEntry(long position, DeletionInfo deletionInfo, List<IndexHelper.IndexInfo> columnsIndex, IFilter bloomFilter)
         {
             super(position);
             assert deletionInfo != null;
@@ -182,7 +182,7 @@ public class RowIndexEntry
         }
 
         @Override
-        public Filter bloomFilter()
+        public IFilter bloomFilter()
         {
             return bloomFilter;
         }

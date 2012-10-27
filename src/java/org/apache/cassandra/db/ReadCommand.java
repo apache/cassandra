@@ -25,7 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.filter.IFilter;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -33,6 +33,7 @@ import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.IReadCommand;
 import org.apache.cassandra.service.RepairCallback;
+import org.apache.cassandra.utils.IFilter;
 
 
 public abstract class ReadCommand implements IReadCommand
@@ -80,7 +81,7 @@ public abstract class ReadCommand implements IReadCommand
 
     public abstract Row getRow(Table table) throws IOException;
 
-    public abstract IFilter filter();
+    public abstract IDiskAtomFilter filter();
 
     protected AbstractType<?> getComparator()
     {

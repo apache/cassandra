@@ -22,9 +22,10 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.utils.obs.IBitSet;
 
-public abstract class BloomFilter extends Filter
+public abstract class BloomFilter implements IFilter
 {
     public final IBitSet bitset;
+    public final int hashCount;
 
     BloomFilter(int hashes, IBitSet bitset)
     {
@@ -80,7 +81,6 @@ public abstract class BloomFilter extends Filter
         bitset.clear();
     }
 
-    @Override
     public void close() throws IOException
     {
         bitset.close();

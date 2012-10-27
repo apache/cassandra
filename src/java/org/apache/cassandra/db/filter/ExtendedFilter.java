@@ -42,12 +42,12 @@ public abstract class ExtendedFilter
     private static final Logger logger = LoggerFactory.getLogger(ExtendedFilter.class);
 
     public final ColumnFamilyStore cfs;
-    protected final IFilter originalFilter;
+    protected final IDiskAtomFilter originalFilter;
     private final int maxResults;
     private final boolean maxIsColumns;
     private final boolean isPaging;
 
-    public static ExtendedFilter create(ColumnFamilyStore cfs, IFilter filter, List<IndexExpression> clause, int maxResults, boolean maxIsColumns, boolean isPaging)
+    public static ExtendedFilter create(ColumnFamilyStore cfs, IDiskAtomFilter filter, List<IndexExpression> clause, int maxResults, boolean maxIsColumns, boolean isPaging)
     {
         if (clause == null || clause.isEmpty())
         {
@@ -63,7 +63,7 @@ public abstract class ExtendedFilter
         }
     }
 
-    protected ExtendedFilter(ColumnFamilyStore cfs, IFilter filter, int maxResults, boolean maxIsColumns, boolean isPaging)
+    protected ExtendedFilter(ColumnFamilyStore cfs, IDiskAtomFilter filter, int maxResults, boolean maxIsColumns, boolean isPaging)
     {
         assert cfs != null;
         assert filter != null;
@@ -114,9 +114,9 @@ public abstract class ExtendedFilter
     }
 
     /** The initial filter we'll do our first slice with (either the original or a superset of it) */
-    public abstract IFilter initialFilter();
+    public abstract IDiskAtomFilter initialFilter();
 
-    public IFilter originalFilter()
+    public IDiskAtomFilter originalFilter()
     {
         return originalFilter;
     }
@@ -128,7 +128,7 @@ public abstract class ExtendedFilter
      * @param data the data retrieve by the initial filter
      * @return a filter or null if there can't be any columns we missed with our initial filter (typically if it was a names query, or a slice of the entire row)
      */
-    public abstract IFilter getExtraFilter(ColumnFamily data);
+    public abstract IDiskAtomFilter getExtraFilter(ColumnFamily data);
 
     /**
      * @return data pruned down to the columns originally asked for
@@ -163,9 +163,9 @@ public abstract class ExtendedFilter
     private static class FilterWithClauses extends ExtendedFilter
     {
         protected final List<IndexExpression> clause;
-        protected final IFilter initialFilter;
+        protected final IDiskAtomFilter initialFilter;
 
-        public FilterWithClauses(ColumnFamilyStore cfs, IFilter filter, List<IndexExpression> clause, int maxResults, boolean maxIsColumns)
+        public FilterWithClauses(ColumnFamilyStore cfs, IDiskAtomFilter filter, List<IndexExpression> clause, int maxResults, boolean maxIsColumns)
         {
             super(cfs, filter, maxResults, maxIsColumns, false);
             assert clause != null;
@@ -174,7 +174,7 @@ public abstract class ExtendedFilter
         }
 
         /** Sets up the initial filter. */
-        protected IFilter computeInitialFilter()
+        protected IDiskAtomFilter computeInitialFilter()
         {
             if (originalFilter instanceof SliceQueryFilter)
             {
@@ -207,7 +207,7 @@ public abstract class ExtendedFilter
             return originalFilter;
         }
 
-        public IFilter initialFilter()
+        public IDiskAtomFilter initialFilter()
         {
             return initialFilter;
         }
@@ -246,7 +246,7 @@ public abstract class ExtendedFilter
             return false;
         }
 
-        public IFilter getExtraFilter(ColumnFamily data)
+        public IDiskAtomFilter getExtraFilter(ColumnFamily data)
         {
             if (!needsExtraQuery(data))
                 return null;
@@ -294,7 +294,7 @@ public abstract class ExtendedFilter
 
     private static class FilterWithCompositeClauses extends FilterWithClauses
     {
-        public FilterWithCompositeClauses(ColumnFamilyStore cfs, IFilter filter, List<IndexExpression> clause, int maxResults, boolean maxIsColumns)
+        public FilterWithCompositeClauses(ColumnFamilyStore cfs, IDiskAtomFilter filter, List<IndexExpression> clause, int maxResults, boolean maxIsColumns)
         {
             super(cfs, filter, clause, maxResults, maxIsColumns);
         }
@@ -307,7 +307,7 @@ public abstract class ExtendedFilter
          * expect to know the limit set by the user, so create a fake filter
          * with only the count information.
          */
-        protected IFilter computeInitialFilter()
+        protected IDiskAtomFilter computeInitialFilter()
         {
             int limit = originalFilter instanceof SliceQueryFilter
                       ? ((SliceQueryFilter)originalFilter).count
@@ -318,12 +318,12 @@ public abstract class ExtendedFilter
 
     private static class EmptyClauseFilter extends ExtendedFilter
     {
-        public EmptyClauseFilter(ColumnFamilyStore cfs, IFilter filter, int maxResults, boolean maxIsColumns, boolean isPaging)
+        public EmptyClauseFilter(ColumnFamilyStore cfs, IDiskAtomFilter filter, int maxResults, boolean maxIsColumns, boolean isPaging)
         {
             super(cfs, filter, maxResults, maxIsColumns, isPaging);
         }
 
-        public IFilter initialFilter()
+        public IDiskAtomFilter initialFilter()
         {
             return originalFilter;
         }
@@ -333,7 +333,7 @@ public abstract class ExtendedFilter
             throw new UnsupportedOperationException();
         }
 
-        public IFilter getExtraFilter(ColumnFamily data)
+        public IDiskAtomFilter getExtraFilter(ColumnFamily data)
         {
             return null;
         }

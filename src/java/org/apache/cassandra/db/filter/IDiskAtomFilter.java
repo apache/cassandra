@@ -38,7 +38,7 @@ import org.apache.cassandra.io.util.FileDataInput;
  * takes care of putting the two together if subcolumn filtering needs to be done, based on the
  * querypath that it knows (but that IFilter implementations are oblivious to).
  */
-public interface IFilter
+public interface IDiskAtomFilter
 {
     /**
      * returns an iterator that returns columns from the given memtable
@@ -79,11 +79,11 @@ public interface IFilter
     public boolean isReversed();
     public void updateColumnsLimit(int newLimit);
 
-    public static class Serializer implements IVersionedSerializer<IFilter>
+    public static class Serializer implements IVersionedSerializer<IDiskAtomFilter>
     {
         public static Serializer instance = new Serializer();
 
-        public void serialize(IFilter filter, DataOutput dos, int version) throws IOException
+        public void serialize(IDiskAtomFilter filter, DataOutput dos, int version) throws IOException
         {
             if (filter instanceof SliceQueryFilter)
             {
@@ -97,12 +97,12 @@ public interface IFilter
             }
         }
 
-        public IFilter deserialize(DataInput dis, int version) throws IOException
+        public IDiskAtomFilter deserialize(DataInput dis, int version) throws IOException
         {
             throw new UnsupportedOperationException();
         }
 
-        public IFilter deserialize(DataInput dis, int version, AbstractType<?> comparator) throws IOException
+        public IDiskAtomFilter deserialize(DataInput dis, int version, AbstractType<?> comparator) throws IOException
         {
             int type = dis.readByte();
             if (type == 0)
@@ -116,7 +116,7 @@ public interface IFilter
             }
         }
 
-        public long serializedSize(IFilter filter, int version)
+        public long serializedSize(IDiskAtomFilter filter, int version)
         {
             int size = 1;
             if (filter instanceof SliceQueryFilter)

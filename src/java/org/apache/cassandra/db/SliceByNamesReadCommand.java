@@ -75,7 +75,7 @@ public class SliceByNamesReadCommand extends ReadCommand
                ')';
     }
 
-    public IFilter filter()
+    public IDiskAtomFilter filter()
     {
         return filter;
     }

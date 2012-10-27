@@ -50,8 +50,6 @@ import org.apache.cassandra.thrift.CqlPreparedResult;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.thrift.IndexType;
-import org.apache.cassandra.thrift.RequestType;
-import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.thrift.ThriftClientState;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -170,7 +168,7 @@ public class QueryProcessor
         }
         AbstractBounds<RowPosition> bounds = new Bounds<RowPosition>(startKey, finishKey);
 
-        IFilter columnFilter = filterFromSelect(select, metadata, variables);
+        IDiskAtomFilter columnFilter = filterFromSelect(select, metadata, variables);
         validateFilter(metadata, columnFilter);
 
         List<Relation> columnRelations = select.getColumnRelations();
@@ -253,7 +251,7 @@ public class QueryProcessor
         StorageProxy.mutate(rowMutations, consistency);
     }
 
-    private static IFilter filterFromSelect(SelectStatement select, CFMetaData metadata, List<ByteBuffer> variables)
+    private static IDiskAtomFilter filterFromSelect(SelectStatement select, CFMetaData metadata, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
         if (select.isColumnRange() || select.getColumnNames().size() == 0)
@@ -366,7 +364,7 @@ public class QueryProcessor
         }
     }
 
-    private static void validateFilter(CFMetaData metadata, IFilter filter)
+    private static void validateFilter(CFMetaData metadata, IDiskAtomFilter filter)
     throws InvalidRequestException
     {
         if (filter instanceof SliceQueryFilter)

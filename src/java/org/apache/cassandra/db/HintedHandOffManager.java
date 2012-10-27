@@ -399,7 +399,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         IPartitioner p = StorageService.getPartitioner();
         RowPosition minPos = p.getMinimumToken().minKeyBound();
         Range<RowPosition> range = new Range<RowPosition>(minPos, minPos, p);
-        IFilter filter = new NamesQueryFilter(ImmutableSortedSet.<ByteBuffer>of());
+        IDiskAtomFilter filter = new NamesQueryFilter(ImmutableSortedSet.<ByteBuffer>of());
         List<Row> rows = hintStore.getRangeSlice(null, range, Integer.MAX_VALUE, filter, null);
         for (Row row : rows)
         {

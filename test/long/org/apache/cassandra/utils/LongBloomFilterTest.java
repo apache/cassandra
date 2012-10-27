@@ -34,7 +34,7 @@ public class LongBloomFilterTest
     public void testBigInt(FilterFactory.Type type)
     {
         int size = 10 * 1000 * 1000;
-        Filter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, type, false);
+        IFilter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, type, false);
         double fp = FilterTestHelper.testFalsePositives(bf, new KeyGenerator.IntGenerator(size),
                                                             new KeyGenerator.IntGenerator(size, size * 2));
         logger.info("Bloom filter false positive: {}", fp);
@@ -43,7 +43,7 @@ public class LongBloomFilterTest
     public void testBigRandom(FilterFactory.Type type)
     {
         int size = 10 * 1000 * 1000;
-        Filter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, type, false);
+        IFilter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, type, false);
         double fp = FilterTestHelper.testFalsePositives(bf, new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
                                                             new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
         logger.info("Bloom filter false positive: {}", fp);
@@ -52,7 +52,7 @@ public class LongBloomFilterTest
     public void timeit(FilterFactory.Type type)
     {
         int size = 300 * FilterTestHelper.ELEMENTS;
-        Filter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, type, false);
+        IFilter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, type, false);
         double sumfp = 0;
         for (int i = 0; i < 10; i++)
         {

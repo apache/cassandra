@@ -25,7 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.IFilter;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
@@ -577,7 +577,7 @@ public class ThriftValidation
             throw new org.apache.cassandra.exceptions.InvalidRequestException("system keyspace is not user-modifiable");
     }
 
-    public static IFilter asIFilter(SlicePredicate sp, AbstractType<?> comparator)
+    public static IDiskAtomFilter asIFilter(SlicePredicate sp, AbstractType<?> comparator)
     {
         SliceRange sr = sp.slice_range;
         if (sr == null)

@@ -18,37 +18,36 @@
 */
 package org.apache.cassandra.utils;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.utils.KeyGenerator.WordGenerator;
 
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.io.util.DataOutputBuffer;
+
 public class BloomFilterTest
 {
-    public Filter bf;
+    public IFilter bf;
 
     public BloomFilterTest()
     {
         bf = FilterFactory.getFilter(10000L, FilterTestHelper.MAX_FAILURE_RATE, true);
     }
 
-    public static Filter testSerialize(Filter f) throws IOException
+    public static IFilter testSerialize(IFilter f) throws IOException
     {
         f.add(ByteBufferUtil.bytes("a"));
         DataOutputBuffer out = new DataOutputBuffer();
         FilterFactory.serialize(f, out, FilterFactory.Type.MURMUR3);
 
         ByteArrayInputStream in = new ByteArrayInputStream(out.getData(), 0, out.getLength());
-        Filter f2 = FilterFactory.deserialize(new DataInputStream(in), FilterFactory.Type.MURMUR3, true);
+        IFilter f2 = FilterFactory.deserialize(new DataInputStream(in), FilterFactory.Type.MURMUR3, true);
 
         assert f2.isPresent(ByteBufferUtil.bytes("a"));
         assert !f2.isPresent(ByteBufferUtil.bytes("b"));
@@ -102,7 +101,7 @@ public class BloomFilterTest
         {
             return;
         }
-        Filter bf2 = FilterFactory.getFilter(KeyGenerator.WordGenerator.WORDS / 2, FilterTestHelper.MAX_FAILURE_RATE, true);
+        IFilter bf2 = FilterFactory.getFilter(KeyGenerator.WordGenerator.WORDS / 2, FilterTestHelper.MAX_FAILURE_RATE, true);
         int skipEven = KeyGenerator.WordGenerator.WORDS % 2 == 0 ? 0 : 2;
         FilterTestHelper.testFalsePositives(bf2,
                                             new KeyGenerator.WordGenerator(skipEven, 2),

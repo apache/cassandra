@@ -99,7 +99,7 @@ public class QueryProcessor
         validateColumnNames(Collections.singletonList(column));
     }
 
-    public static void validateFilter(CFMetaData metadata, IFilter filter)
+    public static void validateFilter(CFMetaData metadata, IDiskAtomFilter filter)
     throws InvalidRequestException
     {
         if (filter instanceof SliceQueryFilter)

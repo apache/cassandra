@@ -43,7 +43,7 @@ public class FilterTestHelper
         return new KeyGenerator.RandomStringGenerator(271828, ELEMENTS);
     }
 
-    public static double testFalsePositives(Filter f, ResetableIterator<ByteBuffer> keys, ResetableIterator<ByteBuffer> otherkeys)
+    public static double testFalsePositives(IFilter f, ResetableIterator<ByteBuffer> keys, ResetableIterator<ByteBuffer> otherkeys)
     {
         assert keys.size() == otherkeys.size();
 

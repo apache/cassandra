@@ -82,7 +82,7 @@ public class SSTableReader extends SSTable
     private SegmentedFile dfile;
 
     private IndexSummary indexSummary;
-    private Filter bf;
+    private IFilter bf;
 
     private InstrumentingCache<KeyCacheKey, RowIndexEntry> keyCache;
 
@@ -271,7 +271,7 @@ public class SSTableReader extends SSTable
                                       SegmentedFile ifile,
                                       SegmentedFile dfile,
                                       IndexSummary isummary,
-                                      Filter bf,
+                                      IFilter bf,
                                       long maxDataAge,
                                       SSTableMetadata sstableMetadata)
     {
@@ -294,7 +294,7 @@ public class SSTableReader extends SSTable
                           SegmentedFile ifile,
                           SegmentedFile dfile,
                           IndexSummary indexSummary,
-                          Filter bloomFilter,
+                          IFilter bloomFilter,
                           long maxDataAge,
                           SSTableMetadata sstableMetadata)
     {
@@ -514,7 +514,7 @@ public class SSTableReader extends SSTable
         bf = LegacyBloomFilter.alwaysMatchingBloomFilter();
     }
 
-    public Filter getBloomFilter()
+    public IFilter getBloomFilter()
     {
       return bf;
     }

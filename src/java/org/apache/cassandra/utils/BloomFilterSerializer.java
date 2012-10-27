@@ -31,7 +31,7 @@ abstract class BloomFilterSerializer implements ISerializer<BloomFilter>
 {
     public void serialize(BloomFilter bf, DataOutput dos) throws IOException
     {
-        dos.writeInt(bf.getHashCount());
+        dos.writeInt(bf.hashCount);
         bf.bitset.serialize(dos);
     }
 
@@ -59,7 +59,7 @@ abstract class BloomFilterSerializer implements ISerializer<BloomFilter>
      */
     public long serializedSize(BloomFilter bf, TypeSizes typeSizes)
     {
-        int size = typeSizes.sizeof(bf.getHashCount()); // hash count
+        int size = typeSizes.sizeof(bf.hashCount); // hash count
         size += bf.bitset.serializedSize(typeSizes);
         return size;
     }

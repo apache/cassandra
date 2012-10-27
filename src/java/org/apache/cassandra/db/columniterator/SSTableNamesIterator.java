@@ -37,7 +37,7 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Filter;
+import org.apache.cassandra.utils.IFilter;
 
 public class SSTableNamesIterator extends SimpleAbstractColumnIterator implements ISSTableColumnIterator
 {
@@ -107,7 +107,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
     private void read(SSTableReader sstable, FileDataInput file, RowIndexEntry indexEntry)
     throws IOException
     {
-        Filter bf;
+        IFilter bf;
         List<IndexHelper.IndexInfo> indexList;
 
         // If the entry is not indexed or the index is not promoted, read from the row start

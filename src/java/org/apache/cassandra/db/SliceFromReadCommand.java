@@ -17,16 +17,18 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.RepairCallback;
 import org.apache.cassandra.service.StorageService;
@@ -104,7 +106,7 @@ public class SliceFromReadCommand extends ReadCommand
         filter.trim(row.cf, getOriginalRequestedCount());
     }
 
-    public IFilter filter()
+    public IDiskAtomFilter filter()
     {
         return filter;
     }

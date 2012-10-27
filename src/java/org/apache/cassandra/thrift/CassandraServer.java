@@ -30,6 +30,8 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +45,6 @@ import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.cql.QueryProcessor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -953,7 +954,7 @@ public class CassandraServer implements Cassandra.Iface
             schedule(DatabaseDescriptor.getRangeRpcTimeout());
             try
             {
-                IFilter filter = ThriftValidation.asIFilter(predicate,
+                IDiskAtomFilter filter = ThriftValidation.asIFilter(predicate,
                         metadata.getComparatorFor(column_parent.super_column));
                 rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, filter, bounds,
                         range.row_filter, range.count), consistencyLevel);
@@ -1044,7 +1045,7 @@ public class CassandraServer implements Cassandra.Iface
             schedule(DatabaseDescriptor.getRangeRpcTimeout());
             try
             {
-                IFilter filter = ThriftValidation.asIFilter(predicate, metadata.comparator);
+                IDiskAtomFilter filter = ThriftValidation.asIFilter(predicate, metadata.comparator);
                 rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_family, null, filter,
                         bounds, range.row_filter, range.count, true, true), consistencyLevel);
             }
@@ -1125,7 +1126,7 @@ public class CassandraServer implements Cassandra.Iface
             AbstractBounds<RowPosition> bounds = new Bounds<RowPosition>(RowPosition.forKey(index_clause.start_key, p),
                     p.getMinimumToken().minKeyBound());
 
-            IFilter filter = ThriftValidation.asIFilter(column_predicate,
+            IDiskAtomFilter filter = ThriftValidation.asIFilter(column_predicate,
                     metadata.getComparatorFor(column_parent.super_column));
             RangeSliceCommand command = new RangeSliceCommand(keyspace,
                     column_parent.column_family,

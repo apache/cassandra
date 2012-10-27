@@ -24,13 +24,13 @@ import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
-import org.apache.cassandra.utils.Filter;
+import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.FilterFactory;
 
 public class ColumnIndex
 {
     public final List<IndexHelper.IndexInfo> columnsIndex;
-    public final Filter bloomFilter;
+    public final IFilter bloomFilter;
 
     private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList(), FilterFactory.emptyFilter());
 
@@ -39,7 +39,7 @@ public class ColumnIndex
         this(new ArrayList<IndexHelper.IndexInfo>(), FilterFactory.getFilter(estimatedColumnCount, 4, false));
     }
 
-    private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex, Filter bloomFilter)
+    private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex, IFilter bloomFilter)
     {
         this.columnsIndex = columnsIndex;
         this.bloomFilter = bloomFilter;

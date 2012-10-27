@@ -34,10 +34,10 @@ public class QueryFilter
 {
     public final DecoratedKey key;
     public final QueryPath path;
-    public final IFilter filter;
-    private final IFilter superFilter;
+    public final IDiskAtomFilter filter;
+    private final IDiskAtomFilter superFilter;
 
-    public QueryFilter(DecoratedKey key, QueryPath path, IFilter filter)
+    public QueryFilter(DecoratedKey key, QueryPath path, IDiskAtomFilter filter)
     {
         this.key = key;
         this.path = path;
@@ -87,7 +87,7 @@ public class QueryFilter
     // TODO move gcBefore into a field
     public void collateColumns(final ColumnFamily returnCF, List<? extends CloseableIterator<IColumn>> toCollate, final int gcBefore)
     {
-        IFilter topLevelFilter = (superFilter == null ? filter : superFilter);
+        IDiskAtomFilter topLevelFilter = (superFilter == null ? filter : superFilter);
 
         Comparator<IColumn> fcomp = topLevelFilter.getColumnComparator(returnCF.getComparator());
         // define a 'reduced' iterator that merges columns w/ the same name, which

@@ -37,7 +37,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.net.MessagingService;
 
-public class SliceQueryFilter implements IFilter
+public class SliceQueryFilter implements IDiskAtomFilter
 {
     private static final Logger logger = LoggerFactory.getLogger(SliceQueryFilter.class);
     public static final Serializer serializer = new Serializer();

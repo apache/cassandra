@@ -31,7 +31,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.filter.IFilter;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
@@ -153,7 +153,7 @@ public class StreamingTransferTest extends SchemaLoader
                                                        IndexOperator.EQ,
                                                        ByteBufferUtil.bytes(val));
             List<IndexExpression> clause = Arrays.asList(expr);
-            IFilter filter = new IdentityQueryFilter();
+            IDiskAtomFilter filter = new IdentityQueryFilter();
             Range<RowPosition> range = Util.range("", "");
             List<Row> rows = cfs.search(clause, range, 100, filter);
             assertEquals(1, rows.size());

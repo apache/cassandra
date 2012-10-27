@@ -105,7 +105,7 @@ public class IndexHelper
         return indexList;
     }
 
-    public static Filter defreezeBloomFilter(FileDataInput file, FilterFactory.Type type) throws IOException
+    public static IFilter defreezeBloomFilter(FileDataInput file, FilterFactory.Type type) throws IOException
     {
         return defreezeBloomFilter(file, Integer.MAX_VALUE, type);
     }
@@ -122,7 +122,7 @@ public class IndexHelper
      * Guarantees that file's current position will be just after the bloom filter, even if
      * the filter cannot be deserialized, UNLESS EOFException is thrown.
      */
-    public static Filter defreezeBloomFilter(FileDataInput file, long maxSize, FilterFactory.Type type) throws IOException
+    public static IFilter defreezeBloomFilter(FileDataInput file, long maxSize, FilterFactory.Type type) throws IOException
     {
         int size = file.readInt();
         if (size > maxSize || size <= 0)

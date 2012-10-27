@@ -24,13 +24,14 @@ import java.util.BitSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class LegacyBloomFilter extends Filter
+public class LegacyBloomFilter implements IFilter
 {
     private static final int EXCESS = 20;
     private static final Logger logger = LoggerFactory.getLogger(LegacyBloomFilter.class);
     public static final LegacyBloomFilterSerializer serializer = new LegacyBloomFilterSerializer();
 
     private BitSet filter;
+    private final int hashCount;
 
     LegacyBloomFilter(int hashes, BitSet filter)
     {

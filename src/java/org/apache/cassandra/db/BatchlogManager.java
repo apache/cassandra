@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.filter.IFilter;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -256,7 +256,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         return CFMetaData.BatchlogCF.getCfDef().getColumnNameBuilder().add(raw).build();
     }
 
-    private static List<Row> getRangeSlice(IFilter columnFilter)
+    private static List<Row> getRangeSlice(IDiskAtomFilter columnFilter)
     {
         ColumnFamilyStore store = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.BATCHLOG_CF);
         IPartitioner partitioner = StorageService.getPartitioner();
