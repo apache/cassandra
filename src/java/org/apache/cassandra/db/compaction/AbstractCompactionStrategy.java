@@ -35,12 +35,12 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 public abstract class AbstractCompactionStrategy
 {
     protected static final float DEFAULT_TOMBSTONE_THRESHOLD = 0.2f;
-    protected static final String TOMBSTONE_THRESHOLD_KEY = "tombstone_threshold";
+    protected static final String TOMBSTONE_THRESHOLD_OPTION = "tombstone_threshold";
+
+    public final Map<String, String> options;
 
     protected final ColumnFamilyStore cfs;
-    protected final Map<String, String> options;
-
-    protected float tombstoneThreshold;
+    protected final float tombstoneThreshold;
 
     protected AbstractCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -48,13 +48,8 @@ public abstract class AbstractCompactionStrategy
         this.cfs = cfs;
         this.options = options;
 
-        String optionValue = options.get(TOMBSTONE_THRESHOLD_KEY);
+        String optionValue = options.get(TOMBSTONE_THRESHOLD_OPTION);
         tombstoneThreshold = optionValue == null ? DEFAULT_TOMBSTONE_THRESHOLD : Float.parseFloat(optionValue);
-    }
-
-    public Map<String, String> getOptions()
-    {
-        return options;
     }
 
     /**

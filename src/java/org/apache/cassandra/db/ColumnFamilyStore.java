@@ -187,7 +187,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private void maybeReloadCompactionStrategy()
     {
         // Check if there is a need for reloading
-        if (metadata.compactionStrategyClass.equals(compactionStrategy.getClass()) && metadata.compactionStrategyOptions.equals(compactionStrategy.getOptions()))
+        if (metadata.compactionStrategyClass.equals(compactionStrategy.getClass()) && metadata.compactionStrategyOptions.equals(compactionStrategy.options))
             return;
 
         // TODO is there a way to avoid locking here?
