@@ -1305,8 +1305,6 @@ public class CassandraServer implements Cassandra.Iface
             state().hasColumnFamilyAccess(cf_def.name, Permission.CREATE);
             cf_def.unsetId(); // explicitly ignore any id set by client (Hector likes to set zero)
             CFMetaData cfm = CFMetaData.fromThrift(cf_def);
-            if (cfm.getBloomFilterFpChance() == null)
-                cfm.bloomFilterFpChance(CFMetaData.DEFAULT_BF_FP_CHANCE);
             cfm.addDefaultIndexNames();
             MigrationManager.announceNewColumnFamily(cfm);
             return Schema.instance.getVersion().toString();

@@ -322,7 +322,7 @@ public class SSTableReader extends SSTable
     {
         if (!components.contains(Component.FILTER))
         {
-            bf = FilterFactory.emptyFilter();
+            bf = new AlwaysPresentFilter();
             return;
         }
 

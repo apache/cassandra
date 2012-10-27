@@ -24,6 +24,7 @@ import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.utils.AlwaysPresentFilter;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.FilterFactory;
 
@@ -32,7 +33,7 @@ public class ColumnIndex
     public final List<IndexHelper.IndexInfo> columnsIndex;
     public final IFilter bloomFilter;
 
-    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList(), FilterFactory.emptyFilter());
+    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList(), new AlwaysPresentFilter());
 
     private ColumnIndex(int estimatedColumnCount)
     {

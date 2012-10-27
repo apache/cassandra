@@ -38,6 +38,8 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.CreateColumnFamilyStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
+import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
+import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -73,7 +75,6 @@ public final class CFMetaData
     public final static String DEFAULT_COMPACTION_STRATEGY_CLASS = "SizeTieredCompactionStrategy";
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
     public final static Caching DEFAULT_CACHING_STRATEGY = Caching.KEYS_ONLY;
-    public final static Double DEFAULT_BF_FP_CHANCE = 0.01;
 
     // Note that this is the default only for user created tables
     public final static String DEFAULT_COMPRESSOR = SnappyCompressor.isAvailable() ? SnappyCompressor.class.getCanonicalName() : null;
@@ -550,9 +551,11 @@ public final class CFMetaData
         return superColumnName == null ? comparator : subcolumnComparator;
     }
 
-    public Double getBloomFilterFpChance()
+    public double getBloomFilterFpChance()
     {
-        return bloomFilterFpChance;
+        return bloomFilterFpChance == null
+               ? compactionStrategyClass == LeveledCompactionStrategy.class ? 1.0 : 0.01
+               : bloomFilterFpChance;
     }
 
     public Caching getCaching()

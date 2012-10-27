@@ -62,11 +62,13 @@ public class SSTableWriter extends SSTable
     private static Set<Component> components(CFMetaData metadata)
     {
         Set<Component> components = new HashSet<Component>(Arrays.asList(Component.DATA,
-                                                                 Component.FILTER,
-                                                                 Component.PRIMARY_INDEX,
-                                                                 Component.STATS,
-                                                                 Component.SUMMARY,
-                                                                 Component.TOC));
+                                                                         Component.PRIMARY_INDEX,
+                                                                         Component.STATS,
+                                                                         Component.SUMMARY,
+                                                                         Component.TOC));
+
+        if (metadata.getBloomFilterFpChance() < 1.0)
+            components.add(Component.FILTER);
 
         if (metadata.compressionParameters().sstableCompressor != null)
             components.add(Component.COMPRESSION_INFO);
@@ -438,15 +440,14 @@ public class SSTableWriter extends SSTable
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
             summary = new IndexSummary(keyCount);
 
-            Double fpChance = metadata.getBloomFilterFpChance();
-            if (fpChance != null && fpChance == 0)
+            double fpChance = metadata.getBloomFilterFpChance();
+            if (fpChance == 0)
             {
                 // paranoia -- we've had bugs in the thrift <-> avro <-> CfDef dance before, let's not let that break things
                 logger.error("Bloom filter FP chance of zero isn't supposed to happen");
-                fpChance = null;
+                fpChance = 0.01;
             }
-            bf = fpChance == null ? FilterFactory.getFilter(keyCount, 15, true)
-                                  : FilterFactory.getFilter(keyCount, fpChance, true);
+            bf = FilterFactory.getFilter(keyCount, fpChance, true);
         }
 
         public void append(DecoratedKey key, RowIndexEntry indexEntry)
@@ -475,20 +476,23 @@ public class SSTableWriter extends SSTable
          */
         public void close()
         {
-            String path = descriptor.filenameFor(SSTable.COMPONENT_FILTER);
-            try
+            if (components.contains(Component.FILTER))
             {
-                // bloom filter
-                FileOutputStream fos = new FileOutputStream(path);
-                DataOutputStream stream = new DataOutputStream(fos);
-                FilterFactory.serialize(bf, stream, descriptor.version.filterType);
-                stream.flush();
-                fos.getFD().sync();
-                stream.close();
-            }
-            catch (IOException e)
-            {
-                throw new FSWriteError(e, path);
+                String path = descriptor.filenameFor(SSTable.COMPONENT_FILTER);
+                try
+                {
+                    // bloom filter
+                    FileOutputStream fos = new FileOutputStream(path);
+                    DataOutputStream stream = new DataOutputStream(fos);
+                    FilterFactory.serialize(bf, stream, descriptor.version.filterType);
+                    stream.flush();
+                    fos.getFD().sync();
+                    stream.close();
+                }
+                catch (IOException e)
+                {
+                    throw new FSWriteError(e, path);
+                }
             }
 
             // index

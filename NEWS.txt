@@ -30,10 +30,11 @@ Upgrading
       upgrade to prevent overcount during commitlog replay (see
       CASSANDRA-4782).  For non-counter uses, drain is not required
       but is a good practice to minimize restart time.
-    - Server clock synchronization is more important in 1.2; replicas
-      will use a coordinator-provided timestamp to determine when a
-      request has timed out and is thus not worth proceeding with.
-      Using a service like NTP is strongly recommended.
+    - Tables using LeveledCompactionStrategy will default to not
+      creating a row-level bloom filter.  The default in older versions
+      of Cassandra differs; you should manually set the false positive
+      rate to 1.0 (to disable) or 0.01 (to enable, if you make many
+      requests for rows that do not exist).
     - The hints schema was changed from 1.1 to 1.2. Cassandra automatically
       snapshots and then truncates the hints column family as part of
       starting up 1.2 for the first time.  Additionally, upgraded nodes

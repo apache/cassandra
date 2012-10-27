@@ -130,6 +130,8 @@ public class FilterFactory
     static IFilter getFilter(long numElements, double maxFalsePosProbability, Type type, boolean offheap)
     {
         assert maxFalsePosProbability <= 1.0 : "Invalid probability";
+        if (maxFalsePosProbability == 1.0)
+            return new AlwaysPresentFilter();
         int bucketsPerElement = BloomCalculations.maxBucketsPerElement(numElements);
         BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement, maxFalsePosProbability);
         return createFilter(spec.K, numElements, spec.bucketsPerElement, type, offheap);
@@ -146,10 +148,5 @@ public class FilterFactory
             default:
               return new Murmur3BloomFilter(hash, bitset);
         }
-    }
-
-    public static BloomFilter emptyFilter()
-    {
-        return new Murmur3BloomFilter(0, new OpenBitSet(BITSET_EXCESS));
     }
 }
