@@ -120,15 +120,15 @@ public class DynamicCompositeType extends AbstractCompositeType
              * We compare component of different types by comparing the
              * comparator class names. We start with the simple classname
              * first because that will be faster in almost all cases, but
-             * allback on the full name if necessary
-            */
+             * fallback on the full name if necessary
+             */
             int cmp = comp1.getClass().getSimpleName().compareTo(comp2.getClass().getSimpleName());
             if (cmp != 0)
-                return cmp < 0 ? FixedValueComparator.instance : ReversedType.getInstance(FixedValueComparator.instance);
+                return cmp < 0 ? FixedValueComparator.alwaysLesserThan : FixedValueComparator.alwaysGreaterThan;
 
             cmp = comp1.getClass().getName().compareTo(comp2.getClass().getName());
             if (cmp != 0)
-                return cmp < 0 ? FixedValueComparator.instance : ReversedType.getInstance(FixedValueComparator.instance);
+                return cmp < 0 ? FixedValueComparator.alwaysLesserThan : FixedValueComparator.alwaysGreaterThan;
 
             // if cmp == 0, we're actually having the same type, but one that
             // did not have a singleton instance. It's ok (though inefficient).
@@ -307,11 +307,19 @@ public class DynamicCompositeType extends AbstractCompositeType
      */
     private static class FixedValueComparator extends AbstractType<Void>
     {
-        public static final FixedValueComparator instance = new FixedValueComparator();
+        public static final FixedValueComparator alwaysLesserThan = new FixedValueComparator(-1);
+        public static final FixedValueComparator alwaysGreaterThan = new FixedValueComparator(1);
+
+        private final int cmp;
+
+        public FixedValueComparator(int cmp)
+        {
+            this.cmp = cmp;
+        }
 
         public int compare(ByteBuffer v1, ByteBuffer v2)
         {
-            return -1;
+            return cmp;
         }
 
         public Void compose(ByteBuffer bytes)
