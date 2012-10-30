@@ -59,7 +59,7 @@ public class TracingAppender extends AppenderSkeleton
                 addColumn(cf, buildName(cfMeta, eventId, bytes("source")), FBUtilities.getBroadcastAddress());
                 addColumn(cf, buildName(cfMeta, eventId, bytes("thread")), event.getThreadName());
                 addColumn(cf, buildName(cfMeta, eventId, bytes("source_elapsed")), elapsed);
-                addColumn(cf, buildName(cfMeta, eventId, bytes("activity")), event.getMessage());
+                addColumn(cf, buildName(cfMeta, eventId, bytes("activity")), event.getMessage().toString());
                 RowMutation mutation = new RowMutation(Tracing.TRACE_KS, state.sessionIdBytes);
                 mutation.add(cf);
                 StorageProxy.mutate(Arrays.asList(mutation), ConsistencyLevel.ANY);

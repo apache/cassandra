@@ -38,10 +38,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.marshal.InetAddressType;
-import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -82,32 +79,27 @@ public class Tracing
 
     private final Map<UUID, TraceState> sessions = new ConcurrentHashMap<UUID, TraceState>();
 
-    public static void addColumn(ColumnFamily cf, ByteBuffer name, Object value)
-    {
-        cf.addColumn(new ExpiringColumn(name, ByteBufferUtil.bytes(value.toString()), System.currentTimeMillis(), TTL));
-    }
-
     public static void addColumn(ColumnFamily cf, ByteBuffer name, InetAddress address)
     {
-        cf.addColumn(new ExpiringColumn(name, ByteBufferUtil.bytes(address), System.currentTimeMillis(), TTL));
+        addColumn(cf, name, ByteBufferUtil.bytes(address));
     }
 
     public static void addColumn(ColumnFamily cf, ByteBuffer name, int value)
     {
-        cf.addColumn(new ExpiringColumn(name, ByteBufferUtil.bytes(value), System.currentTimeMillis(), TTL));
+        addColumn(cf, name, ByteBufferUtil.bytes(value));
     }
 
     public static void addColumn(ColumnFamily cf, ByteBuffer name, long value)
     {
-        cf.addColumn(new ExpiringColumn(name, ByteBufferUtil.bytes(value), System.currentTimeMillis(), TTL));
+        addColumn(cf, name, ByteBufferUtil.bytes(value));
     }
 
     public static void addColumn(ColumnFamily cf, ByteBuffer name, String value)
     {
-        cf.addColumn(new ExpiringColumn(name, ByteBufferUtil.bytes(value), System.currentTimeMillis(), TTL));
+        addColumn(cf, name, ByteBufferUtil.bytes(value));
     }
 
-    private void addColumn(ColumnFamily cf, ByteBuffer name, ByteBuffer value)
+    private static void addColumn(ColumnFamily cf, ByteBuffer name, ByteBuffer value)
     {
         cf.addColumn(new ExpiringColumn(name, value, System.currentTimeMillis(), TTL));
     }
@@ -185,17 +177,16 @@ public class Tracing
         }
         else
         {
-            final long finished_at = System.currentTimeMillis();
+            final int elapsed = state.elapsed();
             final ByteBuffer sessionIdBytes = state.sessionIdBytes;
 
             StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
             {
                 public void runMayThrow() throws Exception
                 {
-                    ColumnFamily cf = ColumnFamily.create(CFMetaData.TraceSessionsCf);
-                    addColumn(cf,
-                              buildName(CFMetaData.TraceSessionsCf, bytes("finished_at")),
-                              LongType.instance.decompose(finished_at));
+                    CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
+                    ColumnFamily cf = ColumnFamily.create(cfMeta);
+                    addColumn(cf, buildName(cfMeta, bytes("duration")), elapsed);
                     RowMutation mutation = new RowMutation(TRACE_KS, sessionIdBytes);
                     mutation.add(cf);
                     StorageProxy.mutate(Arrays.asList(mutation), ConsistencyLevel.ANY);
@@ -228,16 +219,11 @@ public class Tracing
         {
             public void runMayThrow() throws Exception
             {
-                ColumnFamily cf = ColumnFamily.create(CFMetaData.TraceSessionsCf);
-                addColumn(cf,
-                          buildName(CFMetaData.TraceSessionsCf, bytes("coordinator")),
-                          InetAddressType.instance.decompose(FBUtilities.getBroadcastAddress()));
-                addColumn(cf,
-                          buildName(CFMetaData.TraceSessionsCf, bytes("request")),
-                          UTF8Type.instance.decompose(request));
-                addColumn(cf,
-                          buildName(CFMetaData.TraceSessionsCf, bytes("started_at")),
-                          LongType.instance.decompose(started_at));
+                CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
+                ColumnFamily cf = ColumnFamily.create(cfMeta);
+                addColumn(cf, buildName(cfMeta, bytes("coordinator")), FBUtilities.getBroadcastAddress());
+                addColumn(cf, buildName(cfMeta, bytes("request")), request);
+                addColumn(cf, buildName(cfMeta, bytes("started_at")), started_at);
                 addParameterColumns(cf, parameters);
                 RowMutation mutation = new RowMutation(TRACE_KS, sessionIdBytes);
                 mutation.add(cf);

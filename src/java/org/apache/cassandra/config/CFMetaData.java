@@ -187,8 +187,8 @@ public final class CFMetaData
                                                                + "  coordinator inet,"
                                                                + "  request text,"
                                                                + "  started_at timestamp,"
-                                                               + "  finished_at timestamp,"
-                                                               + "  parameters map<text, text>"
+                                                               + "  parameters map<text, text>,"
+                                                               + "  duration int"
                                                                + ") WITH COMMENT='traced sessions'", Tracing.TRACE_KS);
 
     public static final CFMetaData TraceEventsCf = compile(15, "CREATE TABLE " + Tracing.EVENTS_CF + " ("
