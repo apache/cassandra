@@ -416,7 +416,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 throw new UnsupportedOperationException("StorageService does not support switching modes.");
             return;
         }
-        initialized = true;
         isClientMode = false;
 
         // Ensure StorageProxy is initialized on start-up; see CASSANDRA-3797.
@@ -514,6 +513,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 throw new UnsupportedOperationException("StorageService does not support switching modes.");
             return;
         }
+        initialized = true;
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true")))
         {
