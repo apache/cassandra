@@ -19,9 +19,13 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTableReader;
 
 /**
@@ -34,13 +38,19 @@ import org.apache.cassandra.io.sstable.SSTableReader;
  */
 public abstract class AbstractCompactionStrategy
 {
+    private static final Logger logger = LoggerFactory.getLogger(AbstractCompactionStrategy.class);
+
     protected static final float DEFAULT_TOMBSTONE_THRESHOLD = 0.2f;
+    // minimum interval needed to perform tombstone removal compaction in seconds, default 86400 or 1 day.
+    protected static final long DEFAULT_TOMBSTONE_COMPACTION_INTERVAL = 86400;
     protected static final String TOMBSTONE_THRESHOLD_OPTION = "tombstone_threshold";
+    protected static final String TOMBSTONE_COMPACTION_INTERVAL_OPTION = "tombstone_compaction_interval";
 
     public final Map<String, String> options;
 
     protected final ColumnFamilyStore cfs;
     protected final float tombstoneThreshold;
+    protected long tombstoneCompactionInterval;
 
     protected AbstractCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -50,6 +60,14 @@ public abstract class AbstractCompactionStrategy
 
         String optionValue = options.get(TOMBSTONE_THRESHOLD_OPTION);
         tombstoneThreshold = optionValue == null ? DEFAULT_TOMBSTONE_THRESHOLD : Float.parseFloat(optionValue);
+        optionValue = options.get(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
+        tombstoneCompactionInterval = optionValue == null ? DEFAULT_TOMBSTONE_COMPACTION_INTERVAL : Long.parseLong(optionValue);
+        if (tombstoneCompactionInterval < 0)
+        {
+            logger.warn("tombstone_compaction_interval should not be negative({}). Using default value of {}.",
+                        tombstoneCompactionInterval, DEFAULT_TOMBSTONE_COMPACTION_INTERVAL);
+            tombstoneCompactionInterval = DEFAULT_TOMBSTONE_COMPACTION_INTERVAL;
+        }
     }
 
     /**
@@ -129,12 +147,21 @@ public abstract class AbstractCompactionStrategy
     }
 
     /**
+     * Check if given sstable is worth dropping tombstones at gcBefore.
+     * Check is skipped if tombstone_compaction_interval time does not elapse since sstable creation and returns false.
+     *
      * @param sstable SSTable to check
      * @param gcBefore time to drop tombstones
      * @return true if given sstable's tombstones are expected to be removed
      */
     protected boolean worthDroppingTombstones(SSTableReader sstable, int gcBefore)
     {
+        // since we use estimations to calculate, there is a chance that compaction will not drop tombstones actually.
+        // if that happens we will end up in infinite compaction loop, so first we check enough if enough time has
+        // elapsed since SSTable created.
+        if (System.currentTimeMillis() < sstable.getCreationTimeFor(Component.DATA) + tombstoneCompactionInterval * 1000)
+           return false;
+
         double droppableRatio = sstable.getEstimatedDroppableTombstoneRatio(gcBefore);
         if (droppableRatio <= tombstoneThreshold)
             return false;
@@ -148,6 +175,11 @@ public abstract class AbstractCompactionStrategy
         else
         {
             // what percentage of columns do we expect to compact outside of overlap?
+            if (sstable.getKeySamples().size() < 2)
+            {
+                // we have too few samples to estimate correct percentage
+                return false;
+            }
             // first, calculate estimated keys that do not overlap
             long keys = sstable.estimatedKeys();
             Set<Range<Token>> ranges = new HashSet<Range<Token>>();
@@ -155,8 +187,7 @@ public abstract class AbstractCompactionStrategy
                 ranges.add(new Range<Token>(overlap.first.token, overlap.last.token, overlap.partitioner));
             long remainingKeys = keys - sstable.estimatedKeysForRanges(ranges);
             // next, calculate what percentage of columns we have within those keys
-            double remainingKeysRatio = ((double) remainingKeys) / keys;
-            long columns = sstable.getEstimatedColumnCount().percentile(remainingKeysRatio) * remainingKeys;
+            long columns = sstable.getEstimatedColumnCount().mean() * remainingKeys;
             double remainingColumnsRatio = ((double) columns) / (sstable.getEstimatedColumnCount().count() * sstable.getEstimatedColumnCount().mean());
 
             // return if we still expect to have droppable tombstones in rest of columns

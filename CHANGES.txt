@@ -41,6 +41,7 @@
  * Add booleans as literals in CQL3 (CASSANDRA-4776)
  * Allow renaming PK columns in CQL3 (CASSANDRA-4822)
  * Fix binary protocol NEW_NODE event (CASSANDRA-4679)
+ * Fix potential infinite loop in tombstone compaction (CASSANDRA-4781)
 Merged from 1.1:
  * add get[Row|Key]CacheEntries to CacheServiceMBean (CASSANDRA-4859)
  * fix get_paged_slice to wrap to next row correctly (CASSANDRA-4816)

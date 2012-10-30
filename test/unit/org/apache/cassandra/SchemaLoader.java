@@ -149,7 +149,9 @@ public class SchemaLoader
             null,
             null));
 
-        // Make it easy to test leveled compaction
+        // Make it easy to test compaction
+        Map<String, String> compactionOptions = new HashMap<String, String>();
+        compactionOptions.put("tombstone_compaction_interval", "1");
         Map<String, String> leveledOptions = new HashMap<String, String>();
         leveledOptions.put("sstable_size_in_mb", "1");
 
@@ -159,7 +161,7 @@ public class SchemaLoader
                                            opts_rf1,
 
                                            // Column Families
-                                           standardCFMD(ks1, "Standard1", withOldCfIds),
+                                           standardCFMD(ks1, "Standard1", withOldCfIds).compactionStrategyOptions(compactionOptions),
                                            standardCFMD(ks1, "Standard2", withOldCfIds),
                                            standardCFMD(ks1, "Standard3", withOldCfIds),
                                            standardCFMD(ks1, "Standard4", withOldCfIds),

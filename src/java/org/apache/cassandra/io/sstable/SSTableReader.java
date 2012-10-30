@@ -1116,6 +1116,15 @@ public class SSTableReader extends SSTable
     }
 
     /**
+     * @param component component to get timestamp.
+     * @return last modified time for given component. 0 if given component does not exist or IO error occurs.
+     */
+    public long getCreationTimeFor(Component component)
+    {
+        return new File(descriptor.filenameFor(component)).lastModified();
+    }
+
+    /**
      * @param sstables
      * @return true if all desired references were acquired.  Otherwise, it will unreference any partial acquisition, and return false.
      */
