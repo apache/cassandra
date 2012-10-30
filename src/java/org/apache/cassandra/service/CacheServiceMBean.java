@@ -21,30 +21,6 @@ import java.util.concurrent.ExecutionException;
 
 public interface CacheServiceMBean
 {
-    /**
-     * @see org.apache.cassandra.metrics.CacheMetrics#hits
-     */
-    @Deprecated
-    public long getKeyCacheHits();
-    @Deprecated
-    public long getRowCacheHits();
-
-    /**
-     * @see org.apache.cassandra.metrics.CacheMetrics#requests
-     */
-    @Deprecated
-    public long getKeyCacheRequests();
-    @Deprecated
-    public long getRowCacheRequests();
-
-    /**
-     * @see org.apache.cassandra.metrics.CacheMetrics#recentHitRate
-     */
-    @Deprecated
-    public double getKeyCacheRecentHitRate();
-    @Deprecated
-    public double getRowCacheRecentHitRate();
-
     public int getRowCacheSavePeriodInSeconds();
     public void setRowCacheSavePeriodInSeconds(int rcspis);
 
@@ -61,33 +37,9 @@ public interface CacheServiceMBean
      */
     public void invalidateRowCache();
 
-    public long getRowCacheCapacityInMB();
-    /**
-     * @see org.apache.cassandra.metrics.CacheMetrics#capacityInBytes
-     */
-    @Deprecated
-    public long getRowCacheCapacityInBytes();
     public void setRowCacheCapacityInMB(long capacity);
 
-    public long getKeyCacheCapacityInMB();
-    /**
-     * @see org.apache.cassandra.metrics.CacheMetrics#capacityInBytes
-     */
-    @Deprecated
-    public long getKeyCacheCapacityInBytes();
     public void setKeyCacheCapacityInMB(long capacity);
-
-    /**
-     * @see org.apache.cassandra.metrics.CacheMetrics#size
-     */
-    @Deprecated
-    public long getRowCacheSize();
-
-    /**
-     * @see org.apache.cassandra.metrics.CacheMetrics#size
-     */
-    @Deprecated
-    public long getKeyCacheSize();
 
     /**
      * sets each cache's maximum capacity to "reduce_cache_capacity_to" of its current size
@@ -101,4 +53,90 @@ public interface CacheServiceMBean
      * @throws InterruptedException when a thread is waiting, sleeping, or otherwise occupied, and the thread is interrupted, either before or during the activity.
      */
     public void saveCaches() throws ExecutionException, InterruptedException;
+
+    //
+    // remaining methods are provided for backwards compatibility; modern clients should use CacheMetrics instead
+    //
+
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#hits
+     */
+    @Deprecated
+    public long getKeyCacheHits();
+
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#hits
+     */
+    @Deprecated
+    public long getRowCacheHits();
+
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#requests
+     */
+    @Deprecated
+    public long getKeyCacheRequests();
+
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#requests
+     */
+    @Deprecated
+    public long getRowCacheRequests();
+
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#hitRate
+     */
+    @Deprecated
+    public double getKeyCacheRecentHitRate();
+
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#hitRate
+     */
+    @Deprecated
+    public double getRowCacheRecentHitRate();
+
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#capacity
+     */
+    @Deprecated
+    public long getRowCacheCapacityInMB();
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#capacity
+     */
+    @Deprecated
+    public long getRowCacheCapacityInBytes();
+
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#capacity
+     */
+    @Deprecated
+    public long getKeyCacheCapacityInMB();
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#capacity
+     */
+    @Deprecated
+    public long getKeyCacheCapacityInBytes();
+
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#size
+     */
+    @Deprecated
+    public long getRowCacheSize();
+
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#entries
+     */
+    @Deprecated
+    public long getRowCacheEntries();
+
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#size
+     */
+    @Deprecated
+    public long getKeyCacheSize();
+
+    /**
+     * @see org.apache.cassandra.metrics.CacheMetrics#entries
+     */
+    @Deprecated
+    public long getKeyCacheEntries();
 }

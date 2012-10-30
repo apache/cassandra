@@ -242,7 +242,7 @@ public class CacheService implements CacheServiceMBean
 
     public long getRowCacheCapacityInBytes()
     {
-        return rowCache.getMetrics().capacityInBytes.value();
+        return rowCache.getMetrics().capacity.value();
     }
 
     public long getRowCacheCapacityInMB()
@@ -260,7 +260,7 @@ public class CacheService implements CacheServiceMBean
 
     public long getKeyCacheCapacityInBytes()
     {
-        return keyCache.getMetrics().capacityInBytes.value();
+        return keyCache.getMetrics().capacity.value();
     }
 
     public long getKeyCacheCapacityInMB()
@@ -282,9 +282,19 @@ public class CacheService implements CacheServiceMBean
         return rowCache.getMetrics().size.value();
     }
 
+    public long getRowCacheEntries()
+    {
+        return rowCache.size();
+    }
+
     public long getKeyCacheSize()
     {
         return keyCache.getMetrics().size.value();
+    }
+
+    public long getKeyCacheEntries()
+    {
+        return keyCache.size();
     }
 
     public void reduceCacheSizes()
