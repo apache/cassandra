@@ -248,9 +248,19 @@ public class CacheService implements CacheServiceMBean
         return rowCache.weightedSize();
     }
 
+    public long getRowCacheEntries()
+    {
+        return rowCache.size();
+    }
+
     public long getKeyCacheSize()
     {
         return keyCache.weightedSize() * AVERAGE_KEY_CACHE_ROW_SIZE;
+    }
+
+    public long getKeyCacheEntries()
+    {
+        return keyCache.size();
     }
 
     public void reduceCacheSizes()

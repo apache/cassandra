@@ -54,9 +54,11 @@ public interface CacheServiceMBean
     public long getKeyCacheCapacityInBytes();
     public void setKeyCacheCapacityInMB(long capacity);
 
-    public long getRowCacheSize();
+    public long getRowCacheSize(); // in bytes
+    public long getRowCacheEntries();
 
     public long getKeyCacheSize();
+    public long getKeyCacheEntries();
 
     /**
      * sets each cache's maximum capacity to "reduce_cache_capacity_to" of its current size
