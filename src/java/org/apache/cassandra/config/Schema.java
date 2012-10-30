@@ -18,11 +18,13 @@
 package org.apache.cassandra.config;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 import com.google.common.collect.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -431,7 +433,7 @@ public class Schema
 
             for (Row row : SystemTable.serializedSchema())
             {
-                if (row.cf == null || (row.cf.isMarkedForDelete() && row.cf.isEmpty()))
+                if (invalidSchemaRow(row) || ignoredSchemaRow(row))
                     continue;
 
                 row.cf.updateDigest(versionDigest);
@@ -468,5 +470,22 @@ public class Schema
         }
 
         updateVersionAndAnnounce();
+    }
+
+    public static boolean invalidSchemaRow(Row row)
+    {
+        return row.cf == null || (row.cf.isMarkedForDelete() && row.cf.isEmpty());
+    }
+
+    public static boolean ignoredSchemaRow(Row row)
+    {
+        try
+        {
+            return systemKeyspaceNames.contains(ByteBufferUtil.string(row.key.key));
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 }

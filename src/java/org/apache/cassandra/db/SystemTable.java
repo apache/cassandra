@@ -590,6 +590,9 @@ public class SystemTable
     {
         for (Row schemaRow : serializedSchema(schemaCfName))
         {
+            if (Schema.ignoredSchemaRow(schemaRow))
+                continue;
+
             RowMutation mutation = mutationMap.get(schemaRow.key);
 
             if (mutation == null)

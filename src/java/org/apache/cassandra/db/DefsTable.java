@@ -151,7 +151,7 @@ public class DefsTable
 
         for (Row row : serializedSchema)
         {
-            if (invalidSchemaRow(row) || ignoredSchemaRow(row))
+            if (Schema.invalidSchemaRow(row) || Schema.ignoredSchemaRow(row))
                 continue;
 
             keyspaces.add(KSMetaData.fromSchema(row, serializedColumnFamilies(row.key)));
@@ -179,7 +179,7 @@ public class DefsTable
         row_check_loop:
         for (Row row : rows)
         {
-            if (invalidSchemaRow(row))
+            if (Schema.invalidSchemaRow(row))
                 continue;
 
             for (IColumn column : row.cf.columns)
@@ -214,7 +214,7 @@ public class DefsTable
 
         for (Row row : rows)
         {
-            if (invalidSchemaRow(row))
+            if (Schema.invalidSchemaRow(row))
                 continue;
 
             RowMutation mutation = new RowMutation(Table.SYSTEM_KS, row.key.key);
@@ -226,23 +226,6 @@ public class DefsTable
             }
 
             mutation.apply();
-        }
-    }
-
-    private static boolean invalidSchemaRow(Row row)
-    {
-        return row.cf == null || (row.cf.isMarkedForDelete() && row.cf.isEmpty());
-    }
-
-    private static boolean ignoredSchemaRow(Row row)
-    {
-        try
-        {
-            return Schema.systemKeyspaceNames.contains(ByteBufferUtil.string(row.key.key));
-        }
-        catch (CharacterCodingException e)
-        {
-            throw new RuntimeException(e);
         }
     }
 
