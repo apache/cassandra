@@ -111,8 +111,9 @@ public abstract class ResultMessage extends Message.Response
 
     public static class Void extends ResultMessage
     {
-        // use VOID_MESSAGE
-        private Void()
+        // Even though we have no specific information here, don't make a
+        // singleton since as each message it has in fact a streamid and connection.
+        public Void()
         {
             super(Kind.VOID);
         }
@@ -121,7 +122,7 @@ public abstract class ResultMessage extends Message.Response
         {
             public ResultMessage decode(ChannelBuffer body)
             {
-                return Void.instance();
+                return new Void();
             }
 
             public ChannelBuffer encode(ResultMessage msg)
@@ -139,17 +140,6 @@ public abstract class ResultMessage extends Message.Response
         public CqlResult toThriftResult()
         {
             return new CqlResult(CqlResultType.VOID);
-        }
-
-        public static Void instance()
-        {
-            return Holder.instance;
-        }
-
-        // Battling java initialization
-        private static class Holder
-        {
-            static final Void instance = new Void();
         }
 
         @Override

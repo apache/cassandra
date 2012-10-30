@@ -127,7 +127,7 @@ public class QueryProcessor
         statement.checkAccess(clientState);
         statement.validate(clientState);
         ResultMessage result = statement.execute(cl, clientState, variables);
-        return result == null ? ResultMessage.Void.instance() : result;
+        return result == null ? new ResultMessage.Void() : result;
     }
 
     public static ResultMessage process(String queryString, ConsistencyLevel cl, ClientState clientState)

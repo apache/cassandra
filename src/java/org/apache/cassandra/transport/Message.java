@@ -108,8 +108,8 @@ public abstract class Message
     }
 
     public final Type type;
-    protected Connection connection;
-    protected int streamId;
+    protected volatile Connection connection;
+    private volatile int streamId;
 
     protected Message(Type type)
     {
@@ -216,12 +216,12 @@ public abstract class Message
 
                 logger.debug("Responding: " + response);
 
-                e.getChannel().write(response);
+                ctx.getChannel().write(response);
             }
             catch (Exception ex)
             {
                 // Don't let the exception propagate to exceptionCaught() if we can help it so that we can assign the right streamID.
-                e.getChannel().write(ErrorMessage.fromException(ex).setStreamId(request.getStreamId()));
+                ctx.getChannel().write(ErrorMessage.fromException(ex).setStreamId(request.getStreamId()));
             }
         }
 
@@ -229,7 +229,8 @@ public abstract class Message
         public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
         throws Exception
         {
-            ctx.getChannel().write(ErrorMessage.fromException(e.getCause()));
+            if (ctx.getChannel().isOpen())
+                ctx.getChannel().write(ErrorMessage.fromException(e.getCause()));
         }
     }
 }
