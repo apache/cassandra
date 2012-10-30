@@ -27,7 +27,6 @@ import java.net.InetAddress;
  * instance to decide what he does with this change. Not all modules maybe interested
  * in all state changes.
  */
-
 public interface IEndpointStateChangeSubscriber
 {
     /**

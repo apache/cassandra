@@ -105,7 +105,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * This pool is used by tasks that can have longer execution times, and usually are non periodic.
      */
     public static final DebuggableScheduledThreadPoolExecutor tasks = new DebuggableScheduledThreadPoolExecutor("NonPeriodicTasks");
-/**
+    /**
      * tasks that do not need to be waited for on shutdown/drain
      */
     public static final DebuggableScheduledThreadPoolExecutor optionalTasks = new DebuggableScheduledThreadPoolExecutor("OptionalTasks");
@@ -181,6 +181,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     private static ScheduledRangeTransferExecutorService rangeXferExecutor = new ScheduledRangeTransferExecutorService();
 
+    private final List<IEndpointLifecycleSubscriber> lifecycleSubscribers = new CopyOnWriteArrayList<IEndpointLifecycleSubscriber>();
+
     public void finishBootstrapping()
     {
         isBootstrapMode = false;
@@ -251,6 +253,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void registerDaemon(CassandraDaemon daemon)
     {
         this.daemon = daemon;
+    }
+
+    public void register(IEndpointLifecycleSubscriber subscriber)
+    {
+        lifecycleSubscribers.add(subscriber);
+    }
+
+    public void unregister(IEndpointLifecycleSubscriber subscriber)
+    {
+        lifecycleSubscribers.remove(subscriber);
     }
 
     // should only be called via JMX
@@ -388,6 +400,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public synchronized void initServer(int delay) throws ConfigurationException
     {
+        initServerLocally();
+        maybeJoinRing(delay);
+    }
+
+    public void initServerLocally()
+    {
         logger.info("Cassandra version: " + FBUtilities.getReleaseVersionString());
         logger.info("Thrift API version: " + Constants.VERSION);
         logger.info("CQL supported versions: " + StringUtils.join(ClientState.getCQLSupportedVersion(), ",") + " (default: " + ClientState.DEFAULT_CQL_VERSION + ")");
@@ -484,6 +502,18 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
         }, "StorageServiceShutdownHook");
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
+    }
+
+    public synchronized void maybeJoinRing(int delay) throws ConfigurationException
+    {
+        // This method should only be called as part of the server initialization, so if initialized == true, we've already gone
+        // through that. If the ring must be joined after the server initialization, use joinTokenRing() directly.
+        if (initialized)
+        {
+            if (isClientMode)
+                throw new UnsupportedOperationException("StorageService does not support switching modes.");
+            return;
+        }
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true")))
         {
@@ -1249,7 +1279,20 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger.debug("Node " + endpoint + " state normal, token " + tokens);
 
         if (tokenMetadata.isMember(endpoint))
+        {
             logger.info("Node " + endpoint + " state jump to normal");
+
+            if (!isClientMode)
+            {
+                for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+                    subscriber.onUp(endpoint);
+            }
+        }
+        else if (!isClientMode)
+        {
+            for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+                subscriber.onJoinCluster(endpoint);
+        }
 
         // Order Matters, TM.updateHostID() should be called before TM.updateNormalToken(), (see CASSANDRA-4300).
         if (Gossiper.instance.usesHostId(endpoint))
@@ -1344,7 +1387,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         SystemTable.updateLocalTokens(Collections.<Token>emptyList(), localTokensToRemove);
 
         if (tokenMetadata.isMoving(endpoint)) // if endpoint was moving to a new token
+        {
             tokenMetadata.removeFromMoving(endpoint);
+
+            if (!isClientMode)
+            {
+                for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+                    subscriber.onMove(endpoint);
+            }
+        }
 
         calculatePendingRanges();
     }
@@ -1504,6 +1555,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.removeEndpoint(endpoint);
         tokenMetadata.removeEndpoint(endpoint);
         tokenMetadata.removeBootstrapTokens(tokens);
+        if (!isClientMode)
+        {
+            for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+                subscriber.onLeaveCluster(endpoint);
+        }
         calculatePendingRanges();
         if (!isClientMode)
         {
@@ -1856,6 +1912,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void onDead(InetAddress endpoint, EndpointState state)
     {
         MessagingService.instance().convict(endpoint);
+        if (!isClientMode)
+        {
+            for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+                subscriber.onDown(endpoint);
+        }
     }
 
     public void onRestart(InetAddress endpoint, EndpointState state)

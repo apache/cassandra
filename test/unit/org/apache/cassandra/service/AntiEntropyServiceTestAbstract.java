@@ -79,7 +79,6 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
             init();
 
             LOCAL = FBUtilities.getBroadcastAddress();
-            StorageService.instance.initServer(0);
             // generate a fake endpoint for which we can spoof receiving/sending trees
             REMOTE = InetAddress.getByName("127.0.0.2");
             store = null;

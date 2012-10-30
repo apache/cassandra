@@ -58,7 +58,7 @@ public abstract class Event
 
     public static class TopologyChange extends Event
     {
-        public enum Change { NEW_NODE, REMOVED_NODE }
+        public enum Change { NEW_NODE, REMOVED_NODE, MOVED_NODE }
 
         public final Change change;
         public final InetSocketAddress node;
@@ -78,6 +78,11 @@ public abstract class Event
         public static TopologyChange removedNode(InetAddress host, int port)
         {
             return new TopologyChange(Change.REMOVED_NODE, new InetSocketAddress(host, port));
+        }
+
+        public static TopologyChange movedNode(InetAddress host, int port)
+        {
+            return new TopologyChange(Change.MOVED_NODE, new InetSocketAddress(host, port));
         }
 
         // Assumes the type has already by been deserialized

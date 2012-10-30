@@ -481,6 +481,13 @@ Table of Contents
 
   All EVENT message have a streamId of -1 (Section 2.3).
 
+  Please note that "NEW_NODE" and "UP" events are sent based on internal Gossip
+  communication and as such may be sent a short delay before the binary
+  protocol server on the newly up node is fully started. Clients are thus
+  advise to wait a short time before trying to connect to the node (1 seconds
+  should be enough), otherwise they may experience a connection refusal at
+  first.
+
 
 5. Compression
 

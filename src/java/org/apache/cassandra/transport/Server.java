@@ -35,10 +35,10 @@ import org.jboss.netty.logging.Slf4JLoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.gms.*;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.IMigrationListener;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.service.IEndpointLifecycleSubscriber;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.EventMessage;
 
@@ -63,7 +63,7 @@ public class Server implements CassandraDaemon.Server
     {
         this.socket = socket;
         EventNotifier notifier = new EventNotifier(this);
-        Gossiper.instance.register(notifier);
+        StorageService.instance.register(notifier);
         MigrationManager.instance.register(notifier);
     }
 
@@ -203,7 +203,7 @@ public class Server implements CassandraDaemon.Server
       }
     }
 
-    private static class EventNotifier implements IEndpointStateChangeSubscriber, IMigrationListener
+    private static class EventNotifier implements IEndpointLifecycleSubscriber, IMigrationListener
     {
         private final Server server;
 
@@ -227,33 +227,29 @@ public class Server implements CassandraDaemon.Server
             }
         }
 
-        public void onJoin(InetAddress endpoint, EndpointState epState)
+        public void onJoinCluster(InetAddress endpoint)
         {
             server.connectionTracker.send(Event.TopologyChange.newNode(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
-        public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
-        {
-        }
-
-        public void onAlive(InetAddress endpoint, EndpointState state)
-        {
-            server.connectionTracker.send(Event.StatusChange.nodeUp(getRpcAddress(endpoint), server.socket.getPort()));
-        }
-
-        public void onDead(InetAddress endpoint, EndpointState state)
-        {
-            server.connectionTracker.send(Event.StatusChange.nodeDown(getRpcAddress(endpoint), server.socket.getPort()));
-        }
-
-        public void onRemove(InetAddress endpoint)
+        public void onLeaveCluster(InetAddress endpoint)
         {
             server.connectionTracker.send(Event.TopologyChange.removedNode(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
-        public void onRestart(InetAddress endpoint, EndpointState state)
+        public void onMove(InetAddress endpoint)
+        {
+            server.connectionTracker.send(Event.TopologyChange.movedNode(getRpcAddress(endpoint), server.socket.getPort()));
+        }
+
+        public void onUp(InetAddress endpoint)
         {
             server.connectionTracker.send(Event.StatusChange.nodeUp(getRpcAddress(endpoint), server.socket.getPort()));
+        }
+
+        public void onDown(InetAddress endpoint)
+        {
+            server.connectionTracker.send(Event.StatusChange.nodeDown(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onCreateKeyspace(String ksName)
