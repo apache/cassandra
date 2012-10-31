@@ -52,9 +52,4 @@ public abstract class AbstractRowResolver implements IResponseResolver<ReadRespo
     {
         return replies;
     }
-
-    public int getMaxLiveColumns()
-    {
-        throw new UnsupportedOperationException();
-    }
 }

@@ -28,8 +28,10 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
@@ -39,12 +41,14 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class RowRepairResolver extends AbstractRowResolver
 {
-    protected int maxLiveColumns = 0;
+    private int maxLiveCount = 0;
     public List<IAsyncResult> repairResults = Collections.emptyList();
+    private final SliceQueryFilter filter; // can be null if names query
 
-    public RowRepairResolver(String table, ByteBuffer key)
+    public RowRepairResolver(String table, ByteBuffer key, IFilter qFilter)
     {
         super(key, table);
+        this.filter = qFilter instanceof SliceQueryFilter ? (SliceQueryFilter)qFilter : null;
     }
 
     /*
@@ -74,10 +78,10 @@ public class RowRepairResolver extends AbstractRowResolver
                 versions.add(cf);
                 endpoints.add(message.from);
 
-                // compute maxLiveColumns to prevent short reads -- see https://issues.apache.org/jira/browse/CASSANDRA-2643
-                int liveColumns = cf == null ? 0 : cf.getLiveColumnCount();
-                if (liveColumns > maxLiveColumns)
-                    maxLiveColumns = liveColumns;
+                // compute maxLiveCount to prevent short reads -- see https://issues.apache.org/jira/browse/CASSANDRA-2643
+                int liveCount = cf == null ? 0 : (filter == null ? cf.getLiveColumnCount() : filter.getLiveCount(cf));
+                if (liveCount > maxLiveCount)
+                    maxLiveCount = liveCount;
             }
 
             resolved = resolveSuperset(versions);
@@ -170,8 +174,8 @@ public class RowRepairResolver extends AbstractRowResolver
         throw new UnsupportedOperationException();
     }
 
-    public int getMaxLiveColumns()
+    public int getMaxLiveCount()
     {
-        return maxLiveColumns;
+        return maxLiveCount;
     }
 }

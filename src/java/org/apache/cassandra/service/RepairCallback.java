@@ -79,8 +79,8 @@ public class RepairCallback implements IAsyncCallback
         return true;
     }
 
-    public int getMaxLiveColumns()
+    public int getMaxLiveCount()
     {
-        return resolver.getMaxLiveColumns();
+        return resolver.getMaxLiveCount();
     }
 }

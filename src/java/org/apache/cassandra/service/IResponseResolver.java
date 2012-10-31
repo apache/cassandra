@@ -42,6 +42,4 @@ public interface IResponseResolver<TMessage, TResolved> {
 
     public void preprocess(MessageIn<TMessage> message);
     public Iterable<MessageIn<TMessage>> getMessages();
-
-    public int getMaxLiveColumns();
 }

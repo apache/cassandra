@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -78,6 +79,8 @@ public abstract class ReadCommand implements IReadCommand
     public abstract ReadCommand copy();
 
     public abstract Row getRow(Table table) throws IOException;
+
+    public abstract IFilter filter();
 
     protected AbstractType<?> getComparator()
     {

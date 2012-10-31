@@ -219,7 +219,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
                     logger.debug("Digest mismatch:", e);
 
                 ReadCommand readCommand = (ReadCommand) command;
-                final RowRepairResolver repairResolver = new RowRepairResolver(readCommand.table, readCommand.key);
+                final RowRepairResolver repairResolver = new RowRepairResolver(readCommand.table, readCommand.key, readCommand.filter());
                 IAsyncCallback repairHandler = new AsyncRepairCallback(repairResolver, endpoints.size());
 
                 MessageOut<ReadCommand> message = ((ReadCommand) command).createMessage();

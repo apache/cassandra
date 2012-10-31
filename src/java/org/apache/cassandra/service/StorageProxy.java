@@ -943,7 +943,7 @@ public class StorageProxy implements StorageProxyMBean
                 catch (DigestMismatchException ex)
                 {
                     logger.debug("Digest mismatch: {}", ex.toString());
-                    RowRepairResolver resolver = new RowRepairResolver(command.table, command.key);
+                    RowRepairResolver resolver = new RowRepairResolver(command.table, command.key, command.filter());
                     RepairCallback repairHandler = new RepairCallback(resolver, handler.endpoints);
 
                     if (repairCommands == null)

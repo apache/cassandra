@@ -74,6 +74,11 @@ public class SliceByNamesReadCommand extends ReadCommand
                ", filter=" + filter +
                ')';
     }
+
+    public IFilter filter()
+    {
+        return filter;
+    }
 }
 
 class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadCommand>

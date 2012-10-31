@@ -122,11 +122,6 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
         return responses;
     }
 
-    public int getMaxLiveColumns()
-    {
-        throw new UnsupportedOperationException();
-    }
-
     private class Reducer extends MergeIterator.Reducer<Pair<Row,InetAddress>, Row>
     {
         List<ColumnFamily> versions = new ArrayList<ColumnFamily>(sources.size());
