@@ -496,7 +496,8 @@ public class Shuffle extends AbstractJmxClient
         }
         finally
         {
-            client.close();
+            if (client != null)
+                client.close();
         }
     }
 
