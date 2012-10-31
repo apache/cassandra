@@ -211,9 +211,10 @@ public class SliceQueryFilter implements IFilter
             }
         }
 
-        for (ByteBuffer columnName : toRemove)
+        if (toRemote != null)
         {
-            cf.remove(columnName);
+            for (ByteBuffer columnName : toRemove)
+                cf.remove(columnName);
         }
     }
 
