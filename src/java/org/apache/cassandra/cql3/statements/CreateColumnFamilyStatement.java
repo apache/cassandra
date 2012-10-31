@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -144,7 +145,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
         private final List<List<ColumnIdentifier>> keyAliases = new ArrayList<List<ColumnIdentifier>>();
         private final List<ColumnIdentifier> columnAliases = new ArrayList<ColumnIdentifier>();
-        private final Map<ColumnIdentifier, Boolean> definedOrdering = new HashMap<ColumnIdentifier, Boolean>();
+        private final Map<ColumnIdentifier, Boolean> definedOrdering = new LinkedHashMap<ColumnIdentifier, Boolean>(); // Insertion ordering is important
 
         private boolean useCompactStorage;
         private final Multiset<ColumnIdentifier> definedNames = HashMultiset.create(1);
@@ -303,6 +304,28 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                 stmt.defaultValidator = !stmt.columns.isEmpty() && (stmt.columns.values().iterator().next() instanceof CounterColumnType)
                     ? CounterColumnType.instance
                     : CFDefinition.definitionType;
+            }
+
+
+            // If we give a clustering order, we must explicitely do so for all aliases and in the order of the PK
+            if (!definedOrdering.isEmpty())
+            {
+                if (definedOrdering.size() > columnAliases.size())
+                    throw new InvalidRequestException("Too much columns provided for CLUSTERING ORDER");
+
+                int i = 0;
+                for (ColumnIdentifier id : definedOrdering.keySet())
+                {
+                    ColumnIdentifier c = columnAliases.get(i);
+                    if (!id.equals(c))
+                    {
+                        if (definedOrdering.containsKey(c))
+                            throw new InvalidRequestException(String.format("The order of columns in the CLUSTERING ORDER directive must be the one of the clustering key (%s must appear before %s)", c, id));
+                        else
+                            throw new InvalidRequestException(String.format("Missing CLUSTERING ORDER for column %s", c));
+                    }
+                    ++i;
+                }
             }
 
             return new ParsedStatement.Prepared(stmt);
