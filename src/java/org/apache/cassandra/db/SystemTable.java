@@ -164,7 +164,7 @@ public class SystemTable
             Token token = StorageService.getPartitioner().getTokenFactory().fromByteArray(oldColumns.next().value());
             String tokenBytes = serializeTokens(Collections.singleton(token));
             // (assume that any node getting upgraded was bootstrapped, since that was stored in a separate row for no particular reason)
-            String req = "INSERT INTO system.%s (key, cluster_name, tokens, bootstrapped) VALUES ('%s', '%s', '%s', '%s')";
+            String req = "INSERT INTO system.%s (key, cluster_name, tokens, bootstrapped) VALUES ('%s', '%s', %s, '%s')";
             processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, clusterName, tokenBytes, BootstrapState.COMPLETED.name()));
 
             oldStatusCfs.truncate();
