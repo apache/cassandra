@@ -445,8 +445,8 @@ public class SSTableWriter extends SSTable
                 logger.error("Bloom filter FP chance of zero isn't supposed to happen");
                 fpChance = null;
             }
-            bf = fpChance == null ? FilterFactory.getFilter(keyCount, 15)
-                                  : FilterFactory.getFilter(keyCount, fpChance);
+            bf = fpChance == null ? FilterFactory.getFilter(keyCount, 15, true)
+                                  : FilterFactory.getFilter(keyCount, fpChance, true);
         }
 
         public void append(DecoratedKey key, RowIndexEntry indexEntry)

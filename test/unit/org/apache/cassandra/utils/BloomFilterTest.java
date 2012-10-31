@@ -27,6 +27,7 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.KeyGenerator.WordGenerator;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -37,7 +38,7 @@ public class BloomFilterTest
 
     public BloomFilterTest()
     {
-        bf = FilterFactory.getFilter(10000L, FilterTestHelper.MAX_FAILURE_RATE);
+        bf = FilterFactory.getFilter(10000L, FilterTestHelper.MAX_FAILURE_RATE, true);
     }
 
     public static Filter testSerialize(Filter f) throws IOException
@@ -47,7 +48,7 @@ public class BloomFilterTest
         FilterFactory.serialize(f, out, FilterFactory.Type.MURMUR3);
 
         ByteArrayInputStream in = new ByteArrayInputStream(out.getData(), 0, out.getLength());
-        Filter f2 = FilterFactory.deserialize(new DataInputStream(in), FilterFactory.Type.MURMUR3);
+        Filter f2 = FilterFactory.deserialize(new DataInputStream(in), FilterFactory.Type.MURMUR3, true);
 
         assert f2.isPresent(ByteBufferUtil.bytes("a"));
         assert !f2.isPresent(ByteBufferUtil.bytes("b"));
@@ -101,7 +102,7 @@ public class BloomFilterTest
         {
             return;
         }
-        Filter bf2 = FilterFactory.getFilter(KeyGenerator.WordGenerator.WORDS / 2, FilterTestHelper.MAX_FAILURE_RATE);
+        Filter bf2 = FilterFactory.getFilter(KeyGenerator.WordGenerator.WORDS / 2, FilterTestHelper.MAX_FAILURE_RATE, true);
         int skipEven = KeyGenerator.WordGenerator.WORDS % 2 == 0 ? 0 : 2;
         FilterTestHelper.testFalsePositives(bf2,
                                             new KeyGenerator.WordGenerator(skipEven, 2),
@@ -123,7 +124,7 @@ public class BloomFilterTest
         {
             hashes.clear();
             ByteBuffer buf = keys.next();
-            BloomFilter bf = (BloomFilter) FilterFactory.getFilter(10, 10);
+            BloomFilter bf = (BloomFilter) FilterFactory.getFilter(10, 1, false);
             for (long hashIndex : bf.getHashBuckets(buf, MAX_HASH_COUNT, 1024 * 1024))
             {
                 hashes.add(hashIndex);

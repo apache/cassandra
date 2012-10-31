@@ -36,7 +36,7 @@ public class ColumnIndex
 
     private ColumnIndex(int estimatedColumnCount)
     {
-        this(new ArrayList<IndexHelper.IndexInfo>(), FilterFactory.getFilter(estimatedColumnCount, 4));
+        this(new ArrayList<IndexHelper.IndexInfo>(), FilterFactory.getFilter(estimatedColumnCount, 4, false));
     }
 
     private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex, Filter bloomFilter)

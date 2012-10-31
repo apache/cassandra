@@ -66,6 +66,13 @@ public class Memory
         unsafe.putByte(peer + offset, b);
     }
 
+    public void setMemory(long offset, long bytes, byte b)
+    {
+        // check if the last element will fit into the memory
+        checkPosition(offset + bytes - 1);
+        unsafe.setMemory(peer + offset, bytes, b);
+    }
+
     /**
      * Transfers count bytes from buffer to Memory
      *
@@ -138,6 +145,19 @@ public class Memory
     public long size()
     {
         return size;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+        if (!(o instanceof Memory))
+            return false;
+        Memory b = (Memory) o;
+        if (peer == b.peer && size == b.size)
+            return true;
+        return false;
     }
 }
 

@@ -46,7 +46,7 @@ public class LegacyBloomFilterTest
         FilterFactory.serialize(f, out, FilterFactory.Type.SHA);
 
         ByteArrayInputStream in = new ByteArrayInputStream(out.getData(), 0, out.getLength());
-        LegacyBloomFilter f2 = (LegacyBloomFilter) FilterFactory.deserialize(new DataInputStream(in), FilterFactory.Type.SHA);
+        LegacyBloomFilter f2 = (LegacyBloomFilter) FilterFactory.deserialize(new DataInputStream(in), FilterFactory.Type.SHA, false);
 
         assert f2.isPresent(ByteBufferUtil.bytes("a"));
         assert !f2.isPresent(ByteBufferUtil.bytes("b"));

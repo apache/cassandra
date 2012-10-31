@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.BitSet;
 
@@ -159,5 +160,10 @@ public class LegacyBloomFilter extends Filter
 
     public BitSet getBitSet(){
       return filter;
+    }
+
+    public void close() throws IOException
+    {
+        // Do nothing for this
     }
 }

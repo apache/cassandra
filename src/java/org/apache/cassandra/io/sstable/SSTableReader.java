@@ -330,7 +330,7 @@ public class SSTableReader extends SSTable
         try
         {
             stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER))));
-            bf = FilterFactory.deserialize(stream, descriptor.version.filterType);
+            bf = FilterFactory.deserialize(stream, descriptor.version.filterType, true);
         }
         finally
         {
@@ -899,6 +899,8 @@ public class SSTableReader extends SSTable
             dfile.cleanup();
 
             deletingTask.schedule();
+            // close the BF so it can be opened later.
+            FileUtils.closeQuietly(bf);
         }
         assert references.get() >= 0 : "Reference counter " +  references.get() + " for " + dfile.path;
     }

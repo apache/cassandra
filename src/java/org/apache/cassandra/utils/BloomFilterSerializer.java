@@ -23,46 +23,31 @@ import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.utils.obs.IBitSet;
+import org.apache.cassandra.utils.obs.OffHeapBitSet;
 import org.apache.cassandra.utils.obs.OpenBitSet;
 
 abstract class BloomFilterSerializer implements ISerializer<BloomFilter>
 {
     public void serialize(BloomFilter bf, DataOutput dos) throws IOException
     {
-        int bitLength = bf.bitset.getNumWords();
-        int pageSize = bf.bitset.getPageSize();
-        int pageCount = bf.bitset.getPageCount();
-
         dos.writeInt(bf.getHashCount());
-        dos.writeInt(bitLength);
-
-        for (int p = 0; p < pageCount; p++)
-        {
-            long[] bits = bf.bitset.getPage(p);
-            for (int i = 0; i < pageSize && bitLength-- > 0; i++)
-                dos.writeLong(bits[i]);
-        }
+        bf.bitset.serialize(dos);
     }
 
     public BloomFilter deserialize(DataInput dis) throws IOException
     {
+        return deserialize(dis, false);
+    }
+
+    public BloomFilter deserialize(DataInput dis, boolean offheap) throws IOException
+    {
         int hashes = dis.readInt();
-        long bitLength = dis.readInt();
-        OpenBitSet bs = new OpenBitSet(bitLength << 6);
-        int pageSize = bs.getPageSize();
-        int pageCount = bs.getPageCount();
-
-        for (int p = 0; p < pageCount; p++)
-        {
-            long[] bits = bs.getPage(p);
-            for (int i = 0; i < pageSize && bitLength-- > 0; i++)
-                bits[i] = dis.readLong();
-        }
-
+        IBitSet bs = offheap ? OffHeapBitSet.deserialize(dis) : OpenBitSet.deserialize(dis);
         return createFilter(hashes, bs);
     }
 
-    protected abstract BloomFilter createFilter(int hashes, OpenBitSet bs);
+    protected abstract BloomFilter createFilter(int hashes, IBitSet bs);
 
     /**
      * Calculates a serialized size of the given Bloom Filter
@@ -74,20 +59,8 @@ abstract class BloomFilterSerializer implements ISerializer<BloomFilter>
      */
     public long serializedSize(BloomFilter bf, TypeSizes typeSizes)
     {
-        int bitLength = bf.bitset.getNumWords();
-        int pageSize = bf.bitset.getPageSize();
-        int pageCount = bf.bitset.getPageCount();
-
-        int size = 0;
-        size += typeSizes.sizeof(bf.getHashCount()); // hash count
-        size += typeSizes.sizeof(bitLength); // length
-
-        for (int p = 0; p < pageCount; p++)
-        {
-            long[] bits = bf.bitset.getPage(p);
-            for (int i = 0; i < pageSize && bitLength-- > 0; i++)
-                size += typeSizes.sizeof(bits[i]); // bucket
-        }
+        int size = typeSizes.sizeof(bf.getHashCount()); // hash count
+        size += bf.bitset.serializedSize(typeSizes);
         return size;
     }
 }

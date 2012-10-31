@@ -31,9 +31,9 @@ import java.nio.ByteBuffer;
 public class SerializationsTest extends AbstractSerializationsTester
 {
 
-    private void testBloomFilterWrite(Type murmur) throws IOException
+    private void testBloomFilterWrite(Type murmur, boolean offheap) throws IOException
     {
-        Filter bf = FilterFactory.getFilter(1000000, 0.0001, murmur);
+        Filter bf = FilterFactory.getFilter(1000000, 0.0001, murmur, offheap);
         for (int i = 0; i < 100; i++)
             bf.add(StorageService.getPartitioner().getTokenFactory().toByteArray(StorageService.getPartitioner().getRandomToken()));
         DataOutputStream out = getOutput("utils.BloomFilter.bin");
@@ -45,10 +45,10 @@ public class SerializationsTest extends AbstractSerializationsTester
     public void testBloomFilterReadMURMUR2() throws IOException
     {
         if (EXECUTE_WRITES)
-            testBloomFilterWrite(FilterFactory.Type.MURMUR2);
+            testBloomFilterWrite(FilterFactory.Type.MURMUR2, false);
 
         DataInputStream in = getInput("utils.BloomFilter.bin");
-        assert FilterFactory.deserialize(in, FilterFactory.Type.MURMUR2) != null;
+        assert FilterFactory.deserialize(in, FilterFactory.Type.MURMUR2, false) != null;
         in.close();
     }
 
@@ -56,10 +56,10 @@ public class SerializationsTest extends AbstractSerializationsTester
     public void testBloomFilterReadMURMUR3() throws IOException
     {
         if (EXECUTE_WRITES)
-            testBloomFilterWrite(FilterFactory.Type.MURMUR3);
+            testBloomFilterWrite(FilterFactory.Type.MURMUR3, true);
 
         DataInputStream in = getInput("utils.BloomFilter.bin");
-        assert FilterFactory.deserialize(in, FilterFactory.Type.MURMUR3) != null;
+        assert FilterFactory.deserialize(in, FilterFactory.Type.MURMUR3, true) != null;
         in.close();
     }
 
@@ -87,7 +87,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         //      testLegacyBloomFilterWrite();
         
         DataInputStream in = getInput("utils.LegacyBloomFilter.bin");
-        assert FilterFactory.deserialize(in, FilterFactory.Type.SHA) != null;
+        assert FilterFactory.deserialize(in, FilterFactory.Type.SHA, false) != null;
         in.close();
     }
 

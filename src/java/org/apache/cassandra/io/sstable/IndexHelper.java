@@ -130,7 +130,7 @@ public class IndexHelper
         ByteBuffer bytes = file.readBytes(size);
 
         DataInputStream stream = new DataInputStream(ByteBufferUtil.inputStream(bytes));
-        return FilterFactory.deserialize(stream, type);
+        return FilterFactory.deserialize(stream, type, false);
     }
 
     /**

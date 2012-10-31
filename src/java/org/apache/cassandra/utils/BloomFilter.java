@@ -17,23 +17,16 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.obs.OpenBitSet;
+import org.apache.cassandra.utils.obs.IBitSet;
 
 public abstract class BloomFilter extends Filter
 {
-    private static final int EXCESS = 20;
+    public final IBitSet bitset;
 
-    public final OpenBitSet bitset;
-
-    BloomFilter(int hashes, long numElements, int bucketsPer)
-    {
-        hashCount = hashes;
-        bitset = new OpenBitSet(numElements * bucketsPer + EXCESS);
-    }
-
-    BloomFilter(int hashes, OpenBitSet bitset)
+    BloomFilter(int hashes, IBitSet bitset)
     {
         this.hashCount = hashes;
         this.bitset = bitset;
@@ -41,7 +34,7 @@ public abstract class BloomFilter extends Filter
 
     private long[] getHashBuckets(ByteBuffer key)
     {
-        return getHashBuckets(key, hashCount, bitset.size());
+        return getHashBuckets(key, hashCount, bitset.capacity());
     }
 
     protected abstract long[] hash(ByteBuffer b, int position, int remaining, long seed);
@@ -84,6 +77,12 @@ public abstract class BloomFilter extends Filter
 
     public void clear()
     {
-        bitset.clear(0, bitset.size());
+        bitset.clear();
+    }
+
+    @Override
+    public void close() throws IOException
+    {
+        bitset.close();
     }
 }

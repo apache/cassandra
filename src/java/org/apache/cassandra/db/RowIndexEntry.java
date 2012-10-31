@@ -119,7 +119,7 @@ public class RowIndexEntry
                     List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
                     for (int i = 0; i < entries; i++)
                         columnsIndex.add(IndexHelper.IndexInfo.deserialize(dis));
-                    Filter bf = FilterFactory.deserialize(dis, version.filterType);
+                    Filter bf = FilterFactory.deserialize(dis, version.filterType, false);
                     return new IndexedEntry(position, delInfo, columnsIndex, bf);
                 }
                 else
