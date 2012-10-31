@@ -31,9 +31,11 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.PrecompactedRow;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.net.OutboundTcpConnection;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.BytesReadTracker;
@@ -60,6 +62,16 @@ public class IncomingStreamReader
         this.socket = socket;
         InetAddress host = header.broadcastAddress != null ? header.broadcastAddress
                            : ((InetSocketAddress)socket.getRemoteSocketAddress()).getAddress();
+        if (header.pendingFiles.isEmpty() && header.file != null)
+        {
+            // StreamInSession should be created already when receiving 2nd and after files
+            if (!StreamInSession.hasSession(host, header.sessionId))
+            {
+                StreamReply reply = new StreamReply("", header.sessionId, StreamReply.Status.SESSION_FAILURE);
+                OutboundTcpConnection.write(reply.getMessage(Gossiper.instance.getVersion(host)), Long.toString(header.sessionId), new DataOutputStream(socket.getOutputStream()));
+                throw new IOException("Session " + header.sessionId + " already closed.");
+            }
+        }
         session = StreamInSession.get(host, header.sessionId);
         session.setSocket(socket);
 
