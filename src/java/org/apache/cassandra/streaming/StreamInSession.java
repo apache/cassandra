@@ -101,6 +101,12 @@ public class StreamInSession extends AbstractStreamSession
         return session;
     }
 
+    public static boolean hasSession(InetAddress host, long sessionId)
+    {
+        Pair<InetAddress, Long> context = Pair.create(host, sessionId);
+        return sessions.get(context) != null;
+    }
+
     public void setCurrentFile(PendingFile file)
     {
         this.current = file;

@@ -58,6 +58,7 @@ Merged from 1.1:
  * fix compositeType.{get/from}String methods (CASSANDRA-4842)
  * (CQL) fix CREATE COLUMNFAMILY permissions check (CASSANDRA-4864)
  * Fix DynamicCompositeType same type comparison (CASSANDRA-4711)
+ * Fix duplicate SSTable reference when stream session failed (CASSANDRA-3306)
 
 
 

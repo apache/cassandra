@@ -38,6 +38,8 @@ import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.StreamingMetrics;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.OutboundTcpConnection;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.compress.CompressedInputStream;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -60,6 +62,20 @@ public class IncomingStreamReader
         socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
         InetAddress host = header.broadcastAddress != null ? header.broadcastAddress
                            : ((InetSocketAddress)socket.getRemoteSocketAddress()).getAddress();
+        if (header.pendingFiles.isEmpty() && header.file != null)
+        {
+            // StreamInSession should be created already when receiving 2nd and after files
+            if (!StreamInSession.hasSession(host, header.sessionId))
+            {
+                StreamReply reply = new StreamReply("", header.sessionId, StreamReply.Status.SESSION_FAILURE);
+                OutboundTcpConnection.write(reply.createMessage(),
+                                            Long.toString(header.sessionId),
+                                            System.currentTimeMillis(),
+                                            new DataOutputStream(socket.getOutputStream()),
+                                            MessagingService.instance().getVersion(host));
+                throw new IOException("Session " + header.sessionId + " already closed.");
+            }
+        }
         session = StreamInSession.get(host, header.sessionId);
         session.setSocket(socket);
 
