@@ -422,10 +422,8 @@ public class SecondaryIndexManager
         // Update entire row only once per row level index
         Set<Class<? extends SecondaryIndex>> appliedRowLevelIndexes = null;
 
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
+        for (SecondaryIndex index : indexesByColumn.values())
         {
-            SecondaryIndex index = entry.getValue();
-
             if (index instanceof PerRowSecondaryIndex)
             {
                 if (appliedRowLevelIndexes == null)
@@ -436,11 +434,11 @@ public class SecondaryIndexManager
             }
             else
             {
-                IColumn column = cf.getColumn(entry.getKey());
-                if (column == null)
-                    continue;
-
-                ((PerColumnSecondaryIndex) index).insert(key, column);
+                for (IColumn column : cf)
+                {
+                    if (index.indexes(column.name()))
+                        ((PerColumnSecondaryIndex) index).insert(key, column);
+                }
             }
         }
     }
