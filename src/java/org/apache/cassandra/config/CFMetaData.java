@@ -156,7 +156,8 @@ public final class CFMetaData
                                                          + "PRIMARY KEY (target_id, hint_id, message_version)"
                                                          + ") WITH COMPACT STORAGE "
                                                          + "AND COMPACTION={'class' : 'SizeTieredCompactionStrategy', 'min_threshold' : 0, 'max_threshold' : 0} "
-                                                         + "AND COMMENT='hints awaiting delivery'");
+                                                         + "AND COMMENT='hints awaiting delivery'"
+                                                         + "AND gc_grace_seconds=0");
 
     public static final CFMetaData PeersCf = compile(12, "CREATE TABLE " + SystemTable.PEERS_CF + " ("
                                                          + "peer inet PRIMARY KEY,"
