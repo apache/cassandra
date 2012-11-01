@@ -90,8 +90,8 @@ public final class KSMetaData
                                                 CFMetaData.SchemaColumnsCf,
                                                 CFMetaData.OldStatusCf,
                                                 CFMetaData.OldHintsCf,
-                                                CFMetaData.MigrationsCf,
-                                                CFMetaData.SchemaCf);
+                                                CFMetaData.OldMigrationsCf,
+                                                CFMetaData.OldSchemaCf);
         return new KSMetaData(Table.SYSTEM_KS, LocalStrategy.class, Collections.<String, String>emptyMap(), true, cfDefs);
     }
 
