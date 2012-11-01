@@ -141,7 +141,7 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
         return timeToLive;
     }
 
-    protected Map<ByteBuffer, ColumnGroupMap> readRows(List<ByteBuffer> keys, ColumnNameBuilder builder, List<ByteBuffer> toRead, CompositeType composite, boolean local, ConsistencyLevel cl)
+    protected Map<ByteBuffer, ColumnGroupMap> readRows(List<ByteBuffer> keys, ColumnNameBuilder builder, Set<ByteBuffer> toRead, CompositeType composite, boolean local, ConsistencyLevel cl)
     throws RequestExecutionException, RequestValidationException
     {
         try
@@ -154,11 +154,12 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
         }
 
         ColumnSlice[] slices = new ColumnSlice[toRead.size()];
-        for (int i = 0; i < toRead.size(); i++)
+        int i = 0;
+        for (ByteBuffer name : toRead)
         {
-            ByteBuffer start = builder.copy().add(toRead.get(i)).build();
-            ByteBuffer finish = builder.copy().add(toRead.get(i)).buildAsEndOfRange();
-            slices[i] = new ColumnSlice(start, finish);
+            ByteBuffer start = builder.copy().add(name).build();
+            ByteBuffer finish = builder.copy().add(name).buildAsEndOfRange();
+            slices[i++] = new ColumnSlice(start, finish);
         }
 
         List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
