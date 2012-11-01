@@ -67,7 +67,7 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
     public void response(Message m)
     {
         if (responses.decrementAndGet() == 0)
-            condition.signal();
+            signal();
     }
 
     protected int determineBlockFor(String table)

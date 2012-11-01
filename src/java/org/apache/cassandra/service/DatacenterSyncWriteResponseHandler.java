@@ -91,7 +91,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         }
 
         // all the quorum conditions are met
-        condition.signal();
+        signal();
     }
 
     public void assureSufficientLiveNodes() throws UnavailableException

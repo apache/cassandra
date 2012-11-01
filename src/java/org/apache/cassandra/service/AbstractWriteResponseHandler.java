@@ -39,10 +39,11 @@ import org.apache.cassandra.utils.SimpleCondition;
 
 public abstract class AbstractWriteResponseHandler implements IWriteResponseHandler
 {
-    protected final SimpleCondition condition = new SimpleCondition();
+    private final SimpleCondition condition = new SimpleCondition();
     protected final long startTime;
     protected final Collection<InetAddress> writeEndpoints;
     protected final ConsistencyLevel consistencyLevel;
+    protected volatile Runnable callback;
 
     protected AbstractWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel)
     {
@@ -74,4 +75,16 @@ public abstract class AbstractWriteResponseHandler implements IWriteResponseHand
     public abstract void response(Message msg);
 
     public abstract void assureSufficientLiveNodes() throws UnavailableException;
+
+    protected void signal()
+    {
+        condition.signal();
+        if (callback != null)
+            callback.run();
+    }
+
+    public void setCallback(Runnable callback)
+    {
+        this.callback = callback;
+    }    
 }

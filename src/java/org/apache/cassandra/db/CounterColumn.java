@@ -372,7 +372,7 @@ public class CounterColumn extends Column
                 responseHandler.response(null);
                 StorageProxy.sendToHintedEndpoints((RowMutation) mutation, targets, responseHandler, localDataCenter, consistency_level);
             }
-        });
+        }, null);
 
         // we don't wait for answers
     }

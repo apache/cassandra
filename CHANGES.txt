@@ -1,3 +1,8 @@
+Unreleased
+ * Fix deadlock in mutation state under concurrent, CL > ONE writes to counters
+   (backport of CASSANDRA-4578)
+
+
 1.0.12
  * Switch from NBHM to CHM in MessagingService's callback map, which
    prevents OOM in long-running instances (CASSANDRA-4708)

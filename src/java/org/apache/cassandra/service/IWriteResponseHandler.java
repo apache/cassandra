@@ -30,4 +30,13 @@ public interface IWriteResponseHandler extends IAsyncCallback
 {
     public void get() throws TimeoutException;
     public void assureSufficientLiveNodes() throws UnavailableException;
+    
+    /**
+     * Set a callback to be called when the write is successful.
+     * Note that the callback will *not* be called in case of an exception (timeout or unavailable).
+     * Also, the callback should be set before any response() call, otherwise
+     * there is no guarantee it will ever be called.
+     * Successive calls to this method will override the previous callback by the new one.
+     */    
+    public void setCallback(Runnable callback);
 }

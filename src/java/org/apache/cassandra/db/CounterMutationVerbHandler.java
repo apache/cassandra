@@ -40,7 +40,7 @@ public class CounterMutationVerbHandler implements IVerbHandler
 {
     private static Logger logger = LoggerFactory.getLogger(CounterMutationVerbHandler.class);
 
-    public void doVerb(Message message, String id)
+    public void doVerb(final Message message, final String id)
     {
         byte[] bytes = message.getMessageBody();
         FastByteArrayInputStream buffer = new FastByteArrayInputStream(bytes);
@@ -48,15 +48,33 @@ public class CounterMutationVerbHandler implements IVerbHandler
         try
         {
             DataInputStream is = new DataInputStream(buffer);
-            CounterMutation cm = CounterMutation.serializer().deserialize(is, message.getVersion());
+            final CounterMutation cm = CounterMutation.serializer().deserialize(is, message.getVersion());
             if (logger.isDebugEnabled())
               logger.debug("Applying forwarded " + cm);
 
             String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
-            StorageProxy.applyCounterMutationOnLeader(cm, localDataCenter).get();
-            WriteResponse response = new WriteResponse(cm.getTable(), cm.key(), true);
-            Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
-            MessagingService.instance().sendReply(responseMessage, id, message.getFrom());
+            // We should not wait for the result of the write in this thread,
+            // otherwise we could have a distributed deadlock between replicas
+            // running this VerbHandler (see #4578).
+            // Instead, we use a callback to send the response. Note that the callback
+            // will not be called if the request timeout, but this is ok
+            // because the coordinator of the counter mutation will timeout on
+            // it's own in that case.
+            StorageProxy.applyCounterMutationOnLeader(cm, localDataCenter, new Runnable(){
+                public void run()
+                {
+                    try
+                    {
+                        WriteResponse response = new WriteResponse(cm.getTable(), cm.key(), true);
+                        Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
+                        MessagingService.instance().sendReply(responseMessage, id, message.getFrom());
+                    }
+                    catch (IOException e)
+                    {
+                        logger.error("Error writing response to counter mutation", e);
+                    }
+                }
+            });
         }
         catch (UnavailableException e)
         {
@@ -66,7 +84,7 @@ public class CounterMutationVerbHandler implements IVerbHandler
         }
         catch (TimeoutException e)
         {
-            // The coordinator node will have timeout itself so we let that goes
+            // The coordinator will timeout on it's own so ignore
         }
         catch (IOException e)
         {
