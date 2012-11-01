@@ -568,23 +568,27 @@ set_operation returns [Operation op]
     ;
 
 list_literal returns [List<Term> value]
-    : '[' { List<Term> l = new ArrayList<Term>(); } ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']' { $value = l; }
+    : '[' { List<Term> l = new ArrayList<Term>(); } ( t1=finalTerm { l.add(t1); } ( ',' tn=finalTerm { l.add(tn); } )* )? ']' { $value = l; }
     ;
 
 set_literal returns [List<Term> value]
-    : '{' { List<Term> s = new ArrayList<Term>(); } ( t1=term { s.add(t1); } ( ',' tn=term { s.add(tn); } )* )? '}'  { $value = s; }
+    : '{' { List<Term> s = new ArrayList<Term>(); } ( t1=finalTerm { s.add(t1); } ( ',' tn=finalTerm { s.add(tn); } )* )? '}'  { $value = s; }
     ;
 
 map_literal returns [Map<Term, Term> value]
     // Note that we have an ambiguity between maps and set for "{}". So we force it to a set, and deal with it later based on the type of the column
     : '{' { Map<Term, Term> m = new HashMap<Term, Term>(); }
-          k1=term ':' v1=term { m.put(k1, v1); } ( ',' kn=term ':' vn=term { m.put(kn, vn); } )* '}'
+          k1=finalTerm ':' v1=finalTerm { m.put(k1, v1); } ( ',' kn=finalTerm ':' vn=finalTerm { m.put(kn, vn); } )* '}'
        { $value = m; }
     ;
 
-term returns [Term term]
+finalTerm returns [Term term]
     : t=(STRING_LITERAL | UUID | INTEGER | FLOAT | K_TRUE | K_FALSE ) { $term = new Term($t.text, $t.type); }
-    | t=QMARK                                      { $term = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
+    ;
+
+term returns [Term term]
+    : ft=finalTerm { $term = ft; }
+    | t=QMARK      { $term = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
     ;
 
 intTerm returns [Term integer]
