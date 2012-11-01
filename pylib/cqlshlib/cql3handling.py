@@ -19,9 +19,12 @@ from warnings import warn
 from .cqlhandling import CqlParsingRuleSet, Hint
 from cql.cqltypes import (cql_types, lookup_casstype, CompositeType, UTF8Type,
                           ColumnToCollectionType, CounterColumnType)
+from . import helptopics
 
 simple_cql_types = set(cql_types)
 simple_cql_types.difference_update(('set', 'map', 'list'))
+
+cqldocs = helptopics.CQL3HelpTopics()
 
 try:
     import json

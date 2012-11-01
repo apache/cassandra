@@ -19,12 +19,14 @@
 
 import re
 import traceback
-from . import pylexotron, util
+from . import pylexotron, util, helptopics
 from cql import cqltypes
 
 Hint = pylexotron.Hint
 
 SYSTEM_KEYSPACES = ('system',)
+
+cqldocs = helptopics.CQL2HelpTopics()
 
 class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
     keywords = set((
