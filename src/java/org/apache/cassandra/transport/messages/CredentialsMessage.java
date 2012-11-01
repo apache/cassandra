@@ -23,6 +23,7 @@ import java.util.Map;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ServerConnection;
@@ -74,11 +75,11 @@ public class CredentialsMessage extends Message.Request
         return codec.encode(this);
     }
 
-    public Message.Response execute()
+    public Message.Response execute(QueryState state)
     {
         try
         {
-            ((ServerConnection)connection).clientState().login(credentials);
+            state.getClientState().login(credentials);
             return new ReadyMessage();
         }
         catch (AuthenticationException e)

@@ -33,6 +33,7 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.SemanticVersion;
@@ -121,20 +122,21 @@ public class QueryProcessor
         }
     }
 
-    private static ResultMessage processStatement(CQLStatement statement, ConsistencyLevel cl, ClientState clientState, List<ByteBuffer> variables)
+    private static ResultMessage processStatement(CQLStatement statement, ConsistencyLevel cl, QueryState queryState, List<ByteBuffer> variables)
     throws RequestExecutionException, RequestValidationException
     {
+        ClientState clientState = queryState.getClientState();
         statement.checkAccess(clientState);
         statement.validate(clientState);
-        ResultMessage result = statement.execute(cl, clientState, variables);
+        ResultMessage result = statement.execute(cl, queryState, variables);
         return result == null ? new ResultMessage.Void() : result;
     }
 
-    public static ResultMessage process(String queryString, ConsistencyLevel cl, ClientState clientState)
+    public static ResultMessage process(String queryString, ConsistencyLevel cl, QueryState queryState)
     throws RequestExecutionException, RequestValidationException
     {
         logger.trace("CQL QUERY: {}", queryString);
-        return processStatement(getStatement(queryString, clientState).statement, cl, clientState, Collections.<ByteBuffer>emptyList());
+        return processStatement(getStatement(queryString, queryState.getClientState()).statement, cl, queryState, Collections.<ByteBuffer>emptyList());
     }
 
     public static UntypedResultSet processInternal(String query)
@@ -142,10 +144,11 @@ public class QueryProcessor
         try
         {
             ClientState state = new ClientState(true);
+            QueryState qState = new QueryState(state);
             state.setKeyspace(Table.SYSTEM_KS);
             CQLStatement statement = getStatement(query, state).statement;
             statement.validate(state);
-            ResultMessage result = statement.executeInternal(state);
+            ResultMessage result = statement.executeInternal(qState);
             if (result instanceof ResultMessage.Rows)
                 return new UntypedResultSet(((ResultMessage.Rows)result).result);
             else
@@ -181,13 +184,13 @@ public class QueryProcessor
         logger.trace("CQL QUERY: {}", queryString);
 
         ParsedStatement.Prepared prepared = getStatement(queryString, clientState);
-        ResultMessage.Prepared msg = storePreparedStatement(queryString, clientState, prepared, forThrift);
+        ResultMessage.Prepared msg = storePreparedStatement(queryString, prepared, forThrift);
 
         assert prepared.statement.getBoundsTerms() == prepared.boundNames.size();
         return msg;
     }
 
-    private static ResultMessage.Prepared storePreparedStatement(String queryString, ClientState clientState, ParsedStatement.Prepared prepared, boolean forThrift)
+    private static ResultMessage.Prepared storePreparedStatement(String queryString, ParsedStatement.Prepared prepared, boolean forThrift)
     {
         if (forThrift)
         {
@@ -209,7 +212,7 @@ public class QueryProcessor
         }
     }
 
-    public static ResultMessage processPrepared(CQLStatement statement, ConsistencyLevel cl, ClientState clientState, List<ByteBuffer> variables)
+    public static ResultMessage processPrepared(CQLStatement statement, ConsistencyLevel cl, QueryState queryState, List<ByteBuffer> variables)
     throws RequestExecutionException, RequestValidationException
     {
         // Check to see if there are any bound variables to verify
@@ -227,7 +230,7 @@ public class QueryProcessor
                     logger.trace("[{}] '{}'", i+1, variables.get(i));
         }
 
-        return processStatement(statement, cl, clientState, variables);
+        return processStatement(statement, cl, queryState, variables);
     }
 
     private static ParsedStatement.Prepared getStatement(String queryStr, ClientState clientState)

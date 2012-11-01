@@ -28,43 +28,29 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.thrift.AuthenticationException;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SemanticVersion;
 
-import static org.apache.cassandra.tracing.Tracing.instance;
-
 /**
- * A container for per-client, thread-local state that Avro/Thrift threads must hold.
+ * State related to a client connection.
+ *
  * TODO: Kill thrift exceptions
  */
 public class ClientState
 {
-    private static final int MAX_CACHE_PREPARED = 10000;    // Enough to keep buggy clients from OOM'ing us
     private static final Logger logger = LoggerFactory.getLogger(ClientState.class);
     public static final SemanticVersion DEFAULT_CQL_VERSION = org.apache.cassandra.cql3.QueryProcessor.CQL_VERSION;
 
     // Current user for the session
     private AuthenticatedUser user;
     private String keyspace;
-    private UUID preparedTracingSession;
 
     // Reusable array for authorization
     private final List<Object> resource = new ArrayList<Object>();
     private SemanticVersion cqlVersion = DEFAULT_CQL_VERSION;
-
-    // An LRU map of prepared statements
-    private final Map<Integer, CQLStatement> prepared = new LinkedHashMap<Integer, CQLStatement>(16, 0.75f, true) {
-        protected boolean removeEldestEntry(Map.Entry<Integer, CQLStatement> eldest) {
-            return size() > MAX_CACHE_PREPARED;
-        }
-    };
-
-    private long clock;
 
     // internalCall is used to mark ClientState as used by some internal component
     // that should have an ability to modify system keyspace
@@ -81,15 +67,7 @@ public class ClientState
     public ClientState(boolean internalCall)
     {
         this.internalCall = internalCall;
-
-        user = DatabaseDescriptor.getAuthenticator().defaultUser();
-        resourceClear();
-        prepared.clear();
-    }
-
-    public Map<Integer, CQLStatement> getPrepared()
-    {
-        return prepared;
+        this.user = DatabaseDescriptor.getAuthenticator().defaultUser();
     }
 
     public String getRawKeyspace()
@@ -109,45 +87,6 @@ public class ClientState
         if (Schema.instance.getKSMetaData(ks) == null)
             throw new InvalidRequestException("Keyspace '" + ks + "' does not exist");
         keyspace = ks;
-    }
-
-    public boolean traceNextQuery()
-    {
-        if (preparedTracingSession != null)
-        {
-            return true;
-        }
-
-        double tracingProbability = StorageService.instance.getTracingProbability();
-        return tracingProbability != 0 && FBUtilities.threadLocalRandom().nextDouble() < tracingProbability;
-    }
-
-    public void prepareTracingSession(UUID sessionId)
-    {
-        this.preparedTracingSession = sessionId;
-    }
-
-    public void createSession()
-    {
-        if (this.preparedTracingSession == null)
-        {
-            instance().newSession();
-        }
-        else
-        {
-            UUID session = this.preparedTracingSession;
-            this.preparedTracingSession = null;
-            instance().newSession(session);
-        }
-    }
-
-    public String getSchedulingValue()
-    {
-        switch(DatabaseDescriptor.getRequestSchedulerId())
-        {
-            case keyspace: return keyspace;
-        }
-        return "default";
     }
 
     /**
@@ -288,18 +227,6 @@ public class ClientState
                                                       user,
                                                       perm,
                                                       Resources.toString(resource)));
-    }
-
-    /**
-     * This clock guarantees that updates from a given client will be ordered in the sequence seen,
-     * even if multiple updates happen in the same millisecond.  This can be useful when a client
-     * wants to perform multiple updates to a single column.
-     */
-    public long getTimestamp()
-    {
-        long current = System.currentTimeMillis() * 1000;
-        clock = clock >= current ? clock + 1 : current;
-        return clock;
     }
 
     public void setCQLVersion(String str) throws InvalidRequestException

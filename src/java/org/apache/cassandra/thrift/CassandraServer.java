@@ -82,7 +82,7 @@ public class CassandraServer implements Cassandra.Iface
         requestScheduler = DatabaseDescriptor.getRequestScheduler();
     }
 
-    public ClientState state()
+    public ThriftClientState state()
     {
         return ThriftSessionManager.instance.currentSession();
     }
@@ -393,7 +393,7 @@ public class CassandraServer implements Cassandra.Iface
     private ColumnOrSuperColumn internal_get(ByteBuffer key, ColumnPath column_path, ConsistencyLevel consistency_level)
     throws RequestValidationException, NotFoundException, UnavailableException, TimedOutException
     {
-        ClientState cState = state();
+        ThriftClientState cState = state();
         cState.hasColumnFamilyAccess(column_path.column_family, Permission.SELECT);
         String keyspace = cState.getKeyspace();
 
@@ -468,7 +468,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            ClientState cState = state();
+            ThriftClientState cState = state();
             cState.hasColumnFamilyAccess(column_parent.column_family, Permission.SELECT);
             Table table = Table.open(cState.getKeyspace());
             ColumnFamilyStore cfs = table.getColumnFamilyStore(column_parent.column_family);
@@ -573,7 +573,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            ClientState cState = state();
+            ThriftClientState cState = state();
             cState.hasColumnFamilyAccess(column_parent.column_family, Permission.SELECT);
             String keyspace = cState.getKeyspace();
 
@@ -600,7 +600,7 @@ public class CassandraServer implements Cassandra.Iface
     private void internal_insert(ByteBuffer key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level)
     throws RequestValidationException, UnavailableException, TimedOutException
     {
-        ClientState cState = state();
+        ThriftClientState cState = state();
         cState.hasColumnFamilyAccess(column_parent.column_family, Permission.UPDATE);
 
         CFMetaData metadata = ThriftValidation.validateColumnFamily(cState.getKeyspace(), column_parent.column_family, false);
@@ -663,7 +663,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         List<String> cfamsSeen = new ArrayList<String>();
         List<IMutation> rowMutations = new ArrayList<IMutation>();
-        ClientState cState = state();
+        ThriftClientState cState = state();
         String keyspace = cState.getKeyspace();
 
         for (Map.Entry<ByteBuffer, Map<String, List<Mutation>>> mutationEntry: mutation_map.entrySet())
@@ -801,7 +801,7 @@ public class CassandraServer implements Cassandra.Iface
     private void internal_remove(ByteBuffer key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level, boolean isCommutativeOp)
     throws RequestValidationException, UnavailableException, TimedOutException
     {
-        ClientState cState = state();
+        ThriftClientState cState = state();
         cState.hasColumnFamilyAccess(column_path.column_family, Permission.DELETE);
 
         CFMetaData metadata = ThriftValidation.validateColumnFamily(cState.getKeyspace(), column_path.column_family, isCommutativeOp);
@@ -921,7 +921,7 @@ public class CassandraServer implements Cassandra.Iface
             String keyspace = null;
             CFMetaData metadata = null;
 
-            ClientState cState = state();
+            ThriftClientState cState = state();
             keyspace = cState.getKeyspace();
             cState.hasColumnFamilyAccess(column_parent.column_family, Permission.SELECT);
 
@@ -1009,7 +1009,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
 
-            ClientState cState = state();
+            ThriftClientState cState = state();
             String keyspace = cState.getKeyspace();
             cState.hasColumnFamilyAccess(column_family, Permission.SELECT);
 
@@ -1111,7 +1111,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            ClientState cState = state();
+            ThriftClientState cState = state();
             cState.hasColumnFamilyAccess(column_parent.column_family, Permission.SELECT);
             String keyspace = cState.getKeyspace();
             CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family, false);
@@ -1321,7 +1321,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         logger.debug("drop_column_family");
 
-        ClientState cState = state();
+        ThriftClientState cState = state();
 
         try
         {
@@ -1703,8 +1703,8 @@ public class CassandraServer implements Cassandra.Iface
                 logger.debug("execute_cql3_query");
             }
 
-            ClientState cState = state();
-            return org.apache.cassandra.cql3.QueryProcessor.process(queryString, ThriftConversion.fromThrift(cLevel), cState).toThriftResult();
+            ThriftClientState cState = state();
+            return org.apache.cassandra.cql3.QueryProcessor.process(queryString, ThriftConversion.fromThrift(cLevel), cState.getQueryState()).toThriftResult();
         }
         catch (RequestExecutionException e)
         {
@@ -1729,7 +1729,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            ClientState cState = state();
+            ThriftClientState cState = state();
             String queryString = uncompress(query,compression);
             return QueryProcessor.prepare(queryString, cState);
         }
@@ -1747,7 +1747,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            ClientState cState = state();
+            ThriftClientState cState = state();
             String queryString = uncompress(query,compression);
             return org.apache.cassandra.cql3.QueryProcessor.prepare(queryString, cState, true).toThriftPreparedResult();
         }
@@ -1772,7 +1772,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            ClientState cState = state();
+            ThriftClientState cState = state();
             CQLStatement statement = cState.getPrepared().get(itemId);
 
             if (statement == null)
@@ -1811,7 +1811,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            ClientState cState = state();
+            ThriftClientState cState = state();
             org.apache.cassandra.cql3.CQLStatement statement = org.apache.cassandra.cql3.QueryProcessor.getPrepared(itemId);
 
             if (statement == null)
@@ -1821,7 +1821,7 @@ public class CassandraServer implements Cassandra.Iface
                                                                 itemId, org.apache.cassandra.cql3.QueryProcessor.MAX_CACHE_PREPARED, itemId));
             logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, statement.getBoundsTerms());
 
-            return org.apache.cassandra.cql3.QueryProcessor.processPrepared(statement, ThriftConversion.fromThrift(cLevel), cState, bindVariables).toThriftResult();
+            return org.apache.cassandra.cql3.QueryProcessor.processPrepared(statement, ThriftConversion.fromThrift(cLevel), cState.getQueryState(), bindVariables).toThriftResult();
         }
         catch (RequestExecutionException e)
         {
@@ -1846,15 +1846,15 @@ public class CassandraServer implements Cassandra.Iface
     public ByteBuffer trace_next_query() throws TException
     {
         UUID sessionId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
-        state().prepareTracingSession(sessionId);
+        state().getQueryState().prepareTracingSession(sessionId);
         return TimeUUIDType.instance.decompose(sessionId);
     }
 
     private boolean startSessionIfRequested()
     {
-        if (state().traceNextQuery())
+        if (state().getQueryState().traceNextQuery())
         {
-            state().createSession();
+            state().getQueryState().createTracingSession();
             return true;
         }
         return false;

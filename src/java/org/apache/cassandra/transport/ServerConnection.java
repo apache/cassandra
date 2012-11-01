@@ -17,7 +17,12 @@
  */
 package org.apache.cassandra.transport;
 
+import java.util.concurrent.ConcurrentMap;
+
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
+
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ServerConnection extends Connection
 {
@@ -34,6 +39,8 @@ public class ServerConnection extends Connection
     private final ClientState clientState;
     private volatile State state;
 
+    private final ConcurrentMap<Integer, QueryState> queryStates = new NonBlockingHashMap<Integer, QueryState>();
+
     public ServerConnection(Connection.Tracker tracker)
     {
         super(tracker);
@@ -41,9 +48,17 @@ public class ServerConnection extends Connection
         this.state = State.UNINITIALIZED;
     }
 
-    public ClientState clientState()
+    public QueryState getQueryState(int streamId)
     {
-        return clientState;
+        QueryState qState = queryStates.get(streamId);
+        if (qState == null)
+        {
+            // In theory we shouldn't get any race here, but it never hurts to be careful
+            QueryState newState = new QueryState(clientState);
+            if ((qState = queryStates.putIfAbsent(streamId, newState)) == null)
+                qState = newState;
+        }
+        return qState;
     }
 
     public void validateNewMessage(Message.Type type)

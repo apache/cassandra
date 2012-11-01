@@ -17,10 +17,17 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.util.UUID;
+
+import com.google.common.collect.ImmutableMap;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.*;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class PrepareMessage extends Message.Request
 {
@@ -51,15 +58,37 @@ public class PrepareMessage extends Message.Request
         return codec.encode(this);
     }
 
-    public Message.Response execute()
+    public Message.Response execute(QueryState state)
     {
         try
         {
-            return QueryProcessor.prepare(query, ((ServerConnection)connection).clientState(), false);
+            UUID tracingId = null;
+            if (isTracingRequested())
+            {
+                tracingId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
+                state.prepareTracingSession(tracingId);
+            }
+
+            if (state.traceNextQuery())
+            {
+                state.createTracingSession();
+                Tracing.instance().begin("Preparing CQL3 query", ImmutableMap.of("query", query));
+            }
+
+            Message.Response response = QueryProcessor.prepare(query, state.getClientState(), false);
+
+            if (tracingId != null)
+                response.setTracingId(tracingId);
+
+            return response;
         }
         catch (Exception e)
         {
             return ErrorMessage.fromException(e);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
         }
     }
 

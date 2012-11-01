@@ -25,6 +25,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 
 public class UseStatement extends ParsedStatement implements CQLStatement
 {
@@ -49,13 +50,13 @@ public class UseStatement extends ParsedStatement implements CQLStatement
     {
     }
 
-    public ResultMessage execute(ConsistencyLevel cl, ClientState state, List<ByteBuffer> variables) throws InvalidRequestException
+    public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables) throws InvalidRequestException
     {
-        state.setKeyspace(keyspace);
+        state.getClientState().setKeyspace(keyspace);
         return new ResultMessage.SetKeyspace(keyspace);
     }
 
-    public ResultMessage executeInternal(ClientState state)
+    public ResultMessage executeInternal(QueryState state)
     {
         // Internal queries are exclusively on the system keyspace and 'use' is thus useless
         throw new UnsupportedOperationException();

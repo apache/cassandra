@@ -35,7 +35,6 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.utils.Pair;
 
@@ -69,7 +68,7 @@ public class DeleteStatement extends ModificationStatement
             cl.validateForWrite(cfDef.cfm.ksName);
     }
 
-    public Collection<RowMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
+    public Collection<RowMutation> getMutations(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
     throws RequestExecutionException, RequestValidationException
     {
         // keys

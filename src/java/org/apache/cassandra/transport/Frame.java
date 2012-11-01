@@ -75,9 +75,8 @@ public class Frame
         return new Frame(header, fullFrame, connection);
     }
 
-    public static Frame create(Message.Type type, int streamId, ChannelBuffer body, Connection connection)
+    public static Frame create(Message.Type type, int streamId, EnumSet<Header.Flag> flags, ChannelBuffer body, Connection connection)
     {
-        EnumSet<Header.Flag> flags = EnumSet.noneOf(Header.Flag.class);
         Header header = new Header(Header.CURRENT_VERSION, flags, streamId, type);
         return new Frame(header, body, connection);
     }
@@ -108,7 +107,8 @@ public class Frame
         public static enum Flag
         {
             // The order of that enum matters!!
-            COMPRESSED;
+            COMPRESSED,
+            TRACING;
 
             public static EnumSet<Flag> deserialize(int flags)
             {

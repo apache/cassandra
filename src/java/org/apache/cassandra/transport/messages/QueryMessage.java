@@ -17,13 +17,20 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.util.UUID;
+
+import com.google.common.collect.ImmutableMap;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.*;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * A CQL query
@@ -61,17 +68,39 @@ public class QueryMessage extends Message.Request
         return codec.encode(this);
     }
 
-    public Message.Response execute()
+    public Message.Response execute(QueryState state)
     {
         try
         {
-            return QueryProcessor.process(query, consistency, ((ServerConnection)connection).clientState());
+            UUID tracingId = null;
+            if (isTracingRequested())
+            {
+                tracingId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
+                state.prepareTracingSession(tracingId);
+            }
+
+            if (state.traceNextQuery())
+            {
+                state.createTracingSession();
+                Tracing.instance().begin("Execute CQL3 query", ImmutableMap.of("query", query));
+            }
+
+            Message.Response response = QueryProcessor.process(query, consistency, state);
+
+            if (tracingId != null)
+                response.setTracingId(tracingId);
+
+            return response;
         }
         catch (Exception e)
         {
             if (!((e instanceof RequestValidationException) || (e instanceof RequestExecutionException)))
                 logger.error("Unexpected error during query", e);
             return ErrorMessage.fromException(e);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
         }
     }
 

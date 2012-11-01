@@ -19,7 +19,9 @@ package org.apache.cassandra.transport.messages;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 
@@ -27,8 +29,12 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
+import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.*;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MD5Digest;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class ExecuteMessage extends Message.Request
 {
@@ -90,21 +96,43 @@ public class ExecuteMessage extends Message.Request
         return codec.encode(this);
     }
 
-    public Message.Response execute()
+    public Message.Response execute(QueryState state)
     {
         try
         {
-            ServerConnection c = (ServerConnection)connection;
             CQLStatement statement = QueryProcessor.getPrepared(statementId);
 
             if (statement == null)
                 throw new PreparedQueryNotFoundException(statementId);
 
-            return QueryProcessor.processPrepared(statement, consistency, c.clientState(), values);
+            UUID tracingId = null;
+            if (isTracingRequested())
+            {
+                tracingId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
+                state.prepareTracingSession(tracingId);
+            }
+
+            if (state.traceNextQuery())
+            {
+                state.createTracingSession();
+                // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
+                Tracing.instance().begin("Execute CQL3 prepared query", Collections.<String, String>emptyMap());
+            }
+
+            Message.Response response = QueryProcessor.processPrepared(statement, consistency, state, values);
+
+            if (tracingId != null)
+                response.setTracingId(tracingId);
+
+            return response;
         }
         catch (Exception e)
         {
             return ErrorMessage.fromException(e);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
         }
     }
 

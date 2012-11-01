@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service;
+package org.apache.cassandra.thrift;
 
 import java.net.SocketAddress;
 import java.util.Map;
@@ -32,7 +32,7 @@ public class ThriftSessionManager
     public final static ThriftSessionManager instance = new ThriftSessionManager();
 
     private final ThreadLocal<SocketAddress> remoteSocket = new ThreadLocal<SocketAddress>();
-    private final Map<SocketAddress, ClientState> activeSocketSessions = new ConcurrentHashMap<SocketAddress, ClientState>();
+    private final Map<SocketAddress, ThriftClientState> activeSocketSessions = new ConcurrentHashMap<SocketAddress, ThriftClientState>();
 
     /**
      * @param socket the address on which the current thread will work on requests for until further notice
@@ -45,15 +45,15 @@ public class ThriftSessionManager
     /**
      * @return the current session for the most recently given socket on this thread
      */
-    public ClientState currentSession()
+    public ThriftClientState currentSession()
     {
         SocketAddress socket = remoteSocket.get();
         assert socket != null;
 
-        ClientState cState = activeSocketSessions.get(socket);
+        ThriftClientState cState = activeSocketSessions.get(socket);
         if (cState == null)
         {
-            cState = new ClientState();
+            cState = new ThriftClientState();
             activeSocketSessions.put(socket, cState);
         }
         return cState;

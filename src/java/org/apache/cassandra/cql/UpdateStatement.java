@@ -31,7 +31,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
-import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.thrift.ThriftClientState;
 
 import static org.apache.cassandra.cql.QueryProcessor.validateColumn;
 import static org.apache.cassandra.cql.QueryProcessor.validateKey;
@@ -122,14 +122,14 @@ public class UpdateStatement extends AbstractModification
     }
 
     /** {@inheritDoc} */
-    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, List<ByteBuffer> variables)
+    public List<IMutation> prepareRowMutations(String keyspace, ThriftClientState clientState, List<ByteBuffer> variables)
     throws InvalidRequestException, UnauthorizedException
     {
         return prepareRowMutations(keyspace, clientState, null, variables);
     }
 
     /** {@inheritDoc} */
-    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp, List<ByteBuffer> variables)
+    public List<IMutation> prepareRowMutations(String keyspace, ThriftClientState clientState, Long timestamp, List<ByteBuffer> variables)
     throws InvalidRequestException, UnauthorizedException
     {
         List<String> cfamsSeen = new ArrayList<String>();
@@ -182,7 +182,7 @@ public class UpdateStatement extends AbstractModification
      *
      * @throws InvalidRequestException on the wrong request
      */
-    private IMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp, ClientState clientState, List<ByteBuffer> variables)
+    private IMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp, ThriftClientState clientState, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
         validateKey(key);

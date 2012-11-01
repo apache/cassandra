@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.exceptions.*;
 
 public interface CQLStatement
@@ -50,16 +51,16 @@ public interface CQLStatement
     /**
      * Execute the statement and return the resulting result or null if there is no result.
      *
-     * @param state the current client state
+     * @param state the current query state
      * @param variables the values for bounded variables. The implementation
      * can assume that each bound term have a corresponding value.
      */
-    public ResultMessage execute(ConsistencyLevel cl, ClientState state, List<ByteBuffer> variables) throws RequestValidationException, RequestExecutionException;
+    public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Variante of execute used for internal query against the system tables, and thus only query the local node.
      *
-     * @param state the current client state
+     * @param state the current query state
      */
-    public ResultMessage executeInternal(ClientState state) throws RequestValidationException, RequestExecutionException;
+    public ResultMessage executeInternal(QueryState state) throws RequestValidationException, RequestExecutionException;
 }

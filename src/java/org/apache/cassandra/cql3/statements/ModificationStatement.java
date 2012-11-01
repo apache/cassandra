@@ -35,6 +35,7 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 
 /**
@@ -82,14 +83,14 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
 
     protected abstract void validateConsistency(ConsistencyLevel cl) throws InvalidRequestException;
 
-    public ResultMessage execute(ConsistencyLevel cl, ClientState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
+    public ResultMessage execute(ConsistencyLevel cl, QueryState queryState, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
     {
         if (cl == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
         validateConsistency(cl);
 
-        Collection<? extends IMutation> mutations = getMutations(state, variables, false, cl, state.getTimestamp());
+        Collection<? extends IMutation> mutations = getMutations(variables, false, cl, queryState.getTimestamp());
 
         // The type should have been set by now or we have a bug
         assert type != null;
@@ -113,9 +114,9 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
         return null;
     }
 
-    public ResultMessage executeInternal(ClientState state) throws RequestValidationException, RequestExecutionException
+    public ResultMessage executeInternal(QueryState queryState) throws RequestValidationException, RequestExecutionException
     {
-        for (IMutation mutation : getMutations(state, Collections.<ByteBuffer>emptyList(), true, null, state.getTimestamp()))
+        for (IMutation mutation : getMutations(Collections.<ByteBuffer>emptyList(), true, null, queryState.getTimestamp()))
             mutation.apply();
         return null;
     }
@@ -199,7 +200,6 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
     /**
      * Convert statement into a list of mutations to apply on the server
      *
-     * @param clientState current client status
      * @param variables value for prepared statement markers
      * @param local if true, any requests (for collections) performed by getMutation should be done locally only.
      * @param cl the consistency to use for the potential reads involved in generating the mutations (for lists set/delete operations)
@@ -208,7 +208,7 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
      * @return list of the mutations
      * @throws InvalidRequestException on invalid requests
      */
-    protected abstract Collection<? extends IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
+    protected abstract Collection<? extends IMutation> getMutations(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
     throws RequestExecutionException, RequestValidationException;
 
     public abstract ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException;

@@ -95,11 +95,24 @@ Table of Contents
 
 2.2. flags
 
-  Flags applying to this frame. Currently only one bit (the lower-most one, the
-  one masked by 0x01) has a meaning and indicates whether the frame body is
-  compressed. The actual compression to use should have been set up beforehand
-  through the Startup message (which thus cannot be compressed; Section 4.1.1).
-  The rest of the flags is kept for future use.
+  Flags applying to this frame. The flags have the following meaning (described
+  by the mask that allow to select them):
+    0x01: Compression flag. If set, the frame body is compressed. The actual
+          compression to use should have been set up beforehand through the
+          Startup message (which thus cannot be compressed; Section 4.1.1).
+    0x02: Tracing flag. For a request frame, this indicate the client requires
+          tracing of the request. Note that not all requests support tracing.
+          Currently, only QUERY, PREPARE and EXECUTE queries support tracing.
+          Other requests will simply ignore the tracing flag if set. If a
+          request support tracing and the tracing flag was set, the response to
+          this request will have the tracing flag set and contain tracing
+          information.
+          If a response frame has the tracing flag set, its body contains
+          a tracing ID. The tracing ID is a [uuid] and is the first thing in
+          the frame body. The rest of the body will then be the usual body
+          corresponding to the response opcode.
+
+  The rest of the flags is currently unused and ignored.
 
 2.3. stream
 
@@ -159,6 +172,7 @@ Table of Contents
     [string]       A [short] n, followed by n bytes representing an UTF-8
                    string.
     [long string]  An [int] n, followed by n bytes representing an UTF-8 string.
+    [uuid]         A 16 bytes long uuid.
     [string list]  A [short] n, followed by n [string].
     [bytes]        A [int] n, followed by n bytes if n >= 0. If n < 0,
                    no byte should follow and the value represented is `null`.

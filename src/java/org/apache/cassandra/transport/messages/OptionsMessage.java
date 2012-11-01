@@ -26,6 +26,7 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.FrameCompressor;
 import org.apache.cassandra.transport.Message;
 
@@ -57,7 +58,7 @@ public class OptionsMessage extends Message.Request
         return codec.encode(this);
     }
 
-    public Message.Response execute()
+    public Message.Response execute(QueryState state)
     {
         List<String> cqlVersions = new ArrayList<String>();
         cqlVersions.add(QueryProcessor.CQL_VERSION.toString());

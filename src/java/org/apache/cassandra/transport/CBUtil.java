@@ -26,12 +26,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.util.CharsetUtil;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * ChannelBuffer utility methods.
@@ -141,6 +143,18 @@ public abstract class CBUtil
     public static ConsistencyLevel readConsistencyLevel(ChannelBuffer cb)
     {
         return ConsistencyLevel.fromCode(cb.readUnsignedShort());
+    }
+
+    public static ChannelBuffer uuidToCB(UUID uuid)
+    {
+        return ChannelBuffers.wrappedBuffer(UUIDGen.decompose(uuid));
+    }
+
+    public static UUID readUuid(ChannelBuffer cb)
+    {
+        byte[] bytes = new byte[16];
+        cb.readBytes(bytes);
+        return UUIDGen.getUUID(ByteBuffer.wrap(bytes));
     }
 
     public static ChannelBuffer longStringToCB(String str)

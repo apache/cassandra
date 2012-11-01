@@ -37,7 +37,6 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.MigrationManager;
@@ -54,6 +53,7 @@ import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.thrift.RequestType;
 import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.thrift.ThriftValidation;
+import org.apache.cassandra.thrift.ThriftClientState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -224,7 +224,7 @@ public class QueryProcessor
         return rows.subList(0, select.getNumRecords() < rows.size() ? select.getNumRecords() : rows.size());
     }
 
-    private static void batchUpdate(ClientState clientState, List<UpdateStatement> updateStatements, ConsistencyLevel consistency, List<ByteBuffer> variables )
+    private static void batchUpdate(ThriftClientState clientState, List<UpdateStatement> updateStatements, ConsistencyLevel consistency, List<ByteBuffer> variables )
     throws RequestValidationException, RequestExecutionException
     {
         String globalKeyspace = clientState.getKeyspace();
@@ -397,7 +397,7 @@ public class QueryProcessor
                                Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
     }
 
-    public static CqlResult processStatement(CQLStatement statement,ClientState clientState, List<ByteBuffer> variables )
+    public static CqlResult processStatement(CQLStatement statement,ThriftClientState clientState, List<ByteBuffer> variables )
     throws RequestExecutionException, RequestValidationException
     {
         String keyspace = null;
@@ -809,14 +809,14 @@ public class QueryProcessor
         return null;    // We should never get here.
     }
 
-    public static CqlResult process(String queryString, ClientState clientState)
+    public static CqlResult process(String queryString, ThriftClientState clientState)
     throws RequestValidationException, RequestExecutionException
     {
         logger.trace("CQL QUERY: {}", queryString);
         return processStatement(getStatement(queryString), clientState, new ArrayList<ByteBuffer>(0));
     }
 
-    public static CqlPreparedResult prepare(String queryString, ClientState clientState)
+    public static CqlPreparedResult prepare(String queryString, ThriftClientState clientState)
     throws InvalidRequestException, SyntaxException
     {
         logger.trace("CQL QUERY: {}", queryString);
@@ -833,7 +833,7 @@ public class QueryProcessor
         return new CqlPreparedResult(statementId, statement.boundTerms);
     }
 
-    public static CqlResult processPrepared(CQLStatement statement, ClientState clientState, List<ByteBuffer> variables)
+    public static CqlResult processPrepared(CQLStatement statement, ThriftClientState clientState, List<ByteBuffer> variables)
     throws RequestValidationException, RequestExecutionException
     {
         // Check to see if there are any bound variables to verify

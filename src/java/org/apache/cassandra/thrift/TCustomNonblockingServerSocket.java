@@ -21,7 +21,6 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 
-import org.apache.cassandra.service.ThriftSessionManager;
 import org.apache.thrift.transport.TNonblockingServerSocket;
 import org.apache.thrift.transport.TNonblockingSocket;
 import org.apache.thrift.transport.TTransportException;

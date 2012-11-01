@@ -17,7 +17,11 @@
  */
 package org.apache.cassandra.transport;
 
+import java.util.EnumSet;
+import java.util.UUID;
+
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.handler.codec.oneone.OneToOneDecoder;
 import org.jboss.netty.handler.codec.oneone.OneToOneEncoder;
@@ -25,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.transport.messages.*;
+import org.apache.cassandra.service.QueryState;
 
 /**
  * A message from the CQL binary protocol.
@@ -141,6 +146,8 @@ public abstract class Message
 
     public static abstract class Request extends Message
     {
+        protected boolean tracingRequested;
+
         protected Request(Type type)
         {
             super(type);
@@ -149,17 +156,40 @@ public abstract class Message
                 throw new IllegalArgumentException();
         }
 
-        public abstract Response execute();
+        public abstract Response execute(QueryState queryState);
+
+        public void setTracingRequested()
+        {
+            this.tracingRequested = true;
+        }
+
+        public boolean isTracingRequested()
+        {
+            return tracingRequested;
+        }
     }
 
     public static abstract class Response extends Message
     {
+        protected UUID tracingId;
+
         protected Response(Type type)
         {
             super(type);
 
             if (type.direction != Direction.RESPONSE)
                 throw new IllegalArgumentException();
+        }
+
+        public Message setTracingId(UUID tracingId)
+        {
+            this.tracingId = tracingId;
+            return this;
+        }
+
+        public UUID getTracingId()
+        {
+            return tracingId;
         }
     }
 
@@ -170,10 +200,29 @@ public abstract class Message
             assert msg instanceof Frame : "Expecting frame, got " + msg;
 
             Frame frame = (Frame)msg;
+            boolean isRequest = frame.header.type.direction == Direction.REQUEST;
+            boolean isTracing = frame.header.flags.contains(Frame.Header.Flag.TRACING);
+
+            UUID tracingId = isRequest || !isTracing ? null : CBUtil.readUuid(frame.body);
+
             Message message = frame.header.type.codec.decode(frame.body);
             message.setStreamId(frame.header.streamId);
-            if (message instanceof Request)
-                ((Request)message).attach(frame.connection);
+
+            if (isRequest)
+            {
+                assert message instanceof Request;
+                Request req = (Request)message;
+                req.attach(frame.connection);
+                if (isTracing)
+                    req.setTracingRequested();
+            }
+            else
+            {
+                assert message instanceof Response;
+                if (isTracing)
+                    ((Response)message).setTracingId(tracingId);
+            }
+
             return message;
         }
     }
@@ -185,7 +234,25 @@ public abstract class Message
             assert msg instanceof Message : "Expecting message, got " + msg;
 
             Message message = (Message)msg;
-            return Frame.create(message.type, message.getStreamId(), message.encode(), message.connection());
+
+            ChannelBuffer body = message.encode();
+            EnumSet<Frame.Header.Flag> flags = EnumSet.noneOf(Frame.Header.Flag.class);
+            if (message instanceof Response)
+            {
+                UUID tracingId = ((Response)message).getTracingId();
+                if (tracingId != null)
+                {
+                    body = ChannelBuffers.wrappedBuffer(CBUtil.uuidToCB(tracingId), body);
+                    flags.add(Frame.Header.Flag.TRACING);
+                }
+            }
+            else
+            {
+                assert message instanceof Request;
+                if (((Request)message).isTracingRequested())
+                    flags.add(Frame.Header.Flag.TRACING);
+            }
+            return Frame.create(message.type, message.getStreamId(), flags, body, message.connection());
         }
     }
 
@@ -209,7 +276,7 @@ public abstract class Message
 
                 logger.debug("Received: " + request);
 
-                Response response = request.execute();
+                Response response = request.execute(connection.getQueryState(request.getStreamId()));
                 response.setStreamId(request.getStreamId());
                 response.attach(connection);
                 connection.applyStateTransition(request.type, response.type);

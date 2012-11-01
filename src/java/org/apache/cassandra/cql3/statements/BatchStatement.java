@@ -97,7 +97,7 @@ public class BatchStatement extends ModificationStatement
             statement.validateConsistency(cl);
     }
 
-    public Collection<? extends IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
+    public Collection<? extends IMutation> getMutations(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
     throws RequestExecutionException, RequestValidationException
     {
         Map<Pair<String, ByteBuffer>, IMutation> mutations = new HashMap<Pair<String, ByteBuffer>, IMutation>();
@@ -107,7 +107,7 @@ public class BatchStatement extends ModificationStatement
                 statement.setTimestamp(getTimestamp(now));
 
             // Group mutation together, otherwise they won't get applied atomically
-            for (IMutation m : statement.getMutations(clientState, variables, local, cl, now))
+            for (IMutation m : statement.getMutations(variables, local, cl, now))
             {
                 if (m instanceof CounterMutation && type != Type.COUNTER)
                     throw new InvalidRequestException("Counter mutations are only allowed in COUNTER batches");

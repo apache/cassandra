@@ -24,6 +24,7 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 public abstract class PermissionAlteringStatement extends ParsedStatement implements CQLStatement
@@ -45,14 +46,14 @@ public abstract class PermissionAlteringStatement extends ParsedStatement implem
     public void validate(ClientState state)
     {}
 
-    public ResultMessage execute(ConsistencyLevel cl, ClientState state, List<ByteBuffer> variables) throws UnauthorizedException, InvalidRequestException
+    public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables) throws UnauthorizedException, InvalidRequestException
     {
-        return execute(state, variables);
+        return execute(state.getClientState(), variables);
     }
 
     public abstract ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws UnauthorizedException, InvalidRequestException;
 
-    public ResultMessage executeInternal(ClientState state)
+    public ResultMessage executeInternal(QueryState state)
     {
         // executeInternal is for local query only, thus altering permission doesn't make sense and is not supported
         throw new UnsupportedOperationException();
