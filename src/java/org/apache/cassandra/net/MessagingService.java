@@ -467,7 +467,7 @@ public final class MessagingService implements MessagingServiceMBean
     public void destroyConnectionPool(InetAddress to)
     {
         OutboundTcpConnectionPool cp = connectionManagers.get(to);
-        if (to == null)
+        if (cp == null)
             return;
         // these null guards are simply for tests
         if (cp.ackCon != null)
