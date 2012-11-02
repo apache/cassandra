@@ -408,6 +408,10 @@ public class FBUtilities
         {
             throw new ConfigurationException(String.format("Unable to find %s class '%s'", readable, classname));
         }
+        catch (NoClassDefFoundError e)
+        {
+            throw new ConfigurationException(String.format("Unable to find %s class '%s'", readable, classname));
+        }
     }
 
     /**
