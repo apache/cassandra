@@ -5,7 +5,7 @@
  */
 package org.apache.cassandra.thrift;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -13,16 +13,16 @@ package org.apache.cassandra.thrift;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -53,7 +53,7 @@ public class Cassandra {
     /**
      * Get the Column or SuperColumn at the given column_path. If no value is present, NotFoundException is thrown. (This is
      * the only method that can throw an exception under non-failure conditions.)
-     * 
+     *
      * @param key
      * @param column_path
      * @param consistency_level
@@ -63,7 +63,7 @@ public class Cassandra {
     /**
      * Get the group of columns contained by column_parent (either a ColumnFamily name or a ColumnFamily/SuperColumn name
      * pair) specified by the given SlicePredicate. If no matching values are found, an empty list is returned.
-     * 
+     *
      * @param key
      * @param column_parent
      * @param predicate
@@ -74,7 +74,7 @@ public class Cassandra {
     /**
      * returns the number of columns matching <code>predicate</code> for a particular <code>key</code>,
      * <code>ColumnFamily</code> and optionally <code>SuperColumn</code>.
-     * 
+     *
      * @param key
      * @param column_parent
      * @param predicate
@@ -84,7 +84,7 @@ public class Cassandra {
 
     /**
      * Performs a get_slice for column_parent and predicate for the given keys in parallel.
-     * 
+     *
      * @param keys
      * @param column_parent
      * @param predicate
@@ -94,7 +94,7 @@ public class Cassandra {
 
     /**
      * Perform a get_count in parallel on the given list<binary> keys. The return value maps keys to the count found.
-     * 
+     *
      * @param keys
      * @param column_parent
      * @param predicate
@@ -104,7 +104,7 @@ public class Cassandra {
 
     /**
      * returns a subset of columns for a contiguous range of keys.
-     * 
+     *
      * @param column_parent
      * @param predicate
      * @param range
@@ -114,7 +114,7 @@ public class Cassandra {
 
     /**
      * returns a range of columns, wrapping to the next rows if necessary to collect max_results.
-     * 
+     *
      * @param column_family
      * @param range
      * @param start_column
@@ -124,8 +124,8 @@ public class Cassandra {
 
     /**
      * Returns the subset of columns specified in SlicePredicate for the rows matching the IndexClause
-     * @Deprecated; use get_range_slices instead with range.row_filter specified
-     * 
+     * @deprecated; use get_range_slices instead with range.row_filter specified
+     *
      * @param column_parent
      * @param index_clause
      * @param column_predicate
@@ -135,7 +135,7 @@ public class Cassandra {
 
     /**
      * Insert a Column at the given column_parent.column_family and optional column_parent.super_column.
-     * 
+     *
      * @param key
      * @param column_parent
      * @param column
@@ -145,7 +145,7 @@ public class Cassandra {
 
     /**
      * Increment or decrement a counter.
-     * 
+     *
      * @param key
      * @param column_parent
      * @param column
@@ -157,7 +157,7 @@ public class Cassandra {
      * Remove data from the row specified by key at the granularity specified by column_path, and the given timestamp. Note
      * that all the values in column_path besides column_path.column_family are truly optional: you can remove the entire
      * row by just specifying the ColumnFamily, or you can remove a SuperColumn or a single Column by specifying those levels too.
-     * 
+     *
      * @param key
      * @param column_path
      * @param timestamp
@@ -169,7 +169,7 @@ public class Cassandra {
      * Remove a counter at the specified location.
      * Note that counters have limited support for deletes: if you remove a counter, you must wait to issue any following update
      * until the delete has reached all the nodes and all of them have been fully compacted.
-     * 
+     *
      * @param key
      * @param path
      * @param consistency_level
@@ -178,10 +178,10 @@ public class Cassandra {
 
     /**
      *   Mutate many columns or super columns for many row keys. See also: Mutation.
-     * 
+     *
      *   mutation_map maps key to column family to a list of Mutation objects to take place at that scope.
      * *
-     * 
+     *
      * @param mutation_map
      * @param consistency_level
      */
@@ -189,10 +189,10 @@ public class Cassandra {
 
     /**
      *   Atomically mutate many columns or super columns for many row keys. See also: Mutation.
-     * 
+     *
      *   mutation_map maps key to column family to a list of Mutation objects to take place at that scope.
      * *
-     * 
+     *
      * @param mutation_map
      * @param consistency_level
      */
@@ -205,7 +205,7 @@ public class Cassandra {
      * only marks the data as deleted.
      * The operation succeeds only if all hosts in the cluster at available and will throw an UnavailableException if
      * some hosts are down.
-     * 
+     *
      * @param cfname
      */
     public void truncate(String cfname) throws InvalidRequestException, UnavailableException, TimedOutException, org.apache.thrift.TException;
@@ -238,10 +238,10 @@ public class Cassandra {
      * to list of endpoints, because you can't use Thrift structs as
      * map keys:
      * https://issues.apache.org/jira/browse/THRIFT-162
-     * 
+     *
      * for the same reason, we can't return a set here, even though
      * order is neither important nor predictable.
-     * 
+     *
      * @param keyspace
      */
     public List<TokenRange> describe_ring(String keyspace) throws InvalidRequestException, org.apache.thrift.TException;
@@ -265,7 +265,7 @@ public class Cassandra {
 
     /**
      * describe specified keyspace
-     * 
+     *
      * @param keyspace
      */
     public KsDef describe_keyspace(String keyspace) throws NotFoundException, InvalidRequestException, org.apache.thrift.TException;
@@ -273,10 +273,10 @@ public class Cassandra {
     /**
      * experimental API for hadoop/parallel query support.
      * may change violently and without warning.
-     * 
+     *
      * returns list of token strings such that first subrange is (list[0], list[1]],
      * next is (list[1], list[2]], etc.
-     * 
+     *
      * @param cfName
      * @param start_token
      * @param end_token
@@ -294,42 +294,42 @@ public class Cassandra {
 
     /**
      * adds a column family. returns the new schema id.
-     * 
+     *
      * @param cf_def
      */
     public String system_add_column_family(CfDef cf_def) throws InvalidRequestException, SchemaDisagreementException, org.apache.thrift.TException;
 
     /**
      * drops a column family. returns the new schema id.
-     * 
+     *
      * @param column_family
      */
     public String system_drop_column_family(String column_family) throws InvalidRequestException, SchemaDisagreementException, org.apache.thrift.TException;
 
     /**
      * adds a keyspace and any column families that are part of it. returns the new schema id.
-     * 
+     *
      * @param ks_def
      */
     public String system_add_keyspace(KsDef ks_def) throws InvalidRequestException, SchemaDisagreementException, org.apache.thrift.TException;
 
     /**
      * drops a keyspace and any column families that are part of it. returns the new schema id.
-     * 
+     *
      * @param keyspace
      */
     public String system_drop_keyspace(String keyspace) throws InvalidRequestException, SchemaDisagreementException, org.apache.thrift.TException;
 
     /**
      * updates properties of a keyspace. returns the new schema id.
-     * 
+     *
      * @param ks_def
      */
     public String system_update_keyspace(KsDef ks_def) throws InvalidRequestException, SchemaDisagreementException, org.apache.thrift.TException;
 
     /**
      * updates properties of a column family. returns the new schema id.
-     * 
+     *
      * @param cf_def
      */
     public String system_update_column_family(CfDef cf_def) throws InvalidRequestException, SchemaDisagreementException, org.apache.thrift.TException;
@@ -337,7 +337,7 @@ public class Cassandra {
     /**
      * Executes a CQL (Cassandra Query Language) statement and returns a
      * CqlResult containing the results.
-     * 
+     *
      * @param query
      * @param compression
      */
@@ -350,7 +350,7 @@ public class Cassandra {
      * - the type of CQL statement
      * - an id token of the compiled CQL stored on the server side.
      * - a count of the discovered bound markers in the statement
-     * 
+     *
      * @param query
      * @param compression
      */
@@ -361,7 +361,7 @@ public class Cassandra {
     /**
      * Executes a prepared CQL (Cassandra Query Language) statement by passing an id token and  a list of variables
      * to bind and returns a CqlResult containing the results.
-     * 
+     *
      * @param itemId
      * @param values
      */
@@ -370,8 +370,8 @@ public class Cassandra {
     public CqlResult execute_prepared_cql3_query(int itemId, List<ByteBuffer> values, ConsistencyLevel consistency) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, org.apache.thrift.TException;
 
     /**
-     * @Deprecated This is now a no-op. Please use the CQL3 specific methods instead.
-     * 
+     * @deprecated This is now a no-op. Please use the CQL3 specific methods instead.
+     *
      * @param version
      */
     public void set_cql_version(String version) throws InvalidRequestException, org.apache.thrift.TException;
@@ -4269,7 +4269,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.AUTH_REQUEST, new org.apache.thrift.meta_data.FieldMetaData("auth_request", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.AUTH_REQUEST, new org.apache.thrift.meta_data.FieldMetaData("auth_request", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, AuthenticationRequest.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(login_args.class, metaDataMap);
@@ -4430,7 +4430,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -4438,7 +4438,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.auth_request = new AuthenticationRequest();
               this.auth_request.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -4582,9 +4582,9 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.AUTHNX, new org.apache.thrift.meta_data.FieldMetaData("authnx", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.AUTHNX, new org.apache.thrift.meta_data.FieldMetaData("authnx", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.AUTHZX, new org.apache.thrift.meta_data.FieldMetaData("authzx", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.AUTHZX, new org.apache.thrift.meta_data.FieldMetaData("authzx", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(login_result.class, metaDataMap);
@@ -4812,7 +4812,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -4820,7 +4820,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.authnx = new AuthenticationException();
               this.authnx.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -4828,7 +4828,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.authzx = new AuthorizationException();
               this.authzx.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -4975,7 +4975,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEYSPACE, new org.apache.thrift.meta_data.FieldMetaData("keyspace", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KEYSPACE, new org.apache.thrift.meta_data.FieldMetaData("keyspace", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(set_keyspace_args.class, metaDataMap);
@@ -5136,14 +5136,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // KEYSPACE
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.keyspace = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -5282,7 +5282,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(set_keyspace_result.class, metaDataMap);
@@ -5443,7 +5443,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -5451,7 +5451,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -5526,7 +5526,7 @@ public class Cassandra {
     public ByteBuffer key; // required
     public ColumnPath column_path; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -5536,7 +5536,7 @@ public class Cassandra {
       KEY((short)1, "key"),
       COLUMN_PATH((short)2, "column_path"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)3, "consistency_level");
@@ -5604,11 +5604,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING          , true)));
-      tmpMap.put(_Fields.COLUMN_PATH, new org.apache.thrift.meta_data.FieldMetaData("column_path", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN_PATH, new org.apache.thrift.meta_data.FieldMetaData("column_path", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnPath.class)));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(get_args.class, metaDataMap);
@@ -5717,7 +5717,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -5725,7 +5725,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public get_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -5925,14 +5925,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // KEY
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.key = iprot.readBinary();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -5940,14 +5940,14 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.column_path = new ColumnPath();
               this.column_path.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 3: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -6138,15 +6138,15 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnOrSuperColumn.class)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.NFE, new org.apache.thrift.meta_data.FieldMetaData("nfe", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.NFE, new org.apache.thrift.meta_data.FieldMetaData("nfe", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(get_result.class, metaDataMap);
@@ -6575,7 +6575,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -6583,7 +6583,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.success = new ColumnOrSuperColumn();
               this.success.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -6591,7 +6591,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -6599,7 +6599,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.nfe = new NotFoundException();
               this.nfe.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -6607,7 +6607,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -6615,7 +6615,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -6740,7 +6740,7 @@ public class Cassandra {
     public ColumnParent column_parent; // required
     public SlicePredicate predicate; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -6751,7 +6751,7 @@ public class Cassandra {
       COLUMN_PARENT((short)2, "column_parent"),
       PREDICATE((short)3, "predicate"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)4, "consistency_level");
@@ -6821,13 +6821,13 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING          , true)));
-      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnParent.class)));
-      tmpMap.put(_Fields.PREDICATE, new org.apache.thrift.meta_data.FieldMetaData("predicate", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.PREDICATE, new org.apache.thrift.meta_data.FieldMetaData("predicate", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SlicePredicate.class)));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(get_slice_args.class, metaDataMap);
@@ -6966,7 +6966,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -6974,7 +6974,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public get_slice_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -7211,14 +7211,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // KEY
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.key = iprot.readBinary();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -7226,7 +7226,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.column_parent = new ColumnParent();
               this.column_parent.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -7234,14 +7234,14 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.predicate = new SlicePredicate();
               this.predicate.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 4: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -7443,14 +7443,14 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
               new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnOrSuperColumn.class))));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(get_slice_result.class, metaDataMap);
@@ -7831,7 +7831,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -7849,7 +7849,7 @@ public class Cassandra {
                 }
                 iprot.readListEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -7857,7 +7857,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -7865,7 +7865,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -7873,7 +7873,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -7993,7 +7993,7 @@ public class Cassandra {
     public ColumnParent column_parent; // required
     public SlicePredicate predicate; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -8004,7 +8004,7 @@ public class Cassandra {
       COLUMN_PARENT((short)2, "column_parent"),
       PREDICATE((short)3, "predicate"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)4, "consistency_level");
@@ -8074,13 +8074,13 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING          , true)));
-      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnParent.class)));
-      tmpMap.put(_Fields.PREDICATE, new org.apache.thrift.meta_data.FieldMetaData("predicate", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.PREDICATE, new org.apache.thrift.meta_data.FieldMetaData("predicate", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SlicePredicate.class)));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(get_count_args.class, metaDataMap);
@@ -8219,7 +8219,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -8227,7 +8227,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public get_count_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -8464,14 +8464,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // KEY
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.key = iprot.readBinary();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -8479,7 +8479,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.column_parent = new ColumnParent();
               this.column_parent.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -8487,14 +8487,14 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.predicate = new SlicePredicate();
               this.predicate.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 4: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -8698,13 +8698,13 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(get_count_result.class, metaDataMap);
@@ -9067,7 +9067,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -9075,7 +9075,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.success = iprot.readI32();
               setSuccessIsSet(true);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -9083,7 +9083,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -9091,7 +9091,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -9099,7 +9099,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -9208,7 +9208,7 @@ public class Cassandra {
     public ColumnParent column_parent; // required
     public SlicePredicate predicate; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -9219,7 +9219,7 @@ public class Cassandra {
       COLUMN_PARENT((short)2, "column_parent"),
       PREDICATE((short)3, "predicate"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)4, "consistency_level");
@@ -9289,14 +9289,14 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEYS, new org.apache.thrift.meta_data.FieldMetaData("keys", org.apache.thrift.TFieldRequirementType.REQUIRED, 
-          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.KEYS, new org.apache.thrift.meta_data.FieldMetaData("keys", org.apache.thrift.TFieldRequirementType.REQUIRED,
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
               new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING              , true))));
-      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnParent.class)));
-      tmpMap.put(_Fields.PREDICATE, new org.apache.thrift.meta_data.FieldMetaData("predicate", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.PREDICATE, new org.apache.thrift.meta_data.FieldMetaData("predicate", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SlicePredicate.class)));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(multiget_slice_args.class, metaDataMap);
@@ -9445,7 +9445,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -9453,7 +9453,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public multiget_slice_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -9690,7 +9690,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -9707,7 +9707,7 @@ public class Cassandra {
                 }
                 iprot.readListEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -9715,7 +9715,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.column_parent = new ColumnParent();
               this.column_parent.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -9723,14 +9723,14 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.predicate = new SlicePredicate();
               this.predicate.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 4: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -9939,16 +9939,16 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
-              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING              , true), 
-              new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
+          new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP,
+              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING              , true),
+              new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
                   new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnOrSuperColumn.class)))));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(multiget_slice_result.class, metaDataMap);
@@ -10337,7 +10337,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -10367,7 +10367,7 @@ public class Cassandra {
                 }
                 iprot.readMapEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -10375,7 +10375,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -10383,7 +10383,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -10391,7 +10391,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -10519,7 +10519,7 @@ public class Cassandra {
     public ColumnParent column_parent; // required
     public SlicePredicate predicate; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -10530,7 +10530,7 @@ public class Cassandra {
       COLUMN_PARENT((short)2, "column_parent"),
       PREDICATE((short)3, "predicate"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)4, "consistency_level");
@@ -10600,14 +10600,14 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEYS, new org.apache.thrift.meta_data.FieldMetaData("keys", org.apache.thrift.TFieldRequirementType.REQUIRED, 
-          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.KEYS, new org.apache.thrift.meta_data.FieldMetaData("keys", org.apache.thrift.TFieldRequirementType.REQUIRED,
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
               new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING              , true))));
-      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnParent.class)));
-      tmpMap.put(_Fields.PREDICATE, new org.apache.thrift.meta_data.FieldMetaData("predicate", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.PREDICATE, new org.apache.thrift.meta_data.FieldMetaData("predicate", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SlicePredicate.class)));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(multiget_count_args.class, metaDataMap);
@@ -10756,7 +10756,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -10764,7 +10764,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public multiget_count_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -11001,7 +11001,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -11018,7 +11018,7 @@ public class Cassandra {
                 }
                 iprot.readListEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -11026,7 +11026,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.column_parent = new ColumnParent();
               this.column_parent.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -11034,14 +11034,14 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.predicate = new SlicePredicate();
               this.predicate.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 4: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -11250,15 +11250,15 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
-              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING              , true), 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
+          new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP,
+              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING              , true),
               new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32))));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(multiget_count_result.class, metaDataMap);
@@ -11644,7 +11644,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -11663,7 +11663,7 @@ public class Cassandra {
                 }
                 iprot.readMapEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -11671,7 +11671,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -11679,7 +11679,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -11687,7 +11687,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -11808,7 +11808,7 @@ public class Cassandra {
     public SlicePredicate predicate; // required
     public KeyRange range; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -11819,7 +11819,7 @@ public class Cassandra {
       PREDICATE((short)2, "predicate"),
       RANGE((short)3, "range"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)4, "consistency_level");
@@ -11889,13 +11889,13 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnParent.class)));
-      tmpMap.put(_Fields.PREDICATE, new org.apache.thrift.meta_data.FieldMetaData("predicate", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.PREDICATE, new org.apache.thrift.meta_data.FieldMetaData("predicate", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SlicePredicate.class)));
-      tmpMap.put(_Fields.RANGE, new org.apache.thrift.meta_data.FieldMetaData("range", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.RANGE, new org.apache.thrift.meta_data.FieldMetaData("range", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, KeyRange.class)));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(get_range_slices_args.class, metaDataMap);
@@ -12023,7 +12023,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -12031,7 +12031,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public get_range_slices_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -12268,7 +12268,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -12276,7 +12276,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.column_parent = new ColumnParent();
               this.column_parent.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -12284,7 +12284,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.predicate = new SlicePredicate();
               this.predicate.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -12292,14 +12292,14 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.range = new KeyRange();
               this.range.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 4: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -12501,14 +12501,14 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
               new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, KeySlice.class))));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(get_range_slices_result.class, metaDataMap);
@@ -12889,7 +12889,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -12907,7 +12907,7 @@ public class Cassandra {
                 }
                 iprot.readListEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -12915,7 +12915,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -12923,7 +12923,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -12931,7 +12931,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -13051,7 +13051,7 @@ public class Cassandra {
     public KeyRange range; // required
     public ByteBuffer start_column; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -13062,7 +13062,7 @@ public class Cassandra {
       RANGE((short)2, "range"),
       START_COLUMN((short)3, "start_column"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)4, "consistency_level");
@@ -13132,13 +13132,13 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.COLUMN_FAMILY, new org.apache.thrift.meta_data.FieldMetaData("column_family", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN_FAMILY, new org.apache.thrift.meta_data.FieldMetaData("column_family", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.RANGE, new org.apache.thrift.meta_data.FieldMetaData("range", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.RANGE, new org.apache.thrift.meta_data.FieldMetaData("range", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, KeyRange.class)));
-      tmpMap.put(_Fields.START_COLUMN, new org.apache.thrift.meta_data.FieldMetaData("start_column", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.START_COLUMN, new org.apache.thrift.meta_data.FieldMetaData("start_column", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING          , true)));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(get_paged_slice_args.class, metaDataMap);
@@ -13277,7 +13277,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -13285,7 +13285,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public get_paged_slice_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -13522,14 +13522,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // COLUMN_FAMILY
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.column_family = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -13537,21 +13537,21 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.range = new KeyRange();
               this.range.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 3: // START_COLUMN
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.start_column = iprot.readBinary();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 4: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -13753,14 +13753,14 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
               new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, KeySlice.class))));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(get_paged_slice_result.class, metaDataMap);
@@ -14141,7 +14141,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -14159,7 +14159,7 @@ public class Cassandra {
                 }
                 iprot.readListEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -14167,7 +14167,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -14175,7 +14175,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -14183,7 +14183,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -14303,7 +14303,7 @@ public class Cassandra {
     public IndexClause index_clause; // required
     public SlicePredicate column_predicate; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -14314,7 +14314,7 @@ public class Cassandra {
       INDEX_CLAUSE((short)2, "index_clause"),
       COLUMN_PREDICATE((short)3, "column_predicate"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)4, "consistency_level");
@@ -14384,13 +14384,13 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnParent.class)));
-      tmpMap.put(_Fields.INDEX_CLAUSE, new org.apache.thrift.meta_data.FieldMetaData("index_clause", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.INDEX_CLAUSE, new org.apache.thrift.meta_data.FieldMetaData("index_clause", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, IndexClause.class)));
-      tmpMap.put(_Fields.COLUMN_PREDICATE, new org.apache.thrift.meta_data.FieldMetaData("column_predicate", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN_PREDICATE, new org.apache.thrift.meta_data.FieldMetaData("column_predicate", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SlicePredicate.class)));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(get_indexed_slices_args.class, metaDataMap);
@@ -14518,7 +14518,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -14526,7 +14526,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public get_indexed_slices_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -14763,7 +14763,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -14771,7 +14771,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.column_parent = new ColumnParent();
               this.column_parent.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -14779,7 +14779,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.index_clause = new IndexClause();
               this.index_clause.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -14787,14 +14787,14 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.column_predicate = new SlicePredicate();
               this.column_predicate.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 4: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -14996,14 +14996,14 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
               new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, KeySlice.class))));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(get_indexed_slices_result.class, metaDataMap);
@@ -15384,7 +15384,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -15402,7 +15402,7 @@ public class Cassandra {
                 }
                 iprot.readListEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -15410,7 +15410,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -15418,7 +15418,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -15426,7 +15426,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -15546,7 +15546,7 @@ public class Cassandra {
     public ColumnParent column_parent; // required
     public Column column; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -15557,7 +15557,7 @@ public class Cassandra {
       COLUMN_PARENT((short)2, "column_parent"),
       COLUMN((short)3, "column"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)4, "consistency_level");
@@ -15627,13 +15627,13 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING          , true)));
-      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnParent.class)));
-      tmpMap.put(_Fields.COLUMN, new org.apache.thrift.meta_data.FieldMetaData("column", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN, new org.apache.thrift.meta_data.FieldMetaData("column", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Column.class)));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(insert_args.class, metaDataMap);
@@ -15772,7 +15772,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -15780,7 +15780,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public insert_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -16017,14 +16017,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // KEY
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.key = iprot.readBinary();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -16032,7 +16032,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.column_parent = new ColumnParent();
               this.column_parent.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -16040,14 +16040,14 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.column = new Column();
               this.column.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 4: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -16244,11 +16244,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(insert_result.class, metaDataMap);
@@ -16543,7 +16543,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -16551,7 +16551,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -16559,7 +16559,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -16567,7 +16567,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -16668,7 +16668,7 @@ public class Cassandra {
     public ColumnParent column_parent; // required
     public CounterColumn column; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -16679,7 +16679,7 @@ public class Cassandra {
       COLUMN_PARENT((short)2, "column_parent"),
       COLUMN((short)3, "column"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)4, "consistency_level");
@@ -16749,13 +16749,13 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING          , true)));
-      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN_PARENT, new org.apache.thrift.meta_data.FieldMetaData("column_parent", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnParent.class)));
-      tmpMap.put(_Fields.COLUMN, new org.apache.thrift.meta_data.FieldMetaData("column", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN, new org.apache.thrift.meta_data.FieldMetaData("column", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CounterColumn.class)));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(add_args.class, metaDataMap);
@@ -16894,7 +16894,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -16902,7 +16902,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public add_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -17139,14 +17139,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // KEY
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.key = iprot.readBinary();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -17154,7 +17154,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.column_parent = new ColumnParent();
               this.column_parent.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -17162,14 +17162,14 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.column = new CounterColumn();
               this.column.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 4: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -17366,11 +17366,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(add_result.class, metaDataMap);
@@ -17665,7 +17665,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -17673,7 +17673,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -17681,7 +17681,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -17689,7 +17689,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -17790,7 +17790,7 @@ public class Cassandra {
     public ColumnPath column_path; // required
     public long timestamp; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -17801,7 +17801,7 @@ public class Cassandra {
       COLUMN_PATH((short)2, "column_path"),
       TIMESTAMP((short)3, "timestamp"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)4, "consistency_level");
@@ -17873,13 +17873,13 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING          , true)));
-      tmpMap.put(_Fields.COLUMN_PATH, new org.apache.thrift.meta_data.FieldMetaData("column_path", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN_PATH, new org.apache.thrift.meta_data.FieldMetaData("column_path", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnPath.class)));
-      tmpMap.put(_Fields.TIMESTAMP, new org.apache.thrift.meta_data.FieldMetaData("timestamp", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.TIMESTAMP, new org.apache.thrift.meta_data.FieldMetaData("timestamp", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64)));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(remove_args.class, metaDataMap);
@@ -18019,7 +18019,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -18027,7 +18027,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public remove_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -18264,14 +18264,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // KEY
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.key = iprot.readBinary();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -18279,7 +18279,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.column_path = new ColumnPath();
               this.column_path.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -18287,14 +18287,14 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.I64) {
               this.timestamp = iprot.readI64();
               setTimestampIsSet(true);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 4: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -18485,11 +18485,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(remove_result.class, metaDataMap);
@@ -18784,7 +18784,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -18792,7 +18792,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -18800,7 +18800,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -18808,7 +18808,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -18907,7 +18907,7 @@ public class Cassandra {
     public ByteBuffer key; // required
     public ColumnPath path; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -18917,7 +18917,7 @@ public class Cassandra {
       KEY((short)1, "key"),
       PATH((short)2, "path"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)3, "consistency_level");
@@ -18985,11 +18985,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING          , true)));
-      tmpMap.put(_Fields.PATH, new org.apache.thrift.meta_data.FieldMetaData("path", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.PATH, new org.apache.thrift.meta_data.FieldMetaData("path", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnPath.class)));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(remove_counter_args.class, metaDataMap);
@@ -19098,7 +19098,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -19106,7 +19106,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public remove_counter_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -19306,14 +19306,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // KEY
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.key = iprot.readBinary();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -19321,14 +19321,14 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.path = new ColumnPath();
               this.path.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 3: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -19509,11 +19509,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(remove_counter_result.class, metaDataMap);
@@ -19808,7 +19808,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -19816,7 +19816,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -19824,7 +19824,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -19832,7 +19832,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -19929,7 +19929,7 @@ public class Cassandra {
 
     public Map<ByteBuffer,Map<String,List<Mutation>>> mutation_map; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -19938,7 +19938,7 @@ public class Cassandra {
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
       MUTATION_MAP((short)1, "mutation_map"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)2, "consistency_level");
@@ -20004,14 +20004,14 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.MUTATION_MAP, new org.apache.thrift.meta_data.FieldMetaData("mutation_map", org.apache.thrift.TFieldRequirementType.REQUIRED, 
-          new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
-              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING              , true), 
-              new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
-                  new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
-                  new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.MUTATION_MAP, new org.apache.thrift.meta_data.FieldMetaData("mutation_map", org.apache.thrift.TFieldRequirementType.REQUIRED,
+          new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP,
+              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING              , true),
+              new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP,
+                  new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING),
+                  new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
                       new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Mutation.class))))));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(batch_mutate_args.class, metaDataMap);
@@ -20117,7 +20117,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -20125,7 +20125,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public batch_mutate_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -20288,7 +20288,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -20330,14 +20330,14 @@ public class Cassandra {
                 }
                 iprot.readMapEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 2: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -20525,11 +20525,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(batch_mutate_result.class, metaDataMap);
@@ -20824,7 +20824,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -20832,7 +20832,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -20840,7 +20840,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -20848,7 +20848,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -20945,7 +20945,7 @@ public class Cassandra {
 
     public Map<ByteBuffer,Map<String,List<Mutation>>> mutation_map; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency_level; // required
@@ -20954,7 +20954,7 @@ public class Cassandra {
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
       MUTATION_MAP((short)1, "mutation_map"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY_LEVEL((short)2, "consistency_level");
@@ -21020,14 +21020,14 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.MUTATION_MAP, new org.apache.thrift.meta_data.FieldMetaData("mutation_map", org.apache.thrift.TFieldRequirementType.REQUIRED, 
-          new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
-              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING              , true), 
-              new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
-                  new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
-                  new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.MUTATION_MAP, new org.apache.thrift.meta_data.FieldMetaData("mutation_map", org.apache.thrift.TFieldRequirementType.REQUIRED,
+          new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP,
+              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING              , true),
+              new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP,
+                  new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING),
+                  new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
                       new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Mutation.class))))));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(atomic_batch_mutate_args.class, metaDataMap);
@@ -21133,7 +21133,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency_level() {
@@ -21141,7 +21141,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public atomic_batch_mutate_args setConsistency_level(ConsistencyLevel consistency_level) {
@@ -21304,7 +21304,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -21346,14 +21346,14 @@ public class Cassandra {
                 }
                 iprot.readMapEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 2: // CONSISTENCY_LEVEL
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -21541,11 +21541,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(atomic_batch_mutate_result.class, metaDataMap);
@@ -21840,7 +21840,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -21848,7 +21848,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -21856,7 +21856,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -21864,7 +21864,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -22023,7 +22023,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.CFNAME, new org.apache.thrift.meta_data.FieldMetaData("cfname", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CFNAME, new org.apache.thrift.meta_data.FieldMetaData("cfname", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(truncate_args.class, metaDataMap);
@@ -22184,14 +22184,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // CFNAME
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.cfname = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -22340,11 +22340,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(truncate_result.class, metaDataMap);
@@ -22639,7 +22639,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -22647,7 +22647,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -22655,7 +22655,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -22663,7 +22663,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -22902,7 +22902,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -23031,12 +23031,12 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
-              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
-              new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
+          new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP,
+              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING),
+              new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
                   new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)))));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_schema_versions_result.class, metaDataMap);
@@ -23290,7 +23290,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -23319,7 +23319,7 @@ public class Cassandra {
                 }
                 iprot.readMapEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -23327,7 +23327,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -23569,7 +23569,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -23698,10 +23698,10 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
               new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, KsDef.class))));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_keyspaces_result.class, metaDataMap);
@@ -23948,7 +23948,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -23966,7 +23966,7 @@ public class Cassandra {
                 }
                 iprot.readListEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -23974,7 +23974,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -24208,7 +24208,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -24332,7 +24332,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_cluster_name_result.class, metaDataMap);
@@ -24493,14 +24493,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.success = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -24715,7 +24715,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -24839,7 +24839,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_version_result.class, metaDataMap);
@@ -25000,14 +25000,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.success = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -25142,7 +25142,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEYSPACE, new org.apache.thrift.meta_data.FieldMetaData("keyspace", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KEYSPACE, new org.apache.thrift.meta_data.FieldMetaData("keyspace", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_ring_args.class, metaDataMap);
@@ -25303,14 +25303,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // KEYSPACE
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.keyspace = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -25454,10 +25454,10 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
               new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, TokenRange.class))));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_ring_result.class, metaDataMap);
@@ -25704,7 +25704,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -25722,7 +25722,7 @@ public class Cassandra {
                 }
                 iprot.readListEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -25730,7 +25730,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -25964,7 +25964,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -26093,11 +26093,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
-              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
+          new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP,
+              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING),
               new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_token_map_result.class, metaDataMap);
@@ -26348,7 +26348,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -26367,7 +26367,7 @@ public class Cassandra {
                 }
                 iprot.readMapEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -26375,7 +26375,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -26610,7 +26610,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -26734,7 +26734,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_partitioner_result.class, metaDataMap);
@@ -26895,14 +26895,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.success = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -27117,7 +27117,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -27241,7 +27241,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_snitch_result.class, metaDataMap);
@@ -27402,14 +27402,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.success = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -27544,7 +27544,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEYSPACE, new org.apache.thrift.meta_data.FieldMetaData("keyspace", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KEYSPACE, new org.apache.thrift.meta_data.FieldMetaData("keyspace", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_keyspace_args.class, metaDataMap);
@@ -27705,14 +27705,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // KEYSPACE
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.keyspace = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -27861,11 +27861,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, KsDef.class)));
-      tmpMap.put(_Fields.NFE, new org.apache.thrift.meta_data.FieldMetaData("nfe", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.NFE, new org.apache.thrift.meta_data.FieldMetaData("nfe", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_keyspace_result.class, metaDataMap);
@@ -28160,7 +28160,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -28168,7 +28168,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.success = new KsDef();
               this.success.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -28176,7 +28176,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.nfe = new NotFoundException();
               this.nfe.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -28184,7 +28184,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -28360,13 +28360,13 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.CF_NAME, new org.apache.thrift.meta_data.FieldMetaData("cfName", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CF_NAME, new org.apache.thrift.meta_data.FieldMetaData("cfName", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.START_TOKEN, new org.apache.thrift.meta_data.FieldMetaData("start_token", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.START_TOKEN, new org.apache.thrift.meta_data.FieldMetaData("start_token", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.END_TOKEN, new org.apache.thrift.meta_data.FieldMetaData("end_token", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.END_TOKEN, new org.apache.thrift.meta_data.FieldMetaData("end_token", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.KEYS_PER_SPLIT, new org.apache.thrift.meta_data.FieldMetaData("keys_per_split", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KEYS_PER_SPLIT, new org.apache.thrift.meta_data.FieldMetaData("keys_per_split", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_splits_args.class, metaDataMap);
@@ -28729,28 +28729,28 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // CF_NAME
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.cfName = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 2: // START_TOKEN
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.start_token = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 3: // END_TOKEN
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.end_token = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -28758,7 +28758,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.keys_per_split = iprot.readI32();
               setKeys_per_splitIsSet(true);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -28947,10 +28947,10 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
               new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_splits_result.class, metaDataMap);
@@ -29197,7 +29197,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -29214,7 +29214,7 @@ public class Cassandra {
                 }
                 iprot.readListEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -29222,7 +29222,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -29456,7 +29456,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -29580,7 +29580,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING          , true)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(trace_next_query_result.class, metaDataMap);
@@ -29752,14 +29752,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.success = iprot.readBinary();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -29911,13 +29911,13 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.CF_NAME, new org.apache.thrift.meta_data.FieldMetaData("cfName", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CF_NAME, new org.apache.thrift.meta_data.FieldMetaData("cfName", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.START_TOKEN, new org.apache.thrift.meta_data.FieldMetaData("start_token", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.START_TOKEN, new org.apache.thrift.meta_data.FieldMetaData("start_token", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.END_TOKEN, new org.apache.thrift.meta_data.FieldMetaData("end_token", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.END_TOKEN, new org.apache.thrift.meta_data.FieldMetaData("end_token", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.KEYS_PER_SPLIT, new org.apache.thrift.meta_data.FieldMetaData("keys_per_split", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KEYS_PER_SPLIT, new org.apache.thrift.meta_data.FieldMetaData("keys_per_split", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_splits_ex_args.class, metaDataMap);
@@ -30280,28 +30280,28 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // CF_NAME
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.cfName = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 2: // START_TOKEN
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.start_token = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 3: // END_TOKEN
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.end_token = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -30309,7 +30309,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.keys_per_split = iprot.readI32();
               setKeys_per_splitIsSet(true);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -30498,10 +30498,10 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
               new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CfSplit.class))));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(describe_splits_ex_result.class, metaDataMap);
@@ -30748,7 +30748,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -30766,7 +30766,7 @@ public class Cassandra {
                 }
                 iprot.readListEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -30774,7 +30774,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -30928,7 +30928,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.CF_DEF, new org.apache.thrift.meta_data.FieldMetaData("cf_def", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CF_DEF, new org.apache.thrift.meta_data.FieldMetaData("cf_def", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CfDef.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(system_add_column_family_args.class, metaDataMap);
@@ -31089,7 +31089,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -31097,7 +31097,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.cf_def = new CfDef();
               this.cf_def.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -31246,11 +31246,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(system_add_column_family_result.class, metaDataMap);
@@ -31545,14 +31545,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.success = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -31560,7 +31560,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -31568,7 +31568,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.sde = new SchemaDisagreementException();
               this.sde.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -31727,7 +31727,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.COLUMN_FAMILY, new org.apache.thrift.meta_data.FieldMetaData("column_family", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COLUMN_FAMILY, new org.apache.thrift.meta_data.FieldMetaData("column_family", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(system_drop_column_family_args.class, metaDataMap);
@@ -31888,14 +31888,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // COLUMN_FAMILY
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.column_family = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -32044,11 +32044,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(system_drop_column_family_result.class, metaDataMap);
@@ -32343,14 +32343,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.success = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -32358,7 +32358,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -32366,7 +32366,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.sde = new SchemaDisagreementException();
               this.sde.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -32525,7 +32525,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KS_DEF, new org.apache.thrift.meta_data.FieldMetaData("ks_def", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KS_DEF, new org.apache.thrift.meta_data.FieldMetaData("ks_def", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, KsDef.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(system_add_keyspace_args.class, metaDataMap);
@@ -32686,7 +32686,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -32694,7 +32694,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ks_def = new KsDef();
               this.ks_def.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -32843,11 +32843,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(system_add_keyspace_result.class, metaDataMap);
@@ -33142,14 +33142,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.success = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -33157,7 +33157,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -33165,7 +33165,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.sde = new SchemaDisagreementException();
               this.sde.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -33324,7 +33324,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEYSPACE, new org.apache.thrift.meta_data.FieldMetaData("keyspace", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KEYSPACE, new org.apache.thrift.meta_data.FieldMetaData("keyspace", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(system_drop_keyspace_args.class, metaDataMap);
@@ -33485,14 +33485,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // KEYSPACE
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.keyspace = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -33641,11 +33641,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(system_drop_keyspace_result.class, metaDataMap);
@@ -33940,14 +33940,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.success = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -33955,7 +33955,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -33963,7 +33963,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.sde = new SchemaDisagreementException();
               this.sde.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -34122,7 +34122,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KS_DEF, new org.apache.thrift.meta_data.FieldMetaData("ks_def", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.KS_DEF, new org.apache.thrift.meta_data.FieldMetaData("ks_def", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, KsDef.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(system_update_keyspace_args.class, metaDataMap);
@@ -34283,7 +34283,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -34291,7 +34291,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ks_def = new KsDef();
               this.ks_def.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -34440,11 +34440,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(system_update_keyspace_result.class, metaDataMap);
@@ -34739,14 +34739,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.success = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -34754,7 +34754,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -34762,7 +34762,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.sde = new SchemaDisagreementException();
               this.sde.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -34921,7 +34921,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.CF_DEF, new org.apache.thrift.meta_data.FieldMetaData("cf_def", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CF_DEF, new org.apache.thrift.meta_data.FieldMetaData("cf_def", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CfDef.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(system_update_column_family_args.class, metaDataMap);
@@ -35082,7 +35082,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -35090,7 +35090,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.cf_def = new CfDef();
               this.cf_def.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -35239,11 +35239,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(system_update_column_family_result.class, metaDataMap);
@@ -35538,14 +35538,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.success = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -35553,7 +35553,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -35561,7 +35561,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.sde = new SchemaDisagreementException();
               this.sde.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -35658,7 +35658,7 @@ public class Cassandra {
 
     public ByteBuffer query; // required
     /**
-     * 
+     *
      * @see Compression
      */
     public Compression compression; // required
@@ -35667,7 +35667,7 @@ public class Cassandra {
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
       QUERY((short)1, "query"),
       /**
-       * 
+       *
        * @see Compression
        */
       COMPRESSION((short)2, "compression");
@@ -35733,9 +35733,9 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.QUERY, new org.apache.thrift.meta_data.FieldMetaData("query", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.QUERY, new org.apache.thrift.meta_data.FieldMetaData("query", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING          , true)));
-      tmpMap.put(_Fields.COMPRESSION, new org.apache.thrift.meta_data.FieldMetaData("compression", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COMPRESSION, new org.apache.thrift.meta_data.FieldMetaData("compression", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, Compression.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(execute_cql_query_args.class, metaDataMap);
@@ -35811,7 +35811,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see Compression
      */
     public Compression getCompression() {
@@ -35819,7 +35819,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see Compression
      */
     public execute_cql_query_args setCompression(Compression compression) {
@@ -35982,21 +35982,21 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // QUERY
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.query = iprot.readBinary();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 2: // COMPRESSION
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.compression = Compression.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -36171,15 +36171,15 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CqlResult.class)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(execute_cql_query_result.class, metaDataMap);
@@ -36608,7 +36608,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -36616,7 +36616,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.success = new CqlResult();
               this.success.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -36624,7 +36624,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -36632,7 +36632,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -36640,7 +36640,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -36648,7 +36648,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.sde = new SchemaDisagreementException();
               this.sde.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -36770,12 +36770,12 @@ public class Cassandra {
 
     public ByteBuffer query; // required
     /**
-     * 
+     *
      * @see Compression
      */
     public Compression compression; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency; // required
@@ -36784,12 +36784,12 @@ public class Cassandra {
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
       QUERY((short)1, "query"),
       /**
-       * 
+       *
        * @see Compression
        */
       COMPRESSION((short)2, "compression"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY((short)3, "consistency");
@@ -36857,11 +36857,11 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.QUERY, new org.apache.thrift.meta_data.FieldMetaData("query", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.QUERY, new org.apache.thrift.meta_data.FieldMetaData("query", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING          , true)));
-      tmpMap.put(_Fields.COMPRESSION, new org.apache.thrift.meta_data.FieldMetaData("compression", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COMPRESSION, new org.apache.thrift.meta_data.FieldMetaData("compression", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, Compression.class)));
-      tmpMap.put(_Fields.CONSISTENCY, new org.apache.thrift.meta_data.FieldMetaData("consistency", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY, new org.apache.thrift.meta_data.FieldMetaData("consistency", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(execute_cql3_query_args.class, metaDataMap);
@@ -36943,7 +36943,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see Compression
      */
     public Compression getCompression() {
@@ -36951,7 +36951,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see Compression
      */
     public execute_cql3_query_args setCompression(Compression compression) {
@@ -36975,7 +36975,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency() {
@@ -36983,7 +36983,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public execute_cql3_query_args setConsistency(ConsistencyLevel consistency) {
@@ -37183,28 +37183,28 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // QUERY
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.query = iprot.readBinary();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 2: // COMPRESSION
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.compression = Compression.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 3: // CONSISTENCY
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -37395,15 +37395,15 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CqlResult.class)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(execute_cql3_query_result.class, metaDataMap);
@@ -37832,7 +37832,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -37840,7 +37840,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.success = new CqlResult();
               this.success.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -37848,7 +37848,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -37856,7 +37856,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -37864,7 +37864,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -37872,7 +37872,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.sde = new SchemaDisagreementException();
               this.sde.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -37993,7 +37993,7 @@ public class Cassandra {
 
     public ByteBuffer query; // required
     /**
-     * 
+     *
      * @see Compression
      */
     public Compression compression; // required
@@ -38002,7 +38002,7 @@ public class Cassandra {
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
       QUERY((short)1, "query"),
       /**
-       * 
+       *
        * @see Compression
        */
       COMPRESSION((short)2, "compression");
@@ -38068,9 +38068,9 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.QUERY, new org.apache.thrift.meta_data.FieldMetaData("query", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.QUERY, new org.apache.thrift.meta_data.FieldMetaData("query", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING          , true)));
-      tmpMap.put(_Fields.COMPRESSION, new org.apache.thrift.meta_data.FieldMetaData("compression", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COMPRESSION, new org.apache.thrift.meta_data.FieldMetaData("compression", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, Compression.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(prepare_cql_query_args.class, metaDataMap);
@@ -38146,7 +38146,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see Compression
      */
     public Compression getCompression() {
@@ -38154,7 +38154,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see Compression
      */
     public prepare_cql_query_args setCompression(Compression compression) {
@@ -38317,21 +38317,21 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // QUERY
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.query = iprot.readBinary();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 2: // COMPRESSION
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.compression = Compression.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -38491,9 +38491,9 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CqlPreparedResult.class)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(prepare_cql_query_result.class, metaDataMap);
@@ -38721,7 +38721,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -38729,7 +38729,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.success = new CqlPreparedResult();
               this.success.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -38737,7 +38737,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -38822,7 +38822,7 @@ public class Cassandra {
 
     public ByteBuffer query; // required
     /**
-     * 
+     *
      * @see Compression
      */
     public Compression compression; // required
@@ -38831,7 +38831,7 @@ public class Cassandra {
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
       QUERY((short)1, "query"),
       /**
-       * 
+       *
        * @see Compression
        */
       COMPRESSION((short)2, "compression");
@@ -38897,9 +38897,9 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.QUERY, new org.apache.thrift.meta_data.FieldMetaData("query", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.QUERY, new org.apache.thrift.meta_data.FieldMetaData("query", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING          , true)));
-      tmpMap.put(_Fields.COMPRESSION, new org.apache.thrift.meta_data.FieldMetaData("compression", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.COMPRESSION, new org.apache.thrift.meta_data.FieldMetaData("compression", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, Compression.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(prepare_cql3_query_args.class, metaDataMap);
@@ -38975,7 +38975,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see Compression
      */
     public Compression getCompression() {
@@ -38983,7 +38983,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see Compression
      */
     public prepare_cql3_query_args setCompression(Compression compression) {
@@ -39146,21 +39146,21 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // QUERY
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.query = iprot.readBinary();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 2: // COMPRESSION
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.compression = Compression.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -39320,9 +39320,9 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CqlPreparedResult.class)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(prepare_cql3_query_result.class, metaDataMap);
@@ -39550,7 +39550,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -39558,7 +39558,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.success = new CqlPreparedResult();
               this.success.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -39566,7 +39566,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -39720,10 +39720,10 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.ITEM_ID, new org.apache.thrift.meta_data.FieldMetaData("itemId", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.ITEM_ID, new org.apache.thrift.meta_data.FieldMetaData("itemId", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
-      tmpMap.put(_Fields.VALUES, new org.apache.thrift.meta_data.FieldMetaData("values", org.apache.thrift.TFieldRequirementType.REQUIRED, 
-          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.VALUES, new org.apache.thrift.meta_data.FieldMetaData("values", org.apache.thrift.TFieldRequirementType.REQUIRED,
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
               new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING              , true))));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(execute_prepared_cql_query_args.class, metaDataMap);
@@ -39973,7 +39973,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -39981,7 +39981,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.itemId = iprot.readI32();
               setItemIdIsSet(true);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -39998,7 +39998,7 @@ public class Cassandra {
                 }
                 iprot.readListEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -40177,15 +40177,15 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CqlResult.class)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(execute_prepared_cql_query_result.class, metaDataMap);
@@ -40614,7 +40614,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -40622,7 +40622,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.success = new CqlResult();
               this.success.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -40630,7 +40630,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -40638,7 +40638,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -40646,7 +40646,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -40654,7 +40654,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.sde = new SchemaDisagreementException();
               this.sde.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -40777,7 +40777,7 @@ public class Cassandra {
     public int itemId; // required
     public List<ByteBuffer> values; // required
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel consistency; // required
@@ -40787,7 +40787,7 @@ public class Cassandra {
       ITEM_ID((short)1, "itemId"),
       VALUES((short)2, "values"),
       /**
-       * 
+       *
        * @see ConsistencyLevel
        */
       CONSISTENCY((short)3, "consistency");
@@ -40857,12 +40857,12 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.ITEM_ID, new org.apache.thrift.meta_data.FieldMetaData("itemId", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.ITEM_ID, new org.apache.thrift.meta_data.FieldMetaData("itemId", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
-      tmpMap.put(_Fields.VALUES, new org.apache.thrift.meta_data.FieldMetaData("values", org.apache.thrift.TFieldRequirementType.REQUIRED, 
-          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+      tmpMap.put(_Fields.VALUES, new org.apache.thrift.meta_data.FieldMetaData("values", org.apache.thrift.TFieldRequirementType.REQUIRED,
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST,
               new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING              , true))));
-      tmpMap.put(_Fields.CONSISTENCY, new org.apache.thrift.meta_data.FieldMetaData("consistency", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.CONSISTENCY, new org.apache.thrift.meta_data.FieldMetaData("consistency", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(execute_prepared_cql3_query_args.class, metaDataMap);
@@ -40979,7 +40979,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public ConsistencyLevel getConsistency() {
@@ -40987,7 +40987,7 @@ public class Cassandra {
     }
 
     /**
-     * 
+     *
      * @see ConsistencyLevel
      */
     public execute_prepared_cql3_query_args setConsistency(ConsistencyLevel consistency) {
@@ -41187,7 +41187,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -41195,7 +41195,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.itemId = iprot.readI32();
               setItemIdIsSet(true);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -41212,14 +41212,14 @@ public class Cassandra {
                 }
                 iprot.readListEnd();
               }
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 3: // CONSISTENCY
             if (field.type == org.apache.thrift.protocol.TType.I32) {
               this.consistency = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -41414,15 +41414,15 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CqlResult.class)));
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
-      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.SDE, new org.apache.thrift.meta_data.FieldMetaData("sde", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(execute_prepared_cql3_query_result.class, metaDataMap);
@@ -41851,7 +41851,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -41859,7 +41859,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.success = new CqlResult();
               this.success.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -41867,7 +41867,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -41875,7 +41875,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ue = new UnavailableException();
               this.ue.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -41883,7 +41883,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.te = new TimedOutException();
               this.te.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -41891,7 +41891,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.sde = new SchemaDisagreementException();
               this.sde.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -42074,7 +42074,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.VERSION, new org.apache.thrift.meta_data.FieldMetaData("version", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+      tmpMap.put(_Fields.VERSION, new org.apache.thrift.meta_data.FieldMetaData("version", org.apache.thrift.TFieldRequirementType.REQUIRED,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(set_cql_version_args.class, metaDataMap);
@@ -42235,14 +42235,14 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
           case 1: // VERSION
             if (field.type == org.apache.thrift.protocol.TType.STRING) {
               this.version = iprot.readString();
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
@@ -42381,7 +42381,7 @@ public class Cassandra {
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT,
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(set_cql_version_result.class, metaDataMap);
@@ -42542,7 +42542,7 @@ public class Cassandra {
       while (true)
       {
         field = iprot.readFieldBegin();
-        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+        if (field.type == org.apache.thrift.protocol.TType.STOP) {
           break;
         }
         switch (field.id) {
@@ -42550,7 +42550,7 @@ public class Cassandra {
             if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
               this.ire = new InvalidRequestException();
               this.ire.read(iprot);
-            } else { 
+            } else {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;

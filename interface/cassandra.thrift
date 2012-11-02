@@ -311,7 +311,7 @@ struct IndexExpression {
 }
 
 /**
- * @Deprecated: use a KeyRange with row_filter in get_range_slices instead
+ * @deprecated use a KeyRange with row_filter in get_range_slices instead
  */
 struct IndexClause {
     1: required list<IndexExpression> expressions,
@@ -473,7 +473,7 @@ struct KsDef {
     2: required string strategy_class,
     3: optional map<string,string> strategy_options,
 
-    /** @deprecated, ignored */
+    /** @deprecated ignored */
     4: optional i32 replication_factor,
 
     5: required list<CfDef> cf_defs,
@@ -602,7 +602,7 @@ service Cassandra {
 
   /**
     Returns the subset of columns specified in SlicePredicate for the rows matching the IndexClause
-    @Deprecated; use get_range_slices instead with range.row_filter specified
+    @deprecated use get_range_slices instead with range.row_filter specified
     */
   list<KeySlice> get_indexed_slices(1:required ColumnParent column_parent,
                                     2:required IndexClause index_clause,
@@ -822,7 +822,7 @@ service Cassandra {
             4:SchemaDisagreementException sde)
 
   /**
-   * @Deprecated This is now a no-op. Please use the CQL3 specific methods instead.
+   * @deprecated This is now a no-op. Please use the CQL3 specific methods instead.
    */
   void set_cql_version(1: required string version) throws (1:InvalidRequestException ire)
 }

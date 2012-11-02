@@ -52,9 +52,9 @@ public class SSTableSliceIterator implements ISSTableColumnIterator
      * If a caller passes a non-null argument, this class will NOT close the underlying file when the iterator is closed (i.e. the caller is responsible for closing the file)
      * In all cases the caller should explicitly #close() this iterator.
      * @param key The key the requested slice resides under
-     * @param startColumn The start of the slice
-     * @param finishColumn The end of the slice
+     * @param slices the column slices
      * @param reversed Results are returned in reverse order iff reversed is true.
+     * @param indexEntry position of the row
      */
     public SSTableSliceIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, ColumnSlice[] slices, boolean reversed, RowIndexEntry indexEntry)
     {

@@ -922,7 +922,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /**
      * for a keyspace, return the ranges and corresponding listen addresses.
      * @param keyspace
-     * @return
+     * @return the endpoint map
      */
     public Map<List<String>, List<String>> getRangeToEndpointMap(String keyspace)
     {
@@ -938,7 +938,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /**
      * Return the rpc address associated with an endpoint as a string.
      * @param endpoint The endpoint to get rpc address for
-     * @return
+     * @return the rpc address
      */
     public String getRpcaddress(InetAddress endpoint)
     {
@@ -953,7 +953,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /**
      * for a keyspace, return the ranges and corresponding RPC addresses for a given keyspace.
      * @param keyspace
-     * @return
+     * @return the endpoint map
      */
     public Map<List<String>, List<String>> getRangeToRpcaddressMap(String keyspace)
     {

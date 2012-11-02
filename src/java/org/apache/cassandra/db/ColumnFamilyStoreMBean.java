@@ -39,6 +39,7 @@ public interface ColumnFamilyStoreMBean
      *
      * @see org.apache.cassandra.metrics.ColumnFamilyMetrics#memtableDataSize
      * @return The size in bytes.
+     * @deprecated
      */
     @Deprecated
     public long getMemtableDataSize();
@@ -63,7 +64,7 @@ public interface ColumnFamilyStoreMBean
     public int getMemtableSwitchCount();
 
     /**
-     * @see org.apache.cassandra.metrics.ColumnFamilyMetrics#recentSSTablesPerReadHistogram
+     * @see org.apache.cassandra.metrics.ColumnFamilyMetrics#recentSSTablesPerRead
      * @return a histogram of the number of sstable data files accessed per read: reading this property resets it
      */
     @Deprecated

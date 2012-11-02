@@ -38,7 +38,7 @@ public interface ISSTableSerializer<T>
      * Deserialize into the specified DataInputStream instance in the format
      * suited for SSTables.
      * @param dis DataInput from which deserialization needs to happen.
-     * @param sstableVersion the version for the sstable we're reading from
+     * @param version the version for the sstable we're reading from
      * @throws IOException
      * @return the type that was deserialized
      */

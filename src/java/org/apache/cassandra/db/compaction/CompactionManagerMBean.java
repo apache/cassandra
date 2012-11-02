@@ -43,7 +43,7 @@ public interface CompactionManagerMBean
     public long getCompletedTasks();
 
     /**
-     * @see org.apache.cassandra.metrics.CompactionMetrics#totalBytesCompacted
+     * @see org.apache.cassandra.metrics.CompactionMetrics#bytesCompacted
      * @return total number of bytes compacted since server [re]start
      */
     @Deprecated

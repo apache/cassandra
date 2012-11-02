@@ -327,7 +327,8 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 
     /**
      * @return the comparator for the given component. static CompositeType will consult
-     * @param i; DynamicCompositeType will read the type information from @param bb
+     * @param i DynamicCompositeType will read the type information from @param bb
+     * @param bb name of type definition
      */
     abstract protected AbstractType<?> getComparator(int i, ByteBuffer bb);
 

@@ -934,7 +934,7 @@ public class TokenMetadata
     }
 
     /**
-     * @Deprecated; retained for benefit of old tests
+     * @deprecated retained for benefit of old tests
      */
     public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
     {

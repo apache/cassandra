@@ -20,27 +20,27 @@ package org.apache.cassandra.service;
 public interface StorageProxyMBean
 {
     /**
-     * @see org.apache.cassandra.metrics.LatencyMetrics#opCount
+     * @see org.apache.cassandra.metrics.LatencyMetrics#lastOpCount
      */
     @Deprecated
     public long getReadOperations();
     /**
-     * @see org.apache.cassandra.metrics.LatencyMetrics#totalLatency
+     * @see org.apache.cassandra.metrics.LatencyMetrics#totalLatencyHistogram
      */
     @Deprecated
     public long getTotalReadLatencyMicros();
     /**
-     * @see org.apache.cassandra.metrics.LatencyMetrics#recentLatencyMicro
+     * @see org.apache.cassandra.metrics.LatencyMetrics#recentLatencyHistogram
      */
     @Deprecated
     public double getRecentReadLatencyMicros();
     /**
-     * @see org.apache.cassandra.metrics.LatencyMetrics#totalLatencyHistogramMicro
+     * @see org.apache.cassandra.metrics.LatencyMetrics#totalLatencyHistogram
      */
     @Deprecated
     public long[] getTotalReadLatencyHistogramMicros();
     /**
-     * @see org.apache.cassandra.metrics.LatencyMetrics#recentLatencyHistogramMicro
+     * @see org.apache.cassandra.metrics.LatencyMetrics#recentLatencyHistogram
      */
     @Deprecated
     public long[] getRecentReadLatencyHistogramMicros();
