@@ -469,11 +469,7 @@ public final class MessagingService implements MessagingServiceMBean
         OutboundTcpConnectionPool cp = connectionManagers.get(to);
         if (cp == null)
             return;
-        // these null guards are simply for tests
-        if (cp.ackCon != null)
-            cp.ackCon.closeSocket();
-        if (cp.cmdCon != null)
-            cp.cmdCon.closeSocket();
+        cp.close();
         connectionManagers.remove(to);
     }
 

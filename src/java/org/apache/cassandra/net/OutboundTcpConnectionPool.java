@@ -156,4 +156,14 @@ public class OutboundTcpConnectionPool
         }
         return true;
     }
+
+   public void close()
+    {
+        // these null guards are simply for tests
+        if (ackCon != null)
+            ackCon.closeSocket();
+        if (cmdCon != null)
+            cmdCon.closeSocket();
+        metrics.release();
+    }
 }
