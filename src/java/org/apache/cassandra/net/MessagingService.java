@@ -466,14 +466,12 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void destroyConnectionPool(InetAddress to)
     {
-        OutboundTcpConnectionPool cp = connectionManagers_.get(to);
+        OutboundTcpConnectionPool cp = connectionManagers.get(to);
         if (to == null)
             return;
         cp.ackCon.closeSocket();
         cp.cmdCon.closeSocket();
-        connectionManagers_.remove(to);
-        recentTimeoutsPerHost.remove(to.getHostAddress());
-        timeoutsPerHost.remove(to.getHostAddress());
+        connectionManagers.remove(to);
     }
 
     public OutboundTcpConnectionPool getConnectionPool(InetAddress to)
