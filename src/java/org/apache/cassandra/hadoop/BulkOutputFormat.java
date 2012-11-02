@@ -37,8 +37,10 @@ public class BulkOutputFormat extends OutputFormat<ByteBuffer,List<Mutation>>
 
     private void checkOutputSpecs(Configuration conf)
     {
-        if (ConfigHelper.getOutputKeyspace(conf) == null)
-            throw new UnsupportedOperationException("You must set the keyspace with setOutputKeyspace()");
+        if (ConfigHelper.getOutputKeyspace(conf) == null || ConfigHelper.getOutputColumnFamily(conf) == null)
+        {
+            throw new UnsupportedOperationException("you must set the keyspace and columnfamily with setColumnFamily()");
+        }
     }
 
     @Override
