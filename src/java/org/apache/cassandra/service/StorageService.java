@@ -1273,7 +1273,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 // grab any data we are now responsible for and notify responsible node
                 restoreReplicaCount(endpoint, tokenMetadata_.getEndpoint(coordtoken));
             }
-        } // not a member, nothing to do
+        }
+        else // now that the gossiper has told us about this nonexistent member, notify the gossiper to remove it
+            Gossiper.instance.removeEndpoint(endpoint);
     }
 
     private void excise(Token token, InetAddress endpoint)

@@ -298,6 +298,18 @@ public final class MessagingService implements MessagingServiceMBean
         }
     }
 
+    public void destroyConnectionPool(InetAddress to)
+    {
+        OutboundTcpConnectionPool cp = connectionManagers_.get(to);
+        if (to == null)
+            return;
+        cp.ackCon.closeSocket();
+        cp.cmdCon.closeSocket();
+        connectionManagers_.remove(to);
+        recentTimeoutsPerHost.remove(to.getHostAddress());
+        timeoutsPerHost.remove(to.getHostAddress());
+    }
+
     public OutboundTcpConnectionPool getConnectionPool(InetAddress to)
     {
         OutboundTcpConnectionPool cp = connectionManagers_.get(to);
