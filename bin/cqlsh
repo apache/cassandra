@@ -114,7 +114,7 @@ DEFAULT_PORT = 9160
 DEFAULT_CQLVER = '2'
 
 DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S%z'
-DEFAULT_FLOAT_PRECISION = 3
+DEFAULT_FLOAT_PRECISION = 5
 
 if readline is not None and 'libedit' in readline.__doc__:
     DEFAULT_COMPLETEKEY = '\t'
