@@ -278,6 +278,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         FailureDetector.instance.remove(endpoint);
         MessagingService.instance().resetVersion(endpoint);
         quarantineEndpoint(endpoint);
+        MessagingService.instance().destroyConnectionPool(endpoint);
         if (logger.isDebugEnabled())
             logger.debug("removing endpoint " + endpoint);
     }
