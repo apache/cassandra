@@ -473,7 +473,7 @@ public final class MessagingService implements MessagingServiceMBean
         if (cp.ackCon != null)
             cp.ackCon.closeSocket();
         if (cp.cmdCon != null)
-        cp.cmdCon.closeSocket();
+            cp.cmdCon.closeSocket();
         connectionManagers.remove(to);
     }
 
