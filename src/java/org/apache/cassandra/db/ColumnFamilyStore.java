@@ -1458,17 +1458,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         logger.trace("Filtering {} for rows matching {}", rowIterator, filter);
         List<Row> rows = new ArrayList<Row>();
         int columnsCount = 0;
+        int total = 0, matched = 0;
         try
         {
             while (rowIterator.hasNext() && rows.size() < filter.maxRows() && columnsCount < filter.maxColumns())
             {
                 // get the raw columns requested, and additional columns for the expressions if necessary
                 Row rawRow = rowIterator.next();
+                total++;
                 ColumnFamily data = rawRow.cf;
 
                 if (rowIterator.needsFiltering())
                 {
-                    // roughtly
                     IDiskAtomFilter extraFilter = filter.getExtraFilter(data);
                     if (extraFilter != null)
                     {
@@ -1487,12 +1488,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
 
                 rows.add(new Row(rawRow.key, data));
+                matched++;
 
                 if (data != null)
                     columnsCount += filter.lastCounted(data);
                 // Update the underlying filter to avoid querying more columns per slice than necessary and to handle paging
                 filter.updateFilter(columnsCount);
             }
+
+            logger.debug("Scanned {} rows and matched {}", total, matched);
             return rows;
         }
         finally

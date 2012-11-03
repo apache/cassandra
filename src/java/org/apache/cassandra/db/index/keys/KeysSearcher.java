@@ -98,7 +98,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
         final IndexExpression primary = highestSelectivityPredicate(filter.getClause());
         final SecondaryIndex index = indexManager.getIndexForColumn(primary.column_name);
         if (logger.isDebugEnabled())
-            logger.debug("Primary scan clause is " + baseCfs.getComparator().getString(primary.column_name));
+            logger.debug("Most-selective indexed predicate is on {}", baseCfs.getComparator().getString(primary.column_name));
         assert index != null;
         final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 
@@ -129,12 +129,12 @@ public class KeysSearcher extends SecondaryIndexSearcher
                     {
                         if (columnsRead < rowsPerQuery)
                         {
-                            logger.debug("Read only {} (< {}) last page through, must be done", columnsRead, rowsPerQuery);
+                            logger.trace("Read only {} (< {}) last page through, must be done", columnsRead, rowsPerQuery);
                             return endOfData();
                         }
 
-                        if (logger.isDebugEnabled())
-                            logger.debug("Scanning index {} starting with {}",
+                        if (logger.isTraceEnabled())
+                            logger.trace("Scanning index {} starting with {}",
                                          expressionString(primary), index.getBaseCfs().metadata.getKeyValidator().getString(startKey));
 
                         QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
@@ -144,10 +144,10 @@ public class KeysSearcher extends SecondaryIndexSearcher
                                                                              false,
                                                                              rowsPerQuery);
                         ColumnFamily indexRow = index.getIndexCfs().getColumnFamily(indexFilter);
-                        logger.debug("fetched {}", indexRow);
+                        logger.trace("fetched {}", indexRow);
                         if (indexRow == null)
                         {
-                            logger.debug("no data, all done");
+                            logger.trace("no data, all done");
                             return endOfData();
                         }
 
@@ -161,13 +161,13 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         {
                             // skip the row we already saw w/ the last page of results
                             indexColumns.next();
-                            logger.debug("Skipping {}", baseCfs.metadata.getKeyValidator().getString(firstColumn.name()));
+                            logger.trace("Skipping {}", baseCfs.metadata.getKeyValidator().getString(firstColumn.name()));
                         }
                         else if (range instanceof Range && indexColumns.hasNext() && firstColumn.name().equals(startKey))
                         {
                             // skip key excluded by range
                             indexColumns.next();
-                            logger.debug("Skipping first key as range excludes it");
+                            logger.trace("Skipping first key as range excludes it");
                         }
                     }
 
@@ -177,23 +177,23 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         lastSeenKey = column.name();
                         if (column.isMarkedForDelete())
                         {
-                            logger.debug("skipping {}", column.name());
+                            logger.trace("skipping {}", column.name());
                             continue;
                         }
 
                         DecoratedKey dk = baseCfs.partitioner.decorateKey(lastSeenKey);
                         if (!range.right.isMinimum(baseCfs.partitioner) && range.right.compareTo(dk) < 0)
                         {
-                            logger.debug("Reached end of assigned scan range");
+                            logger.trace("Reached end of assigned scan range");
                             return endOfData();
                         }
                         if (!range.contains(dk))
                         {
-                            logger.debug("Skipping entry {} outside of assigned scan range", dk.token);
+                            logger.trace("Skipping entry {} outside of assigned scan range", dk.token);
                             continue;
                         }
 
-                        logger.debug("Returning index hit for {}", dk);
+                        logger.trace("Returning index hit for {}", dk);
                         ColumnFamily data = baseCfs.getColumnFamily(new QueryFilter(dk, path, filter.initialFilter()));
                         // While the column family we'll get in the end should contains the primary clause column, the initialFilter may not have found it and can thus be null
                         if (data == null)

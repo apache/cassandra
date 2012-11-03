@@ -182,7 +182,7 @@ public abstract class ExtendedFilter
                 // otherwise, the extraFilter (lazily created) will fetch by name the columns referenced by the additional expressions.
                 if (cfs.getMaxRowSize() < DatabaseDescriptor.getColumnIndexSize())
                 {
-                    logger.debug("Expanding slice filter to entire row to cover additional expressions");
+                    logger.trace("Expanding slice filter to entire row to cover additional expressions");
                     return new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                 ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                 ((SliceQueryFilter) originalFilter).reversed,
@@ -191,7 +191,7 @@ public abstract class ExtendedFilter
             }
             else
             {
-                logger.debug("adding columns to original Filter to cover additional expressions");
+                logger.trace("adding columns to original Filter to cover additional expressions");
                 assert originalFilter instanceof NamesQueryFilter;
                 if (!clause.isEmpty())
                 {

@@ -91,6 +91,8 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         // TODO: allow merge join instead of just one index + loop
         final IndexExpression primary = highestSelectivityPredicate(filter.getClause());
         final SecondaryIndex index = indexManager.getIndexForColumn(primary.column_name);
+        if (logger.isDebugEnabled())
+            logger.debug("Most-selective indexed predicate is on {}", baseCfs.getComparator().getString(primary.column_name));
         assert index != null;
         final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 
@@ -204,7 +206,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                     {
                         if (columnsRead < rowsPerQuery)
                         {
-                            logger.debug("Read only {} (< {}) last page through, must be done", columnsRead, rowsPerQuery);
+                            logger.trace("Read only {} (< {}) last page through, must be done", columnsRead, rowsPerQuery);
                             return makeReturn(currentKey, data);
                         }
 
@@ -233,13 +235,13 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                         {
                             // skip the row we already saw w/ the last page of results
                             indexColumns.poll();
-                            logger.debug("Skipping {}", indexComparator.getString(firstColumn.name()));
+                            logger.trace("Skipping {}", indexComparator.getString(firstColumn.name()));
                         }
                         else if (range instanceof Range && !indexColumns.isEmpty() && firstColumn.name().equals(startPrefix))
                         {
                             // skip key excluded by range
                             indexColumns.poll();
-                            logger.debug("Skipping first key as range excludes it");
+                            logger.trace("Skipping first key as range excludes it");
                         }
                     }
 
@@ -249,7 +251,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                         lastSeenPrefix = column.name();
                         if (column.isMarkedForDelete())
                         {
-                            logger.debug("skipping {}", column.name());
+                            logger.trace("skipping {}", column.name());
                             continue;
                         }
 
@@ -276,7 +278,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
 
                         if (!range.right.isMinimum(baseCfs.partitioner) && range.right.compareTo(dk) < 0)
                         {
-                            logger.debug("Reached end of assigned scan range");
+                            logger.trace("Reached end of assigned scan range");
                             return endOfData();
                         }
                         if (!range.contains(dk))
@@ -285,7 +287,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                             continue;
                         }
 
-                        logger.debug("Adding index hit to current row for {}", indexComparator.getString(lastSeenPrefix));
+                        logger.trace("Adding index hit to current row for {}", indexComparator.getString(lastSeenPrefix));
                         // For sparse composites, we're good querying the whole logical row
                         // Obviously if this index is used for other usage, that might be inefficient
                         CompositeType.Builder builder = baseComparator.builder();
