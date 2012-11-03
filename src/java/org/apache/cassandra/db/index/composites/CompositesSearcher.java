@@ -91,8 +91,6 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         // TODO: allow merge join instead of just one index + loop
         final IndexExpression primary = highestSelectivityPredicate(filter.getClause());
         final SecondaryIndex index = indexManager.getIndexForColumn(primary.column_name);
-        if (logger.isDebugEnabled())
-            logger.debug("Most-selective indexed predicate is on {}", baseCfs.getComparator().getString(primary.column_name));
         assert index != null;
         final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 
