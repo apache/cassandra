@@ -35,6 +35,8 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
 
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
+import org.apache.cassandra.tracing.TraceState;
+import org.apache.cassandra.tracing.Tracing;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1459,6 +1461,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         List<Row> rows = new ArrayList<Row>();
         int columnsCount = 0;
         int total = 0, matched = 0;
+
+        // disable tracing for the actual scan; otherwise it will log a full trace for each row fetched
+        // -- since index only contains the key, we have to do a "join" on the main table to get the actual data.
+        // this could be useful but it obscures the most important information which is the scanned:matched ratio.
+        TraceState state = Tracing.instance().get();
+        Tracing.instance().set(null);
+
         try
         {
             while (rowIterator.hasNext() && rows.size() < filter.maxRows() && columnsCount < filter.maxColumns())
@@ -1496,7 +1505,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 filter.updateFilter(columnsCount);
             }
 
-            logger.debug("Scanned {} rows and matched {}", total, matched);
             return rows;
         }
         finally
@@ -1504,6 +1512,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             try
             {
                 rowIterator.close();
+                // re-enable tracing
+                Tracing.instance().set(state);
+                logger.debug("Scanned {} rows and matched {}", total, matched);
             }
             catch (IOException e)
             {
