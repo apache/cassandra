@@ -162,7 +162,7 @@ public class SystemTable
             }
             // serialize the old token as a collection of (one )tokens.
             Token token = StorageService.getPartitioner().getTokenFactory().fromByteArray(oldColumns.next().value());
-            String tokenBytes = serializeTokens(Collections.singleton(token));
+            String tokenBytes = tokensAsSet(Collections.singleton(token));
             // (assume that any node getting upgraded was bootstrapped, since that was stored in a separate row for no particular reason)
             String req = "INSERT INTO system.%s (key, cluster_name, tokens, bootstrapped) VALUES ('%s', '%s', %s, '%s')";
             processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, clusterName, tokenBytes, BootstrapState.COMPLETED.name()));
@@ -190,10 +190,9 @@ public class SystemTable
         }
 
         String req = "INSERT INTO system.%s (peer, tokens) VALUES ('%s', %s)";
-        processInternal(String.format(req, PEERS_CF, ep.getHostAddress(), serializeTokens(tokens)));
+        processInternal(String.format(req, PEERS_CF, ep.getHostAddress(), tokensAsSet(tokens)));
         forceBlockingFlush(PEERS_CF);
     }
-
     public static synchronized void updatePeerInfo(InetAddress ep, String columnName, String value)
     {
         if (ep.equals(FBUtilities.getBroadcastAddress()))
@@ -203,7 +202,7 @@ public class SystemTable
         processInternal(String.format(req, PEERS_CF, columnName, ep.getHostAddress(), value));
     }
 
-    private static String serializeTokens(Collection<Token> tokens)
+    private static String tokensAsSet(Collection<Token> tokens)
     {
         Token.TokenFactory factory = StorageService.getPartitioner().getTokenFactory();
         StringBuilder sb = new StringBuilder();
@@ -241,7 +240,7 @@ public class SystemTable
                 continue;
 
             String req = "UPDATE system.%s SET tokens = tokens - %s WHERE peer = '%s'";
-            processInternal(String.format(req, PEERS_CF, serializeTokens(toRemove), entry.getKey().getHostAddress()));
+            processInternal(String.format(req, PEERS_CF, tokensAsSet(toRemove), entry.getKey().getHostAddress()));
         }
         forceBlockingFlush(PEERS_CF);
     }
@@ -252,7 +251,7 @@ public class SystemTable
     public static synchronized void updateTokens(Collection<Token> tokens)
     {
         String req = "INSERT INTO system.%s (key, tokens) VALUES ('%s', %s)";
-        processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, serializeTokens(tokens)));
+        processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, tokensAsSet(tokens)));
         forceBlockingFlush(LOCAL_CF);
     }
 
