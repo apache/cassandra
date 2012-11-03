@@ -283,7 +283,7 @@ public class CollationController
             if (iterators.isEmpty())
                 return null;
 
-            logger.debug("Merging data from memtables and sstables");
+            logger.debug("Merging data from {} memtables and sstables", iterators.size());
             filter.collateOnDiskAtom(returnCF, iterators, gcBefore);
 
             // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:

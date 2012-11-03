@@ -1386,6 +1386,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         QueryFilter filter = new QueryFilter(null, new QueryPath(columnFamily, superColumn, null), columnFilter);
 
         final ViewFragment view = markReferenced(startWith, stopAt);
+        if (logger.isDebugEnabled())
+            logger.debug(String.format("Executing seq scan across %s sstables for %s..%s",
+                                       view.sstables.size(), startWith, stopAt));
+
         try
         {
             final CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(view.memtables, view.sstables, startWith, stopAt, filter, this);
@@ -1440,7 +1444,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter columnFilter, List<IndexExpression> rowFilter, boolean maxIsColumns, boolean isPaging)
     {
-        logger.debug("Executing seq scan for {}..{}", range.left, range.right);
         return filter(getSequentialIterator(superColumn, range, columnFilter), ExtendedFilter.create(this, columnFilter, rowFilter, maxResults, maxIsColumns, isPaging));
     }
 
