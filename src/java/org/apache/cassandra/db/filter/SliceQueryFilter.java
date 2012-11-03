@@ -153,15 +153,14 @@ public class SliceQueryFilter implements IDiskAtomFilter
             columnCounter.count(column, container);
 
             if (columnCounter.live() > count)
-            {
-                logger.debug("Read %s live columns and %s tombstoned", columnCounter.live(), columnCounter.ignored());
                 break;
-            }
 
             // but we need to add all non-gc-able columns to the result for read repair:
             if (QueryFilter.isRelevant(column, container, gcBefore))
                 container.addColumn(column);
         }
+
+        logger.debug("Read {} live cells and {} tombstoned", columnCounter.live(), columnCounter.ignored());
     }
 
     public int getLiveCount(ColumnFamily cf)
