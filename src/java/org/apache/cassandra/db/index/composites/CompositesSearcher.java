@@ -95,6 +95,10 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         assert index != null;
         final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 
+        if (logger.isDebugEnabled())
+            logger.debug("Most-selective indexed predicate is {}",
+                         ((AbstractSimplePerColumnSecondaryIndex) index).expressionString(primary));
+
         /*
          * XXX: If the range requested is a token range, we'll have to start at the beginning (and stop at the end) of
          * the indexed row unfortunately (which will be inefficient), because we have not way to intuit the small
@@ -209,7 +213,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                             return makeReturn(currentKey, data);
                         }
 
-                        if (logger.isTraceEnabled() && (index instanceof AbstractSimplePerColumnSecondaryIndex))
+                        if (logger.isTraceEnabled())
                             logger.trace("Scanning index {} starting with {}",
                                          ((AbstractSimplePerColumnSecondaryIndex)index).expressionString(primary), indexComparator.getString(startPrefix));
 
