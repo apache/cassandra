@@ -76,11 +76,14 @@ public class CreateIndexStatement extends SchemaAlteringStatement
                 if (logger.isDebugEnabled())
                     logger.debug("Updating column {} definition for index {}", columnName, indexName);
 
+                if (cd.getValidator().isCollection())
+                    throw new InvalidRequestException("Indexes on collections are no yet supported");
+
                 if (cfDef.isComposite)
                 {
                     CompositeType composite = (CompositeType)cfm.comparator;
                     Map<String, String> opts = new HashMap<String, String>();
-                    opts.put(CompositesIndex.PREFIX_SIZE_OPTION, String.valueOf(composite.types.size() - 1));
+                    opts.put(CompositesIndex.PREFIX_SIZE_OPTION, String.valueOf(composite.types.size() - (cfDef.hasCollections ? 2 : 1)));
                     cd.setIndexType(IndexType.COMPOSITES, opts);
                 }
                 else
