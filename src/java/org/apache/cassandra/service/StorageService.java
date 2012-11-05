@@ -400,12 +400,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public synchronized void initServer(int delay) throws ConfigurationException
     {
-        initServerLocally();
-        maybeJoinRing(delay);
-    }
-
-    public void initServerLocally()
-    {
         logger.info("Cassandra version: " + FBUtilities.getReleaseVersionString());
         logger.info("Thrift API version: " + Constants.VERSION);
         logger.info("CQL supported versions: " + StringUtils.join(ClientState.getCQLSupportedVersion(), ",") + " (default: " + ClientState.DEFAULT_CQL_VERSION + ")");
@@ -501,19 +495,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
         }, "StorageServiceShutdownHook");
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
-    }
-
-    public synchronized void maybeJoinRing(int delay) throws ConfigurationException
-    {
-        // This method should only be called as part of the server initialization, so if initialized == true, we've already gone
-        // through that. If the ring must be joined after the server initialization, use joinTokenRing() directly.
-        if (initialized)
-        {
-            if (isClientMode)
-                throw new UnsupportedOperationException("StorageService does not support switching modes.");
-            return;
-        }
-        initialized = true;
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true")))
         {
