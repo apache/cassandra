@@ -25,6 +25,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -72,6 +73,18 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
     protected abstract void init(ColumnDefinition columnDef);
 
     protected abstract ByteBuffer makeIndexColumnName(ByteBuffer rowKey, IColumn column);
+
+    protected abstract AbstractType getExpressionComparator();
+
+    public String expressionString(IndexExpression expr)
+    {
+        return String.format("'%s.%s %s %s'",
+                             baseCfs.columnFamily,
+                             getExpressionComparator().getString(expr.column_name),
+                             expr.op,
+                             baseCfs.metadata.getColumn_metadata().get(expr.column_name).getValidator().getString(expr.value));
+    }
+
 
     public void delete(ByteBuffer rowKey, IColumn column)
     {

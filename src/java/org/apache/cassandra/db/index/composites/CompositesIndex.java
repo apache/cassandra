@@ -67,6 +67,12 @@ public class CompositesIndex extends AbstractSimplePerColumnSecondaryIndex
         return builder.build();
     }
 
+    protected AbstractType getExpressionComparator()
+    {
+        CompositeType baseComparator = (CompositeType)baseCfs.getComparator();
+        return baseComparator.types.get(prefixSize);
+    }
+
     @Override
     public boolean indexes(ByteBuffer name)
     {

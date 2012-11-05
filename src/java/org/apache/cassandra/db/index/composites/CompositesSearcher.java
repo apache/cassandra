@@ -23,6 +23,7 @@ import java.util.*;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.PerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
@@ -208,10 +209,9 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                             return makeReturn(currentKey, data);
                         }
 
-                        // TODO: broken because we need to extract the component comparator rather than the whole name comparator
-                        // if (logger.isDebugEnabled())
-                        //     logger.debug("Scanning index {} starting with {}",
-                        //                  expressionString(primary), indexComparator.getString(startPrefix));
+                        if (logger.isTraceEnabled() && (index instanceof AbstractSimplePerColumnSecondaryIndex))
+                            logger.trace("Scanning index {} starting with {}",
+                                         ((AbstractSimplePerColumnSecondaryIndex)index).expressionString(primary), indexComparator.getString(startPrefix));
 
                         QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
                                                                              new QueryPath(index.getIndexCfs().getColumnFamilyName()),

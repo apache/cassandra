@@ -23,6 +23,7 @@ import java.util.*;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.PerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
@@ -66,15 +67,6 @@ public class KeysSearcher extends SecondaryIndexSearcher
             }
         }
         return best;
-    }
-
-    private String expressionString(IndexExpression expr)
-    {
-        return String.format("'%s.%s %s %s'",
-                             baseCfs.columnFamily,
-                             baseCfs.getComparator().getString(expr.column_name),
-                             expr.op,
-                             baseCfs.metadata.getColumn_metadata().get(expr.column_name).getValidator().getString(expr.value));
     }
 
     public boolean isIndexing(List<IndexExpression> clause)
@@ -133,9 +125,9 @@ public class KeysSearcher extends SecondaryIndexSearcher
                             return endOfData();
                         }
 
-                        if (logger.isTraceEnabled())
+                        if (logger.isTraceEnabled() && (index instanceof AbstractSimplePerColumnSecondaryIndex))
                             logger.trace("Scanning index {} starting with {}",
-                                         expressionString(primary), index.getBaseCfs().metadata.getKeyValidator().getString(startKey));
+                                         ((AbstractSimplePerColumnSecondaryIndex)index).expressionString(primary), index.getBaseCfs().metadata.getKeyValidator().getString(startKey));
 
                         QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
                                                                              new QueryPath(index.getIndexCfs().getColumnFamilyName()),
