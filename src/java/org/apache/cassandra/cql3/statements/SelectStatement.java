@@ -1180,8 +1180,10 @@ public class SelectStatement implements CQLStatement
                 if (stmt.isKeyRange)
                     throw new InvalidRequestException("ORDER BY is only supported when the partition key is restricted by an EQ or an IN.");
 
-                // check if we are trying to order by column that wouldn't be included in the results
-                if (!stmt.selectedNames.isEmpty()) // empty means wildcard was used
+                // If we order an IN query, we'll have to do a manual sort post-query. Currently, this sorting requires that we
+                // have queried the column on which we sort (TODO: we should update it to add the column on which we sort to the one
+                // queried automatically, and then removing it from the resultSet afterwards if needed)
+                if (stmt.keyIsInRelation && !stmt.selectedNames.isEmpty()) // empty means wildcard was used
                 {
                     for (ColumnIdentifier column : stmt.parameters.orderings.keySet())
                     {

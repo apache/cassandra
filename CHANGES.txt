@@ -50,6 +50,7 @@
  * Fix short read protection for CQL3 (CASSANDRA-4882)
  * Add tracing support to the binary protocol (CASSANDRA-4699)
  * Don't allow prepared marker inside collections (CASSANDRA-4890)
+ * Re-allow order by on non-selected columns (CASSANDRA-4645)
 Merged from 1.1:
  * add get[Row|Key]CacheEntries to CacheServiceMBean (CASSANDRA-4859)
  * fix get_paged_slice to wrap to next row correctly (CASSANDRA-4816)
