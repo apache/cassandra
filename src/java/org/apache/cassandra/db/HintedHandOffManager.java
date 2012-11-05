@@ -101,7 +101,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                                                                                  Integer.MAX_VALUE,
                                                                                  TimeUnit.SECONDS,
                                                                                  new LinkedBlockingQueue<Runnable>(),
-                                                                                 new NamedThreadFactory("HintedHandoff", Thread.MIN_PRIORITY), "HintedHandoff");
+                                                                                 new NamedThreadFactory("HintedHandoff", Thread.MIN_PRIORITY), "internal");
 
     public void start()
     {
