@@ -200,7 +200,10 @@ bc(syntax)..
                           ( WITH <option> ( AND <option>)* )?
 
 <column-definition> ::= <identifier> <type> ( PRIMARY KEY )?
-                      | PRIMARY KEY '(' <identifier> ( ',' <identifier> )* ')'
+                      | PRIMARY KEY '(' <partition-key> ( ',' <identifier> )* ')'
+
+<partition-key> ::= <identifier>
+                  | '(' <identifier> ( ',' <identifier> )* ')'
 
 <option> ::= <property>
            | COMPACT STORAGE
@@ -258,7 +261,7 @@ Moreover, a table must define at least one column that is not part of the PRIMAR
 
 h4(#createTablepartitionClustering). Partition key and clustering
 
-In CQL, the order in which columns are defined for the @PRIMARY KEY@ matters. The first column of the key is called the __partition key__. It has the property that all the rows sharing the same partition key (even across table in fact) are stored on the same physical node. Also, insertion/update/deletion on rows sharing the same partition key for a given table are performed __atomically__ and in __isolation__.
+In CQL, the order in which columns are defined for the @PRIMARY KEY@ matters. The first column of the key is called the __partition key__. It has the property that all the rows sharing the same partition key (even across table in fact) are stored on the same physical node. Also, insertion/update/deletion on rows sharing the same partition key for a given table are performed __atomically__ and in __isolation__. Note that it is possible to have a composite partition key, i.e. a partition key formed of multiple columns, using an extra set of parentheses to define which columns forms the partition key.
 
 The remaining columns of the @PRIMARY KEY@ definition, if any, are called __clustering keys__. On a given physical node, rows for a given partition key are stored in the order induced by the clustering keys, making the retrieval of rows in that clustering order particularly efficient (see <a href="#selectStmt"><tt>SELECT</tt></a>).
 
@@ -654,11 +657,11 @@ h2(#types). Data Types
 CQL supports a rich set of native data types for columns defined in a table.  On top of those native types, users can also provide custom types (through a JAVA class extending @AbstractType@ loadable by Cassandra). The syntax of types is thus:
 
 bc(syntax).. 
-<type> ::= <native_type>
-         | <collection_type>
+<type> ::= <native-type>
+         | <collection-type>
          | <string>       // Used for custom types. The fully-qualified name of a JAVA class
 
-<native_type> ::= ascii
+<native-type> ::= ascii
                 | bigint
                 | blob
                 | boolean
@@ -675,9 +678,9 @@ bc(syntax)..
                 | varchar
                 | varint
 
-<collection_type> ::= list '<' <native_type> '>'
-                    | set  '<' <native_type> '>'
-                    | map  '<' <native_type> ',' <native_type> '>'
+<collection-type> ::= list '<' <native-type> '>'
+                    | set  '<' <native-type> '>'
+                    | map  '<' <native-type> ',' <native-type> '>'
 p. Note that the native types are keywords and as such are case-insensitive. They are however not reserved ones.
 
 p. The following table gives additional informations on the native data types:
