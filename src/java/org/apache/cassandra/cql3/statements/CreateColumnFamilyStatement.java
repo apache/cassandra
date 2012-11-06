@@ -222,11 +222,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                     stmt.comparator = CFDefinition.definitionType;
                 }
 
-                if (useCompactStorage)
+                if (useCompactStorage && !stmt.columnAliases.isEmpty())
                 {
-                    // There should at least have been one column alias
-                    if (stmt.columnAliases.isEmpty())
-                        throw new InvalidRequestException("COMPACT STORAGE requires at least one column part of the clustering key, none found");
                     // There should be only one column definition remaining, which gives us the default validator.
                     if (stmt.columns.isEmpty())
                         throw new InvalidRequestException("COMPACT STORAGE requires one definition not part of the PRIMARY KEY, none found");

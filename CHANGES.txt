@@ -12,6 +12,7 @@
  * (CQL) fix CREATE COLUMNFAMILY permissions check (CASSANDRA-4864)
  * Fix DynamicCompositeType same type comparison (CASSANDRA-4711)
  * Fix duplicate SSTable reference when stream session failed (CASSANDRA-3306)
+ * Allow static CF definition with compact storage (CASSANDRA-4910)
 
 
 1.1.6
