@@ -49,6 +49,7 @@ public class TracingAppender extends AppenderSkeleton
             return;
 
         final int elapsed = state.elapsed();
+        final String threadName = event.getThreadName();
         final ByteBuffer eventId = ByteBufferUtil.bytes(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()));
         StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
         {
@@ -57,7 +58,7 @@ public class TracingAppender extends AppenderSkeleton
                 CFMetaData cfMeta = CFMetaData.TraceEventsCf;
                 ColumnFamily cf = ColumnFamily.create(cfMeta);
                 addColumn(cf, buildName(cfMeta, eventId, bytes("source")), FBUtilities.getBroadcastAddress());
-                addColumn(cf, buildName(cfMeta, eventId, bytes("thread")), event.getThreadName());
+                addColumn(cf, buildName(cfMeta, eventId, bytes("thread")), threadName);
                 addColumn(cf, buildName(cfMeta, eventId, bytes("source_elapsed")), elapsed);
                 addColumn(cf, buildName(cfMeta, eventId, bytes("activity")), event.getMessage().toString());
                 RowMutation mutation = new RowMutation(Tracing.TRACE_KS, state.sessionIdBytes);
