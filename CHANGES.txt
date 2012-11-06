@@ -69,7 +69,6 @@ Merged from 1.1:
  * Fix duplicate SSTable reference when stream session failed (CASSANDRA-3306)
 
 
-
 1.2-beta1
  * add atomic_batch_mutate (CASSANDRA-4542, -4635)
  * increase default max_hint_window_in_ms to 3h (CASSANDRA-4632)
