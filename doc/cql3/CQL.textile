@@ -2,8 +2,6 @@
 
 h1. Cassandra Query Language (CQL) v3.0.0
 
-p(banner). Please note that as of Cassandra 1.1, CQL v3.0.0 is considered beta and while the bulk of the language should be fixed by now, small breaking changes may be introduced until CQL v3.0.0 is final (in Cassandra 1.2).
-
 
  <span id="tableOfContents">
 
@@ -49,10 +47,11 @@ p. There is a second kind of identifiers called _quoted identifiers_ defined by 
 
 h3(#constants). Constants
 
-CQL defines 3 kinds of _implicitly-typed constants_: strings, numbers and uuids:
+CQL defines 4 kinds of _implicitly-typed constants_: strings, numbers, uuids and booleans:
 * A string constant is an arbitrary sequence of characters characters enclosed by single-quote(@'@). One can include a single-quote in a string by repeating it, e.g. @'It''s raining today'@. Those are not to be confused with quoted identifiers that use double-quotes.
 * Numeric constants are either integer constant defined by @-?[0-9]+@ or a float constant defined by @-?[0-9]+.[0-9]*@.
 * A "UUID":http://en.wikipedia.org/wiki/Universally_unique_identifier constant is defined by @hex{8}-hex{4}-hex{4}-hex{4}-hex{12}@ where @hex@ is an hexadecimal character, e.g. @[0-9a-fA-F]@ and @{4}@ is the number of such characters.
+* A boolean constant is either @true@ or @false@ up to case-insensitivity (i.e. @True@ is a valid boolean constant).
 
 
 h3. Comments
@@ -70,7 +69,7 @@ CQL consists of statements. As in SQL, these statements can be divided in 3 cate
 * Data manipulation statements, that allow to change data
 * Queries, to look up data
 
-All statements end with a semicolon (@;@) but that semicolon can be omitted when dealing with a single statement. The supported statements are described in the following sections. When describing the grammar of said statement, we will reuse the non-terminal symbol defined below:
+All statements end with a semicolon (@;@) but that semicolon can be omitted when dealing with a single statement. The supported statements are described in the following sections. When describing the grammar of said statements, we will reuse the non-terminal symbols defined below:
 
 bc(syntax).. 
 <identifier> ::= any quoted or unquoted identifier, excluding reserved keywords
@@ -81,16 +80,31 @@ bc(syntax)..
      <float> ::= a float constant
     <number> ::= <integer> | <float>
       <uuid> ::= a uuid constant
+   <boolean> ::= a boolean constant
 
-      <term> ::= <identifier>
-               | <string>
-               | <number>
-               | <uuid>
-               | '?'
-  <int-term> ::= <identifier>
-               | '?'
+  <final-term> ::= <string>
+                 | <number>
+                 | <uuid>
+                 | <boolean>
+        <term> ::= <final-term>
+                 | '?'
+    <int-term> ::= <integer>
+                 | '?'
+
+  <collection-literal> ::= <map-literal>
+                         | <set-literal>
+                         | <list-literal>
+         <map-literal> ::= '{' ( <final-term> ':' <final-term> ( ',' <final-term> ':' <final-term> )* )? '}'
+         <set-literal> ::= '{' ( <final-term> ( ',' <final-term> )* )? '}'
+        <list-literal> ::= '[' ( <final-term> ( ',' <final-term> )* )? ']'
+
+  <properties> ::= <property> (AND <property>)*
+    <property> ::= <identifier> '=' ( <value> | <map-literal> )
+       <value> ::= <identifier> | <string> | <number> | <boolean>
 p. 
 The question mark (@?@) in the syntax above is a bind variables for "prepared statements":#preparedStatement.
+
+The @<properties>@ production is use by statement that create and alter keyspaces and tables. Each @<property>@ is either a _simple_ one, in which case it just has a value, or a _map_ one, in which case it's value is a map grouping sub-options. The following will refer to one or the other as the _kind_ (_simple_ or _map_) of the property.
 
 p. A @<tablename>@ will be used to identify a table. This is an identifier representing the table name that can be preceded by a keyspace name. The keyspace name, if provided, allow to identify a table in another keyspace than the currently active one (the currently active keyspace is set through the <a href="#useStmt"><tt>USE</tt></a> statement).
 
@@ -101,22 +115,6 @@ CQL supports _prepared statements_. Prepared statement is an optimization that a
 
 In a statement, each time a column value is expected (in the data manipulation and query statements), a bind variable marker (denoted by a @?@ symbol) can be used instead. A statement with bind variables must then be _prepared_. Once it has been prepared, it can executed by providing concrete values for the bind variables (values for bind variables must be provided in the order the bind variables are defined in the query string). The exact procedure to prepare a statement and execute a prepared statement depends on the CQL driver used and is beyond the scope of this document.
 
-h3(#consistency). Consistency Level
-
-Data manipulation statements and queries allows to optionally specify the _consistency level_ of the operation. Such consistency levels are specified through the following syntax:
-
-bc(syntax). 
-<consistency-level> ::= ANY
-                      | ONE
-                      | TWO
-                      | THREE
-                      | QUORUM
-                      | ALL
-                      | LOCAL_QUORUM
-                      | EACH_QUORUM
-
-When not user-specified, the default consistency level is @ONE@. Consult your Cassandra documentation for information about how consistency levels work.
-
 
 h2(#dataDefinition). Data Definition
 
@@ -125,31 +123,30 @@ h3(#createKeyspaceStmt). CREATE KEYSPACE
 __Syntax:__
 
 bc(syntax).. 
-<create-keyspace-stmt> ::= CREATE KEYSPACE <identifier>
-                           WITH <name> '=' <value> ( AND <name> '=' <value> )*
-
-<name> ::= <identifier> ( ':' ( <identifier> | <identifier> ) )?
-<value> ::= <identifier> | <string> | <number>
+<create-keyspace-stmt> ::= CREATE KEYSPACE <identifier> WITH <properties>
 p. 
 __Sample:__
 
 bc(sample).. 
 CREATE KEYSPACE Excelsior
-           WITH strategy_class = SimpleStrategy
-            AND strategy_options:replication_factor = 1;
+           WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};
 
 CREATE KEYSPACE Excalibur
-           WITH strategy_class = NetworkTopologyStrategy
-            AND strategy_options:DC1 = 1
-            AND strategy_options:DC2 = 3;
+           WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1' : 1, 'DC2' : 3}
+            AND durable_writes = false;
 p. 
-The @CREATE KEYSPACE@ statement creates a new top-level _keyspace_. A keyspace is a namespace that defines a replication strategy for a set of tables. Valid keyspaces names are identifiers composed exclusively of alphanumerical characters and whose length is lesser or equal to 32. Note that as identifiers, keyspace names are case insensitive: use a quoted identifier for case sensitive keyspace names.
+The @CREATE KEYSPACE@ statement creates a new top-level _keyspace_. A keyspace is a namespace that defines a replication strategy and some options for a set of tables. Valid keyspaces names are identifiers composed exclusively of alphanumerical characters and whose length is lesser or equal to 32. Note that as identifiers, keyspace names are case insensitive: use a quoted identifier for case sensitive keyspace names.
 
-The replication strategy for the new keyspace should be specified using the following options:
+The supported @<properties>@ for @CREATE KEYSPACE@ are:
 
-|_. option         |_. required|_. description|
-|@strategy_class@  |yes        |The name of the replication strategy class for the new keyspace. Default strategies are: @SimpleStrategy@, @NetworkTopologyStrategy@ and @OldNetworkTopologyStrategy@ (that, as the name imply, is supported mainly for compatibility sake). Custom strategy can be provided by specifying the full class name as a "string constant":#constants.|
-|@strategy_options@|no         |Most strategies require additional arguments which can be supplied by appending the option name to the @strategy_options@ keyword, separated by a colon (@:@).  For example, a strategy option of "DC1" with a value of "1" would be specified as @strategy_options:DC1 = 1@; the replication_factor for SimpleStrategy could be @strategy_options:replication_factor=3@.|
+|_. name          |_. kind   |_. mandatory |_. default |_. description|
+|@replication@    | _map_    | yes         |           | The replication strategy and options to use for the keyspace. |
+|@durable_writes@ | _simple_ | no          | true      | Whether to use the commit log for updates on this keyspace (disable this option at your own risk!). |
+
+The @replication@ @<property>@ is mandatory. It must at least contains the @'class'@ sub-option which defines the replication strategy class to use. The rest of the sub-options depends on that replication strategy class. By default, Cassandra support the following @'class'@:
+* @'SimpleStrategy'@: A simple strategy that defines a simple replication factor for the whole cluster. The only sub-options supported is @'replication_factor'@ to define that replication factor and is mandatory.
+* @'NetworkTopologyStrategy'@: A replication strategy that allows to set the replication factor independently for each data-center. The rest of the sub-options are key-value pairs where each time the key is the name of a datacenter and the value the replication factor for that data-center.
+* @'OldNetworkTopologyStrategy'@: A legacy replication strategy. You should avoid this strategy for new keyspaces and prefer @'NetworkTopologyStrategy'@.
 
 h3(#useStmt). USE
 
@@ -162,6 +159,22 @@ __Sample:__
 bc(sample). USE myApp;
 
 The @USE@ statement takes an existing keyspace name as argument and set it as the per-connection current working keyspace. All subsequent keyspace-specific actions will be performed in the context of the selected keyspace, unless "otherwise specified":#statements, until another USE statement is issued or the connection terminates.
+
+h3(#alterKeyspaceStmt). ALTER KEYSPACE
+
+__Syntax:__
+
+bc(syntax).. 
+<create-keyspace-stmt> ::= ALTER KEYSPACE <identifier> WITH <properties>
+p. 
+__Sample:__
+
+bc(sample).. 
+ALTER KEYSPACE Excelsior
+          WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 4};
+
+p. 
+The @ALTER KEYSPACE@ statement alter the properties of an existing keyspace. The supported @<properties>@ are the same that for the "@CREATE TABLE@":#createKeyspaceStmt statement.
 
 
 h3(#dropKeyspaceStmt). DROP KEYSPACE
@@ -189,11 +202,9 @@ bc(syntax)..
 <column-definition> ::= <identifier> <type> ( PRIMARY KEY )?
                       | PRIMARY KEY '(' <identifier> ( ',' <identifier> )* ')'
 
-<option> ::= <identifier> ( ':' ( <identifier> | <identifier> ) )? '=' <value>
+<option> ::= <property>
            | COMPACT STORAGE
            | CLUSTERING ORDER
-
-<value> ::= <identifier> | <string> | <number>
 p. 
 __Sample:__
 
@@ -213,7 +224,7 @@ CREATE TABLE timeline (
     body text,
     posted_by text,
     PRIMARY KEY (userid, posted_month, posted_time)
-);
+) WITH compaction_strategy = { 'class' : 'LeveledCompactionStrategy' };
 p. 
 The @CREATE TABLE@ statement creates a new table. Each such table is a set of _rows_ (usually representing related entities) for which it defines a number of properties. A table is defined by a "name":#createTableName, it defines the <a href="#createTableColumn"><it>columns</it></a> composing rows of the table and have a number of "options":#createTableOptions. Note that the @CREATE COLUMNFAMILY@ syntax is supported as an alias for @CREATE TABLE@ (for historical reasons).
 
@@ -259,30 +270,36 @@ The first of these option is @COMPACT STORAGE@. This option is meanly targeted t
 
 Another option is @CLUSTERING ORDER@. It allows to define the ordering of rows on disk. It takes the list of the clustering key names with, for each of them, the on-disk order (Ascending or descending). Note that this option affects "what @ORDER BY@ are allowed during @SELECT@":#selectOrderBy.
 
-Table creation supports the following other options:
+Table creation supports the following other @<property>@:
 
-|_. option                    |_. default                  |_. description|
-|@comment@                    |none                        | A free-form, human-readable comment.|
-|@read_repair_chance@         |0.1                         | The probability with which to query extra nodes (e.g. more nodes than required by the consistency level) for the purpose of read repairs.|
-|@dclocal_read_repair_chance@ |0                           | The probability with which to query extra nodes (e.g. more nodes than required by the consistency level) belonging to the same data center than the read coordinator for the purpose of read repairs.|
-|@gc_grace_seconds@           |864000                      | Time to wait before garbage collecting tombstones (deletion markers).|
-|@bloom_filter_fp_chance@     |0.00075                     | The target probability of false positive of the sstable bloom filters. Said bloom filters will be sized to provide the provided probability (thus lowering this value impact the size of bloom filters in-memory and on-disk)|
-|@compaction_strategy_class@  |SizeTieredCompactionStrategy| The compaction strategy to use. Default value are 'SizeTieredCompactionStrategy' and 'LeveledCompactionStrategy'. Custom strategy can be provided by specifying the full class name as a "string constant":#constants.|
-|@compaction_strategy_options@|none                        | Options for the compaction strategy. If @opt@ is the name of an option to set, it can be set using @compression_strategy_options:opt = <value>@. See below for the default options.|
-|@compression_parameters@     |see below                   | Compression options. If @opt@ is the name of an option to set, it can be set using @compression_parameters:opt = <value>@. See below for the default options.|
-|@replicate_on_write@         |true                        | Whether to replicate data on write. This can only be set to false for tables with counters values. Disabling this is dangerous and can result in random lose of counters, don't disable unless you are sure to know what you are doing|
-|@caching@                    |keys_only                   | Whether to cache keys ("key cache") and/or rows ("row cache") for this table. Valid values are: @all@, @keys_only@, @rows_only@ and @none@. |
+|_. option                    |_. kind   |_. default   |_. description|
+|@comment@                    | _simple_ | none        | A free-form, human-readable comment.|
+|@read_repair_chance@         | _simple_ | 0.1         | The probability with which to query extra nodes (e.g. more nodes than required by the consistency level) for the purpose of read repairs.|
+|@dclocal_read_repair_chance@ | _simple_ | 0           | The probability with which to query extra nodes (e.g. more nodes than required by the consistency level) belonging to the same data center than the read coordinator for the purpose of read repairs.|
+|@gc_grace_seconds@           | _simple_ | 864000      | Time to wait before garbage collecting tombstones (deletion markers).|
+|@bloom_filter_fp_chance@     | _simple_ | 0.00075     | The target probability of false positive of the sstable bloom filters. Said bloom filters will be sized to provide the provided probability (thus lowering this value impact the size of bloom filters in-memory and on-disk)|
+|@compaction@                 | _map_    | _see below_ | The compaction otpions to use, see below.|
+|@compression@                | _map_    | _see below_ | Compression options, see below. |
+|@replicate_on_write@         | _simple_ | true        | Whether to replicate data on write. This can only be set to false for tables with counters values. Disabling this is dangerous and can result in random lose of counters, don't disable unless you are sure to know what you are doing|
+|@caching@                    | _simple_ | keys_only   | Whether to cache keys ("key cache") and/or rows ("row cache") for this table. Valid values are: @all@, @keys_only@, @rows_only@ and @none@. |
 
 
-The following default sub-options are available for @compaction_strategy_options@:
+h4(#compactionOptions). @compaction@ options
 
-|_. option                     |_. supported compaction strategy |_. default |_. description |
-| @min_sstable_size@           | SizeTieredCompactionStrategy    | 50MB      | The size tiered strategy groups SSTables to compact in buckets. A bucket groups SSTables that differs from less than 50% in size.  However, for small sizes, this would result in a bucketing that is too fine grained. @min_sstable_size@ defines a size threshold (in bytes) below which all SSTables belong to one unique bucket|
-| @min_compaction_threshold@   | SizeTieredCompactionStrategy    | 4         | Minimum number of SSTables needed to start a minor compaction.|
-| @max_compaction_threshold@   | SizeTieredCompactionStrategy    | 32        | Maximum number of SSTables processed by one minor compaction.|
-| @sstable_size_in_mb@         | LeveledCompactionStrategy       | 5MB       | The target size (in MB) for sstables in the leveled strategy. Note that while sstable sizes should stay less or equal to @sstable_size_in_mb@, it is possible to exceptionally have a larger sstable as during compaction, data for a given partition key are never split into 2 sstables|
+The @compaction@ property must at least define the @'class'@ sub-option, that defines the compaction strategy class to use. The default supported class are @'SizeTieredCompactionStrategy'@ and @'LeveledCompactionStrategy'@. Custom strategy can be provided by specifying the full class name as a "string constant":#constants. The rest of the sub-options depends on the chosen class. The sub-options supported by the default classes are:
 
-For the @compression_parameters@ options, the following default sub-options are available:
+|_. option                        |_. supported compaction strategy |_. default |_. description |
+| @tombstone_threshold@           | _all_                           | 0.2       | A ratio such that if a sstable has more than this ratio of gcable tombstones over all contained columns, the sstable will be compacted (with no other sstables) for the purpose of purging those tombstones. |
+| @tombstone_compaction_interval@ | _all_                           | 1 day     | The mininum time to wait after an sstable creation time before considering it for "tombstone compaction", where "tombstone compaction" is the compaction triggered if the sstable has more gcable tombstones than @tombstone_threshold@. |
+| @min_sstable_size@              | SizeTieredCompactionStrategy    | 50MB      | The size tiered strategy groups SSTables to compact in buckets. A bucket groups SSTables that differs from less than 50% in size.  However, for small sizes, this would result in a bucketing that is too fine grained. @min_sstable_size@ defines a size threshold (in bytes) below which all SSTables belong to one unique bucket|
+| @min_compaction_threshold@      | SizeTieredCompactionStrategy    | 4         | Minimum number of SSTables needed to start a minor compaction.|
+| @max_compaction_threshold@      | SizeTieredCompactionStrategy    | 32        | Maximum number of SSTables processed by one minor compaction.|
+| @bucket_low@                    | SizeTieredCompactionStrategy    | 0.5       | Size tiered consider sstables to be within the same bucket if their size is within [average_size * @bucket_low@, average_size * @bucket_high@ ] (i.e the default groups sstable whose sizes diverges by at most 50%)|
+| @bucket_high@                   | SizeTieredCompactionStrategy    | 1.5       | Size tiered consider sstables to be within the same bucket if their size is within [average_size * @bucket_low@, average_size * @bucket_high@ ] (i.e the default groups sstable whose sizes diverges by at most 50%).|
+| @sstable_size_in_mb@            | LeveledCompactionStrategy       | 5MB       | The target size (in MB) for sstables in the leveled strategy. Note that while sstable sizes should stay less or equal to @sstable_size_in_mb@, it is possible to exceptionally have a larger sstable as during compaction, data for a given partition key are never split into 2 sstables|
+
+
+For the @compression@ property, the following default sub-options are available:
 
 |_. option              |_. default        |_. description |
 | @sstable_compression@ | SnappyCompressor | The compression algorithm to use. Default compressor are: SnappyCompressor and DeflateCompressor. Use an empty string (@''@) to disable compression. Custom compressor can be provided by specifying the full class name as a "string constant":#constants.|
@@ -306,9 +323,6 @@ bc(syntax)..
                 | ADD   <identifier> <type>
                 | DROP  <identifier>
                 | WITH  <option> ( AND <option> )*
-
-<option> ::= <identifier> ( ':' ( <identifier> | <identifier> ) )? '=' <value>
-<value>  ::= <identifier> | <string> | <number>
 p. 
 __Sample:__
 
@@ -332,7 +346,7 @@ The @<tablename>@ is the table name optionally preceded by the keyspace name.  T
 * @ALTER@: Update the type of a given defined column. Note that the type of the "clustering keys":#createTablepartitionClustering cannot be modified as it induces the on-disk ordering of rows. Columns on which a "secondary index":#createIndexStmt is defined have the same restriction. Other columns are free from those restrictions (no validation of existing data is performed), but it is usually a bad idea to change the type to a non-compatible one, unless no data have been inserted for that column yet, as this could confuse CQL drivers/tools.
 * @ADD@: Adds a new column to the table. The @<identifier>@ for the new column must not conflict with an existing column. Moreover, columns cannot be added to tables defined with the @COMPACT STORAGE@ option.
 * @DROP@: @TODO@ (pending "#3919":https://issues.apache.org/jira/browse/CASSANDRA-3919)
-* @WITH@: Allows to update the options of the table. The "supported options":#createTableOptions (and syntax) are the same as for the @CREATE TABLE@ statement except that @COMPACT STORAGE@ is not supported. Note that setting any @compaction_strategy_options:*@ parameters has the effect of erasing all previous @compaction_strategy_options:*@ parameters, so you will need to re-specify any such parameters which have already been set, if you want to keep them. The same note applies to the set of @compression_parameters:*@ parameters.
+* @WITH@: Allows to update the options of the table. The "supported @<option>@":#createTableOptions (and syntax) are the same as for the @CREATE TABLE@ statement except that @COMPACT STORAGE@ is not supported. Note that setting any @compaction@ sub-options has the effect of erasing all previous @compaction@ options, so you  need to re-specify all the sub-options if you want to keep them. The same note applies to the set of @compression@ sub-options.
 
 
 h3(#dropTableStmt). DROP TABLE
@@ -396,11 +410,13 @@ __Syntax:__
 bc(syntax).. 
 <insertStatement> ::= INSERT INTO <tablename>
                              '(' <identifier> ( ',' <identifier> )* ')'
-                      VALUES '(' <term>       ( ',' <term>       )* ')'
+                      VALUES '(' <term-or-literal> ( ',' <term-or-literal> )* ')'
                       ( USING <option> ( AND <option> )* )?
 
-<option> ::= CONSISTENCY <consistency-level>
-           | TIMESTAMP <integer>
+<term-or-literal> ::= <term>
+                    | <collection-literal>
+
+<option> ::= TIMESTAMP <integer>
            | TTL <integer>
 p. 
 __Sample:__
@@ -408,7 +424,7 @@ __Sample:__
 bc(sample). 
 INSERT INTO NerdMovies (movie, director, main_actor, year)
                 VALUES ('Serenity', 'Joss Whedon', 'Nathan Fillion', 2005)
-USING CONSISTENCY LOCAL_QUORUM AND TTL 86400;
+USING TTL 86400;
 
 The @INSERT@ statement writes one or more columns for a given row in a table. Note that since a row is identified by its @PRIMARY KEY@, the columns that compose it must be specified. Also, since a row only exists when it contains one value for a column not part of the @PRIMARY KEY@, one such value must be specified too.
 
@@ -416,7 +432,7 @@ Note that unlike in SQL, @INSERT@ does not check the prior existence of the row:
 
 All updates for an @INSERT@ are applied atomically and in isolation.
 
-Please refer to the "@UPDATE@":#updateOptions section for information on the @<option>@ available. Also note that @INSERT@ does not support counters, while @UPDATE@ does.
+Please refer to the "@UPDATE@":#updateOptions section for information on the @<option>@ available and to the "collections":#collections section for use of @<collection-literal>@. Also note that @INSERT@ does not support counters, while @UPDATE@ does.
 
 h3(#updateStmt). UPDATE
 
@@ -429,19 +445,20 @@ bc(syntax)..
                   WHERE <where-clause>
 
 <assignment> ::= <identifier> '=' <term>
-               | <identifier> '=' <identifier> ('+' | '-') <int-term>
+               | <identifier> '=' <identifier> ('+' | '-') (<int-term> | <set-literal> | <list-literal>)
+               | <identifier> '=' <identifier> '+' <map-literal>
+               | <identifier> '[' <term> ']' '=' <term>
 
 <where-clause> ::= <identifier> '=' <term>
                  | <identifier> IN '(' <term> ( ',' <term> )* ')'
 
-<option> ::= CONSISTENCY <consistency-level>
-           | TIMESTAMP <integer>
+<option> ::= TIMESTAMP <integer>
            | TTL <integer>
 p. 
 __Sample:__
 
 bc(sample).. 
-UPDATE NerdMovies USING CONSISTENCY ALL AND TTL 400
+UPDATE NerdMovies USING TTL 400
 SET director = 'Joss Whedon',
     main_actor = 'Nathan Fillion',
     year = 2005
@@ -457,10 +474,11 @@ In an @UPDATE@ statement, all updates within the same partition key are applied 
 
 The @c = c + 3@ form of @<assignment>@ is used to increment/decrement counters. The identifier after the '=' sign *must* be the same than the one before the '=' sign (Only increment/decrement is supported on counters, not the assignment of a specific value).
 
+The @id = id + <collection-literal>@ and @id[value1] = value2@ forms of @<assignment>@ are for collections. Please refer to the "relevant section":#collections for more details.
+
 h4(#updateOptions). @<options>@
 
 The @UPDATE@ and @INSERT@ statements allows to specify the following options for the insertion:
-* @CONSISTENCY@: sets the "consistency level":#consistency for the operation. The default consistency level is @ONE@.
 * @TIMESTAMP@: sets the timestamp for the operation. If not specified, the current time of the insertion (in microseconds) is used. This is usually a suitable default.
 * @TTL@: allows to specify an optional Time To Live (in seconds) for the inserted values. If set, the inserted values are automatically removed from the database after the specified time. Note that the TTL concerns the inserted values, not the column themselves. This means that any subsequent update of the column will also reset the TTL (to whatever TTL is specified in that update). By default, values never expire.
 
@@ -470,29 +488,30 @@ h3(#deleteStmt). DELETE
 __Syntax:__
 
 bc(syntax).. 
-<delete-stmt> ::= DELETE ( <identifier> ( ',' <identifier> )* )?
+<delete-stmt> ::= DELETE ( <selection> ( ',' <selection> )* )?
                   FROM <tablename>
-                  ( USING <option> ( AND <option> )* )?
+                  ( USING TIMESTAMP <integer>)?
                   WHERE <where-clause>
+
+<selection> ::= <identifier> ( '[' <term> ']' )?
 
 <where-clause> ::= <identifier> '=' <term>
                  | <identifier> IN '(' <term> ( ',' <term> )* ')'
-
-<option> ::= CONSISTENCY <consistency-level>
-           | TIMESTAMP <integer>
 p. 
 __Sample:__
 
 bc(sample).. 
-DELETE FROM NerdMovies USING CONSISTENCY QUORUM WHERE movie = 'Serenity';
+DELETE FROM NerdMovies USING TIMESTAMP 1240003134 WHERE movie = 'Serenity';
 
 DELETE phone FROM Users WHERE userid IN (C73DE1D3-AF08-40F3-B124-3FF3E5109F22, B70DE1D0-9908-4AE3-BE34-5573E5B09F14);
 p. 
-The @DELETE@ statement deletes columns and rows. If column names are provided directly after the @DELETE@ keyword, only those columns are deleted from the row indicated by the @<where-clause>@.  Otherwise whole rows are removed. The @<where-clause>@ allows to specify the key for the row(s) to delete.
+The @DELETE@ statement deletes columns and rows. If column names are provided directly after the @DELETE@ keyword, only those columns are deleted from the row indicated by the @<where-clause>@ (the @id[value]@ syntax in @<selection>@ is for collection, please refer to the "collection section":#collections for more details).  Otherwise whole rows are removed. The @<where-clause>@ allows to specify the key for the row(s) to delete.
 
-@DELETE@ supports both the @CONSISTENCY@ and @TIMESTAMP@ options with the same semantic that in the "@UPDATE@":#updateStmt statement.
+@DELETE@ supports the @TIMESTAMP@ options with the same semantic that in the "@UPDATE@":#updateStmt statement.
 
 In a @DELETE@ statement, all deletions within the same partition key are applied atomically and in isolation.
+
+
 
 h3(#batchStmt). BATCH
 
@@ -508,13 +527,12 @@ bc(syntax)..
                       | <update-stmt>
                       | <delete-stmt>
 
-<option> ::= CONSISTENCY <consistency-level>
-           | TIMESTAMP <integer>
+<option> ::= TIMESTAMP <integer>
 p. 
 __Sample:__
 
 bc(sample). 
-BEGIN BATCH USING CONSISTENCY QUORUM
+BEGIN BATCH
   INSERT INTO users (userid, password, name) VALUES ('user2', 'ch@ngem3b', 'second user');
   UPDATE users SET password = 'ps22dhds' WHERE userid = 'user3';
   INSERT INTO users (userid, password) VALUES ('user4', 'ch@ngem3c');
@@ -528,9 +546,7 @@ Note however that the @BATCH@ statement only allows @UPDATE@, @INSERT@ and @DELE
 
 h4(#batchOptions). @<option>@
 
-@BATCH@ supports both the @CONSITENCY@ and @TIMESTAMP@ options, with similar semantic to the ones described in the "@UPDATE@":#updateOptions statement. However:
-* the consistency level apply to the operation itself, and thus to the whole batch. As such, the statements _within_ a @BATCH@ *must not* specify a consistency level.
-* the @TIMESTAMP@ option can be use to set the timestamp for all the statements included in the @BATCH@. If used, @TIMESTAMP@ *must not* be used in the statements within the batch.
+@BATCH@ supports both the @TIMESTAMP@ option, with similar semantic to the one described in the "@UPDATE@":#updateOptions statement (the timestamp applies to all the statement inside the batch). However, if used, @TIMESTAMP@ *must not* be used in the statements within the batch.
 
 
 h2(#queries). Queries
@@ -543,7 +559,6 @@ __Syntax:__
 bc(syntax).. 
 <select-stmt> ::= SELECT <select-clause>
                   FROM <tablename>
-                  ( USING CONSISTENCY <consistency-level> )?
                   ( WHERE <where-clause> )?
                   ( ORDER BY <order-by> )?
                   ( LIMIT <integer> )?
@@ -631,9 +646,7 @@ The @ORDER BY@ option allows to select the order of the returned results. It tak
 
 h4(#selectOther). Other options
 
-The "consistency level":#consistency of a query can be set as for data manipulation statements using the @USING CONSISTENCY@ keywords.
-
-The @LIMIT@ option to a @SELECT@ statement limits the number of rows returned by a query. @LIMIT@ defaults to 10,000 when left unset.
+The @LIMIT@ option to a @SELECT@ statement limits the number of rows returned by a query.
 
 
 h2(#types). Data Types
@@ -642,6 +655,7 @@ CQL supports a rich set of native data types for columns defined in a table.  On
 
 bc(syntax).. 
 <type> ::= <native_type>
+         | <collection_type>
          | <string>       // Used for custom types. The fully-qualified name of a JAVA class
 
 <native_type> ::= ascii
@@ -660,6 +674,10 @@ bc(syntax)..
                 | uuid
                 | varchar
                 | varint
+
+<collection_type> ::= list '<' <native_type> '>'
+                    | set  '<' <native_type> '>'
+                    | map  '<' <native_type> ',' <native_type> '>'
 p. Note that the native types are keywords and as such are case-insensitive. They are however not reserved ones.
 
 p. The following table gives additional informations on the native data types:
@@ -718,6 +736,96 @@ The @counter@ type is used to define _counter columns_. A counter column is a co
 The use of the counter type is limited in the following way:
 * It cannot be used for column that is part of the @PRIMARY KEY@ of a table.
 * A table that contains a counter can only contain counters. In other words, either all the columns of a table outside the @PRIMARY KEY@ have the counter type, or none of them have it.
+
+h3(#collections). Working with collections
+
+h4(#map). Maps
+
+A @map@ is a "typed":#types set of key-value pairs, where keys are unique. Furthermore, note that the map are internally sorted by their keys and will thus always be returned in that order. To create a column of type @map@, use the @map@ keyword suffixed with comma-separated key and value types, enclosed in angle brackets.  For example:
+
+bc(sample). 
+CREATE TABLE users (
+    id text PRIMARY KEY,
+    given text,
+    surname text,
+    favs map<text, text>   // A map of text keys, and text values
+)
+
+Writing @map@ data is accomplished with a JSON-inspired syntax. To write a record using @INSERT@, specify the entire map as a JSON-style associative array. _Note: This form will always replace the entire map._
+
+bc(sample). 
+// Inserting (or Updating)
+INSERT INTO users (id, given, surname, favs)
+           VALUES ('jsmith', 'John', 'Smith', { 'fruit' : 'apple', 'band' : 'Beatles' })
+
+Adding or updating key-values of a (potentially) existing map can be accomplished by subscripting the map column in an @UPDATE@ statement.
+
+bc(sample). 
+// Updating (or inserting)
+UPDATE users SET favs['author'] = 'Ed Poe' WHERE id = 'jsmith'
+
+Deleting a map record is done with:
+
+bc(sample). 
+DELETE favs['author'] FROM plays WHERE id = 'jsmith'
+
+h4(#set). Sets
+
+A @set@ is a "typed":#types collection of unique values. Sets are ordered by their values. To create a column of type @set@, use the @set@ keyword suffixed with the value type enclosed in angle brackets.  For example:
+
+bc(sample). 
+CREATE TABLE images (
+    name text PRIMARY KEY,
+    owner text,
+    date timestamp,
+    tags set<text>
+);
+
+Writing a @set@ is accomplished by comma separating the set values, and enclosing them in curly braces.  _Note: An @INSERT@ will always replace the entire set._
+
+bc(sample). 
+INSERT INTO images (name, owner, date, tags)
+            VALUES ('cat.jpg', 'jsmith', 'now', { 'kitten', 'cat', 'pet' });
+
+Adding and removing values of a set can be accomplished with an @UPDATE@ by adding/removing new set values to an existing @set@ column.
+
+bc(sample). 
+UPDATE images SET tags = tags + { 'cute', 'cuddly' } WHERE name = 'cat.jpg';
+UPDATE images SET tags = tags - { 'lame' } WHERE name = 'cat.jpg';
+
+
+h4(#list). Lists
+
+A @list@ is a "typed":#types collection of non-unique values where elements are ordered by there position in the list.  To create a column of type @list@, use the @list@ keyword suffixed with the value type enclosed in angle brackets.  For example:
+
+bc(sample). 
+CREATE TABLE plays (
+    id text PRIMARY KEY,
+    game text,
+    players int,
+    scores list<int>
+)
+
+Do note that as explained below, lists have some limitations and performance considerations to take into account, and it is advised to prefer "sets":#set over lists when this is possible.
+
+Writing @list@ data is accomplished with a JSON-style syntax.  To write a record using @INSERT@, specify the entire list as a JSON array.  _Note: An @INSERT@ will always replace the entire list._
+
+bc(sample). 
+INSERT INTO plays (id, game, players, scores)
+           VALUES ('123-afde', 'quake', 3, [17, 4, 2]);
+
+Adding (appending or prepending) values to a list can be accomplished by adding a new JSON-style array to an existing @list@ column.
+
+bc(sample). 
+UPDATE plays SET players = 5, scores = scores + [ 14, 21 ] WHERE id = '123-afde';
+UPDATE plays SET players = 5, scores = [ 12 ] + scores WHERE id = '123-afde';
+
+Lists also provides the following operation: setting an element by its position in the list, removing an element by its position in the list and remove all the occurrence of a given value in the list. _However, and contrarily to all the other collection operations, these three operations induce an internal read before the update, and will thus typically have slower performance characteristics_. Those operations have the following syntax:
+
+bc(sample). 
+UPDATE plays SET scores[1] = 7 WHERE id = '123-afde';                // sets the 2nd element of scores to 7 (raises an error is scores has less than 2 elements)
+DELETE scores[1] FROM plays WHERE id = '123-afde';                   // deletes the 2nd element of scores (raises an error is scores has less than 2 elements)
+UPDATE plays SET scores = scores - [ 12, 21 ] WHERE id = '123-afde'; // removes all occurences of 12 and 21 from scores
 
 
 h2(#appendixA). Appendix A: CQL Keywords
@@ -807,6 +915,9 @@ Versioning of the CQL language adheres to the "Semantic Versioning":http://semve
 h2. Changes
 
 pre.. 
+Tue, 06 Nov 2012 15:03:12 +0200 - Eric Evans and Sylvain Lebresne
+ * Update for 1.2 changes to CQL 3
+
 Tue, 24 Apr 2012 15:12:36 +0200 - Sylvain Lebresne
  * Rework whole doc to target CQL 3
 

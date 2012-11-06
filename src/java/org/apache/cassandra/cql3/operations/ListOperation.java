@@ -221,7 +221,7 @@ public class ListOperation implements Operation
 
     public boolean requiresRead()
     {
-        return kind == Kind.DISCARD || kind == Kind.DISCARD_IDX || kind == Kind.SET || kind == Kind.SET_IDX;
+        return kind == Kind.DISCARD || kind == Kind.DISCARD_IDX || kind == Kind.SET_IDX;
     }
 
     public Type getType()
