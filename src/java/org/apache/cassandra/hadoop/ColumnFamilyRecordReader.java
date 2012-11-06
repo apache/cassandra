@@ -483,7 +483,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 return endOfData();
 
             Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> next = wideColumns.next();
-            lastColumn = next.right.values().iterator().next().name();
+            lastColumn = next.right.values().iterator().next().name().duplicate();
 
             maybeIncreaseRowCounter(next);
             return next;
@@ -556,7 +556,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         if (this.nextKeyValue())
         {
             key.clear();
-            key.put(this.getCurrentKey());
+            key.put(this.getCurrentKey().duplicate());
             key.flip();
 
             value.clear();
