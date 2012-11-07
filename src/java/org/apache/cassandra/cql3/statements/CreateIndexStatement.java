@@ -53,7 +53,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
     public void checkAccess(ClientState state) throws InvalidRequestException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.ALTER);
+        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.WRITE);
     }
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException

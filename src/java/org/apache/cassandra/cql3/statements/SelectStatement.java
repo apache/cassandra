@@ -115,7 +115,7 @@ public class SelectStatement implements CQLStatement
 
     public void checkAccess(ClientState state) throws InvalidRequestException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.SELECT);
+        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.READ);
     }
 
     public void validate(ClientState state) throws InvalidRequestException

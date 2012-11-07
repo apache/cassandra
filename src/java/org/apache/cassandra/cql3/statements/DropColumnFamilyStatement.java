@@ -36,7 +36,7 @@ public class DropColumnFamilyStatement extends SchemaAlteringStatement
 
     public void checkAccess(ClientState state) throws InvalidRequestException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.DROP);
+        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.WRITE);
     }
 
     public void announceMigration() throws ConfigurationException

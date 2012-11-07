@@ -22,8 +22,6 @@
 package org.apache.cassandra.auth;
 
 import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * An enum encapsulating the set of possible permissions that an authenticated user can have for a resource.
@@ -32,35 +30,9 @@ import java.util.Map;
  */
 public enum Permission
 {
-    READ,  // for backward compatibility
-    WRITE, // for backward compatibility
-
-    FULL_ACCESS,
-    NO_ACCESS,
-
-    // schema management
-    DESCRIBE,
-    CREATE,
-    ALTER,
-    DROP,
-
-    // data access
-    UPDATE,
-    DELETE,
-    SELECT;
+    READ,
+    WRITE;
 
     public static final EnumSet<Permission> ALL = EnumSet.allOf(Permission.class);
     public static final EnumSet<Permission> NONE = EnumSet.noneOf(Permission.class);
-    public static final EnumSet<Permission> GRANULAR_PERMISSIONS = EnumSet.range(FULL_ACCESS, SELECT);
-    public static final EnumSet<Permission> ALLOWED_SYSTEM_ACTIONS = EnumSet.of(DESCRIBE, UPDATE, DELETE, SELECT);
-
-    /**
-     * Maps old permissions to the new ones as we want to support old client IAuthority implementations
-     * and new style of granular permission checking at the same time.
-     */
-    public static final Map<Permission, EnumSet<Permission>> oldToNew = new HashMap<Permission, EnumSet<Permission>>(2)
-    {{
-        put(READ,  EnumSet.of(DESCRIBE, SELECT));
-        put(WRITE, EnumSet.range(DESCRIBE, DELETE));
-    }};
 }

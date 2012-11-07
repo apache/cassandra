@@ -33,7 +33,6 @@ options {
     import java.util.List;
     import java.util.Map;
 
-    import org.apache.cassandra.auth.Permission;
     import org.apache.cassandra.cql3.statements.*;
     import org.apache.cassandra.utils.Pair;
     import org.apache.cassandra.thrift.ConsistencyLevel;
@@ -141,10 +140,7 @@ cqlStatement returns [ParsedStatement stmt]
     | st12=dropColumnFamilyStatement   { $stmt = st12; }
     | st13=dropIndexStatement          { $stmt = st13; }
     | st14=alterTableStatement         { $stmt = st14; }
-    | st15=grantStatement              { $stmt = st15; }
-    | st16=revokeStatement             { $stmt = st16; }
-    | st17=listGrantsStatement         { $stmt = st17; }
-    | st18=alterKeyspaceStatement      { $stmt = st18; }
+    | st15=alterKeyspaceStatement      { $stmt = st15; }
     ;
 
 /*
@@ -450,51 +446,6 @@ truncateStatement returns [TruncateStatement stmt]
     : K_TRUNCATE cf=columnFamilyName { $stmt = new TruncateStatement(cf); }
     ;
 
-/**
- * GRANT <permission> ON <resource> TO <username> [WITH GRANT OPTION]
- */
-grantStatement returns [GrantStatement stmt]
-    @init { boolean withGrant = false; }
-    : K_GRANT
-          permission
-      K_ON
-          resource=columnFamilyName
-      K_TO
-          user=(IDENT | STRING_LITERAL)
-      (K_WITH K_GRANT K_OPTION { withGrant = true; })?
-      {
-        $stmt = new GrantStatement($permission.perm,
-                                   resource,
-                                   $user.text,
-                                   withGrant);
-      }
-    ;
-
-/**
- * REVOKE <permission> ON <resource> FROM <username>
- */
-revokeStatement returns [RevokeStatement stmt]
-    : K_REVOKE
-        permission
-      K_ON
-        resource=columnFamilyName
-      K_FROM
-        user=(IDENT | STRING_LITERAL)
-      {
-        $stmt = new RevokeStatement($permission.perm,
-                                    $user.text,
-                                    resource);
-      }
-    ;
-
-listGrantsStatement returns [ListGrantsStatement stmt]
-    : K_LIST K_GRANTS K_FOR username=(IDENT | STRING_LITERAL) { $stmt = new ListGrantsStatement($username.text); }
-    ;
-
-permission returns [Permission perm]
-    : p=(K_DESCRIBE | K_USE | K_CREATE | K_ALTER | K_DROP | K_SELECT | K_INSERT | K_UPDATE | K_DELETE | K_FULL_ACCESS | K_NO_ACCESS)
-    { $perm = Permission.valueOf($p.text.toUpperCase()); }
-    ;
 /** DEFINITIONS **/
 
 // Column Identifiers
@@ -634,11 +585,10 @@ K_UPDATE:      U P D A T E;
 K_WITH:        W I T H;
 K_LIMIT:       L I M I T;
 K_USING:       U S I N G;
-K_ALL:         A L L;
 K_CONSISTENCY: C O N S I S T E N C Y;
 K_LEVEL:       ( O N E
                | Q U O R U M
-               | K_ALL
+               | A L L
                | A N Y
                | L O C A L '_' Q U O R U M
                | E A C H '_' Q U O R U M
@@ -662,7 +612,6 @@ K_COLUMNFAMILY:( C O L U M N F A M I L Y
                  | T A B L E );
 K_INDEX:       I N D E X;
 K_ON:          O N;
-K_TO:          T O;
 K_DROP:        D R O P;
 K_PRIMARY:     P R I M A R Y;
 K_INTO:        I N T O;
@@ -678,17 +627,6 @@ K_ORDER:       O R D E R;
 K_BY:          B Y;
 K_ASC:         A S C;
 K_DESC:        D E S C;
-K_GRANT:       G R A N T;
-K_GRANTS:      G R A N T S;
-K_REVOKE:      R E V O K E;
-K_OPTION:      O P T I O N;
-K_DESCRIBE:    D E S C R I B E;
-K_FOR:         F O R;
-K_LIST:        L I S T;
-K_FULL_ACCESS: F U L L '_' A C C E S S;
-K_NO_ACCESS:   N O '_' A C C E S S;
-
-
 K_CLUSTERING:  C L U S T E R I N G;
 K_ASCII:       A S C I I;
 K_BIGINT:      B I G I N T;

@@ -62,7 +62,7 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
 
     public void checkAccess(ClientState state) throws InvalidRequestException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.UPDATE);
+        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.WRITE);
     }
 
     public void validate(ClientState state) throws InvalidRequestException

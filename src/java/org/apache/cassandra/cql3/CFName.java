@@ -50,11 +50,6 @@ public class CFName
         return cfName;
     }
 
-    public String toResource()
-    {
-        return "/cassandra/keyspaces/" + (hasKeyspace() ? ksName + "/" + cfName : cfName);
-    }
-
     @Override
     public String toString()
     {

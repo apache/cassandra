@@ -249,7 +249,7 @@ public class QueryProcessor
             // Avoid unnecessary authorizations.
             if (!(cfamsSeen.contains(update.getColumnFamily())))
             {
-                clientState.hasColumnFamilyAccess(keyspace, update.getColumnFamily(), Permission.UPDATE);
+                clientState.hasColumnFamilyAccess(keyspace, update.getColumnFamily(), Permission.WRITE);
                 cfamsSeen.add(update.getColumnFamily());
             }
 
@@ -461,7 +461,7 @@ public class QueryProcessor
                 else
                     keyspace = oldKeyspace;
 
-                clientState.hasColumnFamilyAccess(keyspace, select.getColumnFamily(), Permission.SELECT);
+                clientState.hasColumnFamilyAccess(keyspace, select.getColumnFamily(), Permission.READ);
                 metadata = validateColumnFamily(keyspace, select.getColumnFamily());
 
                 // need to do this in here because we need a CFMD.getKeyName()
@@ -591,7 +591,7 @@ public class QueryProcessor
             case INSERT: // insert uses UpdateStatement
             case UPDATE:
                 UpdateStatement update = (UpdateStatement)statement.statement;
-                clientState.hasColumnFamilyAccess(keyspace, update.getColumnFamily(), Permission.UPDATE);
+                clientState.hasColumnFamilyAccess(keyspace, update.getColumnFamily(), Permission.WRITE);
                 ThriftValidation.validateConsistencyLevel(keyspace, update.getConsistencyLevel(), RequestType.WRITE);
                 batchUpdate(clientState, Collections.singletonList(update), update.getConsistencyLevel(), variables);
                 result.type = CqlResultType.VOID;
@@ -648,7 +648,7 @@ public class QueryProcessor
                 keyspace = columnFamily.left == null ? clientState.getKeyspace() : columnFamily.left;
 
                 validateColumnFamily(keyspace, columnFamily.right);
-                clientState.hasColumnFamilyAccess(keyspace, columnFamily.right, Permission.DELETE);
+                clientState.hasColumnFamilyAccess(keyspace, columnFamily.right, Permission.WRITE);
 
                 try
                 {
@@ -670,7 +670,7 @@ public class QueryProcessor
                 DeleteStatement delete = (DeleteStatement)statement.statement;
 
                 keyspace = delete.keyspace == null ? clientState.getKeyspace() : delete.keyspace;
-                clientState.hasColumnFamilyAccess(keyspace, delete.columnFamily, Permission.DELETE);
+                clientState.hasColumnFamilyAccess(keyspace, delete.columnFamily, Permission.WRITE);
                 List<IMutation> deletions = delete.prepareRowMutations(keyspace, clientState, variables);
                 for (IMutation deletion : deletions)
                 {
@@ -693,7 +693,7 @@ public class QueryProcessor
                 CreateKeyspaceStatement create = (CreateKeyspaceStatement)statement.statement;
                 create.validate();
                 ThriftValidation.validateKeyspaceNotSystem(create.getName());
-                clientState.hasKeyspaceAccess(create.getName(), Permission.CREATE);
+                clientState.hasKeyspaceAccess(create.getName(), Permission.WRITE);
                 validateSchemaAgreement();
 
                 try
@@ -718,7 +718,7 @@ public class QueryProcessor
 
             case CREATE_COLUMNFAMILY:
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
-                clientState.hasColumnFamilySchemaAccess(keyspace, Permission.CREATE);
+                clientState.hasColumnFamilyAccess(keyspace, createCf.getName(), Permission.WRITE);
                 validateSchemaAgreement();
 
                 try
@@ -738,7 +738,7 @@ public class QueryProcessor
 
             case CREATE_INDEX:
                 CreateIndexStatement createIdx = (CreateIndexStatement)statement.statement;
-                clientState.hasColumnFamilyAccess(keyspace, createIdx.getColumnFamily(), Permission.ALTER);
+                clientState.hasColumnFamilyAccess(keyspace, createIdx.getColumnFamily(), Permission.WRITE);
                 validateSchemaAgreement();
                 CFMetaData oldCfm = Schema.instance.getCFMetaData(keyspace, createIdx.getColumnFamily());
                 if (oldCfm == null)
@@ -809,7 +809,7 @@ public class QueryProcessor
             case DROP_KEYSPACE:
                 String deleteKeyspace = (String)statement.statement;
                 ThriftValidation.validateKeyspaceNotSystem(deleteKeyspace);
-                clientState.hasKeyspaceAccess(deleteKeyspace, Permission.DROP);
+                clientState.hasKeyspaceAccess(deleteKeyspace, Permission.WRITE);
                 validateSchemaAgreement();
 
                 try
@@ -829,7 +829,7 @@ public class QueryProcessor
 
             case DROP_COLUMNFAMILY:
                 String deleteColumnFamily = (String)statement.statement;
-                clientState.hasColumnFamilyAccess(keyspace, deleteColumnFamily, Permission.DROP);
+                clientState.hasColumnFamilyAccess(keyspace, deleteColumnFamily, Permission.WRITE);
                 validateSchemaAgreement();
 
                 try
@@ -851,7 +851,7 @@ public class QueryProcessor
                 AlterTableStatement alterTable = (AlterTableStatement) statement.statement;
 
                 validateColumnFamily(keyspace, alterTable.columnFamily);
-                clientState.hasColumnFamilyAccess(alterTable.columnFamily, Permission.ALTER);
+                clientState.hasColumnFamilyAccess(keyspace, alterTable.columnFamily, Permission.WRITE);
                 validateSchemaAgreement();
 
                 try

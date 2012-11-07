@@ -73,7 +73,7 @@ public class DeleteStatement extends AbstractModification
     {
         CFMetaData metadata = validateColumnFamily(keyspace, columnFamily);
 
-        clientState.hasColumnFamilyAccess(columnFamily, Permission.DELETE);
+        clientState.hasColumnFamilyAccess(keyspace, columnFamily, Permission.WRITE);
         AbstractType<?> keyType = Schema.instance.getCFMetaData(keyspace, columnFamily).getKeyValidator();
 
         List<IMutation> rowMutations = new ArrayList<IMutation>(keys.size());
