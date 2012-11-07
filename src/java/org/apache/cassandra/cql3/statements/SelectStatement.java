@@ -202,7 +202,6 @@ public class SelectStatement implements CQLStatement
         Collection<ByteBuffer> keys = getKeys(variables);
         List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
 
-        IDiskAtomFilter filter = makeFilter(variables);
         // ...a range (slice) of column names
         if (isColumnRange())
         {
@@ -212,12 +211,17 @@ public class SelectStatement implements CQLStatement
             for (ByteBuffer key : keys)
             {
                 QueryProcessor.validateKey(key);
-                commands.add(new SliceFromReadCommand(keyspace(), key, queryPath, (SliceQueryFilter)filter));
+                // Note that we should not share the slice filter amongst the command, due to SliceQueryFilter not
+                // being immutable due to its columnCounter used by the lastCounted() method
+                // (this is fairly ugly and we should change that but that's probably not a tiny refactor to do that cleanly)
+                commands.add(new SliceFromReadCommand(keyspace(), key, queryPath, (SliceQueryFilter)makeFilter(variables)));
             }
         }
         // ...of a list of column names
         else
         {
+            // ByNames commands can share the filter
+            IDiskAtomFilter filter = makeFilter(variables);
             for (ByteBuffer key: keys)
             {
                 QueryProcessor.validateKey(key);

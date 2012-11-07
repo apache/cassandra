@@ -1,3 +1,6 @@
+1.2-rc1
+ * Don't share slice query filter in CQL3 SelectStatement (CASSANDRA-4928)
+
 1.2-beta2
  * fp rate of 1.0 disables BF entirely; LCS defaults to 1.0 (CASSANDRA-4876)
  * off-heap bloom filters for row keys (CASSANDRA_4865)
