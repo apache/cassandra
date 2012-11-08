@@ -293,11 +293,22 @@ public abstract class Message
         }
 
         @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
+        public void exceptionCaught(final ChannelHandlerContext ctx, ExceptionEvent e)
         throws Exception
         {
             if (ctx.getChannel().isOpen())
-                ctx.getChannel().write(ErrorMessage.fromException(e.getCause()));
+            {
+                ChannelFuture future = ctx.getChannel().write(ErrorMessage.fromException(e.getCause()));
+                // On protocol exception, close the channel as soon as the message have been sent
+                if (e.getCause() instanceof ProtocolException)
+                {
+                    future.addListener(new ChannelFutureListener() {
+                        public void operationComplete(ChannelFuture future) {
+                            ctx.getChannel().close();
+                        }
+                    });
+                }
+            }
         }
     }
 }

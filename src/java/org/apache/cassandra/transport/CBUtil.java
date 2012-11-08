@@ -145,6 +145,24 @@ public abstract class CBUtil
         return ConsistencyLevel.fromCode(cb.readUnsignedShort());
     }
 
+    public static <T extends Enum<T>> T readEnumValue(Class<T> enumType, ChannelBuffer cb)
+    {
+        String value = CBUtil.readString(cb);
+        try
+        {
+            return Enum.valueOf(enumType, value.toUpperCase());
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new ProtocolException(String.format("Invalid value '%s' for %s", value, enumType.getSimpleName()));
+        }
+    }
+
+    public static <T extends Enum<T>> ChannelBuffer enumValueToCB(T enumValue)
+    {
+        return stringToCB(enumValue.toString());
+    }
+
     public static ChannelBuffer uuidToCB(UUID uuid)
     {
         return ChannelBuffers.wrappedBuffer(UUIDGen.decompose(uuid));
@@ -166,7 +184,7 @@ public abstract class CBUtil
     public static List<String> readStringList(ChannelBuffer cb)
     {
         int length = cb.readUnsignedShort();
-        List<String> l = new ArrayList<String>();
+        List<String> l = new ArrayList<String>(length);
         for (int i = 0; i < length; i++)
             l.add(readString(cb));
         return l;

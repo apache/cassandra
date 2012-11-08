@@ -68,41 +68,42 @@ public class StartupMessage extends Message.Request
 
     public Message.Response execute(QueryState state)
     {
-        try
+        ClientState cState = state.getClientState();
+        String cqlVersion = options.get(CQL_VERSION);
+        if (cqlVersion == null)
+            throw new ProtocolException("Missing value CQL_VERSION in STARTUP message");
+
+        try 
         {
-            ClientState cState = state.getClientState();
-            String cqlVersion = options.get(CQL_VERSION);
-            if (cqlVersion == null)
-                throw new ProtocolException("Missing value CQL_VERSION in STARTUP message");
-
             cState.setCQLVersion(cqlVersion);
-            if (cState.getCQLVersion().compareTo(new SemanticVersion("2.99.0")) < 0)
-                throw new ProtocolException(String.format("CQL version %s is not support by the binary protocol (supported version are >= 3.0.0)", cqlVersion));
-
-            if (options.containsKey(COMPRESSION))
-            {
-                String compression = options.get(COMPRESSION).toLowerCase();
-                if (compression.equals("snappy"))
-                {
-                    if (FrameCompressor.SnappyCompressor.instance == null)
-                        throw new ProtocolException("This instance does not support Snappy compression");
-                    connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
-                }
-                else
-                {
-                    throw new ProtocolException(String.format("Unknown compression algorithm: %s", compression));
-                }
-            }
-
-            if (cState.isLogged())
-                return new ReadyMessage();
-            else
-                return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());
         }
         catch (InvalidRequestException e)
         {
-            return ErrorMessage.fromException(new ProtocolException(e.getMessage()));
+            throw new ProtocolException(e.getMessage());
         }
+
+        if (cState.getCQLVersion().compareTo(new SemanticVersion("2.99.0")) < 0)
+            throw new ProtocolException(String.format("CQL version %s is not supported by the binary protocol (supported version are >= 3.0.0)", cqlVersion));
+
+        if (options.containsKey(COMPRESSION))
+        {
+            String compression = options.get(COMPRESSION).toLowerCase();
+            if (compression.equals("snappy"))
+            {
+                if (FrameCompressor.SnappyCompressor.instance == null)
+                    throw new ProtocolException("This instance does not support Snappy compression");
+                connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
+            }
+            else
+            {
+                throw new ProtocolException(String.format("Unknown compression algorithm: %s", compression));
+            }
+        }
+
+        if (cState.isLogged())
+            return new ReadyMessage();
+        else
+            return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());
     }
 
     @Override

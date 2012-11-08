@@ -76,7 +76,7 @@ public class ErrorMessage extends Message.Response
                     break;
                 case WRITE_TIMEOUT:
                 case READ_TIMEOUT:
-                    ConsistencyLevel cl = Enum.valueOf(ConsistencyLevel.class, CBUtil.readString(body));
+                    ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
                     int received = body.readInt();
                     int blockFor = body.readInt();
                     if (code == ExceptionCode.WRITE_TIMEOUT)
@@ -141,15 +141,14 @@ public class ErrorMessage extends Message.Response
                     RequestTimeoutException rte = (RequestTimeoutException)msg.error;
                     boolean isWrite = msg.error.code() == ExceptionCode.WRITE_TIMEOUT;
 
-                    ByteBuffer rteCl = ByteBufferUtil.bytes(rte.consistency.toString());
+                    ChannelBuffer rteCl = CBUtil.consistencyLevelToCB(rte.consistency);
                     ByteBuffer writeType = isWrite
                                          ? ByteBufferUtil.bytes(((WriteTimeoutException)rte).writeType.toString())
                                          : null;
 
                     int extraSize = isWrite  ? 2 + writeType.remaining() : 1;
-                    acb = ChannelBuffers.buffer(2 + rteCl.remaining() + 8 + extraSize);
+                    acb = ChannelBuffers.buffer(rteCl.writableBytes() + 8 + extraSize);
 
-                    acb.writeShort((short)rteCl.remaining());
                     acb.writeBytes(rteCl);
                     acb.writeInt(rte.received);
                     acb.writeInt(rte.blockFor);
