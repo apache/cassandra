@@ -1586,6 +1586,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return directories.snapshotExists(snapshotName);
     }
 
+    public long getSnapshotCreationTime(String snapshotName)
+    {
+        return directories.snapshotCreationTime(snapshotName);
+    }
+
     public void clearSnapshot(String snapshotName)
     {
         directories.clearSnapshot(snapshotName);

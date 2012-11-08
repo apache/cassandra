@@ -714,10 +714,17 @@ public class CompactionManager implements CompactionManagerMBean
             return;
 
         Collection<SSTableReader> sstables;
-        if (cfs.table.snapshotExists(validator.request.sessionid))
+        int gcBefore;
+        if (cfs.snapshotExists(validator.request.sessionid))
         {
             // If there is a snapshot created for the session then read from there.
             sstables = cfs.getSnapshotSSTableReader(validator.request.sessionid);
+
+            // Computing gcbefore based on the current time wouldn't be very good because we know each replica will execute
+            // this at a different time (that's the whole purpose of repair with snaphsot). So instead we take the creation
+            // time of the snapshot, which should give us roughtly the same time on each replica (roughtly being in that case
+            // 'as good as in the non-snapshot' case)
+            gcBefore = (int)(cfs.getSnapshotCreationTime(validator.request.sessionid) / 1000) - cfs.metadata.getGcGraceSeconds();
         }
         else
         {
@@ -738,9 +745,10 @@ public class CompactionManager implements CompactionManagerMBean
             // we don't mark validating sstables as compacting in DataTracker, so we have to mark them referenced
             // instead so they won't be cleaned up if they do get compacted during the validation
             sstables = cfs.markCurrentSSTablesReferenced();
+            gcBefore = getDefaultGcBefore(cfs);
         }
 
-        CompactionIterable ci = new ValidationCompactionIterable(cfs, sstables, validator.request.range);
+        CompactionIterable ci = new ValidationCompactionIterable(cfs, sstables, validator.request.range, gcBefore);
         CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
         metrics.beginCompaction(ci);
         try
@@ -874,31 +882,42 @@ public class CompactionManager implements CompactionManagerMBean
 
     private static class ValidationCompactionIterable extends CompactionIterable
     {
-        public ValidationCompactionIterable(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Range<Token> range)
+        public ValidationCompactionIterable(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Range<Token> range, int gcBefore)
         {
             super(OperationType.VALIDATION,
                   cfs.getCompactionStrategy().getScanners(sstables, range),
-                  new ValidationCompactionController(cfs, sstables));
+                  new ValidationCompactionController(cfs, gcBefore));
         }
     }
 
     /*
-     * Controller for validation compaction that never purges.
+     * Controller for validation compaction that always purges.
      * Note that we should not call cfs.getOverlappingSSTables on the provided
      * sstables because those sstables are not guaranteed to be active sstables
      * (since we can run repair on a snapshot).
      */
     private static class ValidationCompactionController extends CompactionController
     {
-        public ValidationCompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
+        public ValidationCompactionController(ColumnFamilyStore cfs, int gcBefore)
         {
-            super(cfs, NO_GC, null);
+            super(cfs, gcBefore, null);
         }
 
         @Override
         public boolean shouldPurge(DecoratedKey key)
         {
-            return false;
+            /*
+             * The main reason we always purge is that including gcable tombstone would mean that the
+             * repair digest will depends on the scheduling of compaction on the different nodes. This
+             * is still not perfect because gcbefore is currently dependend on the current time at which
+             * the validation compaction start, which while not too bad for normal repair is broken for
+             * repair on snapshots. A better solution would be to agree on a gcbefore that all node would
+             * use, and we'll do that with CASSANDRA-4932.
+             * Note validation compaction includes all sstables, so we don't have the problem of purging
+             * a tombstone that could shadow a column in another sstable, but this is doubly not a concern
+             * since validation compaction is read-only.
+             */
+            return true;
         }
     }
 

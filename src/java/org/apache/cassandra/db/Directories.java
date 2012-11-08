@@ -437,6 +437,18 @@ public class Directories
         }
     }
 
+    // The snapshot must exist
+    public long snapshotCreationTime(String snapshotName)
+    {
+        for (File dir : sstableDirectories)
+        {
+            File snapshotDir = new File(dir, join(SNAPSHOT_SUBDIR, snapshotName));
+            if (snapshotDir.exists())
+                return snapshotDir.lastModified();
+        }
+        throw new RuntimeException("Snapshot " + snapshotName + " doesn't exist");
+    }
+
     private static File getOrCreate(File base, String... subdirs)
     {
         File dir = subdirs == null || subdirs.length == 0 ? base : new File(base, join(subdirs));
