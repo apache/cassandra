@@ -133,7 +133,7 @@ public class ConfigHelper
     }
 
     /**
-     * Set the column family for the input of this job.
+     * Set the column family for the output of this job.
      *
      * @param conf         Job configuration you are about to run
      * @param columnFamily
@@ -144,7 +144,7 @@ public class ConfigHelper
     }
 
     /**
-     * Set the column family for the input of this job.
+     * Set the column family for the output of this job.
      *
      * @param conf         Job configuration you are about to run
      * @param keyspace
