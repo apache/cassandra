@@ -355,6 +355,16 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         return "(" + left + "," + right + "]";
     }
 
+    protected String getOpeningString()
+    {
+        return "(";
+    }
+
+    protected String getClosingString()
+    {
+        return "]";
+    }
+
     public List<String> asList()
     {
         ArrayList<String> ret = new ArrayList<String>(2);

@@ -73,7 +73,17 @@ public class IncludingExcludingBounds<T extends RingPosition> extends AbstractBo
     @Override
     public String toString()
     {
-        return "(" + left + "," + right + ")";
+        return "[" + left + "," + right + ")";
+    }
+
+    protected String getOpeningString()
+    {
+        return "[";
+    }
+
+    protected String getClosingString()
+    {
+        return ")";
     }
 
     /**

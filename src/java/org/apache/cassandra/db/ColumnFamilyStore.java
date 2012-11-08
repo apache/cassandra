@@ -1387,7 +1387,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         QueryFilter filter = new QueryFilter(null, new QueryPath(columnFamily, superColumn, null), columnFilter);
 
         final ViewFragment view = markReferenced(startWith, stopAt);
-        Tracing.trace("Executing seq scan across {} sstables for {}..{}", new Object[]{view.sstables.size(), startWith, stopAt});
+        Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), range.getString(metadata.getKeyValidator()));
 
         try
         {
@@ -1453,7 +1453,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean maxIsColumns)
     {
-        Tracing.trace("Executing indexed scan for {}..{}", range.left, range.right);
+        Tracing.trace("Executing indexed scan for {}", range.getString(metadata.getKeyValidator()));
         return indexManager.search(clause, range, maxResults, dataFilter, maxIsColumns);
     }
 

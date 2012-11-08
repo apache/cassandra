@@ -77,6 +77,16 @@ public class ExcludingBounds<T extends RingPosition> extends AbstractBounds<T>
         return "(" + left + "," + right + ")";
     }
 
+    protected String getOpeningString()
+    {
+        return "(";
+    }
+
+    protected String getClosingString()
+    {
+        return ")";
+    }
+
     /**
      * Compute a bounds of keys corresponding to a given bounds of token.
      */
