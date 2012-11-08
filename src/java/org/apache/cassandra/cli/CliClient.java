@@ -2924,11 +2924,9 @@ public class CliClient
     private boolean isCounterCF(CfDef cfdef)
     {
         String defaultValidator = cfdef.default_validation_class;
-        if (defaultValidator != null && !defaultValidator.isEmpty())
-        {
-            return (getFormatType(defaultValidator) instanceof CounterColumnType);
-        }
-        return false;
+        return defaultValidator != null
+               && !defaultValidator.isEmpty()
+               && getFormatType(defaultValidator) instanceof CounterColumnType;
     }
 
     /**

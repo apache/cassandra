@@ -99,7 +99,7 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
             int last = composite.types.size() - 1;
             AbstractType<?> lastType = composite.types.get(last);
             if (lastType instanceof ColumnToCollectionType
-             || (cfm.getColumnAliases().size() == last && lastType instanceof UTF8Type))
+                || (cfm.getColumnAliases().size() == last && lastType instanceof UTF8Type))
             {
                 // "sparse" composite
                 this.isCompact = false;
