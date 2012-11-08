@@ -34,16 +34,11 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.ColumnToCollectionType;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.ReversedType;
-import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
@@ -279,7 +274,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                         throw new InvalidRequestException(String.format("COMPACT STORAGE with non-composite PRIMARY KEY require one column not part of the PRIMARY KEY (got: %s)", StringUtils.join(stmt.columns.keySet(), ", ")));
 
                     // The only value we'll insert will be the empty one, so the default validator don't matter
-                    stmt.defaultValidator = CFDefinition.definitionType;
+                    stmt.defaultValidator = BytesType.instance;
                     // We need to distinguish between
                     //   * I'm upgrading from thrift so the valueAlias is null
                     //   * I've define my table with only a PK (and the column value will be empty)
@@ -303,7 +298,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                 // the actual validator don't matter much (except that we want to recognize counter CF as limitation apply to them).
                 stmt.defaultValidator = !stmt.columns.isEmpty() && (stmt.columns.values().iterator().next() instanceof CounterColumnType)
                     ? CounterColumnType.instance
-                    : CFDefinition.definitionType;
+                    : BytesType.instance;
             }
 
 
