@@ -218,7 +218,7 @@ public class CliMain
 
             sessionState.err.println(errorTemplate + message);
 
-            if (!(e instanceof RuntimeException))
+            if (sessionState.debug || !(e instanceof RuntimeException))
                 e.printStackTrace(sessionState.err);
 
             if (sessionState.batch || sessionState.inFileMode())
