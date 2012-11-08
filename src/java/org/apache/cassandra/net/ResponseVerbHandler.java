@@ -20,6 +20,8 @@ package org.apache.cassandra.net;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.tracing.Tracing;
+
 public class ResponseVerbHandler implements IVerbHandler
 {
     private static final Logger logger = LoggerFactory.getLogger( ResponseVerbHandler.class );
@@ -30,7 +32,9 @@ public class ResponseVerbHandler implements IVerbHandler
         CallbackInfo callbackInfo = MessagingService.instance().removeRegisteredCallback(id);
         if (callbackInfo == null)
         {
-            logger.debug("Callback already removed for {}", id);
+            String msg = "Callback already removed for {} (from {})";
+            logger.debug(msg, id, message.from);
+            Tracing.trace(msg, id, message.from);
             return;
         }
 
@@ -39,12 +43,12 @@ public class ResponseVerbHandler implements IVerbHandler
 
         if (cb instanceof IAsyncCallback)
         {
-            logger.debug("Processing response from {}", message.from);
+            Tracing.trace("Processing response from {}", message.from);
             ((IAsyncCallback) cb).response(message);
         }
         else
         {
-            logger.debug("Processing result from {}", message.from);
+            Tracing.trace("Processing result from {}", message.from);
             ((IAsyncResult) cb).result(message);
         }
     }

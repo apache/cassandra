@@ -71,6 +71,7 @@ import org.apache.cassandra.metrics.ColumnFamilyMetrics;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 
 import static org.apache.cassandra.config.CFMetaData.Caching;
@@ -1159,14 +1160,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (cached instanceof RowCacheSentinel)
             {
                 // Some other read is trying to cache the value, just do a normal non-caching read
-                logger.debug("Row cache miss (race)");
+                Tracing.trace("Row cache miss (race)");
                 return getTopLevelColumns(filter, Integer.MIN_VALUE, false);
             }
-            logger.debug("Row cache hit");
+            Tracing.trace("Row cache hit");
             return (ColumnFamily) cached;
         }
 
-        logger.debug("Row cache miss");
+        Tracing.trace("Row cache miss");
         RowCacheSentinel sentinel = new RowCacheSentinel();
         boolean sentinelSuccess = CacheService.instance.rowCache.putIfAbsent(key, sentinel);
 
@@ -1354,7 +1355,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore, boolean forCache)
     {
-        logger.debug("Executing single-partition query on {}", columnFamily);
+        Tracing.trace("Executing single-partition query on {}", columnFamily);
         CollationController controller = new CollationController(this, forCache, filter, gcBefore);
         ColumnFamily columns = controller.getTopLevelColumns();
         metric.updateSSTableIterated(controller.getSstablesIterated());
@@ -1386,9 +1387,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         QueryFilter filter = new QueryFilter(null, new QueryPath(columnFamily, superColumn, null), columnFilter);
 
         final ViewFragment view = markReferenced(startWith, stopAt);
-        if (logger.isDebugEnabled())
-            logger.debug(String.format("Executing seq scan across %s sstables for %s..%s",
-                                       view.sstables.size(), startWith, stopAt));
+        Tracing.trace("Executing seq scan across {} sstables for {}..{}", new Object[]{view.sstables.size(), startWith, stopAt});
 
         try
         {
@@ -1454,7 +1453,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean maxIsColumns)
     {
-        logger.debug("Executing indexed scan for {}..{}", range.left, range.right);
+        Tracing.trace("Executing indexed scan for {}..{}", range.left, range.right);
         return indexManager.search(clause, range, maxResults, dataFilter, maxIsColumns);
     }
 
@@ -1464,12 +1463,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         List<Row> rows = new ArrayList<Row>();
         int columnsCount = 0;
         int total = 0, matched = 0;
-
-        // disable tracing for the actual scan; otherwise it will log a full trace for each row fetched
-        // -- since index only contains the key, we have to do a "join" on the main table to get the actual data.
-        // this could be useful but it obscures the most important information which is the scanned:matched ratio.
-        TraceState state = Tracing.instance().get();
-        Tracing.instance().set(null);
 
         try
         {
@@ -1515,9 +1508,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             try
             {
                 rowIterator.close();
-                // re-enable tracing
-                Tracing.instance().set(state);
-                logger.debug("Scanned {} rows and matched {}", total, matched);
+                Tracing.trace("Scanned {} rows and matched {}", total, matched);
             }
             catch (IOException e)
             {

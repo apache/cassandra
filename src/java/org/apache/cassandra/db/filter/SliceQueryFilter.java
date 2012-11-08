@@ -36,6 +36,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tracing.Tracing;
 
 public class SliceQueryFilter implements IDiskAtomFilter
 {
@@ -160,7 +161,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
                 container.addColumn(column);
         }
 
-        logger.debug("Read {} live cells and {} tombstoned", columnCounter.live(), columnCounter.ignored());
+        Tracing.trace("Read {} live cells and {} tombstoned", columnCounter.live(), columnCounter.ignored());
     }
 
     public int getLiveCount(ColumnFamily cf)

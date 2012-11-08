@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -172,9 +173,9 @@ public class OutboundTcpConnection extends Thread
             if (sessionBytes != null)
             {
                 UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
-                Tracing.instance().continueExistingSession(sessionId);
-                logger.debug("Sending message to {}", poolReference.endPoint());
-                Tracing.instance().maybeStopNonlocalSession(sessionId);
+                TraceState state = Tracing.instance().get(sessionId);
+                state.trace("Sending message to {}", poolReference.endPoint());
+                Tracing.instance().stopIfNonLocal(state);
             }
 
             write(qm.message, qm.id, qm.timestamp, out, targetVersion);

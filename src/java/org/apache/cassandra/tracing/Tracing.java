@@ -1,5 +1,4 @@
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -151,16 +150,8 @@ public class Tracing
         return sessionId;
     }
 
-    /**
-     * Removes the state data but does not log it as complete.
-     * For use by replica nodes, after replying to the master.
-     *
-     * Note: checking that the session exists is the job of the caller.
-     */
-    public void maybeStopNonlocalSession(UUID sessionId)
+    public void stopIfNonLocal(TraceState state)
     {
-        TraceState state = sessions.get(sessionId);
-        assert state != null;
         if (!state.isLocallyOwned)
             sessions.remove(state.sessionId);
     }
@@ -201,6 +192,11 @@ public class Tracing
     public TraceState get()
     {
         return state.get();
+    }
+
+    public TraceState get(UUID sessionId)
+    {
+        return sessions.get(sessionId);
     }
 
     public void set(final TraceState tls)
@@ -260,11 +256,51 @@ public class Tracing
         state.set(ts);
     }
 
-    /**
-     * Activate @param sessionId representing a session we've already seen
-     */
-    public void continueExistingSession(UUID sessionId)
+    public static void trace(String message)
     {
-        state.set(sessions.get(sessionId));
+        if (Tracing.instance() == null) // instance might not be built at the time this is called
+            return;
+
+        final TraceState state = Tracing.instance().get();
+        if (state == null) // inline isTracing to avoid implicit two calls to state.get()
+            return;
+
+        state.trace(message);
+    }
+
+    public static void trace(String format, Object arg)
+    {
+        if (Tracing.instance() == null) // instance might not be built at the time this is called
+            return;
+
+        final TraceState state = Tracing.instance().get();
+        if (state == null) // inline isTracing to avoid implicit two calls to state.get()
+            return;
+
+        state.trace(format, arg);
+    }
+
+    public static void trace(String format, Object arg1, Object arg2)
+    {
+        if (Tracing.instance() == null) // instance might not be built at the time this is called
+            return;
+
+        final TraceState state = Tracing.instance().get();
+        if (state == null) // inline isTracing to avoid implicit two calls to state.get()
+            return;
+
+        state.trace(format, arg1, arg2);
+    }
+
+    public static void trace(String format, Object[] args)
+    {
+        if (Tracing.instance() == null) // instance might not be built at the time this is called
+            return;
+
+        final TraceState state = Tracing.instance().get();
+        if (state == null) // inline isTracing to avoid implicit two calls to state.get()
+            return;
+
+        state.trace(format, args);
     }
 }

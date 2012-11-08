@@ -24,6 +24,7 @@ import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tracing.Tracing;
 
 public class TruncateVerbHandler implements IVerbHandler<Truncation>
 {
@@ -32,7 +33,7 @@ public class TruncateVerbHandler implements IVerbHandler<Truncation>
     public void doVerb(MessageIn<Truncation> message, String id)
     {
         Truncation t = message.payload;
-        logger.debug("Applying {}", t);
+        Tracing.trace("Applying truncation of {}.{}", t.keyspace, t.columnFamily);
         try
         {
             ColumnFamilyStore cfs = Table.open(t.keyspace).getColumnFamilyStore(t.columnFamily);
@@ -46,10 +47,10 @@ public class TruncateVerbHandler implements IVerbHandler<Truncation>
             if (FSError.findNested(e) != null)
                 throw FSError.findNested(e);
         }
-        logger.debug("Truncate operation succeeded at this host");
+        Tracing.trace("Enqueuing response to truncate operation to {}", message.from);
 
         TruncateResponse response = new TruncateResponse(t.keyspace, t.columnFamily, true);
-        logger.debug("{} applied.  Enqueuing response to {}@{} ", new Object[]{ t, id, message.from });
+        logger.trace("{} applied.  Enqueuing response to {}@{} ", new Object[]{ t, id, message.from });
         MessagingService.instance().sendReply(response.createMessage(), id, message.from);
     }
 

@@ -34,6 +34,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.SemanticVersion;
@@ -126,8 +127,11 @@ public class QueryProcessor
     throws RequestExecutionException, RequestValidationException
     {
         ClientState clientState = queryState.getClientState();
+        Tracing.trace("Checking access");
         statement.checkAccess(clientState);
+        Tracing.trace("Validating statement");
         statement.validate(clientState);
+        Tracing.trace("Executing statement");
         ResultMessage result = statement.execute(cl, queryState, variables);
         return result == null ? new ResultMessage.Void() : result;
     }
@@ -236,12 +240,14 @@ public class QueryProcessor
     private static ParsedStatement.Prepared getStatement(String queryStr, ClientState clientState)
     throws RequestValidationException
     {
+        Tracing.trace("Parsing statement");
         ParsedStatement statement = parseStatement(queryStr);
 
         // Set keyspace for statement that require login
         if (statement instanceof CFStatement)
             ((CFStatement)statement).prepareKeyspace(clientState);
 
+        Tracing.trace("Peparing statement");
         return statement.prepare();
     }
 

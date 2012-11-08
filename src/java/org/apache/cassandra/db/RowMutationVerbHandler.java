@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.tracing.Tracing;
 
 public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
 {
@@ -54,7 +55,7 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
 
             rm.apply();
             WriteResponse response = new WriteResponse();
-            logger.debug("Enqueuing response to {}", replyTo);
+            Tracing.trace("Enqueuing response to {}", replyTo);
             MessagingService.instance().sendReply(response.createMessage(), id, replyTo);
         }
         catch (IOException e)

@@ -56,6 +56,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -170,7 +171,7 @@ public class StorageProxy implements StorageProxyMBean
     public static void mutate(Collection<? extends IMutation> mutations, ConsistencyLevel consistency_level)
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
-        logger.debug("Determining replicas for mutation");
+        Tracing.trace("Determining replicas for mutation");
         logger.trace("Mutations/ConsistencyLevel are {}/{}", mutations, consistency_level);
         final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
 
@@ -212,17 +213,20 @@ public class StorageProxy implements StorageProxyMBean
                     mstrings.add(mutation.toString(true));
                 logger.debug("Write timeout {} for one (or more) of: {}", ex.toString(), mstrings);
             }
+            Tracing.trace("Write timeout");
             throw ex;
         }
         catch (UnavailableException e)
         {
             writeMetrics.unavailables.mark();
             ClientRequestMetrics.writeUnavailables.inc();
+            Tracing.trace("Unavailable");
             throw e;
         }
         catch (OverloadedException e)
         {
             ClientRequestMetrics.writeUnavailables.inc();
+            Tracing.trace("Overloaded");
             throw e;
         }
         catch (IOException e)
@@ -248,7 +252,7 @@ public class StorageProxy implements StorageProxyMBean
     public static void mutateAtomically(Collection<RowMutation> mutations, ConsistencyLevel consistency_level)
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
-        logger.debug("Determining replicas for atomic batch");
+        Tracing.trace("Determining replicas for atomic batch");
         long startTime = System.nanoTime();
         logger.trace("Mutations/ConsistencyLevel are {}/{}", mutations, consistency_level);
 
@@ -281,12 +285,14 @@ public class StorageProxy implements StorageProxyMBean
         {
             writeMetrics.unavailables.mark();
             ClientRequestMetrics.writeUnavailables.inc();
+            Tracing.trace("Unavailable");
             throw e;
         }
         catch (WriteTimeoutException e)
         {
             writeMetrics.timeouts.mark();
             ClientRequestMetrics.writeTimeouts.inc();
+            Tracing.trace("Write timeout");
             throw e;
         }
         finally
@@ -1078,7 +1084,7 @@ public class StorageProxy implements StorageProxyMBean
     public static List<Row> getRangeSlice(RangeSliceCommand command, ConsistencyLevel consistency_level)
     throws IOException, UnavailableException, ReadTimeoutException
     {
-        logger.debug("Determining replicas to query");
+        Tracing.trace("Determining replicas to query");
         logger.trace("Command/ConsistencyLevel is {}/{}", command.toString(), consistency_level);
         long startTime = System.nanoTime();
         List<Row> rows;

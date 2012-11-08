@@ -180,10 +180,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
     protected void beforeExecute(Thread t, Runnable r)
     {
         if (r instanceof TraceSessionWrapper)
-        {
-            logger.debug("executing {}", r);
             ((TraceSessionWrapper) r).setupContext();
-        }
 
         super.beforeExecute(t, r);
     }

@@ -27,6 +27,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.ThriftValidation;
+import org.apache.cassandra.tracing.Tracing;
 
 @Deprecated // 1.1 implements index scan with RangeSliceVerb instead
 public class IndexScanVerbHandler implements IVerbHandler<IndexScanCommand>
@@ -44,7 +45,7 @@ public class IndexScanVerbHandler implements IVerbHandler<IndexScanCommand>
                                         command.index_clause.count,
                                         ThriftValidation.asIFilter(command.predicate, cfs.getComparator()));
             RangeSliceReply reply = new RangeSliceReply(rows);
-            logger.debug("Enqueuing response to {}", message.from);
+            Tracing.trace("Enqueuing response to {}", message.from);
             MessagingService.instance().sendReply(reply.createMessage(), id, message.from);
         }
         catch (Exception ex)

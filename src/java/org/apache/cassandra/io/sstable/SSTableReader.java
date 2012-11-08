@@ -48,6 +48,7 @@ import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 
 import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
@@ -745,7 +746,7 @@ public class SSTableReader extends SSTable
             if (cachedPosition != null)
             {
                 logger.trace("Cache hit for {} -> {}", cacheKey, cachedPosition);
-                logger.debug("Key cache hit for sstable {}", descriptor.generation);
+                Tracing.trace("Key cache hit for sstable {}", descriptor.generation);
                 return cachedPosition;
             }
         }
@@ -764,7 +765,7 @@ public class SSTableReader extends SSTable
             }
             else
             {
-                logger.debug("Index sample allows skipping sstable {}", descriptor.generation);
+                Tracing.trace("Index sample allows skipping sstable {}", descriptor.generation);
                 return null;
             }
         }
@@ -805,7 +806,7 @@ public class SSTableReader extends SSTable
                         exactMatch = (comparison == 0);
                         if (v < 0)
                         {
-                            logger.debug("Partition index lookup allows skipping sstable {}", descriptor.generation);
+                            Tracing.trace("Partition index lookup allows skipping sstable {}", descriptor.generation);
                             return null;
                         }
                     }
@@ -834,7 +835,7 @@ public class SSTableReader extends SSTable
                         }
                         if (op == Operator.EQ && updateCacheAndStats)
                             bloomFilterTracker.addTruePositive();
-                        logger.debug("Partition index lookup complete for sstable {}", descriptor.generation);
+                        Tracing.trace("Partition index lookup complete for sstable {}", descriptor.generation);
                         return indexEntry;
                     }
 
@@ -854,7 +855,7 @@ public class SSTableReader extends SSTable
 
         if (op == Operator.EQ && updateCacheAndStats)
             bloomFilterTracker.addFalsePositive();
-        logger.debug("Partition index lookup complete (bloom filter false positive) {}", descriptor.generation);
+        Tracing.trace("Partition index lookup complete (bloom filter false positive) for sstable {}", descriptor.generation);
         return null;
     }
 
