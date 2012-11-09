@@ -900,7 +900,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         public ValidationCompactionController(ColumnFamilyStore cfs, int gcBefore)
         {
-            super(cfs, gcBefore, null);
+            super(cfs, gcBefore);
         }
 
         @Override

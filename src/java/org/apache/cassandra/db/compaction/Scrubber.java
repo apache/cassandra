@@ -345,7 +345,7 @@ public class Scrubber implements Closeable
     {
         public ScrubController(ColumnFamilyStore cfs)
         {
-            super(cfs, Integer.MAX_VALUE, DataTracker.buildIntervalTree(Collections.<SSTableReader>emptyList()));
+            super(cfs, Integer.MAX_VALUE);
         }
 
         @Override

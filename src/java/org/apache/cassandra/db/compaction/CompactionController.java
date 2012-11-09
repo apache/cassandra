@@ -69,7 +69,15 @@ public class CompactionController
              DataTracker.buildIntervalTree(cfs.getOverlappingSSTables(sstables)));
     }
 
-    protected CompactionController(ColumnFamilyStore cfs,
+    /**
+     * Constructor that subclasses may use when overriding shouldPurge to not need overlappingTree
+     */
+    protected CompactionController(ColumnFamilyStore cfs, int maxValue)
+    {
+        this(cfs, maxValue, null);
+    }
+
+    private CompactionController(ColumnFamilyStore cfs,
                                    int gcBefore,
                                    DataTracker.SSTableIntervalTree overlappingTree)
     {
