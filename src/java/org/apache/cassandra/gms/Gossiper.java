@@ -389,7 +389,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         EndpointState epState = endpointStateMap.get(endpoint);
         epState.updateTimestamp(); // make sure we don't evict it too soon
         epState.getHeartBeatState().forceNewerGenerationUnsafe();
-        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(hostId,computeExpireTime()));
+        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(hostId, computeExpireTime()));
         logger.info("Completing removal of " + endpoint);
         endpointStateMap.put(endpoint, epState);
         // ensure at least one gossip round occurs before returning
@@ -1090,9 +1090,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public void initializeNodeUnsafe(InetAddress addr, UUID uuid, int generationNbr)
     {
         HeartBeatState hbState = new HeartBeatState(generationNbr);
-        EndpointState localState = new EndpointState(hbState);
-        localState.markAlive();
-        endpointStateMap.putIfAbsent(addr, localState);
+        EndpointState newState = new EndpointState(hbState);
+        newState.markAlive();
+        EndpointState oldState = endpointStateMap.putIfAbsent(addr, newState);
+        EndpointState localState = oldState == null ? newState : oldState;
 
         // always add the version state
         localState.addApplicationState(ApplicationState.NET_VERSION, StorageService.instance.valueFactory.networkVersion());
