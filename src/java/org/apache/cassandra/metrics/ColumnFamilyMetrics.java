@@ -25,6 +25,7 @@ import com.yammer.metrics.core.MetricName;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
@@ -143,7 +144,7 @@ public class ColumnFamilyMetrics
                 int total = 0;
                 for (SSTableReader sstable : cfs.getSSTables())
                 {
-                    if (sstable.getCompressionRatio() != Double.MIN_VALUE)
+                    if (sstable.getCompressionRatio() != SSTableMetadata.NO_COMPRESSION_RATIO)
                     {
                         sum += sstable.getCompressionRatio();
                         total++;

@@ -45,6 +45,7 @@ import org.apache.cassandra.utils.EstimatedHistogram;
  */
 public class SSTableMetadata
 {
+    public static final double NO_COMPRESSION_RATIO = -1.0;
     public static final SSTableMetadataSerializer serializer = new SSTableMetadataSerializer();
 
     public final EstimatedHistogram estimatedRowSize;
@@ -62,7 +63,7 @@ public class SSTableMetadata
              defaultColumnCountHistogram(),
              ReplayPosition.NONE,
              Long.MIN_VALUE,
-             Double.MIN_VALUE,
+             NO_COMPRESSION_RATIO,
              null,
              Collections.<Integer>emptySet(),
              defaultTombstoneDropTimeHistogram());
@@ -129,7 +130,7 @@ public class SSTableMetadata
         protected EstimatedHistogram estimatedColumnCount = defaultColumnCountHistogram();
         protected ReplayPosition replayPosition = ReplayPosition.NONE;
         protected long maxTimestamp = Long.MIN_VALUE;
-        protected double compressionRatio = Double.MIN_VALUE;
+        protected double compressionRatio = NO_COMPRESSION_RATIO;
         protected Set<Integer> ancestors = new HashSet<Integer>();
         protected StreamingHistogram estimatedTombstoneDropTime = defaultTombstoneDropTimeHistogram();
 
@@ -273,7 +274,7 @@ public class SSTableMetadata
                 maxTimestamp = Long.MIN_VALUE;
             double compressionRatio = desc.version.hasCompressionRatio
                                     ? dis.readDouble()
-                                    : Double.MIN_VALUE;
+                                    : NO_COMPRESSION_RATIO;
             String partitioner = desc.version.hasPartitioner ? dis.readUTF() : null;
             int nbAncestors = desc.version.hasAncestors ? dis.readInt() : 0;
             Set<Integer> ancestors = new HashSet<Integer>(nbAncestors);
