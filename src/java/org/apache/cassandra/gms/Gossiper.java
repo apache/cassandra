@@ -26,6 +26,7 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -90,7 +91,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private final Set<InetAddress> seeds = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
 
     /* map where key is the endpoint and value is the state associated with the endpoint */
-    final Map<InetAddress, EndpointState> endpointStateMap = new ConcurrentHashMap<InetAddress, EndpointState>();
+    final ConcurrentMap<InetAddress, EndpointState> endpointStateMap = new ConcurrentHashMap<InetAddress, EndpointState>();
 
     /* map where key is endpoint and value is timestamp when this endpoint was removed from
      * gossip. We will ignore any gossip regarding these endpoints for QUARANTINE_DELAY time
@@ -601,12 +602,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     protected long getExpireTimeForEndpoint(InetAddress endpoint)
     {
         /* default expireTime is aVeryLongTime */
-        long expireTime = computeExpireTime();
-        if (expireTimeEndpointMap.containsKey(endpoint))
-        {
-            expireTime = expireTimeEndpointMap.get(endpoint);
-        }
-        return expireTime;
+        Long storedTime = expireTimeEndpointMap.get(endpoint);
+        return storedTime == null ? computeExpireTime() : storedTime;
     }
 
     public EndpointState getEndpointStateForEndpoint(InetAddress ep)
@@ -1031,17 +1028,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                                                               TimeUnit.MILLISECONDS);
     }
 
-    // initialize local HB state if needed.
+    // initialize local HB state if needed, i.e., if gossiper has never been started before.
     public void maybeInitializeLocalState(int generationNbr)
     {
-        EndpointState localState = endpointStateMap.get(FBUtilities.getBroadcastAddress());
-        if ( localState == null )
-        {
-            HeartBeatState hbState = new HeartBeatState(generationNbr);
-            localState = new EndpointState(hbState);
-            localState.markAlive();
-            endpointStateMap.put(FBUtilities.getBroadcastAddress(), localState);
-        }
+        HeartBeatState hbState = new HeartBeatState(generationNbr);
+        EndpointState localState = new EndpointState(hbState);
+        localState.markAlive();
+        endpointStateMap.putIfAbsent(FBUtilities.getBroadcastAddress(), localState);
     }
 
 
@@ -1093,27 +1086,20 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return (scheduledGossipTask != null) && (!scheduledGossipTask.isCancelled());
     }
 
-    /**
-     * This should *only* be used for testing purposes.
-     */
-    public void initializeNodeUnsafe(InetAddress addr, UUID uuid, int generationNbr) {
-        /* initialize the heartbeat state for this localEndpoint */
-        EndpointState localState = endpointStateMap.get(addr);
-        if ( localState == null )
-        {
-            HeartBeatState hbState = new HeartBeatState(generationNbr);
-            localState = new EndpointState(hbState);
-            localState.markAlive();
-            endpointStateMap.put(addr, localState);
-        }
+    @VisibleForTesting
+    public void initializeNodeUnsafe(InetAddress addr, UUID uuid, int generationNbr)
+    {
+        HeartBeatState hbState = new HeartBeatState(generationNbr);
+        EndpointState localState = new EndpointState(hbState);
+        localState.markAlive();
+        endpointStateMap.putIfAbsent(addr, localState);
+
         // always add the version state
         localState.addApplicationState(ApplicationState.NET_VERSION, StorageService.instance.valueFactory.networkVersion());
         localState.addApplicationState(ApplicationState.HOST_ID, StorageService.instance.valueFactory.hostId(uuid));
     }
 
-    /**
-     * This should *only* be used for testing purposes
-     */
+    @VisibleForTesting
     public void injectApplicationState(InetAddress endpoint, ApplicationState state, VersionedValue value)
     {
         EndpointState localState = endpointStateMap.get(endpoint);
