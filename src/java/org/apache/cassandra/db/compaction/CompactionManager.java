@@ -661,6 +661,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
             finally
             {
+                controller.close();
                 scanner.close();
                 metrics.finishCompaction(ci);
             }

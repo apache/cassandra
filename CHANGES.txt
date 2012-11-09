@@ -1,8 +1,11 @@
 1.2-rc1
+ * acquire references to overlapping sstables during compaction so bloom filter
+   doesn't get free'd prematurely (CASSANDRA-4934)
  * Don't share slice query filter in CQL3 SelectStatement (CASSANDRA-4928)
  * Separate tracing from Log4J (CASSANDRA-4861)
  * Exclude gcable tombstones from merkle-tree computation (CASSANDRA-4905)
  * Better printing of AbstractBounds for tracing (CASSANDRA-4931)
+
 
 1.2-beta2
  * fp rate of 1.0 disables BF entirely; LCS defaults to 1.0 (CASSANDRA-4876)

@@ -201,6 +201,10 @@ public class IncomingStreamReader
             else
                 throw Throwables.propagate(e);
         }
+        finally
+        {
+            controller.close();
+        }
     }
 
     private void retry()

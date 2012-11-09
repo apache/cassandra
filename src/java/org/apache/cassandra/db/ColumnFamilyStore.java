@@ -889,6 +889,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return results;
     }
 
+    /**
+     * like getOverlappingSSTables, but acquires references before returning
+     */
+    public Set<SSTableReader> getAndReferenceOverlappingSSTables(Collection<SSTableReader> sstables)
+    {
+        while (true)
+        {
+            Set<SSTableReader> overlapped = getOverlappingSSTables(sstables);
+            if (SSTableReader.acquireReferences(overlapped))
+                return overlapped;
+        }
+    }
+
     /*
      * Called after a BinaryMemtable flushes its in-memory data, or we add a file
      * via bootstrap. This information is cached in the ColumnFamilyStore.

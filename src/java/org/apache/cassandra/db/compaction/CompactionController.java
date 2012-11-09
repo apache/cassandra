@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +45,7 @@ public class CompactionController
 
     public final ColumnFamilyStore cfs;
     private final DataTracker.SSTableIntervalTree overlappingTree;
+    private final Set<SSTableReader> overlappingSSTables;
 
     public final int gcBefore;
     public final int mergeShardBefore;
@@ -66,7 +68,7 @@ public class CompactionController
     {
         this(cfs,
              gcBefore,
-             DataTracker.buildIntervalTree(cfs.getOverlappingSSTables(sstables)));
+             cfs.getAndReferenceOverlappingSSTables(sstables));
     }
 
     /**
@@ -79,7 +81,7 @@ public class CompactionController
 
     private CompactionController(ColumnFamilyStore cfs,
                                    int gcBefore,
-                                   DataTracker.SSTableIntervalTree overlappingTree)
+                                   Set<SSTableReader> overlappingSSTables)
     {
         assert cfs != null;
         this.cfs = cfs;
@@ -89,7 +91,8 @@ public class CompactionController
         // add 5 minutes to be sure we're on the safe side in terms of thread safety (though we should be fine in our
         // current 'stop all write during memtable switch' situation).
         this.mergeShardBefore = (int) ((cfs.oldestUnflushedMemtable() + 5 * 3600) / 1000);
-        this.overlappingTree = overlappingTree;
+        this.overlappingSSTables = overlappingSSTables == null ? Collections.<SSTableReader>emptySet() : overlappingSSTables;
+        overlappingTree = overlappingSSTables == null ? null : DataTracker.buildIntervalTree(overlappingSSTables);
     }
 
     public String getKeyspace()
@@ -168,5 +171,10 @@ public class CompactionController
     public void mayThrottle(long currentBytes)
     {
         throttle.throttle(currentBytes);
+    }
+
+    public void close()
+    {
+        SSTableReader.releaseReferences(overlappingSSTables);
     }
 }

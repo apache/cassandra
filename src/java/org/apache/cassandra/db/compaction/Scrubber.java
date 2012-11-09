@@ -262,6 +262,10 @@ public class Scrubber implements Closeable
                 writer.abort();
             throw Throwables.propagate(t);
         }
+        finally
+        {
+            controller.close();
+        }
 
         if (!outOfOrderRows.isEmpty())
         {

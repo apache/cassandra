@@ -199,6 +199,8 @@ public class CompactionTask extends AbstractCompactionTask
         }
         finally
         {
+            controller.close();
+
             try
             {
                 iter.close();
