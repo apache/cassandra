@@ -336,12 +336,11 @@ public class TableTest extends SchemaLoader
         RowMutation rm = new RowMutation("Keyspace1", ROW.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
-        cf.addColumn(expiringColumn("col2", "val2", 1L, 1));
+        cf.addColumn(expiringColumn("col2", "val2", 1L, 60)); // long enough not to be tombstoned
         cf.addColumn(column("col3", "val3", 1L));
 
         rm.add(cf);
         rm.apply();
-        cfStore.forceBlockingFlush();
 
         Runnable verify = new WrappedRunnable()
         {
