@@ -30,6 +30,7 @@ import java.util.*;
 import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.Iterables;
 import org.apache.commons.lang.StringUtils;
 
 import org.antlr.runtime.tree.Tree;
@@ -148,6 +149,7 @@ public class CliClient
     private String keySpace = null;
     private String username = null;
     private final Map<String, KsDef> keyspacesMap = new HashMap<String, KsDef>();
+    private final Map<String, Map<String, CfDef>> cql3KeyspacesMap = new HashMap<String, Map<String, CfDef>>();
     private final Map<String, AbstractType<?>> cfKeysComparators;
     private ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
     private final CfAssumptions assumptions = new CfAssumptions();
@@ -317,11 +319,70 @@ public class CliClient
         // Lazily lookup keyspace meta-data.
         if (!(keyspacesMap.containsKey(keyspace)))
         {
-            keyspacesMap.put(keyspace, thriftClient.describe_keyspace(keyspace));
+            KsDef ksDef = thriftClient.describe_keyspace(keyspace);
+            keyspacesMap.put(keyspace, ksDef);
+            cql3KeyspacesMap.put(keyspace, loadCql3Defs(thriftClient, ksDef));
             assumptions.replayAssumptions(keyspace);
         }
 
         return keyspacesMap.get(keyspace);
+    }
+
+    public static Map<String, CfDef> loadCql3Defs(Cassandra.Client thriftClient, KsDef thriftKs)
+    {
+        try
+        {
+            return loadCql3DefsUnchecked(thriftClient, thriftKs);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static Map<String, CfDef> loadCql3DefsUnchecked(Cassandra.Client thriftClient, KsDef thriftKs) throws Exception
+    {
+        Map<String, CfDef> cql3Defs = new HashMap<String, CfDef>();
+
+        String query = "SELECT columnfamily_name, comparator, default_validator, key_validator FROM system.schema_columnfamilies WHERE keyspace_name='%s'";
+        String formatted = String.format(query, thriftKs.name);
+        CqlResult result = thriftClient.execute_cql3_query(ByteBufferUtil.bytes(formatted),
+                                                           Compression.NONE,
+                                                           ConsistencyLevel.ONE);
+        outer:
+        for (CqlRow row : result.rows)
+        {
+            Column rawName = row.columns.get(0);
+            assert ByteBufferUtil.string(ByteBuffer.wrap(rawName.getName())).equals("columnfamily_name");
+            String name = ByteBufferUtil.string(ByteBuffer.wrap(rawName.getValue()));
+
+            Column rawComparator = row.columns.get(1);
+            assert ByteBufferUtil.string(ByteBuffer.wrap(rawComparator.getName())).equals("comparator");
+            String comparator = ByteBufferUtil.string(ByteBuffer.wrap(rawComparator.getValue()));
+
+            Column rawValidator = row.columns.get(2);
+            assert ByteBufferUtil.string(ByteBuffer.wrap(rawValidator.getName())).equals("default_validator");
+            String validator = ByteBufferUtil.string(ByteBuffer.wrap(rawValidator.getValue()));
+
+            Column rawKeyValidator = row.columns.get(3);
+            assert ByteBufferUtil.string(ByteBuffer.wrap(rawKeyValidator.getName())).equals("key_validator");
+            String keyValidator = ByteBufferUtil.string(ByteBuffer.wrap(rawKeyValidator.getValue()));
+
+            for (CfDef cf_def : thriftKs.cf_defs)
+            {
+                if (cf_def.name.equals(name))
+                    continue outer;
+            }
+
+            CfDef thriftDef = new CfDef(thriftKs.name, name)
+                              .setComparator_type(comparator)
+                              .setDefault_validation_class(validator)
+                              .setKey_validation_class(keyValidator)
+                              .setColumn_metadata(Collections.<ColumnDef>emptyList());
+            cql3Defs.put(name, thriftDef);
+        }
+
+        return cql3Defs;
     }
 
     private void executeHelp(Tree tree)
@@ -352,7 +413,7 @@ public class CliClient
 
         Tree columnFamilySpec = statement.getChild(0);
 
-        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
+        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, currentCfDefs());
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
 
         ColumnParent colParent = new ColumnParent(columnFamily).setSuper_column((ByteBuffer) null);
@@ -375,6 +436,11 @@ public class CliClient
         sessionState.out.printf("%d columns%n", count);
     }
 
+    private Iterable<CfDef> currentCfDefs()
+    {
+        return Iterables.concat(keyspacesMap.get(keySpace).cf_defs, cql3KeyspacesMap.get(keySpace).values());
+    }
+
     private void executeDelete(Tree statement)
             throws TException, InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -383,7 +449,7 @@ public class CliClient
 
         Tree columnFamilySpec = statement.getChild(0);
 
-        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
+        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, currentCfDefs());
         CfDef cfDef = getCfDef(columnFamily);
 
         ByteBuffer key = getKeyAsBytes(columnFamily, columnFamilySpec.getChild(1));
@@ -567,7 +633,7 @@ public class CliClient
             return;
         long startTime = System.nanoTime();
         Tree columnFamilySpec = statement.getChild(0);
-        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
+        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, currentCfDefs());
         ByteBuffer key = getKeyAsBytes(columnFamily, columnFamilySpec.getChild(1));
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
         CfDef cfDef = getCfDef(columnFamily);
@@ -737,7 +803,7 @@ public class CliClient
         long startTime = System.nanoTime();
 
         IndexClause clause = new IndexClause();
-        String columnFamily = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
+        String columnFamily = CliCompiler.getColumnFamily(statement, currentCfDefs());
         // ^(CONDITIONS ^(CONDITION $column $value) ...)
         Tree conditions = statement.getChild(1);
 
@@ -833,7 +899,7 @@ public class CliClient
         Tree columnFamilySpec = statement.getChild(0);
         Tree keyTree = columnFamilySpec.getChild(1); // could be a function or regular text
 
-        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
+        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, currentCfDefs());
         CfDef cfDef = getCfDef(columnFamily);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
         String value = CliUtils.unescapeSQLString(statement.getChild(1).getText());
@@ -920,7 +986,7 @@ public class CliClient
 
         Tree columnFamilySpec = statement.getChild(0);
 
-        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
+        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, currentCfDefs());
         ByteBuffer key = getKeyAsBytes(columnFamily, columnFamilySpec.getChild(1));
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
 
@@ -1086,7 +1152,7 @@ public class CliClient
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
 
-        String cfName = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
+        String cfName = CliCompiler.getColumnFamily(statement, currentCfDefs());
 
         try
         {
@@ -1306,7 +1372,7 @@ public class CliClient
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
 
-        String cfName = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
+        String cfName = CliCompiler.getColumnFamily(statement, currentCfDefs());
         String mySchemaVersion = thriftClient.system_drop_column_family(cfName);
         sessionState.out.println(mySchemaVersion);
     }
@@ -1320,7 +1386,7 @@ public class CliClient
         long startTime = System.nanoTime();
 
         // extract column family
-        String columnFamily = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
+        String columnFamily = CliCompiler.getColumnFamily(statement, currentCfDefs());
 
         String rawStartKey = "";
         String rawEndKey = "";
@@ -1428,7 +1494,7 @@ public class CliClient
             return;
 
         // getColumnFamily will check if CF exists for us
-        String columnFamily = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
+        String columnFamily = CliCompiler.getColumnFamily(statement, currentCfDefs());
         String rawColumName = CliUtils.unescapeSQLString(statement.getChild(1).getText());
 
         CfDef cfDef = getCfDef(columnFamily);
@@ -1468,7 +1534,7 @@ public class CliClient
             return;
 
         // getting CfDef, it will fail if there is no such column family in current keySpace.
-        CfDef cfDef = getCfDef(CliCompiler.getColumnFamily(columnFamily, keyspacesMap.get(keySpace).cf_defs));
+        CfDef cfDef = getCfDef(CliCompiler.getColumnFamily(columnFamily, currentCfDefs()));
 
         thriftClient.truncate(cfDef.getName());
         sessionState.out.println(columnFamily + " truncated.");
@@ -1510,7 +1576,7 @@ public class CliClient
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
 
-        String cfName = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
+        String cfName = CliCompiler.getColumnFamily(statement, currentCfDefs());
 
         // VALIDATOR | COMPARATOR | KEYS | SUB_COMPARATOR
         String assumptionElement = statement.getChild(1).getText().toUpperCase();
@@ -2285,17 +2351,11 @@ public class CliClient
      */
     private CfDef getCfDef(String keySpaceName, String columnFamilyName)
     {
-        KsDef keySpaceDefinition = keyspacesMap.get(keySpaceName);
-
-        for (CfDef columnFamilyDef : keySpaceDefinition.cf_defs)
-        {
-            if (columnFamilyDef.name.equals(columnFamilyName))
-            {
-                return columnFamilyDef;
-            }
-        }
-
-        throw new RuntimeException("No such column family: " + columnFamilyName);
+        KsDef ksDef = keyspacesMap.get(keySpaceName);
+        CfDef cfDef = getCfDef(ksDef, columnFamilyName);
+        if (cfDef == null)
+            throw new RuntimeException("No such column family: " + columnFamilyName);
+        return cfDef;
     }
 
     /**
@@ -2316,7 +2376,7 @@ public class CliClient
                 return cfDef;
         }
 
-        return null;
+        return cql3KeyspacesMap.get(keyspace.name).get(columnFamilyName);
     }
 
     /**
@@ -2571,15 +2631,15 @@ public class CliClient
 
     /**
      * Get validator for specific column value
-     * @param ColumnFamilyDef - CfDef object representing column family with metadata
+     * @param cfDef - CfDef object representing column family with metadata
      * @param columnNameInBytes - column name as byte array
      * @return AbstractType - validator for column value
      */
-    private AbstractType<?> getValidatorForValue(CfDef ColumnFamilyDef, byte[] columnNameInBytes)
+    private AbstractType<?> getValidatorForValue(CfDef cfDef, byte[] columnNameInBytes)
     {
-        String defaultValidator = ColumnFamilyDef.default_validation_class;
+        String defaultValidator = cfDef.default_validation_class;
 
-        for (ColumnDef columnDefinition : ColumnFamilyDef.getColumn_metadata())
+        for (ColumnDef columnDefinition : cfDef.getColumn_metadata())
         {
             byte[] nameInBytes = columnDefinition.getName();
 

@@ -93,12 +93,12 @@ public class CliCompiler
      * NODE_COLUMN_ACCESS related functions.
      */
 
-    public static String getColumnFamily(Tree astNode, List<CfDef> cfDefs)
+    public static String getColumnFamily(Tree astNode, Iterable<CfDef> cfDefs)
     {
         return getColumnFamily(CliUtils.unescapeSQLString(astNode.getChild(0).getText()), cfDefs);
     }
 
-    public static String getColumnFamily(String cfName, List<CfDef> cfDefs)
+    public static String getColumnFamily(String cfName, Iterable<CfDef> cfDefs)
     {
         int matches = 0;
         String lastMatchedName = "";
