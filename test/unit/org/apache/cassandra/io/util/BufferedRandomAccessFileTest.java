@@ -337,7 +337,8 @@ public class BufferedRandomAccessFileTest
             // single too-large read
             for (final int offset : Arrays.asList(0, 8))
             {
-                final RandomAccessReader file = RandomAccessReader.open(writeTemporaryFile(new byte[16]), bufferSize);
+                File file1 = writeTemporaryFile(new byte[16]);
+                final RandomAccessReader file = RandomAccessReader.open(file1, bufferSize, false);
                 expectEOF(new Callable<Object>()
                 {
                     public Object call() throws IOException
@@ -351,7 +352,8 @@ public class BufferedRandomAccessFileTest
             // first read is ok but eventually EOFs
             for (final int n : Arrays.asList(1, 2, 4, 8))
             {
-                final RandomAccessReader file = RandomAccessReader.open(writeTemporaryFile(new byte[16]), bufferSize);
+                File file1 = writeTemporaryFile(new byte[16]);
+                final RandomAccessReader file = RandomAccessReader.open(file1, bufferSize, false);
                 expectEOF(new Callable<Object>()
                 {
                     public Object call() throws IOException

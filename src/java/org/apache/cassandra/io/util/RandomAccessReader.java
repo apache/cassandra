@@ -21,6 +21,8 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.utils.CLibrary;
 
@@ -94,22 +96,18 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
         validBufferBytes = -1; // that will trigger reBuffer() on demand by read/seek operations
     }
 
+    public static RandomAccessReader open(File file)
+    {
+        return open(file, false);
+    }
+
     public static RandomAccessReader open(File file, boolean skipIOCache)
     {
         return open(file, DEFAULT_BUFFER_SIZE, skipIOCache);
     }
 
-    public static RandomAccessReader open(File file)
-    {
-        return open(file, DEFAULT_BUFFER_SIZE, false);
-    }
-
-    public static RandomAccessReader open(File file, int bufferSize)
-    {
-        return open(file, bufferSize, false);
-    }
-
-    public static RandomAccessReader open(File file, int bufferSize, boolean skipIOCache)
+    @VisibleForTesting
+    static RandomAccessReader open(File file, int bufferSize, boolean skipIOCache)
     {
         try
         {
@@ -121,10 +119,10 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
         }
     }
 
-    // convert open into open
+    @VisibleForTesting
     public static RandomAccessReader open(SequentialWriter writer)
     {
-        return open(new File(writer.getPath()), DEFAULT_BUFFER_SIZE);
+        return open(new File(writer.getPath()), DEFAULT_BUFFER_SIZE, false);
     }
 
     /**
