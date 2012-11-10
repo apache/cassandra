@@ -1,6 +1,10 @@
 1.2.1
- * Add debug logging to list filenames processed by Directories.migrateFile method (CASSANDRA-4939)
+ * pool [Compressed]RandomAccessReader objects on the partitioned read path
+   (CASSANDRA-4942)
+ * Add debug logging to list filenames processed by Directories.migrateFile 
+   method (CASSANDRA-4939)
  * Expose black-listed directories via JMX (CASSANDRA-4848)
+
 
 1.2-rc1
  * fix cqlsh DESCRIBE command (CASSANDRA-4913)

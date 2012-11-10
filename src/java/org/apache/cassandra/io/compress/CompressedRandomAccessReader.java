@@ -25,26 +25,36 @@ import java.nio.channels.FileChannel;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.util.CompressedSegmentedFile;
+import org.apache.cassandra.io.util.PoolingSegmentedFile;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.FBUtilities;
 
 // TODO refactor this to separate concept of "buffer to avoid lots of read() syscalls" and "compression buffer"
 public class CompressedRandomAccessReader extends RandomAccessReader
 {
-    public static RandomAccessReader open(String dataFilePath, CompressionMetadata metadata)
-    {
-        return open(dataFilePath, metadata, false);
-    }
-
-    public static RandomAccessReader open(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache)
+    public static CompressedRandomAccessReader open(String path, CompressionMetadata metadata, CompressedSegmentedFile owner)
     {
         try
         {
-            return new CompressedRandomAccessReader(dataFilePath, metadata, skipIOCache);
+            return new CompressedRandomAccessReader(path, metadata, false, owner);
+        }
+        catch (FileNotFoundException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static CompressedRandomAccessReader open(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache)
+    {
+        try
+        {
+            return new CompressedRandomAccessReader(dataFilePath, metadata, skipIOCache, null);
         }
         catch (FileNotFoundException e)
         {
@@ -65,9 +75,9 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     private final FileInputStream source;
     private final FileChannel channel;
 
-    public CompressedRandomAccessReader(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache) throws FileNotFoundException
+    private CompressedRandomAccessReader(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache, PoolingSegmentedFile owner) throws FileNotFoundException
     {
-        super(new File(dataFilePath), metadata.chunkLength(), skipIOCache);
+        super(new File(dataFilePath), metadata.chunkLength(), skipIOCache, owner);
         this.metadata = metadata;
         compressed = new byte[metadata.compressor().initialCompressedBufferLength(metadata.chunkLength())];
         // can't use super.read(...) methods
@@ -155,9 +165,10 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     }
 
     @Override
-    public void close()
+    public void deallocate()
     {
-        super.close();
+        super.deallocate();
+
         try
         {
             source.close();
