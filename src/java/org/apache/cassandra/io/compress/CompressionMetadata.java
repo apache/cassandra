@@ -20,6 +20,7 @@ package org.apache.cassandra.io.compress;
 import java.io.*;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -31,7 +32,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.BigLongArray;
+import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -41,7 +42,7 @@ public class CompressionMetadata
 {
     public final long dataLength;
     public final long compressedFileLength;
-    private final BigLongArray chunkOffsets;
+    private final Memory chunkOffsets;
     public final String indexFilePath;
     public final CompressionParameters parameters;
 
@@ -62,7 +63,7 @@ public class CompressionMetadata
         return new CompressionMetadata(desc.filenameFor(Component.COMPRESSION_INFO), new File(dataFilePath).length());
     }
 
-    // This is package protected because of the tests.
+    @VisibleForTesting
     CompressionMetadata(String indexFilePath, long compressedLength)
     {
         this.indexFilePath = indexFilePath;
@@ -129,18 +130,18 @@ public class CompressionMetadata
      *
      * @return collection of the chunk offsets.
      */
-    private BigLongArray readChunkOffsets(DataInput input)
+    private Memory readChunkOffsets(DataInput input)
     {
         try
         {
             int chunkCount = input.readInt();
-            BigLongArray offsets = new BigLongArray(chunkCount);
+            Memory offsets = Memory.allocate(chunkCount * 8);
 
             for (int i = 0; i < chunkCount; i++)
             {
                 try
                 {
-                    offsets.set(i, input.readLong());
+                    offsets.setLong(i * 8, input.readLong());
                 }
                 catch (EOFException e)
                 {
@@ -167,15 +168,15 @@ public class CompressionMetadata
     public Chunk chunkFor(long position)
     {
         // position of the chunk
-        int idx = (int) (position / parameters.chunkLength());
+        int idx = 8 * (int) (position / parameters.chunkLength());
 
-        if (idx >= chunkOffsets.size)
+        if (idx >= chunkOffsets.size())
             throw new CorruptSSTableException(new EOFException(), indexFilePath);
 
-        long chunkOffset = chunkOffsets.get(idx);
-        long nextChunkOffset = (idx + 1 == chunkOffsets.size)
+        long chunkOffset = chunkOffsets.getLong(idx);
+        long nextChunkOffset = (idx + 8 == chunkOffsets.size())
                                 ? compressedFileLength
-                                : chunkOffsets.get(idx + 1);
+                                : chunkOffsets.getLong(idx + 8);
 
         return new Chunk(chunkOffset, (int) (nextChunkOffset - chunkOffset - 4)); // "4" bytes reserved for checksum
     }
@@ -200,14 +201,20 @@ public class CompressionMetadata
             int endIndex = (int) (section.right / parameters.chunkLength());
             for (int i = startIndex; i <= endIndex; i++)
             {
-                long chunkOffset = chunkOffsets.get(i);
-                long nextChunkOffset = (i + 1 == chunkOffsets.size)
+                long offset = i * 8;
+                long chunkOffset = chunkOffsets.getLong(offset);
+                long nextChunkOffset = (i + 8 == chunkOffsets.size())
                                                ? compressedFileLength
-                                               : chunkOffsets.get(i + 1);
+                                               : chunkOffsets.getLong(offset + 8);
                 offsets.add(new Chunk(chunkOffset, (int) (nextChunkOffset - chunkOffset - 4))); // "4" bytes reserved for checksum
             }
         }
         return offsets.toArray(new Chunk[offsets.size()]);
+    }
+
+    public void close()
+    {
+        chunkOffsets.free();
     }
 
     public static class Writer extends RandomAccessFile

@@ -61,6 +61,6 @@ public class CompressedSegmentedFile extends SegmentedFile
 
     public void cleanup()
     {
-        // nothing to do
+        metadata.close();
     }
 }
