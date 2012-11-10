@@ -203,9 +203,9 @@ public class CompressionMetadata
             {
                 long offset = i * 8;
                 long chunkOffset = chunkOffsets.getLong(offset);
-                long nextChunkOffset = (i + 8 == chunkOffsets.size())
-                                               ? compressedFileLength
-                                               : chunkOffsets.getLong(offset + 8);
+                long nextChunkOffset = offset + 8 == chunkOffsets.size()
+                                     ? compressedFileLength
+                                     : chunkOffsets.getLong(offset + 8);
                 offsets.add(new Chunk(chunkOffset, (int) (nextChunkOffset - chunkOffset - 4))); // "4" bytes reserved for checksum
             }
         }
