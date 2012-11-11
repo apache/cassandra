@@ -18,9 +18,10 @@ using the provided 'sstableupgrade' tool.
 
 Features
 --------
-    - A history of executed nodetool commands is now captured. 
+    - A history of executed nodetool commands is now captured.
       It can be found in ~/.cassandra/nodetool.history. Other tools output files
       (cli and cqlsh history, .cqlshrc) are now centralized in ~/.cassandra, as well.
+    - A new sstablesplit utility allows to split large sstables offline.
 
 Defaults
 --------

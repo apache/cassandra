@@ -98,7 +98,7 @@ public class CompactionTask extends AbstractCompactionTask
         for (SSTableReader sstable : toCompact)
             assert sstable.descriptor.cfname.equals(cfs.columnFamily);
 
-        CompactionController controller = new CompactionController(cfs, toCompact, gcBefore);
+        CompactionController controller = getCompactionController(toCompact);
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,
         // so in our single-threaded compaction world this is a valid way of determining if we're compacting
         // all the sstables (that existed when we started)
@@ -227,7 +227,7 @@ public class CompactionTask extends AbstractCompactionTask
                 collector.finishCompaction(ci);
         }
 
-        cfs.replaceCompactedSSTables(toCompact, sstables, compactionType);
+        replaceCompactedSSTables(toCompact, sstables);
         // TODO: this doesn't belong here, it should be part of the reader to load when the tracker is wired up
         for (SSTableReader sstable : sstables)
         {
@@ -263,6 +263,16 @@ public class CompactionTask extends AbstractCompactionTask
                                       toCompact.size(), builder.toString(), startsize, endsize, (int) (ratio * 100), dTime, mbps, totalSourceRows, totalkeysWritten, mergeSummary.toString()));
             logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
         }
+    }
+
+    protected void replaceCompactedSSTables(Collection<SSTableReader> compacted, Collection<SSTableReader> replacements)
+    {
+        cfs.replaceCompactedSSTables(compacted, replacements, compactionType);
+    }
+
+    protected CompactionController getCompactionController(Collection<SSTableReader> toCompact)
+    {
+        return new CompactionController(cfs, toCompact, gcBefore);
     }
 
     protected boolean partialCompactionsAcceptable()
