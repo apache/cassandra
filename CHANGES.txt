@@ -10,6 +10,8 @@
  * Exclude gcable tombstones from merkle-tree computation (CASSANDRA-4905)
  * Better printing of AbstractBounds for tracing (CASSANDRA-4931)
 Merged from 1.1:
+ * reset getRangeSlice filter after finishing a row for get_paged_slice
+   (CASSANDRA-4919)
  * expunge row cache post-truncate (CASSANDRA-4940)
 
 
