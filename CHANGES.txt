@@ -1,4 +1,6 @@
 1.1.7
+ * reset getRangeSlice filter after finishing a row for get_paged_slice
+   (CASSANDRA-4919)
  * expunge row cache post-truncate (CASSANDRA-4940)
  * remove IAuthority2 (CASSANDRA-4875)
  * add get[Row|Key]CacheEntries to CacheServiceMBean (CASSANDRA-4859)
