@@ -41,7 +41,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -1091,8 +1093,11 @@ public class StorageProxy implements StorageProxyMBean
         // now scan until we have enough results
         try
         {
-            final SlicePredicate emptyPredicate = getEmptySlicePredicate();
-            SlicePredicate commandPredicate = command.predicate;
+            final IDiskAtomFilter emptyPredicate = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                                        false,
+                                                                        -1);
+            IDiskAtomFilter commandPredicate = command.predicate;
 
             int columnsCount = 0;
             rows = new ArrayList<Row>();
@@ -1174,11 +1179,12 @@ public class StorageProxy implements StorageProxyMBean
         return trim(command, rows);
     }
 
-    private static SlicePredicate getEmptySlicePredicate()
+    private static IDiskAtomFilter getEmptySlicePredicate()
     {
-        final SliceRange emptySliceRange =
-                new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, -1);
-        return new SlicePredicate().setSlice_range(emptySliceRange);
+        return new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                    ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                    false,
+                                    -1);
     }
 
     private static List<Row> trim(RangeSliceCommand command, List<Row> rows)
