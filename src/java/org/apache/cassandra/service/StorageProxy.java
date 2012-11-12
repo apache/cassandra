@@ -1091,6 +1091,9 @@ public class StorageProxy implements StorageProxyMBean
         // now scan until we have enough results
         try
         {
+            final SlicePredicate emptyPredicate = getEmptySlicePredicate();
+            SlicePredicate commandPredicate = command.predicate;
+
             int columnsCount = 0;
             rows = new ArrayList<Row>();
             List<AbstractBounds<RowPosition>> ranges = getRestrictedRanges(command.range);
@@ -1099,7 +1102,7 @@ public class StorageProxy implements StorageProxyMBean
                 RangeSliceCommand nodeCmd = new RangeSliceCommand(command.keyspace,
                                                                   command.column_family,
                                                                   command.super_column,
-                                                                  command.predicate,
+                                                                  commandPredicate,
                                                                   range,
                                                                   command.row_filter,
                                                                   command.maxResults,
@@ -1157,6 +1160,11 @@ public class StorageProxy implements StorageProxyMBean
                 int count = nodeCmd.maxIsColumns ? columnsCount : rows.size();
                 if (count >= nodeCmd.maxResults)
                     break;
+
+                // if we are paging and already got some rows, reset the column filter predicate,
+                // so we start iterating the next row from the first column
+                if (!rows.isEmpty() && command.isPaging)
+                    commandPredicate = emptyPredicate;
             }
         }
         finally
@@ -1164,6 +1172,13 @@ public class StorageProxy implements StorageProxyMBean
             rangeMetrics.addNano(System.nanoTime() - startTime);
         }
         return trim(command, rows);
+    }
+
+    private static SlicePredicate getEmptySlicePredicate()
+    {
+        final SliceRange emptySliceRange =
+                new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, -1);
+        return new SlicePredicate().setSlice_range(emptySliceRange);
     }
 
     private static List<Row> trim(RangeSliceCommand command, List<Row> rows)
