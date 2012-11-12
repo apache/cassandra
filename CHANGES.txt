@@ -1,4 +1,5 @@
 1.2-rc1
+ * fix cqlsh DESCRIBE command (CASSANDRA-4913)
  * save truncation position in system table (CASSANDRA-4906)
  * Move CompressionMetadata off-heap (CASSANDRA-4937)
  * allow CLI to GET cql3 columnfamily data (CASSANDRA-4924)
