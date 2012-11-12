@@ -2796,7 +2796,6 @@ public class CliClient
      */
     private void updateColumnMetaData(CfDef columnFamily, ByteBuffer columnName, String validationClass)
     {
-        List<ColumnDef> columnMetaData = columnFamily.getColumn_metadata();
         ColumnDef column = getColumnDefByName(columnFamily, columnName);
 
         if (column != null)
@@ -2810,7 +2809,9 @@ public class CliClient
         }
         else
         {
+            List<ColumnDef> columnMetaData = new ArrayList<ColumnDef>(columnFamily.getColumn_metadata());
             columnMetaData.add(new ColumnDef(columnName, validationClass));
+            columnFamily.setColumn_metadata(columnMetaData);
         }
     }
 
