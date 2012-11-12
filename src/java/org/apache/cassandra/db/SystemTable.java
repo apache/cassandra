@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -29,8 +32,11 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.avro.ipc.ByteBufferInputStream;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -43,12 +49,15 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Constants;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
 
@@ -175,6 +184,61 @@ public class SystemTable
         {
             logger.info("Possible old-format hints found. Truncating");
             oldHintsCfs.truncate();
+        }
+    }
+
+    public static void saveTruncationPosition(ColumnFamilyStore cfs, ReplayPosition position)
+    {
+        String req = "UPDATE system.%s SET truncated_at = truncated_at + %s WHERE key = '%s'";
+        processInternal(String.format(req, LOCAL_CF, positionAsMapEntry(cfs, position), LOCAL_KEY));
+        forceBlockingFlush(LOCAL_CF);
+    }
+
+    private static String positionAsMapEntry(ColumnFamilyStore cfs, ReplayPosition position)
+    {
+        DataOutputBuffer out = new DataOutputBuffer();
+        try
+        {
+            ReplayPosition.serializer.serialize(position, out);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return String.format("{'%s': '%s'}",
+                             cfs.metadata.cfId,
+                             ByteBufferUtil.bytesToHex(ByteBuffer.wrap(out.getData(), 0, out.getLength())));
+    }
+
+    public static Map<UUID, ReplayPosition> getTruncationPositions()
+    {
+        String req = "SELECT truncated_at FROM system.%s WHERE key = '%s'";
+        UntypedResultSet rows = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
+        if (rows.isEmpty())
+            return Collections.emptyMap();
+
+        UntypedResultSet.Row row = rows.one();
+        Map<UUID, ByteBuffer> rawMap = row.getMap("truncated_at", UUIDType.instance, BytesType.instance);
+        if (rawMap == null)
+            return Collections.emptyMap();
+
+        Map<UUID, ReplayPosition> positions = new HashMap<UUID, ReplayPosition>();
+        for (Map.Entry<UUID, ByteBuffer> entry : rawMap.entrySet())
+        {
+            positions.put(entry.getKey(), positionFromBlob(entry.getValue()));
+        }
+        return positions;
+    }
+
+    private static ReplayPosition positionFromBlob(ByteBuffer bytes)
+    {
+        try
+        {
+            return ReplayPosition.serializer.deserialize(new DataInputStream(ByteBufferUtil.inputStream(bytes)));
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
         }
     }
 
