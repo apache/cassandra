@@ -37,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.AutoSavingCache;
+import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.CFMetaData;
@@ -53,6 +54,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.service.AntiEntropyService;
+import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.CounterId;
@@ -863,6 +865,12 @@ public class CompactionManager implements CompactionManagerMBean
 
                     for (SecondaryIndex index : main.indexManager.getIndexes())
                         index.truncate(truncatedAt);
+
+                    for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
+                    {
+                        if (key.cfId == main.metadata.cfId)
+                            CacheService.instance.rowCache.remove(key);
+                    }
                 }
                 finally
                 {

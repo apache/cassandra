@@ -8,6 +8,8 @@
  * Separate tracing from Log4J (CASSANDRA-4861)
  * Exclude gcable tombstones from merkle-tree computation (CASSANDRA-4905)
  * Better printing of AbstractBounds for tracing (CASSANDRA-4931)
+Merged from 1.1:
+ * expunge row cache post-truncate (CASSANDRA-4940)
 
 
 1.2-beta2
