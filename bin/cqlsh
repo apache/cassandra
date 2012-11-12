@@ -627,10 +627,7 @@ class Shell(cmd.Cmd):
         raise ColumnFamilyNotFound("Unconfigured column family %r" % (cfname,))
 
     def get_columnfamily_names(self, ksname=None):
-        if self.cqlver_atleast(3) and ksname not in SYSTEM_KEYSPACES:
-            # since cql3 tables may be left out of thrift results, but
-            # info on tables in system keyspaces still aren't included
-            # in system.schema_*
+        if self.cqlver_atleast(3):
             return self.get_columnfamily_names_cql3(ksname=ksname)
         return [c.name for c in self.get_columnfamilies(ksname)]
 
@@ -730,7 +727,7 @@ class Shell(cmd.Cmd):
             cf_q = """select "columnfamily" from system.schema_columnfamilies
                        where "keyspace"=:ks"""
         self.cursor.execute(cf_q, {'ks': ksname})
-        return [row[0] for row in self.cursor.fetchall()]
+        return [str(row[0]) for row in self.cursor.fetchall()]
 
     def get_columnfamily_layout(self, ksname, cfname):
         if ksname is None:
@@ -1156,12 +1153,13 @@ class Shell(cmd.Cmd):
                 out.write("\n  AND strategy_options:%s = %s" % (opname, self.cql_protect_value(opval)))
         out.write(';\n')
 
-        if ksdef.cf_defs:
+        cfs = self.get_columnfamily_names(ksname)
+        if cfs:
             out.write('\nUSE %s;\n' % ksname)
-            for cf in ksdef.cf_defs:
+            for cf in cfs:
                 out.write('\n')
                 # yes, cf might be looked up again. oh well.
-                self.print_recreate_columnfamily(ksdef.name, cf.name, out)
+                self.print_recreate_columnfamily(ksdef.name, cf, out)
 
     def print_recreate_columnfamily(self, ksname, cfname, out):
         """
@@ -1327,20 +1325,19 @@ class Shell(cmd.Cmd):
         print
 
     def describe_columnfamilies(self, ksname):
+        print
         if ksname is None:
             for k in self.get_keyspaces():
                 print 'Keyspace %s' % (k.name,)
-                print '---------%s\n' % ('-' * len(k.name))
-                cmd.Cmd.columnize(self, [c.name for c in k.cf_defs])
+                print '---------%s' % ('-' * len(k.name))
+                cmd.Cmd.columnize(self, self.get_columnfamily_names(k.name))
                 print
         else:
-            names = self.get_columnfamily_names(ksname)
-            print
-            cmd.Cmd.columnize(self, names)
+            cmd.Cmd.columnize(self, self.get_columnfamily_names(ksname))
             print
 
     def describe_cluster(self):
-        print 'Cluster: %s' % self.get_cluster_name()
+        print '\nCluster: %s' % self.get_cluster_name()
         p = trim_if_present(self.get_partitioner(), 'org.apache.cassandra.dht.')
         print 'Partitioner: %s' % p
         snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
