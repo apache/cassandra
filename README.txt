@@ -52,24 +52,23 @@ Similarly, "uninstall" will remove the service.
 
 Now let's try to read and write some data using the Cassandra Query Language:
 
-  * bin/cqlsh --cql3
+  * bin/cqlsh
 
 The command line client is interactive so if everything worked you should
 be sitting in front of a prompt...
 
   Connected to Test Cluster at localhost:9160.
-  [cqlsh 2.2.0 | Cassandra 1.1.3 | CQL spec 3.0.0 | Thrift protocol 19.32.0]
+  [cqlsh 2.2.0 | Cassandra 1.2.0 | CQL spec 3.0.0 | Thrift protocol 19.35.0]
   Use HELP for help.
   cqlsh> 
- 
+
 
 As the banner says, you can use 'help;' or '?' to see what CQL has to
 offer, and 'quit;' or 'exit;' when you've had enough fun. But lets try
 something slightly more interesting:
 
   cqlsh> CREATE SCHEMA schema1 
-         WITH strategy_class = 'SimpleStrategy'
-         AND strategy_options:replication_factor='1';
+         WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };
   cqlsh> USE schema1;
   cqlsh:Schema1> CREATE TABLE users (
                    user_id varchar PRIMARY KEY,
@@ -89,7 +88,7 @@ something slightly more interesting:
 If your session looks similar to what's above, congrats, your single node
 cluster is operational! 
 
-For more on what commands are supported by CQL, see 
+For more on what commands are supported by CQL, see
 https://github.com/apache/cassandra/blob/trunk/doc/cql3/CQL.textile.  A
 reasonable way to think of it is as, "SQL minus joins and subqueries."
 
