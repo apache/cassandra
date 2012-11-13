@@ -22,13 +22,14 @@ import java.io.IOException;
 import java.util.*;
 
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import static org.junit.Assert.assertEquals;
 
 import org.apache.cassandra.db.compaction.LeveledManifest;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.sstable.*;
 
 public class DirectoriesTest
 {
@@ -103,14 +104,14 @@ public class DirectoriesTest
         for (String cf : CFS)
         {
             Directories directories = Directories.create(KS, cf);
-            assertEquals(cfDir(cf), directories.getDirectoryForNewSSTables(0));
+            Assert.assertEquals(cfDir(cf), directories.getDirectoryForNewSSTables(0));
 
             Descriptor desc = new Descriptor(cfDir(cf), KS, cf, 1, false);
             File snapshotDir = new File(cfDir(cf),  File.separator + Directories.SNAPSHOT_SUBDIR + File.separator + "42");
-            assertEquals(snapshotDir, directories.getSnapshotDirectory(desc, "42"));
+            Assert.assertEquals(snapshotDir, directories.getSnapshotDirectory(desc, "42"));
 
             File backupsDir = new File(cfDir(cf),  File.separator + Directories.BACKUPS_SUBDIR);
-            assertEquals(backupsDir, directories.getBackupsDirectory(desc));
+            Assert.assertEquals(backupsDir, directories.getBackupsDirectory(desc));
         }
     }
 
@@ -167,7 +168,34 @@ public class DirectoriesTest
         {
             Directories directories = Directories.create(KS, cf);
             File manifest = new File(cfDir(cf), cf + LeveledManifest.EXTENSION);
-            assertEquals(manifest, directories.tryGetLeveledManifest());
+            Assert.assertEquals(manifest, directories.tryGetLeveledManifest());
+        }
+    }
+
+    @Test
+    public void testHandleBadFiles() throws IOException
+    {
+        /* files not matching the pattern should just be ignored, with a log warning */
+        Directories directories = Directories.create(KS, "bad");
+        File dir = directories.getDirectoryForNewSSTables(1);
+        File f = File.createTempFile("bad", "file", dir.getParentFile());
+        Directories.migrateSSTables();
+        Assert.assertTrue(f.isFile());
+
+        /* real failures should throw an exception with informational message */
+        f = File.createTempFile("locked", ".json", dir.getParentFile());
+        File targetDir = new File(dir.getParentFile(), f.getName().substring(0, f.getName().length() - ".json".length()));
+        targetDir.mkdirs();
+        targetDir.setReadOnly();
+
+        try
+        {
+            Directories.migrateSSTables();
+            Assert.assertFalse(true);
+        }
+        catch (Exception e)
+        {
+            Assert.assertTrue(e.getMessage().contains(f.getPath()));
         }
     }
 }

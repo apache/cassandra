@@ -620,19 +620,35 @@ public class Directories
         if (file.isDirectory())
             return;
 
-        String name = file.getName();
-        boolean isManifest = name.endsWith(LeveledManifest.EXTENSION);
-        String cfname = isManifest
-                      ? name.substring(0, name.length() - LeveledManifest.EXTENSION.length())
-                      : name.substring(0, name.indexOf(Component.separator));
+        try
+        {
+            String name = file.getName();
+            boolean isManifest = name.endsWith(LeveledManifest.EXTENSION);
+            int separatorIndex = name.indexOf(Component.separator);
 
-        int idx = cfname.indexOf(SECONDARY_INDEX_NAME_SEPARATOR); // idx > 0 => secondary index
-        String dirname = idx > 0 ? cfname.substring(0, idx) : cfname;
-        File destDir = getOrCreate(ksDir, dirname, additionalPath);
+            if (isManifest || (separatorIndex >= 0))
+            {
+                String cfname = isManifest
+                              ? name.substring(0, name.length() - LeveledManifest.EXTENSION.length())
+                              : name.substring(0, separatorIndex);
 
-        File destFile = new File(destDir, isManifest ? name : ksDir.getName() + Component.separator + name);
-        logger.debug(String.format("[upgrade to 1.1] Moving %s to %s", file, destFile));
-        FileUtils.renameWithConfirm(file, destFile);
+                int idx = cfname.indexOf(SECONDARY_INDEX_NAME_SEPARATOR); // idx > 0 => secondary index
+                String dirname = idx > 0 ? cfname.substring(0, idx) : cfname;
+                File destDir = getOrCreate(ksDir, dirname, additionalPath);
+
+                File destFile = new File(destDir, isManifest ? name : ksDir.getName() + Component.separator + name);
+                logger.debug(String.format("[upgrade to 1.1] Moving %s to %s", file, destFile));
+                FileUtils.renameWithConfirm(file, destFile);
+            }
+            else
+            {
+                logger.warn("Found unrecognized file {} while migrating sstables from pre 1.1 format, ignoring.", file);
+            }
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(String.format("Failed migrating file %s from pre 1.1 format.", file.getPath()), e);
+        }
     }
 
     // Hack for tests, don't use otherwise
