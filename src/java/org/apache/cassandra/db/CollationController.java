@@ -241,13 +241,27 @@ public class CollationController
                 }
             }
 
+            /*
+             * We can't eliminate full sstables based on the timestamp of what we've already read like
+             * in collectTimeOrderedData, but we still want to eliminate sstable whose maxTimestamp < mostRecentTombstone
+             * we've read. We still rely on the sstable ordering by maxTimestamp since if
+             *   maxTimestamp_s1 > maxTimestamp_s0,
+             * we're guaranteed that s1 cannot have a row tombstone such that
+             *   timestamp(tombstone) > maxTimestamp_s0
+             * since we necessarily have
+             *   timestamp(tombstone) <= maxTimestamp_s1
+             * In othere words, iterating in maxTimestamp order allow to do our mostRecentTombstone elimination
+             * in one pass, and minimize the number of sstables for which we read a rowTombstone.
+             */
+            Collections.sort(view.sstables, SSTable.maxTimestampComparator);
+
             long mostRecentRowTombstone = Long.MIN_VALUE;
             for (SSTableReader sstable : view.sstables)
             {
                 // if we've already seen a row tombstone with a timestamp greater
                 // than the most recent update to this sstable, we can skip it
                 if (sstable.getMaxTimestamp() < mostRecentRowTombstone)
-                    continue;
+                    break;
 
                 OnDiskAtomIterator iter = filter.getSSTableColumnIterator(sstable);
                 iterators.add(iter);
@@ -259,23 +273,6 @@ public class CollationController
 
                     returnCF.delete(cf);
                     sstablesIterated++;
-                }
-            }
-
-            // If we saw a row tombstone, do a second pass through the iterators we
-            // obtained from the sstables and drop any whose maxTimestamp < that of the
-            // row tombstone
-            {
-                Iterator<OnDiskAtomIterator> it = iterators.iterator();
-                while (it.hasNext())
-                {
-                    OnDiskAtomIterator iter = it.next();
-                    if ((iter instanceof ISSTableColumnIterator)
-                        && ((ISSTableColumnIterator) iter).getSStable().getMaxTimestamp() < mostRecentRowTombstone)
-                    {
-                        FileUtils.closeQuietly(iter);
-                        it.remove();
-                    }
                 }
             }
 
