@@ -8,6 +8,7 @@
  * Separate tracing from Log4J (CASSANDRA-4861)
  * Exclude gcable tombstones from merkle-tree computation (CASSANDRA-4905)
  * Better printing of AbstractBounds for tracing (CASSANDRA-4931)
+ * Optimize mostRecentTomstone check in CC.collectAllData (CASSANDRA-4883)
 
 
 1.2-beta2
