@@ -118,7 +118,7 @@ public class StreamingTransferTest extends SchemaLoader
         List<Range<Token>> ranges = new ArrayList<Range<Token>>();
         ranges.add(new Range<Token>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
         ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
-        StreamOutSession session = StreamOutSession.create(table.name, LOCAL, null);
+        StreamOutSession session = StreamOutSession.create(table.name, LOCAL, (IStreamCallback)null);
         StreamOut.transferSSTables(session, Arrays.asList(sstable), ranges, OperationType.BOOTSTRAP);
         session.await();
     }
@@ -260,7 +260,7 @@ public class StreamingTransferTest extends SchemaLoader
         // Acquiring references, transferSSTables needs it
         sstable.acquireReference();
         sstable2.acquireReference();
-        StreamOutSession session = StreamOutSession.create(tablename, LOCAL, null);
+        StreamOutSession session = StreamOutSession.create(tablename, LOCAL, (IStreamCallback) null);
         StreamOut.transferSSTables(session, Arrays.asList(sstable, sstable2), ranges, OperationType.BOOTSTRAP);
         session.await();
 
@@ -316,7 +316,7 @@ public class StreamingTransferTest extends SchemaLoader
         if (!SSTableReader.acquireReferences(ssTableReaders))
             throw new AssertionError();
 
-        StreamOutSession session = StreamOutSession.create(keyspace, LOCAL, null);
+        StreamOutSession session = StreamOutSession.create(keyspace, LOCAL, (IStreamCallback)null);
         StreamOut.transferSSTables(session, ssTableReaders, ranges, OperationType.BOOTSTRAP);
 
         session.await();

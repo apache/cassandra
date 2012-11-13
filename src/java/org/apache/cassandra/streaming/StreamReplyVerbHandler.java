@@ -31,7 +31,7 @@ public class StreamReplyVerbHandler implements IVerbHandler<StreamReply>
     {
         StreamReply reply = message.payload;
         logger.debug("Received StreamReply {}", reply);
-        StreamOutSession session = StreamOutSession.get(message.from, reply.sessionId);
+        StreamOutSession session = StreamOutSession.get(reply.sessionId);
         if (session == null)
         {
             logger.debug("Received stream action " + reply.action + " for an unknown session from " + message.from);

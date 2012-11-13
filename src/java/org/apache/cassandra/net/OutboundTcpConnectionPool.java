@@ -124,7 +124,7 @@ public class OutboundTcpConnectionPool
         else
         {
             Socket socket = SocketChannel.open(new InetSocketAddress(endPoint(), DatabaseDescriptor.getStoragePort())).socket();
-            if (Config.getOutboundBindAny())
+            if (Config.getOutboundBindAny() && !socket.isBound())
                 socket.bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
             return socket;
         }
