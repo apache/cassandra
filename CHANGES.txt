@@ -1,3 +1,7 @@
+1.2.1
+ * Add debug logging to list filenames processed by Directories.migrateFile method (CASSANDRA-4939)
+
+
 1.2-rc1
  * fix cqlsh DESCRIBE command (CASSANDRA-4913)
  * save truncation position in system table (CASSANDRA-4906)
