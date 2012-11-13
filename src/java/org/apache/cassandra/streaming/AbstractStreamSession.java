@@ -19,6 +19,7 @@
 package org.apache.cassandra.streaming;
 
 import java.net.InetAddress;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.LoggerFactory;
@@ -32,33 +33,30 @@ public abstract class AbstractStreamSession implements IEndpointStateChangeSubsc
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractStreamSession.class);
 
+    protected final InetAddress host;
+    protected final UUID sessionId;
     protected String table;
-    protected Pair<InetAddress, Long> context;
     protected final IStreamCallback callback;
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
-    protected AbstractStreamSession(String table, Pair<InetAddress, Long> context, IStreamCallback callback)
+    protected AbstractStreamSession(String table, InetAddress host, UUID sessionId, IStreamCallback callback)
     {
+        this.host = host;
+        this.sessionId = sessionId;
         this.table = table;
-        this.context = context;
         this.callback = callback;
         Gossiper.instance.register(this);
         FailureDetector.instance.registerFailureDetectionEventListener(this);
     }
 
-    public int getSourceFlag()
+    public UUID getSessionId()
     {
-        return (int)(context.right >> 32);
-    }
-
-    public long getSessionId()
-    {
-        return context.right;
+        return sessionId;
     }
 
     public InetAddress getHost()
     {
-        return context.left;
+        return host;
     }
 
     public void close(boolean success)

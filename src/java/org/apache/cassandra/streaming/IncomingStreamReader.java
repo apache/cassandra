@@ -60,16 +60,15 @@ public class IncomingStreamReader
     public IncomingStreamReader(StreamHeader header, Socket socket) throws IOException
     {
         socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
-        InetAddress host = header.broadcastAddress != null ? header.broadcastAddress
-                           : ((InetSocketAddress)socket.getRemoteSocketAddress()).getAddress();
+        InetAddress host = ((InetSocketAddress)socket.getRemoteSocketAddress()).getAddress();
         if (header.pendingFiles.isEmpty() && header.file != null)
         {
             // StreamInSession should be created already when receiving 2nd and after files
-            if (!StreamInSession.hasSession(host, header.sessionId))
+            if (!StreamInSession.hasSession(header.sessionId))
             {
                 StreamReply reply = new StreamReply("", header.sessionId, StreamReply.Status.SESSION_FAILURE);
                 OutboundTcpConnection.write(reply.createMessage(),
-                                            Long.toString(header.sessionId),
+                                            header.sessionId.toString(),
                                             System.currentTimeMillis(),
                                             new DataOutputStream(socket.getOutputStream()),
                                             MessagingService.instance().getVersion(host));
@@ -98,7 +97,7 @@ public class IncomingStreamReader
         {
             underliningStream = null;
         }
-        metrics = StreamingMetrics.get(socket.getInetAddress());
+        metrics = StreamingMetrics.get(host);
     }
 
     /**

@@ -22,10 +22,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import org.junit.Test;
 
@@ -44,6 +41,7 @@ import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
@@ -84,14 +82,15 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testStreamHeaderWrite() throws IOException
     {
-        StreamHeader sh0 = new StreamHeader("Keyspace1", 123L, makePendingFile(true, 100, OperationType.BOOTSTRAP));
-        StreamHeader sh1 = new StreamHeader("Keyspace1", 124L, makePendingFile(false, 100, OperationType.BOOTSTRAP));
+        UUID sessionId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+        StreamHeader sh0 = new StreamHeader("Keyspace1", sessionId, makePendingFile(true, 100, OperationType.BOOTSTRAP));
+        StreamHeader sh1 = new StreamHeader("Keyspace1", sessionId, makePendingFile(false, 100, OperationType.BOOTSTRAP));
         Collection<PendingFile> files = new ArrayList<PendingFile>();
         for (int i = 0; i < 50; i++)
             files.add(makePendingFile(i % 2 == 0, 100, OperationType.BOOTSTRAP));
-        StreamHeader sh2 = new StreamHeader("Keyspace1", 125L, makePendingFile(true, 100, OperationType.BOOTSTRAP), files);
-        StreamHeader sh3 = new StreamHeader("Keyspace1", 125L, null, files);
-        StreamHeader sh4 = new StreamHeader("Keyspace1", 125L, makePendingFile(true, 100, OperationType.BOOTSTRAP), new ArrayList<PendingFile>());
+        StreamHeader sh2 = new StreamHeader("Keyspace1", sessionId, makePendingFile(true, 100, OperationType.BOOTSTRAP), files);
+        StreamHeader sh3 = new StreamHeader("Keyspace1", sessionId, null, files);
+        StreamHeader sh4 = new StreamHeader("Keyspace1", sessionId, makePendingFile(true, 100, OperationType.BOOTSTRAP), new ArrayList<PendingFile>());
 
         DataOutputStream out = getOutput("streaming.StreamHeader.bin");
         StreamHeader.serializer.serialize(sh0, out, getVersion());
@@ -126,7 +125,8 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testStreamReplyWrite() throws IOException
     {
-        StreamReply rep = new StreamReply("this is a file", 123L, StreamReply.Status.FILE_FINISHED);
+        UUID sessionId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+        StreamReply rep = new StreamReply("this is a file", sessionId, StreamReply.Status.FILE_FINISHED);
         DataOutputStream out = getOutput("streaming.StreamReply.bin");
         StreamReply.serializer.serialize(rep, out, getVersion());
         rep.createMessage().serialize(out, getVersion());
@@ -159,13 +159,14 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testStreamRequestMessageWrite() throws IOException
     {
+        UUID sessionId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
         Collection<Range<Token>> ranges = new ArrayList<Range<Token>>();
         for (int i = 0; i < 5; i++)
             ranges.add(new Range<Token>(new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i))), new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i+5)))));
         List<ColumnFamilyStore> stores = Collections.singletonList(Table.open("Keyspace1").getColumnFamilyStore("Standard1"));
-        StreamRequest msg0 = new StreamRequest(FBUtilities.getBroadcastAddress(), ranges, "Keyspace1", stores, 123L, OperationType.RESTORE_REPLICA_COUNT);
-        StreamRequest msg1 = new StreamRequest(FBUtilities.getBroadcastAddress(), makePendingFile(true, 100, OperationType.BOOTSTRAP), 124L);
-        StreamRequest msg2 = new StreamRequest(FBUtilities.getBroadcastAddress(), makePendingFile(false, 100, OperationType.BOOTSTRAP), 124L);
+        StreamRequest msg0 = new StreamRequest(FBUtilities.getBroadcastAddress(), ranges, "Keyspace1", stores, sessionId, OperationType.RESTORE_REPLICA_COUNT);
+        StreamRequest msg1 = new StreamRequest(FBUtilities.getBroadcastAddress(), makePendingFile(true, 100, OperationType.BOOTSTRAP), sessionId);
+        StreamRequest msg2 = new StreamRequest(FBUtilities.getBroadcastAddress(), makePendingFile(false, 100, OperationType.BOOTSTRAP), sessionId);
 
         DataOutputStream out = getOutput("streaming.StreamRequestMessage.bin");
         StreamRequest.serializer.serialize(msg0, out, getVersion());
