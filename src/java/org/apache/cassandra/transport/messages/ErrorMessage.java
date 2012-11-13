@@ -147,7 +147,7 @@ public class ErrorMessage extends Message.Response
                                          : null;
 
                     int extraSize = isWrite  ? 2 + writeType.remaining() : 1;
-                    acb = ChannelBuffers.buffer(rteCl.writableBytes() + 8 + extraSize);
+                    acb = ChannelBuffers.buffer(rteCl.readableBytes() + 8 + extraSize);
 
                     acb.writeBytes(rteCl);
                     acb.writeInt(rte.received);
