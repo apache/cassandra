@@ -90,6 +90,8 @@ public class SSTableLoader
                 components.add(Component.PRIMARY_INDEX);
                 if (new File(desc.filenameFor(Component.COMPRESSION_INFO)).exists())
                     components.add(Component.COMPRESSION_INFO);
+                if (new File(desc.filenameFor(Component.STATS)).exists())
+                    components.add(Component.STATS);
 
                 try
                 {
