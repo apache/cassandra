@@ -35,11 +35,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.UnknownColumnFamilyException;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FileUtils;
@@ -72,18 +68,27 @@ public class CommitLogReplayer
         this.invalidMutations = new HashMap<UUID, AtomicInteger>();
         // count the number of replayed mutation. We don't really care about atomicity, but we need it to be a reference.
         this.replayedCount = new AtomicInteger();
+        this.checksum = new PureJavaCrc32();
+
         // compute per-CF and global replay positions
-        this.cfPositions = new HashMap<UUID, ReplayPosition>();
+        cfPositions = new HashMap<UUID, ReplayPosition>();
+        Ordering<ReplayPosition> replayPositionOrdering = Ordering.from(ReplayPosition.comparator);
+        Map<UUID, ReplayPosition> truncationPositions = SystemTable.getTruncationPositions();
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
             // it's important to call RP.gRP per-cf, before aggregating all the positions w/ the Ordering.min call
             // below: gRP will return NONE if there are no flushed sstables, which is important to have in the
             // list (otherwise we'll just start replay from the first flush position that we do have, which is not correct).
             ReplayPosition rp = ReplayPosition.getReplayPosition(cfs.getSSTables());
+
+            // but, if we've truncted the cf in question, then we need to need to start replay after the truncation
+            ReplayPosition truncatedAt = truncationPositions.get(cfs.metadata.cfId);
+            if (truncatedAt != null)
+                rp = replayPositionOrdering.max(Arrays.asList(rp, truncatedAt));
+
             cfPositions.put(cfs.metadata.cfId, rp);
         }
-        this.globalPosition = Ordering.from(ReplayPosition.comparator).min(cfPositions.values());
-        this.checksum = new PureJavaCrc32();
+        globalPosition = replayPositionOrdering.min(cfPositions.values());
     }
 
     public void recover(File[] clogs) throws IOException

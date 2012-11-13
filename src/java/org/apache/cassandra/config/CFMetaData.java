@@ -182,7 +182,7 @@ public final class CFMetaData
                                                          + "cql_version text,"
                                                          + "data_center text,"
                                                          + "rack text,"
-                                                         + "partitioner text,"
+                                                         + "truncated_at map<uuid, blob>"
                                                          + ") WITH COMMENT='information about the local node'");
 
     public static final CFMetaData TraceSessionsCf = compile(14, "CREATE TABLE " + Tracing.SESSIONS_CF + " ("

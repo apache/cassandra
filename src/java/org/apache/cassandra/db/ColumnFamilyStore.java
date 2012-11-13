@@ -1720,38 +1720,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
-     * Waits for flushes started BEFORE THIS METHOD IS CALLED to finish.
-     * Does NOT guarantee that no flush is active when it returns.
-     */
-    private void waitForActiveFlushes()
-    {
-        Future<?> future;
-        Table.switchLock.writeLock().lock();
-        try
-        {
-            future = postFlushExecutor.submit(new Runnable() { public void run() { } });
-        }
-        finally
-        {
-            Table.switchLock.writeLock().unlock();
-        }
-
-        try
-        {
-            future.get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new AssertionError(e);
-        }
-    }
-
-    /**
-     * Truncate practically deletes the entire column family's data
+     * Truncate deletes the entire column family's data with no expensive tombstone creation
      * @return a Future to the delete operation. Call the future's get() to make
      * sure the column family has been deleted
      */
@@ -1767,21 +1736,29 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // Bonus complication: since we store replay position in sstable metadata,
         // truncating those sstables means we will replay any CL segments from the
         // beginning if we restart before they are discarded for normal reasons
-        // post-truncate.  So we need to (a) force a new segment so the currently
-        // active one can be discarded, and (b) flush *all* CFs so that unflushed
-        // data in others don't keep any pre-truncate CL segments alive.
-        //
-        // Bonus bonus: simply forceFlush of all the CF is not enough, because if
-        // for a given column family the memtable is clean, forceFlush will return
-        // immediately, even though there could be a memtable being flushed at the same
-        // time.  So to guarantee that all segments can be cleaned out, we need to
-        // "waitForActiveFlushes" after the new segment has been created.
+        // post-truncate.  So we need to create a "dummy" sstable containing
+        // only the replay position.  This is done by CompactionManager.submitTruncate.
         logger.debug("truncating {}", columnFamily);
 
         if (DatabaseDescriptor.isAutoSnapshot())
         {
             // flush the CF being truncated before forcing the new segment
             forceBlockingFlush();
+
+            // sleep a little to make sure that our truncatedAt comes after any sstable
+            // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
+            try
+            {
+                long starttime = System.currentTimeMillis();
+                while ((System.currentTimeMillis() - starttime) < 1)
+                {
+                    Thread.sleep(1);
+                }
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
         }
         else
         {
@@ -1804,33 +1781,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
 
-        KSMetaData ksm = Schema.instance.getKSMetaData(this.table.name);
-        if (ksm.durableWrites)
-        {
-            CommitLog.instance.forceNewSegment();
-            Future<ReplayPosition> position = CommitLog.instance.getContext();
-            // now flush everyone else.  re-flushing ourselves is not necessary, but harmless
-            for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-                cfs.forceFlush();
-            waitForActiveFlushes();
-            // if everything was clean, flush won't have called discard
-            CommitLog.instance.discardCompletedSegments(metadata.cfId, position.get());
-        }
-
-        // sleep a little to make sure that our truncatedAt comes after any sstable
-        // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
-        try
-        {
-            long starttime = System.currentTimeMillis();
-            while ((System.currentTimeMillis() - starttime) < 1)
-            {
-                Thread.sleep(1);
-            }
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
         long truncatedAt = System.currentTimeMillis();
         if (DatabaseDescriptor.isAutoSnapshot())
             snapshot(Table.getTimestampedSnapshotName(columnFamily));
@@ -2093,8 +2043,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      *
      * @param truncatedAt The timestamp of the truncation
      *                    (all SSTables before that timestamp are going be marked as compacted)
+     *
+     * @return the most recent replay position of the truncated data
      */
-    public void discardSSTables(long truncatedAt)
+    public ReplayPosition discardSSTables(long truncatedAt)
     {
         List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
 
@@ -2104,7 +2056,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 truncatedSSTables.add(sstable);
         }
 
-        if (!truncatedSSTables.isEmpty())
-            markCompacted(truncatedSSTables, OperationType.UNKNOWN);
+        if (truncatedSSTables.isEmpty())
+            return ReplayPosition.NONE;
+
+        markCompacted(truncatedSSTables, OperationType.UNKNOWN);
+        return ReplayPosition.getReplayPosition(truncatedSSTables);
     }
 }

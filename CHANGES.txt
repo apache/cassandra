@@ -1,4 +1,6 @@
 1.2-rc1
+ * fix cqlsh DESCRIBE command (CASSANDRA-4913)
+ * save truncation position in system table (CASSANDRA-4906)
  * Move CompressionMetadata off-heap (CASSANDRA-4937)
  * allow CLI to GET cql3 columnfamily data (CASSANDRA-4924)
  * Fix rare race condition in getExpireTimeForEndpoint (CASSANDRA-4402)
@@ -9,6 +11,10 @@
  * Exclude gcable tombstones from merkle-tree computation (CASSANDRA-4905)
  * Better printing of AbstractBounds for tracing (CASSANDRA-4931)
  * Optimize mostRecentTomstone check in CC.collectAllData (CASSANDRA-4883)
+Merged from 1.1:
+ * reset getRangeSlice filter after finishing a row for get_paged_slice
+   (CASSANDRA-4919)
+ * expunge row cache post-truncate (CASSANDRA-4940)
 
 
 1.2-beta2

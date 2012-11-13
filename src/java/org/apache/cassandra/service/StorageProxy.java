@@ -41,7 +41,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -1091,6 +1093,12 @@ public class StorageProxy implements StorageProxyMBean
         // now scan until we have enough results
         try
         {
+            final IDiskAtomFilter emptyPredicate = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                                        false,
+                                                                        -1);
+            IDiskAtomFilter commandPredicate = command.predicate;
+
             int columnsCount = 0;
             rows = new ArrayList<Row>();
             List<AbstractBounds<RowPosition>> ranges = getRestrictedRanges(command.range);
@@ -1099,7 +1107,7 @@ public class StorageProxy implements StorageProxyMBean
                 RangeSliceCommand nodeCmd = new RangeSliceCommand(command.keyspace,
                                                                   command.column_family,
                                                                   command.super_column,
-                                                                  command.predicate,
+                                                                  commandPredicate,
                                                                   range,
                                                                   command.row_filter,
                                                                   command.maxResults,
@@ -1157,6 +1165,11 @@ public class StorageProxy implements StorageProxyMBean
                 int count = nodeCmd.maxIsColumns ? columnsCount : rows.size();
                 if (count >= nodeCmd.maxResults)
                     break;
+
+                // if we are paging and already got some rows, reset the column filter predicate,
+                // so we start iterating the next row from the first column
+                if (!rows.isEmpty() && command.isPaging)
+                    commandPredicate = emptyPredicate;
             }
         }
         finally
@@ -1164,6 +1177,14 @@ public class StorageProxy implements StorageProxyMBean
             rangeMetrics.addNano(System.nanoTime() - startTime);
         }
         return trim(command, rows);
+    }
+
+    private static IDiskAtomFilter getEmptySlicePredicate()
+    {
+        return new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                    ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                    false,
+                                    -1);
     }
 
     private static List<Row> trim(RangeSliceCommand command, List<Row> rows)
