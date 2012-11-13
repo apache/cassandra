@@ -135,7 +135,7 @@ public class SystemTable
 
     private static void setupVersion()
     {
-        String req = "INSERT INTO system.%s (key, release_version, cql_version, thrift_version, data_center, rack) VALUES ('%s', '%s', '%s', '%s', '%s', '%s')";
+        String req = "INSERT INTO system.%s (key, release_version, cql_version, thrift_version, data_center, rack, partitioner) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s')";
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         processInternal(String.format(req, LOCAL_CF,
                                          LOCAL_KEY,
@@ -143,7 +143,8 @@ public class SystemTable
                                          QueryProcessor.CQL_VERSION.toString(),
                                          Constants.VERSION,
                                          snitch.getDatacenter(FBUtilities.getBroadcastAddress()),
-                                         snitch.getRack(FBUtilities.getBroadcastAddress())));
+                                         snitch.getRack(FBUtilities.getBroadcastAddress()),
+                                         DatabaseDescriptor.getPartitioner().getClass().getName()));
     }
 
     /** if system data becomes incompatible across versions of cassandra, that logic (and associated purging) is managed here */
