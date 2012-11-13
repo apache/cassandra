@@ -42,7 +42,7 @@ public class ConcurrentLinkedHashCacheProvider implements IRowCacheProvider
 
             public int weightOf(IRowCacheEntry value)
             {
-                return (int) Math.min(meter.measure(value), Integer.MAX_VALUE);
+                return (int) Math.min(meter.measureDeep(value), Integer.MAX_VALUE);
             }
         };
     }
