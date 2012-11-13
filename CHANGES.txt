@@ -16,6 +16,7 @@
  * Better printing of AbstractBounds for tracing (CASSANDRA-4931)
  * Optimize mostRecentTomstone check in CC.collectAllData (CASSANDRA-4883)
  * Change stream session ID to UUID to avoid collision from same node (CASSANDRA-4813)
+ * Use Stats.db when bulk loading if present (CASSANDRA-4957)
 Merged from 1.1:
  * reset getRangeSlice filter after finishing a row for get_paged_slice
    (CASSANDRA-4919)
