@@ -57,7 +57,7 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
         {
             public int weightOf(K key, V value)
             {
-                long size = meter.measure(key) + meter.measure(value);
+                long size = meter.measureDeep(key) + meter.measureDeep(value);
                 assert size < Integer.MAX_VALUE : "Serialized size cannot be more than 2GB/Integer.MAX_VALUE";
                 return (int) size;
             }
