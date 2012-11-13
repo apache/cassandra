@@ -132,9 +132,11 @@ Table of Contents
   respond to. As there can only be 128 different simultaneous stream, it is up
   to the client to reuse stream id.
 
-  Note that clients are free to use the protocol synchronously (i.e.  wait for
+  Note that clients are free to use the protocol synchronously (i.e. wait for
   the response to REQ_N before sending REQ_N+1). In that case, the stream id
-  can be safely set to 0.
+  can be safely set to 0. Clients should also feel free to use only a subset of
+  the 128 maximum possible stream ids if it is simpler for those
+  implementation.
 
 2.4. opcode
 
