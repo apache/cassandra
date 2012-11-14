@@ -75,8 +75,8 @@ public class CompressedRandomAccessReaderTest
 
             assert f.exists();
             RandomAccessReader reader = compressed
-                ? new CompressedRandomAccessReader(filename, new CompressionMetadata(filename + ".metadata", f.length()), false)
-                : new RandomAccessReader(f, CompressionParameters.DEFAULT_CHUNK_LENGTH, false);
+                                      ? CompressedRandomAccessReader.open(filename, new CompressionMetadata(filename + ".metadata", f.length()), false)
+                                      : RandomAccessReader.open(f);
             String expected = "The quick brown fox jumps over the lazy dog";
             assertEquals(expected.length(), reader.length());
             byte[] b = new byte[expected.length()];

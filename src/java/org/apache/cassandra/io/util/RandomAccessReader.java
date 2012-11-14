@@ -21,6 +21,8 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.utils.CLibrary;
 
@@ -58,10 +60,13 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
 
     private final long fileLength;
 
-    // used in tests
-    public RandomAccessReader(File file, int bufferSize, boolean skipIOCache) throws FileNotFoundException
+    protected final PoolingSegmentedFile owner;
+
+    protected RandomAccessReader(File file, int bufferSize, boolean skipIOCache, PoolingSegmentedFile owner) throws FileNotFoundException
     {
         super(file, "r");
+
+        this.owner = owner;
 
         channel = super.getChannel();
         filePath = file.getAbsolutePath();
@@ -94,26 +99,27 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
         validBufferBytes = -1; // that will trigger reBuffer() on demand by read/seek operations
     }
 
-    public static RandomAccessReader open(File file, boolean skipIOCache)
-    {
-        return open(file, DEFAULT_BUFFER_SIZE, skipIOCache);
-    }
-
     public static RandomAccessReader open(File file)
     {
-        return open(file, DEFAULT_BUFFER_SIZE, false);
+        return open(file, false);
     }
 
-    public static RandomAccessReader open(File file, int bufferSize)
+    public static RandomAccessReader open(File file, PoolingSegmentedFile owner)
     {
-        return open(file, bufferSize, false);
+        return open(file, DEFAULT_BUFFER_SIZE, false, owner);
     }
 
-    public static RandomAccessReader open(File file, int bufferSize, boolean skipIOCache)
+    public static RandomAccessReader open(File file, boolean skipIOCache)
+    {
+        return open(file, DEFAULT_BUFFER_SIZE, skipIOCache, null);
+    }
+
+    @VisibleForTesting
+    static RandomAccessReader open(File file, int bufferSize, boolean skipIOCache, PoolingSegmentedFile owner)
     {
         try
         {
-            return new RandomAccessReader(file, bufferSize, skipIOCache);
+            return new RandomAccessReader(file, bufferSize, skipIOCache, owner);
         }
         catch (FileNotFoundException e)
         {
@@ -121,10 +127,10 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
         }
     }
 
-    // convert open into open
-    public static RandomAccessReader open(SequentialWriter writer)
+    @VisibleForTesting
+    static RandomAccessReader open(SequentialWriter writer)
     {
-        return open(new File(writer.getPath()), DEFAULT_BUFFER_SIZE);
+        return open(new File(writer.getPath()), DEFAULT_BUFFER_SIZE, false, null);
     }
 
     /**
@@ -239,7 +245,24 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
     @Override
     public void close()
     {
-        buffer = null;
+        if (owner == null || buffer == null)
+        {
+            // The buffer == null check is so that if the pool owner has deallocated us, calling close()
+            // will re-call deallocate rather than recycling a deallocated object.
+            // I'd be more comfortable if deallocate didn't have to handle being idempotent like that,
+            // but RandomAccessFile.close will call AbstractInterruptibleChannel.close which will
+            // re-call RAF.close -- in this case, [C]RAR.close since we are overriding that.
+            deallocate();
+        }
+        else
+        {
+            owner.recycle(this);
+        }
+    }
+
+    public void deallocate()
+    {
+        buffer = null; // makes sure we don't use this after it's ostensibly closed
 
         if (skipIOCache && bytesSinceCacheFlush > 0)
             CLibrary.trySkipCache(fd, 0, 0);
