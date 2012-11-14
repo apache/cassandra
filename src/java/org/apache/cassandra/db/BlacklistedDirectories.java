@@ -32,8 +32,8 @@ import javax.management.ObjectName;
 public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=BlacklistedDirectories";
-    private static final BlacklistedDirectories instance = new BlacklistedDirectories();
     private static final Logger logger = LoggerFactory.getLogger(BlacklistedDirectories.class);
+    private static final BlacklistedDirectories instance = new BlacklistedDirectories();
 
     private final Set<File> unreadableDirectories = new CopyOnWriteArraySet<File>();
     private final Set<File> unwritableDirectories = new CopyOnWriteArraySet<File>();
