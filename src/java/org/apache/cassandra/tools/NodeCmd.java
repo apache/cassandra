@@ -113,6 +113,7 @@ public class NodeCmd
         GETENDPOINTS,
         GETSSTABLES,
         GOSSIPINFO,
+        HELP,
         INFO,
         INVALIDATEKEYCACHE,
         INVALIDATEROWCACHE,
@@ -994,6 +995,7 @@ public class NodeCmd
 
             switch (command)
             {
+                case HELP : printUsage(); break;
                 case RING :
                     if (arguments.length > 0) { nodeCmd.printRing(System.out, arguments[0]); }
                     else                      { nodeCmd.printRing(System.out, null); };
