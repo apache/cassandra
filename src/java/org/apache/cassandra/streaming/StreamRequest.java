@@ -24,6 +24,7 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 import com.google.common.collect.Iterables;
 
@@ -38,6 +39,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.UUIDSerializer;
 
 /**
 * This class encapsulates the message that needs to be sent to nodes
@@ -50,19 +52,19 @@ public class StreamRequest
 {
     public static final IVersionedSerializer<StreamRequest> serializer = new StreamRequestSerializer();
 
-    protected final long sessionId;
+    protected final UUID sessionId;
     protected final InetAddress target;
 
     // if this is specified, ranges and table should not be.
     protected final PendingFile file;
 
-    // if these are specified, file shoud not be.
+    // if these are specified, file should not be.
     protected final Collection<Range<Token>> ranges;
     protected final String table;
     protected final Iterable<ColumnFamilyStore> columnFamilies;
     protected final OperationType type;
 
-    StreamRequest(InetAddress target, Collection<Range<Token>> ranges, String table, Iterable<ColumnFamilyStore> columnFamilies, long sessionId, OperationType type)
+    StreamRequest(InetAddress target, Collection<Range<Token>> ranges, String table, Iterable<ColumnFamilyStore> columnFamilies, UUID sessionId, OperationType type)
     {
         this.target = target;
         this.ranges = ranges;
@@ -73,7 +75,7 @@ public class StreamRequest
         file = null;
     }
 
-    StreamRequest(InetAddress target, PendingFile file, long sessionId)
+    StreamRequest(InetAddress target, PendingFile file, UUID sessionId)
     {
         this.target = target;
         this.file = file;
@@ -100,7 +102,7 @@ public class StreamRequest
             sb.append("@");
             sb.append(target);
             sb.append("------->");
-            for ( Range<Token> range : ranges )
+            for (Range<Token> range : ranges)
             {
                 sb.append(range);
                 sb.append(" ");
@@ -118,7 +120,7 @@ public class StreamRequest
     {
         public void serialize(StreamRequest srm, DataOutput dos, int version) throws IOException
         {
-            dos.writeLong(srm.sessionId);
+            UUIDSerializer.serializer.serialize(srm.sessionId, dos, MessagingService.current_version);
             CompactEndpointSerializationHelper.serialize(srm.target, dos);
             if (srm.file != null)
             {
@@ -143,7 +145,7 @@ public class StreamRequest
 
         public StreamRequest deserialize(DataInput dis, int version) throws IOException
         {
-            long sessionId = dis.readLong();
+            UUID sessionId = UUIDSerializer.serializer.deserialize(dis, MessagingService.current_version);
             InetAddress target = CompactEndpointSerializationHelper.deserialize(dis);
             boolean singleFile = dis.readBoolean();
             if (singleFile)
@@ -156,10 +158,9 @@ public class StreamRequest
                 String table = dis.readUTF();
                 int size = dis.readInt();
                 List<Range<Token>> ranges = (size == 0) ? null : new ArrayList<Range<Token>>(size);
-                for( int i = 0; i < size; ++i )
+                for (int i = 0; i < size; ++i)
                     ranges.add((Range<Token>) AbstractBounds.serializer.deserialize(dis, version).toTokenBounds());
-                OperationType type = OperationType.RESTORE_REPLICA_COUNT;
-                type = OperationType.valueOf(dis.readUTF());
+                OperationType type = OperationType.valueOf(dis.readUTF());
 
                 List<ColumnFamilyStore> stores = new ArrayList<ColumnFamilyStore>();
                 int cfsSize = dis.readInt();

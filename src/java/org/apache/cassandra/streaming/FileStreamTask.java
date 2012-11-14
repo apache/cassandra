@@ -90,7 +90,7 @@ public class FileStreamTask extends WrappedRunnable
             // (at this point, if we fail, it is the receiver's job to re-request)
             stream();
 
-            StreamOutSession session = StreamOutSession.get(to, header.sessionId);
+            StreamOutSession session = StreamOutSession.get(header.sessionId);
             if (session == null)
             {
                 logger.info("Found no stream out session at end of file stream task - this is expected if the receiver went down");
@@ -104,7 +104,7 @@ public class FileStreamTask extends WrappedRunnable
         }
         catch (IOException e)
         {
-            StreamOutSession session = StreamOutSession.get(to, header.sessionId);
+            StreamOutSession session = StreamOutSession.get(header.sessionId);
             if (session != null)
                 session.close(false);
             throw e;

@@ -28,6 +28,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.UUIDGen;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
@@ -38,57 +40,37 @@ public class StreamOutSession extends AbstractStreamSession
     private static final Logger logger = LoggerFactory.getLogger(StreamOutSession.class);
 
     // one host may have multiple stream sessions.
-    private static final ConcurrentMap<Pair<InetAddress, Long>, StreamOutSession> streams = new NonBlockingHashMap<Pair<InetAddress, Long>, StreamOutSession>();
-    private final static AtomicInteger sessionIdCounter = new AtomicInteger(0);
-
-    /**
-     * The next session id is a combination of a local integer counter and a flag used to avoid collisions
-     * between session id's generated on different machines. Nodes can may have StreamOutSessions with the
-     * following contexts:
-     *
-     * <1.1.1.1, (stream_in_flag, 6)>
-     * <1.1.1.1, (stream_out_flag, 6)>
-     *
-     * The first is an out stream created in response to a request from node 1.1.1.1. The  id (6) was created by
-     * the requesting node. The second is an out stream created by this node to push to 1.1.1.1. The  id (6) was
-     * created by this node.
-     * @return next StreamOutSession sessionId
-     */
-    private static long nextSessionId()
-    {
-        return (((long)StreamHeader.STREAM_OUT_SOURCE_FLAG << 32) + sessionIdCounter.incrementAndGet());
-    }
+    private static final ConcurrentMap<UUID, StreamOutSession> streams = new NonBlockingHashMap<UUID, StreamOutSession>();
 
     public static StreamOutSession create(String table, InetAddress host, IStreamCallback callback)
     {
-        return create(table, host, nextSessionId(), callback);
+        return create(table, host, UUIDGen.makeType1UUIDFromHost(host), callback);
     }
 
-    public static StreamOutSession create(String table, InetAddress host, long sessionId)
+    public static StreamOutSession create(String table, InetAddress host, UUID sessionId)
     {
         return create(table, host, sessionId, null);
     }
 
-    public static StreamOutSession create(String table, InetAddress host, long sessionId, IStreamCallback callback)
+    public static StreamOutSession create(String table, InetAddress host, UUID sessionId, IStreamCallback callback)
     {
-        Pair<InetAddress, Long> context = Pair.create(host, sessionId);
-        StreamOutSession session = new StreamOutSession(table, context, callback);
-        streams.put(context, session);
+        StreamOutSession session = new StreamOutSession(table, host, sessionId, callback);
+        streams.put(sessionId, session);
         return session;
     }
 
-    public static StreamOutSession get(InetAddress host, long sessionId)
+    public static StreamOutSession get(UUID sessionId)
     {
-        return streams.get(Pair.create(host, sessionId));
+        return streams.get(sessionId);
     }
 
     private final Map<String, PendingFile> files = new NonBlockingHashMap<String, PendingFile>();
 
     private volatile String currentFile;
 
-    private StreamOutSession(String table, Pair<InetAddress, Long> context, IStreamCallback callback)
+    private StreamOutSession(String table, InetAddress host, UUID sessionId, IStreamCallback callback)
     {
-        super(table, context, callback);
+        super(table, host, sessionId, callback);
     }
 
     public void addFilesToStream(List<PendingFile> pendingFiles)
@@ -129,13 +111,13 @@ public class StreamOutSession extends AbstractStreamSession
         // Release reference on last file (or any uncompleted ones)
         for (PendingFile file : files.values())
             file.sstable.releaseReference();
-        streams.remove(context);
+        streams.remove(sessionId);
     }
 
     /** convenience method for use when testing */
     void await() throws InterruptedException
     {
-        while (streams.containsKey(context))
+        while (streams.containsKey(sessionId))
             Thread.sleep(10);
     }
 
@@ -157,10 +139,11 @@ public class StreamOutSession extends AbstractStreamSession
     public static List<PendingFile> getOutgoingFiles(InetAddress host)
     {
         List<PendingFile> list = new ArrayList<PendingFile>();
-        for (Map.Entry<Pair<InetAddress, Long>, StreamOutSession> entry : streams.entrySet())
+        for (Map.Entry<UUID, StreamOutSession> entry : streams.entrySet())
         {
-            if (entry.getKey().left.equals(host))
-                list.addAll(entry.getValue().getFiles());
+            StreamOutSession session = entry.getValue();
+            if (session.getHost().equals(host))
+                list.addAll(session.getFiles());
         }
         return list;
     }

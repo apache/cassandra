@@ -127,11 +127,8 @@ public class QueryProcessor
     throws RequestExecutionException, RequestValidationException
     {
         ClientState clientState = queryState.getClientState();
-        Tracing.trace("Checking access");
         statement.checkAccess(clientState);
-        Tracing.trace("Validating statement");
         statement.validate(clientState);
-        Tracing.trace("Executing statement");
         ResultMessage result = statement.execute(cl, queryState, variables);
         return result == null ? new ResultMessage.Void() : result;
     }

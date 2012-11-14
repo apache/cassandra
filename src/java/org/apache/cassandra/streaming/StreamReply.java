@@ -20,11 +20,13 @@ package org.apache.cassandra.streaming;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.UUID;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.UUIDSerializer;
 
 public class StreamReply
 {
@@ -38,11 +40,11 @@ public class StreamReply
 
     public static final IVersionedSerializer<StreamReply> serializer = new FileStatusSerializer();
 
-    public final long sessionId;
+    public final UUID sessionId;
     public final String file;
     public final Status action;
 
-    public StreamReply(String file, long sessionId, Status action)
+    public StreamReply(String file, UUID sessionId, Status action)
     {
         this.file = file;
         this.action = action;
@@ -68,14 +70,14 @@ public class StreamReply
     {
         public void serialize(StreamReply reply, DataOutput dos, int version) throws IOException
         {
-            dos.writeLong(reply.sessionId);
+            UUIDSerializer.serializer.serialize(reply.sessionId, dos, MessagingService.current_version);
             dos.writeUTF(reply.file);
             dos.writeInt(reply.action.ordinal());
         }
 
         public StreamReply deserialize(DataInput dis, int version) throws IOException
         {
-            long sessionId = dis.readLong();
+            UUID sessionId = UUIDSerializer.serializer.deserialize(dis, MessagingService.current_version);
             String targetFile = dis.readUTF();
             Status action = Status.values()[dis.readInt()];
             return new StreamReply(targetFile, sessionId, action);
