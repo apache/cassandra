@@ -761,11 +761,20 @@ bc(sample).
 INSERT INTO users (id, given, surname, favs)
            VALUES ('jsmith', 'John', 'Smith', { 'fruit' : 'apple', 'band' : 'Beatles' })
 
-Adding or updating key-values of a (potentially) existing map can be accomplished by subscripting the map column in an @UPDATE@ statement.
+Adding or updating key-values of a (potentially) existing map can be accomplished either by subscripting the map column in an @UPDATE@ statement or by adding a new map literal:
 
 bc(sample). 
 // Updating (or inserting)
 UPDATE users SET favs['author'] = 'Ed Poe' WHERE id = 'jsmith'
+UPDATE users SET favs = favs +  { 'movie' : 'Cassablanca' } WHERE id = 'jsmith'
+
+Note that TTLs are allowed for both @INSERT@ and @UPDATE@, but in both case the TTL set only apply to the newly inserted/updated _values_. In other words,
+
+bc(sample). 
+// Updating (or inserting)
+UPDATE users USING TTL 10 SET favs['color'] = 'green' WHERE id = 'jsmith'
+
+will only apply the TTL to the @{ 'color' : 'green' }@ record, the rest of the map remaining unaffected.
 
 Deleting a map record is done with:
 
@@ -796,6 +805,7 @@ bc(sample).
 UPDATE images SET tags = tags + { 'cute', 'cuddly' } WHERE name = 'cat.jpg';
 UPDATE images SET tags = tags - { 'lame' } WHERE name = 'cat.jpg';
 
+As with "maps":#map, TTLs if used only apply to the newly inserted/updated _values_.
 
 h4(#list). Lists
 
@@ -829,6 +839,8 @@ bc(sample).
 UPDATE plays SET scores[1] = 7 WHERE id = '123-afde';                // sets the 2nd element of scores to 7 (raises an error is scores has less than 2 elements)
 DELETE scores[1] FROM plays WHERE id = '123-afde';                   // deletes the 2nd element of scores (raises an error is scores has less than 2 elements)
 UPDATE plays SET scores = scores - [ 12, 21 ] WHERE id = '123-afde'; // removes all occurences of 12 and 21 from scores
+
+As with "maps":#map, TTLs if used only apply to the newly inserted/updated _values_.
 
 
 h2(#appendixA). Appendix A: CQL Keywords
