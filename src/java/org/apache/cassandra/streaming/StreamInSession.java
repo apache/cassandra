@@ -127,7 +127,7 @@ public class StreamInSession extends AbstractStreamSession
         retries++;
         if (retries > DatabaseDescriptor.getMaxStreamingRetries())
         {
-            logger.error(String.format("Failed streaming session %d from %s while receiving %s", getSessionId(), getHost().toString(), current),
+            logger.error(String.format("Failed streaming session %s from %s while receiving %s", getSessionId(), getHost().toString(), current),
                          new IllegalStateException("Too many retries for " + remoteFile));
             close(false);
             return;
