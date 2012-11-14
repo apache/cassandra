@@ -258,6 +258,7 @@ public class SystemTable
         processInternal(String.format(req, PEERS_CF, ep.getHostAddress(), tokensAsSet(tokens)));
         forceBlockingFlush(PEERS_CF);
     }
+
     public static synchronized void updatePeerInfo(InetAddress ep, String columnName, String value)
     {
         if (ep.equals(FBUtilities.getBroadcastAddress()))
@@ -265,6 +266,12 @@ public class SystemTable
 
         String req = "INSERT INTO system.%s (peer, %s) VALUES ('%s', '%s')";
         processInternal(String.format(req, PEERS_CF, columnName, ep.getHostAddress(), value));
+    }
+
+    public static synchronized void updateSchemaVersion(UUID version)
+    {
+        String req = "INSERT INTO system.%s (key, schema_version) VALUES ('%s', %s)";
+        processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, version.toString()));
     }
 
     private static String tokensAsSet(Collection<Token> tokens)
