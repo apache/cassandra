@@ -2223,10 +2223,29 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void forceTableRepair(final String tableName, boolean isSequential, boolean  isLocal, final String... columnFamilies) throws IOException
     {
-        if (Table.SYSTEM_KS.equals(tableName))
+        forceTableRepairRange(tableName, getLocalRanges(tableName), isSequential, isLocal, columnFamilies);
+    }
+
+    public void forceTableRepairPrimaryRange(final String tableName, boolean isSequential, boolean  isLocal, final String... columnFamilies) throws IOException
+    {
+        forceTableRepairRange(tableName, getLocalPrimaryRanges(), isSequential, isLocal, columnFamilies);
+    }
+
+    public void forceTableRepairRange(String beginToken, String endToken, final String tableName, boolean isSequential, boolean  isLocal, final String... columnFamilies) throws IOException
+    {
+        Token parsedBeginToken = getPartitioner().getTokenFactory().fromString(beginToken);
+        Token parsedEndToken = getPartitioner().getTokenFactory().fromString(endToken);
+
+        logger.info("starting user-requested repair of range ({}, {}] for keyspace {} and column families {}",
+                    parsedBeginToken, parsedEndToken, tableName, columnFamilies);
+        forceTableRepairRange(tableName, Collections.singleton(new Range<Token>(parsedBeginToken, parsedEndToken)), isSequential, isLocal, columnFamilies);
+    }
+
+    public void forceTableRepairRange(final String tableName, final Collection<Range<Token>> ranges, boolean isSequential, boolean  isLocal, final String... columnFamilies) throws IOException
+    {
+        if (Table.SYSTEM_KS.equals(tableName) || Tracing.TRACE_KS.equals(tableName))
             return;
 
-        Collection<Range<Token>> ranges = getLocalRanges(tableName);
         int cmd = nextRepairCommand.incrementAndGet();
         logger.info("Starting repair command #{}, repairing {} ranges.", cmd, ranges.size());
 
@@ -2246,6 +2265,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 logger.error("Interrupted while waiting for the differencing of repair session " + future.session + " to be done. Repair may be imprecise.", e);
             }
+        }
+        if (futures.isEmpty())
+        {
+            logger.info("Nothing to repair on {} for command #{}", tableName, cmd);
+            return;
         }
 
         boolean failedSession = false;
@@ -2268,47 +2292,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             throw new IOException("Repair command #" + cmd + ": some repair session(s) failed (see log for details).");
         else
             logger.info("Repair command #{} completed successfully", cmd);
-    }
-
-    public void forceTableRepairPrimaryRange(final String tableName, boolean isSequential, boolean  isLocal, final String... columnFamilies) throws IOException
-    {
-        if (Table.SYSTEM_KS.equals(tableName))
-            return;
-
-        List<AntiEntropyService.RepairFuture> futures = new ArrayList<AntiEntropyService.RepairFuture>();
-        for (Range<Token> range : getLocalPrimaryRanges())
-        {
-            RepairFuture future = forceTableRepair(range, tableName, isSequential, isLocal, columnFamilies);
-            if (future != null)
-                futures.add(future);
-        }
-        if (futures.isEmpty())
-            return;
-        for (AntiEntropyService.RepairFuture future : futures)
-            FBUtilities.waitOnFuture(future);
-    }
-
-    public void forceTableRepairRange(String beginToken, String endToken, final String tableName, boolean isSequential, boolean  isLocal, final String... columnFamilies) throws IOException
-    {
-        if (Table.SYSTEM_KS.equals(tableName))
-            return;
-
-        Token parsedBeginToken = getPartitioner().getTokenFactory().fromString(beginToken);
-        Token parsedEndToken = getPartitioner().getTokenFactory().fromString(endToken);
-
-        logger.info("starting user-requested repair of range ({}, {}] for keyspace {} and column families {}",
-                     new Object[] {parsedBeginToken, parsedEndToken, tableName, columnFamilies});
-        AntiEntropyService.RepairFuture future = forceTableRepair(new Range<Token>(parsedBeginToken, parsedEndToken), tableName, isSequential, isLocal, columnFamilies);
-        if (future == null)
-            return;
-        try
-        {
-            future.get();
-        }
-        catch (Exception e)
-        {
-            logger.error("Repair session " + future.session.getName() + " failed.", e);
-        }
     }
 
     public AntiEntropyService.RepairFuture forceTableRepair(final Range<Token> range, final String tableName, boolean isSequential, boolean  isLocal, final String... columnFamilies) throws IOException
