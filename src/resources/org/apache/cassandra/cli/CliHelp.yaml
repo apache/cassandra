@@ -130,7 +130,7 @@ commands:
         describe; - Describes current authenticated keyspace
         describe <keyspace>; - Describe this keyspace
         describe <column_family>; - Describe the colum family in the current authenticated keyspace
-    - name:
+    - name: NODE_DESCRIBE_CLUSTER
       help: |
         describe cluster;
 
