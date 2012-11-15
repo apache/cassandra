@@ -33,10 +33,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
-
-import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.tracing.TraceState;
-import org.apache.cassandra.tracing.Tracing;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,6 +52,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ExtendedFilter;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.index.SecondaryIndex;
@@ -154,6 +151,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         maybeReloadCompactionStrategy();
 
+        scheduleFlush();
+
         indexManager.reload();
 
         // If the CF comparator has changed, we need to change the memtable,
@@ -203,6 +202,30 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         finally
         {
             CompactionManager.instance.getCompactionLock().unlock();
+        }
+    }
+
+    void scheduleFlush()
+    {
+        int period = metadata.getMemtableFlushPeriod();
+        if (period > 0)
+        {
+            logger.debug("scheduling flush in {} ms", period);
+            WrappedRunnable runnable = new WrappedRunnable()
+            {
+                protected void runMayThrow() throws Exception
+                {
+                    if (getMemtableThreadSafe().isExpired())
+                    {
+                        Future<?> future = forceFlush();
+                        // if memtable is already expired but didn't flush because it's empty,
+                        // then schedule another flush.
+                        if (future == null)
+                            scheduleFlush();
+                    }
+                }
+            };
+            StorageService.scheduledTasks.schedule(runnable, period, TimeUnit.MILLISECONDS);
         }
     }
 

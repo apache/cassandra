@@ -50,6 +50,7 @@ public class CFPropDefs {
     public static final String KW_COMPACTION_STRATEGY_CLASS = "compaction_strategy_class";
     public static final String KW_CACHING = "caching";
     public static final String KW_BF_FP_CHANCE = "bloom_filter_fp_chance";
+    public static final String KW_MEMTABLE_FLUSH_PERIOD = "memtable_flush_period_in_ms";
 
     // Maps CQL short names to the respective Cassandra comparator/validator class names
     public static final Map<String, String> comparators = new HashMap<String, String>();
@@ -91,6 +92,7 @@ public class CFPropDefs {
         keywords.add(KW_COMPACTION_STRATEGY_CLASS);
         keywords.add(KW_CACHING);
         keywords.add(KW_BF_FP_CHANCE);
+        keywords.add(KW_MEMTABLE_FLUSH_PERIOD);
 
         obsoleteKeywords.add("row_cache_size");
         obsoleteKeywords.add("key_cache_size");

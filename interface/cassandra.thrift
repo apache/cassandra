@@ -442,6 +442,7 @@ struct CfDef {
     33: optional double bloom_filter_fp_chance,
     34: optional string caching="keys_only",
     37: optional double dclocal_read_repair_chance = 0.0,
+    38: optional i32 memtable_flush_period_in_ms,
 
     /* All of the following are now ignored and unsupplied. */
 

@@ -137,6 +137,7 @@ public class CliClient
         COMPACTION_STRATEGY_OPTIONS,
         COMPRESSION_OPTIONS,
         BLOOM_FILTER_FP_CHANCE,
+        MEMTABLE_FLUSH_PERIOD_IN_MS,
         CACHING
     }
 
@@ -1322,6 +1323,9 @@ public class CliClient
                 break;
             case BLOOM_FILTER_FP_CHANCE:
                 cfDef.setBloom_filter_fp_chance(Double.parseDouble(mValue));
+                break;
+            case MEMTABLE_FLUSH_PERIOD_IN_MS:
+                cfDef.setMemtable_flush_period_in_ms(Integer.parseInt(mValue));
                 break;
             case CACHING:
                 cfDef.setCaching(CliUtils.unescapeSQLString(mValue));

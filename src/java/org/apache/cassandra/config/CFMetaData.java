@@ -123,6 +123,7 @@ public final class CFMetaData
                                                                      + "key_validator text,"
                                                                      + "min_compaction_threshold int,"
                                                                      + "max_compaction_threshold int,"
+                                                                     + "memtable_flush_period_in_ms int,"
                                                                      + "key_alias text," // that one is kept for compatibility sake
                                                                      + "key_aliases text,"
                                                                      + "bloom_filter_fp_chance double,"
@@ -258,6 +259,7 @@ public final class CFMetaData
     private volatile ByteBuffer valueAlias = null;
     private volatile Double bloomFilterFpChance = null;
     private volatile Caching caching = DEFAULT_CACHING_STRATEGY;
+    private int memtableFlushPeriod = 0;
 
     volatile Map<ByteBuffer, ColumnDefinition> column_metadata = new HashMap<ByteBuffer,ColumnDefinition>();
     public volatile Class<? extends AbstractCompactionStrategy> compactionStrategyClass = DEFAULT_COMPACTION_STRATEGY_CLASS;
@@ -288,6 +290,7 @@ public final class CFMetaData
     public CFMetaData compressionParameters(CompressionParameters prop) {compressionParameters = prop; return this;}
     public CFMetaData bloomFilterFpChance(Double prop) {bloomFilterFpChance = prop; return this;}
     public CFMetaData caching(Caching prop) {caching = prop; return this;}
+    public CFMetaData memtableFlushPeriod(int prop) {memtableFlushPeriod = prop; return this;}
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp, AbstractType<?> subcc)
     {
@@ -426,7 +429,8 @@ public final class CFMetaData
                       .compactionStrategyOptions(oldCFMD.compactionStrategyOptions)
                       .compressionParameters(oldCFMD.compressionParameters)
                       .bloomFilterFpChance(oldCFMD.bloomFilterFpChance)
-                      .caching(oldCFMD.caching);
+                      .caching(oldCFMD.caching)
+                      .memtableFlushPeriod(oldCFMD.memtableFlushPeriod);
     }
 
     /**
@@ -539,6 +543,11 @@ public final class CFMetaData
         return caching;
     }
 
+    public int getMemtableFlushPeriod()
+    {
+        return memtableFlushPeriod;
+    }
+
     public boolean equals(Object obj)
     {
         if (obj == this)
@@ -575,6 +584,7 @@ public final class CFMetaData
             .append(compactionStrategyOptions, rhs.compactionStrategyOptions)
             .append(compressionParameters, rhs.compressionParameters)
             .append(bloomFilterFpChance, rhs.bloomFilterFpChance)
+            .append(memtableFlushPeriod, rhs.memtableFlushPeriod)
             .append(caching, rhs.caching)
             .isEquals();
     }
@@ -605,6 +615,7 @@ public final class CFMetaData
             .append(compactionStrategyOptions)
             .append(compressionParameters)
             .append(bloomFilterFpChance)
+            .append(memtableFlushPeriod)
             .append(caching)
             .toHashCode();
     }
@@ -677,6 +688,8 @@ public final class CFMetaData
                 newCFMD.compactionStrategyOptions(new HashMap<String, String>(cf_def.compaction_strategy_options));
             if (cf_def.isSetBloom_filter_fp_chance())
                 newCFMD.bloomFilterFpChance(cf_def.bloom_filter_fp_chance);
+            if (cf_def.isSetMemtable_flush_period_in_ms())
+                newCFMD.memtableFlushPeriod(cf_def.memtable_flush_period_in_ms);
             if (cf_def.isSetCaching())
                 newCFMD.caching(Caching.fromString(cf_def.caching));
             if (cf_def.isSetRead_repair_chance())
@@ -786,6 +799,7 @@ public final class CFMetaData
             valueAlias = cfm.valueAlias;
 
         bloomFilterFpChance = cfm.bloomFilterFpChance;
+        memtableFlushPeriod = cfm.memtableFlushPeriod;
         caching = cfm.caching;
 
         MapDifference<ByteBuffer, ColumnDefinition> columnDiff = Maps.difference(column_metadata, cfm.column_metadata);
@@ -879,6 +893,7 @@ public final class CFMetaData
         def.setCompression_options(compressionParameters.asThriftOptions());
         if (bloomFilterFpChance != null)
             def.setBloom_filter_fp_chance(bloomFilterFpChance);
+        def.setMemtable_flush_period_in_ms(memtableFlushPeriod);
         def.setCaching(caching.toString());
         return def;
     }
@@ -1215,6 +1230,7 @@ public final class CFMetaData
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "key_validator"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "min_compaction_threshold"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "max_compaction_threshold"));
+        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "memtable_flush_period_in_ms"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "key_alias"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "key_aliases"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "bloom_filter_fp_chance"));
@@ -1268,6 +1284,7 @@ public final class CFMetaData
         cf.addColumn(Column.create(json(aliasesAsStrings(keyAliases)), timestamp, cfName, "key_aliases"));
         cf.addColumn(bloomFilterFpChance == null ? DeletedColumn.create(ldt, timestamp, cfName, "bloomFilterFpChance")
                                                  : Column.create(bloomFilterFpChance, timestamp, cfName, "bloom_filter_fp_chance"));
+        cf.addColumn(Column.create(memtableFlushPeriod, timestamp, cfName, "memtable_flush_period_in_ms"));
         cf.addColumn(Column.create(caching.toString(), timestamp, cfName, "caching"));
         cf.addColumn(Column.create(compactionStrategyClass.getName(), timestamp, cfName, "compaction_strategy_class"));
         cf.addColumn(Column.create(json(compressionParameters.asThriftOptions()), timestamp, cfName, "compression_parameters"));
@@ -1312,6 +1329,8 @@ public final class CFMetaData
             }
             if (result.has("bloom_filter_fp_chance"))
                 cfm.bloomFilterFpChance(result.getDouble("bloom_filter_fp_chance"));
+            if (result.has("memtable_flush_period_in_ms"))
+                cfm.memtableFlushPeriod(result.getInt("memtable_flush_period_in_ms"));
             cfm.caching(Caching.valueOf(result.getString("caching")));
             cfm.compactionStrategyClass(createCompactionStrategy(result.getString("compaction_strategy_class")));
             cfm.compressionParameters(CompressionParameters.create(fromJsonMap(result.getString("compression_parameters"))));
@@ -1481,6 +1500,7 @@ public final class CFMetaData
             .append("compactionStrategyOptions", compactionStrategyOptions)
             .append("compressionOptions", compressionParameters.asThriftOptions())
             .append("bloomFilterFpChance", bloomFilterFpChance)
+            .append("memtable_flush_period_in_ms", memtableFlushPeriod)
             .append("caching", caching)
             .toString();
     }

@@ -112,6 +112,7 @@ public class Memtable
         this.cfs = cfs;
         this.creationTime = System.currentTimeMillis();
         this.initialComparator = cfs.metadata.comparator;
+        this.cfs.scheduleFlush();
 
         Callable<Set<Object>> provider = new Callable<Set<Object>>()
         {
@@ -310,6 +311,15 @@ public class Memtable
     public boolean isClean()
     {
         return columnFamilies.isEmpty();
+    }
+
+    /**
+     * @return true if this memtable is expired. Expiration time is determined by CF's memtable_flush_period_in_ms.
+     */
+    public boolean isExpired()
+    {
+        int period = cfs.metadata.getMemtableFlushPeriod();
+        return period > 0 && (System.currentTimeMillis() >= creationTime + period);
     }
 
     /**

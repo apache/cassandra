@@ -67,6 +67,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField BLOOM_FILTER_FP_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("bloom_filter_fp_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)33);
   private static final org.apache.thrift.protocol.TField CACHING_FIELD_DESC = new org.apache.thrift.protocol.TField("caching", org.apache.thrift.protocol.TType.STRING, (short)34);
   private static final org.apache.thrift.protocol.TField DCLOCAL_READ_REPAIR_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("dclocal_read_repair_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)37);
+  private static final org.apache.thrift.protocol.TField MEMTABLE_FLUSH_PERIOD_IN_MS_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_flush_period_in_ms", org.apache.thrift.protocol.TType.I32, (short)38);
   private static final org.apache.thrift.protocol.TField ROW_CACHE_SIZE_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_size", org.apache.thrift.protocol.TType.DOUBLE, (short)9);
   private static final org.apache.thrift.protocol.TField KEY_CACHE_SIZE_FIELD_DESC = new org.apache.thrift.protocol.TField("key_cache_size", org.apache.thrift.protocol.TType.DOUBLE, (short)11);
   private static final org.apache.thrift.protocol.TField ROW_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_save_period_in_seconds", org.apache.thrift.protocol.TType.I32, (short)19);
@@ -100,6 +101,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   public double bloom_filter_fp_chance; // required
   public String caching; // required
   public double dclocal_read_repair_chance; // required
+  public int memtable_flush_period_in_ms; // required
   /**
    * @deprecated
    */
@@ -165,6 +167,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     BLOOM_FILTER_FP_CHANCE((short)33, "bloom_filter_fp_chance"),
     CACHING((short)34, "caching"),
     DCLOCAL_READ_REPAIR_CHANCE((short)37, "dclocal_read_repair_chance"),
+    MEMTABLE_FLUSH_PERIOD_IN_MS((short)38, "memtable_flush_period_in_ms"),
     /**
      * @deprecated
      */
@@ -263,6 +266,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return CACHING;
         case 37: // DCLOCAL_READ_REPAIR_CHANCE
           return DCLOCAL_READ_REPAIR_CHANCE;
+        case 38: // MEMTABLE_FLUSH_PERIOD_IN_MS
+          return MEMTABLE_FLUSH_PERIOD_IN_MS;
         case 9: // ROW_CACHE_SIZE
           return ROW_CACHE_SIZE;
         case 11: // KEY_CACHE_SIZE
@@ -331,16 +336,17 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final int __REPLICATE_ON_WRITE_ISSET_ID = 5;
   private static final int __BLOOM_FILTER_FP_CHANCE_ISSET_ID = 6;
   private static final int __DCLOCAL_READ_REPAIR_CHANCE_ISSET_ID = 7;
-  private static final int __ROW_CACHE_SIZE_ISSET_ID = 8;
-  private static final int __KEY_CACHE_SIZE_ISSET_ID = 9;
-  private static final int __ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 10;
-  private static final int __KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 11;
-  private static final int __MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID = 12;
-  private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 13;
-  private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 14;
-  private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 15;
-  private static final int __ROW_CACHE_KEYS_TO_SAVE_ISSET_ID = 16;
-  private BitSet __isset_bit_vector = new BitSet(17);
+  private static final int __MEMTABLE_FLUSH_PERIOD_IN_MS_ISSET_ID = 8;
+  private static final int __ROW_CACHE_SIZE_ISSET_ID = 9;
+  private static final int __KEY_CACHE_SIZE_ISSET_ID = 10;
+  private static final int __ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 11;
+  private static final int __KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 12;
+  private static final int __MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID = 13;
+  private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 14;
+  private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 15;
+  private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 16;
+  private static final int __ROW_CACHE_KEYS_TO_SAVE_ISSET_ID = 17;
+  private BitSet __isset_bit_vector = new BitSet(18);
 
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
@@ -394,6 +400,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     tmpMap.put(_Fields.DCLOCAL_READ_REPAIR_CHANCE, new org.apache.thrift.meta_data.FieldMetaData("dclocal_read_repair_chance", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
+    tmpMap.put(_Fields.MEMTABLE_FLUSH_PERIOD_IN_MS, new org.apache.thrift.meta_data.FieldMetaData("memtable_flush_period_in_ms", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     tmpMap.put(_Fields.ROW_CACHE_SIZE, new org.apache.thrift.meta_data.FieldMetaData("row_cache_size", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
     tmpMap.put(_Fields.KEY_CACHE_SIZE, new org.apache.thrift.meta_data.FieldMetaData("key_cache_size", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
@@ -523,6 +531,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       this.caching = other.caching;
     }
     this.dclocal_read_repair_chance = other.dclocal_read_repair_chance;
+    this.memtable_flush_period_in_ms = other.memtable_flush_period_in_ms;
     this.row_cache_size = other.row_cache_size;
     this.key_cache_size = other.key_cache_size;
     this.row_cache_save_period_in_seconds = other.row_cache_save_period_in_seconds;
@@ -576,6 +585,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
 
     this.dclocal_read_repair_chance = 0;
 
+    setMemtable_flush_period_in_msIsSet(false);
+    this.memtable_flush_period_in_ms = 0;
     setRow_cache_sizeIsSet(false);
     this.row_cache_size = 0.0;
     setKey_cache_sizeIsSet(false);
@@ -1164,6 +1175,29 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     __isset_bit_vector.set(__DCLOCAL_READ_REPAIR_CHANCE_ISSET_ID, value);
   }
 
+  public int getMemtable_flush_period_in_ms() {
+    return this.memtable_flush_period_in_ms;
+  }
+
+  public CfDef setMemtable_flush_period_in_ms(int memtable_flush_period_in_ms) {
+    this.memtable_flush_period_in_ms = memtable_flush_period_in_ms;
+    setMemtable_flush_period_in_msIsSet(true);
+    return this;
+  }
+
+  public void unsetMemtable_flush_period_in_ms() {
+    __isset_bit_vector.clear(__MEMTABLE_FLUSH_PERIOD_IN_MS_ISSET_ID);
+  }
+
+  /** Returns true if field memtable_flush_period_in_ms is set (has been assigned a value) and false otherwise */
+  public boolean isSetMemtable_flush_period_in_ms() {
+    return __isset_bit_vector.get(__MEMTABLE_FLUSH_PERIOD_IN_MS_ISSET_ID);
+  }
+
+  public void setMemtable_flush_period_in_msIsSet(boolean value) {
+    __isset_bit_vector.set(__MEMTABLE_FLUSH_PERIOD_IN_MS_ISSET_ID, value);
+  }
+
   /**
    * @deprecated
    */
@@ -1633,6 +1667,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       break;
 
+    case MEMTABLE_FLUSH_PERIOD_IN_MS:
+      if (value == null) {
+        unsetMemtable_flush_period_in_ms();
+      } else {
+        setMemtable_flush_period_in_ms((Integer)value);
+      }
+      break;
+
     case ROW_CACHE_SIZE:
       if (value == null) {
         unsetRow_cache_size();
@@ -1784,6 +1826,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     case DCLOCAL_READ_REPAIR_CHANCE:
       return Double.valueOf(getDclocal_read_repair_chance());
 
+    case MEMTABLE_FLUSH_PERIOD_IN_MS:
+      return Integer.valueOf(getMemtable_flush_period_in_ms());
+
     case ROW_CACHE_SIZE:
       return Double.valueOf(getRow_cache_size());
 
@@ -1869,6 +1914,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetCaching();
     case DCLOCAL_READ_REPAIR_CHANCE:
       return isSetDclocal_read_repair_chance();
+    case MEMTABLE_FLUSH_PERIOD_IN_MS:
+      return isSetMemtable_flush_period_in_ms();
     case ROW_CACHE_SIZE:
       return isSetRow_cache_size();
     case KEY_CACHE_SIZE:
@@ -2104,6 +2151,15 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return false;
     }
 
+    boolean this_present_memtable_flush_period_in_ms = true && this.isSetMemtable_flush_period_in_ms();
+    boolean that_present_memtable_flush_period_in_ms = true && that.isSetMemtable_flush_period_in_ms();
+    if (this_present_memtable_flush_period_in_ms || that_present_memtable_flush_period_in_ms) {
+      if (!(this_present_memtable_flush_period_in_ms && that_present_memtable_flush_period_in_ms))
+        return false;
+      if (this.memtable_flush_period_in_ms != that.memtable_flush_period_in_ms)
+        return false;
+    }
+
     boolean this_present_row_cache_size = true && this.isSetRow_cache_size();
     boolean that_present_row_cache_size = true && that.isSetRow_cache_size();
     if (this_present_row_cache_size || that_present_row_cache_size) {
@@ -2310,6 +2366,11 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     builder.append(present_dclocal_read_repair_chance);
     if (present_dclocal_read_repair_chance)
       builder.append(dclocal_read_repair_chance);
+
+    boolean present_memtable_flush_period_in_ms = true && (isSetMemtable_flush_period_in_ms());
+    builder.append(present_memtable_flush_period_in_ms);
+    if (present_memtable_flush_period_in_ms)
+      builder.append(memtable_flush_period_in_ms);
 
     boolean present_row_cache_size = true && (isSetRow_cache_size());
     builder.append(present_row_cache_size);
@@ -2588,6 +2649,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
     if (isSetDclocal_read_repair_chance()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.dclocal_read_repair_chance, typedOther.dclocal_read_repair_chance);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetMemtable_flush_period_in_ms()).compareTo(typedOther.isSetMemtable_flush_period_in_ms());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetMemtable_flush_period_in_ms()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.memtable_flush_period_in_ms, typedOther.memtable_flush_period_in_ms);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -2906,6 +2977,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 38: // MEMTABLE_FLUSH_PERIOD_IN_MS
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
+            this.memtable_flush_period_in_ms = iprot.readI32();
+            setMemtable_flush_period_in_msIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         case 9: // ROW_CACHE_SIZE
           if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
             this.row_cache_size = iprot.readDouble();
@@ -3209,6 +3288,11 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       oprot.writeDouble(this.dclocal_read_repair_chance);
       oprot.writeFieldEnd();
     }
+    if (isSetMemtable_flush_period_in_ms()) {
+      oprot.writeFieldBegin(MEMTABLE_FLUSH_PERIOD_IN_MS_FIELD_DESC);
+      oprot.writeI32(this.memtable_flush_period_in_ms);
+      oprot.writeFieldEnd();
+    }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
@@ -3399,6 +3483,12 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (!first) sb.append(", ");
       sb.append("dclocal_read_repair_chance:");
       sb.append(this.dclocal_read_repair_chance);
+      first = false;
+    }
+    if (isSetMemtable_flush_period_in_ms()) {
+      if (!first) sb.append(", ");
+      sb.append("memtable_flush_period_in_ms:");
+      sb.append(this.memtable_flush_period_in_ms);
       first = false;
     }
     if (isSetRow_cache_size()) {
