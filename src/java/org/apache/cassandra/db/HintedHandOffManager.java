@@ -279,7 +279,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         // 5. Do major compaction to clean up all deletes etc.
 
         // find the hints for the node using its token.
-        UUID hostId = StorageService.instance.getTokenMetadata().getHostId(endpoint);
+        UUID hostId = Gossiper.instance.getHostId(endpoint);
         logger.info("Started hinted handoff for host: {} with IP: {}", hostId, endpoint);
         final ByteBuffer hostIdBytes = ByteBuffer.wrap(UUIDGen.decompose(hostId));
         DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(hostIdBytes);
