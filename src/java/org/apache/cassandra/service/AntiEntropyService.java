@@ -115,10 +115,15 @@ public class AntiEntropyService
 
     /**
      * Requests repairs for the given table and column families, and blocks until all repairs have been completed.
+     *
+     * @return Future for asynchronous call or null if there is no need to repair
      */
     public RepairFuture submitRepairSession(Range<Token> range, String tablename, boolean isSequential, boolean isLocal, String... cfnames)
     {
-        RepairFuture futureTask = new RepairSession(range, tablename, isSequential, isLocal, cfnames).getFuture();
+        RepairSession session = new RepairSession(range, tablename, isSequential, isLocal, cfnames);
+        if (session.endpoints.isEmpty())
+            return null;
+        RepairFuture futureTask = session.getFuture();
         executor.execute(futureTask);
         return futureTask;
     }

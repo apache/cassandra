@@ -440,6 +440,7 @@ public class Schema
             }
 
             version = UUID.nameUUIDFromBytes(versionDigest.digest());
+            SystemTable.updateSchemaVersion(version);
         }
         catch (Exception e)
         {

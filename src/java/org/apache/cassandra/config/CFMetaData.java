@@ -183,6 +183,7 @@ public final class CFMetaData
                                                          + "data_center text,"
                                                          + "rack text,"
                                                          + "partitioner text,"
+                                                         + "schema_version uuid,"
                                                          + "truncated_at map<uuid, blob>"
                                                          + ") WITH COMMENT='information about the local node'");
 
