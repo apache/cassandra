@@ -324,7 +324,6 @@ bc(syntax)..
 
 <instruction> ::= ALTER <identifier> TYPE <type>
                 | ADD   <identifier> <type>
-                | DROP  <identifier>
                 | WITH  <option> ( AND <option> )*
 p. 
 __Sample:__
@@ -337,9 +336,6 @@ ALTER TABLE addamsFamily
 ADD gravesite varchar;
 
 ALTER TABLE addamsFamily
-DROP gender;
-
-ALTER TABLE addamsFamily
 WITH comment = 'A most excellent and useful column family'
  AND read_repair_chance = 0.2;
 p. 
@@ -348,9 +344,9 @@ The @ALTER@ statement is used to manipulate table definitions. It allows to add 
 The @<tablename>@ is the table name optionally preceded by the keyspace name.  The @<instruction>@ defines the alteration to perform:
 * @ALTER@: Update the type of a given defined column. Note that the type of the "clustering keys":#createTablepartitionClustering cannot be modified as it induces the on-disk ordering of rows. Columns on which a "secondary index":#createIndexStmt is defined have the same restriction. Other columns are free from those restrictions (no validation of existing data is performed), but it is usually a bad idea to change the type to a non-compatible one, unless no data have been inserted for that column yet, as this could confuse CQL drivers/tools.
 * @ADD@: Adds a new column to the table. The @<identifier>@ for the new column must not conflict with an existing column. Moreover, columns cannot be added to tables defined with the @COMPACT STORAGE@ option.
-* @DROP@: @TODO@ (pending "#3919":https://issues.apache.org/jira/browse/CASSANDRA-3919)
 * @WITH@: Allows to update the options of the table. The "supported @<option>@":#createTableOptions (and syntax) are the same as for the @CREATE TABLE@ statement except that @COMPACT STORAGE@ is not supported. Note that setting any @compaction@ sub-options has the effect of erasing all previous @compaction@ options, so you  need to re-specify all the sub-options if you want to keep them. The same note applies to the set of @compression@ sub-options.
 
+Dropping a column is no yet supported but is on "the roadmap":https://issues.apache.org/jira/browse/CASSANDRA-3919. In the meantime, a declared but unused column has no impact on performance nor uses any storage.
 
 h3(#dropTableStmt). DROP TABLE
 

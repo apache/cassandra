@@ -448,7 +448,7 @@ alterTableStatement returns [AlterTableStatement expr]
     : K_ALTER K_COLUMNFAMILY cf=columnFamilyName
           ( K_ALTER id=cident K_TYPE v=comparatorType { type = AlterTableStatement.Type.ALTER; }
           | K_ADD   id=cident v=comparatorType        { type = AlterTableStatement.Type.ADD; }
-          | K_DROP  id=cident                         { type = AlterTableStatement.Type.DROP; }
+          // | K_DROP  id=cident                         { type = AlterTableStatement.Type.DROP; }
           | K_WITH  properties[props]                 { type = AlterTableStatement.Type.OPTS; }
           | K_RENAME                                  { type = AlterTableStatement.Type.RENAME; }
                id1=cident K_TO toId1=cident { renames.put(id1, toId1); }
