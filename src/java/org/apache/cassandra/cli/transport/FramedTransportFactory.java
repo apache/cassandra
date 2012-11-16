@@ -23,8 +23,11 @@ import org.apache.thrift.transport.TTransportFactory;
 
 public class FramedTransportFactory extends TTransportFactory
 {
+
+    public static final int DEFAULT_MAX_FRAME_SIZE = 15 * 1024 * 1024; // 15 MiB
+
     public TTransport getTransport(TTransport base)
     {
-        return new TFramedTransport(base);
+        return new TFramedTransport(base, DEFAULT_MAX_FRAME_SIZE);
     }
 }
