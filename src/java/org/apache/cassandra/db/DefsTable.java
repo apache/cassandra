@@ -19,7 +19,6 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -172,7 +171,7 @@ public class DefsTable
         ColumnFamilyStore cfs = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(columnFamily);
 
         boolean needsCleanup = false;
-        long timestamp = FBUtilities.timestampMicros();
+        Date now = new Date();
 
         List<Row> rows = SystemTable.serializedSchema(columnFamily);
 
@@ -184,11 +183,24 @@ public class DefsTable
 
             for (IColumn column : row.cf.columns)
             {
-                if (column.timestamp() > timestamp)
+                Date columnDate = new Date(column.timestamp());
+
+                if (columnDate.after(now))
+                {
+                    Date micros = new Date(column.timestamp() / 1000); // assume that it was in micros
+
+                    Calendar calendar = Calendar.getInstance();
+                    calendar.setTime(micros);
+
+                    if ((micros.before(now) && calendar.get(Calendar.YEAR) == 1970) || micros.after(now))
+                    {
+                        needsCleanup = true;
+                        break row_check_loop;
+                    }
+                }
+                else // millis and we have to fix it to micros
                 {
                     needsCleanup = true;
-                    // exit the loop on first found timestamp mismatch as we know that it
-                    // wouldn't be only one column/row that we would have to fix anyway
                     break row_check_loop;
                 }
             }
@@ -212,6 +224,8 @@ public class DefsTable
             throw new AssertionError(e);
         }
 
+        long microTimestamp = now.getTime() * 1000;
+
         for (Row row : rows)
         {
             if (Schema.invalidSchemaRow(row))
@@ -222,7 +236,7 @@ public class DefsTable
             for (IColumn column : row.cf.columns)
             {
                 if (column.isLive())
-                    mutation.add(new QueryPath(columnFamily, null, column.name()), column.value(), timestamp);
+                    mutation.add(new QueryPath(columnFamily, null, column.name()), column.value(), microTimestamp);
             }
 
             mutation.apply();

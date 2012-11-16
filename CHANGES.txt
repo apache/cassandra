@@ -18,6 +18,9 @@ Merged from 1.1:
  * reset getRangeSlice filter after finishing a row for get_paged_slice
    (CASSANDRA-4919)
  * expunge row cache post-truncate (CASSANDRA-4940)
+ * remove IAuthority2 (CASSANDRA-4875)
+ * Allow static CF definition with compact storage (CASSANDRA-4910)
+ * Fix endless loop/compaction of schema_* CFs due to broken timestamps (CASSANDRA-4880)
 
 
 1.2-beta2

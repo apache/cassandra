@@ -47,9 +47,9 @@ public class DefinitionsUpdateVerbHandler implements IVerbHandler<Collection<Row
         {
             public void runMayThrow() throws Exception
             {
-                if (message.version < MessagingService.VERSION_11)
+                if (message.version < MessagingService.VERSION_117)
                 {
-                    logger.error("Can't accept schema migrations from Cassandra versions previous to 1.1, please upgrade first");
+                    logger.error("Can't accept schema migrations from Cassandra versions previous to 1.1.7, please upgrade first");
                     return;
                 }
                 DefsTable.mergeSchema(message.payload);

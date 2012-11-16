@@ -102,8 +102,8 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     private static void rectifySchema(UUID theirVersion, final InetAddress endpoint)
     {
-        // Can't request migrations from nodes with versions younger than 1.1
-        if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_11)
+        // Can't request migrations from nodes with versions younger than 1.1.7
+        if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_117)
             return;
 
         if (Schema.instance.getVersion().equals(theirVersion))
@@ -317,11 +317,12 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
             liveEndpoints.remove(FBUtilities.getBroadcastAddress());
 
             // force migration is there are nodes around, first of all
-            // check if there are nodes with versions >= 1.1 to request migrations from,
+            // check if there are nodes with versions >= 1.1.7 to request migrations from,
             // because migration format of the nodes with versions < 1.1 is incompatible with older versions
+            // and due to broken timestamps in versions prior to 1.1.7
             for (InetAddress node : liveEndpoints)
             {
-                if (MessagingService.instance().getVersion(node) >= MessagingService.VERSION_11)
+                if (MessagingService.instance().getVersion(node) >= MessagingService.VERSION_117)
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("Requesting schema from " + node);
