@@ -72,6 +72,9 @@ Upgrading
       Also, the consistency level cannot be set in the language anymore, but is
       at the protocol level.
       Please refer to the CQL3 documentation for details.
+    - In CQL3, the DROP behavior from ALTER TABLE has currently been removed
+      (because it was not correctly implemented). We hope to add it back soon
+      (Cassandra 1.2.1 or 1.2.2)
 
 Features
 --------
