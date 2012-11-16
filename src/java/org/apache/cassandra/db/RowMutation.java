@@ -460,6 +460,9 @@ public class RowMutation implements IMutation
                         cf.addColumn(new Column(column.name(), column.value(), now));
                 }
 
+                if (cf.isMarkedForDelete() && cf.isEmpty())
+                    continue;
+
                 fixedModifications.put(modification.getKey(), cf);
             }
 
