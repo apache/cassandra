@@ -17,6 +17,7 @@
  * Fix DynamicCompositeType same type comparison (CASSANDRA-4711)
  * Fix duplicate SSTable reference when stream session failed (CASSANDRA-3306)
  * Allow static CF definition with compact storage (CASSANDRA-4910)
+ * Fix endless loop/compaction of schema_* CFs due to broken timestamps (CASSANDRA-4880)
 
 
 1.1.6
