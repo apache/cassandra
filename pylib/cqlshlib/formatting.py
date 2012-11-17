@@ -88,8 +88,8 @@ def formatter_for(typname):
         return f
     return registrator
 
-@formatter_for('bytes')
-def format_value_bytes(val, colormap, **_):
+@formatter_for('blob')
+def format_value_blob(val, colormap, **_):
     bval = ''.join('%02x' % ord(c) for c in val)
     return colorme(bval, colormap, 'hex')
 
