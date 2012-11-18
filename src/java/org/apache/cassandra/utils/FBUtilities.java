@@ -49,6 +49,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.IAllocator;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TDeserializer;
@@ -390,6 +391,13 @@ public class FBUtilities
         if (!partitionerClassName.contains("."))
             partitionerClassName = "org.apache.cassandra.dht." + partitionerClassName;
         return FBUtilities.construct(partitionerClassName, "partitioner");
+    }
+
+    public static IAllocator newOffHeapAllocator(String offheap_allocator) throws ConfigurationException
+    {
+        if (!offheap_allocator.contains("."))
+            offheap_allocator = "org.apache.cassandra.io.util." + offheap_allocator;
+        return FBUtilities.construct(offheap_allocator, "off-heap allocator");
     }
 
     /**

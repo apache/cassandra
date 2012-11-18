@@ -19,28 +19,15 @@ package org.apache.cassandra.io.util;
 
 import sun.misc.Unsafe;
 
-import java.lang.reflect.Field;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 /**
  * An off-heap region of memory that must be manually free'd when no longer needed.
  */
 public class Memory
 {
-    private static final Unsafe unsafe;
-
-    static
-    {
-        try
-        {
-            Field field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
-            field.setAccessible(true);
-            unsafe = (sun.misc.Unsafe) field.get(null);
-        }
-        catch (Exception e)
-        {
-            throw new AssertionError(e);
-        }
-    }
+    private static final Unsafe unsafe = NativeAllocator.unsafe;
+    private static final IAllocator allocator = DatabaseDescriptor.getoffHeapMemoryAllocator();
 
     protected long peer;
     // size of the memory region
@@ -49,7 +36,7 @@ public class Memory
     protected Memory(long bytes)
     {
         size = bytes;
-        peer = unsafe.allocateMemory(size);
+        peer = allocator.allocate(size);
     }
 
     public static Memory allocate(long bytes)
@@ -150,7 +137,7 @@ public class Memory
     public void free()
     {
         assert peer != 0;
-        unsafe.freeMemory(peer);
+        allocator.free(peer);
         peer = 0;
     }
 

@@ -164,6 +164,17 @@ row_cache_save_period: 0
 # Defaults to SerializingCacheProvider
 row_cache_provider: SerializingCacheProvider
 
+# The pluggable Memory allocation for Off heap row cache, Experiments show that JEMAlloc
+# saves some memory than the native GCC allocator.
+# 
+# Supported values are: NativeAllocator, JEMallocAllocator
+#
+# If you intend to use JEMallocAllocator you have to install JEMalloc as library and
+# modify cassandra-env.sh as directed in the file.
+#
+# Defaults to NativeAllocator
+# memory_allocator: NativeAllocator
+
 # saved caches
 saved_caches_directory: /var/lib/cassandra/saved_caches
 

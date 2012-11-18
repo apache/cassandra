@@ -208,6 +208,11 @@ JVM_OPTS="$JVM_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
 # JVM_OPTS="$JVM_OPTS -XX:PrintFLSStatistics=1"
 # JVM_OPTS="$JVM_OPTS -Xloggc:/var/log/cassandra/gc-`date +%s`.log"
 
+# Configure the following for JEMallocAllocator and if jemalloc is not available in the system 
+# library path (Example: /usr/local/lib/). Usually "make install" will do the right thing. 
+# export LD_LIBRARY_PATH=<JEMALLOC_HOME>/lib/
+# JVM_OPTS="-Djava.library.path=<JEMALLOC_HOME>/lib/"
+
 # uncomment to have Cassandra JVM listen for remote debuggers/profilers on port 1414
 # JVM_OPTS="$JVM_OPTS -Xdebug -Xnoagent -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=1414"
 
