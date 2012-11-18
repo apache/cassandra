@@ -227,7 +227,7 @@ CREATE TABLE timeline (
     body text,
     posted_by text,
     PRIMARY KEY (userid, posted_month, posted_time)
-) WITH compaction_strategy = { 'class' : 'LeveledCompactionStrategy' };
+) WITH compaction = { 'class' : 'LeveledCompactionStrategy' };
 p. 
 The @CREATE TABLE@ statement creates a new table. Each such table is a set of _rows_ (usually representing related entities) for which it defines a number of properties. A table is defined by a "name":#createTableName, it defines the <a href="#createTableColumn"><it>columns</it></a> composing rows of the table and have a number of "options":#createTableOptions. Note that the @CREATE COLUMNFAMILY@ syntax is supported as an alias for @CREATE TABLE@ (for historical reasons).
 
