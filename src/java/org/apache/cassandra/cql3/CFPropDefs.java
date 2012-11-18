@@ -44,7 +44,7 @@ public class CFPropDefs extends PropertyDefinitions
     public static final String KW_BF_FP_CHANCE = "bloom_filter_fp_chance";
     public static final String KW_MEMTABLE_FLUSH_PERIOD = "memtable_flush_period_in_ms";
 
-    public static final String KW_COMPACTION = "compaction";
+    public static final String KW_COMPACTION = "compaction_strategy";
     public static final String KW_COMPRESSION = "compression";
 
     public static final String COMPACTION_STRATEGY_CLASS_KEY = "class";
