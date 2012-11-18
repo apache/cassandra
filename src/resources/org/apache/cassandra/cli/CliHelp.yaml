@@ -574,6 +574,9 @@ commands:
                 column_name : 'other name',
                 validation_class : LongType
             }];
+        create column family UseComposites
+           with comparator = 'CompositeType(UTF8Type, Int32Type)'
+           and caching='ALL';
     - name: NODE_UPDATE_COLUMN_FAMILY
       help: |
         update column family <name>;
@@ -1005,6 +1008,7 @@ commands:
         set Standard1[testkey][testcol] = utf8('this is utf8 string.');
         set Standard1[testkey][timeuuid()] = utf8('hello world');
         set Standard1[testkey][timeuuid()] = utf8('hello world') with ttl = 30;
+        set UseComposites[utf8('testkey')]['CompositeType(utf8(first),int(4))'] = utf8('inserts this string into a column with name first:4');
     - name: NODE_THRIFT_DEL
       help: |
         del <cf>['<key>'];
