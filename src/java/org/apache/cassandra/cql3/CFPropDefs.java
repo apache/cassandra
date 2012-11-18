@@ -47,7 +47,7 @@ public class CFPropDefs extends PropertyDefinitions
     public static final String KW_CACHING = "caching";
     public static final String KW_BF_FP_CHANCE = "bloom_filter_fp_chance";
 
-    public static final String KW_COMPACTION = "compaction_strategy";
+    public static final String KW_COMPACTION = "compaction";
     public static final String KW_COMPRESSION = "compression";
 
     public static final String COMPACTION_STRATEGY_CLASS_KEY = "class";
