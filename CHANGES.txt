@@ -15,6 +15,7 @@
  * Change stream session ID to UUID to avoid collision from same node (CASSANDRA-4813)
  * Use Stats.db when bulk loading if present (CASSANDRA-4957)
  * Skip repair on system_trace and keyspaces with RF=1 (CASSANDRA-4956)
+ * Remove select arbitrary limit (CASSANDRA-4918)
 Merged from 1.1:
  * reset getRangeSlice filter after finishing a row for get_paged_slice
    (CASSANDRA-4919)
