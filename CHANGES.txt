@@ -1,4 +1,5 @@
 1.1.7
+ * fix CQL2 ALTER TABLE compaction_strategy_class altering (CASSANDRA-4965)
  * reset getRangeSlice filter after finishing a row for get_paged_slice
    (CASSANDRA-4919)
  * expunge row cache post-truncate (CASSANDRA-4940)
