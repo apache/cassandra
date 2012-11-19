@@ -726,7 +726,7 @@ class Shell(cmd.Cmd):
         else:
             cf_q = """select "columnfamily" from system.schema_columnfamilies
                        where "keyspace"=:ks"""
-        self.cursor.execute(cf_q, {'ks': ksname})
+        self.cursor.execute(cf_q, {'ks': self.cql_unprotect_name(ksname)})
         return [str(row[0]) for row in self.cursor.fetchall()]
 
     def get_columnfamily_layout(self, ksname, cfname):
