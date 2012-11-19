@@ -452,6 +452,10 @@ Table of Contents
     - <id> is [short bytes] representing the prepared query ID.
     - <metadata> is defined exactly as for a Rows RESULT (See section 4.2.5.2).
 
+  Note that prepared query ID return is global to the node on which the query
+  has been prepared. It can be used on any connection to that node and this
+  until the node is restarted (after which the query must be reprepared).
+
 4.2.5.5. Schema_change
 
   The result to a schema altering query (creation/update/drop of a
