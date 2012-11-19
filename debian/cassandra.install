@@ -12,6 +12,7 @@ bin/sstable2json usr/bin
 bin/sstablekeys usr/bin
 bin/sstableloader usr/bin
 bin/cqlsh usr/bin
+bin/sstablescrub usr/bin
 tools/bin/cassandra-stress usr/bin
 tools/bin/token-generator usr/bin
 lib/*.jar usr/share/cassandra/lib

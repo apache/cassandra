@@ -33,6 +33,7 @@ options {
     import java.util.List;
     import java.util.Map;
 
+    import org.apache.cassandra.auth.Permission;
     import org.apache.cassandra.cql3.statements.*;
     import org.apache.cassandra.utils.Pair;
     import org.apache.cassandra.thrift.ConsistencyLevel;
@@ -140,6 +141,10 @@ cqlStatement returns [ParsedStatement stmt]
     | st12=dropColumnFamilyStatement   { $stmt = st12; }
     | st13=dropIndexStatement          { $stmt = st13; }
     | st14=alterTableStatement         { $stmt = st14; }
+    | st15=grantStatement              { $stmt = st15; }
+    | st16=revokeStatement             { $stmt = st16; }
+    | st17=listGrantsStatement         { $stmt = st17; }
+    | st18=alterKeyspaceStatement      { $stmt = st18; }
     ;
 
 /*
@@ -337,8 +342,9 @@ batchStatementObjective returns [ModificationStatement statement]
  * CREATE KEYSPACE <KEYSPACE> WITH attr1 = value1 AND attr2 = value2;
  */
 createKeyspaceStatement returns [CreateKeyspaceStatement expr]
+    @init { KSPropDefs attrs = new KSPropDefs(); }
     : K_CREATE K_KEYSPACE ks=keyspaceName
-      K_WITH props=properties { $expr = new CreateKeyspaceStatement(ks, props); }
+      K_WITH properties[attrs] { $expr = new CreateKeyspaceStatement(ks, attrs); }
     ;
 
 /**
@@ -364,7 +370,7 @@ cfamColumns[CreateColumnFamilyStatement.RawStatement expr]
     ;
 
 cfamProperty[CreateColumnFamilyStatement.RawStatement expr]
-    : k=property '=' v=propertyValue { $expr.addProperty(k, v); }
+    : k=propertyKey '=' v=propertyValue { try { $expr.addProperty(k, v); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
     | K_COMPACT K_STORAGE { $expr.setCompactStorage(); }
     | K_CLUSTERING K_ORDER K_BY '(' cfamOrdering[expr] (',' cfamOrdering[expr])* ')'
     ;
@@ -383,6 +389,16 @@ createIndexStatement returns [CreateIndexStatement expr]
     ;
 
 /**
+ * ALTER KEYSPACE <KS> WITH <property> = <value>;
+ */
+alterKeyspaceStatement returns [AlterKeyspaceStatement expr]
+    @init { KSPropDefs attrs = new KSPropDefs(); }
+    : K_ALTER K_KEYSPACE ks=keyspaceName
+        K_WITH properties[attrs] { $expr = new AlterKeyspaceStatement(ks, attrs); }
+    ;
+
+
+/**
  * ALTER COLUMN FAMILY <CF> ALTER <column> TYPE <newtype>;
  * ALTER COLUMN FAMILY <CF> ADD <column> <newtype>;
  * ALTER COLUMN FAMILY <CF> DROP <column>;
@@ -391,13 +407,13 @@ createIndexStatement returns [CreateIndexStatement expr]
 alterTableStatement returns [AlterTableStatement expr]
     @init {
         AlterTableStatement.Type type = null;
-        props = new HashMap<String, String>();
+        CFPropDefs props = new CFPropDefs();
     }
     : K_ALTER K_COLUMNFAMILY cf=columnFamilyName
           ( K_ALTER id=cident K_TYPE v=comparatorType { type = AlterTableStatement.Type.ALTER; }
           | K_ADD   id=cident v=comparatorType        { type = AlterTableStatement.Type.ADD; }
           | K_DROP  id=cident                         { type = AlterTableStatement.Type.DROP; }
-          | K_WITH  props=properties                  { type = AlterTableStatement.Type.OPTS; }
+          | K_WITH  properties[props]                 { type = AlterTableStatement.Type.OPTS; }
           )
     {
         $expr = new AlterTableStatement(cf, type, id, v, props);
@@ -434,7 +450,51 @@ truncateStatement returns [TruncateStatement stmt]
     : K_TRUNCATE cf=columnFamilyName { $stmt = new TruncateStatement(cf); }
     ;
 
+/**
+ * GRANT <permission> ON <resource> TO <username> [WITH GRANT OPTION]
+ */
+grantStatement returns [GrantStatement stmt]
+    @init { boolean withGrant = false; }
+    : K_GRANT
+          permission
+      K_ON
+          resource=columnFamilyName
+      K_TO
+          user=(IDENT | STRING_LITERAL)
+      (K_WITH K_GRANT K_OPTION { withGrant = true; })?
+      {
+        $stmt = new GrantStatement($permission.perm,
+                                   resource,
+                                   $user.text,
+                                   withGrant);
+      }
+    ;
 
+/**
+ * REVOKE <permission> ON <resource> FROM <username>
+ */
+revokeStatement returns [RevokeStatement stmt]
+    : K_REVOKE
+        permission
+      K_ON
+        resource=columnFamilyName
+      K_FROM
+        user=(IDENT | STRING_LITERAL)
+      {
+        $stmt = new RevokeStatement($permission.perm,
+                                    $user.text,
+                                    resource);
+      }
+    ;
+
+listGrantsStatement returns [ListGrantsStatement stmt]
+    : K_LIST K_GRANTS K_FOR username=(IDENT | STRING_LITERAL) { $stmt = new ListGrantsStatement($username.text); }
+    ;
+
+permission returns [Permission perm]
+    : p=(K_DESCRIBE | K_USE | K_CREATE | K_ALTER | K_DROP | K_SELECT | K_INSERT | K_UPDATE | K_DELETE | K_FULL_ACCESS | K_NO_ACCESS)
+    { $perm = Permission.valueOf($p.text.toUpperCase()); }
+    ;
 /** DEFINITIONS **/
 
 // Column Identifiers
@@ -497,7 +557,15 @@ termPairWithOperation[Map<ColumnIdentifier, Operation> columns]
         )
     ;
 
-property returns [String str]
+properties[PropertyDefinitions props]
+    : property[props] (K_AND property[props])*
+    ;
+
+property[PropertyDefinitions props]
+    : k=propertyKey '=' simple=propertyValue { try { $props.addProperty(k, simple); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+    ;
+
+propertyKey returns [String str]
     @init{ StringBuilder sb = new StringBuilder(); }
     : c1=cident { sb.append(c1); } ( ':' cn=cident { sb.append(':').append(cn); } )* { $str = sb.toString(); }
     ;
@@ -505,11 +573,6 @@ property returns [String str]
 propertyValue returns [String str]
     : v=(STRING_LITERAL | IDENT | INTEGER | FLOAT) { $str = $v.text; }
     | u=unreserved_keyword                         { $str = u; }
-    ;
-
-properties returns [Map<String, String> props]
-    @init{ $props = new HashMap<String, String>(); }
-    : k1=property '=' v1=propertyValue { $props.put(k1, v1); } (K_AND kn=property '=' vn=propertyValue { $props.put(kn, vn); } )*
     ;
 
 relation returns [Relation rel]
@@ -571,10 +634,11 @@ K_UPDATE:      U P D A T E;
 K_WITH:        W I T H;
 K_LIMIT:       L I M I T;
 K_USING:       U S I N G;
+K_ALL:         A L L;
 K_CONSISTENCY: C O N S I S T E N C Y;
 K_LEVEL:       ( O N E
                | Q U O R U M
-               | A L L
+               | K_ALL
                | A N Y
                | L O C A L '_' Q U O R U M
                | E A C H '_' Q U O R U M
@@ -598,6 +662,7 @@ K_COLUMNFAMILY:( C O L U M N F A M I L Y
                  | T A B L E );
 K_INDEX:       I N D E X;
 K_ON:          O N;
+K_TO:          T O;
 K_DROP:        D R O P;
 K_PRIMARY:     P R I M A R Y;
 K_INTO:        I N T O;
@@ -613,8 +678,18 @@ K_ORDER:       O R D E R;
 K_BY:          B Y;
 K_ASC:         A S C;
 K_DESC:        D E S C;
-K_CLUSTERING:  C L U S T E R I N G;
+K_GRANT:       G R A N T;
+K_GRANTS:      G R A N T S;
+K_REVOKE:      R E V O K E;
+K_OPTION:      O P T I O N;
+K_DESCRIBE:    D E S C R I B E;
+K_FOR:         F O R;
+K_LIST:        L I S T;
+K_FULL_ACCESS: F U L L '_' A C C E S S;
+K_NO_ACCESS:   N O '_' A C C E S S;
 
+
+K_CLUSTERING:  C L U S T E R I N G;
 K_ASCII:       A S C I I;
 K_BIGINT:      B I G I N T;
 K_BLOB:        B L O B;

@@ -33,6 +33,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.service.CacheServiceMBean;
+import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
@@ -107,6 +108,7 @@ public class NodeCmd
         JOIN,
         MOVE,
         NETSTATS,
+        PROXYHISTOGRAMS,
         REBUILD,
         REFRESH,
         REMOVETOKEN,
@@ -139,12 +141,12 @@ public class NodeCmd
         StringBuilder header = new StringBuilder();
         header.append("\nAvailable commands:\n");
         // No args
-        addCmdHelp(header, "ring", "Print information about the token ring");
         addCmdHelp(header, "join", "Join the ring");
         addCmdHelp(header, "info", "Print node information (uptime, load, ...)");
         addCmdHelp(header, "cfstats", "Print statistics on column families");
         addCmdHelp(header, "version", "Print cassandra version");
         addCmdHelp(header, "tpstats", "Print usage statistics of thread pools");
+        addCmdHelp(header, "proxyhistograms", "Print statistic histograms for network operations");
         addCmdHelp(header, "drain", "Drain the node (stop accepting writes and flush all column families)");
         addCmdHelp(header, "decommission", "Decommission the *node I am connecting to*");
         addCmdHelp(header, "compactionstats", "Print statistics on compactions");
@@ -159,6 +161,7 @@ public class NodeCmd
         addCmdHelp(header, "resetlocalschema", "Reset node's local schema and resync");
 
         // One arg
+        addCmdHelp(header, "ring [keyspace]", "Print information about the token ring for a given keyspace (for all keyspaces if it is not specified)");
         addCmdHelp(header, "netstats [host]", "Print network information on provided host (connecting node by default)");
         addCmdHelp(header, "move <new token>", "Move node on the token ring to a new token");
         addCmdHelp(header, "removetoken status|force|<token>", "Show status of current token removal, force completion of pending removal or remove providen token");
@@ -600,12 +603,33 @@ public class NodeCmd
         {
             output.println(String.format("%-10d%10s%18s%18s%18s%18s",
                                          offsets[i],
-                                         (i < sprh.length ? sprh[i] : ""),
-                                         (i < rwlh.length ? rwlh[i] : ""),
-                                         (i < rrlh.length ? rrlh[i] : ""),
-                                         (i < ersh.length ? ersh[i] : ""),
-                                         (i < ecch.length ? ecch[i] : "")));
+                                         (i < sprh.length ? sprh[i] : "0"),
+                                         (i < rwlh.length ? rwlh[i] : "0"),
+                                         (i < rrlh.length ? rrlh[i] : "0"),
+                                         (i < ersh.length ? ersh[i] : "0"),
+                                         (i < ecch.length ? ecch[i] : "0")));
         }
+    }
+
+    private void printProxyHistograms(PrintStream output)
+        {
+            StorageProxyMBean sp = this.probe.getSpProxy();
+            long[] offsets = new EstimatedHistogram().getBucketOffsets();
+            long[] rrlh = sp.getRecentReadLatencyHistogramMicros();
+            long[] rwlh = sp.getRecentWriteLatencyHistogramMicros();
+            long[] rrnglh = sp.getRecentRangeLatencyHistogramMicros();
+
+            output.println("proxy histograms");
+            output.println(String.format("%-10s%10s%18s%18s",
+                                        "Offset", "Read Latency", "Write Latency", "Range Latency"));
+            for (int i = 0; i < offsets.length; i++)
+            {
+                output.println(String.format("%-10d%18s%18s%18s",
+                                            offsets[i],
+                                            (i < rrlh.length ? rrlh[i] : "0"),
+                                            (i < rwlh.length ? rwlh[i] : "0"),
+                                            (i < rrnglh.length ? rrnglh[i] : "0")));
+            }
     }
 
     private void printEndPoints(String keySpace, String cf, String key, PrintStream output)
@@ -843,6 +867,11 @@ public class NodeCmd
                 case GETSSTABLES:
                     if (arguments.length != 3) { badUse("getsstables requires ks, cf and key args"); }
                     nodeCmd.printSSTables(arguments[0], arguments[1], arguments[2], System.out);
+                    break;
+
+                case PROXYHISTOGRAMS :
+                    if (arguments.length != 0) { badUse("proxyhistograms does not take arguments"); }
+                    nodeCmd.printProxyHistograms(System.out);
                     break;
 
                 case REFRESH:

@@ -304,7 +304,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         int count = in.readInt();
 
         for (int i = 0; i < count; i++)
-            schema.add(RowMutation.serializer().deserialize(in, version));
+            schema.add(RowMutation.serializer().deserializeFixingTimestamps(in, version));
 
         return schema;
     }

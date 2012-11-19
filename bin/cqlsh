@@ -113,6 +113,9 @@ DEFAULT_HOST = 'localhost'
 DEFAULT_PORT = 9160
 DEFAULT_CQLVER = '2'
 
+DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S%z'
+DEFAULT_FLOAT_PRECISION = 3
+
 epilog = """Connects to %(DEFAULT_HOST)s:%(DEFAULT_PORT)d by default. These
 defaults can be changed by setting $CQLSH_HOST and/or $CQLSH_PORT. When a
 host (and optional port number) are given on the command line, they take
@@ -121,8 +124,10 @@ precedence over any defaults.""" % globals()
 parser = optparse.OptionParser(description=description, epilog=epilog,
                                usage="Usage: %prog [options] [host [port]]",
                                version='cqlsh ' + version)
-parser.add_option("-C", "--color", action="store_true",
-                  help="Enable color output.")
+parser.add_option("-C", "--color", action='store_true', dest='color',
+                  help='Always use color output')
+parser.add_option("--no-color", action='store_false', dest='color',
+                  help='Never use color output')
 parser.add_option("-u", "--username", help="Authenticate as user.")
 parser.add_option("-p", "--password", help="Authenticate using password.")
 parser.add_option('-k', '--keyspace', help='Authenticate to the given keyspace.')
@@ -544,19 +549,20 @@ class Shell(cmd.Cmd):
     continue_prompt = "   ... "
     keyspace_prompt          = "cqlsh:%s> "
     keyspace_continue_prompt = "%s    ... "
-    display_time_format = '%Y-%m-%d %H:%M:%S%z'
-    display_float_precision = 3
     num_retries = 4
     show_line_nums = False
     debug = False
     stop = False
+    last_hist = None
     shunted_query_out = None
     csv_dialect_defaults = dict(delimiter=',', doublequote=False,
                                 escapechar='\\', quotechar='"')
 
     def __init__(self, hostname, port, color=False, username=None,
                  password=None, encoding=None, stdin=None, tty=True,
-                 completekey='tab', use_conn=None, cqlver=None, keyspace=None):
+                 completekey='tab', use_conn=None, cqlver=None, keyspace=None,
+                 display_time_format=DEFAULT_TIME_FORMAT,
+                 display_float_precision=DEFAULT_FLOAT_PRECISION):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
@@ -579,6 +585,8 @@ class Shell(cmd.Cmd):
         self.current_keyspace = keyspace
 
         self.color = color
+        self.display_time_format = display_time_format
+        self.display_float_precision = display_float_precision
         if encoding is None:
             encoding = locale.getpreferredencoding()
         self.encoding = encoding
@@ -751,7 +759,7 @@ class Shell(cmd.Cmd):
         key_alias = cfdef.key_alias
         if key_alias is None:
             key_alias = 'KEY'
-        return [key_alias] + [cm.name for cm in cfdef.column_metadata]
+        return [key_alias] + sorted([cm.name for cm in cfdef.column_metadata])
 
     # ===== thrift-dependent parts =====
 
@@ -939,6 +947,16 @@ class Shell(cmd.Cmd):
         self.do_exit()
 
     def handle_statement(self, tokens, srcstr):
+        # Concat multi-line statements and insert into history
+        if readline is not None:
+            nl_count = srcstr.count("\n")
+
+            new_hist = srcstr.replace("\n", " ").rstrip()
+
+            if nl_count > 1 and self.last_hist != new_hist:
+                readline.add_history(new_hist)
+
+            self.last_hist = new_hist
         cmdword = tokens[0][1]
         if cmdword == '?':
             cmdword = 'help'
@@ -1025,6 +1043,18 @@ class Shell(cmd.Cmd):
                 if trynum > self.num_retries:
                     return False
                 time.sleep(1*trynum)
+            except cql.ProgrammingError, err:
+                self.printerr(str(err))
+                # try reparsing as cql3; if successful, suggest -3
+                if self.cqlver_atleast(3):
+                    if self.parseable_as_cql2(statement):
+                        self.printerr("Perhaps you meant to use CQL 2? Try using"
+                                      " the -2 option when starting cqlsh.")
+                else:
+                    if self.parseable_as_cql3(statement):
+                        self.printerr("Perhaps you meant to use CQL 3? Try using"
+                                      " the -3 option when starting cqlsh.")
+                return False
             except CQL_ERRORS, err:
                 self.printerr(str(err))
                 return False
@@ -1037,7 +1067,19 @@ class Shell(cmd.Cmd):
             self.print_count_result(self.cursor)
         elif self.cursor.description is not _VOID_DESCRIPTION:
             self.print_result(self.cursor)
+        self.flush_output()
         return True
+
+    # these next two functions are not guaranteed perfect; just checks if the
+    # statement parses fully according to cqlsh's own understanding of the
+    # grammar. Changes to the language in Cassandra frequently don't get
+    # updated in cqlsh right away.
+
+    def parseable_as_cql3(self, statement):
+        return cql3handling.CqlRuleSet.lex_and_whole_match(statement) is not None
+
+    def parseable_as_cql2(self, statement):
+        return cqlhandling.CqlRuleSet.lex_and_whole_match(statement) is not None
 
     def determine_decoder_for(self, cfname, ksname=None):
         decoder = ErrorHandlingSchemaDecoder
@@ -1623,9 +1665,8 @@ class Shell(cmd.Cmd):
 
     def prep_export_dump(self, ks, cf, columns):
         if columns is None:
-            columnlist = '*'
-        else:
-            columnlist = ', '.join(map(self.cql_protect_name, columns))
+            columns = self.get_column_names(ks, cf)
+        columnlist = ', '.join(map(self.cql_protect_name, columns))
         # this limit is pretty awful. would be better to use row-key-paging, so
         # that the dump could be pretty easily aborted if necessary, but that
         # can be kind of tricky with cql3. Punt for now, until the real cursor
@@ -1760,7 +1801,9 @@ class Shell(cmd.Cmd):
             return
         subshell = Shell(self.hostname, self.port, color=self.color,
                          encoding=self.encoding, stdin=f, tty=False,
-                         use_conn=self.conn, cqlver=self.cql_version)
+                         use_conn=self.conn, cqlver=self.cql_version,
+                         display_time_format=self.display_time_format,
+                         display_float_precision=self.display_float_precision)
         subshell.cmdloop()
         f.close()
 
@@ -1848,7 +1891,7 @@ class Shell(cmd.Cmd):
         return names
 
     def columnize(self, slist, *a, **kw):
-        return cmd.Cmd.columnize(self, [u.upper() for u in slist], *a, **kw)
+        return cmd.Cmd.columnize(self, sorted([u.upper() for u in slist]), *a, **kw)
 
     def do_help(self, parsed):
         """
@@ -2515,6 +2558,9 @@ class Shell(cmd.Cmd):
             out = self.query_out
         out.write(self.applycolor(str(text), color) + ('\n' if newline else ''))
 
+    def flush_output(self):
+        self.query_out.flush()
+
     def printerr(self, text, color=RED, newline=True, shownum=None):
         if shownum is None:
             shownum = self.show_line_nums
@@ -2571,6 +2617,16 @@ def option_with_default(cparser_getter, section, option, default=None):
     except ConfigParser.Error:
         return default
 
+def raw_option_with_default(configs, section, option, default=None):
+    """
+    Same (almost) as option_with_default() but won't do any string interpolation.
+    Useful for config values that include '%' symbol, e.g. time format string.
+    """
+    try:
+        return configs.get(section, option, raw=True)
+    except ConfigParser.Error:
+        return default
+
 def should_use_color():
     if not sys.stdout.isatty():
         return False
@@ -2598,9 +2654,10 @@ def read_options(cmdlineargs, environment):
     optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
     optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey', 'tab')
     optvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
-    if optvalues.color is None:
-        # default yes if tty
-        optvalues.color = should_use_color()
+    optvalues.time_format = raw_option_with_default(configs, 'ui', 'time_format',
+                                                    DEFAULT_TIME_FORMAT)
+    optvalues.float_precision = option_with_default(configs.getint, 'ui', 'float_precision',
+                                                    DEFAULT_FLOAT_PRECISION)
     optvalues.debug = False
     optvalues.file = None
     optvalues.tty = sys.stdin.isatty()
@@ -2620,8 +2677,15 @@ def read_options(cmdlineargs, environment):
         port = arguments[1]
 
     if options.file is not None:
-        options.color = False
         options.tty = False
+
+    if optvalues.color in (True, False):
+        options.color = optvalues.color
+    else:
+        if options.file is not None:
+            options.color = False
+        else:
+            options.color = should_use_color()
 
     options.cqlversion, cqlvertup = full_cql_version(options.cqlversion)
     if cqlvertup[0] < 3:
@@ -2644,15 +2708,27 @@ def setup_cqlruleset(cqlmodule):
         cqlruleset.completer_for(rulename, termname)(func)
     cqlruleset.commands_end_with_newline.update(my_commands_ending_with_newline)
 
-def main(options, hostname, port):
-    setup_cqlruleset(options.cqlmodule)
-
-    if os.path.exists(HISTORY) and readline is not None:
-        readline.read_history_file(HISTORY)
+def init_history():
+    if readline is not None:
+        try:
+            readline.read_history_file(HISTORY)
+        except IOError:
+            pass
         delims = readline.get_completer_delims()
         delims.replace("'", "")
         delims += '.'
         readline.set_completer_delims(delims)
+
+def save_history():
+    if readline is not None:
+        try:
+            readline.write_history_file(HISTORY)
+        except IOError:
+            pass
+
+def main(options, hostname, port):
+    setup_cqlruleset(options.cqlmodule)
+    init_history()
 
     if options.file is None:
         stdin = None
@@ -2677,7 +2753,9 @@ def main(options, hostname, port):
                       tty=options.tty,
                       completekey=options.completekey,
                       cqlver=options.cqlversion,
-                      keyspace=options.keyspace)
+                      keyspace=options.keyspace,
+                      display_time_format=options.time_format,
+                      display_float_precision=options.float_precision)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS, e:
@@ -2688,9 +2766,7 @@ def main(options, hostname, port):
         shell.debug = True
 
     shell.cmdloop()
-
-    if readline is not None:
-        readline.write_history_file(HISTORY)
+    save_history()
 
 if __name__ == '__main__':
     main(*read_options(sys.argv[1:], os.environ))

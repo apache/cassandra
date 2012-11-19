@@ -27,6 +27,7 @@ import java.util.List;
 import org.apache.cassandra.config.ConfigurationException;
 
 /**
+ *
  * Cassandra's resource hierarchy looks something like:
  * {{/cassandra/keyspaces/$ks_name/...}}
  *

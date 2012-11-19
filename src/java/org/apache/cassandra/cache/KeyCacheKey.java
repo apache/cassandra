@@ -61,14 +61,7 @@ public class KeyCacheKey implements CacheKey
 
     public String toString()
     {
-        try
-        {
-            return String.format("KeyCacheKey(descriptor:%s, key:%s)", desc, ByteBufferUtil.string(ByteBuffer.wrap(key)));
-        }
-        catch (CharacterCodingException e)
-        {
-            throw new AssertionError(e);
-        }
+        return String.format("KeyCacheKey(%s, %s)", desc, ByteBufferUtil.bytesToHex(ByteBuffer.wrap(key)));
     }
 
     @Override

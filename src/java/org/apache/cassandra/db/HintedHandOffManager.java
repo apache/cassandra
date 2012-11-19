@@ -29,6 +29,7 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSortedSet;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -189,14 +190,15 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         StorageService.optionalTasks.execute(runnable);
     }
 
-    private Future<?> compact() throws ExecutionException, InterruptedException
+    @VisibleForTesting
+    protected Future<?> compact() throws ExecutionException, InterruptedException
     {
         final ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         hintStore.forceBlockingFlush();
         ArrayList<Descriptor> descriptors = new ArrayList<Descriptor>();
         for (SSTable sstable : hintStore.getSSTables())
             descriptors.add(sstable.descriptor);
-        return CompactionManager.instance.submitUserDefined(hintStore, descriptors, Integer.MAX_VALUE);
+        return CompactionManager.instance.submitUserDefined(hintStore, descriptors, (int) (System.currentTimeMillis() / 1000));
     }
 
     private static boolean pagingFinished(ColumnFamily hintColumnFamily, ByteBuffer startColumn)
@@ -446,32 +448,31 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     public List<String> listEndpointsPendingHints()
     {
-        List<Row> rows = getHintsSlice(1);
+        Token.TokenFactory tokenFactory = StorageService.getPartitioner().getTokenFactory();
 
         // Extract the keys as strings to be reported.
         LinkedList<String> result = new LinkedList<String>();
-        for (Row r : rows)
+        for (Row row : getHintsSlice(1))
         {
-            if (r.cf != null) //ignore removed rows
-                result.addFirst(new String(r.key.key.array()));
+            if (row.cf != null) //ignore removed rows
+                result.addFirst(tokenFactory.toString(row.key.token));
         }
         return result;
     }
 
     public Map<String, Integer> countPendingHints()
     {
-        List<Row> rows = getHintsSlice(Integer.MAX_VALUE);
+        Token.TokenFactory tokenFactory = StorageService.getPartitioner().getTokenFactory();
 
         Map<String, Integer> result = new HashMap<String, Integer>();
-        Token.TokenFactory tokenFactory = StorageService.getPartitioner().getTokenFactory();
-        for (Row r : rows)
+        for (Row row : getHintsSlice(Integer.MAX_VALUE))
         {
-            if (r.cf == null) // ignore removed rows
+            if (row.cf == null) // ignore removed rows
                 continue;
 
-            int count = r.cf.getColumnCount();
+            int count = row.cf.getColumnCount();
             if (count > 0)
-                result.put(tokenFactory.toString(r.key.token), count);
+                result.put(tokenFactory.toString(row.key.token), count);
         }
         return result;
     }

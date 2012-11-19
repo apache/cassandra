@@ -2,6 +2,50 @@
  * Add ability to use custom TServerFactory implementations (CASSANDRA-4608)
  * Pluggable Thrift transport factories for CLI (CASSANDRA-4609)
 
+1.1.7
+ * fix get_paged_slice to wrap to next row correctly (CASSANDRA-4816)
+ * fix indexing empty column values (CASSANDRA-4832)
+
+
+1.1.6
+ * Wait for writes on synchronous read digest mismatch (CASSANDRA-4792)
+ * fix commitlog replay for nanotime-infected sstables (CASSANDRA-4782)
+ * preflight check ttl for maximum of 20 years (CASSANDRA-4771)
+ * (Pig) fix widerow input with single column rows (CASSANDRA-4789)
+ * Fix HH to compact with correct gcBefore, which avoids wiping out
+   undelivered hints (CASSANDRA-4772)
+ * LCS will merge up to 32 L0 sstables as intended (CASSANDRA-4778)
+ * NTS will default unconfigured DC replicas to zero (CASSANDRA-4675)
+ * use default consistency level in counter validation if none is
+   explicitly provide (CASSANDRA-4700)
+ * Improve IAuthority interface by introducing fine-grained
+   access permissions and grant/revoke commands (CASSANDRA-4490, 4644)
+ * fix assumption error in CLI when updating/describing keyspace 
+   (CASSANDRA-4322)
+ * Adds offline sstablescrub to debian packaging (CASSANDRA-4642)
+ * Automatic fixing of overlapping leveled sstables (CASSANDRA-4644)
+ * fix error when using ORDER BY with extended selections (CASSANDRA-4689)
+ * (CQL3) Fix validation for IN queries for non-PK cols (CASSANDRA-4709)
+ * fix re-created keyspace disappering after 1.1.5 upgrade 
+   (CASSANDRA-4698, 4752)
+ * (CLI) display elapsed time in 2 fraction digits (CASSANDRA-3460)
+ * add authentication support to sstableloader (CASSANDRA-4712)
+ * Fix CQL3 'is reversed' logic (CASSANDRA-4716, 4759)
+ * (CQL3) Don't return ReversedType in result set metadata (CASSANDRA-4717)
+ * Backport adding AlterKeyspace statement (CASSANDRA-4611)
+ * (CQL3) Correcty accept upper-case data types (CASSANDRA-4770)
+ * (cqlsh) Fix table completion for CREATE KEYSPACE (CASSANDRA-4334)
+ * Support allow_deletes for Hadoop clusters (CASSANDRA-4499)
+ * (cqlsh) Provide consistent ordering for COPY TO and COPY FROM (CASSANDRA-4594)
+ * Fix race when setting cql version with thrift sync server (CASSANDRA-4657)
+ * (CQL3) Fix start IN queries with ORDER BY (CASSANDRA-4689)
+ * (cqlsh) Fix auto completion with fully qualified names (CASSANDRA-4423)
+ * (CLI) allow to insert double values (CASSANDRA-4661)
+ * (cqlsh) Multi-line support for history buffer (CASSANDRA-4666)
+Merged from 1.0:
+ * Switch from NBHM to CHM in MessagingService's callback map, which
+   prevents OOM in long-running instances (CASSANDRA-4708)
+
 1.1.5
  * add SecondaryIndex.reload API (CASSANDRA-4581)
  * use millis + atomicint for commitlog segment creation instead of

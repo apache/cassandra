@@ -60,13 +60,18 @@ public final class KSMetaData
     }
 
     // For new user created keyspaces (through CQL)
-    public static KSMetaData newKeyspace(String name, String strategyName, Map<String, String> options) throws ConfigurationException
+    public static KSMetaData newKeyspace(String name, String strategyName, Map<String, String> options, boolean durableWrites) throws ConfigurationException
     {
         Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(strategyName);
         if (cls.equals(LocalStrategy.class))
             throw new ConfigurationException("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
-        return new KSMetaData(name, cls, options, true, Collections.<CFMetaData>emptyList());
+        return newKeyspace(name, cls, options, durableWrites, Collections.<CFMetaData>emptyList());
+    }
+
+    public static KSMetaData newKeyspace(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> options, boolean durablesWrites, Iterable<CFMetaData> cfDefs)
+    {
+        return new KSMetaData(name, strategyClass, options, durablesWrites, cfDefs);
     }
 
     public static KSMetaData cloneWith(KSMetaData ksm, Iterable<CFMetaData> cfDefs)
@@ -184,7 +189,7 @@ public final class KSMetaData
     public KSMetaData validate() throws ConfigurationException
     {
         if (!CFMetaData.isNameValid(name))
-            throw new ConfigurationException(String.format("Invalid keyspace name: shouldn't be empty nor more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, name));
+            throw new ConfigurationException(String.format("Keyspace name must not be empty, more than %s characters long, or contain non-alphanumeric-underscore characters (got \"%s\")", Schema.NAME_LENGTH, name));
 
         // Attempt to instantiate the ARS, which will throw a ConfigException if the strategy_options aren't fully formed
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();

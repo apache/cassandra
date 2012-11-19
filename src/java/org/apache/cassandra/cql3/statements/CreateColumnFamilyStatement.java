@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.cassandra.auth.Permission;
 import org.apache.commons.lang.StringUtils;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
@@ -64,6 +66,11 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         this.properties = properties;
     }
 
+    public void checkAccess(ClientState state) throws InvalidRequestException
+    {
+        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.CREATE);
+    }
+
     // Column definitions
     private Map<ByteBuffer, ColumnDefinition> getColumns() throws InvalidRequestException
     {
@@ -101,20 +108,25 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                                      comparator,
                                      null);
 
-            newCFMD.defaultValidator(defaultValidator)
-                   .columnMetadata(getColumns())
-                   .keyValidator(keyValidator)
-                   .keyAlias(keyAlias)
-                   .columnAliases(columnAliases)
-                   .valueAlias(valueAlias);
-
-            properties.applyToCFMetadata(newCFMD);
+            applyPropertiesTo(newCFMD);
         }
         catch (ConfigurationException e)
         {
             throw new InvalidRequestException(e.getMessage());
         }
         return newCFMD;
+    }
+
+    public void applyPropertiesTo(CFMetaData cfmd) throws InvalidRequestException, ConfigurationException
+    {
+        cfmd.defaultValidator(defaultValidator)
+            .columnMetadata(getColumns())
+            .keyValidator(keyValidator)
+            .keyAlias(keyAlias)
+            .columnAliases(columnAliases)
+            .valueAlias(valueAlias);
+
+        properties.applyToCFMetadata(cfmd);
     }
 
     public static class RawStatement extends CFStatement
@@ -270,7 +282,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
             columnAliases.add(alias);
         }
 
-        public void addProperty(String name, String value)
+        public void addProperty(String name, String value) throws InvalidRequestException
         {
             properties.addProperty(name, value);
         }

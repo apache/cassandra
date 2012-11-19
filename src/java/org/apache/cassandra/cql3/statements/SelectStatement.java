@@ -88,9 +88,15 @@ public class SelectStatement implements CQLStatement
         START(0), END(1);
 
         public final int idx;
+
         Bound(int idx)
         {
             this.idx = idx;
+        }
+
+        public static Bound reverse(Bound b)
+        {
+            return b == START ? END : START;
         }
     };
 
@@ -109,7 +115,7 @@ public class SelectStatement implements CQLStatement
 
     public void checkAccess(ClientState state) throws InvalidRequestException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.READ);
+        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.SELECT);
     }
 
     public void validate(ClientState state) throws InvalidRequestException
@@ -162,12 +168,19 @@ public class SelectStatement implements CQLStatement
         return process(rows, createSchema(), Collections.<ByteBuffer>emptyList());
     }
 
+    public static String getShortTypeName(AbstractType<?> type)
+    {
+        if (type instanceof ReversedType)
+            type = ((ReversedType)type).baseType;
+        return TypeParser.getShortName(type);
+    }
+
     private CqlMetadata createSchema()
     {
         return new CqlMetadata(new HashMap<ByteBuffer, String>(),
                                new HashMap<ByteBuffer, String>(),
-                               TypeParser.getShortName(cfDef.cfm.comparator),
-                               TypeParser.getShortName(cfDef.cfm.getDefaultValidator()));
+                               getShortTypeName(cfDef.cfm.comparator),
+                               getShortTypeName(cfDef.cfm.getDefaultValidator()));
     }
 
     public String keyspace()
@@ -189,8 +202,8 @@ public class SelectStatement implements CQLStatement
         // ...a range (slice) of column names
         if (isColumnRange())
         {
-            ByteBuffer start = getRequestedBound(isReversed ? Bound.END : Bound.START, variables);
-            ByteBuffer finish = getRequestedBound(isReversed ? Bound.START : Bound.END, variables);
+            ByteBuffer start = getRequestedBound(Bound.START, variables);
+            ByteBuffer finish = getRequestedBound(Bound.END, variables);
 
             // Note that we use the total limit for every key. This is
             // potentially inefficient, but then again, IN + LIMIT is not a
@@ -321,8 +334,8 @@ public class SelectStatement implements CQLStatement
         if (isColumnRange())
         {
             SliceRange sliceRange = new SliceRange();
-            sliceRange.start = getRequestedBound(isReversed ? Bound.END : Bound.START, variables);
-            sliceRange.finish = getRequestedBound(isReversed ? Bound.START : Bound.END, variables);
+            sliceRange.start = getRequestedBound(Bound.START, variables);
+            sliceRange.finish = getRequestedBound(Bound.END, variables);
             sliceRange.reversed = isReversed;
             sliceRange.count = -1; // We use this for range slices, where the count is ignored in favor of the global column count
             thriftSlicePredicate.slice_range = sliceRange;
@@ -478,19 +491,29 @@ public class SelectStatement implements CQLStatement
         }
     }
 
-    private ByteBuffer getRequestedBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
+    private ByteBuffer getRequestedBound(Bound bound, List<ByteBuffer> variables) throws InvalidRequestException
     {
         assert isColumnRange();
 
+        // The end-of-component of composite doesn't depend on whether the
+        // component type is reversed or not (i.e. the ReversedType is applied
+        // to the component comparator but not to the end-of-component itself),
+        // it only depends on whether the slice is reversed
+        Bound eocBound = isReversed ? Bound.reverse(bound) : bound;
         ColumnNameBuilder builder = cfDef.getColumnNameBuilder();
-        for (Restriction r : columnRestrictions)
+        for (CFDefinition.Name name : cfDef.columns.values())
         {
+            // In a restriction, we always have Bound.START < Bound.END for the "base" comparator.
+            // So if we're doing a reverse slice, we must inverse the bounds when giving them as start and end of the slice filter.
+            // But if the actual comparator itself is reversed, we must inversed the bounds too.
+            Bound b = isReversed == isReversedType(name) ? bound : Bound.reverse(bound);
+            Restriction r = columnRestrictions[name.position];
             if (r == null || (!r.isEquality() && r.bound(b) == null))
             {
                 // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
                 // For composites, if there was preceding component and we're computing the end, we must change the last component
                 // End-Of-Component, otherwise we would be selecting only one record.
-                if (builder.componentCount() > 0 && b == Bound.END)
+                if (builder.componentCount() > 0 && eocBound == Bound.END)
                     return builder.buildAsEndOfRange();
                 else
                     return builder.build();
@@ -505,7 +528,7 @@ public class SelectStatement implements CQLStatement
             {
                 Term t = r.bound(b);
                 assert t != null;
-                return builder.add(t, r.getRelation(b), variables).build();
+                return builder.add(t, r.getRelation(eocBound, b), variables).build();
             }
         }
         // Means no relation at all or everything was an equal
@@ -605,22 +628,22 @@ public class SelectStatement implements CQLStatement
         if (p.right.hasFunction())
         {
             ByteBuffer nameAsRequested = ByteBufferUtil.bytes(p.right.toString());
-            schema.name_types.put(nameAsRequested, TypeParser.getShortName(cfDef.definitionType));
+            schema.name_types.put(nameAsRequested, getShortTypeName(cfDef.definitionType));
             switch (p.right.function())
             {
                 case WRITE_TIME:
-                    schema.value_types.put(nameAsRequested, TypeParser.getShortName(LongType.instance));
+                    schema.value_types.put(nameAsRequested, getShortTypeName(LongType.instance));
                     break;
                 case TTL:
-                    schema.value_types.put(nameAsRequested, TypeParser.getShortName(Int32Type.instance));
+                    schema.value_types.put(nameAsRequested, getShortTypeName(Int32Type.instance));
                     break;
             }
         }
         else
         {
             ByteBuffer nameAsRequested = p.right.id().key;
-            schema.name_types.put(nameAsRequested, TypeParser.getShortName(cfDef.getNameComparatorForResultSet(p.left)));
-            schema.value_types.put(nameAsRequested, TypeParser.getShortName(p.left.type));
+            schema.name_types.put(nameAsRequested, getShortTypeName(cfDef.getNameComparatorForResultSet(p.left)));
+            schema.value_types.put(nameAsRequested, getShortTypeName(p.left.type));
         }
     }
 
@@ -804,7 +827,7 @@ public class SelectStatement implements CQLStatement
             }
         }
 
-        orderResults(cqlRows);
+        orderResults(selection, cqlRows);
 
         // Internal calls always return columns in the comparator order, even when reverse was set
         if (isReversed)
@@ -819,7 +842,7 @@ public class SelectStatement implements CQLStatement
     /**
      * Orders results when multiple keys are selected (using IN)
      */
-    private void orderResults(List<CqlRow> cqlRows)
+    private void orderResults(List<Pair<CFDefinition.Name, Selector>> selection, List<CqlRow> cqlRows)
     {
         // There is nothing to do if
         //   a. there are no results,
@@ -828,12 +851,13 @@ public class SelectStatement implements CQLStatement
         if (cqlRows.isEmpty() || parameters.orderings.isEmpty() || keyRestriction == null || keyRestriction.eqValues.size() < 2)
             return;
 
+
         // optimization when only *one* order condition was given
         // because there is no point of using composite comparator if there is only one order condition
         if (parameters.orderings.size() == 1)
         {
             CFDefinition.Name ordering = cfDef.get(parameters.orderings.keySet().iterator().next());
-            Collections.sort(cqlRows, new SingleColumnComparator(getColumnPositionInSelect(ordering), ordering.type));
+            Collections.sort(cqlRows, new SingleColumnComparator(getColumnPositionInSelect(selection, ordering), ordering.type));
             return;
         }
 
@@ -848,18 +872,18 @@ public class SelectStatement implements CQLStatement
         {
             CFDefinition.Name orderingColumn = cfDef.get(identifier);
             types.add(orderingColumn.type);
-            positions[idx++] = getColumnPositionInSelect(orderingColumn);
+            positions[idx++] = getColumnPositionInSelect(selection, orderingColumn);
         }
 
         Collections.sort(cqlRows, new CompositeComparator(types, positions));
     }
 
     // determine position of column in the select clause
-    private int getColumnPositionInSelect(CFDefinition.Name columnName)
+    private int getColumnPositionInSelect(List<Pair<CFDefinition.Name, Selector>> selection, CFDefinition.Name columnName)
     {
-        for (int i = 0; i < selectedNames.size(); i++)
+        for (int i = 0; i < selection.size(); i++)
         {
-            if (selectedNames.get(i).left.equals(columnName))
+            if (selection.get(i).left.equals(columnName))
                 return i;
         }
 
@@ -923,6 +947,11 @@ public class SelectStatement implements CQLStatement
             thriftColumns.add(col);
         }
         return new CqlRow(key, thriftColumns);
+    }
+
+    private static boolean isReversedType(CFDefinition.Name name)
+    {
+        return name.type instanceof ReversedType;
     }
 
     public static class RawStatement extends CFStatement
@@ -1062,7 +1091,15 @@ public class SelectStatement implements CQLStatement
 
                 for (Map.Entry<CFDefinition.Name, Restriction> entry : stmt.metadataRestrictions.entrySet())
                 {
-                    if (entry.getValue().isEquality() && indexed.contains(entry.getKey().name.key))
+                    Restriction restriction = entry.getValue();
+                    if (!restriction.isEquality())
+                        continue;
+
+                    // We don't support IN for indexed values (basically this would require supporting a form of OR)
+                    if (restriction.eqValues.size() > 1)
+                        throw new InvalidRequestException("Cannot use IN operator on column not part of the PRIMARY KEY");
+
+                    if (indexed.contains(entry.getKey().name.key))
                     {
                         hasEq = true;
                         break;
@@ -1148,11 +1185,6 @@ public class SelectStatement implements CQLStatement
                 throw new InvalidRequestException("Select using the token() function don't support IN clause");
 
             return new ParsedStatement.Prepared(stmt, Arrays.<CFDefinition.Name>asList(names));
-        }
-
-        private static boolean isReversedType(CFDefinition.Name name)
-        {
-            return name.type instanceof ReversedType;
         }
 
         Restriction updateRestriction(CFDefinition.Name name, Restriction restriction, Relation newRel) throws InvalidRequestException
@@ -1256,14 +1288,14 @@ public class SelectStatement implements CQLStatement
             return bounds[b.idx] == null || boundInclusive[b.idx];
         }
 
-        public Relation.Type getRelation(Bound b)
+        public Relation.Type getRelation(Bound eocBound, Bound inclusiveBound)
         {
-            switch (b)
+            switch (eocBound)
             {
                 case START:
-                    return boundInclusive[b.idx] ? Relation.Type.GTE : Relation.Type.GT;
+                    return boundInclusive[inclusiveBound.idx] ? Relation.Type.GTE : Relation.Type.GT;
                 case END:
-                    return boundInclusive[b.idx] ? Relation.Type.LTE : Relation.Type.LT;
+                    return boundInclusive[inclusiveBound.idx] ? Relation.Type.LTE : Relation.Type.LT;
             }
             throw new AssertionError();
         }

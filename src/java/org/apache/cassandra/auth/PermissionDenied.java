@@ -1,7 +1,4 @@
-package org.apache.cassandra.thrift;
-
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,17 +15,20 @@ package org.apache.cassandra.thrift;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
  */
+package org.apache.cassandra.auth;
 
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
+import org.apache.cassandra.thrift.InvalidRequestException;
 
-import javax.security.auth.login.LoginException;
-
-
-public interface ITransportFactory
+public class PermissionDenied extends InvalidRequestException
 {
-    TTransport openTransport(TSocket socket) throws LoginException, TTransportException;
+    public PermissionDenied(String reason)
+    {
+        super(reason);
+    }
+
+    public String getMessage()
+    {
+        return why;
+    }
 }

@@ -25,7 +25,7 @@ import java.util.concurrent.TimeoutException;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.IMutation;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.ConsistencyLevel;
@@ -62,13 +62,16 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
 
     public void checkAccess(ClientState state) throws InvalidRequestException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.WRITE);
+        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.UPDATE);
     }
 
     public void validate(ClientState state) throws InvalidRequestException
     {
         if (timeToLive < 0)
             throw new InvalidRequestException("A TTL must be greater or equal to 0");
+
+        if (timeToLive > ExpiringColumn.MAX_TTL)
+            throw new InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", timeToLive, ExpiringColumn.MAX_TTL));
 
         ThriftValidation.validateConsistencyLevel(keyspace(), getConsistencyLevel(), RequestType.WRITE);
     }

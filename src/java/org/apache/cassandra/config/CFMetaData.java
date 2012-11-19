@@ -226,7 +226,7 @@ public final class CFMetaData
     public CFMetaData columnAliases(List<ByteBuffer> prop) {columnAliases = prop; updateCfDef(); return this;}
     public CFMetaData valueAlias(ByteBuffer prop) {valueAlias = prop; updateCfDef(); return this;}
     public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; updateCfDef(); return this;}
-    private CFMetaData columnMetadata(ColumnDefinition... cds)
+    public CFMetaData columnMetadata(ColumnDefinition... cds)
     {
         Map<ByteBuffer, ColumnDefinition> map = new HashMap<ByteBuffer, ColumnDefinition>();
         for (ColumnDefinition cd : cds)
@@ -927,9 +927,9 @@ public final class CFMetaData
     public CFMetaData validate() throws ConfigurationException
     {
         if (!isNameValid(ksName))
-            throw new ConfigurationException(String.format("Invalid keyspace name: shouldn't be empty nor more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, ksName));
+            throw new ConfigurationException(String.format("Keyspace name must not be empty, more than %s characters long, or contain non-alphanumeric-underscore characters (got \"%s\")", Schema.NAME_LENGTH, ksName));
         if (!isNameValid(cfName))
-            throw new ConfigurationException(String.format("Invalid keyspace name: shouldn't be empty nor more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, cfName));
+            throw new ConfigurationException(String.format("ColumnFamily name must not be empty, more than %s characters long, or contain non-alphanumeric-underscore characters (got \"%s\")", Schema.NAME_LENGTH, cfName));
 
         if (cfType == null)
             throw new ConfigurationException(String.format("Invalid column family type for %s", cfName));

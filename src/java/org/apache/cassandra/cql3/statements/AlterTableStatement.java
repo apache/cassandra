@@ -20,11 +20,11 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.*;
 
+import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
@@ -40,15 +40,20 @@ public class AlterTableStatement extends SchemaAlteringStatement
     public final Type oType;
     public final String validator;
     public final ColumnIdentifier columnName;
-    private final CFPropDefs cfProps = new CFPropDefs();
+    private final CFPropDefs cfProps;
 
-    public AlterTableStatement(CFName name, Type type, ColumnIdentifier columnName, String validator, Map<String, String> propertyMap)
+    public AlterTableStatement(CFName name, Type type, ColumnIdentifier columnName, String validator, CFPropDefs cfProps)
     {
         super(name);
         this.oType = type;
         this.columnName = columnName;
         this.validator = validator; // used only for ADD/ALTER commands
-        this.cfProps.addAll(propertyMap);
+        this.cfProps = cfProps;
+    }
+
+    public void checkAccess(ClientState state) throws InvalidRequestException
+    {
+        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.ALTER);
     }
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException

@@ -84,7 +84,7 @@
     <property name="maven-repository-id" value="apache.snapshots.https"/>
 
     <property name="test.timeout" value="60000" />
-    <property name="test.long.timeout" value="300000" />
+    <property name="test.long.timeout" value="600000" />
 
     <!-- http://cobertura.sourceforge.net/ -->
     <property name="cobertura.version" value="1.9.4.1"/>
@@ -739,6 +739,10 @@
               file="${build.dir}/${ant.project.name}-thrift-${version}.pom"/>
       <jar jarfile="${build.dir}/${ant.project.name}-thrift-${version}.jar"
            basedir="${build.classes.thrift}">
+        <fileset dir="${build.classes.main}">
+          <include name="org/apache/cassandra/thrift/ITransportFactory.class" />
+          <include name="org/apache/cassandra/thrift/TFramedTransportFactory.class" />
+        </fileset>
         <manifest>
           <attribute name="Implementation-Title" value="Cassandra"/>
           <attribute name="Implementation-Version" value="${version}"/>

@@ -9,6 +9,17 @@ upgrade, just in case you need to roll back to the previous version.
 by version X, but the inverse is not necessarily the case.)
 
 
+1.1.6
+=====
+
+Upgrading
+---------
+    - If you are using counters, you should drain existing Cassandra nodes
+      prior to the upgrade to prevent overcount during commitlog replay
+      (see CASSANDRA-4782).  For non-counter uses, drain is not required
+      but is a good practice to minimize restart time.
+
+
 1.1.5
 =====
 

@@ -148,14 +148,14 @@ public class UpdateStatement extends AbstractModification
 
         CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, hasCommutativeOperation);
         if (hasCommutativeOperation)
-            validateCommutativeForWrite(metadata, cLevel);
+            validateCommutativeForWrite(metadata, getConsistencyLevel());
 
         QueryProcessor.validateKeyAlias(metadata, keyName);
 
         // Avoid unnecessary authorizations.
         if (!(cfamsSeen.contains(columnFamily)))
         {
-            clientState.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
+            clientState.hasColumnFamilyAccess(columnFamily, Permission.UPDATE);
             cfamsSeen.add(columnFamily);
         }
 

@@ -121,6 +121,45 @@ public class QueryProcessor
         return processStatement(getStatement(queryString, clientState).statement, clientState, Collections.<ByteBuffer>emptyList());
     }
 
+    public static CqlResult processInternal(String query, ClientState state)
+    {
+        try
+        {
+            CQLStatement statement = getStatement(query, state).statement;
+
+            statement.validate(state);
+            CqlResult result = statement.execute(state, Collections.<ByteBuffer>emptyList());
+
+            if (result == null || result.rows.isEmpty())
+            {
+                result = new CqlResult();
+                result.type = CqlResultType.VOID;
+            }
+
+            return result;
+        }
+        catch (RecognitionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (UnavailableException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new AssertionError(e);
+        }
+        catch (TimedOutException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (SchemaDisagreementException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static UntypedResultSet resultify(String queryString, Row row)
     {
         SelectStatement ss;
@@ -167,7 +206,7 @@ public class QueryProcessor
         List<String> var_names = new ArrayList<String>(prepared.boundNames.size());
         for (CFDefinition.Name n : prepared.boundNames)
         {
-            var_types.add(TypeParser.getShortName(n.type));
+            var_types.add(SelectStatement.getShortTypeName(n.type));
             var_names.add(n.name.toString());
         }
 

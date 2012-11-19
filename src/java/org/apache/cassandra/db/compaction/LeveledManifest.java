@@ -59,7 +59,7 @@ public class LeveledManifest
      * uses a pessimistic estimate of how many keys overlap (none), so we risk wasting memory
      * or even OOMing when compacting highly overlapping sstables
      */
-    static int MAX_COMPACTING_L0 = 32;
+    private static final int MAX_COMPACTING_L0 = 32;
 
     private final ColumnFamilyStore cfs;
     private final List<SSTableReader>[] generations;
@@ -204,19 +204,38 @@ public class LeveledManifest
         for (SSTableReader ssTableReader : added)
             add(ssTableReader, newLevel);
 
+        // Fix overlapping sstables from CASSANDRA-4321/4411
         if (newLevel != 0)
+            repairOverlappingSSTables(newLevel);
+
+        serialize();
+    }
+
+    public synchronized void repairOverlappingSSTables(int level)
+    {
+        SSTableReader previous = null;
+        Collections.sort(generations[level], SSTable.sstableComparator);
+        List<SSTableReader> outOfOrderSSTables = new ArrayList<SSTableReader>();
+        for (SSTableReader current : generations[level])
         {
-            // Integerity check
-            DecoratedKey last = null;
-            Collections.sort(generations[newLevel], SSTable.sstableComparator);
-            for (SSTableReader sstable : generations[newLevel])
+            if (previous != null && current.first.compareTo(previous.last) <= 0)
             {
-                assert last == null || sstable.first.compareTo(last) > 0;
-                last = sstable.last;
+                logger.error(String.format("At level %d, %s [%s, %s] overlaps %s [%s, %s].  This is caused by a bug in Cassandra 1.1.0 .. 1.1.3.  Sending back to L0.  If you have not yet run scrub, you should do so since you may also have rows out-of-order within an sstable",
+                                           level, previous, previous.first, previous.last, current, current.first, current.last));
+                outOfOrderSSTables.add(current);
+            }
+            else
+            {
+                previous = current;
             }
         }
 
-        serialize();
+        if (!outOfOrderSSTables.isEmpty())
+        {
+            for (SSTableReader sstable : outOfOrderSSTables)
+                sendBackToL0(sstable);
+            serialize();
+        }
     }
 
     public synchronized void replace(Iterable<SSTableReader> removed, Iterable<SSTableReader> added)
@@ -235,12 +254,10 @@ public class LeveledManifest
         serialize();
     }
 
-    public synchronized void sendBackToL0(SSTableReader sstable)
+    private synchronized void sendBackToL0(SSTableReader sstable)
     {
         remove(sstable);
         add(sstable, 0);
-
-        serialize();
     }
 
     private String toString(Iterable<SSTableReader> sstables)
@@ -452,23 +469,17 @@ public class LeveledManifest
                     List<SSTableReader> ageSortedCandidates = new ArrayList<SSTableReader>(candidates);
                     Collections.sort(ageSortedCandidates, SSTable.maxTimestampComparator);
                     candidates = new HashSet<SSTableReader>(ageSortedCandidates.subList(0, MAX_COMPACTING_L0));
-                    if (SSTable.getTotalBytes(candidates) > maxSSTableSizeInBytes)
-                    {
-                        // add sstables from L1 that overlap candidates
-                        candidates.addAll(overlapping(candidates, generations[1]));
-                    }
-                    return candidates;
-                }
-
-                if (SSTable.getTotalBytes(candidates) > maxSSTableSizeInBytes)
-                {
-                    // add sstables from L1 that overlap candidates
-                    candidates.addAll(overlapping(candidates, generations[1]));
                     break;
                 }
             }
 
-            return candidates;
+            if (SSTable.getTotalBytes(candidates) > maxSSTableSizeInBytes)
+            {
+                // add sstables from L1 that overlap candidates
+                candidates.addAll(overlapping(candidates, generations[1]));
+            }
+
+            return candidates.size() > 1 ? candidates : Collections.<SSTableReader>emptyList();
         }
 
         // for non-L0 compactions, pick up where we left off last time
@@ -590,7 +601,9 @@ public class LeveledManifest
         }
 
         logger.debug("Estimating {} compactions to do for {}.{}",
-                     new Object[] {Arrays.asList(estimated), cfs.table.name, cfs.columnFamily});
+                     new Object[] {Arrays.toString(estimated), cfs.table.name, cfs.columnFamily});
         return Ints.checkedCast(tasks);
     }
+
+
 }

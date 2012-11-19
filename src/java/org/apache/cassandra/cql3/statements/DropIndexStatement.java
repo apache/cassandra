@@ -20,8 +20,10 @@ package org.apache.cassandra.cql3.statements;
 
 import java.io.IOException;
 
+import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
@@ -35,6 +37,11 @@ public class DropIndexStatement extends SchemaAlteringStatement
     {
         super(new CFName());
         this.indexName = indexName;
+    }
+
+    public void checkAccess(ClientState state) throws InvalidRequestException
+    {
+        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.ALTER);
     }
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException
