@@ -157,14 +157,15 @@ public class AlterTableStatement
 
     public static void applyPropertiesToCFMetadata(CFMetaData cfm, CFPropDefs cfProps) throws InvalidRequestException, ConfigurationException
     {
+        if (cfProps.hasProperty(CFPropDefs.KW_COMPACTION_STRATEGY_CLASS))
+            cfm.compactionStrategyClass(cfProps.compactionStrategyClass);
+
         if (cfProps.hasProperty(CFPropDefs.KW_COMPARATOR))
-        {
             throw new InvalidRequestException("Can't change CF comparator after creation");
-        }
+
         if (cfProps.hasProperty(CFPropDefs.KW_COMMENT))
-        {
             cfm.comment(cfProps.getProperty(CFPropDefs.KW_COMMENT));
-        }
+
         if (cfProps.hasProperty(CFPropDefs.KW_DEFAULTVALIDATION))
         {
             try
