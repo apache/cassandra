@@ -60,7 +60,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     private final Logger logger = LoggerFactory.getLogger(BulkRecordWriter.class);
     private SSTableSimpleUnsortedWriter writer;
     private SSTableLoader loader;
-    private final File outputdir;
+    private File outputdir;
     private Progressable progress;
     private int maxFailures;
 
@@ -99,9 +99,6 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
         this.conf = conf;
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(Integer.parseInt(conf.get(STREAM_THROTTLE_MBITS, "0")));
         maxFailures = Integer.parseInt(conf.get(MAX_FAILED_HOSTS, "0"));
-        String keyspace = ConfigHelper.getOutputKeyspace(conf);
-        outputdir = new File(getOutputLocation() + File.separator + keyspace + File.separator + ConfigHelper.getOutputColumnFamily(conf)); //dir must be named by ks/cf for the loader
-        outputdir.mkdirs();
     }
 
     private String getOutputLocation() throws IOException
@@ -127,8 +124,16 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
        }
     }
 
-    private void prepareWriter()
+    private void prepareWriter() throws IOException
     {
+        if (outputdir == null)
+        {
+            String keyspace = ConfigHelper.getOutputKeyspace(conf);
+            //dir must be named by ks/cf for the loader
+            outputdir = new File(getOutputLocation() + File.separator + keyspace + File.separator + ConfigHelper.getOutputColumnFamily(conf));
+            outputdir.mkdirs();
+        }
+        
         if (writer == null)
         {
             AbstractType<?> subcomparator = null;
