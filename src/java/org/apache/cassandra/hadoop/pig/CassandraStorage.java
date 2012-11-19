@@ -22,39 +22,32 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Hex;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.AbstractCompositeType.CompositeComponent;
 import org.apache.cassandra.hadoop.*;
-import org.apache.cassandra.thrift.Mutation;
-import org.apache.cassandra.thrift.Deletion;
-import org.apache.cassandra.thrift.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Hex;
+import org.apache.cassandra.utils.UUIDGen;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.*;
-
 import org.apache.pig.*;
 import org.apache.pig.backend.executionengine.ExecException;
 import org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigSplit;
 import org.apache.pig.data.*;
-import org.apache.pig.ResourceSchema.ResourceFieldSchema;
 import org.apache.pig.impl.util.UDFContext;
+import org.apache.pig.ResourceSchema.ResourceFieldSchema;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
@@ -95,6 +88,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private ByteBuffer slice_end = BOUND;
     private boolean slice_reverse = false;
     private boolean allow_deletes = false;
+    private String username;
+    private String password;
     private String keyspace;
     private String column_family;
     private String loadSignature;
@@ -477,7 +472,6 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 
     private void setLocationFromUri(String location) throws IOException
     {
-        // parse uri into keyspace and columnfamily
         try
         {
             if (!location.startsWith("cassandra://"))
@@ -505,12 +499,23 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                     usePartitionFilter = Boolean.parseBoolean(urlQuery.get("use_secondary"));
             }
             String[] parts = urlParts[0].split("/+");
-            keyspace = parts[1];
+            String[] credentialsAndKeyspace = parts[1].split("@");
+            if (credentialsAndKeyspace.length > 1)
+            {
+                String[] credentials = credentialsAndKeyspace[0].split(":");
+                username = credentials[0];
+                password = credentials[1];
+                keyspace = credentialsAndKeyspace[1];
+            }
+            else
+            {
+                keyspace = parts[1];
+            }
             column_family = parts[2];
         }
         catch (Exception e)
         {
-            throw new IOException("Expected 'cassandra://<keyspace>/<columnfamily>[?slice_start=<start>&slice_end=<end>[&reversed=true][&limit=1][&allow_deletes=true][widerows=true][use_secondary=true]]': " + e.getMessage());
+            throw new IOException("Expected 'cassandra://[username:password@]<keyspace>/<columnfamily>[?slice_start=<start>&slice_end=<end>[&reversed=true][&limit=1][&allow_deletes=true][widerows=true][use_secondary=true]]': " + e.getMessage());
         }
     }
 
@@ -568,6 +573,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     {
         conf = job.getConfiguration();
         setLocationFromUri(location);
+
         if (ConfigHelper.getInputSlicePredicate(conf) == null)
         {
             SliceRange range = new SliceRange(slice_start, slice_end, slice_reverse, limit);
@@ -581,6 +587,9 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 
         if (usePartitionFilter && getIndexExpressions() != null)
             ConfigHelper.setInputRange(conf, getIndexExpressions());
+
+        if (username != null && password != null)
+            ConfigHelper.setInputKeyspaceUserNameAndPassword(conf, username, password);
 
         ConfigHelper.setInputColumnFamily(conf, keyspace, column_family, widerows);
         setConnectionInformation();
@@ -809,6 +818,10 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     {
         conf = job.getConfiguration();
         setLocationFromUri(location);
+
+        if (username != null && password != null)
+            ConfigHelper.setOutputKeyspaceUserNameAndPassword(conf, username, password);
+
         ConfigHelper.setOutputColumnFamily(conf, keyspace, column_family);
         setConnectionInformation();
 
@@ -1041,18 +1054,38 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 
     private void initSchema(String signature)
     {
-        UDFContext context = UDFContext.getUDFContext();
-        Properties property = context.getUDFProperties(CassandraStorage.class);
+        Properties properties = UDFContext.getUDFContext().getUDFProperties(CassandraStorage.class);
 
         // Only get the schema if we haven't already gotten it
-        if (!property.containsKey(signature))
+        if (!properties.containsKey(signature))
         {
-            Cassandra.Client client = null;
             try
             {
-                client = ConfigHelper.getClientFromInputAddressList(conf);
-                CfDef cfDef = null;
+                Cassandra.Client client = ConfigHelper.getClientFromInputAddressList(conf);
                 client.set_keyspace(keyspace);
+
+                if (username != null && password != null)
+                {
+                    Map<String, String> credentials = new HashMap<String, String>(2);
+                    credentials.put(IAuthenticator.USERNAME_KEY, username);
+                    credentials.put(IAuthenticator.PASSWORD_KEY, password);
+
+                    try
+                    {
+                        client.login(new AuthenticationRequest(credentials));
+                    }
+                    catch (AuthenticationException e)
+                    {
+                        logger.error("Authentication exception: invalid username and/or password");
+                        throw new RuntimeException(e);
+                    }
+                    catch (AuthorizationException e)
+                    {
+                        throw new AssertionError(e); // never actually throws AuthorizationException.
+                    }
+                }
+
+                CfDef cfDef = null;
                 KsDef ksDef = client.describe_keyspace(keyspace);
                 List<CfDef> defs = ksDef.getCf_defs();
                 for (CfDef def : defs)
@@ -1064,9 +1097,11 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                     }
                 }
                 if (cfDef != null)
-                    property.setProperty(signature, cfdefToString(cfDef));
+                    properties.setProperty(signature, cfdefToString(cfDef));
                 else
-                    throw new RuntimeException("Column family '" + column_family + "' not found in keyspace '" + keyspace + "'");
+                    throw new RuntimeException(String.format("Column family '%s' not found in keyspace '%s'",
+                                                             column_family,
+                                                             keyspace));
             }
             catch (TException e)
             {
