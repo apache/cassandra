@@ -172,6 +172,7 @@ SYSTEM_KEYSPACES = ('system', 'system_traces')
 my_commands_ending_with_newline = (
     'help',
     '?',
+    'consistency',
     'describe',
     'desc',
     'show',
@@ -195,7 +196,9 @@ cqlsh_extra_syntax_rules = r'''
 <cqlshCommand> ::= <CQL_Statement>
                  | <specialCommand> ( ";" | "\n" )
                  ;
+
 <specialCommand> ::= <describeCommand>
+                   | <consistencyCommand>
                    | <showCommand>
                    | <assumeCommand>
                    | <sourceCommand>
@@ -214,6 +217,19 @@ cqlsh_extra_syntax_rules = r'''
                                   | "SCHEMA"
                                   | "CLUSTER" )
                     ;
+
+<consistencyCommand> ::= "CONSISTENCY" ( level=<consistencyLevel> )?
+                       ;
+
+<consistencyLevel> ::= "ANY"
+                     | "ONE"
+                     | "TWO"
+                     | "THREE"
+                     | "QUORUM"
+                     | "ALL"
+                     | "LOCAL_QUORUM"
+                     | "EACH_QUORUM"
+                     ;
 
 <showCommand> ::= "SHOW" what=( "VERSION" | "HOST" | "ASSUMPTIONS" )
                 ;
@@ -1854,6 +1870,36 @@ class Shell(cmd.Cmd):
                 return
             self.tracing_enabled = False
             print 'Disabled tracing.'
+
+    def do_consistency(self, parsed):
+        """
+        CONSISTENCY [cqlsh with CQL3 only]
+
+           Overrides default consistency level (default level is ONE).
+
+        CONSISTENCY <level>
+
+           Sets consistency level for future requests.
+
+           Valid consistency levels:
+
+           ANY, ONE, TWO, THREE, QUORUM, ALL, LOCAL_QUORUM and EACH_QUORUM.
+
+        CONSISTENCY
+
+           CONSISTENCY with no arguments shows the current consistency level.
+        """
+        if not self.cqlver_atleast(3):
+            self.printerr('CONSISTENCY requires CQL version 3.0.0 or higher.')
+            return
+
+        level = parsed.get_binding('level')
+        if level is None:
+            print 'Current consistency level is %s.' % (self.cursor.consistency_level,)
+            return
+
+        self.cursor.consistency_level = level.upper()
+        print 'Consistency level set to %s.' % (level.upper(),)
 
     def do_exit(self, parsed=None):
         """
