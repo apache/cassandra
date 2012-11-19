@@ -313,14 +313,36 @@ public class ConfigHelper
         return conf.get(OUTPUT_KEYSPACE_CONFIG);
     }
 
+    public static void setInputKeyspaceUserNameAndPassword(Configuration conf, String username, String password)
+    {
+        setInputKeyspaceUserName(conf, username);
+        setInputKeyspacePassword(conf, password);
+    }
+
+    public static void setInputKeyspaceUserName(Configuration conf, String username)
+    {
+        conf.set(INPUT_KEYSPACE_USERNAME_CONFIG, username);
+    }
+
     public static String getInputKeyspaceUserName(Configuration conf)
     {
     	return conf.get(INPUT_KEYSPACE_USERNAME_CONFIG);
     }
 
+    public static void setInputKeyspacePassword(Configuration conf, String password)
+    {
+        conf.set(INPUT_KEYSPACE_PASSWD_CONFIG, password);
+    }
+
     public static String getInputKeyspacePassword(Configuration conf)
     {
     	return conf.get(INPUT_KEYSPACE_PASSWD_CONFIG);
+    }
+
+    public static void setOutputKeyspaceUserNameAndPassword(Configuration conf, String username, String password)
+    {
+        setOutputKeyspaceUserName(conf, username);
+        setOutputKeyspacePassword(conf, password);
     }
 
     public static void setOutputKeyspaceUserName(Configuration conf, String username)
