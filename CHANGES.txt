@@ -1,4 +1,5 @@
 1.2-rc1
+ * make consistency level configurable in cqlsh (CASSANDRA-4829)
  * fix cqlsh rendering of blob fields (CASSANDRA-4970)
  * fix cqlsh DESCRIBE command (CASSANDRA-4913)
  * save truncation position in system table (CASSANDRA-4906)
