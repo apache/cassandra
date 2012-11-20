@@ -442,56 +442,6 @@ public class RowMutation implements IMutation, MessageProducer
             return new RowMutation(table, key, modifications);
         }
 
-        /**
-         * Used only by o.a.c.service.MigrationManager to fix possibly broken System.nanoTime() timestamps
-         * of the schema migrations from remote nodes
-         *
-         * @param dis The source of the data
-         * @param version The version of remote node
-         *
-         * @return row mutation with fixed internal timestamps
-         *
-         * @throws IOException If data could not be read
-         */
-        public RowMutation deserializeFixingTimestamps(DataInput dis, int version) throws IOException
-        {
-            RowMutation mutation = deserialize(dis, version);
-
-            long now = FBUtilities.timestampMicros();
-            Map<Integer, ColumnFamily> fixedModifications = new HashMap<Integer, ColumnFamily>();
-
-            for (Map.Entry<Integer, ColumnFamily> modification : mutation.modifications_.entrySet())
-            {
-                ColumnFamily cfOld = modification.getValue();
-                ColumnFamily cf = ColumnFamily.create(cfOld.metadata());
-
-                if (cfOld.isMarkedForDelete())
-                    cf.delete(cfOld.getLocalDeletionTime(), cfOld.getMarkedForDeleteAt() > now ? now : cfOld.getMarkedForDeleteAt());
-
-                for (IColumn column : cfOld.columns)
-                {
-                    // don't clone if column already has a correct timestamp
-                    if (column.timestamp() <= now)
-                    {
-                        cf.addColumn(column);
-                        continue;
-                    }
-
-                    if (column.isMarkedForDelete())
-                        cf.addColumn(new DeletedColumn(column.name(), column.value(), now));
-                    else
-                        cf.addColumn(new Column(column.name(), column.value(), now));
-                }
-
-                if (cf.isMarkedForDelete() && cf.isEmpty())
-                    continue;
-
-                fixedModifications.put(modification.getKey(), cf);
-            }
-
-            return new RowMutation(mutation.getTable(), mutation.key(), fixedModifications);
-        }
-
         public RowMutation deserialize(DataInput dis, int version) throws IOException
         {
             return deserialize(dis, version, IColumnSerializer.Flag.FROM_REMOTE);
