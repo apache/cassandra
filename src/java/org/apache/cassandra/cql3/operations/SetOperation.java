@@ -50,11 +50,11 @@ public class SetOperation implements Operation
 
     public void execute(ColumnFamily cf,
                         ColumnNameBuilder builder,
-                        CollectionType validator,
+                        AbstractType<?> validator,
                         UpdateParameters params,
                         List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
     {
-        if (validator.kind != CollectionType.Kind.SET)
+        if (!(validator instanceof SetType))
             throw new InvalidRequestException("Set operations are only supported on Set typed columns, but " + validator + " given.");
 
         switch (kind)
@@ -62,27 +62,29 @@ public class SetOperation implements Operation
             case SET: // fallthrough on purpose; remove previous Set before setting (ADD) the new one
                 cf.addAtom(params.makeTombstoneForOverwrite(builder.copy().build(), builder.copy().buildAsEndOfRange()));
             case ADD:
-                doAdd(cf, builder, validator, params);
+                doAdd(cf, builder, (CollectionType)validator, params);
                 break;
             case DISCARD:
-                doDiscard(cf, builder, validator, params);
+                doDiscard(cf, builder, (CollectionType)validator, params);
                 break;
             default:
                 throw new AssertionError("Unsupported Set operation: " + kind);
         }
     }
 
-    public void execute(ColumnFamily cf, ColumnNameBuilder builder, AbstractType<?> validator, UpdateParameters params) throws InvalidRequestException
-    {
-        throw new InvalidRequestException("Set operations are only supported on Set typed columns, but " + validator + " given.");
-    }
-
-    public static void doInsertFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, SetType validator, Term values, UpdateParameters params) throws InvalidRequestException
+    public static void doSetFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, SetType validator, Term values, UpdateParameters params) throws InvalidRequestException
     {
         if (!values.isBindMarker())
             throw new InvalidRequestException("Can't apply operation on column with " + validator + " type.");
 
         cf.addAtom(params.makeTombstoneForOverwrite(builder.copy().build(), builder.copy().buildAsEndOfRange()));
+        doAddFromPrepared(cf, builder, validator, values, params);
+    }
+
+    public static void doAddFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, SetType validator, Term values, UpdateParameters params) throws InvalidRequestException
+    {
+        if (!values.isBindMarker())
+            throw new InvalidRequestException("Can't apply operation on column with " + validator + " type.");
 
         try
         {
@@ -93,6 +95,28 @@ public class SetOperation implements Operation
                 ColumnNameBuilder b = iter.hasNext() ? builder.copy() : builder;
                 ByteBuffer name = b.add(validator.nameComparator().decompose(iter.next())).build();
                 cf.addColumn(params.makeColumn(name, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+            }
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
+    }
+
+    public static void doDiscardFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, SetType validator, Term values, UpdateParameters params) throws InvalidRequestException
+    {
+        if (!values.isBindMarker())
+            throw new InvalidRequestException("Can't apply operation on column with " + validator + " type.");
+
+        try
+        {
+            Set<?> s = validator.compose(params.variables.get(values.bindIndex));
+            Iterator<?> iter = s.iterator();
+            while (iter.hasNext())
+            {
+                ColumnNameBuilder b = iter.hasNext() ? builder.copy() : builder;
+                ByteBuffer name = b.add(validator.nameComparator().decompose(iter.next())).build();
+                cf.addColumn(params.makeTombstone(name));
             }
         }
         catch (MarshalException e)
@@ -126,7 +150,7 @@ public class SetOperation implements Operation
         return values;
     }
 
-    public boolean requiresRead()
+    public boolean requiresRead(AbstractType<?> validator)
     {
         return false;
     }

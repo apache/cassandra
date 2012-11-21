@@ -93,30 +93,30 @@ public class ListOperation implements Operation
 
     public void execute(ColumnFamily cf,
                         ColumnNameBuilder builder,
-                        CollectionType validator,
+                        AbstractType<?> validator,
                         UpdateParameters params,
                         List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
     {
-        if (validator.kind != CollectionType.Kind.LIST)
+        if (!(validator instanceof ListType))
             throw new InvalidRequestException("List operations are only supported on List typed columns, but " + validator + " given.");
 
         switch (kind)
         {
             case SET:
                 cf.addAtom(params.makeTombstoneForOverwrite(builder.copy().build(), builder.copy().buildAsEndOfRange()));
-                doAppend(cf, builder, validator, params);
+                doAppend(cf, builder, (CollectionType)validator, params);
                 break;
             case SET_IDX:
-                doSet(cf, builder, params, validator, list);
+                doSet(cf, builder, params, (CollectionType)validator, list);
                 break;
             case APPEND:
-                doAppend(cf, builder, validator, params);
+                doAppend(cf, builder, (CollectionType)validator, params);
                 break;
             case PREPEND:
-                doPrepend(cf, builder, validator, params);
+                doPrepend(cf, builder, (CollectionType)validator, params);
                 break;
             case DISCARD:
-                doDiscard(cf, validator, params, list);
+                doDiscard(cf, (CollectionType)validator, params, list);
                 break;
             case DISCARD_IDX:
                 doDiscardIdx(cf, params, list);
@@ -126,17 +126,19 @@ public class ListOperation implements Operation
         }
     }
 
-    public void execute(ColumnFamily cf, ColumnNameBuilder builder, AbstractType<?> validator, UpdateParameters params) throws InvalidRequestException
-    {
-        throw new InvalidRequestException("List operations are only supported on List typed columns, but " + validator + " given.");
-    }
-
-    public static void doInsertFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, ListType validator, Term values, UpdateParameters params) throws InvalidRequestException
+    public static void doSetFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, ListType validator, Term values, UpdateParameters params) throws InvalidRequestException
     {
         if (!values.isBindMarker())
             throw new InvalidRequestException("Can't apply operation on column with " + validator + " type.");
 
         cf.addAtom(params.makeTombstoneForOverwrite(builder.copy().build(), builder.copy().buildAsEndOfRange()));
+        doAppendFromPrepared(cf, builder, validator, values, params);
+    }
+
+    public static void doAppendFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, ListType validator, Term values, UpdateParameters params) throws InvalidRequestException
+    {
+        if (!values.isBindMarker())
+            throw new InvalidRequestException("Can't apply operation on column with " + validator + " type.");
 
         try
         {
@@ -148,6 +150,61 @@ public class ListOperation implements Operation
                 ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
                 ByteBuffer name = b.add(uuid).build();
                 cf.addColumn(params.makeColumn(name, validator.valueComparator().decompose(l.get(i))));
+            }
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
+    }
+
+    public static void doPrependFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, ListType validator, Term values, UpdateParameters params) throws InvalidRequestException
+    {
+        if (!values.isBindMarker())
+            throw new InvalidRequestException("Can't apply operation on column with " + validator + " type.");
+
+        long time = REFERENCE_TIME - (System.currentTimeMillis() - REFERENCE_TIME);
+
+        try
+        {
+            List<?> l = validator.compose(params.variables.get(values.bindIndex));
+
+            for (int i = 0; i < l.size(); i++)
+            {
+                ColumnNameBuilder b = i == l.size() - 1 ? builder : builder.copy();
+                PrecisionTime pt = getNextTime(time);
+                ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(pt.millis, pt.nanos));
+                ByteBuffer name = b.add(uuid).build();
+                cf.addColumn(params.makeColumn(name, validator.valueComparator().decompose(l.get(i))));
+            }
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
+    }
+
+    public static void doDiscardFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, ListType validator, Term values, UpdateParameters params, List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
+    {
+        if (!values.isBindMarker())
+            throw new InvalidRequestException("Can't apply operation on column with " + validator + " type.");
+
+        if (list == null)
+            return;
+
+        try
+        {
+            List<?> l = validator.compose(params.variables.get(values.bindIndex));
+
+            Set<ByteBuffer> toDiscard = new HashSet<ByteBuffer>();
+            for (Object elt : l)
+                toDiscard.add(validator.valueComparator().decompose(elt));
+
+            for (Pair<ByteBuffer, IColumn> p : list)
+            {
+                IColumn c = p.right;
+                if (toDiscard.contains(c.value()))
+                    cf.addColumn(params.makeTombstone(c.name()));
             }
         }
         catch (MarshalException e)
@@ -219,7 +276,7 @@ public class ListOperation implements Operation
         return values;
     }
 
-    public boolean requiresRead()
+    public boolean requiresRead(AbstractType<?> validator)
     {
         return kind == Kind.DISCARD || kind == Kind.DISCARD_IDX || kind == Kind.SET_IDX;
     }

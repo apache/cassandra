@@ -62,7 +62,8 @@ public class ColumnOperation implements Operation
     public void execute(ColumnFamily cf,
                         ColumnNameBuilder builder,
                         AbstractType<?> validator,
-                        UpdateParameters params) throws InvalidRequestException
+                        UpdateParameters params,
+                        List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
     {
         switch (kind)
         {
@@ -75,28 +76,6 @@ public class ColumnOperation implements Operation
                 break;
             default:
                 throw new AssertionError("Unsupported operation: " + kind);
-        }
-    }
-
-    public void execute(ColumnFamily cf, ColumnNameBuilder builder, CollectionType validator, UpdateParameters params, List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
-    {
-        throw new InvalidRequestException("Column operations are only supported on simple types, but " + validator + " given.");
-    }
-
-    public void executePreparedCollection(ColumnFamily cf, ColumnNameBuilder builder, CollectionType validator, UpdateParameters params) throws InvalidRequestException
-    {
-
-        switch (validator.kind)
-        {
-            case LIST:
-                ListOperation.doInsertFromPrepared(cf, builder, (ListType)validator, value, params);
-                break;
-            case SET:
-                SetOperation.doInsertFromPrepared(cf, builder, (SetType)validator, value, params);
-                break;
-            case MAP:
-                MapOperation.doInsertFromPrepared(cf, builder, (MapType)validator, value, params);
-                break;
         }
     }
 
@@ -138,7 +117,7 @@ public class ColumnOperation implements Operation
         return Collections.singletonList(value);
     }
 
-    public boolean requiresRead()
+    public boolean requiresRead(AbstractType<?> validator)
     {
         return false;
     }
