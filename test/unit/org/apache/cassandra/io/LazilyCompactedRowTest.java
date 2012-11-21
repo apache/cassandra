@@ -278,8 +278,10 @@ public class LazilyCompactedRowTest extends SchemaLoader
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
 
         final int ROWS_PER_SSTABLE = 10;
-        for (int j = 0; j < (DatabaseDescriptor.getIndexInterval() * 3) / ROWS_PER_SSTABLE; j++) {
-            for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
+        for (int j = 0; j < (DatabaseDescriptor.getIndexInterval() * 3) / ROWS_PER_SSTABLE; j++)
+        {
+            for (int i = 0; i < ROWS_PER_SSTABLE; i++)
+            {
                 ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(i % 2));
                 RowMutation rm = new RowMutation("Keyspace1", key);
                 rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(String.valueOf(i / 2))), ByteBufferUtil.EMPTY_BYTE_BUFFER, j * ROWS_PER_SSTABLE + i);

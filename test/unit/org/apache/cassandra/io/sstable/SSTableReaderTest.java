@@ -260,7 +260,8 @@ public class SSTableReaderTest extends SchemaLoader
 
         DecoratedKey firstKey = null, lastKey = null;
         long timestamp = System.currentTimeMillis();
-        for (int i = 0; i < DatabaseDescriptor.getIndexInterval(); i++) {
+        for (int i = 0; i < DatabaseDescriptor.getIndexInterval(); i++)
+        {
             DecoratedKey key = Util.dk(String.valueOf(i));
             if (firstKey == null)
                 firstKey = key;
@@ -270,7 +271,7 @@ public class SSTableReaderTest extends SchemaLoader
                 lastKey = key;
             RowMutation rm = new RowMutation(ks, key.key);
             rm.add(new QueryPath(cf, null, ByteBufferUtil.bytes("col")),
-                          ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp);
+                   ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp);
             rm.apply();
         }
         store.forceBlockingFlush();
