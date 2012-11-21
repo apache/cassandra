@@ -74,7 +74,7 @@ options {
     // used by UPDATE of the counter columns to validate if '-' was supplied by user
     public void validateMinusSupplied(Object op, final Term value, IntStream stream) throws MissingTokenException
     {
-        if (op == null && (value.isBindMarker() || Long.parseLong(value.getText()) > 0))
+        if (op == null && Long.parseLong(value.getText()) > 0)
             throw new MissingTokenException(102, stream, value);
     }
 
@@ -561,7 +561,8 @@ cfOrKsName[CFName name, boolean isKs]
     ;
 
 set_operation returns [Operation op]
-    : t=term         { $op = ColumnOperation.Set(t); }
+    : t=finalTerm    { $op = ColumnOperation.Set(t); }
+    | mk=QMARK       { $op = new PreparedOperation(new Term($mk.text, $mk.type, ++currentBindMarkerIdx), PreparedOperation.Kind.SET); }
     | m=map_literal  { $op = MapOperation.Set(m);  }
     | l=list_literal { $op = ListOperation.Set(l); }
     | s=set_literal  { $op = SetOperation.Set(s);  }
@@ -591,14 +592,9 @@ term returns [Term term]
     | t=QMARK      { $term = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
     ;
 
-intTerm returns [Term integer]
-    : t=INTEGER { $integer = new Term($t.text, $t.type); }
-    | t=QMARK   { $integer = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
-    ;
-
 termPairWithOperation[List<Pair<ColumnIdentifier, Operation>> columns]
     : key=cident '='
-        (set_op = set_operation { columns.add(Pair.<ColumnIdentifier, Operation>create(key, set_op)); }
+        ( set_op=set_operation { columns.add(Pair.<ColumnIdentifier, Operation>create(key, set_op)); }
         | c=cident op=operation
           {
               if (!key.equals(c))
@@ -611,6 +607,13 @@ termPairWithOperation[List<Pair<ColumnIdentifier, Operation>> columns]
                   addRecognitionError("Only expressions like X = <value> + X are supported.");
               columns.add(Pair.<ColumnIdentifier, Operation>create(key, ListOperation.Prepend(ll)));
           }
+        | mk=QMARK '+' c=cident
+          {
+              if (!key.equals(c))
+                  addRecognitionError("Only expressions like X = <value> + X are supported.");
+              PreparedOperation pop = new PreparedOperation(new Term($mk.text, $mk.type, ++currentBindMarkerIdx), PreparedOperation.Kind.PREPARED_PLUS);
+              columns.add(Pair.<ColumnIdentifier, Operation>create(key, pop));
+          }
         )
     | key=cident '[' t=term ']' '=' vv=term
       {
@@ -622,15 +625,25 @@ termPairWithOperation[List<Pair<ColumnIdentifier, Operation>> columns]
       }
     ;
 
+intTerm returns [Term integer]
+    : t=INTEGER { $integer = new Term($t.text, $t.type); }
+    | t=QMARK   { $integer = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
+    ;
+
+
 operation returns [Operation op]
-    : '+' v=intTerm { $op = ColumnOperation.CounterInc(v); }
-    | sign='-'? v=intTerm
+    : '+' i=INTEGER { $op = ColumnOperation.CounterInc(new Term($i.text, $i.type)); }
+    | sign='-'? i=INTEGER
       {
-          validateMinusSupplied(sign, v, input);
+          Term t = new Term($i.text, $i.type);
+          validateMinusSupplied(sign, t, input);
           if (sign == null)
-              v = new Term(-(Long.valueOf(v.getText())), v.getType());
-          $op = ColumnOperation.CounterDec(v);
+              t = new Term(-(Long.valueOf(t.getText())), t.getType());
+          $op = ColumnOperation.CounterDec(t);
       }
+    | '+' mk=QMARK { $op = new PreparedOperation(new Term($mk.text, $mk.type, ++currentBindMarkerIdx), PreparedOperation.Kind.PLUS_PREPARED); }
+    | '-' mk=QMARK { $op = new PreparedOperation(new Term($mk.text, $mk.type, ++currentBindMarkerIdx), PreparedOperation.Kind.MINUS_PREPARED); }
+
     | '+' ll=list_literal { $op = ListOperation.Append(ll); }
     | '-' ll=list_literal { $op = ListOperation.Discard(ll); }
 

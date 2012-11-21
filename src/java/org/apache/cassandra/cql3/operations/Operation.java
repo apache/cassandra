@@ -32,22 +32,17 @@ import org.apache.cassandra.utils.Pair;
 
 public interface Operation
 {
-    public static enum Type { COLUMN, COUNTER, LIST, SET, MAP }
+    public static enum Type { COLUMN, COUNTER, LIST, SET, MAP, PREPARED }
 
     public void execute(ColumnFamily cf,
                         ColumnNameBuilder builder,
                         AbstractType<?> validator,
-                        UpdateParameters params) throws InvalidRequestException;
-
-    public void execute(ColumnFamily cf,
-                        ColumnNameBuilder builder,
-                        CollectionType validator,
                         UpdateParameters params,
                         List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException;
 
     public List<Term> getValues();
 
-    public boolean requiresRead();
+    public boolean requiresRead(AbstractType<?> validator);
 
     public Type getType();
 }

@@ -122,7 +122,7 @@ public class UpdateStatement extends ModificationStatement
             if (!(name.type instanceof ListType))
                 continue;
 
-            if (value.requiresRead())
+            if (value.requiresRead(name.type))
             {
                 if (toRead == null)
                     toRead = new TreeSet<ByteBuffer>(UTF8Type.instance);
@@ -254,7 +254,7 @@ public class UpdateStatement extends ModificationStatement
             {
                 CFDefinition.Name name = entry.getKey();
                 Operation op = entry.getValue();
-                hasCounterColumn |= addToMutation(cf, builder.copy().add(name.name.key), name, op, params, group == null || !op.requiresRead() ? null : group.getCollection(name.name.key));
+                hasCounterColumn |= addToMutation(cf, builder.copy().add(name.name.key), name, op, params, group == null || !op.requiresRead(name.type) ? null : group.getCollection(name.name.key));
             }
         }
 
@@ -272,31 +272,18 @@ public class UpdateStatement extends ModificationStatement
 
         switch (type)
         {
-            case COLUMN:
-                if (valueDef != null && valueDef.type.isCollection())
-                {
-                    // This means this was a prepared statement where the whole collection was provided
-                    // For have to deserialize it since it will be multiple columns
-                    ((ColumnOperation)valueOperation).executePreparedCollection(cf, builder.copy(), (CollectionType)valueDef.type, params);
-                }
-                else
-                {
-                    valueOperation.execute(cf, builder.copy(), valueDef == null ? null : valueDef.type, params);
-                }
-                break;
             case COUNTER:
                 if (valueDef != null && valueDef.type.isCollection())
                     throw new InvalidRequestException("Cannot assign collection value to column with " + valueDef.type + " type.");
-
-                valueOperation.execute(cf, builder.copy(), valueDef == null ? null : valueDef.type, params);
                 break;
-            default:
+            case LIST:
+            case SET:
+            case MAP:
                 if (!valueDef.type.isCollection())
                     throw new InvalidRequestException("Can't apply collection operation on column with " + valueDef.type + " type.");
-
-                valueOperation.execute(cf, builder.copy(), (CollectionType) valueDef.type, params, list);
                 break;
         }
+        valueOperation.execute(cf, builder.copy(), valueDef == null ? null : valueDef.type, params, list);
         return valueOperation.getType() == Operation.Type.COUNTER;
     }
 
