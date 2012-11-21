@@ -44,12 +44,12 @@ public class RowRepairResolver extends AbstractRowResolver
 {
     private int maxLiveCount = 0;
     public List<IAsyncResult> repairResults = Collections.emptyList();
-    private final SliceQueryFilter filter; // can be null if names query
+    private final IDiskAtomFilter filter;
 
     public RowRepairResolver(String table, ByteBuffer key, IDiskAtomFilter qFilter)
     {
         super(key, table);
-        this.filter = qFilter instanceof SliceQueryFilter ? (SliceQueryFilter)qFilter : null;
+        this.filter = qFilter;
     }
 
     /*
@@ -80,7 +80,7 @@ public class RowRepairResolver extends AbstractRowResolver
                 endpoints.add(message.from);
 
                 // compute maxLiveCount to prevent short reads -- see https://issues.apache.org/jira/browse/CASSANDRA-2643
-                int liveCount = cf == null ? 0 : (filter == null ? cf.getLiveColumnCount() : filter.getLiveCount(cf));
+                int liveCount = cf == null ? 0 : filter.getLiveCount(cf);
                 if (liveCount > maxLiveCount)
                     maxLiveCount = liveCount;
             }

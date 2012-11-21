@@ -83,7 +83,7 @@ public class RangeSliceCommand implements IReadCommand
 
     public final AbstractBounds<RowPosition> range;
     public final int maxResults;
-    public final boolean maxIsColumns;
+    public final boolean countCQL3Rows;
     public final boolean isPaging;
 
     public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, IDiskAtomFilter predicate, AbstractBounds<RowPosition> range, int maxResults)
@@ -101,7 +101,7 @@ public class RangeSliceCommand implements IReadCommand
         this(keyspace, column_family, super_column, predicate, range, row_filter, maxResults, false, false);
     }
 
-    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, IDiskAtomFilter predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults, boolean maxIsColumns, boolean isPaging)
+    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, IDiskAtomFilter predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults, boolean countCQL3Rows, boolean isPaging)
     {
         this.keyspace = keyspace;
         this.column_family = column_family;
@@ -110,7 +110,7 @@ public class RangeSliceCommand implements IReadCommand
         this.range = range;
         this.row_filter = row_filter;
         this.maxResults = maxResults;
-        this.maxIsColumns = maxIsColumns;
+        this.countCQL3Rows = countCQL3Rows;
         this.isPaging = isPaging;
     }
 
@@ -130,7 +130,7 @@ public class RangeSliceCommand implements IReadCommand
                ", range=" + range +
                ", row_filter =" + row_filter +
                ", maxResults=" + maxResults +
-               ", maxIsColumns=" + maxIsColumns +
+               ", countCQL3Rows=" + countCQL3Rows +
                '}';
     }
 
@@ -143,7 +143,7 @@ public class RangeSliceCommand implements IReadCommand
     public IndexScanCommand toIndexScanCommand()
     {
         assert row_filter != null && !row_filter.isEmpty();
-        if (maxIsColumns || isPaging)
+        if (countCQL3Rows || isPaging)
             throw new IllegalStateException("Cannot proceed with range query as the remote end has a version < 1.1. Please update the full cluster first.");
 
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace, column_family);
@@ -240,7 +240,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         dos.writeInt(sliceCommand.maxResults);
         if (version >= MessagingService.VERSION_11)
         {
-            dos.writeBoolean(sliceCommand.maxIsColumns);
+            dos.writeBoolean(sliceCommand.countCQL3Rows);
             dos.writeBoolean(sliceCommand.isPaging);
         }
     }
@@ -297,14 +297,14 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         AbstractBounds<RowPosition> range = AbstractBounds.serializer.deserialize(dis, version).toRowBounds();
 
         int maxResults = dis.readInt();
-        boolean maxIsColumns = false;
+        boolean countCQL3Rows = false;
         boolean isPaging = false;
         if (version >= MessagingService.VERSION_11)
         {
-            maxIsColumns = dis.readBoolean();
+            countCQL3Rows = dis.readBoolean();
             isPaging = dis.readBoolean();
         }
-        return new RangeSliceCommand(keyspace, columnFamily, superColumn, predicate, range, rowFilter, maxResults, maxIsColumns, isPaging);
+        return new RangeSliceCommand(keyspace, columnFamily, superColumn, predicate, range, rowFilter, maxResults, countCQL3Rows, isPaging);
     }
 
     public long serializedSize(RangeSliceCommand rsc, int version)
@@ -380,7 +380,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         size += TypeSizes.NATIVE.sizeof(rsc.maxResults);
         if (version >= MessagingService.VERSION_11)
         {
-            size += TypeSizes.NATIVE.sizeof(rsc.maxIsColumns);
+            size += TypeSizes.NATIVE.sizeof(rsc.countCQL3Rows);
             size += TypeSizes.NATIVE.sizeof(rsc.isPaging);
         }
         return size;

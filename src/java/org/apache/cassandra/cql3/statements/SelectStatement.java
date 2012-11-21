@@ -236,10 +236,7 @@ public class SelectStatement implements CQLStatement
         IDiskAtomFilter filter = makeFilter(variables);
         List<IndexExpression> expressions = getIndexExpressions(variables);
         // The LIMIT provided by the user is the number of CQL row he wants returned.
-        // For NamesQueryFilter, this is the number of internal rows returned, since a NamesQueryFilter can only select one CQL row in a given internal row.
-        // For SliceQueryFilter however, we want to have getRangeSlice to count the number of columns, not the number of keys. Then
-        // SliceQueryFilter.collectReducedColumns will correctly columns having the same composite prefix using ColumnCounter.
-        boolean maxIsColumns = filter instanceof SliceQueryFilter;
+        // We want to have getRangeSlice to count the number of columns, not the number of keys.
         return new RangeSliceCommand(keyspace(),
                                      columnFamily(),
                                      null,
@@ -247,7 +244,7 @@ public class SelectStatement implements CQLStatement
                                      getKeyBounds(variables),
                                      expressions,
                                      getLimit(),
-                                     maxIsColumns,
+                                     true,
                                      false);
     }
 
@@ -320,7 +317,7 @@ public class SelectStatement implements CQLStatement
         {
             SortedSet<ByteBuffer> columnNames = getRequestedColumns(variables);
             QueryProcessor.validateColumnNames(columnNames);
-            return new NamesQueryFilter(columnNames);
+            return new NamesQueryFilter(columnNames, true);
         }
     }
 
@@ -813,7 +810,7 @@ public class SelectStatement implements CQLStatement
             }
             else
             {
-                if (row.cf.getLiveColumnCount() == 0)
+                if (row.cf.hasOnlyTombstones())
                     continue;
 
                 // Static case: One cqlRow for all columns
