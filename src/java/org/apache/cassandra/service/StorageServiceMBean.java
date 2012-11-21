@@ -27,11 +27,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.UnavailableException;
-
-
 public interface StorageServiceMBean
 {
     /**
@@ -139,10 +134,8 @@ public interface StorageServiceMBean
      * @param keyspace The keyspace to fetch information about
      *
      * @return a List of TokenRange(s) converted to String for the given keyspace
-     *
-     * @throws InvalidRequestException if there is no ring information available about keyspace
      */
-    public List <String> describeRingJMX(String keyspace) throws InvalidRequestException;
+    public List <String> describeRingJMX(String keyspace) throws IOException;
 
     /**
      * Returns the local node's primary range.
@@ -291,13 +284,12 @@ public interface StorageServiceMBean
      * @param newToken token to move this node to.
      * This node will unload its data onto its neighbors, and bootstrap to the new token.
      */
-    public void move(String newToken) throws IOException, InterruptedException, ConfigurationException;
+    public void move(String newToken) throws IOException;
 
     /**
      * @param srcTokens tokens to move to this node
-     * @throws ConfigurationException when passed an invalid token string
      */
-    public void relocate(Collection<String> srcTokens) throws ConfigurationException;
+    public void relocate(Collection<String> srcTokens) throws IOException;
 
     /**
      * removeToken removes token (and all data associated with
@@ -336,10 +328,8 @@ public interface StorageServiceMBean
      *
      * @param keyspace The keyspace to delete from
      * @param columnFamily The column family to delete data from.
-     *
-     * @throws UnavailableException if some of the hosts in the ring are down.
      */
-    public void truncate(String keyspace, String columnFamily) throws UnavailableException, TimeoutException, IOException;
+    public void truncate(String keyspace, String columnFamily)throws TimeoutException, IOException;
 
     /**
      * given a list of tokens (representing the nodes in the cluster), returns
@@ -354,7 +344,7 @@ public interface StorageServiceMBean
      * in the cluster have the same replication strategies and if yes then we will
      * use the first else a empty Map is returned.
      */
-    public Map<InetAddress, Float> effectiveOwnership(String keyspace) throws ConfigurationException;
+    public Map<InetAddress, Float> effectiveOwnership(String keyspace) throws IllegalStateException;
 
     public List<String> getKeyspaces();
 
@@ -365,9 +355,8 @@ public interface StorageServiceMBean
      * @param dynamicUpdateInterval    integer, in ms (default 100)
      * @param dynamicResetInterval     integer, in ms (default 600,000)
      * @param dynamicBadnessThreshold  double, (default 0.0)
-     * @throws ConfigurationException  classname not found on classpath
      */
-    public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ConfigurationException;
+    public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException;
 
     // allows a user to forcibly 'kill' a sick node
     public void stopGossiping();
@@ -392,7 +381,7 @@ public interface StorageServiceMBean
     public boolean isNativeTransportRunning();
 
     // allows a node that have been started without joining the ring to join it
-    public void joinRing() throws IOException, ConfigurationException;
+    public void joinRing() throws IOException;
     public boolean isJoined();
 
     public int getExceptionCount();

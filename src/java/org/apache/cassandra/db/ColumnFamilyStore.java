@@ -229,10 +229,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public void setCompactionStrategyClass(String compactionStrategyClass) throws ConfigurationException
+    public void setCompactionStrategyClass(String compactionStrategyClass)
     {
-        metadata.compactionStrategyClass = CFMetaData.createCompactionStrategy(compactionStrategyClass);
-        maybeReloadCompactionStrategy();
+        try
+        {
+            metadata.compactionStrategyClass = CFMetaData.createCompactionStrategy(compactionStrategyClass);
+            maybeReloadCompactionStrategy();
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage());
+        }
     }
 
     public String getCompactionStrategyClass()
@@ -245,9 +252,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return metadata.compressionParameters().asThriftOptions();
     }
 
-    public void setCompressionParameters(Map<String,String> opts) throws ConfigurationException
+    public void setCompressionParameters(Map<String,String> opts)
     {
-        metadata.compressionParameters = CompressionParameters.create(opts);
+        try
+        {
+            metadata.compressionParameters = CompressionParameters.create(opts);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage());
+        }
     }
 
     private ColumnFamilyStore(Table table,

@@ -21,8 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-
 /**
  * The MBean interface for ColumnFamilyStore
  */
@@ -260,7 +258,7 @@ public interface ColumnFamilyStoreMBean
      * Sets the compaction strategy by class name
      * @param className the name of the compaction strategy class
      */
-    public void setCompactionStrategyClass(String className) throws ConfigurationException;
+    public void setCompactionStrategyClass(String className);
 
     /**
      * Gets the compaction strategy class name
@@ -276,7 +274,7 @@ public interface ColumnFamilyStoreMBean
      * Set the compression parameters
      * @param opts map of string names to values
      */
-    public void setCompressionParameters(Map<String,String> opts) throws ConfigurationException;
+    public void setCompressionParameters(Map<String,String> opts);
 
     /**
      * Disable automatic compaction.

@@ -37,7 +37,6 @@ import javax.management.remote.JMXServiceURL;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
-import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
@@ -269,7 +268,7 @@ public class NodeProbe
         return ssProxy.getOwnership();
     }
 
-    public Map<InetAddress, Float> effectiveOwnership(String keyspace) throws ConfigurationException
+    public Map<InetAddress, Float> effectiveOwnership(String keyspace) throws IllegalStateException
     {
         return ssProxy.effectiveOwnership(keyspace);
     }
@@ -395,7 +394,7 @@ public class NodeProbe
         return ssProxy.isJoined();
     }
 
-    public void joinRing() throws IOException, ConfigurationException
+    public void joinRing() throws IOException
     {
         ssProxy.joinRing();
     }
@@ -405,7 +404,7 @@ public class NodeProbe
         ssProxy.decommission();
     }
 
-    public void move(String newToken) throws IOException, InterruptedException, ConfigurationException
+    public void move(String newToken) throws IOException, InterruptedException
     {
         ssProxy.move(newToken);
     }
@@ -522,10 +521,6 @@ public class NodeProbe
         try
         {
             ssProxy.truncate(tableName, cfName);
-        }
-        catch (UnavailableException e)
-        {
-            throw new RuntimeException("Error while executing truncate", e);
         }
         catch (TimeoutException e)
         {
@@ -712,7 +707,7 @@ public class NodeProbe
         return ssProxy.getSchemaVersion();
     }
 
-    public List<String> describeRing(String keyspaceName) throws InvalidRequestException
+    public List<String> describeRing(String keyspaceName) throws IOException
     {
         return ssProxy.describeRingJMX(keyspaceName);
     }
