@@ -54,9 +54,12 @@ public class CqlInserter extends Operation
         // Construct a query string once.
         if (cqlQuery == null)
         {
-            StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired("Standard1"))
-                    .append(" USING CONSISTENCY ")
-                    .append(session.getConsistencyLevel().toString()).append(" SET ");
+            StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired("Standard1"));
+
+            if (session.cqlVersion.startsWith("2"))
+                query.append(" USING CONSISTENCY ").append(session.getConsistencyLevel().toString());
+
+            query.append(" SET ");
 
             for (int i = 0; i < session.getColumnsPerKey(); i++)
             {
@@ -108,13 +111,19 @@ public class CqlInserter extends Operation
                 if (session.usePreparedStatements())
                 {
                     Integer stmntId = getPreparedStatement(client, cqlQuery);
-                    client.execute_prepared_cql_query(stmntId, queryParamsAsByteBuffer(queryParms));
+                    if (session.cqlVersion.startsWith("3"))
+                        client.execute_prepared_cql3_query(stmntId, queryParamsAsByteBuffer(queryParms), session.getConsistencyLevel());
+                    else
+                        client.execute_prepared_cql_query(stmntId, queryParamsAsByteBuffer(queryParms));
                 }
                 else
                 {
                     if (formattedQuery == null)
                         formattedQuery = formatCqlQuery(cqlQuery, queryParms);
-                    client.execute_cql_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE);
+                    if (session.cqlVersion.startsWith("3"))
+                        client.execute_cql3_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE, session.getConsistencyLevel());
+                    else
+                        client.execute_cql_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE);
                 }
 
                 success = true;
