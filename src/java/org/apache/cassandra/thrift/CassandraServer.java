@@ -297,9 +297,9 @@ public class CassandraServer implements Cassandra.Iface
         if (startSessionIfRequested())
         {
             Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
-                    "column_parent", column_parent.toString(),
-                    "predicate", predicate.toString(),
-                    "consistency_level", consistency_level.name());
+                                                                  "column_parent", column_parent.toString(),
+                                                                  "predicate", predicate.toString(),
+                                                                  "consistency_level", consistency_level.name());
             Tracing.instance().begin("get_slice", traceParameters);
         }
         else
@@ -310,8 +310,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             state().hasColumnFamilyAccess(column_parent.column_family, Permission.SELECT);
-            return multigetSliceInternal(state().getKeyspace(), Collections.singletonList(key), column_parent,
-                    predicate, consistency_level).get(key);
+            return multigetSliceInternal(state().getKeyspace(), Collections.singletonList(key), column_parent, predicate, consistency_level).get(key);
         }
         catch (RequestValidationException e)
         {
@@ -330,13 +329,11 @@ public class CassandraServer implements Cassandra.Iface
         {
             List<String> keysList = Lists.newArrayList();
             for (ByteBuffer key : keys)
-            {
                 keysList.add(ByteBufferUtil.bytesToHex(key));
-            }
             Map<String, String> traceParameters = ImmutableMap.of("keys", keysList.toString(),
-                    "column_parent", column_parent.toString(),
-                    "predicate", predicate.toString(),
-                    "consistency_level", consistency_level.name());
+                                                                  "column_parent", column_parent.toString(),
+                                                                  "predicate", predicate.toString(),
+                                                                  "consistency_level", consistency_level.name());
             Tracing.instance().begin("multiget_slice", traceParameters);
         }
         else
@@ -424,12 +421,11 @@ public class CassandraServer implements Cassandra.Iface
     public ColumnOrSuperColumn get(ByteBuffer key, ColumnPath column_path, ConsistencyLevel consistency_level)
     throws InvalidRequestException, NotFoundException, UnavailableException, TimedOutException
     {
-
         if (startSessionIfRequested())
         {
             Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
-                    "column_path", column_path.toString(),
-                    "consistency_level", consistency_level.name());
+                                                                  "column_path", column_path.toString(),
+                                                                  "consistency_level", consistency_level.name());
             Tracing.instance().begin("get", traceParameters);
         }
         else
@@ -457,9 +453,9 @@ public class CassandraServer implements Cassandra.Iface
         if (startSessionIfRequested())
         {
             Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
-                    "column_parent", column_parent.toString(),
-                    "predicate", predicate.toString(),
-                    "consistency_level", consistency_level.name());
+                                                                  "column_parent", column_parent.toString(),
+                                                                  "predicate", predicate.toString(),
+                                                                  "consistency_level", consistency_level.name());
             Tracing.instance().begin("get_count", traceParameters);
         }
         else
@@ -482,8 +478,7 @@ public class CassandraServer implements Cassandra.Iface
             if (cfs.getMeanColumns() > 0)
             {
                 int averageColumnSize = (int) (cfs.getMeanRowSize() / cfs.getMeanColumns());
-                pageSize = Math.min(COUNT_PAGE_SIZE,
-                        DatabaseDescriptor.getInMemoryCompactionLimit() / averageColumnSize);
+                pageSize = Math.min(COUNT_PAGE_SIZE, DatabaseDescriptor.getInMemoryCompactionLimit() / averageColumnSize);
                 pageSize = Math.max(2, pageSize);
                 logger.debug("average row column size is {}; using pageSize of {}", averageColumnSize, pageSize);
             }
@@ -498,9 +493,9 @@ public class CassandraServer implements Cassandra.Iface
             if (predicate.slice_range == null)
             {
                 predicate.slice_range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                        false,
-                        Integer.MAX_VALUE);
+                                                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                       false,
+                                                       Integer.MAX_VALUE);
             }
 
             final int requestedCount = predicate.slice_range.count;
@@ -514,8 +509,7 @@ public class CassandraServer implements Cassandra.Iface
                     break;
 
                 ByteBuffer firstName = getName(columns.get(0));
-                int newColumns = pages == 0 || !firstName.equals(predicate.slice_range.start) ? columns.size()
-                        : columns.size() - 1;
+                int newColumns = pages == 0 || !firstName.equals(predicate.slice_range.start) ? columns.size() : columns.size() - 1;
 
                 totalCount += newColumns;
                 // if we over-counted, just return original limit
@@ -562,9 +556,9 @@ public class CassandraServer implements Cassandra.Iface
                 keysList.add(ByteBufferUtil.bytesToHex(key));
             }
             Map<String, String> traceParameters = ImmutableMap.of("keys", keysList.toString(),
-                    "column_parent", column_parent.toString(),
-                    "predicate", predicate.toString(),
-                    "consistency_level", consistency_level.name());
+                                                                  "column_parent", column_parent.toString(),
+                                                                  "predicate", predicate.toString(),
+                                                                  "consistency_level", consistency_level.name());
             Tracing.instance().begin("multiget_count", traceParameters);
         }
         else
@@ -579,13 +573,10 @@ public class CassandraServer implements Cassandra.Iface
             String keyspace = cState.getKeyspace();
 
             Map<ByteBuffer, Integer> counts = new HashMap<ByteBuffer, Integer>();
-            Map<ByteBuffer, List<ColumnOrSuperColumn>> columnFamiliesMap = multigetSliceInternal(keyspace, keys,
-                    column_parent, predicate, consistency_level);
+            Map<ByteBuffer, List<ColumnOrSuperColumn>> columnFamiliesMap = multigetSliceInternal(keyspace, keys, column_parent, predicate, consistency_level);
 
             for (Map.Entry<ByteBuffer, List<ColumnOrSuperColumn>> cf : columnFamiliesMap.entrySet())
-            {
                 counts.put(cf.getKey(), cf.getValue().size());
-            }
             return counts;
         }
         catch (RequestValidationException e)
@@ -633,9 +624,9 @@ public class CassandraServer implements Cassandra.Iface
         if (startSessionIfRequested())
         {
             Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
-                    "column_parent", column_parent.toString(),
-                    "column", column.toString(),
-                    "consistency_level", consistency_level.name());
+                                                                  "column_parent", column_parent.toString(),
+                                                                  "column", column.toString(),
+                                                                  "consistency_level", consistency_level.name());
             Tracing.instance().begin("insert", traceParameters);
         }
         else
@@ -742,7 +733,7 @@ public class CassandraServer implements Cassandra.Iface
             for (Map.Entry<ByteBuffer, Map<String, List<Mutation>>> mutationEntry : mutation_map.entrySet())
             {
                 traceParameters.put(ByteBufferUtil.bytesToHex(mutationEntry.getKey()),
-                        Joiner.on(";").withKeyValueSeparator(":").join(mutationEntry.getValue()));
+                                    Joiner.on(";").withKeyValueSeparator(":").join(mutationEntry.getValue()));
             }
             traceParameters.put("consistency_level", consistency_level.name());
             Tracing.instance().begin("batch_mutate", traceParameters);
@@ -775,7 +766,7 @@ public class CassandraServer implements Cassandra.Iface
             for (Map.Entry<ByteBuffer, Map<String, List<Mutation>>> mutationEntry : mutation_map.entrySet())
             {
                 traceParameters.put(ByteBufferUtil.bytesToHex(mutationEntry.getKey()),
-                        Joiner.on(";").withKeyValueSeparator(":").join(mutationEntry.getValue()));
+                                    Joiner.on(";").withKeyValueSeparator(":").join(mutationEntry.getValue()));
             }
             traceParameters.put("consistency_level", consistency_level.name());
             Tracing.instance().begin("atomic_batch_mutate", traceParameters);
@@ -826,9 +817,9 @@ public class CassandraServer implements Cassandra.Iface
         if (startSessionIfRequested())
         {
             Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
-                    "column_path", column_path.toString(),
-                    "timestamp", timestamp+"",
-                    "consistency_level", consistency_level.name());
+                                                                  "column_path", column_path.toString(),
+                                                                  "timestamp", timestamp + "",
+                                                                  "consistency_level", consistency_level.name());
             Tracing.instance().begin("remove", traceParameters);
         }
         else
@@ -947,17 +938,17 @@ public class CassandraServer implements Cassandra.Iface
             }
             else
             {
-                RowPosition end = range.end_key == null ? p.getTokenFactory().fromString(range.end_token).maxKeyBound(p)
-                                                    : RowPosition.forKey(range.end_key, p);
+                RowPosition end = range.end_key == null
+                                ? p.getTokenFactory().fromString(range.end_token).maxKeyBound(p)
+                                : RowPosition.forKey(range.end_key, p);
                 bounds = new Bounds<RowPosition>(RowPosition.forKey(range.start_key, p), end);
             }
             schedule(DatabaseDescriptor.getRangeRpcTimeout());
             try
             {
-                IDiskAtomFilter filter = ThriftValidation.asIFilter(predicate,
-                        metadata.getComparatorFor(column_parent.super_column));
+                IDiskAtomFilter filter = ThriftValidation.asIFilter(predicate, metadata.getComparatorFor(column_parent.super_column));
                 rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, filter, bounds,
-                        range.row_filter, range.count), consistencyLevel);
+                                                                        range.row_filter, range.count), consistencyLevel);
             }
             finally
             {
@@ -995,11 +986,10 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Map<String, String> traceParameters = ImmutableMap.of(
-                    "column_family", column_family,
-                    "range", range.toString(),
-                    "start_column", ByteBufferUtil.bytesToHex(start_column),
-                    "consistency_level", consistency_level.name());
+            Map<String, String> traceParameters = ImmutableMap.of("column_family", column_family,
+                                                                  "range", range.toString(),
+                                                                  "start_column", ByteBufferUtil.bytesToHex(start_column),
+                                                                  "consistency_level", consistency_level.name());
             Tracing.instance().begin("get_paged_slice", traceParameters);
         }
         else
@@ -1020,8 +1010,7 @@ public class CassandraServer implements Cassandra.Iface
             org.apache.cassandra.db.ConsistencyLevel consistencyLevel = ThriftConversion.fromThrift(consistency_level);
             consistencyLevel.validateForRead(keyspace);
 
-            SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(start_column,
-                    ByteBufferUtil.EMPTY_BYTE_BUFFER, false, -1));
+            SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(start_column, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, -1));
 
             IPartitioner p = StorageService.getPartitioner();
             AbstractBounds<RowPosition> bounds;
@@ -1035,9 +1024,9 @@ public class CassandraServer implements Cassandra.Iface
             }
             else
             {
-                RowPosition end = range.end_key == null ? p.getTokenFactory().fromString(range.end_token)
-                        .maxKeyBound(p)
-                        : RowPosition.forKey(range.end_key, p);
+                RowPosition end = range.end_key == null
+                                ? p.getTokenFactory().fromString(range.end_token).maxKeyBound(p)
+                                : RowPosition.forKey(range.end_key, p);
                 bounds = new Bounds<RowPosition>(RowPosition.forKey(range.start_key, p), end);
             }
 
@@ -1047,7 +1036,7 @@ public class CassandraServer implements Cassandra.Iface
             {
                 IDiskAtomFilter filter = ThriftValidation.asIFilter(predicate, metadata.comparator);
                 rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_family, null, filter,
-                        bounds, range.row_filter, range.count, true, true), consistencyLevel);
+                                                                        bounds, range.row_filter, range.count, true, true), consistencyLevel);
             }
             finally
             {
@@ -1098,11 +1087,10 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Map<String, String> traceParameters = ImmutableMap.of(
-                    "column_parent", column_parent.toString(),
-                    "index_clause", index_clause.toString(),
-                    "slice_predicate", column_predicate.toString(),
-                    "consistency_level", consistency_level.name());
+            Map<String, String> traceParameters = ImmutableMap.of("column_parent", column_parent.toString(),
+                                                                  "index_clause", index_clause.toString(),
+                                                                  "slice_predicate", column_predicate.toString(),
+                                                                  "consistency_level", consistency_level.name());
             Tracing.instance().begin("get_indexed_slices", traceParameters);
         }
         else
@@ -1124,17 +1112,16 @@ public class CassandraServer implements Cassandra.Iface
 
             IPartitioner p = StorageService.getPartitioner();
             AbstractBounds<RowPosition> bounds = new Bounds<RowPosition>(RowPosition.forKey(index_clause.start_key, p),
-                    p.getMinimumToken().minKeyBound());
+                                                                         p.getMinimumToken().minKeyBound());
 
-            IDiskAtomFilter filter = ThriftValidation.asIFilter(column_predicate,
-                    metadata.getComparatorFor(column_parent.super_column));
+            IDiskAtomFilter filter = ThriftValidation.asIFilter(column_predicate, metadata.getComparatorFor(column_parent.super_column));
             RangeSliceCommand command = new RangeSliceCommand(keyspace,
-                    column_parent.column_family,
-                    null,
-                    filter,
-                    bounds,
-                    index_clause.expressions,
-                    index_clause.count);
+                                                              column_parent.column_family,
+                                                              null,
+                                                              filter,
+                                                              bounds,
+                                                              index_clause.expressions,
+                                                              index_clause.count);
 
             List<Row> rows = StorageProxy.getRangeSlice(command, consistencyLevel);
             return thriftifyKeySlices(rows, column_parent, column_predicate);
@@ -1518,10 +1505,9 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Map<String, String> traceParameters = ImmutableMap.of(
-                    "column_parent", column_parent.toString(),
-                    "column", column.toString(),
-                    "consistency_level", consistency_level.name());
+            Map<String, String> traceParameters = ImmutableMap.of("column_parent", column_parent.toString(),
+                                                                  "column", column.toString(),
+                                                                  "consistency_level", consistency_level.name());
             Tracing.instance().begin("add", traceParameters);
         }
         else
@@ -1572,8 +1558,8 @@ public class CassandraServer implements Cassandra.Iface
         if (startSessionIfRequested())
         {
             Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
-                    "column_path", path.toString(),
-                    "consistency_level", consistency_level.name());
+                                                                  "column_path", path.toString(),
+                                                                  "consistency_level", consistency_level.name());
             Tracing.instance().begin("remove_counter", traceParameters);
         }
         else
@@ -1615,11 +1601,11 @@ public class CassandraServer implements Cassandra.Iface
                     {
                         if (decompressor.needsInput())
                             lenRead = query.remaining() < 1024 ? query.remaining() : 1024;
-                            query.get(inBuffer, 0, lenRead);
-                            decompressor.setInput(inBuffer, 0, lenRead);
+                        query.get(inBuffer, 0, lenRead);
+                        decompressor.setInput(inBuffer, 0, lenRead);
 
                         int lenWrite = 0;
-                        while ((lenWrite = decompressor.inflate(outBuffer)) !=0)
+                        while ((lenWrite = decompressor.inflate(outBuffer)) != 0)
                             decompressed.write(outBuffer, 0, lenWrite);
 
                         if (decompressor.finished())
