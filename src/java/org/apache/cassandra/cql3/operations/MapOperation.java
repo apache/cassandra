@@ -57,18 +57,13 @@ public class MapOperation implements Operation
         this.kind = Kind.DISCARD;
     }
 
-    public void execute(ColumnFamily cf, ColumnNameBuilder builder, AbstractType<?> validator, UpdateParameters params) throws InvalidRequestException
-    {
-        throw new InvalidRequestException("Map operations are only supported on Map typed columns, but " + validator + " given.");
-    }
-
     public void execute(ColumnFamily cf,
                         ColumnNameBuilder builder,
-                        CollectionType validator,
+                        AbstractType<?> validator,
                         UpdateParameters params,
                         List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
     {
-        if (validator.kind != CollectionType.Kind.MAP)
+        if (!(validator instanceof MapType))
             throw new InvalidRequestException("Map operations are only supported on Map typed columns, but " + validator + " given.");
 
         switch (kind)
@@ -76,22 +71,29 @@ public class MapOperation implements Operation
             case SET: // fallthrough on purpose; remove previous Map before setting (PUT) the new one
                 cf.addAtom(params.makeTombstoneForOverwrite(builder.copy().build(), builder.copy().buildAsEndOfRange()));
             case PUT:
-                doPut(cf, builder, validator, params);
+                doPut(cf, builder, (CollectionType)validator, params);
                 break;
             case DISCARD:
-                doDiscard(cf, builder, validator, params);
+                doDiscard(cf, builder, (CollectionType)validator, params);
                 break;
             default:
                 throw new AssertionError("Unsupported Map operation: " + kind);
         }
     }
 
-    public static void doInsertFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, MapType validator, Term values, UpdateParameters params) throws InvalidRequestException
+    public static void doSetFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, MapType validator, Term values, UpdateParameters params) throws InvalidRequestException
     {
         if (!values.isBindMarker())
             throw new InvalidRequestException("Can't apply operation on column with " + validator + " type.");
 
         cf.addAtom(params.makeTombstoneForOverwrite(builder.copy().build(), builder.copy().buildAsEndOfRange()));
+        doPutFromPrepared(cf, builder, validator, values, params);
+    }
+
+    public static void doPutFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, MapType validator, Term values, UpdateParameters params) throws InvalidRequestException
+    {
+        if (!values.isBindMarker())
+            throw new InvalidRequestException("Can't apply operation on column with " + validator + " type.");
 
         try
         {
@@ -136,7 +138,7 @@ public class MapOperation implements Operation
         return l;
     }
 
-    public boolean requiresRead()
+    public boolean requiresRead(AbstractType<?> validator)
     {
         return kind == Kind.SET || kind == Kind.DISCARD;
     }

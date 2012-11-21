@@ -29,6 +29,7 @@
  * Use Stats.db when bulk loading if present (CASSANDRA-4957)
  * Skip repair on system_trace and keyspaces with RF=1 (CASSANDRA-4956)
  * Remove select arbitrary limit (CASSANDRA-4918)
+ * Correctly handle prepared operation on collections (CASSANDRA-4945)
 Merged from 1.1:
  * add basic authentication support for Pig CassandraStorage (CASSANDRA-3042)
  * fix CQL2 ALTER TABLE compaction_strategy_class altering (CASSANDRA-4965)
