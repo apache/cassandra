@@ -328,7 +328,9 @@ public class SelectStatement implements CQLStatement
     {
         // Internally, we don't support exclusive bounds for slices. Instead,
         // we query one more element if necessary and exclude
-        return sliceRestriction != null && !sliceRestriction.isInclusive(Bound.START) ? parameters.limit + 1 : parameters.limit;
+        return sliceRestriction != null && !sliceRestriction.isInclusive(Bound.START) && parameters.limit != Integer.MAX_VALUE
+             ? parameters.limit + 1
+             : parameters.limit;
     }
 
     private Collection<ByteBuffer> getKeys(final List<ByteBuffer> variables) throws InvalidRequestException
