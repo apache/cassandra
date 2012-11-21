@@ -25,7 +25,7 @@ public interface PBSPredictorMBean
                                             int w,
                                             float timeSinceWrite, 
                                             int numberVersionsStale,
-                                            float percentileLatency) throws Exception;
+                                            float percentileLatency);
 
     public void enableConsistencyPredictionLogging();
     public void disableConsistencyPredictionLogging();

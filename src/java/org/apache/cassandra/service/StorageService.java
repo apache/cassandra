@@ -51,6 +51,7 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -752,12 +753,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.addLocalApplicationState(ApplicationState.RACK, StorageService.instance.valueFactory.rack(rack));
     }
 
-    public synchronized void joinRing() throws IOException, ConfigurationException
+    public synchronized void joinRing() throws IOException
     {
         if (!joined)
         {
             logger.info("Joining ring by operator request");
-            joinTokenRing(0);
+            try
+            {
+                joinTokenRing(0);
+            }
+            catch (ConfigurationException e)
+            {
+                throw new IOException(e.getMessage());
+            }
         }
         else if (isSurveyMode)
         {
@@ -984,12 +992,18 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param keyspace The keyspace to fetch information about
      *
      * @return a List of TokenRange(s) converted to String for the given keyspace
-     *
-     * @throws InvalidRequestException if there is no ring information available about keyspace
      */
-    public List<String> describeRingJMX(String keyspace) throws InvalidRequestException
+    public List<String> describeRingJMX(String keyspace) throws IOException
     {
-        List<TokenRange> tokenRanges = describeRing(keyspace);
+        List<TokenRange> tokenRanges = null;
+        try
+        {
+            tokenRanges = describeRing(keyspace);
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new IOException(e.getMessage());
+        }
         List<String> result = new ArrayList<String>(tokenRanges.size());
 
         for (TokenRange tokenRange : tokenRanges)
@@ -2641,9 +2655,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         onFinish.run();
     }
 
-    public void move(String newToken) throws IOException, InterruptedException, ConfigurationException
+    public void move(String newToken) throws IOException
     {
-        getPartitioner().getTokenFactory().validate(newToken);
+        try
+        {
+            getPartitioner().getTokenFactory().validate(newToken);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IOException(e.getMessage());
+        }
         move(getPartitioner().getTokenFactory().fromString(newToken));
     }
 
@@ -2830,13 +2851,20 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
     }
 
-    public void relocate(Collection<String> srcTokens) throws ConfigurationException
+    public void relocate(Collection<String> srcTokens) throws IOException
     {
         List<Token> tokens = new ArrayList<Token>(srcTokens.size());
-        for (String srcT : srcTokens)
+        try
         {
-            getPartitioner().getTokenFactory().validate(srcT);
-            tokens.add(getPartitioner().getTokenFactory().fromString(srcT));
+            for (String srcT : srcTokens)
+            {
+                getPartitioner().getTokenFactory().validate(srcT);
+                tokens.add(getPartitioner().getTokenFactory().fromString(srcT));
+            }
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IOException(e.getMessage());
         }
         relocateTokens(tokens);
     }
@@ -3164,10 +3192,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return old;
     }
 
-    public void truncate(String keyspace, String columnFamily)
-    throws org.apache.cassandra.exceptions.UnavailableException, TimeoutException, IOException
+    public void truncate(String keyspace, String columnFamily) throws TimeoutException, IOException
     {
-        StorageProxy.truncateBlocking(keyspace, columnFamily);
+        try
+        {
+            StorageProxy.truncateBlocking(keyspace, columnFamily);
+        }
+        catch (UnavailableException e)
+        {
+            throw new IOException(e.getMessage());
+        }
     }
 
     public boolean isDcAwareReplicationStrategy(String keyspace)
@@ -3193,14 +3227,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * on the number of replicas within itself. For DC unaware replication strategies, ownership without replication
      * will be 100%.
      *
-     * @throws ConfigurationException
+     * @throws IllegalStateException when node is not configured properly.
      */
-    public LinkedHashMap<InetAddress, Float> effectiveOwnership(String keyspace) throws ConfigurationException
+    public LinkedHashMap<InetAddress, Float> effectiveOwnership(String keyspace) throws IllegalStateException
     {
         if (Schema.instance.getNonSystemTables().size() <= 0)
-            throw new ConfigurationException("Couldn't find any Non System Keyspaces to infer replication topology");
+            throw new IllegalStateException("Couldn't find any Non System Keyspaces to infer replication topology");
         if (keyspace == null && !hasSameReplication(Schema.instance.getNonSystemTables()))
-            throw new ConfigurationException("Non System keyspaces doesnt have the same topology");
+            throw new IllegalStateException("Non System keyspaces doesnt have the same topology");
 
         TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap();
 
@@ -3259,12 +3293,20 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return Collections.unmodifiableList(tableslist);
     }
 
-    public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ConfigurationException
+    public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException
     {
         IEndpointSnitch oldSnitch = DatabaseDescriptor.getEndpointSnitch();
 
         // new snitch registers mbean during construction
-        IEndpointSnitch newSnitch = FBUtilities.construct(epSnitchClassName, "snitch");
+        IEndpointSnitch newSnitch = null;
+        try
+        {
+            newSnitch = FBUtilities.construct(epSnitchClassName, "snitch");
+        }
+        catch (ConfigurationException e)
+        {
+            throw new ClassNotFoundException(e.getMessage());
+        }
         if (dynamic)
         {
             DatabaseDescriptor.setDynamicUpdateInterval(dynamicUpdateInterval);
