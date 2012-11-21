@@ -50,10 +50,12 @@ public class CqlCounterAdder extends Operation
         {
             String counterCF = session.cqlVersion.startsWith("2") ? "Counter1" : "Counter3";
 
-            StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired(counterCF))
-                                                              .append(" USING CONSISTENCY ")
-                                                              .append(session.getConsistencyLevel())
-                                                              .append(" SET ");
+            StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired(counterCF));
+
+            if (session.cqlVersion.startsWith("2"))
+                query.append(" USING CONSISTENCY ").append(session.getConsistencyLevel());
+
+            query.append(" SET ");
 
             for (int i = 0; i < session.getColumnsPerKey(); i++)
             {
@@ -84,14 +86,19 @@ public class CqlCounterAdder extends Operation
                 if (session.usePreparedStatements())
                 {
                     Integer stmntId = getPreparedStatement(client, cqlQuery);
-                    client.execute_prepared_cql_query(stmntId,
-                            Collections.singletonList(ByteBufferUtil.bytes(getUnQuotedCqlBlob(key))));
+                    if (session.cqlVersion.startsWith("3"))
+                        client.execute_prepared_cql3_query(stmntId, Collections.singletonList(ByteBufferUtil.bytes(getUnQuotedCqlBlob(key))), session.getConsistencyLevel());
+                    else
+                        client.execute_prepared_cql_query(stmntId, Collections.singletonList(ByteBufferUtil.bytes(getUnQuotedCqlBlob(key))));
                 }
                 else
                 {
                     if (formattedQuery == null)
                         formattedQuery = formatCqlQuery(cqlQuery, Collections.singletonList(getUnQuotedCqlBlob(key)));
-                    client.execute_cql_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE);
+                    if (session.cqlVersion.startsWith("3"))
+                        client.execute_cql3_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE, session.getConsistencyLevel());
+                    else
+                        client.execute_cql_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE);
                 }
 
                 success = true;

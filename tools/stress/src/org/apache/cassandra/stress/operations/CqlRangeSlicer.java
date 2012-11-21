@@ -51,9 +51,12 @@ public class CqlRangeSlicer extends Operation
         if (cqlQuery == null)
         {
             StringBuilder query = new StringBuilder("SELECT FIRST ").append(session.getColumnsPerKey())
-                    .append(" ''..'' FROM Standard1 USING CONSISTENCY ").append(session.getConsistencyLevel().toString())
-                    .append(" WHERE KEY > ?");
-            cqlQuery = query.toString();
+                    .append(" ''..'' FROM Standard1");
+
+            if (session.cqlVersion.startsWith("2"))
+                query.append(" USING CONSISTENCY ").append(session.getConsistencyLevel().toString());
+
+            cqlQuery = query.append(" WHERE KEY > ?").toString();
         }
 
         String key = String.format("%0" +  session.getTotalKeysLength() + "d", index);
@@ -77,14 +80,19 @@ public class CqlRangeSlicer extends Operation
                 if (session.usePreparedStatements())
                 {
                     Integer stmntId = getPreparedStatement(client, cqlQuery);
-                    result = client.execute_prepared_cql_query(stmntId,
-                            Collections.singletonList(ByteBufferUtil.bytes(getUnQuotedCqlBlob(key))));
+                    if (session.cqlVersion.startsWith("3"))
+                        result = client.execute_prepared_cql3_query(stmntId, Collections.singletonList(ByteBufferUtil.bytes(getUnQuotedCqlBlob(key))), session.getConsistencyLevel());
+                    else
+                        result = client.execute_prepared_cql_query(stmntId, Collections.singletonList(ByteBufferUtil.bytes(getUnQuotedCqlBlob(key))));
                 }
                 else
                 {
                     if (formattedQuery == null)
                         formattedQuery = formatCqlQuery(cqlQuery, Collections.singletonList(getUnQuotedCqlBlob(key)));
-                    result = client.execute_cql_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE);
+                    if (session.cqlVersion.startsWith("3"))
+                        result = client.execute_cql3_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE, session.getConsistencyLevel());
+                    else
+                        result = client.execute_cql_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE);
                 }
 
                 rowCount = result.rows.size();
