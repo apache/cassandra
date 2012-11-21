@@ -113,7 +113,7 @@ public class CounterColumn extends Column
     @Override
     public IColumn diff(IColumn column)
     {
-        assert column instanceof CounterColumn : "Wrong class type.";
+        assert column instanceof CounterColumn : "Wrong class type. " + ((column == null) ? "null" : column.getClass().getSimpleName()) + " found.";
 
         if (timestamp() < column.timestamp())
             return column;
