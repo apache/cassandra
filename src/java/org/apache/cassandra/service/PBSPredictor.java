@@ -26,8 +26,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.thrift.InvalidRequestException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -313,7 +311,7 @@ public class PBSPredictor implements PBSPredictorMBean
                                             int w,
                                             float timeSinceWrite,
                                             int numberVersionsStale,
-                                            float percentileLatency) throws Exception
+                                            float percentileLatency)
     {
         if (r > n)
             throw new IllegalArgumentException("r must be less than n");
@@ -329,7 +327,7 @@ public class PBSPredictor implements PBSPredictorMBean
             throw new IllegalArgumentException("numberVersionsStale must be positive");
 
         if (!logLatencies)
-            throw new InvalidRequestException("Latency logging is not enabled");
+            throw new IllegalStateException("Latency logging is not enabled");
 
         // get a mapping of {replica number : latency} for each of WARS
         Map<Integer, List<Long>> wLatencies = getOrderedWLatencies();
@@ -338,10 +336,10 @@ public class PBSPredictor implements PBSPredictorMBean
         Map<Integer, List<Long>> sLatencies = getOrderedSLatencies();
 
         if (wLatencies.isEmpty() || aLatencies.isEmpty())
-            throw new InvalidRequestException("No write latencies have been recorded so far. Run some (non-local) inserts.");
+            throw new IllegalStateException("No write latencies have been recorded so far. Run some (non-local) inserts.");
 
         if (rLatencies.isEmpty() || sLatencies.isEmpty())
-            throw new InvalidRequestException("No read latencies have been recorded so far. Run some (non-local) reads.");
+            throw new IllegalStateException("No read latencies have been recorded so far. Run some (non-local) reads.");
 
         // storage for simulated read and write latencies
         ArrayList<Long> readLatencies = new ArrayList<Long>();

@@ -216,7 +216,7 @@ public class NodeCmd
             ownerships = probe.effectiveOwnership(keyspace);
             keyspaceSelected = true;
         }
-        catch (ConfigurationException ex)
+        catch (IllegalStateException ex)
         {
             ownerships = probe.getOwnership();
             outs.printf("Note: Ownership information does not include topology; for complete information, specify a keyspace%n");
@@ -434,7 +434,7 @@ public class NodeCmd
                 ownerships = probe.effectiveOwnership(kSpace);
                 hasEffectiveOwns = true;
             }
-            catch (ConfigurationException e)
+            catch (IllegalStateException e)
             {
                 ownerships = probe.getOwnership();
             }
@@ -1236,7 +1236,7 @@ public class NodeCmd
                 out.println("\t" + tokenRangeString);
             }
         }
-        catch (InvalidRequestException e)
+        catch (IOException e)
         {
             err(e, e.getMessage());
         }
