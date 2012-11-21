@@ -32,6 +32,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class RecoveryManager2Test extends SchemaLoader
 {
@@ -41,6 +42,9 @@ public class RecoveryManager2Test extends SchemaLoader
     /* test that commit logs do not replay flushed data */
     public void testWithFlush() throws Exception
     {
+        // Flush everything that may be in the commit log now to start fresh
+        FBUtilities.waitOnFutures(Table.open(Table.SYSTEM_KS).flush());
+
         CompactionManager.instance.disableAutoCompaction();
 
         // add a row to another CF so we test skipping mutations within a not-entirely-flushed CF

@@ -389,8 +389,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             throw new AssertionError(e);
         }
-
-        Schema.instance.updateVersionAndAnnounce();
     }
 
     public synchronized void initServer() throws ConfigurationException
