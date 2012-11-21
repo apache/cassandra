@@ -534,7 +534,7 @@ public class SecondaryIndexManager
      * @param dataFilter the column range to restrict to
      * @return found indexed rows
      */
-    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean maxIsColumns)
+    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean countCQL3Rows)
     {
         List<SecondaryIndexSearcher> indexSearchers = getIndexSearchersForQuery(clause);
 
@@ -546,7 +546,7 @@ public class SecondaryIndexManager
             throw new RuntimeException("Unable to search across multiple secondary index types");
 
 
-        return indexSearchers.get(0).search(clause, range, maxResults, dataFilter, maxIsColumns);
+        return indexSearchers.get(0).search(clause, range, maxResults, dataFilter, countCQL3Rows);
     }
 
     public Collection<SecondaryIndex> getIndexesByNames(Set<String> idxNames)

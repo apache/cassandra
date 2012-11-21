@@ -58,6 +58,11 @@ public class SliceQueryFilter implements IDiskAtomFilter
         this(new ColumnSlice[] { new ColumnSlice(start, finish) }, reversed, count);
     }
 
+    public SliceQueryFilter(ByteBuffer start, ByteBuffer finish, boolean reversed, int count, int compositesToGroup)
+    {
+        this(new ColumnSlice[] { new ColumnSlice(start, finish) }, reversed, count, compositesToGroup, 1);
+    }
+
     /**
      * Constructor that accepts multiple slices. All slices are assumed to be in the same direction (forward or
      * reversed).
@@ -79,6 +84,11 @@ public class SliceQueryFilter implements IDiskAtomFilter
     public SliceQueryFilter withUpdatedCount(int newCount)
     {
         return new SliceQueryFilter(slices, reversed, newCount, compositesToGroup, countMutliplierForCompatibility);
+    }
+
+    public SliceQueryFilter withUpdatedSlices(ColumnSlice[] newSlices)
+    {
+        return new SliceQueryFilter(newSlices, reversed, count, compositesToGroup, countMutliplierForCompatibility);
     }
 
     public OnDiskAtomIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key)
@@ -242,7 +252,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
     @Override
     public String toString()
     {
-        return "SliceQueryFilter [reversed=" + reversed + ", slices=" + Arrays.toString(slices) + ", count=" + count + "]";
+        return "SliceQueryFilter [reversed=" + reversed + ", slices=" + Arrays.toString(slices) + ", count=" + count + ", toGroup = " + compositesToGroup + "]";
     }
 
     public boolean isReversed()

@@ -1454,9 +1454,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getRangeSlice(superColumn, range, maxResults, columnFilter, rowFilter, false, false);
     }
 
-    public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter columnFilter, List<IndexExpression> rowFilter, boolean maxIsColumns, boolean isPaging)
+    public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter columnFilter, List<IndexExpression> rowFilter, boolean countCQL3Rows, boolean isPaging)
     {
-        return filter(getSequentialIterator(superColumn, range, columnFilter), ExtendedFilter.create(this, columnFilter, rowFilter, maxResults, maxIsColumns, isPaging));
+        return filter(getSequentialIterator(superColumn, range, columnFilter), ExtendedFilter.create(this, columnFilter, rowFilter, maxResults, countCQL3Rows, isPaging));
     }
 
     public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter)
@@ -1464,10 +1464,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return search(clause, range, maxResults, dataFilter, false);
     }
 
-    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean maxIsColumns)
+    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean countCQL3Rows)
     {
         Tracing.trace("Executing indexed scan for {}", range.getString(metadata.getKeyValidator()));
-        return indexManager.search(clause, range, maxResults, dataFilter, maxIsColumns);
+        return indexManager.search(clause, range, maxResults, dataFilter, countCQL3Rows);
     }
 
     public List<Row> filter(AbstractScanIterator rowIterator, ExtendedFilter filter)

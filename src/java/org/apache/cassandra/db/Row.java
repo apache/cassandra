@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.io.*;
 
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.StorageService;
@@ -39,11 +40,6 @@ public class Row
         this.cf = cf;
     }
 
-    public int getLiveColumnCount()
-    {
-        return cf == null ? 0 : cf.getLiveColumnCount();
-    }
-
     @Override
     public String toString()
     {
@@ -51,6 +47,11 @@ public class Row
                "key=" + key +
                ", cf=" + cf +
                ')';
+    }
+
+    public int getLiveCount(IDiskAtomFilter filter)
+    {
+        return cf == null ? 0 : filter.getLiveCount(cf);
     }
 
     public static class RowSerializer implements IVersionedSerializer<Row>
