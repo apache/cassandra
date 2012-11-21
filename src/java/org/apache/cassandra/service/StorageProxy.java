@@ -41,6 +41,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
@@ -1093,13 +1094,9 @@ public class StorageProxy implements StorageProxyMBean
         // now scan until we have enough results
         try
         {
-            final IDiskAtomFilter emptyPredicate = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                                        false,
-                                                                        -1);
             IDiskAtomFilter commandPredicate = command.predicate;
 
-            int columnsCount = 0;
+            int cql3RowCount = 0;
             rows = new ArrayList<Row>();
             List<AbstractBounds<RowPosition>> ranges = getRestrictedRanges(command.range);
             for (AbstractBounds<RowPosition> range : ranges)
@@ -1111,7 +1108,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                   range,
                                                                   command.row_filter,
                                                                   command.maxResults,
-                                                                  command.maxIsColumns,
+                                                                  command.countCQL3Rows,
                                                                   command.isPaging);
 
                 List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(nodeCmd.keyspace, range.right);
@@ -1144,7 +1141,8 @@ public class StorageProxy implements StorageProxyMBean
                     for (Row row : handler.get())
                     {
                         rows.add(row);
-                        columnsCount += row.getLiveColumnCount();
+                        if (nodeCmd.countCQL3Rows)
+                            cql3RowCount += row.getLiveCount(commandPredicate);
                         logger.trace("range slices read {}", row.key);
                     }
                     FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getWriteRpcTimeout());
@@ -1162,14 +1160,18 @@ public class StorageProxy implements StorageProxyMBean
                 }
 
                 // if we're done, great, otherwise, move to the next range
-                int count = nodeCmd.maxIsColumns ? columnsCount : rows.size();
+                int count = nodeCmd.countCQL3Rows ? cql3RowCount : rows.size();
                 if (count >= nodeCmd.maxResults)
                     break;
 
                 // if we are paging and already got some rows, reset the column filter predicate,
                 // so we start iterating the next row from the first column
                 if (!rows.isEmpty() && command.isPaging)
-                    commandPredicate = emptyPredicate;
+                {
+                    // We only allow paging with a slice filter (doesn't make sense otherwise anyway)
+                    assert commandPredicate instanceof SliceQueryFilter;
+                    commandPredicate = ((SliceQueryFilter)commandPredicate).withUpdatedSlices(ColumnSlice.ALL_COLUMNS_ARRAY);
+                }
             }
         }
         finally
@@ -1189,8 +1191,8 @@ public class StorageProxy implements StorageProxyMBean
 
     private static List<Row> trim(RangeSliceCommand command, List<Row> rows)
     {
-        // When maxIsColumns, we let the caller trim the result.
-        if (command.maxIsColumns)
+        // When countCQL3Rows, we let the caller trim the result.
+        if (command.countCQL3Rows)
             return rows;
         else
             return rows.size() > command.maxResults ? rows.subList(0, command.maxResults) : rows;

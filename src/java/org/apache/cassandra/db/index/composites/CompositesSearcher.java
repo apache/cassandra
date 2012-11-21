@@ -78,10 +78,10 @@ public class CompositesSearcher extends SecondaryIndexSearcher
     }
 
     @Override
-    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean maxIsColumns)
+    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean countCQL3Rows)
     {
         assert clause != null && !clause.isEmpty();
-        ExtendedFilter filter = ExtendedFilter.create(baseCfs, dataFilter, clause, maxResults, maxIsColumns, false);
+        ExtendedFilter filter = ExtendedFilter.create(baseCfs, dataFilter, clause, maxResults, countCQL3Rows, false);
         return baseCfs.filter(getIndexedIterator(range, filter), filter);
     }
 
@@ -301,7 +301,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                         if (!originalFilter.includes(baseComparator, start))
                             continue;
 
-                        SliceQueryFilter dataFilter = new SliceQueryFilter(start, builder.copy().buildAsEndOfRange(), false, Integer.MAX_VALUE);
+                        SliceQueryFilter dataFilter = new SliceQueryFilter(start, builder.copy().buildAsEndOfRange(), false, Integer.MAX_VALUE, prefixSize);
                         ColumnFamily newData = baseCfs.getColumnFamily(new QueryFilter(dk, path, dataFilter));
                         if (newData != null)
                         {
@@ -322,7 +322,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                             if (data == null)
                                 data = ColumnFamily.create(baseCfs.metadata);
                             data.resolve(newData);
-                            columnsCount += newData.getLiveColumnCount();
+                            columnsCount += dataFilter.lastCounted();
                         }
                     }
                  }

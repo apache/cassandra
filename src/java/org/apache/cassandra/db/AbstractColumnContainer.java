@@ -164,17 +164,14 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         return getColumnCount();
     }
 
-    public int getLiveColumnCount()
+    public boolean hasOnlyTombstones()
     {
-        int count = 0;
-
         for (IColumn column : columns)
         {
             if (column.isLive())
-                count++;
+                return false;
         }
-
-        return count;
+        return true;
     }
 
     public Iterator<IColumn> iterator()

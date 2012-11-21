@@ -36,6 +36,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -45,14 +46,29 @@ public class NamesQueryFilter implements IDiskAtomFilter
 
     public final SortedSet<ByteBuffer> columns;
 
+    // If true, getLiveCount will always return either 0 or 1. This uses the fact that we know 
+    // CQL3 will never use a name filter with cell names spanning multiple CQL3 rows.
+    private final boolean countCQL3Rows;
+
     public NamesQueryFilter(SortedSet<ByteBuffer> columns)
     {
+        this(columns, false);
+    }
+
+    public NamesQueryFilter(SortedSet<ByteBuffer> columns, boolean countCQL3Rows)
+    {
         this.columns = columns;
+        this.countCQL3Rows = countCQL3Rows;
     }
 
     public NamesQueryFilter(ByteBuffer column)
     {
         this(FBUtilities.singleton(column));
+    }
+
+    public NamesQueryFilter withUpdatedColumns(SortedSet<ByteBuffer> newColumns)
+    {
+       return new NamesQueryFilter(newColumns, countCQL3Rows);
     }
 
     public OnDiskAtomIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key)
@@ -114,6 +130,20 @@ public class NamesQueryFilter implements IDiskAtomFilter
     {
     }
 
+    public int getLiveCount(ColumnFamily cf)
+    {
+        if (countCQL3Rows)
+            return cf.hasOnlyTombstones() ? 0 : 1;
+
+        int count = 0;
+        for (IColumn column : cf)
+        {
+            if (column.isLive())
+                count++;
+        }
+        return count;
+    }
+
     public static class Serializer implements IVersionedSerializer<NamesQueryFilter>
     {
         public void serialize(NamesQueryFilter f, DataOutput dos, int version) throws IOException
@@ -123,6 +153,10 @@ public class NamesQueryFilter implements IDiskAtomFilter
             {
                 ByteBufferUtil.writeWithShortLength(cName, dos);
             }
+            // If we talking against an older node, we have no way to tell him that we want to count CQL3 rows. This does mean that
+            // this node may return less data than required. The workaround being to upgrade all nodes.
+            if (version >= MessagingService.VERSION_12)
+                dos.writeBoolean(f.countCQL3Rows);
         }
 
         public NamesQueryFilter deserialize(DataInput dis, int version) throws IOException
@@ -136,7 +170,10 @@ public class NamesQueryFilter implements IDiskAtomFilter
             SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(comparator);
             for (int i = 0; i < size; ++i)
                 columns.add(ByteBufferUtil.readWithShortLength(dis));
-            return new NamesQueryFilter(columns);
+            boolean countCQL3Rows = version >= MessagingService.VERSION_12
+                                  ? dis.readBoolean()
+                                  : false;
+            return new NamesQueryFilter(columns, countCQL3Rows);
         }
 
         public long serializedSize(NamesQueryFilter f, int version)
@@ -148,6 +185,8 @@ public class NamesQueryFilter implements IDiskAtomFilter
                 int cNameSize = cName.remaining();
                 size += sizes.sizeof((short) cNameSize) + cNameSize;
             }
+            if (version >= MessagingService.VERSION_12)
+                size += sizes.sizeof(f.countCQL3Rows);
             return size;
         }
     }

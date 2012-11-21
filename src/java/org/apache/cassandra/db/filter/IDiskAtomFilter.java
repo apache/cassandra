@@ -44,7 +44,7 @@ public interface IDiskAtomFilter
      * returns an iterator that returns columns from the given memtable
      * matching the Filter criteria in sorted order.
      */
-    public abstract OnDiskAtomIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key);
+    public OnDiskAtomIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key);
 
     /**
      * Get an iterator that returns columns from the given SSTable using the opened file
@@ -53,31 +53,33 @@ public interface IDiskAtomFilter
      * @param file Already opened file data input, saves us opening another one
      * @param key The key of the row we are about to iterate over
      */
-    public abstract ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry);
+    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry);
 
     /**
      * returns an iterator that returns columns from the given SSTable
      * matching the Filter criteria in sorted order.
      */
-    public abstract ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key);
+    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key);
 
     /**
      * collects columns from reducedColumns into returnCF.  Termination is determined
      * by the filter code, which should have some limit on the number of columns
      * to avoid running out of memory on large rows.
      */
-    public abstract void collectReducedColumns(IColumnContainer container, Iterator<IColumn> reducedColumns, int gcBefore);
+    public void collectReducedColumns(IColumnContainer container, Iterator<IColumn> reducedColumns, int gcBefore);
 
     /**
      * subcolumns of a supercolumn are unindexed, so to pick out parts of those we operate in-memory.
      * @param superColumn may be modified by filtering op.
      */
-    public abstract SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore);
+    public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore);
 
     public Comparator<IColumn> getColumnComparator(AbstractType<?> comparator);
 
     public boolean isReversed();
     public void updateColumnsLimit(int newLimit);
+
+    public int getLiveCount(ColumnFamily cf);
 
     public static class Serializer implements IVersionedSerializer<IDiskAtomFilter>
     {

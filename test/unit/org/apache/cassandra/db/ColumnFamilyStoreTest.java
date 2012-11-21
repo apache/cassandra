@@ -948,7 +948,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         int columns = 0;
         for (Row row : rows)
         {
-            columns += row.getLiveColumnCount();
+            columns += row.getLiveCount(new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, expectedCount));
         }
         assert columns == expectedCount : "Expected " + expectedCount + " live columns but got " + columns + ": " + rows;
     }

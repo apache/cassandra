@@ -52,9 +52,10 @@ public class SliceQueryPager implements Iterator<ColumnFamily>
             return null;
 
         QueryPath path = new QueryPath(cfs.getColumnFamilyName());
-        QueryFilter filter = new QueryFilter(key, path, new SliceQueryFilter(slices, false, DEFAULT_PAGE_SIZE));
+        SliceQueryFilter sliceFilter = new SliceQueryFilter(slices, false, DEFAULT_PAGE_SIZE);
+        QueryFilter filter = new QueryFilter(key, path, sliceFilter);
         ColumnFamily cf = cfs.getColumnFamily(filter);
-        if (cf == null || cf.getLiveColumnCount() < DEFAULT_PAGE_SIZE)
+        if (cf == null || sliceFilter.getLiveCount(cf) < DEFAULT_PAGE_SIZE)
         {
             exhausted = true;
         }
