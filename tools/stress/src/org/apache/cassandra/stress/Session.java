@@ -665,7 +665,7 @@ public class Session implements Serializable
             client.set_cql_version("3.0.0"); // just to create counter cf for cql3
 
             client.set_keyspace(KEYSPACE_NAME);
-            client.execute_cql_query(createCounterCFStatementForCQL3(), Compression.NONE);
+            client.execute_cql3_query(createCounterCFStatementForCQL3(), Compression.NONE, ConsistencyLevel.ONE);
 
             if (enable_cql)
                 client.set_cql_version(cqlVersion);

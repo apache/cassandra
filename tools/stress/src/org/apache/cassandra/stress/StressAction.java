@@ -235,7 +235,6 @@ public class StressAction extends Thread
                         System.exit(-1);
                     }
 
-
                     output.println(e.getMessage());
                     returnCode = StressAction.FAILURE;
                     break;
