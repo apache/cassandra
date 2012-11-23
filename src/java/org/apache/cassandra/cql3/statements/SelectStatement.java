@@ -957,6 +957,16 @@ public class SelectStatement implements CQLStatement
         return name.type instanceof ReversedType;
     }
 
+    private boolean columnFilterIsIdentity()
+    {
+        for (Restriction r : columnRestrictions)
+        {
+            if (r != null)
+                return false;
+        }
+        return true;
+    }
+
     public static class RawStatement extends CFStatement
     {
         private final Parameters parameters;
@@ -1247,6 +1257,16 @@ public class SelectStatement implements CQLStatement
                 stmt.isReversed = isReversed;
             }
 
+            // Make sure this queries is allowed (note: only key range can involve filtering underneath)
+            if (!parameters.allowFiltering && stmt.isKeyRange)
+            {
+                // We will potentially filter data if either:
+                //  - Have more than one IndexExpression
+                //  - Have no index expression and the column filter is not the identity
+                if (stmt.metadataRestrictions.size() > 1 || (stmt.metadataRestrictions.isEmpty() && !stmt.columnFilterIsIdentity()))
+                    throw new InvalidRequestException("Cannot execute this query as it might involve data filtering and thus may have impredictible performance. "
+                                                    + "If you want to execute this query despite the performance impredictibility, use ALLOW FILTERING");
+            }
 
             return new ParsedStatement.Prepared(stmt, Arrays.<ColumnSpecification>asList(names));
         }
@@ -1432,12 +1452,14 @@ public class SelectStatement implements CQLStatement
         private final int limit;
         private final Map<ColumnIdentifier, Boolean> orderings;
         private final boolean isCount;
+        private final boolean allowFiltering;
 
-        public Parameters(int limit, Map<ColumnIdentifier, Boolean> orderings, boolean isCount)
+        public Parameters(int limit, Map<ColumnIdentifier, Boolean> orderings, boolean isCount, boolean allowFiltering)
         {
             this.limit = limit;
             this.orderings = orderings;
             this.isCount = isCount;
+            this.allowFiltering = allowFiltering;
         }
     }
 
