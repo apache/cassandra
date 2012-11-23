@@ -107,10 +107,18 @@ public class CounterColumn extends Column
     @Override
     public IColumn diff(IColumn column)
     {
-        assert column instanceof CounterColumn : "Wrong class type.";
+        assert (column instanceof CounterColumn) || (column instanceof DeletedColumn) : "Wrong class type: " + column.getClass();
 
         if (timestamp() < column.timestamp())
             return column;
+
+        // Note that if at that point, column can't be a tombstone. Indeed,
+        // column is the result of merging us with other nodes results, and
+        // merging a CounterColumn with a tombstone never return a tombstone
+        // unless that tombstone timestamp is greater that the CounterColumn
+        // one.
+        assert !(column instanceof DeletedColumn) : "Wrong class type: " + column.getClass();
+
         if (timestampOfLastDelete() < ((CounterColumn)column).timestampOfLastDelete())
             return column;
         ContextRelationship rel = contextManager.diff(column.value(), value());
@@ -148,7 +156,7 @@ public class CounterColumn extends Column
     @Override
     public IColumn reconcile(IColumn column, Allocator allocator)
     {
-        assert (column instanceof CounterColumn) || (column instanceof DeletedColumn) : "Wrong class type.";
+        assert (column instanceof CounterColumn) || (column instanceof DeletedColumn) : "Wrong class type: " + column.getClass();
 
         if (column.isMarkedForDelete()) // live + tombstone: track last tombstone
         {
