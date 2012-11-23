@@ -829,6 +829,8 @@ bc(sample).
 UPDATE plays SET players = 5, scores = scores + [ 14, 21 ] WHERE id = '123-afde';
 UPDATE plays SET players = 5, scores = [ 12 ] + scores WHERE id = '123-afde';
 
+It should be noted that append and prepend are not idempotent operations. This means that if during an append or a prepend the operation timeout, it is not always safe to retry the operation (as this could result in the record appended or prepended twice).
+
 Lists also provides the following operation: setting an element by its position in the list, removing an element by its position in the list and remove all the occurrence of a given value in the list. _However, and contrarily to all the other collection operations, these three operations induce an internal read before the update, and will thus typically have slower performance characteristics_. Those operations have the following syntax:
 
 bc(sample). 
