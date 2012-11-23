@@ -190,16 +190,19 @@ selectStatement returns [SelectStatement.RawStatement expr]
         boolean isCount = false;
         int limit = Integer.MAX_VALUE;
         Map<ColumnIdentifier, Boolean> orderings = new LinkedHashMap<ColumnIdentifier, Boolean>();
+        boolean allowFiltering = false;
     }
     : K_SELECT ( sclause=selectClause | (K_COUNT '(' sclause=selectCountClause ')' { isCount = true; }) )
       K_FROM cf=columnFamilyName
       ( K_WHERE wclause=whereClause )?
       ( K_ORDER K_BY orderByClause[orderings] ( ',' orderByClause[orderings] )* )?
       ( K_LIMIT rows=INTEGER { limit = Integer.parseInt($rows.text); } )?
+      ( K_ALLOW K_FILTERING  { allowFiltering = true; } )?
       {
           SelectStatement.Parameters params = new SelectStatement.Parameters(limit,
                                                                              orderings,
-                                                                             isCount);
+                                                                             isCount,
+                                                                             allowFiltering);
           $expr = new SelectStatement.RawStatement(cf, params, sclause, wclause);
       }
     ;
@@ -754,6 +757,7 @@ unreserved_keyword returns [String str]
         | K_WRITETIME
         | K_MAP
         | K_LIST
+        | K_FILTERING
         ) { $str = $k.text; }
     | t=native_type { $str = t.toString(); }
     ;
@@ -822,6 +826,8 @@ K_DESCRIBE:    D E S C R I B E;
 K_FOR:         F O R;
 K_FULL_ACCESS: F U L L '_' A C C E S S;
 K_NO_ACCESS:   N O '_' A C C E S S;
+K_ALLOW:       A L L O W;
+K_FILTERING:   F I L T E R I N G;
 
 
 K_CLUSTERING:  C L U S T E R I N G;
