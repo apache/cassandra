@@ -1264,8 +1264,8 @@ public class SelectStatement implements CQLStatement
                 //  - Have more than one IndexExpression
                 //  - Have no index expression and the column filter is not the identity
                 if (stmt.metadataRestrictions.size() > 1 || (stmt.metadataRestrictions.isEmpty() && !stmt.columnFilterIsIdentity()))
-                    throw new InvalidRequestException("Cannot execute this query as it might involve data filtering and thus may have impredictible performance. "
-                                                    + "If you want to execute this query despite the performance impredictibility, use ALLOW FILTERING");
+                    throw new InvalidRequestException("Cannot execute this query as it might involve data filtering and thus may have unpredictable performance. "
+                                                    + "If you want to execute this query despite the performance unpredictability, use ALLOW FILTERING");
             }
 
             return new ParsedStatement.Prepared(stmt, Arrays.<ColumnSpecification>asList(names));
