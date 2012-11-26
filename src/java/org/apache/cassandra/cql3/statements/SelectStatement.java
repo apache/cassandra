@@ -1007,6 +1007,8 @@ public class SelectStatement implements CQLStatement
                         throw new InvalidRequestException(String.format("Undefined name %s in selection clause", t.id()));
                     if (t.hasFunction() && name.kind != CFDefinition.Name.Kind.COLUMN_METADATA && name.kind != CFDefinition.Name.Kind.VALUE_ALIAS)
                         throw new InvalidRequestException(String.format("Cannot use function %s on PRIMARY KEY part %s", t.function(), name));
+                    if (t.hasFunction() && name.type.isCollection())
+                        throw new InvalidRequestException(String.format("Function %s is not supported on collections", t.function()));
 
                     stmt.selectedNames.add(Pair.create(name, t));
                 }
