@@ -198,7 +198,7 @@ public class WordCount extends Configured implements Tool
 
             ConfigHelper.setInputRpcPort(job.getConfiguration(), "9160");
             ConfigHelper.setInputInitialAddress(job.getConfiguration(), "localhost");
-            ConfigHelper.setInputPartitioner(job.getConfiguration(), "RandomPartitioner");
+            ConfigHelper.setInputPartitioner(job.getConfiguration(), "Murmur3Partitioner");
             ConfigHelper.setInputColumnFamily(job.getConfiguration(), KEYSPACE, COLUMN_FAMILY);
             SlicePredicate predicate = new SlicePredicate().setColumn_names(Arrays.asList(ByteBufferUtil.bytes(columnName)));
             ConfigHelper.setInputSlicePredicate(job.getConfiguration(), predicate);
@@ -216,7 +216,7 @@ public class WordCount extends Configured implements Tool
             }
 
             ConfigHelper.setOutputInitialAddress(job.getConfiguration(), "localhost");
-            ConfigHelper.setOutputPartitioner(job.getConfiguration(), "RandomPartitioner");
+            ConfigHelper.setOutputPartitioner(job.getConfiguration(), "Murmur3Partitioner");
 
             job.waitForCompletion(true);
         }
