@@ -99,6 +99,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     Map<ByteBuffer, CollectionType> collections = cfDef.hasCollections
                                                                 ? new HashMap<ByteBuffer, CollectionType>(cfDef.getCollectionType().defined)
                                                                 : new HashMap<ByteBuffer, CollectionType>();
+
                     collections.put(columnName.key, (CollectionType)type);
                     ColumnToCollectionType newColType = ColumnToCollectionType.getInstance(collections);
                     List<AbstractType<?>> ctypes = new ArrayList<AbstractType<?>>(((CompositeType)cfm.comparator).types);
@@ -108,6 +109,11 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         ctypes.add(newColType);
                     cfm.comparator = CompositeType.getInstance(ctypes);
                 }
+                else if (cfDef.hasCollections)
+                {
+                    componentIndex--;
+                }
+
                 cfm.addColumnDefinition(new ColumnDefinition(columnName.key,
                                                              type,
                                                              null,
