@@ -209,6 +209,9 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                     if (stmt.columns.isEmpty())
                         throw new InvalidRequestException("No definition found that is not part of the PRIMARY KEY");
 
+                    if (definedCollections != null)
+                        throw new InvalidRequestException("Collection types are not supported with COMPACT STORAGE");
+
                     stmt.comparator = CFDefinition.definitionType;
                 }
                 else
