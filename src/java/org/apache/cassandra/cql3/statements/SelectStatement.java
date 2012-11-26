@@ -1115,6 +1115,9 @@ public class SelectStatement implements CQLStatement
 
             if (!stmt.parameters.orderings.isEmpty())
             {
+                if (!stmt.metadataRestrictions.isEmpty())
+                    throw new InvalidRequestException("ORDER BY with 2ndary indexes is not supported.");
+
                 if (stmt.isKeyRange())
                     throw new InvalidRequestException("ORDER BY is only supported when the partition key is restricted by an EQ or an IN.");
 
