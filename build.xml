@@ -25,7 +25,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="1.1.5.1"/>
+    <property name="base.version" value="1.1.6.1"/>
     <property name="scm.connection" value="scm:git://git.apache.org/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:git://git.apache.org/cassandra.git"/>
     <property name="scm.url" value="http://git-wip-us.apache.org/repos/asf?p=cassandra.git;a=tree"/>
@@ -74,14 +74,14 @@
               value="http://repo2.maven.org/maven2/org/apache/maven/maven-ant-tasks" />
     <!-- details of how and which Maven repository we publish to -->
     <property name="maven.version" value="3.0.3" />
-    <condition property="maven-repository-url" value="https://repository.apache.org/service/local/staging/deploy/maven2">
+    <condition property="maven-repository-url" value="http://mvn.riptano.com/content/repositories/releases">
       <isset property="release"/>
     </condition>
-    <condition property="maven-repository-id" value="apache.releases.https">
+    <condition property="maven-repository-id" value="datastax-release">
       <isset property="release"/>
     </condition>
-    <property name="maven-repository-url" value="https://repository.apache.org/content/repositories/snapshots"/>
-    <property name="maven-repository-id" value="apache.snapshots.https"/>
+    <property name="maven-repository-url" value="http://mvn.riptano.com/content/repositories/snapshots"/>
+    <property name="maven-repository-id" value="datastax-snapshot"/>
 
     <property name="test.timeout" value="60000" />
     <property name="test.long.timeout" value="600000" />
@@ -294,7 +294,7 @@
         <sequential>
           <artifact:mvn mavenVersion="${maven.version}" fork="true" failonerror="true">
             <jvmarg value="-Xmx512m"/>
-            <arg value="org.apache.maven.plugins:maven-gpg-plugin:1.4:sign-and-deploy-file" />
+            <arg value="deploy:deploy-file" />
             <arg value="-DretryFailedDeploymentCount=5" />
             <arg value="-Durl=${maven-repository-url}" />
             <arg value="-DrepositoryId=${maven-repository-id}" />
@@ -302,7 +302,6 @@
             <arg value="-Dfile=@{file}" />
             <arg value="-Dclassifier=@{classifier}" />
             <arg value="-Dpackaging=@{packaging}" />
-            <arg value="-Papache-release" />
           </artifact:mvn>
         </sequential>
       </macrodef>
@@ -1348,9 +1347,13 @@
              classifier="javadoc"/>
   </target>
 
+  <!-- For the DataStax fork of Cassandra, we only deploy the cassandra-all,
+       cassandra-thrift and cassandra-client-util jars. Also, the release repo
+       does not allow overwrites, which the deployment of source & javadoc 
+       artifacts in the way defined here requires, so *only* deploy the jars
+  -->
   <target name="publish"
           depends="mvn-install"
-          if="release"
           description="Publishes the artifacts to the Maven repository">
           
     <!-- the parent -->
@@ -1359,6 +1362,7 @@
             packaging="pom"/>
 
     <!-- the distribution -->
+    <!--
     <deploy pomFile="${build.dir}/${final.name}-dist.pom"
             file="${build.dir}/${final.name}-dist.pom"
             packaging="pom"/>
@@ -1370,34 +1374,41 @@
             file="${build.dir}/${final.name}-src.tar.gz"
             packaging="tar.gz"
             classifier="src"/>
-          
+     -->
+
     <!-- the cassandra-thrift jar -->  
     <deploy pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
             file="${build.dir}/${ant.project.name}-thrift-${version}.jar"/>
+    <!--
     <deploy pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
             file="${build.dir}/${ant.project.name}-thrift-${version}-sources.jar"
             classifier="sources"/>
     <deploy pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
             file="${build.dir}/${ant.project.name}-thrift-${version}-javadoc.jar"
             classifier="javadoc"/>
+    -->
 
     <!-- the cassandra-clientutil jar -->  
     <deploy pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
             file="${build.dir}/${ant.project.name}-clientutil-${version}.jar"/>
+    <!--
     <deploy pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
              file="${build.dir}/${ant.project.name}-clientutil-${version}-sources.jar"
              classifier="sources"/>
     <deploy pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
              file="${build.dir}/${ant.project.name}-clientutil-${version}-javadoc.jar"
              classifier="javadoc"/>
+    -->
     <!-- the cassandra-all jar -->
     <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}.jar"/>
+    <!--
     <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}-sources.jar"
             classifier="sources"/>
     <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}-javadoc.jar"
             classifier="javadoc"/>
+    -->
   </target>
 </project>
