@@ -35,7 +35,6 @@ import org.apache.cassandra.thrift.ThriftClientState;
 
 import static org.apache.cassandra.cql.QueryProcessor.validateColumn;
 import static org.apache.cassandra.cql.QueryProcessor.validateKey;
-
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
 /**
@@ -132,8 +131,6 @@ public class UpdateStatement extends AbstractModification
     public List<IMutation> prepareRowMutations(String keyspace, ThriftClientState clientState, Long timestamp, List<ByteBuffer> variables)
     throws InvalidRequestException, UnauthorizedException
     {
-        List<String> cfamsSeen = new ArrayList<String>();
-
         boolean hasCommutativeOperation = false;
 
         for (Map.Entry<Term, Operation> column : getColumns().entrySet())
@@ -151,12 +148,7 @@ public class UpdateStatement extends AbstractModification
 
         QueryProcessor.validateKeyAlias(metadata, keyName);
 
-        // Avoid unnecessary authorizations.
-        if (!(cfamsSeen.contains(columnFamily)))
-        {
-            clientState.hasColumnFamilyAccess(columnFamily, Permission.UPDATE);
-            cfamsSeen.add(columnFamily);
-        }
+        clientState.hasColumnFamilyAccess(keyspace, columnFamily, Permission.MODIFY);
 
         List<IMutation> rowMutations = new LinkedList<IMutation>();
 

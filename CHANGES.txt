@@ -33,6 +33,7 @@
  * Fix adding column when the table has collections (CASSANDRA-4982)
  * Fix allowing collections with compact storage (CASSANDRA-4990)
  * Refuse ttl/writetime function on collections (CASSANDRA-4992)
+ * Replace IAuthority with new IAuthorizer (CASSANDRA-4874)
 Merged from 1.1:
  * cqlsh: improve COPY FROM performance (CASSANDRA-4921)
  * Fall back to old describe_splits if d_s_ex is not available (CASSANDRA-4803)

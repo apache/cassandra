@@ -20,9 +20,10 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Set;
 
+import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
@@ -30,22 +31,14 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class GrantStatement extends PermissionAlteringStatement
 {
-    private final Permission permission;
-    private final CFName resource;
-    private final String username;
-    private final boolean grantOption;
-
-    public GrantStatement(Permission permission, CFName resource, String username, boolean grantOption)
+    public GrantStatement(Set<Permission> permissions, IResource resource, String username)
     {
-        this.permission = permission;
-        this.resource = resource;
-        this.username = username;
-        this.grantOption = grantOption;
+        super(permissions, resource, username);
     }
 
     public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws UnauthorizedException, InvalidRequestException
     {
-        state.grantPermission(permission, username, resource, grantOption);
+        state.grantPermission(permissions, resource, username);
         return null;
     }
 }

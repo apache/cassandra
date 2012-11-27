@@ -24,16 +24,20 @@ import org.apache.cassandra.thrift.AuthenticationException;
 
 public class AllowAllAuthenticator implements IAuthenticator
 {
-    private final static AuthenticatedUser USER = new AuthenticatedUser("allow_all");
+    private final static AuthenticatedUser DEFAULT_USER = new AuthenticatedUser("nobody");
 
     public AuthenticatedUser defaultUser()
     {
-        return USER;
+        return DEFAULT_USER;
     }
 
     public AuthenticatedUser authenticate(Map<? extends CharSequence,? extends CharSequence> credentials) throws AuthenticationException
     {
-        return USER;
+
+        CharSequence username = credentials.get(IAuthenticator.USERNAME_KEY);
+        if (username == null)
+            return DEFAULT_USER;
+        return new AuthenticatedUser((String)username);
     }
 
     public void validateConfiguration() throws ConfigurationException

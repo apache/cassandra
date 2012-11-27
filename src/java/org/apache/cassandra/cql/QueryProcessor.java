@@ -23,6 +23,11 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 
+import com.google.common.base.Predicates;
+import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cli.CliUtils;
@@ -41,7 +46,6 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.thrift.CqlMetadata;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlResultType;
@@ -56,13 +60,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.SemanticVersion;
-
-import com.google.common.base.Predicates;
-import com.google.common.collect.Maps;
 import org.antlr.runtime.*;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
@@ -220,35 +219,6 @@ public class QueryProcessor
         }
 
         return rows.subList(0, select.getNumRecords() < rows.size() ? select.getNumRecords() : rows.size());
-    }
-
-    private static void batchUpdate(ThriftClientState clientState, List<UpdateStatement> updateStatements, ConsistencyLevel consistency, List<ByteBuffer> variables )
-    throws RequestValidationException, RequestExecutionException
-    {
-        String globalKeyspace = clientState.getKeyspace();
-        List<IMutation> rowMutations = new ArrayList<IMutation>(updateStatements.size());
-        List<String> cfamsSeen = new ArrayList<String>(updateStatements.size());
-
-        for (UpdateStatement update : updateStatements)
-        {
-            String keyspace = update.keyspace == null ? globalKeyspace : update.keyspace;
-
-            // Avoid unnecessary authorizations.
-            if (!(cfamsSeen.contains(update.getColumnFamily())))
-            {
-                clientState.hasColumnFamilyAccess(keyspace, update.getColumnFamily(), Permission.UPDATE);
-                cfamsSeen.add(update.getColumnFamily());
-            }
-
-            rowMutations.addAll(update.prepareRowMutations(keyspace, clientState, variables));
-        }
-
-        for (IMutation mutation : rowMutations)
-        {
-            validateKey(mutation.key());
-        }
-
-        StorageProxy.mutate(rowMutations, consistency);
     }
 
     private static IDiskAtomFilter filterFromSelect(SelectStatement select, CFMetaData metadata, List<ByteBuffer> variables)
@@ -556,8 +526,18 @@ public class QueryProcessor
             case UPDATE:
                 UpdateStatement update = (UpdateStatement)statement.statement;
                 update.getConsistencyLevel().validateForWrite(keyspace);
-                clientState.hasColumnFamilyAccess(keyspace, update.getColumnFamily(), Permission.UPDATE);
-                batchUpdate(clientState, Collections.singletonList(update), update.getConsistencyLevel(), variables);
+
+                keyspace = update.keyspace == null ? clientState.getKeyspace() : update.keyspace;
+                // permission is checked in prepareRowMutations()
+                List<IMutation> rowMutations = update.prepareRowMutations(keyspace, clientState, variables);
+
+                for (IMutation mutation : rowMutations)
+                {
+                    validateKey(mutation.key());
+                }
+
+                StorageProxy.mutate(rowMutations, update.getConsistencyLevel());
+
                 result.type = CqlResultType.VOID;
                 return result;
 
@@ -601,7 +581,7 @@ public class QueryProcessor
                 keyspace = columnFamily.left == null ? clientState.getKeyspace() : columnFamily.left;
 
                 validateColumnFamily(keyspace, columnFamily.right);
-                clientState.hasColumnFamilyAccess(keyspace, columnFamily.right, Permission.DELETE);
+                clientState.hasColumnFamilyAccess(keyspace, columnFamily.right, Permission.MODIFY);
 
                 try
                 {
@@ -623,7 +603,7 @@ public class QueryProcessor
                 DeleteStatement delete = (DeleteStatement)statement.statement;
 
                 keyspace = delete.keyspace == null ? clientState.getKeyspace() : delete.keyspace;
-                clientState.hasColumnFamilyAccess(keyspace, delete.columnFamily, Permission.DELETE);
+                // permission is checked in prepareRowMutations()
                 List<IMutation> deletions = delete.prepareRowMutations(keyspace, clientState, variables);
                 for (IMutation deletion : deletions)
                 {
@@ -639,7 +619,7 @@ public class QueryProcessor
                 CreateKeyspaceStatement create = (CreateKeyspaceStatement)statement.statement;
                 create.validate();
                 ThriftValidation.validateKeyspaceNotSystem(create.getName());
-                clientState.hasKeyspaceAccess(create.getName(), Permission.CREATE);
+                clientState.hasAllKeyspacesAccess(Permission.CREATE);
 
                 try
                 {
@@ -662,7 +642,7 @@ public class QueryProcessor
 
             case CREATE_COLUMNFAMILY:
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
-                clientState.hasColumnFamilySchemaAccess(keyspace, Permission.CREATE);
+                clientState.hasKeyspaceAccess(keyspace, Permission.CREATE);
 
                 try
                 {
@@ -723,21 +703,16 @@ public class QueryProcessor
 
             case DROP_INDEX:
                 DropIndexStatement dropIdx = (DropIndexStatement)statement.statement;
+                keyspace = clientState.getKeyspace();
+                dropIdx.setKeyspace(keyspace);
+                clientState.hasColumnFamilyAccess(keyspace, dropIdx.getColumnFamily(), Permission.ALTER);
 
                 try
                 {
-                    CFMetaData updatedCF = dropIdx.generateCFMetadataUpdate(clientState.getKeyspace());
-                    clientState.hasColumnFamilyAccess(updatedCF.ksName, updatedCF.cfName, Permission.DESCRIBE);
-
+                    CFMetaData updatedCF = dropIdx.generateCFMetadataUpdate();
                     MigrationManager.announceColumnFamilyUpdate(updatedCF);
                 }
                 catch (ConfigurationException e)
-                {
-                    InvalidRequestException ex = new InvalidRequestException(e.toString());
-                    ex.initCause(e);
-                    throw ex;
-                }
-                catch (IOException e)
                 {
                     InvalidRequestException ex = new InvalidRequestException(e.toString());
                     ex.initCause(e);
@@ -788,7 +763,7 @@ public class QueryProcessor
                 AlterTableStatement alterTable = (AlterTableStatement) statement.statement;
 
                 validateColumnFamily(keyspace, alterTable.columnFamily);
-                clientState.hasColumnFamilyAccess(alterTable.columnFamily, Permission.ALTER);
+                clientState.hasColumnFamilyAccess(keyspace, alterTable.columnFamily, Permission.ALTER);
 
                 try
                 {
