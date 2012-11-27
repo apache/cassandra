@@ -29,15 +29,20 @@ public class JEMallocAllocator implements IAllocator
         void free(long pointer);
     }
 
-    private static final JEMLibrary instance = (JEMLibrary) Native.loadLibrary("jemalloc", JEMLibrary.class);
+    private final JEMLibrary library;
+    
+    public JEMallocAllocator()
+    {
+        library = (JEMLibrary) Native.loadLibrary("jemalloc", JEMLibrary.class);
+    }
 
     public long allocate(long size)
     {
-        return instance.malloc(size);
+        return library.malloc(size);
     }
 
     public void free(long peer)
     {
-        instance.free(peer);
+        library.free(peer);
     }
 }
