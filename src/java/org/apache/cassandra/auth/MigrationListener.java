@@ -17,20 +17,37 @@
  */
 package org.apache.cassandra.auth;
 
-import java.util.EnumSet;
-import java.util.List;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.IMigrationListener;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-
-public class AllowAllAuthority implements IAuthority
+/**
+ * IMigrationListener implementation that cleans up permissions on dropped resources.
+ */
+public class MigrationListener implements IMigrationListener
 {
-    public EnumSet<Permission> authorize(AuthenticatedUser user, List<Object> resource)
+    public void onDropKeyspace(String ksName)
     {
-        return Permission.ALL;
+        DatabaseDescriptor.getAuthorizer().revokeAll(DataResource.keyspace(ksName));
     }
 
-    public void validateConfiguration() throws ConfigurationException
+    public void onDropColumnFamly(String ksName, String cfName)
     {
-        // pass
+        DatabaseDescriptor.getAuthorizer().revokeAll(DataResource.columnFamily(ksName, cfName));
+    }
+
+    public void onCreateKeyspace(String ksName)
+    {
+    }
+
+    public void onCreateColumnFamly(String ksName, String cfName)
+    {
+    }
+
+    public void onUpdateKeyspace(String ksName)
+    {
+    }
+
+    public void onUpdateColumnFamly(String ksName, String cfName)
+    {
     }
 }

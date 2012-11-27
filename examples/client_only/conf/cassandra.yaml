@@ -40,8 +40,8 @@ hinted_handoff_throttle_delay_in_ms: 50
 # authentication backend, implementing IAuthenticator; used to identify users
 authenticator: org.apache.cassandra.auth.AllowAllAuthenticator
 
-# authorization backend, implementing IAuthority; used to limit access/provide permissions
-authority: org.apache.cassandra.auth.AllowAllAuthority
+# authorization backend, implementing IAuthorizer; used to limit access/provide permissions
+authorizer: org.apache.cassandra.auth.AllowAllAuthorizer
 
 # The partitioner is responsible for distributing rows (by key) across
 # nodes in the cluster.  Any IPartitioner may be used, including your

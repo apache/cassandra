@@ -77,8 +77,7 @@ public class DatabaseDescriptor
     private static Config conf;
 
     private static IAuthenticator authenticator = new AllowAllAuthenticator();
-    private static IAuthority authority = new AllowAllAuthority();
-    private static IAuthorityContainer authorityContainer;
+    private static IAuthorizer authorizer = new AllowAllAuthorizer();
 
     private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";
 
@@ -207,15 +206,23 @@ public class DatabaseDescriptor
 
 	        logger.debug("page_cache_hinting is " + conf.populate_io_cache_on_flush);
 
-            /* Authentication and authorization backend, implementing IAuthenticator and IAuthority */
+            /* Authentication and authorization backend, implementing IAuthenticator and IAuthorizer */
             if (conf.authenticator != null)
                 authenticator = FBUtilities.<IAuthenticator>construct(conf.authenticator, "authenticator");
-            if (conf.authority != null)
-                authority = FBUtilities.<IAuthority>construct(conf.authority, "authority");
-            authenticator.validateConfiguration();
-            authority.validateConfiguration();
 
-            authorityContainer = new IAuthorityContainer(authority);
+            if (conf.authority != null)
+            {
+                logger.warn("Please rename 'authority' to 'authorizer' in cassandra.yaml");
+                if (!conf.authority.equals("org.apache.cassandra.auth.AllowAllAuthority"))
+                    throw new ConfigurationException("IAuthority interface has been deprecated,"
+                                                     + " please implement IAuthorizer instead.");
+            }
+
+            if (conf.authorizer != null)
+                authorizer = FBUtilities.<IAuthorizer>construct(conf.authorizer, "authorizer");
+
+            authenticator.validateConfiguration();
+            authorizer.validateConfiguration();
 
             /* Hashing strategy */
             if (conf.partitioner == null)
@@ -464,12 +471,6 @@ public class DatabaseDescriptor
                 Schema.instance.setTableDefinition(ksmd);
             }
 
-            // setup schema required for authorization
-            authorityContainer.setup();
-
-            // setup schema required for authorization
-            authorityContainer.setup();
-
             /* Load the seeds for node contact points */
             if (conf.seed_provider == null)
             {
@@ -587,14 +588,9 @@ public class DatabaseDescriptor
         return authenticator;
     }
 
-    public static IAuthority getAuthority()
+    public static IAuthorizer getAuthorizer()
     {
-        return authority;
-    }
-
-    public static IAuthorityContainer getAuthorityContainer()
-    {
-        return authorityContainer;
+        return authorizer;
     }
 
     public static int getThriftMaxMessageLength()

@@ -68,7 +68,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.CREATE);
+        state.hasKeyspaceAccess(keyspace(), Permission.CREATE);
     }
 
     // Column definitions

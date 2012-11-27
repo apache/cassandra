@@ -17,32 +17,30 @@
  */
 package org.apache.cassandra.auth;
 
-import java.util.Collections;
-import java.util.Set;
-
-/**
- * An authenticated user and her groups.
- */
 public class AuthenticatedUser
 {
     public final String username;
-    public final Set<String> groups;
+    private final boolean isSuperUser;
 
     public AuthenticatedUser(String username)
     {
-        this.username = username;
-        this.groups = Collections.emptySet();
+        this(username, false);
     }
 
-    public AuthenticatedUser(String username, Set<String> groups)
+    public AuthenticatedUser(String username, boolean isSuperUser)
     {
         this.username = username;
-        this.groups = Collections.unmodifiableSet(groups);
+        this.isSuperUser = isSuperUser;
+    }
+
+    public boolean isSuperUser()
+    {
+        return isSuperUser;
     }
 
     @Override
     public String toString()
     {
-        return String.format("#<User %s groups=%s>", username, groups);
+        return String.format("#<User %s super=%s>", username, isSuperUser);
     }
 }

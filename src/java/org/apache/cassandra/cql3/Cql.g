@@ -29,13 +29,17 @@ options {
     import java.util.ArrayList;
     import java.util.Arrays;
     import java.util.Collections;
+    import java.util.EnumSet;
     import java.util.HashMap;
     import java.util.LinkedHashMap;
     import java.util.List;
     import java.util.Map;
+    import java.util.Set;
 
-    import org.apache.cassandra.cql3.operations.*;
     import org.apache.cassandra.auth.Permission;
+    import org.apache.cassandra.auth.DataResource;
+    import org.apache.cassandra.auth.IResource;
+    import org.apache.cassandra.cql3.operations.*;
     import org.apache.cassandra.cql3.statements.*;
     import org.apache.cassandra.db.marshal.CollectionType;
     import org.apache.cassandra.exceptions.ConfigurationException;
@@ -167,7 +171,7 @@ cqlStatement returns [ParsedStatement stmt]
     | st14=alterTableStatement         { $stmt = st14; }
     | st15=grantStatement              { $stmt = st15; }
     | st16=revokeStatement             { $stmt = st16; }
-    | st17=listGrantsStatement         { $stmt = st17; }
+    | st17=listPermissionsStatement    { $stmt = st17; }
     | st18=alterKeyspaceStatement      { $stmt = st18; }
     ;
 
@@ -181,7 +185,6 @@ useStatement returns [UseStatement stmt]
 /**
  * SELECT <expression>
  * FROM <CF>
- * USING CONSISTENCY <LEVEL>
  * WHERE KEY = "key1" AND COL > 1 AND COL < 100
  * LIMIT <NUMBER>;
  */
@@ -277,7 +280,7 @@ usingClauseObjective[Attributes attrs]
 
 /**
  * UPDATE <CF>
- * USING CONSISTENCY <level> AND TIMESTAMP <long>
+ * USING TIMESTAMP <long>
  * SET name1 = value1, name2 = value2
  * WHERE key = value;
  */
@@ -298,7 +301,7 @@ updateStatement returns [UpdateStatement expr]
 /**
  * DELETE name1, name2
  * FROM <CF>
- * USING CONSISTENCY <level> AND TIMESTAMP <long>
+ * USING TIMESTAMP <long>
  * WHERE KEY = keyname;
  */
 deleteStatement returns [DeleteStatement expr]
@@ -325,7 +328,7 @@ deleteSelector returns [Selector s]
     ;
 
 /**
- * BEGIN BATCH [USING CONSISTENCY <LVL>]
+ * BEGIN BATCH
  *   UPDATE <CF> SET name1 = value1 WHERE KEY = keyname1;
  *   UPDATE <CF> SET name2 = value2 WHERE KEY = keyname2;
  *   UPDATE <CF> SET name3 = value3 WHERE KEY = keyname3;
@@ -334,7 +337,7 @@ deleteSelector returns [Selector s]
  *
  * OR
  *
- * BEGIN BATCH [USING CONSISTENCY <LVL>]
+ * BEGIN BATCH
  *   INSERT INTO <CF> (KEY, <name>) VALUES ('<key>', '<value>');
  *   INSERT INTO <CF> (KEY, <name>) VALUES ('<key>', '<value>');
  *   ...
@@ -342,7 +345,7 @@ deleteSelector returns [Selector s]
  *
  * OR
  *
- * BEGIN BATCH [USING CONSISTENCY <LVL>]
+ * BEGIN BATCH
  *   DELETE name1, name2 FROM <CF> WHERE key = <key>
  *   DELETE name3, name4 FROM <CF> WHERE key = <key>
  *   ...
@@ -493,23 +496,16 @@ truncateStatement returns [TruncateStatement stmt]
     ;
 
 /**
- * GRANT <permission> ON <resource> TO <username> [WITH GRANT OPTION]
+ * GRANT <permission> ON <resource> TO <username>
  */
 grantStatement returns [GrantStatement stmt]
-    @init { boolean withGrant = false; }
     : K_GRANT
-          permission
+          permissionOrAll
       K_ON
-          resource=columnFamilyName
+          resource
       K_TO
-          user=(IDENT | STRING_LITERAL)
-      (K_WITH K_GRANT K_OPTION { withGrant = true; })?
-      {
-        $stmt = new GrantStatement($permission.perm,
-                                   resource,
-                                   $user.text,
-                                   withGrant);
-      }
+          username
+      { $stmt = new GrantStatement($permissionOrAll.perms, $resource.res, $username.text); }
     ;
 
 /**
@@ -517,26 +513,54 @@ grantStatement returns [GrantStatement stmt]
  */
 revokeStatement returns [RevokeStatement stmt]
     : K_REVOKE
-        permission
+          permissionOrAll
       K_ON
-        resource=columnFamilyName
+          resource
       K_FROM
-        user=(IDENT | STRING_LITERAL)
-      {
-        $stmt = new RevokeStatement($permission.perm,
-                                    $user.text,
-                                    resource);
-      }
+          username
+      { $stmt = new RevokeStatement($permissionOrAll.perms, $resource.res, $username.text); }
     ;
 
-listGrantsStatement returns [ListGrantsStatement stmt]
-    : K_LIST K_GRANTS K_FOR username=(IDENT | STRING_LITERAL) { $stmt = new ListGrantsStatement($username.text); }
+listPermissionsStatement returns [ListPermissionsStatement stmt]
+    @init {
+        IResource resource = null;
+        String username = null;
+        boolean recursive = true;
+    }
+    : K_LIST
+          permissionOrAll
+      ( K_ON resource { resource = $resource.res; } )?
+      ( K_OF username { username = $username.text; } )?
+      ( K_NORECURSIVE { recursive = false; } )?
+      { $stmt = new ListPermissionsStatement($permissionOrAll.perms, resource, username, recursive); }
     ;
 
 permission returns [Permission perm]
-    : p=(K_DESCRIBE | K_USE | K_CREATE | K_ALTER | K_DROP | K_SELECT | K_INSERT | K_UPDATE | K_DELETE | K_FULL_ACCESS | K_NO_ACCESS)
+    : p=(K_CREATE | K_ALTER | K_DROP | K_SELECT | K_MODIFY | K_AUTHORIZE)
     { $perm = Permission.valueOf($p.text.toUpperCase()); }
     ;
+
+permissionOrAll returns [Set<Permission> perms]
+    : K_ALL ( K_PERMISSIONS )?       { $perms = Permission.ALL_DATA; }
+    | p=permission ( K_PERMISSION )? { $perms = EnumSet.of($p.perm); }
+    ;
+
+username
+    : IDENT
+    | STRING_LITERAL
+    ;
+
+resource returns [IResource res]
+    : r=dataResource { $res = $r.res; }
+    ;
+
+dataResource returns [DataResource res]
+    : K_ALL K_KEYSPACES { $res = DataResource.root(); }
+    | K_KEYSPACE ks = keyspaceName { $res = DataResource.keyspace($ks.id); }
+    | ( K_COLUMNFAMILY )? cf = columnFamilyName
+      { $res = DataResource.columnFamily($cf.name.getKeyspace(), $cf.name.getColumnFamily()); }
+    ;
+
 /** DEFINITIONS **/
 
 // Column Identifiers
@@ -747,7 +771,6 @@ collection_type returns [ParsedType pt]
 unreserved_keyword returns [String str]
     : k=( K_KEY
         | K_CLUSTERING
-        | K_LEVEL
         | K_COUNT
         | K_TTL
         | K_COMPACT
@@ -758,6 +781,10 @@ unreserved_keyword returns [String str]
         | K_MAP
         | K_LIST
         | K_FILTERING
+        | K_PERMISSION
+        | K_PERMISSIONS
+        | K_KEYSPACES
+        | K_ALL
         ) { $str = $k.text; }
     | t=native_type { $str = t.toString(); }
     ;
@@ -774,16 +801,6 @@ K_UPDATE:      U P D A T E;
 K_WITH:        W I T H;
 K_LIMIT:       L I M I T;
 K_USING:       U S I N G;
-K_LEVEL:       ( O N E
-               | Q U O R U M
-               | A L L
-               | A N Y
-               | L O C A L '_' Q U O R U M
-               | E A C H '_' Q U O R U M
-               | T W O
-               | T H R E E
-               )
-               ;
 K_USE:         U S E;
 K_COUNT:       C O U N T;
 K_SET:         S E T;
@@ -797,6 +814,7 @@ K_IN:          I N;
 K_CREATE:      C R E A T E;
 K_KEYSPACE:    ( K E Y S P A C E
                  | S C H E M A );
+K_KEYSPACES:   K E Y S P A C E S;
 K_COLUMNFAMILY:( C O L U M N F A M I L Y
                  | T A B L E );
 K_INDEX:       I N D E X;
@@ -819,16 +837,16 @@ K_BY:          B Y;
 K_ASC:         A S C;
 K_DESC:        D E S C;
 K_GRANT:       G R A N T;
-K_GRANTS:      G R A N T S;
+K_ALL:         A L L;
+K_PERMISSION:  P E R M I S S I O N;
+K_PERMISSIONS: P E R M I S S I O N S;
+K_OF:          O F;
 K_REVOKE:      R E V O K E;
-K_OPTION:      O P T I O N;
-K_DESCRIBE:    D E S C R I B E;
-K_FOR:         F O R;
-K_FULL_ACCESS: F U L L '_' A C C E S S;
-K_NO_ACCESS:   N O '_' A C C E S S;
 K_ALLOW:       A L L O W;
 K_FILTERING:   F I L T E R I N G;
-
+K_MODIFY:      M O D I F Y;
+K_AUTHORIZE:   A U T H O R I Z E;
+K_NORECURSIVE: N O R E C U R S I V E;
 
 K_CLUSTERING:  C L U S T E R I N G;
 K_ASCII:       A S C I I;
