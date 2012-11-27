@@ -33,6 +33,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.cache.IRowCacheProvider;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
+import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.SystemTable;
@@ -1092,12 +1094,12 @@ public class DatabaseDescriptor
         conf.dynamic_snitch_badness_threshold = dynamicBadnessThreshold;
     }
 
-    public static EncryptionOptions getServerEncryptionOptions()
+    public static ServerEncryptionOptions getServerEncryptionOptions()
     {
         return conf.server_encryption_options;
     }
 
-    public static EncryptionOptions getClientEncryptionOptions()
+    public static ClientEncryptionOptions getClientEncryptionOptions()
     {
         return conf.client_encryption_options;
     }
