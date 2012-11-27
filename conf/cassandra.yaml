@@ -310,9 +310,12 @@ listen_address: localhost
 start_native_transport: false
 # port for the CQL native transport to listen for clients on
 native_transport_port: 9042
-# The maximum of thread handling requests. The meaning is the same than
-# rpc_max_threads. The default is unlimited.
-#native_transport_max_threads: 2048
+# The minimum and maximum threads for handling requests when the native
+# transport is used. The meaning is those is similar to the one of
+# rpc_min_threads and rpc_max_threads, though the default differ slightly and
+# are the ones below:
+# native_transport_min_threads: 16
+# native_transport_max_threads: 128
 
 
 # Whether to start the thrift rpc server.
