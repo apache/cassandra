@@ -17,9 +17,8 @@
  */
 package org.apache.cassandra.config;
 
-public class EncryptionOptions
+public abstract class EncryptionOptions
 {
-    public InternodeEncryption internode_encryption = InternodeEncryption.none;
     public String keystore = "conf/.keystore";
     public String keystore_password = "cassandra";
     public String truststore = "conf/.truststore";
@@ -29,12 +28,17 @@ public class EncryptionOptions
     public String algorithm = "SunX509";
     public String store_type = "JKS";
 
-
-    public static enum InternodeEncryption
+    public static class ClientEncryptionOptions extends EncryptionOptions
     {
-        all,
-        none,
-        dc,
-        rack
+        public boolean enabled = false;
+    }
+
+    public static class ServerEncryptionOptions extends EncryptionOptions
+    {
+        public static enum InternodeEncryption
+        {
+            all, none, dc, rack
+        }
+        public InternodeEncryption internode_encryption = InternodeEncryption.none;
     }
 }
