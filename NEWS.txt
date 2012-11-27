@@ -14,6 +14,15 @@ by version X, but the inverse is not necessarily the case.)
 
 Upgrading
 ---------
+    - IAuthority interface has been deprecated in favor of IAuthorizer.
+      AllowAllAuthority and SimpleAuthority have been renamed to
+      AllowAllAuthorizer and SimpleAuthorizer, respectively. In order to
+      simplify the upgrade to the new interface, a new abstract
+      LegacyAuthorizer has been added - you should subclass it in your
+      old IAuthority implementation and everything should just work
+      (this only affects users who implemented custom authorities).
+      'authority' setting in cassandra.yaml has been renamed to 'authorizer',
+      'authority' is no longer recognized. This affects all upgrading users.
     - 1.2 is NOT network-compatible with versions older than 1.0. That
       means if you want to do a rolling, zero-downtime upgrade, you'll need
       to upgrade first to 1.0.x or 1.1.x, and then to 1.2.  1.2 retains
@@ -93,6 +102,11 @@ Features
       guarantee that (at the price of pre-writing the batch to another node
       first), all mutations in the batch will be applied, even if the
       coordinator fails mid-batch.
+    - new IAuthorizer interface has replaced the old IAuthority. IAuthorizer
+      allows dynamic permission management via new CQL3 statements:
+      GRANT, REVOKE, LIST PERMISSIONS. A native implementation storing
+      the permissions in Cassandra is being worked on and we expect to
+      include it in 1.2.1 or 1.2.2.
 
 
 1.1.5

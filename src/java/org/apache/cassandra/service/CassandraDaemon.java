@@ -219,6 +219,12 @@ public class CassandraDaemon
             System.exit(100);
         }
 
+        // TODO: setup authenticator
+        // setup Authorizer.
+        DatabaseDescriptor.getAuthorizer().setup();
+        // register a custom MigrationListener for permissions cleanup after dropped keyspaces/cfs.
+        MigrationManager.instance.register(new org.apache.cassandra.auth.MigrationListener());
+
         // clean up debris in the rest of the tables
         for (String table : Schema.instance.getTables())
         {

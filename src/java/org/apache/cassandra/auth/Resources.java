@@ -17,20 +17,38 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.utils.Hex;
 
-/**
- * Constants related to Cassandra's resource hierarchy.
- *
- * A resource in Cassandra is a List containing both Strings and byte[]s.
- */
 public final class Resources
 {
+    /**
+     * Construct a chain of resource parents starting with the resource and ending with the root.
+     *
+     * @param resource The staring point.
+     * @return list of resource in the chain form start to the root.
+     */
+    public static List<? extends IResource> chain(IResource resource)
+    {
+        List<IResource> chain = new ArrayList<IResource>();
+        while (true)
+        {
+           chain.add(resource);
+           if (!resource.hasParent())
+               break;
+           resource = resource.getParent();
+        }
+        return chain;
+    }
+
+    @Deprecated
     public final static String ROOT = "cassandra";
+    @Deprecated
     public final static String KEYSPACES = "keyspaces";
 
+    @Deprecated
     public static String toString(List<Object> resource)
     {
         StringBuilder buff = new StringBuilder();

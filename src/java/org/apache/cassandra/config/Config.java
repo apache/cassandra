@@ -30,7 +30,8 @@ public class Config
 {
     public String cluster_name = "Test Cluster";
     public String authenticator;
-    public String authority;
+    public String authority; // for backwards compatibility - will log a warning.
+    public String authorizer;
 
     /* Hashing strategy Random or OPHF */
     public String partitioner;
