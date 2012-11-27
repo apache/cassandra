@@ -173,7 +173,7 @@ public class SSTableReader extends SSTable
         String partitionerName = partitioner.getClass().getCanonicalName();
         if (sstableMetadata.partitioner != null && !partitionerName.equals(sstableMetadata.partitioner))
         {
-            logger.error(String.format("Cannot open %s because partitioner does not match %s != %s.  Please verify your partitioner in cassandra.yaml",
+            logger.error(String.format("Cannot open %s; partitioner %s does not match system partitioner %s.  Note that the default partitioner starting with Cassandra 1.2 is Murmur3Partitioner, so you will need to edit that to match your old partitioner if upgrading.",
                                        descriptor, sstableMetadata.partitioner, partitionerName));
             System.exit(1);
         }
