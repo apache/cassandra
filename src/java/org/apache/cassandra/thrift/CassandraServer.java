@@ -905,7 +905,6 @@ public class CassandraServer implements Cassandra.Iface
         return result;
     }
 
-    @Override
     public List<CfSplit> describe_splits_ex(String cfName, String start_token, String end_token, int keys_per_split)
     throws InvalidRequestException, TException
     {

@@ -1,3 +1,7 @@
+1.1.8
+ * Fall back to old describe_splits if d_s_ex is not available (CASSANDRA-4803)
+
+
 1.1.7
  * cqlsh: improve COPY FROM performance (CASSANDRA-4921)
  * add basic authentication support for Pig CassandraStorage (CASSANDRA-3042)

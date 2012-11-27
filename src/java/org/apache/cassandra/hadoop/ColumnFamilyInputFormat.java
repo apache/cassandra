@@ -35,7 +35,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import org.apache.commons.lang.StringUtils;
+import org.apache.thrift.TApplicationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -253,7 +255,21 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
             {
                 Cassandra.Client client = ConfigHelper.createConnection(conf, host, ConfigHelper.getInputRpcPort(conf));
                 client.set_keyspace(keyspace);
-                return client.describe_splits_ex(cfName, range.start_token, range.end_token, splitsize);
+
+                try
+                {
+                    return client.describe_splits_ex(cfName, range.start_token, range.end_token, splitsize);
+                }
+                catch (TApplicationException e)
+                {
+                    // fallback to guessing split size if talking to a server without describe_splits_ex method
+                    if (e.getType() == TApplicationException.UNKNOWN_METHOD)
+                    {
+                        List<String> splitPoints = client.describe_splits(cfName, range.start_token, range.end_token, splitsize);
+                        return tokenListToSplits(splitPoints, splitsize);
+                    }
+                    throw e;
+                }
             }
             catch (IOException e)
             {
@@ -269,6 +285,15 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
             }
         }
         throw new IOException("failed connecting to all endpoints " + StringUtils.join(range.endpoints, ","));
+    }
+
+
+    private List<CfSplit> tokenListToSplits(List<String> splitTokens, int splitsize)
+    {
+        List<CfSplit> splits = Lists.newArrayListWithExpectedSize(splitTokens.size() - 1);
+        for (int j = 0; j < splitTokens.size() - 1; j++)
+            splits.add(new CfSplit(splitTokens.get(j), splitTokens.get(j + 1), splitsize));
+        return splits;
     }
 
 
