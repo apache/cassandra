@@ -22,6 +22,12 @@
  * Allow static CF definition with compact storage (CASSANDRA-4910)
  * Fix endless loop/compaction of schema_* CFs due to broken timestamps (CASSANDRA-4880)
  * Fix 'wrong class type' assertion in CounterColumn (CASSANDRA-4976)
+ * Fix cqlsh timestamp formatting of timezone info (CASSANDRA-4746)
+ * Fix assertion failure with leveled compaction (CASSANDRA-4799)
+ * Check for null end_token in get_range_slice (CASSANDRA-4804)
+ * Remove all remnants of removed nodes (CASSANDRA-4840)
+ * Add aut-reloading of the log4j file in debian package (CASSANDRA-4855)
+ * Fix estimated row cache entry size (CASSANDRA-4860)
 
 
 1.1.6

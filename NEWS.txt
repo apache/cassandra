@@ -9,6 +9,15 @@ upgrade, just in case you need to roll back to the previous version.
 by version X, but the inverse is not necessarily the case.)
 
 
+1.1.7
+=====
+
+Upgrading
+---------
+    - Nothing specific to this release, but please see the previous instruction
+      if you are not upgrading from 1.1.7.
+
+
 1.1.6
 =====
 
