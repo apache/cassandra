@@ -36,7 +36,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.thrift.server.TNonblockingServer;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.TNonblockingServerTransport;
@@ -352,7 +351,7 @@ public class CustomTHsHaServer extends TNonblockingServer
     {
         public TServer buildTServer(Args args)
         {
-            if(!DatabaseDescriptor.getClientEncryptionOptions().internode_encryption.equals(EncryptionOptions.InternodeEncryption.none))
+            if (DatabaseDescriptor.getClientEncryptionOptions().enabled)
                 throw new RuntimeException("Client SSL is not supported for non-blocking sockets (hsha). Please remove client ssl from the configuration.");
 
             final InetSocketAddress addr = args.addr;

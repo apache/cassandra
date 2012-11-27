@@ -18,6 +18,8 @@
 package org.apache.cassandra.config;
 
 import org.apache.cassandra.cache.SerializingCacheProvider;
+import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.io.util.NativeAllocator;
 
 /**
@@ -127,10 +129,10 @@ public class Config
     public RequestSchedulerId request_scheduler_id;
     public RequestSchedulerOptions request_scheduler_options;
 
-    public EncryptionOptions server_encryption_options = new EncryptionOptions();
-    public EncryptionOptions client_encryption_options = new EncryptionOptions();
+    public ServerEncryptionOptions server_encryption_options = new ServerEncryptionOptions();
+    public ClientEncryptionOptions client_encryption_options = new ClientEncryptionOptions();
     // this encOptions is for backward compatibility (a warning is logged by DatabaseDescriptor)
-    public EncryptionOptions encryption_options;
+    public ServerEncryptionOptions encryption_options;
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 
