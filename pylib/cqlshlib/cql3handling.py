@@ -251,9 +251,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                   | <selectStatement>
                   | <dataChangeStatement>
                   | <schemaChangeStatement>
-                  | <grantStatement>
-                  | <revokeStatement>
-                  | <listGrantsStatement>
+                  | <authorizationStatement>
                   ;
 
 <dataChangeStatement> ::= <insertStatement>
@@ -272,6 +270,11 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                           | <alterTableStatement>
                           | <alterKeyspaceStatement>
                           ;
+
+<authorizationStatement> ::= | <grantStatement>
+                             | <revokeStatement>
+                             | <listPermissionsStatement>
+                             ;
 
 # timestamp is included here, since it's also a keyword
 <simpleStorageType> ::= typename=( <identifier> | <stringLiteral> | <K_TIMESTAMP> ) ;
@@ -1237,9 +1240,9 @@ syntax_rules += r'''
 <revokeStatement> ::= "REVOKE" <permissionExpr> "ON" <resource> "FROM" <username>
                     ;
 
-<listGrantsStatement> ::= "LIST" <permissionExpr>
-                              ( "ON" <resource> )? ( "OF" <username> )? "NORECURSIVE"?
-                        ;
+<listPermissionsStatement> ::= "LIST" <permissionExpr>
+                                    ( "ON" <resource> )? ( "OF" <username> )? "NORECURSIVE"?
+                             ;
 
 <permission> ::= "AUTHORIZE"
                | "CREATE"
