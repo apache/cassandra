@@ -51,6 +51,10 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'token', 'writetime', 'map', 'list', 'to'
     ))
 
+    unreserved_keywords = set((
+        'key', 'clustering', 'ttl', 'compact', 'storage', 'type', 'values'
+    ))
+
     columnfamily_options = (
         # (CQL option name, Thrift option name (or None if same))
         ('comment', None),
@@ -146,7 +150,9 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
 
     @classmethod
     def is_valid_cql3_name(cls, s):
-        if s is None or s.lower() in cls.keywords:
+        if s is None:
+            return False
+        if s.lower() in cls.keywords - cls.unreserved_keywords:
             return False
         return cls.valid_cql3_word_re.match(s) is not None
 
@@ -1418,7 +1424,7 @@ class CqlTableDef:
             if cf.key_alias:
                 cf.key_aliases = [cf.key_alias.decode('ascii')]
             else:
-                cf.key_aliases = [u'KEY']
+                cf.key_aliases = [u'key']
         cf.partition_key_components = cf.key_aliases
         cf.primary_key_components = cf.key_aliases + list(cf.column_aliases)
         cf.partition_key_validator = lookup_casstype(cf.key_validator)

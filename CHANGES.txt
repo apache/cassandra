@@ -38,6 +38,8 @@ Merged from 1.1:
  * Allow static CF definition with compact storage (CASSANDRA-4910)
  * Fix endless loop/compaction of schema_* CFs due to broken timestamps (CASSANDRA-4880)
  * Fix 'wrong class type' assertion in CounterColumn (CASSANDRA-4976)
+ * clqsh: fix KEY pseudocolumn escaping when describing Thrift tables
+   in CQL3 mode (CASSANDRA-4955)
 
 
 1.2-beta2
