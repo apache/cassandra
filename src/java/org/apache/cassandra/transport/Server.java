@@ -106,6 +106,8 @@ public class Server implements CassandraDaemon.Server
         factory = new NioServerSocketChannelFactory(Executors.newCachedThreadPool(), Executors.newCachedThreadPool());
         ServerBootstrap bootstrap = new ServerBootstrap(factory);
 
+        bootstrap.setOption("child.tcpNoDelay", true);
+
         // Set up the event pipeline factory.
         bootstrap.setPipelineFactory(new PipelineFactory(this));
 
