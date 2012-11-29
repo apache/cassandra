@@ -24,6 +24,8 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
@@ -93,6 +95,7 @@ public class Session implements Serializable
         availableOptions.addOption("Q",  "query-names",          true,   "Comma-separated list of column names to retrieve from each row.");
         availableOptions.addOption("Z",  "compaction-strategy",  true,   "CompactionStrategy to use.");
         availableOptions.addOption("U",  "comparator",           true,   "Column Comparator to use. Currently supported types are: TimeUUIDType, AsciiType, UTF8Type.");
+        availableOptions.addOption("tr", "transport factory",    true,   "Name of the transport factory for connecting to Cassandra, defaults to: org.apache.cassandra.thrift.TFramedTransportFactory.");
     }
 
     private int numKeys          = 1000 * 1000;
@@ -117,6 +120,8 @@ public class Session implements Serializable
     private boolean ignoreErrors  = false;
     private boolean enable_cql    = false;
     private boolean use_prepared  = false;
+    
+    private String transportFactory = "org.apache.cassandra.thrift.TFramedTransportFactory";
 
     private final String outFileName;
 
@@ -371,6 +376,23 @@ public class Session implements Serializable
                 comparator = null;
                 timeUUIDComparator = false;
             }
+            
+            if (cmd.hasOption("tr"))
+            {
+                transportFactory = cmd.getOptionValue("tr");
+                try
+                {
+                    if (transportFactory == null || !ITransportFactory.class.isAssignableFrom(Class.forName(transportFactory)))
+                    {
+                        System.err.println("Not a valid transport factory: " + transportFactory);
+                        System.exit(1);
+                    }
+                } catch (ClassNotFoundException ex)
+                {
+                    System.err.println("Not a valid transport factory: " + transportFactory);
+                    System.exit(1);
+                }
+            }
         }
         catch (ParseException e)
         {
@@ -605,34 +627,43 @@ public class Session implements Serializable
      * @param setKeyspace - should we set keyspace for client or not
      * @return cassandra client connection
      */
-    public CassandraClient getClient(boolean setKeyspace)
+    public synchronized CassandraClient getClient(boolean setKeyspace)
     {
         // random node selection for fake load balancing
         String currentNode = nodes[Stress.randomizer.nextInt(nodes.length)];
-
-        TSocket socket = new TSocket(currentNode, port);
-        TTransport transport = (isUnframed()) ? socket : new TFramedTransport(socket);
-        CassandraClient client = new CassandraClient(new TBinaryProtocol(transport));
-
         try
         {
-            transport.open();
+            TSocket socket = new TSocket(currentNode, port);
+            TTransport transport = null;
+            if (!isUnframed())
+            {
+                ITransportFactory factory = (ITransportFactory) Class.forName(transportFactory).newInstance();
+                transport = factory.openTransport(socket);
+            } else
+            {
+                transport = socket;
+            }
+            if (!transport.isOpen())
+            {
+                transport.open();
+            }
+            
+            CassandraClient client = new CassandraClient(new TBinaryProtocol(transport));
 
             if (setKeyspace)
             {
                 client.set_keyspace("Keyspace1");
             }
-        }
-        catch (InvalidRequestException e)
+            
+            return client;
+
+        } catch (InvalidRequestException e)
         {
             throw new RuntimeException(e.getWhy());
-        }
-        catch (Exception e)
+        } catch (Exception e)
         {
             throw new RuntimeException(e.getMessage());
         }
-
-        return client;
     }
 
     public static InetAddress getLocalAddress()
