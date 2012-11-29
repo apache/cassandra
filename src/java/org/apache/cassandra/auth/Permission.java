@@ -18,45 +18,40 @@
 package org.apache.cassandra.auth;
 
 import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Set;
+
+import com.google.common.collect.ImmutableSet;
 
 /**
- * An enum encapsulating the set of possible permissions that an authenticated user can have for a resource.
+ * An enum encapsulating the set of possible permissions that an authenticated user can have on a resource.
  *
- * IAuthority implementations may encode permissions using ordinals, so the Enum order must never change.
+ * IAuthorizer implementations may encode permissions using ordinals, so the Enum order must never change order.
+ * Adding new values is ok.
  */
 public enum Permission
 {
-    READ,  // for backward compatibility
-    WRITE, // for backward compatibility
-
-    FULL_ACCESS,
-    NO_ACCESS,
+    @Deprecated
+    READ,
+    @Deprecated
+    WRITE,
 
     // schema management
-    DESCRIBE,
-    CREATE,
-    ALTER,
-    DROP,
+    CREATE, // required for CREATE KEYSPACE and CREATE TABLE.
+    ALTER,  // required for ALTER KEYSPACE, ALTER TABLE, CREATE INDEX, DROP INDEX.
+    DROP,   // required for DROP KEYSPACE and DROP TABLE.
 
     // data access
-    UPDATE,
-    DELETE,
-    SELECT;
+    SELECT, // required for SELECT.
+    MODIFY, // required for INSERT, UPDATE, DELETE, TRUNCATE.
 
-    public static final EnumSet<Permission> ALL = EnumSet.allOf(Permission.class);
-    public static final EnumSet<Permission> NONE = EnumSet.noneOf(Permission.class);
-    public static final EnumSet<Permission> GRANULAR_PERMISSIONS = EnumSet.range(FULL_ACCESS, SELECT);
-    public static final EnumSet<Permission> ALLOWED_SYSTEM_ACTIONS = EnumSet.of(DESCRIBE, UPDATE, DELETE, SELECT);
+    // permission management
+    AUTHORIZE; // required for GRANT and REVOKE.
 
-    /**
-     * Maps old permissions to the new ones as we want to support old client IAuthority implementations
-     * and new style of granular permission checking at the same time.
-     */
-    public static final Map<Permission, EnumSet<Permission>> oldToNew = new HashMap<Permission, EnumSet<Permission>>(2)
-    {{
-        put(READ,  EnumSet.of(DESCRIBE, SELECT));
-        put(WRITE, EnumSet.range(DESCRIBE, DELETE));
-    }};
+
+    public static final Set<Permission> ALL_DATA =
+            ImmutableSet.copyOf(EnumSet.range(Permission.CREATE, Permission.AUTHORIZE));
+
+    public static final Set<Permission> ALL =
+            ImmutableSet.copyOf(EnumSet.range(Permission.CREATE, Permission.AUTHORIZE));
+    public static final Set<Permission> NONE = ImmutableSet.of();
 }

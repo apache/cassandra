@@ -17,45 +17,43 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.nio.ByteBuffer;
-import java.util.List;
+import java.util.Set;
 
-import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.auth.DataResource;
+import org.apache.cassandra.auth.IResource;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.transport.messages.ResultMessage;
 
-public abstract class PermissionAlteringStatement extends ParsedStatement implements CQLStatement
+public abstract class PermissionAlteringStatement extends AuthorizationStatement
 {
-    @Override
-    public Prepared prepare()
+    protected final Set<Permission> permissions;
+    protected DataResource resource;
+    protected final String username;
+
+    protected PermissionAlteringStatement(Set<Permission> permissions, IResource resource, String username)
     {
-        return new Prepared(this);
+        this.permissions = permissions;
+        this.resource = (DataResource) resource;
+        this.username = username;
     }
 
-    public int getBoundsTerms()
+    public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
-        return 0;
+        // check that the user has AUTHORIZE permission on the resource or its parents, otherwise reject GRANT/REVOKE.
+        state.ensureHasPermission(Permission.AUTHORIZE, resource);
+        // check that the user has [a single permission or all in case of ALL] on the resource or its parents.
+        for (Permission p : permissions)
+            state.ensureHasPermission(p, resource);
     }
 
-    public void checkAccess(ClientState state)
-    {}
-
-    public void validate(ClientState state)
-    {}
-
-    public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables) throws UnauthorizedException, InvalidRequestException
+    // TODO: user existence check (when IAuthenticator rewrite is done)
+    public void validate(ClientState state) throws InvalidRequestException
     {
-        return execute(state.getClientState(), variables);
-    }
-
-    public abstract ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws UnauthorizedException, InvalidRequestException;
-
-    public ResultMessage executeInternal(QueryState state)
-    {
-        // executeInternal is for local query only, thus altering permission doesn't make sense and is not supported
-        throw new UnsupportedOperationException();
+        // if a keyspace is omitted when GRANT/REVOKE ON TABLE <table>, we need to correct the resource.
+        resource = maybeCorrectResource(resource, state);
+        if (!resource.exists())
+            throw new InvalidRequestException(String.format("%s doesn't exist", resource));
     }
 }

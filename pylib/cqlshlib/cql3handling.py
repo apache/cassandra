@@ -43,14 +43,12 @@ SYSTEM_KEYSPACES = ('system', 'system_traces')
 class Cql3ParsingRuleSet(CqlParsingRuleSet):
     keywords = set((
         'select', 'from', 'where', 'and', 'key', 'insert', 'update', 'with',
-        'limit', 'using', 'consistency', 'one', 'quorum', 'all', 'any',
-        'local_quorum', 'each_quorum', 'two', 'three', 'use', 'count', 'set',
+        'limit', 'using', 'use', 'count', 'set',
         'begin', 'apply', 'batch', 'truncate', 'delete', 'in', 'create',
         'keyspace', 'schema', 'columnfamily', 'table', 'index', 'on', 'drop',
         'primary', 'into', 'values', 'timestamp', 'ttl', 'alter', 'add', 'type',
         'compact', 'storage', 'order', 'by', 'asc', 'desc', 'clustering',
-        'token', 'writetime', 'map', 'list', 'to', 'grant', 'grants', 'revoke',
-        'option', 'describe', 'for', 'full_access', 'no_access'
+        'token', 'writetime', 'map', 'list', 'to'
     ))
 
     columnfamily_options = (
@@ -253,9 +251,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                   | <selectStatement>
                   | <dataChangeStatement>
                   | <schemaChangeStatement>
-                  | <grantStatement>
-                  | <revokeStatement>
-                  | <listGrantsStatement>
+                  | <authorizationStatement>
                   ;
 
 <dataChangeStatement> ::= <insertStatement>
@@ -275,15 +271,10 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                           | <alterKeyspaceStatement>
                           ;
 
-<consistencylevel> ::= cl=( <K_ONE>
-                          | <K_QUORUM>
-                          | <K_ALL>
-                          | <K_ANY>
-                          | <K_LOCAL_QUORUM>
-                          | <K_EACH_QUORUM>
-                          | <K_TWO>
-                          | <K_THREE> )
-                          ;
+<authorizationStatement> ::= | <grantStatement>
+                             | <revokeStatement>
+                             | <listPermissionsStatement>
+                             ;
 
 # timestamp is included here, since it's also a keyword
 <simpleStorageType> ::= typename=( <identifier> | <stringLiteral> | <K_TIMESTAMP> ) ;
@@ -307,15 +298,13 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <unreservedKeyword> ::= nocomplete=
                         ( <K_KEY>
-                        | <K_CONSISTENCY>
                         | <K_CLUSTERING>
                         # | <K_COUNT>  -- to get count(*) completion, treat count as reserved
                         | <K_TTL>
                         | <K_COMPACT>
                         | <K_STORAGE>
                         | <K_TYPE>
-                        | <K_VALUES>
-                        | <consistencylevel> )
+                        | <K_VALUES> )
                       ;
 
 # <property> will be defined once cqlsh determines whether we're using
@@ -665,10 +654,6 @@ def cf_old_prop_suboption_completer(ctxt, cass):
         if opt == optname:
             return subopts
     return ()
-
-@completer_for('consistencylevel', 'cl')
-def consistencylevel_cl_completer(ctxt, cass):
-    return CqlRuleSet.consistency_levels
 
 @completer_for('tokenDefinition', 'token')
 def token_word_completer(ctxt, cass):
@@ -1246,30 +1231,38 @@ syntax_rules += r'''
 <alterKeyspaceStatement> ::= "ALTER" ( "KEYSPACE" | "SCHEMA" ) ks=<nonSystemKeyspaceName>
                                  "WITH" <newPropSpec> ( "AND" <newPropSpec> )*
                            ;
+'''
 
-<grantStatement> ::= "GRANT" <permission> "ON" cf=<columnFamilyName>
-                       "TO" <username>
-                       ( "WITH" "GRANT" "OPTION" )?
+syntax_rules += r'''
+<grantStatement> ::= "GRANT" <permissionExpr> "ON" <resource> "TO" <username>
                    ;
 
-<revokeStatement> ::= "REVOKE" <permission> "ON" cf=<columnFamilyName>
-                        "FROM" <username>
+<revokeStatement> ::= "REVOKE" <permissionExpr> "ON" <resource> "FROM" <username>
                     ;
 
-<listGrantsStatement> ::= "LIST" "GRANTS" "FOR" <username>;
+<listPermissionsStatement> ::= "LIST" <permissionExpr>
+                                    ( "ON" <resource> )? ( "OF" <username> )? "NORECURSIVE"?
+                             ;
 
-<permission> ::= "DESCRIBE"
-               | "USE"
+<permission> ::= "AUTHORIZE"
                | "CREATE"
                | "ALTER"
                | "DROP"
                | "SELECT"
-               | "INSERT"
-               | "UPDATE"
-               | "DELETE"
-               | "FULL_ACCESS"
-               | "NO_ACCESS"
+               | "MODIFY"
                ;
+
+<permissionExpr> ::= ( <permission> "PERMISSION"? )
+                   | ( "ALL" "PERMISSIONS"? )
+                   ;
+
+<resource> ::= <dataResource>
+             ;
+
+<dataResource> ::= ( "ALL" "KEYSPACES" )
+                 | ( "KEYSPACE" <nonSystemKeyspaceName> )
+                 | ( "TABLE"? <columnFamilyName> )
+                 ;
 
 <username> ::= user=( <identifier> | <stringLiteral> )
              ;
@@ -1277,8 +1270,9 @@ syntax_rules += r'''
 
 @completer_for('username', 'user')
 def username_user_completer(ctxt, cass):
+    # TODO: implement user autocompletion
     # with I could see a way to do this usefully, but I don't. I don't know
-    # how any Authorities other than AllowAllAuthority work :/
+    # how any Authorities other than AllowAllAuthorizer work :/
     return [Hint('<username>')]
 
 # END SYNTAX/COMPLETION RULE DEFINITIONS

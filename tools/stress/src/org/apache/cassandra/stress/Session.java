@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.cassandra.cli.transport.FramedTransportFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.db.marshal.*;
@@ -160,7 +161,7 @@ public class Session implements Serializable
     public final String comparator;
     public final boolean timeUUIDComparator;
     public double traceProbability = 0.0;
-    public EncryptionOptions encOptions = new EncryptionOptions();
+    public EncryptionOptions encOptions = new ClientEncryptionOptions();
     public TTransportFactory transportFactory = new FramedTransportFactory();
 
     public Session(String[] arguments) throws IllegalArgumentException, SyntaxException

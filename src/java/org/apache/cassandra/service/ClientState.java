@@ -19,15 +19,14 @@ package org.apache.cassandra.service;
 
 import java.util.*;
 
-import org.apache.cassandra.auth.*;
-import org.apache.cassandra.cql3.CFName;
-import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -44,12 +43,28 @@ public class ClientState
     private static final Logger logger = LoggerFactory.getLogger(ClientState.class);
     public static final SemanticVersion DEFAULT_CQL_VERSION = org.apache.cassandra.cql3.QueryProcessor.CQL_VERSION;
 
+    private static final Set<IResource> READABLE_SYSTEM_RESOURCES = new HashSet<IResource>(5);
+    private static final Set<IResource> PROTECTED_AUTH_RESOURCES = new HashSet<IResource>();
+
+    static
+    {
+        // We want these system cfs to be always readable since many tools rely on them (nodetool, cqlsh, bulkloader, etc.)
+        String[] cfs =  new String[] { SystemTable.LOCAL_CF,
+                                       SystemTable.PEERS_CF,
+                                       SystemTable.SCHEMA_KEYSPACES_CF,
+                                       SystemTable.SCHEMA_COLUMNFAMILIES_CF,
+                                       SystemTable.SCHEMA_COLUMNS_CF };
+        for (String cf : cfs)
+            READABLE_SYSTEM_RESOURCES.add(DataResource.columnFamily(Table.SYSTEM_KS, cf));
+
+        PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthorizer().protectedResources());
+        // TODO: the same with IAuthenticator once it's done.
+    }
+
     // Current user for the session
     private AuthenticatedUser user;
     private String keyspace;
 
-    // Reusable array for authorization
-    private final List<Object> resource = new ArrayList<Object>();
     private SemanticVersion cqlVersion = DEFAULT_CQL_VERSION;
 
     // internalCall is used to mark ClientState as used by some internal component
@@ -97,71 +112,57 @@ public class ClientState
         this.user = DatabaseDescriptor.getAuthenticator().authenticate(credentials);
     }
 
-    private void resourceClear()
+    public void hasAllKeyspacesAccess(Permission perm) throws UnauthorizedException, InvalidRequestException
     {
-        resource.clear();
-        resource.add(Resources.ROOT);
-        resource.add(Resources.KEYSPACES);
+        if (internalCall)
+            return;
+        validateLogin();
+        ensureHasPermission(perm, DataResource.root());
     }
 
     public void hasKeyspaceAccess(String keyspace, Permission perm) throws UnauthorizedException, InvalidRequestException
     {
-        hasColumnFamilySchemaAccess(keyspace, perm);
+        hasAccess(keyspace, perm, DataResource.keyspace(keyspace));
     }
 
-    /**
-     * Confirms that the client thread has the given Permission for the ColumnFamily list of
-     * the provided keyspace.
-     */
-    public void hasColumnFamilySchemaAccess(String keyspace, Permission perm) throws UnauthorizedException, InvalidRequestException
+    public void hasColumnFamilyAccess(String keyspace, String columnFamily, Permission perm)
+    throws UnauthorizedException, InvalidRequestException
     {
-        validateLogin();
+        hasAccess(keyspace, perm, DataResource.columnFamily(keyspace, columnFamily));
+    }
+
+    private void hasAccess(String keyspace, Permission perm, DataResource resource)
+    throws UnauthorizedException, InvalidRequestException
+    {
         validateKeyspace(keyspace);
-
-        preventSystemKSSchemaModification(keyspace, perm);
-
-        resourceClear();
-        resource.add(keyspace);
-        Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
-
-        hasAccess(user, perms, perm, resource);
-    }
-
-    private void preventSystemKSSchemaModification(String keyspace, Permission perm) throws InvalidRequestException
-    {
-        if (keyspace.equalsIgnoreCase(Table.SYSTEM_KS) && !Permission.ALLOWED_SYSTEM_ACTIONS.contains(perm))
-            throw new InvalidRequestException("system keyspace is not user-modifiable.");
-    }
-
-    /**
-     * Confirms that the client thread has the given Permission in the context of the given
-     * ColumnFamily and the current keyspace.
-     */
-    public void hasColumnFamilyAccess(String columnFamily, Permission perm) throws UnauthorizedException, InvalidRequestException
-    {
-        hasColumnFamilyAccess(keyspace, columnFamily, perm);
-    }
-
-    public void hasColumnFamilyAccess(String keyspace, String columnFamily, Permission perm) throws UnauthorizedException, InvalidRequestException
-    {
-        validateLogin();
-        validateKeyspace(keyspace);
-
-        resourceClear();
-        resource.add(keyspace);
-
-        if (!internalCall)
-            preventSystemKSSchemaModification(keyspace, perm);
-
-        // check if keyspace access is set to Permission.FULL_ACCESS
-        // (which means that user has all access on keyspace and it's underlying elements)
-        if (DatabaseDescriptor.getAuthority().authorize(user, resource).contains(Permission.FULL_ACCESS))
+        if (internalCall)
             return;
+        validateLogin();
+        preventSystemKSSModification(keyspace, perm);
+        if (perm.equals(Permission.SELECT) && READABLE_SYSTEM_RESOURCES.contains(resource))
+            return;
+        if (PROTECTED_AUTH_RESOURCES.contains(resource))
+            throw new UnauthorizedException(String.format("Resource %s is inaccessible", resource));
+        ensureHasPermission(perm, resource);
+    }
 
-        resource.add(columnFamily);
-        Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
+    public void ensureHasPermission(Permission perm, IResource resource) throws UnauthorizedException
+    {
+        for (IResource r : Resources.chain(resource))
+        {
+            if (authorize(r).contains(perm))
+                return;
+        }
+        throw new UnauthorizedException(String.format("User %s has no %s permission on %s or any of its parents",
+                                                      user.username,
+                                                      perm,
+                                                      resource));
+    }
 
-        hasAccess(user, perms, perm, resource);
+    private void preventSystemKSSModification(String keyspace, Permission perm) throws UnauthorizedException
+    {
+        if (Schema.systemKeyspaceNames.contains(keyspace.toLowerCase()) && !perm.equals(Permission.SELECT))
+            throw new UnauthorizedException(keyspace + " keyspace is not user-modifiable.");
     }
 
     public boolean isLogged()
@@ -178,55 +179,7 @@ public class ClientState
     private static void validateKeyspace(String keyspace) throws InvalidRequestException
     {
         if (keyspace == null)
-        {
             throw new InvalidRequestException("You have not set a keyspace for this session");
-        }
-    }
-
-    private static void hasAccess(AuthenticatedUser user, Set<Permission> perms, Permission perm, List<Object> resource) throws UnauthorizedException
-    {
-        if (perms.contains(Permission.FULL_ACCESS))
-            return; // full access
-
-        if (perms.contains(Permission.NO_ACCESS))
-            throw new UnauthorizedException(String.format("%s does not have permission %s for %s",
-                                                          user,
-                                                          perm,
-                                                          Resources.toString(resource)));
-
-
-        boolean granular = false;
-
-        for (Permission p : perms)
-        {
-            // mixing of old and granular permissions is denied by IAuthorityContainer
-            // and CQL grammar so it's name to assume that once a granular permission is found
-            // all other permissions are going to be a subset of Permission.GRANULAR_PERMISSIONS
-            if (Permission.GRANULAR_PERMISSIONS.contains(p))
-            {
-                granular = true;
-                break;
-            }
-        }
-
-        if (granular)
-        {
-            if (perms.contains(perm))
-                return; // user has a given permission, perm is always one of Permission.GRANULAR_PERMISSIONS
-        }
-        else
-        {
-            for (Permission p : perms)
-            {
-                if (Permission.oldToNew.get(p).contains(perm))
-                    return;
-            }
-        }
-
-        throw new UnauthorizedException(String.format("%s does not have permission %s for %s",
-                                                      user,
-                                                      perm,
-                                                      Resources.toString(resource)));
     }
 
     public void setCQLVersion(String str) throws InvalidRequestException
@@ -274,18 +227,26 @@ public class ClientState
         return new SemanticVersion[]{ cql, cql3 };
     }
 
-    public void grantPermission(Permission permission, String to, CFName on, boolean grantOption) throws UnauthorizedException, InvalidRequestException
+    public Set<Permission> authorize(IResource resource)
     {
-        DatabaseDescriptor.getAuthorityContainer().grant(user, permission, to, on, grantOption);
+        return DatabaseDescriptor.getAuthorizer().authorize(user, resource);
+
+    }
+    public void grantPermission(Set<Permission> permissions, IResource resource, String to)
+    throws UnauthorizedException, InvalidRequestException
+    {
+        DatabaseDescriptor.getAuthorizer().grant(user, permissions, resource, to);
     }
 
-    public void revokePermission(Permission permission, String from, CFName resource) throws UnauthorizedException, InvalidRequestException
+    public void revokePermission(Set<Permission> permissions, IResource resource, String from)
+    throws UnauthorizedException, InvalidRequestException
     {
-        DatabaseDescriptor.getAuthorityContainer().revoke(user, permission, from, resource);
+        DatabaseDescriptor.getAuthorizer().revoke(user, permissions, resource, from);
     }
 
-    public ResultMessage listPermissions(String username) throws UnauthorizedException, InvalidRequestException
+    public Set<PermissionDetails> listPermissions(Set<Permission> permissions, IResource resource, String of)
+    throws UnauthorizedException, InvalidRequestException
     {
-        return DatabaseDescriptor.getAuthorityContainer().listPermissions(username);
+        return DatabaseDescriptor.getAuthorizer().listPermissions(user, permissions, resource, of);
     }
 }

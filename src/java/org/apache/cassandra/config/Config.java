@@ -18,6 +18,8 @@
 package org.apache.cassandra.config;
 
 import org.apache.cassandra.cache.SerializingCacheProvider;
+import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
@@ -28,7 +30,8 @@ public class Config
 {
     public String cluster_name = "Test Cluster";
     public String authenticator;
-    public String authority;
+    public String authority; // for backwards compatibility - will log a warning.
+    public String authorizer;
 
     /* Hashing strategy Random or OPHF */
     public String partitioner;
@@ -127,10 +130,10 @@ public class Config
     public RequestSchedulerId request_scheduler_id;
     public RequestSchedulerOptions request_scheduler_options;
 
-    public EncryptionOptions server_encryption_options = new EncryptionOptions();
-    public EncryptionOptions client_encryption_options = new EncryptionOptions();
+    public ServerEncryptionOptions server_encryption_options = new ServerEncryptionOptions();
+    public ClientEncryptionOptions client_encryption_options = new ClientEncryptionOptions();
     // this encOptions is for backward compatibility (a warning is logged by DatabaseDescriptor)
-    public EncryptionOptions encryption_options;
+    public ServerEncryptionOptions encryption_options;
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 
