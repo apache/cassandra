@@ -84,7 +84,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
             store = null;
             for (ColumnFamilyStore cfs : Table.open(tablename).getColumnFamilyStores())
             {
-                if (cfs.columnFamily.equals(cfname))
+                if (cfs.name.equals(cfname))
                 {
                     store = cfs;
                     break;

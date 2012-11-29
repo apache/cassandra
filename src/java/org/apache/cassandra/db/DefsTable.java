@@ -597,7 +597,7 @@ public class DefsTable
         if (!StorageService.instance.isClientMode())
         {
             if (DatabaseDescriptor.isAutoSnapshot())
-                cfs.snapshot(Table.getTimestampedSnapshotName(cfs.columnFamily));
+                cfs.snapshot(Table.getTimestampedSnapshotName(cfs.name));
             Table.open(ksm.name).dropCf(cfm.cfId);
             MigrationManager.instance.notifyDropColumnFamily(cfm);
         }

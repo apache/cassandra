@@ -106,7 +106,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     public final Table table;
-    public final String columnFamily;
+    public final String name;
     public final CFMetaData metadata;
     public final IPartitioner partitioner;
     private final String mbeanName;
@@ -275,7 +275,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         assert metadata != null : "null metadata for " + table + ":" + columnFamilyName;
 
         this.table = table;
-        columnFamily = columnFamilyName;
+        name = columnFamilyName;
         this.metadata = metadata;
         this.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
         this.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
@@ -288,7 +288,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Caching caching = metadata.getCaching();
 
         if (logger.isDebugEnabled())
-            logger.debug("Starting CFS {}", columnFamily);
+            logger.debug("Starting CFS {}", name);
 
         // scan for sstables corresponding to this cf and load them
         data = new DataTracker(this);
@@ -329,7 +329,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // register the mbean
         String type = this.partitioner instanceof LocalPartitioner ? "IndexColumnFamilies" : "ColumnFamilies";
-        mbeanName = "org.apache.cassandra.db:type=" + type + ",keyspace=" + this.table.name + ",columnfamily=" + columnFamily;
+        mbeanName = "org.apache.cassandra.db:type=" + type + ",keyspace=" + this.table.name + ",columnfamily=" + name;
         try
         {
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
@@ -502,7 +502,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         System.currentTimeMillis() - start,
                         cachedRowsRead,
                         table.name,
-                        columnFamily));
+                        name));
     }
 
     /**
@@ -523,7 +523,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public synchronized void loadNewSSTables()
     {
-        logger.info("Loading new SSTables for " + table.name + "/" + columnFamily + "...");
+        logger.info("Loading new SSTables for " + table.name + "/" + name + "...");
 
         Set<Descriptor> currentDescriptors = new HashSet<Descriptor>();
         for (SSTableReader sstable : data.getView().sstables)
@@ -569,11 +569,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (newSSTables.isEmpty())
         {
-            logger.info("No new SSTables were found for " + table.name + "/" + columnFamily);
+            logger.info("No new SSTables were found for " + table.name + "/" + name);
             return;
         }
 
-        logger.info("Loading new SSTables and building secondary indexes for " + table.name + "/" + columnFamily + ": " + newSSTables);
+        logger.info("Loading new SSTables and building secondary indexes for " + table.name + "/" + name + ": " + newSSTables);
         SSTableReader.acquireReferences(newSSTables);
         data.addSSTables(newSSTables);
         try
@@ -585,7 +585,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SSTableReader.releaseReferences(newSSTables);
         }
 
-        logger.info("Done loading load new SSTables for " + table.name + "/" + columnFamily);
+        logger.info("Done loading load new SSTables for " + table.name + "/" + name);
     }
 
     public static void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)
@@ -609,12 +609,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    /**
-     * @return the name of the column family
-     */
     public String getColumnFamilyName()
     {
-        return columnFamily;
+        return name;
     }
 
     public String getTempSSTablePath(File directory)
@@ -627,7 +624,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Descriptor desc = new Descriptor(version,
                                          directory,
                                          table.name,
-                                         columnFamily,
+                                         name,
                                          fileIndexGenerator.incrementAndGet(),
                                          true);
         return desc.filenameFor(Component.DATA);
@@ -735,7 +732,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (clean)
         {
-            logger.debug("forceFlush requested but everything is clean in {}", columnFamily);
+            logger.debug("forceFlush requested but everything is clean in {}", name);
             return null;
         }
 
@@ -950,7 +947,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void addSSTable(SSTableReader sstable)
     {
-        assert sstable.getColumnFamilyName().equals(columnFamily);
+        assert sstable.getColumnFamilyName().equals(name);
         addSSTables(Arrays.asList(sstable));
     }
 
@@ -1198,7 +1195,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private ColumnFamily getThroughCache(UUID cfId, QueryFilter filter)
     {
         assert isRowCacheEnabled()
-               : String.format("Row cache is not enabled on column family [" + getColumnFamilyName() + "]");
+               : String.format("Row cache is not enabled on column family [" + name + "]");
 
         RowCacheKey key = new RowCacheKey(cfId, filter.key);
 
@@ -1223,7 +1220,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         try
         {
-            ColumnFamily data = getTopLevelColumns(QueryFilter.getIdentityFilter(filter.key, new QueryPath(columnFamily)),
+            ColumnFamily data = getTopLevelColumns(QueryFilter.getIdentityFilter(filter.key, new QueryPath(name)),
                                                    Integer.MIN_VALUE,
                                                    true);
             if (sentinelSuccess && data != null)
@@ -1240,7 +1237,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore)
     {
-        assert columnFamily.equals(filter.getColumnFamilyName()) : filter.getColumnFamilyName();
+        assert name.equals(filter.getColumnFamilyName()) : filter.getColumnFamilyName();
 
         ColumnFamily result = null;
 
@@ -1249,10 +1246,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (isRowCacheEnabled())
             {
-                UUID cfId = Schema.instance.getId(table.name, columnFamily);
+                UUID cfId = Schema.instance.getId(table.name, name);
                 if (cfId == null)
                 {
-                    logger.trace("no id found for {}.{}", table.name, columnFamily);
+                    logger.trace("no id found for {}.{}", table.name, name);
                     return null;
                 }
 
@@ -1405,7 +1402,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore, boolean forCache)
     {
-        Tracing.trace("Executing single-partition query on {}", columnFamily);
+        Tracing.trace("Executing single-partition query on {}", name);
         CollationController controller = new CollationController(this, forCache, filter, gcBefore);
         ColumnFamily columns = controller.getTopLevelColumns();
         metric.updateSSTableIterated(controller.getSstablesIterated());
@@ -1434,7 +1431,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final RowPosition startWith = range.left;
         final RowPosition stopAt = range.right;
 
-        QueryFilter filter = new QueryFilter(null, new QueryPath(columnFamily, superColumn, null), columnFilter);
+        QueryFilter filter = new QueryFilter(null, new QueryPath(name, superColumn, null), columnFilter);
 
         final ViewFragment view = markReferenced(startWith, stopAt);
         Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), range.getString(metadata.getKeyValidator()));
@@ -1528,7 +1525,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     IDiskAtomFilter extraFilter = filter.getExtraFilter(data);
                     if (extraFilter != null)
                     {
-                        QueryPath path = new QueryPath(columnFamily);
+                        QueryPath path = new QueryPath(name);
                         ColumnFamily cf = filter.cfs.getColumnFamily(new QueryFilter(rawRow.key, path, extraFilter));
                         if (cf != null)
                             data.addAll(cf, HeapAllocator.instance);
@@ -1703,7 +1700,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void invalidateCachedRow(DecoratedKey key)
     {
-        UUID cfId = Schema.instance.getId(table.name, this.columnFamily);
+        UUID cfId = Schema.instance.getId(table.name, this.name);
         if (cfId == null)
             return; // secondary index
 
@@ -1775,7 +1772,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // beginning if we restart before they are discarded for normal reasons
         // post-truncate.  So we need to create a "dummy" sstable containing
         // only the replay position.  This is done by CompactionManager.submitTruncate.
-        logger.debug("truncating {}", columnFamily);
+        logger.debug("truncating {}", name);
 
         if (DatabaseDescriptor.isAutoSnapshot())
         {
@@ -1820,7 +1817,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         long truncatedAt = System.currentTimeMillis();
         if (DatabaseDescriptor.isAutoSnapshot())
-            snapshot(Table.getTimestampedSnapshotName(columnFamily));
+            snapshot(Table.getTimestampedSnapshotName(name));
 
         return CompactionManager.instance.submitTruncate(this, truncatedAt);
     }
@@ -1855,7 +1852,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return "CFS(" +
                "Keyspace='" + table.name + '\'' +
-               ", ColumnFamily='" + columnFamily + '\'' +
+               ", ColumnFamily='" + name + '\'' +
                ')';
     }
 

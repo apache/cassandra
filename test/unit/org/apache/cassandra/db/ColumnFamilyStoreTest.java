@@ -748,7 +748,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     private static void putColsSuper(ColumnFamilyStore cfs, DecoratedKey key, ByteBuffer scfName, Column... cols) throws Throwable
     {
         RowMutation rm = new RowMutation(cfs.table.name, key.key);
-        ColumnFamily cf = ColumnFamily.create(cfs.table.name, cfs.getColumnFamilyName());
+        ColumnFamily cf = ColumnFamily.create(cfs.table.name, cfs.name);
         SuperColumn sc = new SuperColumn(scfName, cfs.metadata.subcolumnComparator);
         for (Column col : cols)
             sc.addColumn(col);
@@ -760,7 +760,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     private static void putColsStandard(ColumnFamilyStore cfs, DecoratedKey key, Column... cols) throws Throwable
     {
         RowMutation rm = new RowMutation(cfs.table.name, key.key);
-        ColumnFamily cf = ColumnFamily.create(cfs.table.name, cfs.getColumnFamilyName());
+        ColumnFamily cf = ColumnFamily.create(cfs.table.name, cfs.name);
         for (Column col : cols)
             cf.addColumn(col);
         rm.add(cf);
@@ -796,7 +796,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         // delete (from sstable and memtable)
         RowMutation rm = new RowMutation(table.name, key.key);
-        rm.delete(new QueryPath(cfs.columnFamily, null, null), 2);
+        rm.delete(new QueryPath(cfs.name, null, null), 2);
         rm.apply();
 
         // verify delete

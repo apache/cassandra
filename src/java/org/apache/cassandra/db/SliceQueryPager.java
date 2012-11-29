@@ -51,7 +51,7 @@ public class SliceQueryPager implements Iterator<ColumnFamily>
         if (exhausted)
             return null;
 
-        QueryPath path = new QueryPath(cfs.getColumnFamilyName());
+        QueryPath path = new QueryPath(cfs.name);
         SliceQueryFilter sliceFilter = new SliceQueryFilter(slices, false, DEFAULT_PAGE_SIZE);
         QueryFilter filter = new QueryFilter(key, path, sliceFilter);
         ColumnFamily cf = cfs.getColumnFamily(filter);

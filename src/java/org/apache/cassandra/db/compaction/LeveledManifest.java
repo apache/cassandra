@@ -641,7 +641,7 @@ public class LeveledManifest
         }
 
         logger.debug("Estimating {} compactions to do for {}.{}",
-                     new Object[] {Arrays.toString(estimated), cfs.table.name, cfs.columnFamily});
+                     new Object[] {Arrays.toString(estimated), cfs.table.name, cfs.name });
         return Ints.checkedCast(tasks);
     }
 }

@@ -151,7 +151,7 @@ public class CleanupTest extends SchemaLoader
             // create a row and update the birthdate value, test that the index query fetches the new version
             RowMutation rm;
             rm = new RowMutation(TABLE1, ByteBufferUtil.bytes(key));
-            rm.add(new QueryPath(cfs.getColumnFamilyName(), null, COLUMN), VALUE, System.currentTimeMillis());
+            rm.add(new QueryPath(cfs.name, null, COLUMN), VALUE, System.currentTimeMillis());
             rm.applyUnsafe();
         }
 

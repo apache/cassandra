@@ -109,7 +109,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
         {
             private ByteBuffer lastSeenKey = startKey;
             private Iterator<IColumn> indexColumns;
-            private final QueryPath path = new QueryPath(baseCfs.columnFamily);
+            private final QueryPath path = new QueryPath(baseCfs.name);
             private int columnsRead = Integer.MAX_VALUE;
 
             protected Row computeNext()
@@ -132,7 +132,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                                          ((AbstractSimplePerColumnSecondaryIndex)index).expressionString(primary), index.getBaseCfs().metadata.getKeyValidator().getString(startKey));
 
                         QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
-                                                                             new QueryPath(index.getIndexCfs().getColumnFamilyName()),
+                                                                             new QueryPath(index.getIndexCfs().name),
                                                                              lastSeenKey,
                                                                              endKey,
                                                                              false,

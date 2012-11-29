@@ -129,13 +129,13 @@ public class CompactionManager implements CompactionManagerMBean
         if (count > 0 && executor.getActiveCount() >= executor.getMaximumPoolSize())
         {
             logger.debug("Background compaction is still running for {}.{} ({} remaining). Skipping",
-                         new Object[] {cfs.table.name, cfs.columnFamily, count});
+                         new Object[] {cfs.table.name, cfs.name, count});
             return Collections.emptyList();
         }
 
         logger.debug("Scheduling a background task check for {}.{} with {}",
                      new Object[] {cfs.table.name,
-                                   cfs.columnFamily,
+                                   cfs.name,
                                    cfs.getCompactionStrategy().getClass().getSimpleName()});
         List<Future<?>> futures = new ArrayList<Future<?>>();
         // if we have room for more compactions, then fill up executor
@@ -163,7 +163,7 @@ public class CompactionManager implements CompactionManagerMBean
             compactionLock.readLock().lock();
             try
             {
-                logger.debug("Checking {}.{}", cfs.table.name, cfs.columnFamily); // log after we get the lock so we can see delays from that if any
+                logger.debug("Checking {}.{}", cfs.table.name, cfs.name); // log after we get the lock so we can see delays from that if any
                 if (!cfs.isValid())
                 {
                     logger.debug("Aborting compaction for dropped CF");
@@ -735,7 +735,7 @@ public class CompactionManager implements CompactionManagerMBean
             // flush first so everyone is validating data that is as similar as possible
             try
             {
-                StorageService.instance.forceTableFlush(cfs.table.name, cfs.getColumnFamilyName());
+                StorageService.instance.forceTableFlush(cfs.table.name, cfs.name);
             }
             catch (ExecutionException e)
             {

@@ -63,7 +63,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
             double averageColumnCount = indexCfs.getMeanColumns();
             if (averageColumnCount > 0 && estimatedKeys / averageColumnCount > 1)
             {
-                logger.debug("turning row cache on for " + indexCfs.getColumnFamilyName());
+                logger.debug("turning row cache on for " + indexCfs.name);
                 indexCfs.metadata.caching(baseCaching);
                 indexCfs.initRowCache();
             }
@@ -79,7 +79,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
     public String expressionString(IndexExpression expr)
     {
         return String.format("'%s.%s %s %s'",
-                             baseCfs.columnFamily,
+                             baseCfs.name,
                              getExpressionComparator().getString(expr.column_name),
                              expr.op,
                              baseCfs.metadata.getColumn_metadata().get(expr.column_name).getValidator().getString(expr.value));
@@ -163,7 +163,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
     public String getIndexName()
     {
-        return indexCfs.columnFamily;
+        return indexCfs.name;
     }
 
     public long getLiveSize()

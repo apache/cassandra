@@ -54,7 +54,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         bucketHigh = optionValue == null ? DEFAULT_BUCKET_HIGH : Double.parseDouble(optionValue);
         if (bucketHigh <= bucketLow)
         {
-            logger.warn("Bucket low/high marks for {} incorrect, using defaults.", cfs.getColumnFamilyName());
+            logger.warn("Bucket low/high marks for {} incorrect, using defaults.", cfs.name);
             bucketLow = DEFAULT_BUCKET_LOW;
             bucketHigh = DEFAULT_BUCKET_HIGH;
         }

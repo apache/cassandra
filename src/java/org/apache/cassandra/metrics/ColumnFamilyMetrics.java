@@ -320,7 +320,7 @@ public class ColumnFamilyMetrics
         ColumnFamilyMetricNameFactory(ColumnFamilyStore cfs)
         {
             this.keyspaceName = cfs.table.name;
-            this.columnFamilyName = cfs.getColumnFamilyName();
+            this.columnFamilyName = cfs.name;
             isIndex = cfs.isIndex();
         }
 

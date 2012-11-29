@@ -278,7 +278,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     @Override
     public String toString()
     {
-        return String.format("LCS@%d(%s)", hashCode(), cfs.columnFamily);
+        return String.format("LCS@%d(%s)", hashCode(), cfs.name);
     }
 
     private SSTableReader findDroppableSSTable(final int gcBefore)

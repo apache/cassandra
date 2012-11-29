@@ -2222,7 +2222,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
         {
-            logger.debug("Forcing flush on keyspace " + tableName + ", CF " + cfStore.getColumnFamilyName());
+            logger.debug("Forcing flush on keyspace " + tableName + ", CF " + cfStore.name);
             cfStore.forceBlockingFlush();
         }
     }
@@ -2311,7 +2311,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         ArrayList<String> names = new ArrayList<String>();
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
         {
-            names.add(cfStore.getColumnFamilyName());
+            names.add(cfStore.name);
         }
 
         if (names.isEmpty())

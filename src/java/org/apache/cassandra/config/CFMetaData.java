@@ -108,35 +108,35 @@ public final class CFMetaData
                                                                   + "strategy_options text"
                                                                   + ") WITH COMPACT STORAGE AND COMMENT='keyspace definitions' AND gc_grace_seconds=8640");
     public static final CFMetaData SchemaColumnFamiliesCf = compile(9, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNFAMILIES_CF + "("
-                                                                     + "keyspace_name text,"
-                                                                     + "columnfamily_name text,"
-                                                                     + "id int,"
-                                                                     + "type text,"
-                                                                     + "comparator text,"
-                                                                     + "subcomparator text,"
-                                                                     + "comment text,"
-                                                                     + "read_repair_chance double,"
-                                                                     + "local_read_repair_chance double,"
-                                                                     + "replicate_on_write boolean,"
-                                                                     + "gc_grace_seconds int,"
-                                                                     + "default_validator text,"
-                                                                     + "key_validator text,"
-                                                                     + "min_compaction_threshold int,"
-                                                                     + "max_compaction_threshold int,"
-                                                                     + "memtable_flush_period_in_ms int,"
-                                                                     + "key_alias text," // that one is kept for compatibility sake
-                                                                     + "key_aliases text,"
-                                                                     + "bloom_filter_fp_chance double,"
-                                                                     + "caching text,"
-                                                                     + "compaction_strategy_class text,"
-                                                                     + "compression_parameters text,"
-                                                                     + "value_alias text,"
-                                                                     + "column_aliases text,"
-                                                                     + "compaction_strategy_options text,"
-                                                                     + "default_read_consistency text,"
-                                                                     + "default_write_consistency text,"
-                                                                     + "PRIMARY KEY (keyspace_name, columnfamily_name)"
-                                                                     + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
+                                                                       + "keyspace_name text,"
+                                                                       + "columnfamily_name text,"
+                                                                       + "id int,"
+                                                                       + "type text,"
+                                                                       + "comparator text,"
+                                                                       + "subcomparator text,"
+                                                                       + "comment text,"
+                                                                       + "read_repair_chance double,"
+                                                                       + "local_read_repair_chance double,"
+                                                                       + "replicate_on_write boolean,"
+                                                                       + "gc_grace_seconds int,"
+                                                                       + "default_validator text,"
+                                                                       + "key_validator text,"
+                                                                       + "min_compaction_threshold int,"
+                                                                       + "max_compaction_threshold int,"
+                                                                       + "memtable_flush_period_in_ms int,"
+                                                                       + "key_alias text," // that one is kept for compatibility sake
+                                                                       + "key_aliases text,"
+                                                                       + "bloom_filter_fp_chance double,"
+                                                                       + "caching text,"
+                                                                       + "compaction_strategy_class text,"
+                                                                       + "compression_parameters text,"
+                                                                       + "value_alias text,"
+                                                                       + "column_aliases text,"
+                                                                       + "compaction_strategy_options text,"
+                                                                       + "default_read_consistency text,"
+                                                                       + "default_write_consistency text,"
+                                                                       + "PRIMARY KEY (keyspace_name, columnfamily_name)"
+                                                                       + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
     public static final CFMetaData SchemaColumnsCf = compile(10, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNS_CF + "("
                                                                + "keyspace_name text,"
                                                                + "columnfamily_name text,"
@@ -1136,7 +1136,7 @@ public final class CFMetaData
         Set<String> indexNames = new HashSet<String>();
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            if (cfToExclude == null || !cfs.getColumnFamilyName().equals(cfToExclude))
+            if (cfToExclude == null || !cfs.name.equals(cfToExclude))
                 for (ColumnDefinition cd : cfs.metadata.getColumn_metadata().values())
                     indexNames.add(cd.getIndexName());
         }

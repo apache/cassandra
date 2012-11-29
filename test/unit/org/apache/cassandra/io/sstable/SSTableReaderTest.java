@@ -315,7 +315,7 @@ public class SSTableReaderTest extends SchemaLoader
 
     private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS) throws IOException
     {
-        assert "Indexed1".equals(indexedCFS.getColumnFamilyName());
+        assert "Indexed1".equals(indexedCFS.name);
 
         // make sure all sstables including 2ary indexes load from disk
         for (ColumnFamilyStore cfs : indexedCFS.concatWithIndexes())

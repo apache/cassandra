@@ -71,7 +71,7 @@ public class StreamingTransferTest extends SchemaLoader
     private List<String> createAndTransfer(Table table, ColumnFamilyStore cfs, Mutator mutator) throws Exception
     {
         // write a temporary SSTable, and unregister it
-        logger.debug("Mutating " + cfs.columnFamily);
+        logger.debug("Mutating " + cfs.name);
         long timestamp = 1234;
         for (int i = 1; i <= 3; i++)
             mutator.mutate("key" + i, "col" + i, timestamp);
@@ -82,7 +82,7 @@ public class StreamingTransferTest extends SchemaLoader
         cfs.clearUnsafe();
 
         // transfer the first and last key
-        logger.debug("Transferring " + cfs.columnFamily);
+        logger.debug("Transferring " + cfs.name);
         transfer(table, sstable);
 
         // confirm that a single SSTable was transferred and registered
@@ -96,7 +96,7 @@ public class StreamingTransferTest extends SchemaLoader
         {
             String key = "key" + offs[i];
             String col = "col" + offs[i];
-            assert cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk(key), new QueryPath(cfs.columnFamily))) != null;
+            assert cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk(key), new QueryPath(cfs.name))) != null;
             assert rows.get(i).key.key.equals(ByteBufferUtil.bytes(key));
             assert rows.get(i).cf.getColumn(ByteBufferUtil.bytes(col)) != null;
         }
@@ -108,7 +108,7 @@ public class StreamingTransferTest extends SchemaLoader
         for (int off : offs)
             keys.add("key" + off);
 
-        logger.debug("... everything looks good for " + cfs.columnFamily);
+        logger.debug("... everything looks good for " + cfs.name);
         return keys;
     }
 
@@ -135,7 +135,7 @@ public class StreamingTransferTest extends SchemaLoader
             {
                 long val = key.hashCode();
                 RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key));
-                ColumnFamily cf = ColumnFamily.create(table.name, cfs.columnFamily);
+                ColumnFamily cf = ColumnFamily.create(table.name, cfs.name);
                 cf.addColumn(column(col, "v", timestamp));
                 cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(val), timestamp));
                 rm.add(cf);
@@ -172,7 +172,7 @@ public class StreamingTransferTest extends SchemaLoader
             public void mutate(String key, String col, long timestamp) throws Exception
             {
                 RowMutation rm = new RowMutation(table.name, ByteBufferUtil.bytes(key));
-                addMutation(rm, cfs.columnFamily, col, 1, "val1", timestamp);
+                addMutation(rm, cfs.name, col, 1, "val1", timestamp);
                 rm.apply();
             }
         });
@@ -211,7 +211,7 @@ public class StreamingTransferTest extends SchemaLoader
                 cleanedEntries.put(key, cfCleaned);
                 cfs.addSSTable(SSTableUtils.prepare()
                     .ks(table.name)
-                    .cf(cfs.columnFamily)
+                    .cf(cfs.name)
                     .generation(0)
                     .write(entries));
             }
@@ -221,7 +221,7 @@ public class StreamingTransferTest extends SchemaLoader
         cleanedEntries.keySet().retainAll(keys);
         SSTableReader cleaned = SSTableUtils.prepare()
             .ks(table.name)
-            .cf(cfs.columnFamily)
+            .cf(cfs.name)
             .generation(0)
             .write(cleanedEntries);
         SSTableReader streamed = cfs.getSSTables().iterator().next();

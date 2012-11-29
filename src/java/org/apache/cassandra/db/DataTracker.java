@@ -337,7 +337,7 @@ public class DataTracker
             assert sstable.getKeySamples() != null;
             if (logger.isDebugEnabled())
                 logger.debug(String.format("adding %s to list of files tracked for %s.%s",
-                            sstable.descriptor, cfstore.table.name, cfstore.getColumnFamilyName()));
+                            sstable.descriptor, cfstore.table.name, cfstore.name));
             long size = sstable.bytesOnDisk();
             StorageMetrics.load.inc(size);
             cfstore.metric.liveDiskSpaceUsed.inc(size);
@@ -352,7 +352,7 @@ public class DataTracker
         {
             if (logger.isDebugEnabled())
                 logger.debug(String.format("removing %s from list of files tracked for %s.%s",
-                            sstable.descriptor, cfstore.table.name, cfstore.getColumnFamilyName()));
+                            sstable.descriptor, cfstore.table.name, cfstore.name));
             long size = sstable.bytesOnDisk();
             StorageMetrics.load.dec(size);
             cfstore.metric.liveDiskSpaceUsed.dec(size);

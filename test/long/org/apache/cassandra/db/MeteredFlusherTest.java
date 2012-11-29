@@ -63,7 +63,7 @@ public class MeteredFlusherTest extends SchemaLoader
         int flushes = 0;
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            if (cfs.getColumnFamilyName().startsWith("_CF"))
+            if (cfs.name.startsWith("_CF"))
                 flushes += cfs.getMemtableSwitchCount();
         }
         assert flushes > 0;

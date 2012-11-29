@@ -102,7 +102,7 @@ public class CompactionController
 
     public String getColumnFamily()
     {
-        return cfs.columnFamily;
+        return cfs.name;
     }
 
     /**
@@ -156,7 +156,7 @@ public class CompactionController
         {
             String keyString = cfs.metadata.getKeyValidator().getString(rows.get(0).getKey().key);
             logger.info(String.format("Compacting large row %s/%s:%s (%d bytes) incrementally",
-                                      cfs.table.name, cfs.columnFamily, keyString, rowSize));
+                                      cfs.table.name, cfs.name, keyString, rowSize));
             return new LazilyCompactedRow(this, rows);
         }
         return new PrecompactedRow(this, rows);

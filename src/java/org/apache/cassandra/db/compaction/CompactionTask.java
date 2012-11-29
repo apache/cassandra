@@ -103,11 +103,11 @@ public class CompactionTask extends AbstractCompactionTask
         assert sstables != null && dataDirectory != null;
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
-            cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.columnFamily);
+            cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.name);
 
         // sanity check: all sstables must belong to the same cfs
         for (SSTableReader sstable : toCompact)
-            assert sstable.descriptor.cfname.equals(cfs.columnFamily);
+            assert sstable.descriptor.cfname.equals(cfs.name);
 
         CompactionController controller = new CompactionController(cfs, toCompact, gcBefore);
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,

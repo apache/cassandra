@@ -102,7 +102,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         long start = System.currentTimeMillis();
 
         // old cache format that only saves keys
-        File path = getCachePath(cfs.table.name, cfs.columnFamily, null);
+        File path = getCachePath(cfs.table.name, cfs.name, null);
         if (path.exists())
         {
             DataInputStream in = null;
@@ -130,7 +130,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         }
 
         // modern format, allows both key and value (so key cache load can be purely sequential)
-        path = getCachePath(cfs.table.name, cfs.columnFamily, CURRENT_VERSION);
+        path = getCachePath(cfs.table.name, cfs.name, CURRENT_VERSION);
         if (path.exists())
         {
             DataInputStream in = null;

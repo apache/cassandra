@@ -182,7 +182,7 @@ public class Table
         boolean tookSnapShot = false;
         for (ColumnFamilyStore cfStore : columnFamilyStores.values())
         {
-            if (columnFamilyName == null || cfStore.columnFamily.equals(columnFamilyName))
+            if (columnFamilyName == null || cfStore.name.equals(columnFamilyName))
             {
                 tookSnapShot = true;
                 cfStore.snapshot(snapshotName);
@@ -336,7 +336,7 @@ public class Table
         {
             // re-initializing an existing CF.  This will happen if you cleared the schema
             // on this node and it's getting repopulated from the rest of the cluster.
-            assert cfs.getColumnFamilyName().equals(cfName);
+            assert cfs.name.equals(cfName);
             cfs.metadata.reload();
             cfs.reload();
         }
