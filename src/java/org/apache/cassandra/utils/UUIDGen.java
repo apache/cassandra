@@ -174,17 +174,16 @@ public class UUIDGen
     {
         if (uuid.version() != 1)
             throw new IllegalArgumentException("incompatible with uuid version: "+uuid.version());
-        return (uuid.timestamp() / 10000) - START_EPOCH;
+        return (uuid.timestamp() / 10000) + START_EPOCH;
     }
 
     // todo: could cache value if we assume node doesn't change.
     private long getClockSeqAndNode(InetAddress addr)
     {
         long lsb = 0;
-        lsb |= (clock & 0x3f00000000000000L) >>> 56; // was 58?
-        lsb |= 0x0000000000000080;
-        lsb |= (clock & 0x00ff000000000000L) >>> 48;
-        lsb |= makeNode(addr);
+        lsb |= 0x8000000000000000L;                 // variant (2 bits)
+        lsb |= (clock & 0x0000000000003FFFL) << 48; // clock sequence (14 bits)
+        lsb |= makeNode(addr);                      // 6 bytes
         return lsb;
     }
 
