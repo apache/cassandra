@@ -159,15 +159,15 @@ public class DefsTest extends SchemaLoader
     {
         final String ks = "Keyspace1";
         final String cf = "BrandNewCfWithNull";
-        KSMetaData original = Schema.instance.getTableDefinition(ks);
+        KSMetaData original = Schema.instance.getKSMetaData(ks);
 
         CFMetaData newCf = addTestCF(original.name, cf, null);
 
-        assert !Schema.instance.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
+        assert !Schema.instance.getKSMetaData(ks).cfMetaData().containsKey(newCf.cfName);
         MigrationManager.announceNewColumnFamily(newCf);
 
-        assert Schema.instance.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
-        assert Schema.instance.getTableDefinition(ks).cfMetaData().get(newCf.cfName).equals(newCf);
+        assert Schema.instance.getKSMetaData(ks).cfMetaData().containsKey(newCf.cfName);
+        assert Schema.instance.getKSMetaData(ks).cfMetaData().get(newCf.cfName).equals(newCf);
     }
 
     @Test
@@ -175,15 +175,15 @@ public class DefsTest extends SchemaLoader
     {
         final String ks = "Keyspace1";
         final String cf = "BrandNewCf";
-        KSMetaData original = Schema.instance.getTableDefinition(ks);
+        KSMetaData original = Schema.instance.getKSMetaData(ks);
 
         CFMetaData newCf = addTestCF(original.name, cf, "A New Column Family");
 
-        assert !Schema.instance.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
+        assert !Schema.instance.getKSMetaData(ks).cfMetaData().containsKey(newCf.cfName);
         MigrationManager.announceNewColumnFamily(newCf);
 
-        assert Schema.instance.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
-        assert Schema.instance.getTableDefinition(ks).cfMetaData().get(newCf.cfName).equals(newCf);
+        assert Schema.instance.getKSMetaData(ks).cfMetaData().containsKey(newCf.cfName);
+        assert Schema.instance.getKSMetaData(ks).cfMetaData().get(newCf.cfName).equals(newCf);
 
         // now read and write to it.
         DecoratedKey dk = Util.dk("key0");
@@ -205,7 +205,7 @@ public class DefsTest extends SchemaLoader
     {
         DecoratedKey dk = Util.dk("dropCf");
         // sanity
-        final KSMetaData ks = Schema.instance.getTableDefinition("Keyspace1");
+        final KSMetaData ks = Schema.instance.getKSMetaData("Keyspace1");
         assert ks != null;
         final CFMetaData cfm = ks.cfMetaData().get("Standard1");
         assert cfm != null;
@@ -222,7 +222,7 @@ public class DefsTest extends SchemaLoader
 
         MigrationManager.announceColumnFamilyDrop(ks.name, cfm.cfName);
 
-        assert !Schema.instance.getTableDefinition(ks.name).cfMetaData().containsKey(cfm.cfName);
+        assert !Schema.instance.getKSMetaData(ks.name).cfMetaData().containsKey(cfm.cfName);
 
         // any write should fail.
         rm = new RowMutation(ks.name, dk.key);
@@ -256,8 +256,8 @@ public class DefsTest extends SchemaLoader
 
         MigrationManager.announceNewKeyspace(newKs);
 
-        assert Schema.instance.getTableDefinition(newCf.ksName) != null;
-        assert Schema.instance.getTableDefinition(newCf.ksName).equals(newKs);
+        assert Schema.instance.getKSMetaData(newCf.ksName) != null;
+        assert Schema.instance.getKSMetaData(newCf.ksName).equals(newKs);
 
         // test reads and writes.
         RowMutation rm = new RowMutation(newCf.ksName, dk.key);
@@ -278,7 +278,7 @@ public class DefsTest extends SchemaLoader
     {
         DecoratedKey dk = Util.dk("dropKs");
         // sanity
-        final KSMetaData ks = Schema.instance.getTableDefinition("Keyspace1");
+        final KSMetaData ks = Schema.instance.getKSMetaData("Keyspace1");
         assert ks != null;
         final CFMetaData cfm = ks.cfMetaData().get("Standard2");
         assert cfm != null;
@@ -295,7 +295,7 @@ public class DefsTest extends SchemaLoader
 
         MigrationManager.announceKeyspaceDrop(ks.name);
 
-        assert Schema.instance.getTableDefinition(ks.name) == null;
+        assert Schema.instance.getKSMetaData(ks.name) == null;
 
         // write should fail.
         rm = new RowMutation(ks.name, dk.key);
@@ -329,7 +329,7 @@ public class DefsTest extends SchemaLoader
     {
         DecoratedKey dk = Util.dk("dropKs");
         // sanity
-        final KSMetaData ks = Schema.instance.getTableDefinition("Keyspace3");
+        final KSMetaData ks = Schema.instance.getKSMetaData("Keyspace3");
         assert ks != null;
         final CFMetaData cfm = ks.cfMetaData().get("Standard1");
         assert cfm != null;
@@ -342,29 +342,29 @@ public class DefsTest extends SchemaLoader
 
         MigrationManager.announceKeyspaceDrop(ks.name);
 
-        assert Schema.instance.getTableDefinition(ks.name) == null;
+        assert Schema.instance.getKSMetaData(ks.name) == null;
     }
 
     @Test
     public void createEmptyKsAddNewCf() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
-        assert Schema.instance.getTableDefinition("EmptyKeyspace") == null;
+        assert Schema.instance.getKSMetaData("EmptyKeyspace") == null;
 
         KSMetaData newKs = KSMetaData.testMetadata("EmptyKeyspace", SimpleStrategy.class, KSMetaData.optsWithRF(5));
 
         MigrationManager.announceNewKeyspace(newKs);
-        assert Schema.instance.getTableDefinition("EmptyKeyspace") != null;
+        assert Schema.instance.getKSMetaData("EmptyKeyspace") != null;
 
         CFMetaData newCf = addTestCF("EmptyKeyspace", "AddedLater", "A new CF to add to an empty KS");
 
         //should not exist until apply
-        assert !Schema.instance.getTableDefinition(newKs.name).cfMetaData().containsKey(newCf.cfName);
+        assert !Schema.instance.getKSMetaData(newKs.name).cfMetaData().containsKey(newCf.cfName);
 
         //add the new CF to the empty space
         MigrationManager.announceNewColumnFamily(newCf);
 
-        assert Schema.instance.getTableDefinition(newKs.name).cfMetaData().containsKey(newCf.cfName);
-        assert Schema.instance.getTableDefinition(newKs.name).cfMetaData().get(newCf.cfName).equals(newCf);
+        assert Schema.instance.getKSMetaData(newKs.name).cfMetaData().containsKey(newCf.cfName);
+        assert Schema.instance.getKSMetaData(newKs.name).cfMetaData().get(newCf.cfName).equals(newCf);
 
         // now read and write to it.
         DecoratedKey dk = Util.dk("key0");
@@ -390,8 +390,8 @@ public class DefsTest extends SchemaLoader
 
         MigrationManager.announceNewKeyspace(oldKs);
 
-        assert Schema.instance.getTableDefinition(cf.ksName) != null;
-        assert Schema.instance.getTableDefinition(cf.ksName).equals(oldKs);
+        assert Schema.instance.getKSMetaData(cf.ksName) != null;
+        assert Schema.instance.getKSMetaData(cf.ksName).equals(oldKs);
 
         // names should match.
         KSMetaData newBadKs2 = KSMetaData.testMetadata(cf.ksName + "trash", SimpleStrategy.class, KSMetaData.optsWithRF(4));
@@ -421,8 +421,8 @@ public class DefsTest extends SchemaLoader
         KSMetaData ksm = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(1), cf);
         MigrationManager.announceNewKeyspace(ksm);
 
-        assert Schema.instance.getTableDefinition(cf.ksName) != null;
-        assert Schema.instance.getTableDefinition(cf.ksName).equals(ksm);
+        assert Schema.instance.getKSMetaData(cf.ksName) != null;
+        assert Schema.instance.getKSMetaData(cf.ksName).equals(ksm);
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName) != null;
 
         // updating certain fields should fail.

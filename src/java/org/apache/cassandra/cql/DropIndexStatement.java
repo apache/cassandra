@@ -59,7 +59,7 @@ public class DropIndexStatement
 
     private CFMetaData findIndexedCF() throws InvalidRequestException
     {
-        KSMetaData ksm = Schema.instance.getTableDefinition(keyspace);
+        KSMetaData ksm = Schema.instance.getKSMetaData(keyspace);
         for (CFMetaData cfm : ksm.cfMetaData().values())
         {
             if (findIndexedColumn(cfm) != null)

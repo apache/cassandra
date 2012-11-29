@@ -284,18 +284,6 @@ public class Schema
     }
 
     /**
-     * Get metadata about table by its name
-     *
-     * @param table The name of the table
-     *
-     * @return The table metadata or null if it wasn't found
-     */
-    public KSMetaData getTableDefinition(String table)
-    {
-        return getKSMetaData(table);
-    }
-
-    /**
      * Get metadata about table inner ColumnFamilies
      *
      * @param tableName The name of the table
@@ -464,7 +452,7 @@ public class Schema
     {
         for (String table : getNonSystemTables())
         {
-            KSMetaData ksm = getTableDefinition(table);
+            KSMetaData ksm = getKSMetaData(table);
             for (CFMetaData cfm : ksm.cfMetaData().values())
                 purge(cfm);
             clearTableDefinition(ksm);

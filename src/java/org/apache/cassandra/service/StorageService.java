@@ -62,7 +62,6 @@ import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ResponseVerbHandler;
-import org.apache.cassandra.service.AntiEntropyService.RepairFuture;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.Constants;
@@ -2416,7 +2415,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public List<InetAddress> getNaturalEndpoints(String table, String cf, String key)
     {
-        CFMetaData cfMetaData = Schema.instance.getTableDefinition(table).cfMetaData().get(cf);
+        CFMetaData cfMetaData = Schema.instance.getKSMetaData(table).cfMetaData().get(cf);
         return getNaturalEndpoints(table, getPartitioner().getToken(cfMetaData.getKeyValidator().fromString(key)));
     }
 

@@ -267,7 +267,7 @@ public class Table
         for (int i = 0; i < indexLocks.length; i++)
             indexLocks[i] = new Object();
 
-        for (CFMetaData cfm : new ArrayList<CFMetaData>(Schema.instance.getTableDefinition(table).cfMetaData().values()))
+        for (CFMetaData cfm : new ArrayList<CFMetaData>(Schema.instance.getKSMetaData(table).cfMetaData().values()))
         {
             logger.debug("Initializing {}.{}", name, cfm.cfName);
             initCf(cfm.cfId, cfm.cfName, loadSSTables);

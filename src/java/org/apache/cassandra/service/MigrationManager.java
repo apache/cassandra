@@ -164,7 +164,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     {
         ksm.validate();
 
-        if (Schema.instance.getTableDefinition(ksm.name) != null)
+        if (Schema.instance.getKSMetaData(ksm.name) != null)
             throw new AlreadyExistsException(ksm.name);
 
         logger.info(String.format("Create new Keyspace: %s", ksm));
@@ -175,7 +175,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     {
         cfm.validate();
 
-        KSMetaData ksm = Schema.instance.getTableDefinition(cfm.ksName);
+        KSMetaData ksm = Schema.instance.getKSMetaData(cfm.ksName);
         if (ksm == null)
             throw new ConfigurationException(String.format("Cannot add column family '%s' to non existing keyspace '%s'.", cfm.cfName, cfm.ksName));
         else if (ksm.cfMetaData().containsKey(cfm.cfName))

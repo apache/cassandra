@@ -258,7 +258,7 @@ public class RowMutation implements IMutation
      */
     public void apply()
     {
-        KSMetaData ksm = Schema.instance.getTableDefinition(getTable());
+        KSMetaData ksm = Schema.instance.getKSMetaData(getTable());
         Table.open(table).apply(this, ksm.durableWrites);
     }
 

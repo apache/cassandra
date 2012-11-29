@@ -493,7 +493,7 @@ public class DefsTable
     private static void addColumnFamily(CFMetaData cfm)
     {
         assert Schema.instance.getCFMetaData(cfm.ksName, cfm.cfName) == null;
-        KSMetaData ksm = Schema.instance.getTableDefinition(cfm.ksName);
+        KSMetaData ksm = Schema.instance.getKSMetaData(cfm.ksName);
         ksm = KSMetaData.cloneWith(ksm, Iterables.concat(ksm.cfMetaData().values(), Collections.singleton(cfm)));
 
         Schema.instance.load(cfm);
@@ -550,7 +550,7 @@ public class DefsTable
 
     private static void dropKeyspace(String ksName) throws IOException
     {
-        KSMetaData ksm = Schema.instance.getTableDefinition(ksName);
+        KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
         String snapshotName = Table.getTimestampedSnapshotName(ksName);
 
         CompactionManager.instance.stopCompactionFor(ksm.cfMetaData().values());
@@ -581,7 +581,7 @@ public class DefsTable
 
     private static void dropColumnFamily(String ksName, String cfName) throws IOException
     {
-        KSMetaData ksm = Schema.instance.getTableDefinition(ksName);
+        KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
         assert ksm != null;
         ColumnFamilyStore cfs = Table.open(ksName).getColumnFamilyStore(cfName);
         assert cfs != null;

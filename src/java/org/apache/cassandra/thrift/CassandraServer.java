@@ -880,7 +880,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public KsDef describe_keyspace(String table) throws NotFoundException, InvalidRequestException
     {
-        KSMetaData ksm = Schema.instance.getTableDefinition(table);
+        KSMetaData ksm = Schema.instance.getKSMetaData(table);
         if (ksm == null)
             throw new NotFoundException();
 
