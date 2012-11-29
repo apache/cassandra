@@ -92,6 +92,8 @@ public class SimpleClient
                             Executors.newCachedThreadPool(),
                             Executors.newCachedThreadPool()));
 
+        bootstrap.setOption("tcpNoDelay", true);
+
         // Configure the pipeline factory.
         bootstrap.setPipelineFactory(new PipelineFactory());
         ChannelFuture future = bootstrap.connect(new InetSocketAddress(host, port));

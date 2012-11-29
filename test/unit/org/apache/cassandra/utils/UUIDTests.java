@@ -71,6 +71,18 @@ public class UUIDTests
         assert comp.compare(first, sameAsFirst) == 0;
     }
 
+    @Test
+    public void testUUIDTimestamp() throws UnknownHostException
+    {
+        InetAddress addr = InetAddress.getByName("127.0.0.1");
+        long now = System.currentTimeMillis();
+        UUID uuid = UUIDGen.makeType1UUIDFromHost(addr);
+        long tstamp = UUIDGen.getAdjustedTimestamp(uuid);
+
+        // I'll be damn is the uuid timestamp is more than 10ms after now
+        assert now <= tstamp && now >= tstamp - 10 : "now = " + now + ", timestamp = " + tstamp;
+    }
+
     private void assertNonZero(BigInteger i)
     {
         assert i.toString(2).indexOf("1") > -1;

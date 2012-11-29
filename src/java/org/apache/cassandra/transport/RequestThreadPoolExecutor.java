@@ -17,22 +17,23 @@
  */
 package org.apache.cassandra.transport;
 
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.jboss.netty.handler.execution.OrderedMemoryAwareThreadPoolExecutor;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
-public class RequestThreadPoolExecutor extends OrderedMemoryAwareThreadPoolExecutor
+public class RequestThreadPoolExecutor extends DebuggableThreadPoolExecutor
 {
     private final static int CORE_THREAD_TIMEOUT_SEC = 30;
 
     public RequestThreadPoolExecutor()
     {
-        super(DatabaseDescriptor.getNativeTransportMaxThreads(),
-              0, 0,
+        super(DatabaseDescriptor.getNativeTransportMinThreads(),
+              DatabaseDescriptor.getNativeTransportMaxThreads(),
               CORE_THREAD_TIMEOUT_SEC, TimeUnit.SECONDS,
+              new ArrayBlockingQueue(32), // Seems to help smooth latency compared to SynchronousQueue.
               new NamedThreadFactory("Native-Transport-Requests"));
     }
 }

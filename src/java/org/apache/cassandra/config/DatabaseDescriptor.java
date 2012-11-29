@@ -983,6 +983,11 @@ public class DatabaseDescriptor
         return Integer.parseInt(System.getProperty("cassandra.native_transport_port", conf.native_transport_port.toString()));
     }
 
+    public static Integer getNativeTransportMinThreads()
+    {
+        return conf.native_transport_min_threads;
+    }
+
     public static Integer getNativeTransportMaxThreads()
     {
         return conf.native_transport_max_threads;

@@ -89,7 +89,8 @@ public class Config
 
     public Boolean start_native_transport = false;
     public Integer native_transport_port = 8000;
-    public Integer native_transport_max_threads = Integer.MAX_VALUE;
+    public Integer native_transport_min_threads = 16;
+    public Integer native_transport_max_threads = 128;
 
     public Integer thrift_max_message_length_in_mb = 16;
     public Integer thrift_framed_transport_size_in_mb = 15;
