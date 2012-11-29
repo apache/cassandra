@@ -329,7 +329,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // register the mbean
         String type = this.partitioner instanceof LocalPartitioner ? "IndexColumnFamilies" : "ColumnFamilies";
-        mbeanName = "org.apache.cassandra.db:type=" + type + ",keyspace=" + this.table.name + ",columnfamily=" + name;
+        mbeanName = "org.apache.cassandra.db:type=" + type + ",keyspace=" + this.table.getName() + ",columnfamily=" + name;
         try
         {
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
@@ -402,7 +402,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static ColumnFamilyStore createColumnFamilyStore(Table table, String columnFamily, boolean loadSSTables)
     {
-        return createColumnFamilyStore(table, columnFamily, StorageService.getPartitioner(), Schema.instance.getCFMetaData(table.name, columnFamily), loadSSTables);
+        return createColumnFamilyStore(table, columnFamily, StorageService.getPartitioner(), Schema.instance.getCFMetaData(table.getName(), columnFamily), loadSSTables);
     }
 
     public static ColumnFamilyStore createColumnFamilyStore(Table table, String columnFamily, IPartitioner partitioner, CFMetaData metadata)
@@ -417,7 +417,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                          boolean loadSSTables)
     {
         // get the max generation number, to prevent generation conflicts
-        Directories directories = Directories.create(table.name, columnFamily);
+        Directories directories = Directories.create(table.getName(), columnFamily);
         Directories.SSTableLister lister = directories.sstableLister().includeBackups(true);
         List<Integer> generations = new ArrayList<Integer>();
         for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
@@ -501,7 +501,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger.info(String.format("completed loading (%d ms; %d keys) row cache for %s.%s",
                         System.currentTimeMillis() - start,
                         cachedRowsRead,
-                        table.name,
+                        table.getName(),
                         name));
     }
 
@@ -523,7 +523,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public synchronized void loadNewSSTables()
     {
-        logger.info("Loading new SSTables for " + table.name + "/" + name + "...");
+        logger.info("Loading new SSTables for " + table.getName() + "/" + name + "...");
 
         Set<Descriptor> currentDescriptors = new HashSet<Descriptor>();
         for (SSTableReader sstable : data.getView().sstables)
@@ -569,11 +569,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (newSSTables.isEmpty())
         {
-            logger.info("No new SSTables were found for " + table.name + "/" + name);
+            logger.info("No new SSTables were found for " + table.getName() + "/" + name);
             return;
         }
 
-        logger.info("Loading new SSTables and building secondary indexes for " + table.name + "/" + name + ": " + newSSTables);
+        logger.info("Loading new SSTables and building secondary indexes for " + table.getName() + "/" + name + ": " + newSSTables);
         SSTableReader.acquireReferences(newSSTables);
         data.addSSTables(newSSTables);
         try
@@ -585,7 +585,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SSTableReader.releaseReferences(newSSTables);
         }
 
-        logger.info("Done loading load new SSTables for " + table.name + "/" + name);
+        logger.info("Done loading load new SSTables for " + table.getName() + "/" + name);
     }
 
     public static void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)
@@ -623,7 +623,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         Descriptor desc = new Descriptor(version,
                                          directory,
-                                         table.name,
+                                         table.getName(),
                                          name,
                                          fileIndexGenerator.incrementAndGet(),
                                          true);
@@ -979,7 +979,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // cleanup size estimation only counts bytes for keys local to this node
         long expectedFileSize = 0;
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.name);
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.getName());
         for (SSTableReader sstable : sstables)
         {
             List<Pair<Long, Long>> positions = sstable.getPositionsForRanges(ranges);
@@ -1246,10 +1246,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (isRowCacheEnabled())
             {
-                UUID cfId = Schema.instance.getId(table.name, name);
+                UUID cfId = Schema.instance.getId(table.getName(), name);
                 if (cfId == null)
                 {
-                    logger.trace("no id found for {}.{}", table.name, name);
+                    logger.trace("no id found for {}.{}", table.getName(), name);
                     return null;
                 }
 
@@ -1700,7 +1700,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void invalidateCachedRow(DecoratedKey key)
     {
-        UUID cfId = Schema.instance.getId(table.name, this.name);
+        UUID cfId = Schema.instance.getId(table.getName(), this.name);
         if (cfId == null)
             return; // secondary index
 
@@ -1851,7 +1851,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public String toString()
     {
         return "CFS(" +
-               "Keyspace='" + table.name + '\'' +
+               "Keyspace='" + table.getName() + '\'' +
                ", ColumnFamily='" + name + '\'' +
                ')';
     }

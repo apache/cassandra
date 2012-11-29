@@ -258,8 +258,8 @@ public class RowMutation implements IMutation
      */
     public void apply()
     {
-        KSMetaData ksm = Schema.instance.getKSMetaData(getTable());
-        Table.open(table).apply(this, ksm.durableWrites);
+        Table ks = Table.open(table);
+        ks.apply(this, ks.metadata.durableWrites);
     }
 
     public void applyUnsafe()

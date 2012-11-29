@@ -69,8 +69,8 @@ public class Table
             DatabaseDescriptor.createAllDirectories();
     }
 
-    /* Table name. */
-    public final String name;
+    public final KSMetaData metadata;
+
     /* ColumnFamilyStore per column family */
     private final ConcurrentMap<UUID, ColumnFamilyStore> columnFamilyStores = new ConcurrentHashMap<UUID, ColumnFamilyStore>();
     private final Object[] indexLocks;
@@ -154,9 +154,9 @@ public class Table
 
     public ColumnFamilyStore getColumnFamilyStore(String cfName)
     {
-        UUID id = Schema.instance.getId(name, cfName);
+        UUID id = Schema.instance.getId(getName(), cfName);
         if (id == null)
-            throw new IllegalArgumentException(String.format("Unknown table/cf pair (%s.%s)", name, cfName));
+            throw new IllegalArgumentException(String.format("Unknown table/cf pair (%s.%s)", getName(), cfName));
         return getColumnFamilyStore(id);
     }
 
@@ -251,12 +251,11 @@ public class Table
 
     private Table(String table, boolean loadSSTables)
     {
-        name = table;
-        KSMetaData ksm = Schema.instance.getKSMetaData(table);
-        assert ksm != null : "Unknown keyspace " + table;
+        metadata = Schema.instance.getKSMetaData(table);
+        assert metadata != null : "Unknown keyspace " + table;
         try
         {
-            createReplicationStrategy(ksm);
+            createReplicationStrategy(metadata);
         }
         catch (ConfigurationException e)
         {
@@ -267,9 +266,9 @@ public class Table
         for (int i = 0; i < indexLocks.length; i++)
             indexLocks[i] = new Object();
 
-        for (CFMetaData cfm : new ArrayList<CFMetaData>(Schema.instance.getKSMetaData(table).cfMetaData().values()))
+        for (CFMetaData cfm : new ArrayList<CFMetaData>(metadata.cfMetaData().values()))
         {
-            logger.debug("Initializing {}.{}", name, cfm.cfName);
+            logger.debug("Initializing {}.{}", getName(), cfm.cfName);
             initCf(cfm.cfId, cfm.cfName, loadSSTables);
         }
     }
@@ -473,6 +472,11 @@ public class Table
     @Override
     public String toString()
     {
-        return getClass().getSimpleName() + "(name='" + name + "')";
+        return getClass().getSimpleName() + "(name='" + getName() + "')";
+    }
+
+    public String getName()
+    {
+        return metadata.name;
     }
 }

@@ -319,7 +319,7 @@ public class ColumnFamilyMetrics
 
         ColumnFamilyMetricNameFactory(ColumnFamilyStore cfs)
         {
-            this.keyspaceName = cfs.table.name;
+            this.keyspaceName = cfs.table.getName();
             this.columnFamilyName = cfs.name;
             isIndex = cfs.isIndex();
         }

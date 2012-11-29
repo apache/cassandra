@@ -25,7 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.db.columniterator.ISSTableColumnIterator;
 import org.apache.cassandra.db.columniterator.SimpleAbstractColumnIterator;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
@@ -176,7 +175,7 @@ public class CollationController
                 && cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
             {
                 Tracing.trace("Defragmenting requested data");
-                RowMutation rm = new RowMutation(cfs.table.name, new Row(filter.key, returnCF.cloneMe()));
+                RowMutation rm = new RowMutation(cfs.table.getName(), new Row(filter.key, returnCF.cloneMe()));
                 // skipping commitlog and index updates is fine since we're just de-fragmenting existing data
                 Table.open(rm.getTable()).apply(rm, false, false);
             }

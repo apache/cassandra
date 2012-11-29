@@ -129,12 +129,12 @@ public class CompactionManager implements CompactionManagerMBean
         if (count > 0 && executor.getActiveCount() >= executor.getMaximumPoolSize())
         {
             logger.debug("Background compaction is still running for {}.{} ({} remaining). Skipping",
-                         new Object[] {cfs.table.name, cfs.name, count});
+                         new Object[] { cfs.table.getName(), cfs.name, count});
             return Collections.emptyList();
         }
 
         logger.debug("Scheduling a background task check for {}.{} with {}",
-                     new Object[] {cfs.table.name,
+                     new Object[] { cfs.table.getName(),
                                    cfs.name,
                                    cfs.getCompactionStrategy().getClass().getSimpleName()});
         List<Future<?>> futures = new ArrayList<Future<?>>();
@@ -163,7 +163,7 @@ public class CompactionManager implements CompactionManagerMBean
             compactionLock.readLock().lock();
             try
             {
-                logger.debug("Checking {}.{}", cfs.table.name, cfs.name); // log after we get the lock so we can see delays from that if any
+                logger.debug("Checking {}.{}", cfs.table.getName(), cfs.name); // log after we get the lock so we can see delays from that if any
                 if (!cfs.isValid())
                 {
                     logger.debug("Aborting compaction for dropped CF");
@@ -552,7 +552,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         assert !cfs.isIndex();
         Table table = cfs.table;
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.name);
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.getName());
         if (ranges.isEmpty())
         {
             logger.info("Cleanup cannot run before a node has joined the ring");
@@ -735,7 +735,7 @@ public class CompactionManager implements CompactionManagerMBean
             // flush first so everyone is validating data that is as similar as possible
             try
             {
-                StorageService.instance.forceTableFlush(cfs.table.name, cfs.name);
+                StorageService.instance.forceTableFlush(cfs.table.getName(), cfs.name);
             }
             catch (ExecutionException e)
             {

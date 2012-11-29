@@ -41,7 +41,7 @@ public class MeteredFlusherTest extends SchemaLoader
         Table table = Table.open("Keyspace1");
         for (int i = 0; i < 100; i++)
         {
-            CFMetaData metadata = new CFMetaData(table.name, "_CF" + i, ColumnFamilyType.Standard, UTF8Type.instance, null);
+            CFMetaData metadata = new CFMetaData(table.getName(), "_CF" + i, ColumnFamilyType.Standard, UTF8Type.instance, null);
             MigrationManager.announceNewColumnFamily(metadata);
         }
 

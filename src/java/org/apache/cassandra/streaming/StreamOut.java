@@ -80,7 +80,7 @@ public class StreamOut
     */
     public static void transferRanges(InetAddress target, Table table, Collection<Range<Token>> ranges, IStreamCallback callback, OperationType type)
     {
-        StreamOutSession session = StreamOutSession.create(table.name, target, callback);
+        StreamOutSession session = StreamOutSession.create(table.getName(), target, callback);
         transferRanges(session, table.getColumnFamilyStores(), ranges, type);
     }
 

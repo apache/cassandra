@@ -139,10 +139,10 @@ public class Schema
      */
     public void storeTableInstance(Table table)
     {
-        if (tableInstances.containsKey(table.name))
-            throw new IllegalArgumentException(String.format("Table %s was already initialized.", table.name));
+        if (tableInstances.containsKey(table.getName()))
+            throw new IllegalArgumentException(String.format("Table %s was already initialized.", table.getName()));
 
-        tableInstances.put(table.name, table);
+        tableInstances.put(table.getName(), table);
     }
 
     /**

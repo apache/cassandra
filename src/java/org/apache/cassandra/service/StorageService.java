@@ -472,7 +472,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 List<Future<?>> flushes = new ArrayList<Future<?>>();
                 for (Table table : Table.all())
                 {
-                    KSMetaData ksm = Schema.instance.getKSMetaData(table.name);
+                    KSMetaData ksm = Schema.instance.getKSMetaData(table.getName());
                     if (!ksm.durableWrites)
                     {
                         for (ColumnFamilyStore cfs : table.getColumnFamilyStores())

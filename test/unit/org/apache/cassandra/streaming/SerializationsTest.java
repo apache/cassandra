@@ -204,7 +204,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         Table t = Table.open("Keyspace1");
         for (int i = 0; i < 100; i++)
         {
-            RowMutation rm = new RowMutation(t.name, ByteBufferUtil.bytes(Long.toString(System.nanoTime())));
+            RowMutation rm = new RowMutation(t.getName(), ByteBufferUtil.bytes(Long.toString(System.nanoTime())));
             rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("cola")), ByteBufferUtil.bytes("value"), 0);
             rm.apply();
         }

@@ -693,7 +693,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertRowAndColCount(1, 6, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // deeleet.
-        RowMutation rm = new RowMutation(table.name, key.key);
+        RowMutation rm = new RowMutation(table.getName(), key.key);
         rm.delete(new QueryPath(cfName, scfName), 2);
         rm.apply();
 
@@ -747,8 +747,8 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
     private static void putColsSuper(ColumnFamilyStore cfs, DecoratedKey key, ByteBuffer scfName, Column... cols) throws Throwable
     {
-        RowMutation rm = new RowMutation(cfs.table.name, key.key);
-        ColumnFamily cf = ColumnFamily.create(cfs.table.name, cfs.name);
+        RowMutation rm = new RowMutation(cfs.table.getName(), key.key);
+        ColumnFamily cf = ColumnFamily.create(cfs.table.getName(), cfs.name);
         SuperColumn sc = new SuperColumn(scfName, cfs.metadata.subcolumnComparator);
         for (Column col : cols)
             sc.addColumn(col);
@@ -759,8 +759,8 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
     private static void putColsStandard(ColumnFamilyStore cfs, DecoratedKey key, Column... cols) throws Throwable
     {
-        RowMutation rm = new RowMutation(cfs.table.name, key.key);
-        ColumnFamily cf = ColumnFamily.create(cfs.table.name, cfs.name);
+        RowMutation rm = new RowMutation(cfs.table.getName(), key.key);
+        ColumnFamily cf = ColumnFamily.create(cfs.table.getName(), cfs.name);
         for (Column col : cols)
             cf.addColumn(col);
         rm.add(cf);
@@ -795,7 +795,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertRowAndColCount(1, 4, null, false, cfs.getRangeSlice(null, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
         // delete (from sstable and memtable)
-        RowMutation rm = new RowMutation(table.name, key.key);
+        RowMutation rm = new RowMutation(table.getName(), key.key);
         rm.delete(new QueryPath(cfs.name, null, null), 2);
         rm.apply();
 

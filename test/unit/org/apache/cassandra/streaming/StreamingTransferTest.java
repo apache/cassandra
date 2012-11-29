@@ -118,7 +118,7 @@ public class StreamingTransferTest extends SchemaLoader
         List<Range<Token>> ranges = new ArrayList<Range<Token>>();
         ranges.add(new Range<Token>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
         ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
-        StreamOutSession session = StreamOutSession.create(table.name, LOCAL, (IStreamCallback)null);
+        StreamOutSession session = StreamOutSession.create(table.getName(), LOCAL, (IStreamCallback)null);
         StreamOut.transferSSTables(session, Arrays.asList(sstable), ranges, OperationType.BOOTSTRAP);
         session.await();
     }
@@ -135,7 +135,7 @@ public class StreamingTransferTest extends SchemaLoader
             {
                 long val = key.hashCode();
                 RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key));
-                ColumnFamily cf = ColumnFamily.create(table.name, cfs.name);
+                ColumnFamily cf = ColumnFamily.create(table.getName(), cfs.name);
                 cf.addColumn(column(col, "v", timestamp));
                 cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(val), timestamp));
                 rm.add(cf);
@@ -171,7 +171,7 @@ public class StreamingTransferTest extends SchemaLoader
         {
             public void mutate(String key, String col, long timestamp) throws Exception
             {
-                RowMutation rm = new RowMutation(table.name, ByteBufferUtil.bytes(key));
+                RowMutation rm = new RowMutation(table.getName(), ByteBufferUtil.bytes(key));
                 addMutation(rm, cfs.name, col, 1, "val1", timestamp);
                 rm.apply();
             }
@@ -210,7 +210,7 @@ public class StreamingTransferTest extends SchemaLoader
                 entries.put(key, cf);
                 cleanedEntries.put(key, cfCleaned);
                 cfs.addSSTable(SSTableUtils.prepare()
-                    .ks(table.name)
+                    .ks(table.getName())
                     .cf(cfs.name)
                     .generation(0)
                     .write(entries));
@@ -220,7 +220,7 @@ public class StreamingTransferTest extends SchemaLoader
         // filter pre-cleaned entries locally, and ensure that the end result is equal
         cleanedEntries.keySet().retainAll(keys);
         SSTableReader cleaned = SSTableUtils.prepare()
-            .ks(table.name)
+            .ks(table.getName())
             .cf(cfs.name)
             .generation(0)
             .write(cleanedEntries);

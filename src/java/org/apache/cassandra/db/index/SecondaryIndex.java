@@ -108,19 +108,19 @@ public abstract class SecondaryIndex
      */
     public boolean isIndexBuilt(ByteBuffer columnName)
     {
-        return SystemTable.isIndexBuilt(baseCfs.table.name, getNameForSystemTable(columnName));
+        return SystemTable.isIndexBuilt(baseCfs.table.getName(), getNameForSystemTable(columnName));
     }
 
     public void setIndexBuilt()
     {
         for (ColumnDefinition columnDef : columnDefs)
-            SystemTable.setIndexBuilt(baseCfs.table.name, getNameForSystemTable(columnDef.name));
+            SystemTable.setIndexBuilt(baseCfs.table.getName(), getNameForSystemTable(columnDef.name));
     }
 
     public void setIndexRemoved()
     {
         for (ColumnDefinition columnDef : columnDefs)
-            SystemTable.setIndexRemoved(baseCfs.table.name, getNameForSystemTable(columnDef.name));
+            SystemTable.setIndexRemoved(baseCfs.table.getName(), getNameForSystemTable(columnDef.name));
     }
 
     /**
@@ -215,7 +215,7 @@ public abstract class SecondaryIndex
         boolean allAreBuilt = true;
         for (ColumnDefinition cdef : columnDefs)
         {
-            if (!SystemTable.isIndexBuilt(baseCfs.table.name, getNameForSystemTable(cdef.name)))
+            if (!SystemTable.isIndexBuilt(baseCfs.table.getName(), getNameForSystemTable(cdef.name)))
             {
                 allAreBuilt = false;
                 break;
