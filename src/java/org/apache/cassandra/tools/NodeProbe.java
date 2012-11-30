@@ -590,7 +590,7 @@ public class NodeProbe
             }
         }
 
-        throw new AssertionError("Could not find myself in the endpoint list, something is very wrong!");
+        throw new RuntimeException("Could not find myself in the endpoint list, something is very wrong!  Is the Cassandra node fully started?");
     }
 
     public String getDataCenter()
