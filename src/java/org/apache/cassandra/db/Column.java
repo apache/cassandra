@@ -292,6 +292,16 @@ public class Column implements IColumn
         return getLocalDeletionTime() < gcBefore;
     }
 
+    public static Column create(ByteBuffer name, ByteBuffer value, long timestamp, int ttl, CFMetaData metadata)
+    {
+        if (ttl <= 0)
+            ttl = metadata.getDefaultTimeToLive();
+
+        return ttl > 0
+               ? new ExpiringColumn(name, value, timestamp, ttl)
+               : new Column(name, value, timestamp);
+    }
+
     public static Column create(String value, long timestamp, String... names)
     {
         return new Column(decomposeName(names), UTF8Type.instance.decompose(value), timestamp);

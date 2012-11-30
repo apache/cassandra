@@ -133,7 +133,7 @@ public class UpdateStatement extends ModificationStatement
         Map<ByteBuffer, ColumnGroupMap> rows = toRead != null ? readRows(keys, builder, toRead, (CompositeType)cfDef.cfm.comparator, local, cl) : null;
 
         Collection<IMutation> mutations = new LinkedList<IMutation>();
-        UpdateParameters params = new UpdateParameters(variables, getTimestamp(now), getTimeToLive());
+        UpdateParameters params = new UpdateParameters(cfDef.cfm, variables, getTimestamp(now), getTimeToLive());
 
         for (ByteBuffer key: keys)
             mutations.add(mutationForKey(cfDef, key, builder, params, rows == null ? null : rows.get(key), cl));

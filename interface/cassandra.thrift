@@ -443,6 +443,7 @@ struct CfDef {
     34: optional string caching="keys_only",
     37: optional double dclocal_read_repair_chance = 0.0,
     38: optional i32 memtable_flush_period_in_ms,
+    39: optional i32 default_time_to_live,
 
     /* All of the following are now ignored and unsupplied. */
 

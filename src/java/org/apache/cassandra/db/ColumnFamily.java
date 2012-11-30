@@ -165,11 +165,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
     {
         assert path.columnName != null : path;
         assert !metadata().getDefaultValidator().isCommutative();
-        Column column;
-        if (timeToLive > 0)
-            column = new ExpiringColumn(path.columnName, value, timestamp, timeToLive);
-        else
-            column = new Column(path.columnName, value, timestamp);
+        Column column = Column.create(path.columnName, value, timestamp, timeToLive, metadata());
         addColumn(path.superColumnName, column);
     }
 

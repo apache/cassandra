@@ -138,7 +138,8 @@ public class CliClient
         COMPRESSION_OPTIONS,
         BLOOM_FILTER_FP_CHANCE,
         MEMTABLE_FLUSH_PERIOD_IN_MS,
-        CACHING
+        CACHING,
+        DEFAULT_TIME_TO_LIVE
     }
 
     private static final String DEFAULT_PLACEMENT_STRATEGY = "org.apache.cassandra.locator.NetworkTopologyStrategy";
@@ -1330,6 +1331,9 @@ public class CliClient
             case CACHING:
                 cfDef.setCaching(CliUtils.unescapeSQLString(mValue));
                 break;
+            case DEFAULT_TIME_TO_LIVE:
+                cfDef.setDefault_time_to_live(Integer.parseInt(mValue));
+                break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
                 assert(false);
@@ -1784,6 +1788,7 @@ public class CliClient
         writeAttr(output, false, "replicate_on_write", cfDef.replicate_on_write);
         writeAttr(output, false, "compaction_strategy", cfDef.compaction_strategy);
         writeAttr(output, false, "caching", cfDef.caching);
+        writeAttr(output, false, "default_time_to_live", cfDef.default_time_to_live);
 
         if (cfDef.isSetBloom_filter_fp_chance())
             writeAttr(output, false, "bloom_filter_fp_chance", cfDef.bloom_filter_fp_chance);
@@ -2149,6 +2154,7 @@ public class CliClient
         sessionState.out.printf("      DC Local Read repair chance: %s%n", cf_def.dclocal_read_repair_chance);
         sessionState.out.printf("      Replicate on write: %s%n", cf_def.replicate_on_write);
         sessionState.out.printf("      Caching: %s%n", cf_def.caching);
+        sessionState.out.printf("      Default time to live: %s%n", cf_def.default_time_to_live);
         sessionState.out.printf("      Bloom Filter FP chance: %s%n", cf_def.isSetBloom_filter_fp_chance() ? cf_def.bloom_filter_fp_chance : "default");
 
         // if we have connection to the cfMBean established

@@ -50,6 +50,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         ('max_compaction_threshold', None),
         ('replicate_on_write', None),
         ('compaction_strategy_class', 'compaction_strategy'),
+        ('default_time_to_live', None),
     )
 
     obsolete_cf_options = (
@@ -834,7 +835,7 @@ def create_cf_option_val_completer(ctxt, cass):
         return [Hint('<float_between_0_and_1>')]
     if this_opt == 'replicate_on_write':
         return [Hint('<yes_or_no>')]
-    if this_opt in ('min_compaction_threshold', 'max_compaction_threshold', 'gc_grace_seconds'):
+    if this_opt in ('min_compaction_threshold', 'max_compaction_threshold', 'gc_grace_seconds', 'default_time_to_live'):
         return [Hint('<integer>')]
     return [Hint('<option_value>')]
 

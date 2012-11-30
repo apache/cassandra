@@ -19,7 +19,9 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 
 /**
@@ -27,13 +29,15 @@ import org.apache.cassandra.db.*;
  */
 public class UpdateParameters
 {
+    public final CFMetaData metadata;
     public final List<ByteBuffer> variables;
     public final long timestamp;
     private final int ttl;
     public final int localDeletionTime;
 
-    public UpdateParameters(List<ByteBuffer> variables, long timestamp, int ttl)
+    public UpdateParameters(CFMetaData metadata, List<ByteBuffer> variables, long timestamp, int ttl)
     {
+        this.metadata = metadata;
         this.variables = variables;
         this.timestamp = timestamp;
         this.ttl = ttl;
@@ -42,9 +46,7 @@ public class UpdateParameters
 
     public Column makeColumn(ByteBuffer name, ByteBuffer value)
     {
-        return ttl > 0
-             ? new ExpiringColumn(name, value, timestamp, ttl)
-             : new Column(name, value, timestamp);
+        return Column.create(name, value, timestamp, ttl, metadata);
     }
 
     public Column makeTombstone(ByteBuffer name)
