@@ -25,6 +25,8 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.Histogram;
 import org.apache.cassandra.cli.transport.FramedTransportFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.EncryptionOptions;
@@ -56,9 +58,9 @@ public class Session implements Serializable
 
     private static InetAddress localInetAddress;
 
-    public final AtomicInteger operations;
-    public final AtomicInteger keys;
-    public final AtomicLong    latency;
+    public final AtomicInteger operations = new AtomicInteger();
+    public final AtomicInteger keys = new AtomicInteger();
+    public final com.yammer.metrics.core.Timer latency = Metrics.newTimer(Session.class, "latency");
 
     private static final String SSL_TRUSTSTORE = "truststore";
     private static final String SSL_TRUSTSTORE_PW = "truststore-password";
@@ -436,10 +438,6 @@ public class Session implements Serializable
 
         mean  = numDifferentKeys / 2;
         sigma = numDifferentKeys * STDev;
-
-        operations = new AtomicInteger();
-        keys = new AtomicInteger();
-        latency = new AtomicLong();
     }
 
     private TTransportFactory validateAndSetTransportFactory(String transportFactory)

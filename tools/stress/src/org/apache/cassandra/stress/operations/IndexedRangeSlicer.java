@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.stress.operations;
 
+import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
@@ -66,7 +67,7 @@ public class IndexedRangeSlicer extends Operation
                                                  session.getKeysPerCall());
 
             List<KeySlice> results = null;
-            long start = System.currentTimeMillis();
+            TimerContext context = session.latency.time();
 
             boolean success = false;
             String exceptionMessage = null;
@@ -104,7 +105,7 @@ public class IndexedRangeSlicer extends Operation
 
             session.operations.getAndIncrement();
             session.keys.getAndAdd(results.size());
-            session.latency.getAndAdd(System.currentTimeMillis() - start);
+            context.stop();
         }
     }
 

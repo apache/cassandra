@@ -21,6 +21,7 @@ import java.io.PrintStream;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 
+import com.yammer.metrics.stats.Snapshot;
 import org.apache.cassandra.stress.operations.*;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
@@ -50,7 +51,8 @@ public class StressAction extends Thread
 
     public void run()
     {
-        long latency, oldLatency;
+        Snapshot latency;
+        long oldLatency;
         int epoch, total, oldTotal, keyCount, oldKeyCount;
 
         // creating keyspace and column families
@@ -60,7 +62,7 @@ public class StressAction extends Thread
         int threadCount = client.getThreads();
         Consumer[] consumers = new Consumer[threadCount];
 
-        output.println("total,interval_op_rate,interval_key_rate,avg_latency,elapsed_time");
+        output.println("total,interval_op_rate,interval_key_rate,latency/95th/99th,elapsed_time");
 
         int itemsPerThread = client.getKeysPerThread();
         int modulo = client.getNumKeys() % threadCount;
@@ -82,7 +84,6 @@ public class StressAction extends Thread
 
         // initialization of the values
         boolean terminate = false;
-        latency = 0;
         epoch = total = keyCount = 0;
 
         int interval = client.getProgressInterval();
@@ -124,21 +125,23 @@ public class StressAction extends Thread
                 epoch = 0;
 
                 oldTotal = total;
-                oldLatency = latency;
                 oldKeyCount = keyCount;
 
                 total = client.operations.get();
                 keyCount = client.keys.get();
-                latency = client.latency.get();
+                latency = client.latency.getSnapshot();
 
                 int opDelta = total - oldTotal;
                 int keyDelta = keyCount - oldKeyCount;
-                double latencyDelta = latency - oldLatency;
 
                 long currentTimeInSeconds = (System.currentTimeMillis() - testStartTime) / 1000;
-                String formattedDelta = (opDelta > 0) ? Double.toString(latencyDelta / (opDelta * 1000)) : "NaN";
 
-                output.println(String.format("%d,%d,%d,%s,%d", total, opDelta / interval, keyDelta / interval, formattedDelta, currentTimeInSeconds));
+                output.println(String.format("%d,%d,%d,%.1f,%.1f,%.1f,%d",
+                                             total,
+                                             opDelta / interval,
+                                             keyDelta / interval,
+                                             latency.getMedian(), latency.get95thPercentile(), latency.get999thPercentile(),
+                                             currentTimeInSeconds));
             }
         }
 

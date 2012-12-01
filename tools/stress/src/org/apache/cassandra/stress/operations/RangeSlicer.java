@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.stress.operations;
 
+import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
@@ -61,7 +62,7 @@ public class RangeSlicer extends Operation
                 String superColumnName = "S" + Integer.toString(i);
                 ColumnParent parent = new ColumnParent("Super1").setSuper_column(ByteBufferUtil.bytes(superColumnName));
 
-                long startTime = System.currentTimeMillis();
+                TimerContext context = session.latency.time();
 
                 boolean success = false;
                 String exceptionMessage = null;
@@ -90,7 +91,7 @@ public class RangeSlicer extends Operation
                 }
 
                 session.operations.getAndIncrement();
-                session.latency.getAndAdd(System.currentTimeMillis() - startTime);
+                context.stop();
             }
 
             session.keys.getAndAdd(slices.size());
@@ -104,7 +105,7 @@ public class RangeSlicer extends Operation
             List<KeySlice> slices = new ArrayList<KeySlice>();
             KeyRange range = new KeyRange(count).setStart_key(start).setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER);
 
-            long startTime = System.currentTimeMillis();
+            TimerContext context = session.latency.time();
 
             boolean success = false;
             String exceptionMessage = null;
@@ -137,7 +138,7 @@ public class RangeSlicer extends Operation
 
             session.operations.getAndIncrement();
             session.keys.getAndAdd(slices.size());
-            session.latency.getAndAdd(System.currentTimeMillis() - startTime);
+            context.stop();
         }
     }
 }

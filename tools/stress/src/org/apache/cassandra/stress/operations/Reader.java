@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.stress.operations;
 
+import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
@@ -66,7 +67,7 @@ public class Reader extends Operation
             String superColumn = 'S' + Integer.toString(j);
             ColumnParent parent = new ColumnParent("Super1").setSuper_column(superColumn.getBytes(UTF_8));
 
-            long start = System.currentTimeMillis();
+            TimerContext context = session.latency.time();
 
             boolean success = false;
             String exceptionMessage = null;
@@ -100,7 +101,7 @@ public class Reader extends Operation
 
             session.operations.getAndIncrement();
             session.keys.getAndIncrement();
-            session.latency.getAndAdd(System.currentTimeMillis() - start);
+            context.stop();
         }
     }
 
@@ -111,7 +112,7 @@ public class Reader extends Operation
         byte[] key = generateKey();
         ByteBuffer keyBuffer = ByteBuffer.wrap(key);
 
-        long start = System.currentTimeMillis();
+        TimerContext context = session.latency.time();
 
         boolean success = false;
         String exceptionMessage = null;
@@ -145,7 +146,7 @@ public class Reader extends Operation
 
         session.operations.getAndIncrement();
         session.keys.getAndIncrement();
-        session.latency.getAndAdd(System.currentTimeMillis() - start);
+        context.stop();
     }
 
     private SliceRange getSliceRange()

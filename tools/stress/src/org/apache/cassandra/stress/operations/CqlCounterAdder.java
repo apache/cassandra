@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 
+import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
@@ -71,7 +72,7 @@ public class CqlCounterAdder extends Operation
         String key = String.format("%0" + session.getTotalKeysLength() + "d", index);
         String formattedQuery = null;
 
-        long start = System.currentTimeMillis();
+        TimerContext context = session.latency.time();
 
         boolean success = false;
         String exceptionMessage = null;
@@ -121,6 +122,6 @@ public class CqlCounterAdder extends Operation
 
         session.operations.getAndIncrement();
         session.keys.getAndIncrement();
-        session.latency.getAndAdd(System.currentTimeMillis() - start);
+        context.stop();
     }
 }
