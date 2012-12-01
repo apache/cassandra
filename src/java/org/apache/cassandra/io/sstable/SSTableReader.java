@@ -62,7 +62,7 @@ public class SSTableReader extends SSTable
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
     // guesstimated size of INDEX_INTERVAL index entries
-    private static final int INDEX_FILE_BUFFER_BYTES = 16 * DatabaseDescriptor.getIndexInterval();
+    private static final int INDEX_FILE_BUFFER_BYTES = 16 * CFMetaData.DEFAULT_INDEX_INTERVAL;
 
     /**
      * maxDataAge is a timestamp in local server time (e.g. System.currentTimeMilli) which represents an uppper bound
@@ -98,14 +98,14 @@ public class SSTableReader extends SSTable
 
     private final SSTableMetadata sstableMetadata;
 
-    public static long getApproximateKeyCount(Iterable<SSTableReader> sstables)
+    public static long getApproximateKeyCount(Iterable<SSTableReader> sstables, CFMetaData metadata)
     {
         long count = 0;
 
         for (SSTableReader sstable : sstables)
         {
             int indexKeyCount = sstable.getKeySamples().size();
-            count = count + (indexKeyCount + 1) * DatabaseDescriptor.getIndexInterval();
+            count = count + (indexKeyCount + 1) * metadata.getIndexInterval();
             if (logger.isDebugEnabled())
                 logger.debug("index size for bloom filter calc for file  : " + sstable.getFilename() + "   : " + count);
         }
@@ -354,7 +354,7 @@ public class SSTableReader extends SSTable
 
         // try to load summaries from the disk and check if we need
         // to read primary index because we should re-create a BloomFilter or pre-load KeyCache
-        final boolean summaryLoaded = loadSummary(this, ibuilder, dbuilder);
+        final boolean summaryLoaded = loadSummary(this, ibuilder, dbuilder, metadata);
         final boolean readIndex = recreatebloom || !summaryLoaded;
         try
         {
@@ -367,7 +367,7 @@ public class SSTableReader extends SSTable
                 bf = LegacyBloomFilter.getFilter(estimatedKeys, 15);
 
             if (!summaryLoaded)
-                indexSummary = new IndexSummary(estimatedKeys);
+                indexSummary = new IndexSummary(estimatedKeys, metadata.getIndexInterval());
 
             long indexPosition;
             while (readIndex && (indexPosition = primaryIndex.getFilePointer()) != indexSize)
@@ -406,7 +406,7 @@ public class SSTableReader extends SSTable
             saveSummary(this, ibuilder, dbuilder);
     }
 
-    public static boolean loadSummary(SSTableReader reader, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder)
+    public static boolean loadSummary(SSTableReader reader, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, CFMetaData metadata)
     {
         File summariesFile = new File(reader.descriptor.filenameFor(Component.SUMMARY));
         if (!summariesFile.exists())
@@ -417,6 +417,14 @@ public class SSTableReader extends SSTable
         {
             iStream = new DataInputStream(new FileInputStream(summariesFile));
             reader.indexSummary = IndexSummary.serializer.deserialize(iStream, reader.partitioner);
+            if (reader.indexSummary.getIndexInterval() != metadata.getIndexInterval())
+            {
+                iStream.close();
+                logger.debug("Cannot read the saved summary for {} because Index Interval changed from {} to {}.",
+                             reader.toString(), reader.indexSummary.getIndexInterval(), metadata.getIndexInterval());
+                FileUtils.deleteWithConfirm(summariesFile);
+                return false;
+            }
             reader.first = decodeKey(reader.partitioner, reader.descriptor, ByteBufferUtil.readWithLength(iStream));
             reader.last = decodeKey(reader.partitioner, reader.descriptor, ByteBufferUtil.readWithLength(iStream));
             ibuilder.deserializeBounds(iStream);
@@ -425,10 +433,8 @@ public class SSTableReader extends SSTable
         catch (IOException e)
         {
             logger.debug("Cannot deserialize SSTable Summary: ", e);
-            // corrupted hence delete it and let it load it now.
-            if (summariesFile.exists())
-                summariesFile.delete();
-
+            // corrupted; delete it and fall back to creating a new summary
+            FileUtils.deleteWithConfirm(summariesFile);
             return false;
         }
         finally
@@ -530,7 +536,7 @@ public class SSTableReader extends SSTable
      */
     public long estimatedKeys()
     {
-        return indexSummary.getKeys().size() * DatabaseDescriptor.getIndexInterval();
+        return indexSummary.getKeys().size() * metadata.getIndexInterval();
     }
 
     /**
@@ -543,7 +549,7 @@ public class SSTableReader extends SSTable
         List<Pair<Integer, Integer>> sampleIndexes = getSampleIndexesForRanges(indexSummary.getKeys(), ranges);
         for (Pair<Integer, Integer> sampleIndexRange : sampleIndexes)
             sampleKeyCount += (sampleIndexRange.right - sampleIndexRange.left + 1);
-        return Math.max(1, sampleKeyCount * DatabaseDescriptor.getIndexInterval());
+        return Math.max(1, sampleKeyCount * metadata.getIndexInterval());
     }
 
     /**
@@ -778,12 +784,12 @@ public class SSTableReader extends SSTable
         // of the next interval).
         int i = 0;
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition, INDEX_FILE_BUFFER_BYTES);
-        while (segments.hasNext() && i <= DatabaseDescriptor.getIndexInterval())
+        while (segments.hasNext() && i <= metadata.getIndexInterval())
         {
             FileDataInput in = segments.next();
             try
             {
-                while (!in.isEOF() && i <= DatabaseDescriptor.getIndexInterval())
+                while (!in.isEOF() && i <= metadata.getIndexInterval())
                 {
                     i++;
 

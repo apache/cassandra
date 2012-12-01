@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -40,21 +39,23 @@ public class IndexSummary
     private final ArrayList<Long> positions;
     private final ArrayList<DecoratedKey> keys;
     private long keysWritten = 0;
-
-    public IndexSummary(long expectedKeys)
-    {
-        long expectedEntries = expectedKeys / DatabaseDescriptor.getIndexInterval();
-        if (expectedEntries > Integer.MAX_VALUE)
-            // TODO: that's a _lot_ of keys, or a very low interval
-            throw new RuntimeException("Cannot use index_interval of " + DatabaseDescriptor.getIndexInterval() + " with " + expectedKeys + " (expected) keys.");
-        positions = new ArrayList<Long>((int)expectedEntries);
-        keys = new ArrayList<DecoratedKey>((int)expectedEntries);
-    }
+    private int indexInterval;
 
     private IndexSummary()
     {
         positions = new ArrayList<Long>();
         keys = new ArrayList<DecoratedKey>();
+    }
+
+    public IndexSummary(long expectedKeys, int indexInterval)
+    {
+        long expectedEntries = expectedKeys / indexInterval;
+        if (expectedEntries > Integer.MAX_VALUE)
+            // TODO: that's a _lot_ of keys, or a very low interval
+            throw new RuntimeException("Cannot use index_interval of " + indexInterval + " with " + expectedKeys + " (expected) keys.");
+        positions = new ArrayList<Long>((int)expectedEntries);
+        keys = new ArrayList<DecoratedKey>((int)expectedEntries);
+        this.indexInterval = indexInterval;
     }
 
     public void incrementRowid()
@@ -64,7 +65,7 @@ public class IndexSummary
 
     public boolean shouldAddEntry()
     {
-        return keysWritten % DatabaseDescriptor.getIndexInterval() == 0;
+        return keysWritten % indexInterval == 0;
     }
 
     public void addEntry(DecoratedKey key, long indexPosition)
@@ -90,7 +91,11 @@ public class IndexSummary
         return positions.get(index);
     }
 
-    public void complete()
+    public int getIndexInterval() {
+        return indexInterval;
+    }
+
+	public void complete()
     {
         keys.trimToSize();
         positions.trimToSize();
@@ -101,7 +106,7 @@ public class IndexSummary
         public void serialize(IndexSummary t, DataOutput dos) throws IOException
         {
             assert t.keys.size() == t.positions.size() : "keysize and the position sizes are not same.";
-            dos.writeInt(DatabaseDescriptor.getIndexInterval());
+            dos.writeInt(t.indexInterval);
             dos.writeInt(t.keys.size());
             for (int i = 0; i < t.keys.size(); i++)
             {
@@ -113,8 +118,7 @@ public class IndexSummary
         public IndexSummary deserialize(DataInput dis, IPartitioner partitioner) throws IOException
         {
             IndexSummary summary = new IndexSummary();
-            if (dis.readInt() != DatabaseDescriptor.getIndexInterval())
-                throw new IOException("Cannot read the saved summary because Index Interval changed.");
+            summary.indexInterval = dis.readInt();
 
             int size = dis.readInt();
             for (int i = 0; i < size; i++)

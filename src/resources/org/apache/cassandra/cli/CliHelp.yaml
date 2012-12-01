@@ -394,6 +394,11 @@ commands:
         - bloom_filter_fp_chance: Desired false positive probability for
           sstable row bloom filters.  Default is 0.000744.
 
+        - index_interval: controls the sampling of entries from the primrary
+          row index in terms of space versus time.  The larger the interval,
+          the smaller and less effective the sampling will be. All the sampled
+          entries must fit in memory.  Default value is 128.
+
         - column_type: Type of columns this column family holds, valid values are
           Standard and Super. Default is Standard.
 

@@ -2475,13 +2475,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @return list of Token ranges (_not_ keys!) together with estimated key count,
      *      breaking up the data this node is responsible for into pieces of roughly keysPerSplit
      */
-    public List<Pair<Range<Token>, Long>> getSplits(String table, String cfName, Range<Token> range, int keysPerSplit)
+    public List<Pair<Range<Token>, Long>> getSplits(String table, String cfName, Range<Token> range, int keysPerSplit, CFMetaData metadata)
     {
         Table t = Table.open(table);
         ColumnFamilyStore cfs = t.getColumnFamilyStore(cfName);
         List<DecoratedKey> keys = keySamples(Collections.singleton(cfs), range);
 
-        final long totalRowCountEstimate = (keys.size() + 1) * DatabaseDescriptor.getIndexInterval();
+        final long totalRowCountEstimate = (keys.size() + 1) * metadata.getIndexInterval();
 
         // splitCount should be much smaller than number of key samples, to avoid huge sampling error
         final int minSamplesPerSplit = 4;
@@ -2489,10 +2489,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         final int splitCount = Math.max(1, Math.min(maxSplitCount, (int)(totalRowCountEstimate / keysPerSplit)));
 
         List<Token> tokens = keysToTokens(range, keys);
-        return getSplits(tokens, splitCount);
+        return getSplits(tokens, splitCount, metadata);
     }
 
-    private List<Pair<Range<Token>, Long>> getSplits(List<Token> tokens, int splitCount)
+    private List<Pair<Range<Token>, Long>> getSplits(List<Token> tokens, int splitCount, CFMetaData metadata)
     {
         final double step = (double) (tokens.size() - 1) / splitCount;
         int prevIndex = 0;
@@ -2502,7 +2502,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             int index = (int) Math.round(i * step);
             Token token = tokens.get(index);
-            long rowCountEstimate = (index - prevIndex) * DatabaseDescriptor.getIndexInterval();
+            long rowCountEstimate = (index - prevIndex) * metadata.getIndexInterval();
             splits.add(Pair.create(new Range<Token>(prevToken, token), rowCountEstimate));
             prevIndex = index;
             prevToken = token;

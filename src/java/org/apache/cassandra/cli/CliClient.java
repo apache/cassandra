@@ -137,6 +137,7 @@ public class CliClient
         COMPACTION_STRATEGY_OPTIONS,
         COMPRESSION_OPTIONS,
         BLOOM_FILTER_FP_CHANCE,
+        INDEX_INTERVAL,
         MEMTABLE_FLUSH_PERIOD_IN_MS,
         CACHING,
         DEFAULT_TIME_TO_LIVE
@@ -1334,6 +1335,9 @@ public class CliClient
             case DEFAULT_TIME_TO_LIVE:
                 cfDef.setDefault_time_to_live(Integer.parseInt(mValue));
                 break;
+            case INDEX_INTERVAL:
+                cfDef.setIndex_interval(Integer.parseInt(mValue));
+                break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
                 assert(false);
@@ -1861,6 +1865,8 @@ public class CliClient
 
             writeAttrRaw(output, false, "compression_options", compOptions.toString());
         }
+        if (cfDef.isSetIndex_interval())
+            writeAttr(output, false, "index_interval", cfDef.index_interval);
 
         output.append(";");
         output.append(NEWLINE);
@@ -2156,6 +2162,7 @@ public class CliClient
         sessionState.out.printf("      Caching: %s%n", cf_def.caching);
         sessionState.out.printf("      Default time to live: %s%n", cf_def.default_time_to_live);
         sessionState.out.printf("      Bloom Filter FP chance: %s%n", cf_def.isSetBloom_filter_fp_chance() ? cf_def.bloom_filter_fp_chance : "default");
+        sessionState.out.printf("      Index interval: %s%n", cf_def.isSetIndex_interval() ? cf_def.index_interval : "default");
 
         // if we have connection to the cfMBean established
         if (cfMBean != null)

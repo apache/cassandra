@@ -1224,7 +1224,7 @@ public class CassandraServer implements Cassandra.Iface
             Token.TokenFactory tf = StorageService.getPartitioner().getTokenFactory();
             Range<Token> tr = new Range<Token>(tf.fromString(start_token), tf.fromString(end_token));
             List<Pair<Range<Token>, Long>> splits =
-                    StorageService.instance.getSplits(state().getKeyspace(), cfName, tr, keys_per_split);
+                    StorageService.instance.getSplits(state().getKeyspace(), cfName, tr, keys_per_split, Schema.instance.getCFMetaData(state().getKeyspace(), cfName));
             List<CfSplit> result = new ArrayList<CfSplit>(splits.size());
             for (Pair<Range<Token>, Long> split : splits)
                 result.add(new CfSplit(split.left.left.toString(), split.left.right.toString(), split.right));

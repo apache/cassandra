@@ -1059,11 +1059,6 @@ public class DatabaseDescriptor
         return conf.max_hint_window_in_ms;
     }
 
-    public static Integer getIndexInterval()
-    {
-        return conf.index_interval;
-    }
-
     public static File getSerializedCachePath(String ksName, String cfName, CacheService.CacheType cacheType, String version)
     {
         return new File(conf.saved_caches_directory + File.separator + ksName + "-" + cfName + "-" + cacheType + (version == null ? "" : "-" + version + ".db"));

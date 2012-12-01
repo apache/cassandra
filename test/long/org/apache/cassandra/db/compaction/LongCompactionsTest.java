@@ -119,7 +119,7 @@ public class LongCompactionsTest extends SchemaLoader
         cfs.clearUnsafe();
 
         final int ROWS_PER_SSTABLE = 10;
-        final int SSTABLES = DatabaseDescriptor.getIndexInterval() * 3 / ROWS_PER_SSTABLE;
+        final int SSTABLES = cfs.metadata.getIndexInterval() * 3 / ROWS_PER_SSTABLE;
 
         // disable compaction while flushing
         cfs.disableAutoCompaction();
@@ -159,7 +159,7 @@ public class LongCompactionsTest extends SchemaLoader
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Super1");
 
         final int ROWS_PER_SSTABLE = 10;
-        final int SSTABLES = DatabaseDescriptor.getIndexInterval() * 3 / ROWS_PER_SSTABLE;
+        final int SSTABLES = cfs.metadata.getIndexInterval() * 3 / ROWS_PER_SSTABLE;
 
         //disable compaction while flushing
         cfs.disableAutoCompaction();

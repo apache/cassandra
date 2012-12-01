@@ -76,6 +76,7 @@ public final class CFMetaData
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
     public final static Caching DEFAULT_CACHING_STRATEGY = Caching.KEYS_ONLY;
     public final static int DEFAULT_DEFAULT_TIME_TO_LIVE = 0;
+    public final static int DEFAULT_INDEX_INTERVAL = 128;
 
     // Note that this is the default only for user created tables
     public final static String DEFAULT_COMPRESSOR = SnappyCompressor.isAvailable() ? SnappyCompressor.class.getCanonicalName() : null;
@@ -262,6 +263,7 @@ public final class CFMetaData
     private volatile ByteBuffer valueAlias = null;
     private volatile Double bloomFilterFpChance = null;
     private volatile Caching caching = DEFAULT_CACHING_STRATEGY;
+    private volatile int indexInterval = DEFAULT_INDEX_INTERVAL;
     private int memtableFlushPeriod = 0;
     private volatile int defaultTimeToLive = DEFAULT_DEFAULT_TIME_TO_LIVE;
 
@@ -294,6 +296,7 @@ public final class CFMetaData
     public CFMetaData compressionParameters(CompressionParameters prop) {compressionParameters = prop; return this;}
     public CFMetaData bloomFilterFpChance(Double prop) {bloomFilterFpChance = prop; return this;}
     public CFMetaData caching(Caching prop) {caching = prop; return this;}
+    public CFMetaData indexInterval(int prop) {indexInterval = prop; return this;}
     public CFMetaData memtableFlushPeriod(int prop) {memtableFlushPeriod = prop; return this;}
     public CFMetaData defaultTimeToLive(int prop) {defaultTimeToLive = prop; return this;}
 
@@ -435,8 +438,9 @@ public final class CFMetaData
                       .compressionParameters(oldCFMD.compressionParameters)
                       .bloomFilterFpChance(oldCFMD.bloomFilterFpChance)
                       .caching(oldCFMD.caching)
-                      .memtableFlushPeriod(oldCFMD.memtableFlushPeriod)
-                      .defaultTimeToLive(oldCFMD.defaultTimeToLive);
+                      .defaultTimeToLive(oldCFMD.defaultTimeToLive)
+                      .indexInterval(oldCFMD.indexInterval)
+                      .memtableFlushPeriod(oldCFMD.memtableFlushPeriod);
     }
 
     /**
@@ -549,6 +553,11 @@ public final class CFMetaData
         return caching;
     }
 
+    public int getIndexInterval()
+    {
+        return indexInterval;
+    }
+
     public int getMemtableFlushPeriod()
     {
         return memtableFlushPeriod;
@@ -598,6 +607,7 @@ public final class CFMetaData
             .append(memtableFlushPeriod, rhs.memtableFlushPeriod)
             .append(caching, rhs.caching)
             .append(defaultTimeToLive, rhs.defaultTimeToLive)
+            .append(indexInterval, rhs.indexInterval)
             .isEquals();
     }
 
@@ -630,6 +640,7 @@ public final class CFMetaData
             .append(memtableFlushPeriod)
             .append(caching)
             .append(defaultTimeToLive)
+            .append(indexInterval)
             .toHashCode();
     }
 
@@ -713,6 +724,8 @@ public final class CFMetaData
                 newCFMD.defaultTimeToLive(cf_def.default_time_to_live);
             if (cf_def.isSetDclocal_read_repair_chance())
                 newCFMD.dcLocalReadRepairChance(cf_def.dclocal_read_repair_chance);
+            if (cf_def.isSetIndex_interval())
+                newCFMD.indexInterval(cf_def.index_interval);
 
             CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
 
@@ -911,6 +924,7 @@ public final class CFMetaData
         def.setCompression_options(compressionParameters.asThriftOptions());
         if (bloomFilterFpChance != null)
             def.setBloom_filter_fp_chance(bloomFilterFpChance);
+        def.setIndex_interval(indexInterval);
         def.setMemtable_flush_period_in_ms(memtableFlushPeriod);
         def.setCaching(caching.toString());
         def.setDefault_time_to_live(defaultTimeToLive);
@@ -1260,6 +1274,7 @@ public final class CFMetaData
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "value_alias"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "column_aliases"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "compaction_strategy_options"));
+        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "index_interval"));
 
         for (ColumnDefinition cd : column_metadata.values())
             cd.deleteFromSchema(rm, cfName, getColumnDefinitionComparator(cd), timestamp);
@@ -1313,6 +1328,7 @@ public final class CFMetaData
                                         : Column.create(valueAlias, timestamp, cfName, "value_alias"));
         cf.addColumn(Column.create(json(aliasesAsStrings(columnAliases)), timestamp, cfName, "column_aliases"));
         cf.addColumn(Column.create(json(compactionStrategyOptions), timestamp, cfName, "compaction_strategy_options"));
+        cf.addColumn(Column.create(indexInterval, timestamp, cfName, "index_interval"));
     }
 
     // Package protected for use by tests
@@ -1361,6 +1377,8 @@ public final class CFMetaData
             if (result.has("value_alias"))
                 cfm.valueAlias(result.getBytes("value_alias"));
             cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
+            if (result.has("index_interval"))
+                cfm.indexInterval(result.getInt("index_interval"));
 
             return cfm;
         }
@@ -1526,6 +1544,7 @@ public final class CFMetaData
             .append("memtable_flush_period_in_ms", memtableFlushPeriod)
             .append("caching", caching)
             .append("defaultTimeToLive", defaultTimeToLive)
+            .append("indexInterval", indexInterval)
             .toString();
     }
 }

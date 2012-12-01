@@ -307,11 +307,6 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 # the request scheduling. Currently the only valid option is keyspace.
 # request_scheduler_id: keyspace
 
-# The Index Interval determines how large the sampling of row keys
-#  is for a given SSTable. The larger the sampling, the more effective
-#  the index is at the cost of space.
-index_interval: 128
-
 # Keyspaces have ColumnFamilies.        (Usually 1 KS per application.)
 # ColumnFamilies have Rows.             (Dozens of CFs per KS.)
 # Rows contain Columns.                 (Many per CF.)

@@ -278,7 +278,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
 
         final int ROWS_PER_SSTABLE = 10;
-        for (int j = 0; j < (DatabaseDescriptor.getIndexInterval() * 3) / ROWS_PER_SSTABLE; j++)
+        for (int j = 0; j < (cfs.metadata.getIndexInterval() * 3) / ROWS_PER_SSTABLE; j++)
         {
             for (int i = 0; i < ROWS_PER_SSTABLE; i++)
             {

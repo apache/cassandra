@@ -260,7 +260,7 @@ public class SSTableReaderTest extends SchemaLoader
 
         DecoratedKey firstKey = null, lastKey = null;
         long timestamp = System.currentTimeMillis();
-        for (int i = 0; i < DatabaseDescriptor.getIndexInterval(); i++)
+        for (int i = 0; i < store.metadata.getIndexInterval(); i++)
         {
             DecoratedKey key = Util.dk(String.valueOf(i));
             if (firstKey == null)

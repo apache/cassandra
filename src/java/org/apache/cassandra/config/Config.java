@@ -138,8 +138,6 @@ public class Config
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 
-    public Integer index_interval = 128;
-
     public Double flush_largest_memtables_at = 1.0;
     public Double reduce_cache_sizes_at = 1.0;
     public double reduce_cache_capacity_to = 0.6;

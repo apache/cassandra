@@ -438,7 +438,7 @@ public class SSTableWriter extends SSTable
             indexFile = SequentialWriter.open(new File(descriptor.filenameFor(SSTable.COMPONENT_INDEX)),
                                               !DatabaseDescriptor.populateIOCacheOnFlush());
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
-            summary = new IndexSummary(keyCount);
+            summary = new IndexSummary(keyCount, metadata.getIndexInterval());
 
             double fpChance = metadata.getBloomFilterFpChance();
             if (fpChance == 0)

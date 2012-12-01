@@ -69,6 +69,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField DCLOCAL_READ_REPAIR_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("dclocal_read_repair_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)37);
   private static final org.apache.thrift.protocol.TField MEMTABLE_FLUSH_PERIOD_IN_MS_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_flush_period_in_ms", org.apache.thrift.protocol.TType.I32, (short)38);
   private static final org.apache.thrift.protocol.TField DEFAULT_TIME_TO_LIVE_FIELD_DESC = new org.apache.thrift.protocol.TField("default_time_to_live", org.apache.thrift.protocol.TType.I32, (short)39);
+  private static final org.apache.thrift.protocol.TField INDEX_INTERVAL_FIELD_DESC = new org.apache.thrift.protocol.TField("index_interval", org.apache.thrift.protocol.TType.I32, (short)40);
   private static final org.apache.thrift.protocol.TField ROW_CACHE_SIZE_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_size", org.apache.thrift.protocol.TType.DOUBLE, (short)9);
   private static final org.apache.thrift.protocol.TField KEY_CACHE_SIZE_FIELD_DESC = new org.apache.thrift.protocol.TField("key_cache_size", org.apache.thrift.protocol.TType.DOUBLE, (short)11);
   private static final org.apache.thrift.protocol.TField ROW_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_save_period_in_seconds", org.apache.thrift.protocol.TType.I32, (short)19);
@@ -104,6 +105,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   public double dclocal_read_repair_chance; // required
   public int memtable_flush_period_in_ms; // required
   public int default_time_to_live; // required
+  public int index_interval; // required
   /**
    * @deprecated
    */
@@ -171,6 +173,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     DCLOCAL_READ_REPAIR_CHANCE((short)37, "dclocal_read_repair_chance"),
     MEMTABLE_FLUSH_PERIOD_IN_MS((short)38, "memtable_flush_period_in_ms"),
     DEFAULT_TIME_TO_LIVE((short)39, "default_time_to_live"),
+    INDEX_INTERVAL((short)40, "index_interval"),
     /**
      * @deprecated
      */
@@ -273,6 +276,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return MEMTABLE_FLUSH_PERIOD_IN_MS;
         case 39: // DEFAULT_TIME_TO_LIVE
           return DEFAULT_TIME_TO_LIVE;
+        case 40: // INDEX_INTERVAL
+          return INDEX_INTERVAL;
         case 9: // ROW_CACHE_SIZE
           return ROW_CACHE_SIZE;
         case 11: // KEY_CACHE_SIZE
@@ -343,16 +348,17 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final int __DCLOCAL_READ_REPAIR_CHANCE_ISSET_ID = 7;
   private static final int __MEMTABLE_FLUSH_PERIOD_IN_MS_ISSET_ID = 8;
   private static final int __DEFAULT_TIME_TO_LIVE_ISSET_ID = 9;
-  private static final int __ROW_CACHE_SIZE_ISSET_ID = 10;
-  private static final int __KEY_CACHE_SIZE_ISSET_ID = 11;
-  private static final int __ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 12;
-  private static final int __KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 13;
-  private static final int __MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID = 14;
-  private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 15;
-  private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 16;
-  private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 17;
-  private static final int __ROW_CACHE_KEYS_TO_SAVE_ISSET_ID = 18;
-  private BitSet __isset_bit_vector = new BitSet(19);
+  private static final int __INDEX_INTERVAL_ISSET_ID = 10;
+  private static final int __ROW_CACHE_SIZE_ISSET_ID = 11;
+  private static final int __KEY_CACHE_SIZE_ISSET_ID = 12;
+  private static final int __ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 13;
+  private static final int __KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 14;
+  private static final int __MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID = 15;
+  private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 16;
+  private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 17;
+  private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 18;
+  private static final int __ROW_CACHE_KEYS_TO_SAVE_ISSET_ID = 19;
+  private BitSet __isset_bit_vector = new BitSet(20);
 
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
@@ -409,6 +415,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     tmpMap.put(_Fields.MEMTABLE_FLUSH_PERIOD_IN_MS, new org.apache.thrift.meta_data.FieldMetaData("memtable_flush_period_in_ms", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     tmpMap.put(_Fields.DEFAULT_TIME_TO_LIVE, new org.apache.thrift.meta_data.FieldMetaData("default_time_to_live", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.INDEX_INTERVAL, new org.apache.thrift.meta_data.FieldMetaData("index_interval", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     tmpMap.put(_Fields.ROW_CACHE_SIZE, new org.apache.thrift.meta_data.FieldMetaData("row_cache_size", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
@@ -541,6 +549,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.dclocal_read_repair_chance = other.dclocal_read_repair_chance;
     this.memtable_flush_period_in_ms = other.memtable_flush_period_in_ms;
     this.default_time_to_live = other.default_time_to_live;
+    this.index_interval = other.index_interval;
     this.row_cache_size = other.row_cache_size;
     this.key_cache_size = other.key_cache_size;
     this.row_cache_save_period_in_seconds = other.row_cache_save_period_in_seconds;
@@ -598,6 +607,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.memtable_flush_period_in_ms = 0;
     setDefault_time_to_liveIsSet(false);
     this.default_time_to_live = 0;
+    setIndex_intervalIsSet(false);
+    this.index_interval = 0;
     setRow_cache_sizeIsSet(false);
     this.row_cache_size = 0.0;
     setKey_cache_sizeIsSet(false);
@@ -1232,6 +1243,29 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     __isset_bit_vector.set(__DEFAULT_TIME_TO_LIVE_ISSET_ID, value);
   }
 
+  public int getIndex_interval() {
+    return this.index_interval;
+  }
+
+  public CfDef setIndex_interval(int index_interval) {
+    this.index_interval = index_interval;
+    setIndex_intervalIsSet(true);
+    return this;
+  }
+
+  public void unsetIndex_interval() {
+    __isset_bit_vector.clear(__INDEX_INTERVAL_ISSET_ID);
+  }
+
+  /** Returns true if field index_interval is set (has been assigned a value) and false otherwise */
+  public boolean isSetIndex_interval() {
+    return __isset_bit_vector.get(__INDEX_INTERVAL_ISSET_ID);
+  }
+
+  public void setIndex_intervalIsSet(boolean value) {
+    __isset_bit_vector.set(__INDEX_INTERVAL_ISSET_ID, value);
+  }
+
   /**
    * @deprecated
    */
@@ -1717,6 +1751,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       break;
 
+    case INDEX_INTERVAL:
+      if (value == null) {
+        unsetIndex_interval();
+      } else {
+        setIndex_interval((Integer)value);
+      }
+      break;
+
     case ROW_CACHE_SIZE:
       if (value == null) {
         unsetRow_cache_size();
@@ -1874,6 +1916,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     case DEFAULT_TIME_TO_LIVE:
       return Integer.valueOf(getDefault_time_to_live());
 
+    case INDEX_INTERVAL:
+      return Integer.valueOf(getIndex_interval());
+
     case ROW_CACHE_SIZE:
       return Double.valueOf(getRow_cache_size());
 
@@ -1963,6 +2008,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetMemtable_flush_period_in_ms();
     case DEFAULT_TIME_TO_LIVE:
       return isSetDefault_time_to_live();
+    case INDEX_INTERVAL:
+      return isSetIndex_interval();
     case ROW_CACHE_SIZE:
       return isSetRow_cache_size();
     case KEY_CACHE_SIZE:
@@ -2216,6 +2263,15 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return false;
     }
 
+    boolean this_present_index_interval = true && this.isSetIndex_interval();
+    boolean that_present_index_interval = true && that.isSetIndex_interval();
+    if (this_present_index_interval || that_present_index_interval) {
+      if (!(this_present_index_interval && that_present_index_interval))
+        return false;
+      if (this.index_interval != that.index_interval)
+        return false;
+    }
+
     boolean this_present_row_cache_size = true && this.isSetRow_cache_size();
     boolean that_present_row_cache_size = true && that.isSetRow_cache_size();
     if (this_present_row_cache_size || that_present_row_cache_size) {
@@ -2432,6 +2488,11 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     builder.append(present_default_time_to_live);
     if (present_default_time_to_live)
       builder.append(default_time_to_live);
+
+    boolean present_index_interval = true && (isSetIndex_interval());
+    builder.append(present_index_interval);
+    if (present_index_interval)
+      builder.append(index_interval);
 
     boolean present_row_cache_size = true && (isSetRow_cache_size());
     builder.append(present_row_cache_size);
@@ -2730,6 +2791,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
     if (isSetDefault_time_to_live()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.default_time_to_live, typedOther.default_time_to_live);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetIndex_interval()).compareTo(typedOther.isSetIndex_interval());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetIndex_interval()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.index_interval, typedOther.index_interval);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -3064,6 +3135,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 40: // INDEX_INTERVAL
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
+            this.index_interval = iprot.readI32();
+            setIndex_intervalIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         case 9: // ROW_CACHE_SIZE
           if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
             this.row_cache_size = iprot.readDouble();
@@ -3377,6 +3456,11 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       oprot.writeI32(this.default_time_to_live);
       oprot.writeFieldEnd();
     }
+    if (isSetIndex_interval()) {
+      oprot.writeFieldBegin(INDEX_INTERVAL_FIELD_DESC);
+      oprot.writeI32(this.index_interval);
+      oprot.writeFieldEnd();
+    }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
@@ -3579,6 +3663,12 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (!first) sb.append(", ");
       sb.append("default_time_to_live:");
       sb.append(this.default_time_to_live);
+      first = false;
+    }
+    if (isSetIndex_interval()) {
+      if (!first) sb.append(", ");
+      sb.append("index_interval:");
+      sb.append(this.index_interval);
       first = false;
     }
     if (isSetRow_cache_size()) {

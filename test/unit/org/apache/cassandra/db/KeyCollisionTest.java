@@ -192,7 +192,7 @@ public class KeyCollisionTest extends SchemaLoader
                     for (Range<Token> r : sortedRanges)
                     {
                         // Looping over every KS:CF:Range, get the splits size and add it to the count
-                        allTokens.put(r.right, allTokens.get(r.right) + StorageService.instance.getSplits(ks, cfmd.cfName, r, 1).size());
+                        allTokens.put(r.right, allTokens.get(r.right) + StorageService.instance.getSplits(ks, cfmd.cfName, r, 1, cfmd).size());
                     }
                 }
             }

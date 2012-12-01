@@ -64,6 +64,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('default_validation', 'default_validation_class'),
         ('replicate_on_write', None),
         ('compaction_strategy_class', 'compaction_strategy'),
+        ('index_interval', None),
     )
 
     old_columnfamily_layout_options = (
@@ -76,6 +77,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('gc_grace_seconds', None),
         ('replicate_on_write', None),
         ('compaction_strategy_class', None),
+        ('index_interval', None),
     )
 
     new_columnfamily_layout_options = (
@@ -88,6 +90,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('replicate_on_write', None),
         ('default_read_consistency', None),
         ('default_write_consistency', None),
+        ('index_interval', None),
     )
 
     old_columnfamily_layout_map_options = (
@@ -490,7 +493,7 @@ def cf_new_prop_val_completer(ctxt, cass):
     if this_opt == 'replicate_on_write':
         return ["'yes'", "'no'"]
     if this_opt in ('min_compaction_threshold', 'max_compaction_threshold',
-                    'gc_grace_seconds'):
+                    'gc_grace_seconds', 'index_interval'):
         return [Hint('<integer>')]
     if this_opt == 'default_read_consistency':
         return [cl for cl in CqlRuleSet.consistency_levels if cl != 'ANY']
