@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
@@ -96,7 +97,7 @@ public class CqlInserter extends Operation
 
         String formattedQuery = null;
 
-        long start = System.currentTimeMillis();
+        TimerContext context = session.latency.time();
 
         boolean success = false;
         String exceptionMessage = null;
@@ -147,6 +148,6 @@ public class CqlInserter extends Operation
 
         session.operations.getAndIncrement();
         session.keys.getAndIncrement();
-        session.latency.getAndAdd(System.currentTimeMillis() - start);
+        context.stop();
     }
 }

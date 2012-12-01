@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
+import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
@@ -74,7 +75,7 @@ public class CqlIndexedRangeSlicer extends Operation
 
         while (received < expectedPerValue)
         {
-            long start = System.currentTimeMillis();
+            TimerContext context = session.latency.time();
 
             boolean success = false;
             String exceptionMessage = null;
@@ -132,7 +133,7 @@ public class CqlIndexedRangeSlicer extends Operation
 
             session.operations.getAndIncrement();
             session.keys.getAndAdd(results.rows.size());
-            session.latency.getAndAdd(System.currentTimeMillis() - start);
+            context.stop();
         }
     }
 
