@@ -19,37 +19,32 @@ package org.apache.cassandra.dht;
 
 import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.cassandra.streaming.IStreamCallback;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
-import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.IFailureDetector;
-import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.streaming.StreamIn;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Assists in streaming ranges to a node.
  */
-public class RangeStreamer implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener
+public class RangeStreamer
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeStreamer.class);
 
@@ -60,7 +55,7 @@ public class RangeStreamer implements IEndpointStateChangeSubscriber, IFailureDe
     private final Set<ISourceFilter> sourceFilters = new HashSet<ISourceFilter>();
     // protected for testing.
     protected CountDownLatch latch;
-    protected volatile String exceptionMessage = null;
+    private Set<Range<Token>> completed = Collections.newSetFromMap(new ConcurrentHashMap<Range<Token>, Boolean>());
 
     /**
      * A filter applied to sources to stream from when constructing a fetch map.
@@ -226,17 +221,19 @@ public class RangeStreamer implements IEndpointStateChangeSubscriber, IFailureDe
 
     public void fetch()
     {
-        latch = new CountDownLatch(toFetch().entries().size());
+        latch = new CountDownLatch(toFetch.entries().size());
+
         for (Map.Entry<String, Map.Entry<InetAddress, Collection<Range<Token>>>> entry : toFetch.entries())
         {
             final String table = entry.getKey();
             final InetAddress source = entry.getValue().getKey();
-            Collection<Range<Token>> ranges = entry.getValue().getValue();
+            final Collection<Range<Token>> ranges = entry.getValue().getValue();
             /* Send messages to respective folks to stream data over to me */
             IStreamCallback callback = new IStreamCallback()
             {
                 public void onSuccess()
                 {
+                    completed.addAll(ranges);
                     latch.countDown();
                     if (logger.isDebugEnabled())
                         logger.debug(String.format("Removed %s/%s as a %s source; remaining is %s",
@@ -245,8 +242,8 @@ public class RangeStreamer implements IEndpointStateChangeSubscriber, IFailureDe
 
                 public void onFailure()
                 {
+                    latch.countDown();
                     logger.warn("Streaming from " + source + " failed");
-                    onSuccess(); // calling onSuccess for latch countdown
                 }
             };
             if (logger.isDebugEnabled())
@@ -254,64 +251,18 @@ public class RangeStreamer implements IEndpointStateChangeSubscriber, IFailureDe
             StreamIn.requestRanges(source, table, ranges, callback, opType);
         }
 
-        FailureDetector.instance.registerFailureDetectionEventListener(this);
-        Gossiper.instance.register(this);
         try
         {
             latch.await();
-            if (exceptionMessage != null)
-                throw new RuntimeException(exceptionMessage);
+            for (Map.Entry<String, Map.Entry<InetAddress, Collection<Range<Token>>>> entry : toFetch.entries())
+            {
+                if (!completed.containsAll(entry.getValue().getValue()))
+                    throw new RuntimeException(String.format("Unable to fetch range %s for keyspace %s from any hosts", entry.getValue().getValue(), entry.getKey()));
+            }
         }
         catch (InterruptedException e)
         {
             throw new AssertionError(e);
-        }
-        finally
-        {
-            FailureDetector.instance.unregisterFailureDetectionEventListener(this);
-            Gossiper.instance.unregister(this);
-        }
-    }
-    
-    @Override
-    public void onJoin(InetAddress endpoint, EndpointState epState) {}
-
-    @Override
-    public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value) {}
-
-    @Override
-    public void onAlive(InetAddress endpoint, EndpointState state) {}
-
-    @Override
-    public void onDead(InetAddress endpoint, EndpointState state) {}
-    
-    @Override
-    public void onRemove(InetAddress endpoint)
-    {
-        convict(endpoint, Double.MAX_VALUE);
-    }
-
-    @Override
-    public void onRestart(InetAddress endpoint, EndpointState epState)
-    {
-        convict(endpoint, Double.MAX_VALUE);
-    }
-
-    public void convict(InetAddress endpoint, double phi)
-    {        
-        // We want a higher confidence in the failure detection than usual because failing a repair wrongly has a high cost.
-        // same logic as in RepairSession
-        if (phi < 2 * DatabaseDescriptor.getPhiConvictThreshold())
-            return;
-
-        for (Map.Entry<InetAddress, Collection<Range<Token>>> value: toFetch().values())
-        {
-            if (value.getKey().equals(endpoint))
-            {
-                exceptionMessage = String.format("Node: %s died while streaming the ranges. Boostrap/rebuild Aborded.", endpoint);
-                while (latch.getCount() > 0)
-                    latch.countDown();
-            }
         }
     }
 }
