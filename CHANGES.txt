@@ -12,7 +12,7 @@
  * Expose black-listed directories via JMX (CASSANDRA-4848)
 
 
-1.2-rc1
+1.2-beta3
  * make consistency level configurable in cqlsh (CASSANDRA-4829)
  * fix cqlsh rendering of blob fields (CASSANDRA-4970)
  * fix cqlsh DESCRIBE command (CASSANDRA-4913)
@@ -41,6 +41,13 @@
  * Refuse ttl/writetime function on collections (CASSANDRA-4992)
  * Replace IAuthority with new IAuthorizer (CASSANDRA-4874)
 Merged from 1.1:
+=======
+1.1.8
+ * Fall back to old describe_splits if d_s_ex is not available (CASSANDRA-4803)
+ * Improve error reporting when streaming ranges fail (CASSANDRA-5009)
+
+
+1.1.7
  * cqlsh: improve COPY FROM performance (CASSANDRA-4921)
  * Fall back to old describe_splits if d_s_ex is not available (CASSANDRA-4803)
  * add basic authentication support for Pig CassandraStorage (CASSANDRA-3042)
