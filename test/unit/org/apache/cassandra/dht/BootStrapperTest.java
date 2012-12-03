@@ -217,17 +217,6 @@ public class BootStrapperTest extends SchemaLoader
         return s;
     }
 
-    @Test
-    public void testException() throws UnknownHostException
-    {
-        String table = Schema.instance.getNonSystemTables().iterator().next();
-        int replicationFactor = Table.open(table).getReplicationStrategy().getReplicationFactor();
-        RangeStreamer streamer = testSourceTargetComputation(table, replicationFactor, replicationFactor);
-        streamer.latch = new CountDownLatch(4);
-        streamer.convict(streamer.toFetch().get(table).iterator().next().getKey(), Double.MAX_VALUE);
-        assertNotNull("Exception message not set, test failed", streamer.exceptionMessage);
-    }
-
     private void generateFakeEndpoints(int numOldNodes) throws UnknownHostException
     {
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
