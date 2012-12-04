@@ -34,27 +34,25 @@
  * Fix allowing collections with compact storage (CASSANDRA-4990)
  * Refuse ttl/writetime function on collections (CASSANDRA-4992)
  * Replace IAuthority with new IAuthorizer (CASSANDRA-4874)
-Merged from 1.1:
-=======
-1.1.8
- * Fall back to old describe_splits if d_s_ex is not available (CASSANDRA-4803)
- * Improve error reporting when streaming ranges fail (CASSANDRA-5009)
-
-
-1.1.7
- * cqlsh: improve COPY FROM performance (CASSANDRA-4921)
- * Fall back to old describe_splits if d_s_ex is not available (CASSANDRA-4803)
+ * clqsh: fix KEY pseudocolumn escaping when describing Thrift tables
+   in CQL3 mode (CASSANDRA-4955)
  * add basic authentication support for Pig CassandraStorage (CASSANDRA-3042)
  * fix CQL2 ALTER TABLE compaction_strategy_class altering (CASSANDRA-4965)
+Merged from 1.1:
+ * Fall back to old describe_splits if d_s_ex is not available (CASSANDRA-4803)
+ * Improve error reporting when streaming ranges fail (CASSANDRA-5009)
+ * Fix cqlsh timestamp formatting of timezone info (CASSANDRA-4746)
+ * Fix assertion failure with leveled compaction (CASSANDRA-4799)
+ * Check for null end_token in get_range_slice (CASSANDRA-4804)
+ * Remove all remnants of removed nodes (CASSANDRA-4840)
+ * Add aut-reloading of the log4j file in debian package (CASSANDRA-4855)
+ * Fix estimated row cache entry size (CASSANDRA-4860)
  * reset getRangeSlice filter after finishing a row for get_paged_slice
    (CASSANDRA-4919)
  * expunge row cache post-truncate (CASSANDRA-4940)
- * remove IAuthority2 (CASSANDRA-4875)
  * Allow static CF definition with compact storage (CASSANDRA-4910)
  * Fix endless loop/compaction of schema_* CFs due to broken timestamps (CASSANDRA-4880)
  * Fix 'wrong class type' assertion in CounterColumn (CASSANDRA-4976)
- * clqsh: fix KEY pseudocolumn escaping when describing Thrift tables
-   in CQL3 mode (CASSANDRA-4955)
 
 
 1.2-beta2
@@ -126,22 +124,9 @@ Merged from 1.1:
  * (CQL) fix CREATE COLUMNFAMILY permissions check (CASSANDRA-4864)
  * Fix DynamicCompositeType same type comparison (CASSANDRA-4711)
  * Fix duplicate SSTable reference when stream session failed (CASSANDRA-3306)
-<<<<<<< HEAD
-||||||| merged common ancestors
  * Allow static CF definition with compact storage (CASSANDRA-4910)
  * Fix endless loop/compaction of schema_* CFs due to broken timestamps (CASSANDRA-4880)
  * Fix 'wrong class type' assertion in CounterColumn (CASSANDRA-4976)
-=======
- * Allow static CF definition with compact storage (CASSANDRA-4910)
- * Fix endless loop/compaction of schema_* CFs due to broken timestamps (CASSANDRA-4880)
- * Fix 'wrong class type' assertion in CounterColumn (CASSANDRA-4976)
- * Fix cqlsh timestamp formatting of timezone info (CASSANDRA-4746)
- * Fix assertion failure with leveled compaction (CASSANDRA-4799)
- * Check for null end_token in get_range_slice (CASSANDRA-4804)
- * Remove all remnants of removed nodes (CASSANDRA-4840)
- * Add aut-reloading of the log4j file in debian package (CASSANDRA-4855)
- * Fix estimated row cache entry size (CASSANDRA-4860)
->>>>>>> cassandra-1.1
 
 
 1.2-beta1
