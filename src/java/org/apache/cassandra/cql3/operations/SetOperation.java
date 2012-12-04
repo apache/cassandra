@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.cassandra.cql3.ColumnNameBuilder;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.ColumnFamily;
@@ -143,6 +144,13 @@ public class SetOperation implements Operation
             ByteBuffer name = b.add(values.get(i).getByteBuffer(validator.nameComparator(), params.variables)).build();
             cf.addColumn(params.makeTombstone(name));
         }
+    }
+
+    public void addBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
+    {
+        for (Term t : values)
+            if (t.isBindMarker())
+                boundNames[t.bindIndex] = column;
     }
 
     public List<Term> getValues()

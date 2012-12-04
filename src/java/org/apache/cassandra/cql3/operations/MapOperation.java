@@ -23,7 +23,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnNameBuilder;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.ColumnFamily;
@@ -125,6 +127,33 @@ public class MapOperation implements Operation
     {
         ByteBuffer name = builder.add(discardKey.getByteBuffer(validator.nameComparator(), params.variables)).build();
         cf.addColumn(params.makeTombstone(name));
+    }
+
+    public void addBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
+    {
+        if (!(column.type instanceof MapType))
+            throw new InvalidRequestException(String.format("Invalid operation, %s is not of map type", column.name));
+
+        MapType mt = (MapType)column.type;
+        for (Map.Entry<Term, Term> entry : values.entrySet())
+        {
+            Term key = entry.getKey();
+            Term value = entry.getValue();
+            if (key.isBindMarker())
+                boundNames[key.bindIndex] = keySpecOf(column, mt);
+            if (value.isBindMarker())
+                boundNames[value.bindIndex] = valueSpecOf(column, mt);
+        }
+    }
+
+    public static ColumnSpecification keySpecOf(ColumnSpecification column, MapType type)
+    {
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("key(" + column.name + ")", true), type.keys);
+    }
+
+    public static ColumnSpecification valueSpecOf(ColumnSpecification column, MapType type)
+    {
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), type.values);
     }
 
     public List<Term> getValues()

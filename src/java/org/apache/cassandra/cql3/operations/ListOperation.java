@@ -24,14 +24,18 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnNameBuilder;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.Pair;
@@ -97,7 +101,7 @@ public class ListOperation implements Operation
                         UpdateParameters params,
                         List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
     {
-        if (!(validator instanceof ListType))
+        if (!(validator instanceof ListType || (kind == Kind.SET_IDX && validator instanceof MapType)))
             throw new InvalidRequestException("List operations are only supported on List typed columns, but " + validator + " given.");
 
         switch (kind)
@@ -107,7 +111,17 @@ public class ListOperation implements Operation
                 doAppend(cf, builder, (CollectionType)validator, params);
                 break;
             case SET_IDX:
-                doSet(cf, builder, params, (CollectionType)validator, list);
+                // Since the parser couldn't disambiguate between a 'list set by idx'
+                // and a 'map put by key', we have to do it now.
+                if (validator instanceof MapType)
+                {
+                    assert values.size() == 2;
+                    MapOperation.Put(values.get(0), values.get(1)).execute(cf, builder, validator, params, null);
+                }
+                else
+                {
+                    doSet(cf, builder, params, (CollectionType)validator, list);
+                }
                 break;
             case APPEND:
                 doAppend(cf, builder, (CollectionType)validator, params);
@@ -269,6 +283,49 @@ public class ListOperation implements Operation
     {
         int idx = validateListIdx(values.get(0), list);
         cf.addColumn(params.makeTombstone(list.get(idx).right.name()));
+    }
+
+    public void addBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
+    {
+        // Since the parser couldn't disambiguate between a 'list set by idx'
+        // and a 'map put by key', we have to do it now.
+        if (kind == Kind.SET_IDX && (column.type instanceof MapType))
+        {
+            assert values.size() == 2;
+            MapOperation.Put(values.get(0), values.get(1)).addBoundNames(column, boundNames);
+            return;
+        }
+
+        if (!(column.type instanceof ListType))
+            throw new InvalidRequestException(String.format("Invalid operation, %s is not of list type", column.name));
+
+        ListType lt = (ListType)column.type;
+        if (kind == Kind.SET_IDX)
+        {
+            assert values.size() == 2;
+            Term idx = values.get(0);
+            Term value = values.get(1);
+            if (idx.isBindMarker())
+                boundNames[idx.bindIndex] = indexSpecOf(column);
+            if (value.isBindMarker())
+                boundNames[value.bindIndex] = valueSpecOf(column, lt);
+        }
+        else
+        {
+            for (Term t : values)
+                if (t.isBindMarker())
+                    boundNames[t.bindIndex] = column;
+        }
+    }
+
+    public static ColumnSpecification indexSpecOf(ColumnSpecification column)
+    {
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("idx(" + column.name + ")", true), Int32Type.instance);
+    }
+
+    public static ColumnSpecification valueSpecOf(ColumnSpecification column, ListType type)
+    {
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), type.elements);
     }
 
     public List<Term> getValues()
