@@ -12,19 +12,19 @@
  * Separate tracing from Log4J (CASSANDRA-4861)
  * Exclude gcable tombstones from merkle-tree computation (CASSANDRA-4905)
  * Better printing of AbstractBounds for tracing (CASSANDRA-4931)
- * Optimize mostRecentTomstone check in CC.collectAllData (CASSANDRA-4883)
+ * Optimize mostRecentTombstone check in CC.collectAllData (CASSANDRA-4883)
  * Change stream session ID to UUID to avoid collision from same node (CASSANDRA-4813)
  * Use Stats.db when bulk loading if present (CASSANDRA-4957)
  * Skip repair on system_trace and keyspaces with RF=1 (CASSANDRA-4956)
- * Remove select arbitrary limit (CASSANDRA-4918)
+ * (cql3) Remove arbitrary SELECT limit (CASSANDRA-4918)
  * Correctly handle prepared operation on collections (CASSANDRA-4945)
  * Fix CQL3 LIMIT (CASSANDRA-4877)
  * Fix Stress for CQL3 (CASSANDRA-4979)
  * Remove cassandra specific exceptions from JMX interface (CASSANDRA-4893)
  * (CQL3) Force using ALLOW FILTERING on potentially inefficient queries (CASSANDRA-4915)
- * Fix adding column when the table has collections (CASSANDRA-4982)
- * Fix allowing collections with compact storage (CASSANDRA-4990)
- * Refuse ttl/writetime function on collections (CASSANDRA-4992)
+ * (cql3) Fix adding column when the table has collections (CASSANDRA-4982)
+ * (cql3) Fix allowing collections with compact storage (CASSANDRA-4990)
+ * (cql3) Refuse ttl/writetime function on collections (CASSANDRA-4992)
  * Replace IAuthority with new IAuthorizer (CASSANDRA-4874)
  * clqsh: fix KEY pseudocolumn escaping when describing Thrift tables
    in CQL3 mode (CASSANDRA-4955)
@@ -94,11 +94,12 @@ Merged from 1.1:
  * Fix binary protocol NEW_NODE event (CASSANDRA-4679)
  * Fix potential infinite loop in tombstone compaction (CASSANDRA-4781)
  * Remove system tables accounting from schema (CASSANDRA-4850)
- * Force provided columns in clustering key order in 'CLUSTERING ORDER BY' (CASSANDRA-4881)
+ * (cql3) Force provided columns in clustering key order in 
+   'CLUSTERING ORDER BY' (CASSANDRA-4881)
  * Fix composite index bug (CASSANDRA-4884)
  * Fix short read protection for CQL3 (CASSANDRA-4882)
  * Add tracing support to the binary protocol (CASSANDRA-4699)
- * Don't allow prepared marker inside collections (CASSANDRA-4890)
+ * (cql3) Don't allow prepared marker inside collections (CASSANDRA-4890)
  * Re-allow order by on non-selected columns (CASSANDRA-4645)
  * Bug when composite index is created in a table having collections (CASSANDRA-4909)
  * log index scan subject in CompositesSearcher (CASSANDRA-4904)
@@ -188,6 +189,7 @@ Merged from 1.1:
  * (cql3) Allow defining default consistency levels (CASSANDRA-4448)
  * (cql3) Fix queries using LIMIT missing results (CASSANDRA-4579)
  * fix cross-version gossip messaging (CASSANDRA-4576)
+
 
 1.1.6
  * Wait for writes on synchronous read digest mismatch (CASSANDRA-4792)
@@ -664,7 +666,7 @@ Merged from 0.8:
    case (CASSANDRA-3251)
  * fix thread safety issues in commitlog replay, primarily affecting
    systems with many (100s) of CF definitions (CASSANDRA-3751)
- * Fix relevant tomstone ignored with super columns (CASSANDRA-3875)
+ * Fix relevant tombstone ignored with super columns (CASSANDRA-3875)
 
 
 1.0.7
