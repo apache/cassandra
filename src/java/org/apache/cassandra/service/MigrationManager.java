@@ -210,12 +210,11 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     // Returns a future on the local application of the schema
     private static Future<?> announce(final Collection<RowMutation> schema)
     {
-        Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(new Callable<Object>()
+        Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
         {
-            public Object call() throws Exception
+            protected void runMayThrow() throws IOException, ConfigurationException
             {
                 DefsTable.mergeSchema(schema);
-                return null;
             }
         });
 
