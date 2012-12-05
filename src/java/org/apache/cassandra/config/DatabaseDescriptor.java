@@ -735,52 +735,52 @@ public class DatabaseDescriptor
 
     public static long getRpcTimeout()
     {
-        return conf.rpc_timeout_in_ms;
+        return conf.request_timeout_in_ms;
     }
 
     public static void setRpcTimeout(Long timeOutInMillis)
     {
-        conf.rpc_timeout_in_ms = timeOutInMillis;
+        conf.request_timeout_in_ms = timeOutInMillis;
     }
 
     public static long getReadRpcTimeout()
     {
-        return conf.read_rpc_timeout_in_ms;
+        return conf.read_request_timeout_in_ms;
     }
 
     public static void setReadRpcTimeout(Long timeOutInMillis)
     {
-        conf.read_rpc_timeout_in_ms = timeOutInMillis;
+        conf.read_request_timeout_in_ms = timeOutInMillis;
     }
 
     public static long getRangeRpcTimeout()
     {
-        return conf.range_rpc_timeout_in_ms;
+        return conf.range_request_timeout_in_ms;
     }
 
     public static void setRangeRpcTimeout(Long timeOutInMillis)
     {
-        conf.range_rpc_timeout_in_ms = timeOutInMillis;
+        conf.range_request_timeout_in_ms = timeOutInMillis;
     }
 
     public static long getWriteRpcTimeout()
     {
-        return conf.write_rpc_timeout_in_ms;
+        return conf.write_request_timeout_in_ms;
     }
 
     public static void setWriteRpcTimeout(Long timeOutInMillis)
     {
-        conf.write_rpc_timeout_in_ms = timeOutInMillis;
+        conf.write_request_timeout_in_ms = timeOutInMillis;
     }
 
     public static long getTruncateRpcTimeout()
     {
-        return conf.truncate_rpc_timeout_in_ms;
+        return conf.truncate_request_timeout_in_ms;
     }
 
     public static void setTruncateRpcTimeout(Long timeOutInMillis)
     {
-        conf.truncate_rpc_timeout_in_ms = timeOutInMillis;
+        conf.truncate_request_timeout_in_ms = timeOutInMillis;
     }
 
     public static boolean hasCrossNodeTimeout()
