@@ -531,7 +531,7 @@ public final class CFMetaData
     public double getBloomFilterFpChance()
     {
         return bloomFilterFpChance == null
-               ? compactionStrategyClass == LeveledCompactionStrategy.class ? 1.0 : 0.01
+               ? compactionStrategyClass == LeveledCompactionStrategy.class ? 0.1 : 0.01
                : bloomFilterFpChance;
     }
 
