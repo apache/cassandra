@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.operations.ColumnOperation;
 import org.apache.cassandra.cql3.operations.Operation;
+import org.apache.cassandra.cql3.operations.PreparedOperation;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
@@ -205,8 +206,6 @@ public class UpdateStatement extends ModificationStatement
     throws InvalidRequestException
     {
         validateKey(key);
-        // if true we need to wrap RowMutation into CounterMutation
-        boolean hasCounterColumn = false;
 
         QueryProcessor.validateKey(key);
         RowMutation rm = new RowMutation(cfDef.cfm.ksName, key);
@@ -246,7 +245,7 @@ public class UpdateStatement extends ModificationStatement
                 assert operations.size() == 1;
                 operation = operations.get(0);
             }
-            hasCounterColumn = addToMutation(cf, builder, cfDef.value, operation, params, null);
+            operation.execute(cf, builder.copy(), cfDef.value == null ? null : cfDef.value.type, params, null);
         }
         else
         {
@@ -254,70 +253,26 @@ public class UpdateStatement extends ModificationStatement
             {
                 CFDefinition.Name name = entry.getKey();
                 Operation op = entry.getValue();
-                hasCounterColumn |= addToMutation(cf, builder.copy().add(name.name.key), name, op, params, group == null || !op.requiresRead(name.type) ? null : group.getCollection(name.name.key));
+                op.execute(cf, builder.copy().add(name.name.key), name.type, params, group == null || !op.requiresRead(name.type) ? null : group.getCollection(name.name.key));
             }
         }
 
-        return (hasCounterColumn) ? new CounterMutation(rm, cl) : rm;
-    }
-
-    private boolean addToMutation(ColumnFamily cf,
-                                  ColumnNameBuilder builder,
-                                  CFDefinition.Name valueDef,
-                                  Operation valueOperation,
-                                  UpdateParameters params,
-                                  List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
-    {
-        Operation.Type type = valueOperation.getType();
-
-        switch (type)
-        {
-            case COUNTER:
-                if (valueDef != null && valueDef.type.isCollection())
-                    throw new InvalidRequestException("Cannot assign collection value to column with " + valueDef.type + " type.");
-                break;
-            case LIST:
-            case SET:
-            case MAP:
-                if (!valueDef.type.isCollection())
-                    throw new InvalidRequestException("Can't apply collection operation on column with " + valueDef.type + " type.");
-                break;
-        }
-        valueOperation.execute(cf, builder.copy(), valueDef == null ? null : valueDef.type, params, list);
-        return valueOperation.getType() == Operation.Type.COUNTER;
+        return type == Type.COUNTER ? new CounterMutation(rm, cl) : rm;
     }
 
     public ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException
     {
-        if (columns != null)
-        {
-            for (Pair<ColumnIdentifier, Operation> column : columns)
-            {
-                if (column.right.getType() == Operation.Type.COUNTER)
-                {
-                    if (type == null)
-                        type = Type.COUNTER;
-                    else if (type != Type.COUNTER)
-                        throw new InvalidRequestException("Mix of counter and non-counter operations is not allowed.");
-                }
-                else if (type == Type.COUNTER)
-                {
-                    throw new InvalidRequestException("Mix of counter and non-counter operations is not allowed.");
-                }
-            }
-        }
-
-        if (type == null)
-            type = Type.LOGGED;
-
         // Deal here with the keyspace overwrite thingy to avoid mistake
-        CFMetaData metadata = validateColumnFamily(keyspace(), columnFamily(), type == Type.COUNTER);
+        CFMetaData metadata = validateColumnFamily(keyspace(), columnFamily());
         cfDef = metadata.getCfDef();
+
+        type = metadata.getDefaultValidator().isCommutative() ? Type.COUNTER : Type.LOGGED;
 
         if (columns == null)
         {
             // Created from an INSERT
-            // Don't hate, validate.
+            if (type == Type.COUNTER)
+                throw new InvalidRequestException("INSERT statement are not allowed on counter tables, use UPDATE instead");
             if (columnNames.size() != columnOperations.size())
                 throw new InvalidRequestException("unmatched column names/values");
             if (columnNames.size() < 1)
@@ -363,6 +318,30 @@ public class UpdateStatement extends ModificationStatement
                 if (name == null)
                     throw new InvalidRequestException(String.format("Unknown identifier %s", entry.left));
 
+                Operation operation = entry.right;
+
+                switch (operation.getType())
+                {
+                    case COUNTER:
+                        if (type != Type.COUNTER)
+                            throw new InvalidRequestException("Invalid counter operation on non-counter table.");
+                        break;
+                    case LIST:
+                    case SET:
+                    case MAP:
+                        if (!name.type.isCollection())
+                            throw new InvalidRequestException("Cannot apply collection operation on column " + name + " with " + name.type + " type.");
+                    // Fallthrough on purpose
+                    case COLUMN:
+                        if (type == Type.COUNTER)
+                            throw new InvalidRequestException("Invalid non-counter operation on counter table.");
+                        break;
+                    case PREPARED:
+                        if (type == Type.COUNTER && !((PreparedOperation)operation).isPotentialCounterOperation())
+                            throw new InvalidRequestException("Invalid non-counter operation on counter table.");
+                        break;
+                }
+
                 switch (name.kind)
                 {
                     case KEY_ALIAS:
@@ -370,15 +349,14 @@ public class UpdateStatement extends ModificationStatement
                         throw new InvalidRequestException(String.format("PRIMARY KEY part %s found in SET part", entry.left));
                     case VALUE_ALIAS:
                     case COLUMN_METADATA:
-                        for (Operation op : processedColumns.get(name))
-                            if (op.getType() == Operation.Type.COLUMN)
+                        for (Operation otherOp : processedColumns.get(name))
+                            if (otherOp.getType() == Operation.Type.COLUMN)
                                 throw new InvalidRequestException(String.format("Multiple definitions found for column %s", name));
 
-                        Operation op = entry.right;
-                        for (Term t : op.getValues())
+                        for (Term t : operation.getValues())
                             if (t.isBindMarker())
                                 boundNames[t.bindIndex] = name;
-                        processedColumns.put(name, op);
+                        processedColumns.put(name, operation);
                         break;
                 }
             }
