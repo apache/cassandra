@@ -265,7 +265,7 @@ public final class MessagingService implements MessagingServiceMBean
     private final SimpleCondition listenGate;
 
     /**
-     * Verbs it's okay to drop if the request has been queued longer than RPC_TIMEOUT.  These
+     * Verbs it's okay to drop if the request has been queued longer than the request timeout.  These
      * all correspond to client requests or something triggered by them; we don't want to
      * drop internal messages like bootstrap or repair notifications.
      */
