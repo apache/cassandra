@@ -136,6 +136,10 @@ public class PreparedOperation implements Operation
         return (validator instanceof ListType) && kind == Kind.MINUS_PREPARED;
     }
 
+    public boolean isPotentialCounterOperation() {
+        return kind == Kind.PLUS_PREPARED || kind == Kind.MINUS_PREPARED;
+    }
+
     public Type getType()
     {
         return Type.PREPARED;
