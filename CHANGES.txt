@@ -12,6 +12,10 @@
  * Expose black-listed directories via JMX (CASSANDRA-4848)
 
 
+1.2-rc1
+ * rename rpc_timeout settings to request_timeout (CASSANDRA-5027)
+
+
 1.2-beta3
  * make consistency level configurable in cqlsh (CASSANDRA-4829)
  * fix cqlsh rendering of blob fields (CASSANDRA-4970)

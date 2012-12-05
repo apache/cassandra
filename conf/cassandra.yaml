@@ -460,18 +460,17 @@ compaction_preheat_key_cache: true
 # stream_throughput_outbound_megabits_per_sec: 400
 
 # How long the coordinator should wait for read operations to complete
-read_rpc_timeout_in_ms: 10000
+read_request_timeout_in_ms: 10000
 # How long the coordinator should wait for seq or index scans to complete
-range_rpc_timeout_in_ms: 10000
+range_request_timeout_in_ms: 10000
 # How long the coordinator should wait for writes to complete
-write_rpc_timeout_in_ms: 10000
+write_request_timeout_in_ms: 10000
 # How long the coordinator should wait for truncates to complete
-# (This can be much longer, because we need to flush all CFs
-# to make sure we can clear out anythink in the commitlog that could
-# cause truncated data to reappear.)
-truncate_rpc_timeout_in_ms: 300000
+# (This can be much longer, because unless auto_snapshot is disabled
+# we need to flush first so we can snapshot before removing the data.)
+truncate_request_timeout_in_ms: 60000
 # The default timeout for other, miscellaneous operations
-rpc_timeout_in_ms: 10000
+request_timeout_in_ms: 10000
 
 # Enable operation timeout information exchange between nodes to accurately
 # measure request timeouts, If disabled cassandra will assuming the request

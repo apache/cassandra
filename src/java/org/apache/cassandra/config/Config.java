@@ -50,15 +50,15 @@ public class Config
     public String initial_token;
     public Integer num_tokens = 1;
 
-    public volatile Long rpc_timeout_in_ms = new Long(10000);
+    public volatile Long request_timeout_in_ms = new Long(10000);
 
-    public Long read_rpc_timeout_in_ms = new Long(10000);
+    public Long read_request_timeout_in_ms = new Long(10000);
 
-    public Long range_rpc_timeout_in_ms = new Long(10000);
+    public Long range_request_timeout_in_ms = new Long(10000);
 
-    public Long write_rpc_timeout_in_ms = new Long(10000);
+    public Long write_request_timeout_in_ms = new Long(10000);
 
-    public Long truncate_rpc_timeout_in_ms = new Long(300000);
+    public Long truncate_request_timeout_in_ms = new Long(60000);
 
     public Integer streaming_socket_timeout_in_ms = new Integer(0);
 
