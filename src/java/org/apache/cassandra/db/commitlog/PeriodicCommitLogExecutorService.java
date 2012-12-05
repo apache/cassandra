@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.concurrent.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 class PeriodicCommitLogExecutorService implements ICommitLogExecutorService
@@ -32,7 +33,7 @@ class PeriodicCommitLogExecutorService implements ICommitLogExecutorService
 
     public PeriodicCommitLogExecutorService(final CommitLog commitLog)
     {
-        queue = new LinkedBlockingQueue<Runnable>(1024 * Runtime.getRuntime().availableProcessors());
+        queue = new LinkedBlockingQueue<Runnable>(1024 * FBUtilities.getAvailableProcessors());
         Runnable runnable = new WrappedRunnable()
         {
             public void runMayThrow() throws Exception

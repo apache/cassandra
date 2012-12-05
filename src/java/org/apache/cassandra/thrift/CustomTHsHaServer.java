@@ -30,6 +30,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -378,7 +379,7 @@ public class CustomTHsHaServer extends TNonblockingServer
                                                                                .outputProtocolFactory(args.tProtocolFactory)
                                                                                .processor(args.processor);
             // Check for available processors in the system which will be equal to the IO Threads.
-            return new CustomTHsHaServer(serverArgs, executorService, Runtime.getRuntime().availableProcessors());
+            return new CustomTHsHaServer(serverArgs, executorService, FBUtilities.getAvailableProcessors());
         }
     }
 }
