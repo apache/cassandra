@@ -73,7 +73,7 @@ public class FBUtilities
         if (System.getProperty("cassandra.available_processors") != null)
             return Integer.parseInt(System.getProperty("cassandra.available_processors"));
         else
-            return FBUtilities.getAvailableProcessors();
+            return Runtime.getRuntime().availableProcessors();
     }
 
     private static final ThreadLocal<MessageDigest> localMD5Digest = new ThreadLocal<MessageDigest>()
