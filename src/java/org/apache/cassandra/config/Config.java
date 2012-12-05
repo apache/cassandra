@@ -20,6 +20,7 @@ package org.apache.cassandra.config;
 import org.apache.cassandra.cache.SerializingCacheProvider;
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
@@ -100,7 +101,7 @@ public class Config
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     public Integer column_index_size_in_kb = 64;
     public Integer in_memory_compaction_limit_in_mb = 64;
-    public Integer concurrent_compactors = Runtime.getRuntime().availableProcessors();
+    public Integer concurrent_compactors = FBUtilities.getAvailableProcessors();
     public volatile Integer compaction_throughput_mb_per_sec = 16;
     public Boolean multithreaded_compaction = false;
 
