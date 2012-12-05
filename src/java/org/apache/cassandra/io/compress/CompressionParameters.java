@@ -56,6 +56,7 @@ public class CompressionParameters
         String chunkLength = options.get(CHUNK_LENGTH_KB);
         options.remove(SSTABLE_COMPRESSION);
         options.remove(CHUNK_LENGTH_KB);
+        options.remove(CRC_CHECK_CHANCE);
         CompressionParameters cp = new CompressionParameters(sstableCompressionClass, parseChunkLength(chunkLength), options);
         cp.validate();
         return cp;
