@@ -389,7 +389,7 @@ public class DatabaseDescriptor
             }
 
             if (conf.concurrent_compactors == null)
-                conf.concurrent_compactors = Runtime.getRuntime().availableProcessors();
+                conf.concurrent_compactors = FBUtilities.getAvailableProcessors();
 
             if (conf.concurrent_compactors <= 0)
                 throw new ConfigurationException("concurrent_compactors should be strictly greater than 0");

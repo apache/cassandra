@@ -69,6 +69,14 @@ public class FBUtilities
     private static volatile InetAddress localInetAddress;
     private static volatile InetAddress broadcastInetAddress;
 
+    public static int getAvailableProcessors()
+    {
+        if (System.getProperty("cassandra.available_processors") != null)
+            return Integer.parseInt(System.getProperty("cassandra.available_processors"));
+        else
+            return Runtime.getRuntime().availableProcessors();
+    }
+
     private static final ThreadLocal<MessageDigest> localMD5Digest = new ThreadLocal<MessageDigest>()
     {
         @Override
