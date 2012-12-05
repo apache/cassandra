@@ -229,7 +229,7 @@ public class SSTableReader extends SSTable
     {
         final Collection<SSTableReader> sstables = new LinkedBlockingQueue<SSTableReader>();
 
-        ExecutorService executor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("SSTableBatchOpen", Runtime.getRuntime().availableProcessors());
+        ExecutorService executor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("SSTableBatchOpen", FBUtilities.getAvailableProcessors());
         for (final Map.Entry<Descriptor, Set<Component>> entry : entries)
         {
             Runnable runnable = new Runnable()

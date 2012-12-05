@@ -367,7 +367,7 @@ public class DatabaseDescriptor
             }
 
             if (conf.concurrent_compactors == null)
-                conf.concurrent_compactors = Runtime.getRuntime().availableProcessors();
+                conf.concurrent_compactors = FBUtilities.getAvailableProcessors();
 
             if (conf.concurrent_compactors <= 0)
                 throw new ConfigurationException("concurrent_compactors should be strictly greater than 0");
@@ -382,11 +382,11 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("Unknown rpc_server_type: " + conf.rpc_server_type);
             if (conf.rpc_min_threads == null)
                 conf.rpc_min_threads = conf.rpc_server_type.toLowerCase().equals("hsha")
-                                     ? Runtime.getRuntime().availableProcessors() * 4
+                                     ? FBUtilities.getAvailableProcessors() * 4
                                      : 16;
             if (conf.rpc_max_threads == null)
                 conf.rpc_max_threads = conf.rpc_server_type.toLowerCase().equals("hsha")
-                                     ? Runtime.getRuntime().availableProcessors() * 4
+                                     ? FBUtilities.getAvailableProcessors() * 4
                                      : Integer.MAX_VALUE;
 
             /* data file and commit log directories. they get created later, when they're needed. */

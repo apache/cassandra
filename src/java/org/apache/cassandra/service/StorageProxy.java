@@ -82,7 +82,7 @@ public class StorageProxy implements StorageProxyMBean
 
     private static volatile boolean hintedHandoffEnabled = DatabaseDescriptor.hintedHandoffEnabled();
     private static volatile int maxHintWindow = DatabaseDescriptor.getMaxHintWindow();
-    private static volatile int maxHintsInProgress = 1024 * Runtime.getRuntime().availableProcessors();
+    private static volatile int maxHintsInProgress = 1024 * FBUtilities.getAvailableProcessors();
     private static final AtomicInteger totalHintsInProgress = new AtomicInteger();
     private static final Map<InetAddress, AtomicInteger> hintsInProgress = new MapMaker().concurrencyLevel(1).makeComputingMap(new Function<InetAddress, AtomicInteger>()
     {

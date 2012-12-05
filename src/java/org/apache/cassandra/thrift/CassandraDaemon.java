@@ -27,6 +27,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.service.AbstractCassandraDaemon;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.server.TNonblockingServer;
 import org.apache.thrift.server.TThreadPoolServer;
 import org.slf4j.Logger;
@@ -202,7 +203,7 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
                                                                                        .processor(processor);
                     logger.info(String.format("Using custom half-sync/half-async thrift server on %s : %s", listenAddr, listenPort));
                     // Check for available processors in the system which will be equal to the IO Threads.
-                    serverEngine = new CustomTHsHaServer(serverArgs, executorService, Runtime.getRuntime().availableProcessors());
+                    serverEngine = new CustomTHsHaServer(serverArgs, executorService, FBUtilities.getAvailableProcessors());
                 }
             }
         }
