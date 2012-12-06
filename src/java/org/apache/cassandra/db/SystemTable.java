@@ -377,6 +377,24 @@ public class SystemTable
     }
 
     /**
+     * Return a map of store host_ids to IP addresses
+     *
+     */
+    public static Map<InetAddress, UUID> loadHostIds()
+    {
+        Map<InetAddress, UUID> hostIdMap = new HashMap<InetAddress, UUID>();
+        for (UntypedResultSet.Row row : processInternal("SELECT peer, host_id FROM system." + PEERS_CF))
+        {
+            InetAddress peer = row.getInetAddress("peer");
+            if (row.has("host_id"))
+            {
+                hostIdMap.put(peer, row.getUUID("host_id"));
+            }
+        }
+        return hostIdMap;
+    }
+
+    /**
      * One of three things will happen if you try to read the system table:
      * 1. files are present and you can read them: great
      * 2. no files are there: great (new node is assumed)
@@ -528,20 +546,20 @@ public class SystemTable
     {
         UUID hostId = null;
 
-        String req = "SELECT ring_id FROM system.%s WHERE key='%s'";
+        String req = "SELECT host_id FROM system.%s WHERE key='%s'";
         UntypedResultSet result = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
 
         // Look up the Host UUID (return it if found)
-        if (!result.isEmpty() && result.one().has("ring_id"))
+        if (!result.isEmpty() && result.one().has("host_id"))
         {
-            return result.one().getUUID("ring_id");
+            return result.one().getUUID("host_id");
         }
 
         // ID not found, generate a new one, persist, and then return it.
         hostId = UUID.randomUUID();
         logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
 
-        req = "INSERT INTO system.%s (key, ring_id) VALUES ('%s', '%s')";
+        req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', '%s')";
         processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, hostId));
         return hostId;
     }
