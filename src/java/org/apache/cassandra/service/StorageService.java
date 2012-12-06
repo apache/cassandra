@@ -427,6 +427,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             logger.info("Loading persisted ring state");
             Multimap<InetAddress, Token> loadedTokens = SystemTable.loadTokens();
+            Map<InetAddress, UUID> loadedHostIds = SystemTable.loadHostIds();
             for (InetAddress ep : loadedTokens.keySet())
             {
                 if (ep.equals(FBUtilities.getBroadcastAddress()))
@@ -437,6 +438,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 else
                 {
                     tokenMetadata.updateNormalTokens(loadedTokens.get(ep), ep);
+                    tokenMetadata.updateHostId(loadedHostIds.get(ep), ep);
                     Gossiper.instance.addSavedEndpoint(ep);
                 }
             }
@@ -1178,7 +1180,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 SystemTable.updatePeerInfo(endpoint, "schema_version", value.value);
                 break;
             case HOST_ID:
-                SystemTable.updatePeerInfo(endpoint, "ring_id", value.value);
+                SystemTable.updatePeerInfo(endpoint, "host_id", value.value);
                 break;
         }
     }
