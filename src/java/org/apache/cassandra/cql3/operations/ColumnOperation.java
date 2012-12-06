@@ -112,10 +112,17 @@ public class ColumnOperation implements Operation
         cf.addCounter(new QueryPath(cf.metadata().cfName, null, builder.build()), val);
     }
 
+    public void addBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
+    {
+        if (value.isBindMarker())
+            boundNames[value.bindIndex] = column;
+    }
+
     public List<Term> getValues()
     {
         return Collections.singletonList(value);
     }
+
 
     public boolean requiresRead(AbstractType<?> validator)
     {

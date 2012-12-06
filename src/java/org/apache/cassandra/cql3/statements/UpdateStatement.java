@@ -260,7 +260,7 @@ public class UpdateStatement extends ModificationStatement
         return type == Type.COUNTER ? new CounterMutation(rm, cl) : rm;
     }
 
-    public ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException
+    public ParsedStatement.Prepared prepare(ColumnSpecification[] boundNames) throws InvalidRequestException
     {
         // Deal here with the keyspace overwrite thingy to avoid mistake
         CFMetaData metadata = validateColumnFamily(keyspace(), columnFamily());
@@ -285,9 +285,7 @@ public class UpdateStatement extends ModificationStatement
                     throw new InvalidRequestException(String.format("Unknown identifier %s", columnNames.get(i)));
 
                 Operation operation = columnOperations.get(i);
-                for (Term t : operation.getValues())
-                    if (t.isBindMarker())
-                        boundNames[t.bindIndex] = name;
+                operation.addBoundNames(name, boundNames);
 
                 switch (name.kind)
                 {
@@ -353,9 +351,7 @@ public class UpdateStatement extends ModificationStatement
                             if (otherOp.getType() == Operation.Type.COLUMN)
                                 throw new InvalidRequestException(String.format("Multiple definitions found for column %s", name));
 
-                        for (Term t : operation.getValues())
-                            if (t.isBindMarker())
-                                boundNames[t.bindIndex] = name;
+                        operation.addBoundNames(name, boundNames);
                         processedColumns.put(name, operation);
                         break;
                 }
@@ -368,12 +364,12 @@ public class UpdateStatement extends ModificationStatement
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException
     {
-        CFDefinition.Name[] names = new CFDefinition.Name[getBoundsTerms()];
+        ColumnSpecification[] names = new ColumnSpecification[getBoundsTerms()];
         return prepare(names);
     }
 
     // Reused by DeleteStatement
-    static void processKeys(CFDefinition cfDef, List<Relation> keys, Map<ColumnIdentifier, List<Term>> processed, CFDefinition.Name[] names) throws InvalidRequestException
+    static void processKeys(CFDefinition cfDef, List<Relation> keys, Map<ColumnIdentifier, List<Term>> processed, ColumnSpecification[] names) throws InvalidRequestException
     {
         for (Relation rel : keys)
         {

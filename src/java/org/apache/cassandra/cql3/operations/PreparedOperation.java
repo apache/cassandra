@@ -125,6 +125,12 @@ public class PreparedOperation implements Operation
         }
     }
 
+    public void addBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
+    {
+        if (preparedValue.isBindMarker())
+            boundNames[preparedValue.bindIndex] = column;
+    }
+
     public List<Term> getValues()
     {
         return Collections.singletonList(preparedValue);
