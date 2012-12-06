@@ -18,6 +18,8 @@
  * Fix preparing insert queries (CASSANDRA-5016)
  * Fix preparing queries with counter increment (CASSANDRA-5022)
  * Fix preparing updates with collections (CASSANDRA-5017)
+Merged from 1.1
+ * Improve schema propagation performance (CASSANDRA-5025)
 
 
 1.2-beta3

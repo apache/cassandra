@@ -21,13 +21,19 @@ import java.io.*;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
+<<<<<<< HEAD
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
+||||||| merged common ancestors
+import java.util.concurrent.Callable;
+=======
+>>>>>>> cassandra-1.1
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,7 +87,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         if (state != ApplicationState.SCHEMA || endpoint.equals(FBUtilities.getBroadcastAddress()))
             return;
 
-        rectifySchema(UUID.fromString(value.value), endpoint);
+        maybeScheduleSchemaPull(UUID.fromString(value.value), endpoint);
     }
 
     public void onAlive(InetAddress endpoint, EndpointState state)
@@ -89,7 +95,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         VersionedValue value = state.getApplicationState(ApplicationState.SCHEMA);
 
         if (value != null)
-            rectifySchema(UUID.fromString(value.value), endpoint);
+            maybeScheduleSchemaPull(UUID.fromString(value.value), endpoint);
     }
 
     public void onDead(InetAddress endpoint, EndpointState state)
@@ -101,7 +107,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public void onRemove(InetAddress endpoint)
     {}
 
-    private static void rectifySchema(UUID theirVersion, final InetAddress endpoint)
+    private static void maybeScheduleSchemaPull(final UUID theirVersion, final InetAddress endpoint)
     {
         // Can't request migrations from nodes with versions younger than 1.1.7
         if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_117)
@@ -110,14 +116,29 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         if (Schema.instance.getVersion().equals(theirVersion))
             return;
 
-        /**
-         * if versions differ this node sends request with local migration list to the endpoint
-         * and expecting to receive a list of migrations to apply locally.
-         *
-         * Do not de-ref the future because that causes distributed deadlock (CASSANDRA-3832) because we are
-         * running in the gossip stage.
-         */
-        StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(endpoint));
+        // check our schema vs theirs, after a delay to make sure we have a chance to apply any changes
+        // being pushed out simultaneously.  See CASSANDRA-5025
+        Runnable runnable = new Runnable()
+        {
+            public void run()
+            {
+                // grab the latest version of the schema since it may have changed again since the initial scheduling
+                VersionedValue value = Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA);
+                UUID currentVersion = UUID.fromString(value.value);
+                if (Schema.instance.getVersion().equals(currentVersion))
+                    return;
+
+                /**
+                 * if versions differ this node sends request with local migration list to the endpoint
+                 * and expecting to receive a list of migrations to apply locally.
+                 *
+                 * Do not de-ref the future because that causes distributed deadlock (CASSANDRA-3832) because we are
+                 * running in the gossip stage.
+                 */
+                StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(endpoint));
+            }
+        };
+        StorageService.optionalTasks.schedule(runnable, 1, TimeUnit.MINUTES);
     }
 
     public static boolean isReadyForBootstrap()
