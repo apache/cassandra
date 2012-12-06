@@ -106,7 +106,6 @@ public class Config
     public Integer in_memory_compaction_limit_in_mb = 64;
     public Integer concurrent_compactors = FBUtilities.getAvailableProcessors();
     public volatile Integer compaction_throughput_mb_per_sec = 16;
-    public Integer compaction_throughput_mb_per_sec = 16;
     public Boolean multithreaded_compaction = false;
 
     public Integer max_streaming_retries = 3;
