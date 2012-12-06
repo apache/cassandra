@@ -62,7 +62,7 @@ public class StressAction extends Thread
         int threadCount = client.getThreads();
         Consumer[] consumers = new Consumer[threadCount];
 
-        output.println("total,interval_op_rate,interval_key_rate,latency/95th/99th,elapsed_time");
+        output.println("total,interval_op_rate,interval_key_rate,latency,95th,99th,elapsed_time");
 
         int itemsPerThread = client.getKeysPerThread();
         int modulo = client.getNumKeys() % threadCount;
