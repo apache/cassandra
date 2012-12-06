@@ -198,7 +198,7 @@ public class DeleteStatement extends ModificationStatement
         return rm;
     }
 
-    public ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException
+    public ParsedStatement.Prepared prepare(ColumnSpecification[] boundNames) throws InvalidRequestException
     {
         CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
         type = metadata.getDefaultValidator().isCommutative() ? Type.COUNTER : Type.LOGGED;
@@ -217,8 +217,23 @@ public class DeleteStatement extends ModificationStatement
             if (name.kind != CFDefinition.Name.Kind.COLUMN_METADATA && name.kind != CFDefinition.Name.Kind.VALUE_ALIAS)
                 throw new InvalidRequestException(String.format("Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", column));
 
-            if (column.key() != null && !(name.type instanceof ListType || name.type instanceof MapType))
-                throw new InvalidRequestException(String.format("Invalid selection %s since %s is neither a list or a map", column, column.id()));
+            if (column.key() != null)
+            {
+                if (name.type instanceof ListType)
+                {
+                    if (column.key().isBindMarker())
+                        boundNames[column.key().bindIndex] = ListOperation.indexSpecOf(name);
+                }
+                else if (name.type instanceof MapType)
+                {
+                    if (column.key().isBindMarker())
+                        boundNames[column.key().bindIndex] = MapOperation.keySpecOf(name, (MapType)name.type);
+                }
+                else
+                {
+                    throw new InvalidRequestException(String.format("Invalid selection %s since %s is neither a list or a map", column, column.id()));
+                }
+            }
 
             toRemove.add(Pair.create(name, column.key()));
         }
@@ -228,7 +243,7 @@ public class DeleteStatement extends ModificationStatement
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException
     {
-        CFDefinition.Name[] boundNames = new CFDefinition.Name[getBoundsTerms()];
+        ColumnSpecification[] boundNames = new ColumnSpecification[getBoundsTerms()];
         return prepare(boundNames);
     }
 

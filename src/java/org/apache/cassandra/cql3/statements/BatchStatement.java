@@ -128,7 +128,7 @@ public class BatchStatement extends ModificationStatement
         return mutations.values();
     }
 
-    public ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException
+    public ParsedStatement.Prepared prepare(ColumnSpecification[] boundNames) throws InvalidRequestException
     {
         // XXX: we use our knowledge that Modification don't create new statement upon call to prepare()
         for (ModificationStatement statement : statements)

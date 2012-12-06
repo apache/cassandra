@@ -11,6 +11,7 @@
  * add BF with 0.1 FP to LCS by default (CASSANDRA-5029)
  * Fix preparing insert queries (CASSANDRA-5016)
  * Fix preparing queries with counter increment (CASSANDRA-5022)
+ * Fix preparing updates with collections (CASSANDRA-5017)
 
 
 1.2-beta3

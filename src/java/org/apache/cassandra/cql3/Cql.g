@@ -644,11 +644,10 @@ termPairWithOperation[List<Pair<ColumnIdentifier, Operation>> columns]
         )
     | key=cident '[' t=term ']' '=' vv=term
       {
-          Operation setOp = (t.getType() == Term.Type.INTEGER)
-                             ? ListOperation.SetIndex(Arrays.asList(t, vv))
-                             : MapOperation.Put(t, vv);
-
-          columns.add(Pair.<ColumnIdentifier, Operation>create(key, setOp));
+          // This is ambiguous, this can either set a list by index, or be a map put.
+          // So we always return a list setIndex and we'll check later and
+          // backtrack to a map operation if need be.
+          columns.add(Pair.<ColumnIdentifier, Operation>create(key, ListOperation.SetIndex(Arrays.asList(t, vv))));
       }
     ;
 

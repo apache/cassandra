@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.cql3.ColumnNameBuilder;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.ColumnFamily;
@@ -39,6 +40,8 @@ public interface Operation
                         AbstractType<?> validator,
                         UpdateParameters params,
                         List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException;
+
+    public void addBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException;
 
     public List<Term> getValues();
 
