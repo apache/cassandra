@@ -35,10 +35,6 @@ import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.thrift.*;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.*;
-import org.apache.thrift.TException;
-import org.apache.thrift.transport.TSocket;
-
-import javax.security.auth.login.LoginException;
 
 /**
  * The <code>ColumnFamilyOutputFormat</code> acts as a Hadoop-specific
@@ -139,22 +135,20 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
     }
 
     /**
-     * Return a client based on the given socket that points to the configured
+     * Connects to the given server:port and returns a client based on the given socket that points to the configured
      * keyspace, and is logged in with the configured credentials.
      *
-     * @param socket  a socket pointing to a particular node, seed or otherwise
+     * @param host fully qualified host name to connect to
+     * @param port RPC port of the server
      * @param conf a job configuration
      * @return a cassandra client
-     * @throws InvalidRequestException
-     * @throws TException
-     * @throws AuthenticationException
-     * @throws AuthorizationException
+     * @throws Exception set of thrown exceptions may be implementation defined,
+     *                   depending on the used transport factory
      */
-    public static Cassandra.Client createAuthenticatedClient(TSocket socket, Configuration conf)
-            throws InvalidRequestException, TException, AuthenticationException, AuthorizationException, LoginException
+    public static Cassandra.Client createAuthenticatedClient(String host, int port, Configuration conf) throws Exception
     {
         logger.debug("Creating authenticated client for CF output format");
-        TTransport transport = ConfigHelper.getOutputTransportFactory(conf).openTransport(socket);
+        TTransport transport = ConfigHelper.getClientTransportFactory(conf).openTransport(host, port);
         TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport);
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
         client.set_keyspace(ConfigHelper.getOutputKeyspace(conf));

@@ -21,11 +21,9 @@ package org.apache.cassandra.hadoop;
  */
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+import com.google.common.collect.Maps;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,11 +38,7 @@ import org.apache.thrift.TBase;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
-import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
-
-import javax.security.auth.login.LoginException;
 
 
 public class ConfigHelper
@@ -74,8 +68,6 @@ public class ConfigHelper
     private static final String WRITE_CONSISTENCY_LEVEL = "cassandra.consistencylevel.write";
     private static final String OUTPUT_COMPRESSION_CLASS = "cassandra.output.compression.class";
     private static final String OUTPUT_COMPRESSION_CHUNK_LENGTH = "cassandra.output.compression.length";
-    private static final String INPUT_TRANSPORT_FACTORY_CLASS = "cassandra.input.transport.factory.class";
-    private static final String OUTPUT_TRANSPORT_FACTORY_CLASS = "cassandra.output.transport.factory.class";
 
     private static final Logger logger = LoggerFactory.getLogger(ConfigHelper.class);
 
@@ -498,53 +490,48 @@ public class ConfigHelper
         return client;
     }
 
-    public static Cassandra.Client createConnection(Configuration conf, String host, Integer port)
-            throws IOException
+    public static Cassandra.Client createConnection(Configuration conf, String host, Integer port) throws IOException
     {
         try
         {
-            TSocket socket = new TSocket(host, port);
-            TTransport transport = getInputTransportFactory(conf).openTransport(socket);
+            TTransport transport = getClientTransportFactory(conf).openTransport(host, port);
             return new Cassandra.Client(new TBinaryProtocol(transport));
         }
-        catch (LoginException e)
-        {
-            throw new IOException("Unable to login to server " + host + ":" + port, e);
-        }
-        catch (TTransportException e)
+        catch (Exception e)
         {
             throw new IOException("Unable to connect to server " + host + ":" + port, e);
         }
     }
 
-    public static ITransportFactory getInputTransportFactory(Configuration conf)
+    public static TClientTransportFactory getClientTransportFactory(Configuration conf)
     {
-        return getTransportFactory(conf.get(INPUT_TRANSPORT_FACTORY_CLASS, TFramedTransportFactory.class.getName()));
+        String factoryClassName = conf.get(
+                TClientTransportFactory.PROPERTY_KEY,
+                TFramedTransportFactory.class.getName());
+        TClientTransportFactory factory = getClientTransportFactory(factoryClassName);
+        Map<String, String> options = getOptions(conf, factory.supportedOptions());
+        factory.setOptions(options);
+        return factory;
     }
 
-    public static void setInputTransportFactoryClass(Configuration conf, String classname)
-    {
-        conf.set(INPUT_TRANSPORT_FACTORY_CLASS, classname);
-    }
-
-    public static ITransportFactory getOutputTransportFactory(Configuration conf)
-    {
-        return getTransportFactory(conf.get(OUTPUT_TRANSPORT_FACTORY_CLASS, TFramedTransportFactory.class.getName()));
-    }
-
-    public static void setOutputTransportFactoryClass(Configuration conf, String classname)
-    {
-        conf.set(OUTPUT_TRANSPORT_FACTORY_CLASS, classname);
-    }
-
-    private static ITransportFactory getTransportFactory(String factoryClassName) {
+    private static TClientTransportFactory getClientTransportFactory(String factoryClassName) {
         try
         {
-            return (ITransportFactory) Class.forName(factoryClassName).newInstance();
+            return (TClientTransportFactory) Class.forName(factoryClassName).newInstance();
         }
         catch (Exception e)
         {
             throw new RuntimeException("Failed to instantiate transport factory:" + factoryClassName, e);
         }
+    }
+    private static Map<String, String> getOptions(Configuration conf, Set<String> supportedOptions) {
+        Map<String, String> options = Maps.newHashMap();
+        for (String optionKey : supportedOptions)
+        {
+            String optionValue = conf.get(optionKey);
+            if (optionValue != null)
+                options.put(optionKey, optionValue);
+        }
+        return options;
     }
 }

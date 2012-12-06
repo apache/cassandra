@@ -24,8 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
@@ -39,8 +37,6 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.transport.TFramedTransport;
-import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
 public class Session implements Serializable
@@ -95,7 +91,9 @@ public class Session implements Serializable
         availableOptions.addOption("Q",  "query-names",          true,   "Comma-separated list of column names to retrieve from each row.");
         availableOptions.addOption("Z",  "compaction-strategy",  true,   "CompactionStrategy to use.");
         availableOptions.addOption("U",  "comparator",           true,   "Column Comparator to use. Currently supported types are: TimeUUIDType, AsciiType, UTF8Type.");
-        availableOptions.addOption("tr", "transport factory",    true,   "Name of the transport factory for connecting to Cassandra, defaults to: org.apache.cassandra.thrift.TFramedTransportFactory.");
+        availableOptions.addOption(
+                TClientTransportFactory.SHORT_OPTION,
+                TClientTransportFactory.LONG_OPTION,             true,   "Name of the transport factory for connecting to Cassandra, defaults to: org.apache.cassandra.thrift.TFramedTransportFactory.");
     }
 
     private int numKeys          = 1000 * 1000;
@@ -377,19 +375,24 @@ public class Session implements Serializable
                 timeUUIDComparator = false;
             }
             
-            if (cmd.hasOption("tr"))
+            if (cmd.hasOption(TClientTransportFactory.SHORT_OPTION))
             {
-                transportFactory = cmd.getOptionValue("tr");
+                transportFactory = cmd.getOptionValue(TClientTransportFactory.SHORT_OPTION);
                 try
                 {
-                    if (transportFactory == null || !ITransportFactory.class.isAssignableFrom(Class.forName(transportFactory)))
+                    if (transportFactory == null)
                     {
-                        System.err.println("Not a valid transport factory: " + transportFactory);
+                        System.err.println("Option " + TClientTransportFactory.SHORT_OPTION + " needs argument.");
+                        System.exit(1);
+                    }
+                    else if (!TClientTransportFactory.class.isAssignableFrom(Class.forName(transportFactory)))
+                    {
+                        System.err.println("Transport factory does not implement TClientTransportFactory: " + transportFactory);
                         System.exit(1);
                     }
                 } catch (ClassNotFoundException ex)
                 {
-                    System.err.println("Not a valid transport factory: " + transportFactory);
+                    System.err.println("Class not found: " + ex.getMessage());
                     System.exit(1);
                 }
             }
@@ -633,21 +636,9 @@ public class Session implements Serializable
         String currentNode = nodes[Stress.randomizer.nextInt(nodes.length)];
         try
         {
-            TSocket socket = new TSocket(currentNode, port);
-            TTransport transport = null;
-            if (!isUnframed())
-            {
-                ITransportFactory factory = (ITransportFactory) Class.forName(transportFactory).newInstance();
-                transport = factory.openTransport(socket);
-            } else
-            {
-                transport = socket;
-            }
-            if (!transport.isOpen())
-            {
-                transport.open();
-            }
-            
+            TClientTransportFactory factory = (TClientTransportFactory) Class.forName(transportFactory).newInstance();
+            configureTransportFactory(factory);
+            TTransport transport = factory.openTransport(currentNode, port);
             CassandraClient client = new CassandraClient(new TBinaryProtocol(transport));
 
             if (setKeyspace)
@@ -657,13 +648,24 @@ public class Session implements Serializable
             
             return client;
 
-        } catch (InvalidRequestException e)
+        }
+        catch (InvalidRequestException e)
         {
             throw new RuntimeException(e.getWhy());
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             throw new RuntimeException(e.getMessage());
         }
+    }
+
+    private void configureTransportFactory(TClientTransportFactory factory)
+    {
+        Map<String, String> options = new HashMap<String, String>();
+        for (String optionKey : factory.supportedOptions())
+            if (System.getProperty(optionKey) != null)
+                options.put(optionKey, System.getProperty(optionKey));
+        factory.setOptions(options);
     }
 
     public static InetAddress getLocalAddress()

@@ -26,12 +26,26 @@ import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
-public class TFramedTransportFactory implements ITransportFactory
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+
+public class TFramedTransportFactory implements TClientTransportFactory
 {
-    public TTransport openTransport(TSocket socket) throws TTransportException
+    public TTransport openTransport(String host, int port) throws TTransportException
     {
+        TSocket socket = new TSocket(host, port);
         TTransport transport = new TFramedTransport(socket);
         transport.open();
         return transport;
+    }
+
+    public void setOptions(Map<String, String> options)
+    {
+    }
+
+    public Set<String> supportedOptions()
+    {
+        return Collections.emptySet();
     }
 }

@@ -17,10 +17,11 @@
  */
 package org.apache.cassandra.cli;
 
-import org.apache.cassandra.thrift.TClientFactory;
-import org.apache.cassandra.thrift.TClientSocketFactory;
+import org.apache.cassandra.thrift.TClientTransportFactory;
 import org.apache.commons.cli.*;
-import org.apache.thrift.transport.TTransportFactory;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  *
@@ -37,8 +38,6 @@ public class CliOptions
     // Command line options
     private static final String HOST_OPTION = "host";
     private static final String PORT_OPTION = "port";
-    private static final String TRANSPORT_FACTORY = "transport-factory";
-    private static final String CLIENT_SOCKET_FACTORY = "client-socket-factory";
     private static final String DEBUG_OPTION = "debug";
     private static final String USERNAME_OPTION = "username";
     private static final String PASSWORD_OPTION = "password";
@@ -68,8 +67,11 @@ public class CliOptions
         options.addOption("f",  FILE_OPTION,     "FILENAME", "load statements from the specific file");
         options.addOption(null, JMX_PORT_OPTION, "JMX-PORT", "JMX service port");
         options.addOption(null, SCHEMA_MIGRATION_WAIT_TIME,  "TIME", "Schema migration wait time (secs.), default is 10 secs");
-        options.addOption("tf", TRANSPORT_FACTORY, "TRANSPORT-FACTORY", "Fully-qualified TTransportFactory class name for creating a connection to cassandra");
-        options.addOption("csf", CLIENT_SOCKET_FACTORY, "CLIENT_SOCKET_FACTORY", "Fully-qualified TClientSocketFactory class name for creating a socket to cassandra");
+        options.addOption(
+                TClientTransportFactory.SHORT_OPTION,
+                TClientTransportFactory.LONG_OPTION,
+                "TRANSPORT-FACTORY",
+                "Fully-qualified TTransportFactory class name for creating a connection to cassandra");
 
         // options without argument
         options.addOption("B",  BATCH_OPTION,   "enabled batch mode (suppress output; errors are fatal)");
@@ -100,12 +102,9 @@ public class CliOptions
                 css.hostName = DEFAULT_HOST;
             }
 
-            if (cmd.hasOption(TRANSPORT_FACTORY))
-                css.transportFactory = validateAndSetTransportFactory(cmd.getOptionValue(TRANSPORT_FACTORY));
+            if (cmd.hasOption(TClientTransportFactory.LONG_OPTION))
+                css.transportFactory = validateAndSetClientTransportFactory(cmd.getOptionValue(TClientTransportFactory.LONG_OPTION));
 
-            if (cmd.hasOption(CLIENT_SOCKET_FACTORY))
-                css.clientSocketFactory = validateAndSetClientSocketFactory(cmd.getOptionValue(CLIENT_SOCKET_FACTORY));
-            
             if (cmd.hasOption(DEBUG_OPTION))
             {
                 css.debug = true;
@@ -226,39 +225,33 @@ public class CliOptions
         }
     }
 
-    private static TTransportFactory validateAndSetTransportFactory(String transportFactory)
+
+    private static TClientTransportFactory validateAndSetClientTransportFactory(String clientTransportFactory)
     {
         try
         {
-            Class factory = Class.forName(transportFactory);
+            Class factoryClass = Class.forName(clientTransportFactory);
 
-            if(!TTransportFactory.class.isAssignableFrom(factory))
+            if (!TClientTransportFactory.class.isAssignableFrom(factoryClass))
                 throw new IllegalArgumentException(String.format("transport factory '%s' " +
-                                                                 "not derived from TTransportFactory", transportFactory));
+                                                                 "not derived from TClientTransportFactory", clientTransportFactory));
 
-            return (TTransportFactory) factory.newInstance();
+            TClientTransportFactory factory = (TClientTransportFactory) factoryClass.newInstance();
+            configureTransportFactory(factory);
+            return factory;
         }
         catch (Exception e)
         {
-            throw new IllegalArgumentException(String.format("Cannot create a transport factory '%s'.", transportFactory), e);
+            throw new IllegalArgumentException(String.format("Cannot create a transport factory '%s'.", clientTransportFactory), e);
         }
     }
-    
-    private static TClientFactory validateAndSetClientSocketFactory(String clientSocketFactory)
+
+    private static void configureTransportFactory(TClientTransportFactory factory)
     {
-        try
-        {
-            Class factory = Class.forName(clientSocketFactory);
-
-            if(!TClientFactory.class.isAssignableFrom(factory))
-                throw new IllegalArgumentException(String.format("transport factory '%s' " +
-                                                                 "not derived from TClientFactory", clientSocketFactory));
-
-            return (TClientFactory) factory.newInstance();
-        }
-        catch (Exception e)
-        {
-            throw new IllegalArgumentException(String.format("Cannot create a transport factory '%s'.", clientSocketFactory), e);
-        }
+        Map<String, String> options = new HashMap<String, String>();
+        for (String optionKey : factory.supportedOptions())
+            if (System.getProperty(optionKey) != null)
+                options.put(optionKey, System.getProperty(optionKey));
+        factory.setOptions(options);
     }
 }
