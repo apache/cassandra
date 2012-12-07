@@ -82,7 +82,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testStreamHeaderWrite() throws IOException
     {
-        UUID sessionId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+        UUID sessionId = UUIDGen.getTimeUUID();
         StreamHeader sh0 = new StreamHeader("Keyspace1", sessionId, makePendingFile(true, 100, OperationType.BOOTSTRAP));
         StreamHeader sh1 = new StreamHeader("Keyspace1", sessionId, makePendingFile(false, 100, OperationType.BOOTSTRAP));
         Collection<PendingFile> files = new ArrayList<PendingFile>();
@@ -125,7 +125,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testStreamReplyWrite() throws IOException
     {
-        UUID sessionId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+        UUID sessionId = UUIDGen.getTimeUUID();
         StreamReply rep = new StreamReply("this is a file", sessionId, StreamReply.Status.FILE_FINISHED);
         DataOutputStream out = getOutput("streaming.StreamReply.bin");
         StreamReply.serializer.serialize(rep, out, getVersion());
@@ -159,7 +159,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testStreamRequestMessageWrite() throws IOException
     {
-        UUID sessionId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+        UUID sessionId = UUIDGen.getTimeUUID();
         Collection<Range<Token>> ranges = new ArrayList<Range<Token>>();
         for (int i = 0; i < 5; i++)
             ranges.add(new Range<Token>(new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i))), new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i+5)))));

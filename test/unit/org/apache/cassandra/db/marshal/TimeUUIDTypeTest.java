@@ -37,7 +37,7 @@ public class TimeUUIDTypeTest
     @Test
     public void testEquality() throws UnknownHostException
     {
-        UUID a = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
+        UUID a = UUIDGen.getTimeUUID();
         UUID b = new UUID(a.getMostSignificantBits(), a.getLeastSignificantBits());
 
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(a)));
@@ -48,9 +48,9 @@ public class TimeUUIDTypeTest
     @Test
     public void testSmaller() throws UnknownHostException
     {
-        UUID a = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
-        UUID b = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
-        UUID c = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
+        UUID a = UUIDGen.getTimeUUID();
+        UUID b = UUIDGen.getTimeUUID();
+        UUID c = UUIDGen.getTimeUUID();
 
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(a)));
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(b)));
@@ -64,9 +64,9 @@ public class TimeUUIDTypeTest
     @Test
     public void testBigger() throws UnknownHostException
     {
-        UUID a = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
-        UUID b = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
-        UUID c = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
+        UUID a = UUIDGen.getTimeUUID();
+        UUID b = UUIDGen.getTimeUUID();
+        UUID c = UUIDGen.getTimeUUID();
 
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(a)));
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(b)));

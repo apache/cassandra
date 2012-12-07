@@ -117,7 +117,7 @@ public class CounterId implements Comparable<CounterId>
 
     public static CounterId generate()
     {
-        return new CounterId(ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()))));
+        return new CounterId(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes()));
     }
 
     /*

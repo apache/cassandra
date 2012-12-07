@@ -22,6 +22,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -152,6 +154,25 @@ public class FBUtilities
                                  ? getLocalAddress()
                                  : DatabaseDescriptor.getBroadcastAddress();
         return broadcastInetAddress;
+    }
+
+    public static Collection<InetAddress> getAllLocalAddresses()
+    {
+        Set<InetAddress> localAddresses = new HashSet<InetAddress>();
+        try
+        {
+            Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
+            if (nets != null)
+            {
+                while (nets.hasMoreElements())
+                    localAddresses.addAll(Collections.list(nets.nextElement().getInetAddresses()));
+            }
+        }
+        catch (SocketException e)
+        {
+            throw new AssertionError(e);
+        }
+        return localAddresses;
     }
 
     /**

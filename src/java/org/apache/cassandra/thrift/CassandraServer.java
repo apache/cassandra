@@ -1817,7 +1817,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public ByteBuffer trace_next_query() throws TException
     {
-        UUID sessionId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
+        UUID sessionId = UUIDGen.getTimeUUID();
         state().getQueryState().prepareTracingSession(sessionId);
         return TimeUUIDType.instance.decompose(sessionId);
     }

@@ -52,7 +52,7 @@ public class DynamicCompositeTypeTest extends SchemaLoader
     static
     {
         for (int i = 0; i < UUID_COUNT; ++i)
-            uuids[i] = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
+            uuids[i] = UUIDGen.getTimeUUID();
     }
 
     @Test

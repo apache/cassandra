@@ -97,7 +97,7 @@ public class RoundTripTest
     @Test
     public void testLexicalUUID()
     {
-        UUID uuid = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
+        UUID uuid = UUIDGen.getTimeUUID();
         assert JdbcLexicalUUID.instance.getString(LexicalUUIDType.instance.fromString(uuid.toString()))
                 .equals(uuid.toString());
         assert LexicalUUIDType.instance.fromString(LexicalUUIDType.instance.getString(ByteBuffer.wrap(UUIDGen.decompose(uuid))))
@@ -109,7 +109,7 @@ public class RoundTripTest
     @Test
     public void testTimeUUID()
     {
-        UUID uuid = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
+        UUID uuid = UUIDGen.getTimeUUID();
         assert TimeUUIDType.instance.getString(TimeUUIDType.instance.fromString(uuid.toString()))
                 .equals(uuid.toString());
         assert TimeUUIDType.instance.fromString(TimeUUIDType.instance.getString(ByteBuffer.wrap(UUIDGen.decompose(uuid))))

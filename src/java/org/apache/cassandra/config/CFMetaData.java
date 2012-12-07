@@ -731,30 +731,8 @@ public final class CFMetaData
     public void apply(CFMetaData cfm) throws ConfigurationException
     {
         logger.debug("applying {} to {}", cfm, this);
-        // validate
-        if (!cfm.ksName.equals(ksName))
-            throw new ConfigurationException(String.format("Keyspace mismatch (found %s; expected %s)",
-                                                           cfm.ksName, ksName));
-        if (!cfm.cfName.equals(cfName))
-            throw new ConfigurationException(String.format("Column family mismatch (found %s; expected %s)",
-                                                           cfm.cfName, cfName));
-        if (!cfm.cfId.equals(cfId))
-            throw new ConfigurationException(String.format("Column family ID mismatch (found %s; expected %s)",
-                                                           cfm.cfId, cfId));
 
-        if (!cfm.cfType.equals(cfType))
-            throw new ConfigurationException("types do not match.");
-
-        if (!cfm.comparator.isCompatibleWith(comparator))
-            throw new ConfigurationException("comparators do not match or are not compatible.");
-        if (cfm.subcolumnComparator == null)
-        {
-            if (subcolumnComparator != null)
-                throw new ConfigurationException("subcolumncomparators do not match.");
-            // else, it's null and we're good.
-        }
-        else if (!cfm.subcolumnComparator.isCompatibleWith(subcolumnComparator))
-            throw new ConfigurationException("subcolumncomparators do not match or are note compatible.");
+        validateCompatility(cfm);
 
         // TODO: this method should probably return a new CFMetaData so that
         // 1) we can keep comparator and subcolumnComparator final
@@ -811,6 +789,34 @@ public final class CFMetaData
 
         updateCfDef();
         logger.debug("application result is {}", this);
+    }
+
+    public void validateCompatility(CFMetaData cfm) throws ConfigurationException
+    {
+        // validate
+        if (!cfm.ksName.equals(ksName))
+            throw new ConfigurationException(String.format("Keyspace mismatch (found %s; expected %s)",
+                                                           cfm.ksName, ksName));
+        if (!cfm.cfName.equals(cfName))
+            throw new ConfigurationException(String.format("Column family mismatch (found %s; expected %s)",
+                                                           cfm.cfName, cfName));
+        if (!cfm.cfId.equals(cfId))
+            throw new ConfigurationException(String.format("Column family ID mismatch (found %s; expected %s)",
+                                                           cfm.cfId, cfId));
+
+        if (!cfm.cfType.equals(cfType))
+            throw new ConfigurationException("types do not match.");
+
+        if (!cfm.comparator.isCompatibleWith(comparator))
+            throw new ConfigurationException("comparators do not match or are not compatible.");
+        if (cfm.subcolumnComparator == null)
+        {
+            if (subcolumnComparator != null)
+                throw new ConfigurationException("subcolumncomparators do not match.");
+            // else, it's null and we're good.
+        }
+        else if (!cfm.subcolumnComparator.isCompatibleWith(subcolumnComparator))
+            throw new ConfigurationException("subcolumncomparators do not match or are note compatible.");
     }
 
     public static Class<? extends AbstractCompactionStrategy> createCompactionStrategy(String className) throws ConfigurationException

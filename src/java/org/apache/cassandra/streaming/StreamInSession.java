@@ -59,7 +59,7 @@ public class StreamInSession extends AbstractStreamSession
 
     public static StreamInSession create(InetAddress host, IStreamCallback callback)
     {
-        StreamInSession session = new StreamInSession(host, UUIDGen.makeType1UUIDFromHost(host), callback);
+        StreamInSession session = new StreamInSession(host, UUIDGen.getTimeUUID(), callback);
         sessions.put(session.getSessionId(), session);
         return session;
     }
