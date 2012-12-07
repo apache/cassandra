@@ -28,6 +28,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,6 +60,10 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     private static final ByteBuffer LAST_MIGRATION_KEY = ByteBufferUtil.bytes("Last Migration");
 
     public static final MigrationManager instance = new MigrationManager();
+
+    private static final RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
+
+    public static final int MIGRATION_DELAY_IN_MS = 60000;
 
     private final List<IMigrationListener> listeners = new CopyOnWriteArrayList<IMigrationListener>();
 
@@ -113,9 +120,9 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         if (Schema.instance.getVersion().equals(theirVersion))
             return;
 
-        if (Schema.emptyVersion.equals(Schema.instance.getVersion()))
+        if (Schema.emptyVersion.equals(Schema.instance.getVersion()) || runtimeMXBean.getUptime() < MIGRATION_DELAY_IN_MS)
         {
-            // If we think we may be bootstrapping, submit MigrationTask immediately
+            // If we think we may be bootstrapping or have recently started, submit MigrationTask immediately
             submitMigrationTask(endpoint);
         }
         else
@@ -135,7 +142,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
                     submitMigrationTask(endpoint);
                 }
             };
-            StorageService.optionalTasks.schedule(runnable, 1, TimeUnit.MINUTES);
+            StorageService.optionalTasks.schedule(runnable, MIGRATION_DELAY_IN_MS, TimeUnit.MILLISECONDS);
         }
     }
 
