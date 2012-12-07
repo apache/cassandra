@@ -56,7 +56,6 @@ public class CompressionParameters
         String chunkLength = options.get(CHUNK_LENGTH_KB);
         options.remove(SSTABLE_COMPRESSION);
         options.remove(CHUNK_LENGTH_KB);
-        options.remove(CRC_CHECK_CHANCE);
         CompressionParameters cp = new CompressionParameters(sstableCompressionClass, parseChunkLength(chunkLength), options);
         cp.validate();
         return cp;
@@ -78,6 +77,7 @@ public class CompressionParameters
         this.chunkLength = chunkLength;
         this.otherOptions = otherOptions;
         String chance = otherOptions.get(CRC_CHECK_CHANCE);
+        otherOptions.remove(CRC_CHECK_CHANCE);
         this.crcChance = (chance == null) ? DEFAULT_CRC_CHECK_CHANCE : Double.parseDouble(chance);
     }
 

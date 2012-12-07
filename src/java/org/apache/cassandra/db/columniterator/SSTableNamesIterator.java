@@ -234,7 +234,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         for (ByteBuffer name : filteredColumnNames)
         {
             int index = IndexHelper.indexFor(name, indexList, comparator, false, lastIndexIdx);
-            if (index == indexList.size())
+            if (index < 0 || index == indexList.size())
                 continue;
             IndexHelper.IndexInfo indexInfo = indexList.get(index);
             // Check the index block does contain the column names and that we haven't inserted this block yet.

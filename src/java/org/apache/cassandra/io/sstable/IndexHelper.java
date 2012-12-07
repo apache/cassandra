@@ -154,6 +154,10 @@ public class IndexHelper
     {
         if (name.remaining() == 0 && reversed)
             return indexList.size() - 1;
+
+        if (lastIndex >= indexList.size())
+            return -1;
+
         IndexInfo target = new IndexInfo(name, name, 0, 0);
         /*
         Take the example from the unit test, and say your index looks like this:

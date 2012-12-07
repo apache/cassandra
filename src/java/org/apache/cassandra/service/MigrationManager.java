@@ -100,6 +100,10 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public void onRemove(InetAddress endpoint)
     {}
 
+    /**
+     * If versions differ this node sends request with local migration list to the endpoint
+     * and expecting to receive a list of migrations to apply locally.
+     */
     private static void maybeScheduleSchemaPull(final UUID theirVersion, final InetAddress endpoint)
     {
         // Can't request migrations from nodes with versions younger than 1.1.7
@@ -109,29 +113,39 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         if (Schema.instance.getVersion().equals(theirVersion))
             return;
 
-        // check our schema vs theirs, after a delay to make sure we have a chance to apply any changes
-        // being pushed out simultaneously.  See CASSANDRA-5025
-        Runnable runnable = new Runnable()
+        if (Schema.emptyVersion.equals(Schema.instance.getVersion()))
         {
-            public void run()
+            // If we think we may be bootstrapping, submit MigrationTask immediately
+            submitMigrationTask(endpoint);
+        }
+        else
+        {
+            // Include a delay to make sure we have a chance to apply any changes being
+            // pushed out simultaneously. See CASSANDRA-5025
+            Runnable runnable = new Runnable()
             {
-                // grab the latest version of the schema since it may have changed again since the initial scheduling
-                VersionedValue value = Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA);
-                UUID currentVersion = UUID.fromString(value.value);
-                if (Schema.instance.getVersion().equals(currentVersion))
-                    return;
+                public void run()
+                {
+                    // grab the latest version of the schema since it may have changed again since the initial scheduling
+                    VersionedValue value = Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA);
+                    UUID currentVersion = UUID.fromString(value.value);
+                    if (Schema.instance.getVersion().equals(currentVersion))
+                        return;
 
-                /**
-                 * if versions differ this node sends request with local migration list to the endpoint
-                 * and expecting to receive a list of migrations to apply locally.
-                 *
-                 * Do not de-ref the future because that causes distributed deadlock (CASSANDRA-3832) because we are
-                 * running in the gossip stage.
-                 */
-                StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(endpoint));
-            }
-        };
-        StorageService.optionalTasks.schedule(runnable, 1, TimeUnit.MINUTES);
+                    submitMigrationTask(endpoint);
+                }
+            };
+            StorageService.optionalTasks.schedule(runnable, 1, TimeUnit.MINUTES);
+        }
+    }
+
+    private static void submitMigrationTask(InetAddress endpoint)
+    {
+        /*
+         * Do not de-ref the future because that causes distributed deadlock (CASSANDRA-3832) because we are
+         * running in the gossip stage.
+         */
+        StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(endpoint));
     }
 
     public static boolean isReadyForBootstrap()
