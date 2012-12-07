@@ -527,8 +527,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.addLocalApplicationState(ApplicationState.HOST_ID, valueFactory.hostId(SystemTable.getLocalHostId()));
         // gossip snitch infos (local DC and rack)
         gossipSnitchInfo();
-        // gossip schema version when gossiper is running
-        Schema.instance.updateVersionAndAnnounce();
+        // gossip Schema.emptyVersion forcing immediate check for schema updates (see MigrationManager#maybeScheduleSchemaPull)
+        Schema.instance.updateVersion(); // Ensure we know our own actual Schema UUID in preparation for updates
+        MigrationManager.passiveAnnounce(Schema.emptyVersion);
         // add rpc listening info
         Gossiper.instance.addLocalApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(DatabaseDescriptor.getRpcAddress()));
         if (0 != DatabaseDescriptor.getReplaceTokens().size())
