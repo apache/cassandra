@@ -1881,7 +1881,7 @@ public class CliClient
                   .append(TAB + TAB + "index_name : '" + CliUtils.escapeSQLString(colDef.index_name) + "'," + NEWLINE)
                   .append(TAB + TAB + "index_type : " + CliUtils.escapeSQLString(Integer.toString(colDef.index_type.getValue())));
 
-            if (colDef.index_options != null)
+            if (colDef.index_options != null && !colDef.index_options.isEmpty())
             {
                 output.append(",").append(NEWLINE);
                 output.append(TAB + TAB + "index_options : {" + NEWLINE);
