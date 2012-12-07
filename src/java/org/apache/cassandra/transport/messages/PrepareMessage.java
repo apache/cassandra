@@ -65,7 +65,7 @@ public class PrepareMessage extends Message.Request
             UUID tracingId = null;
             if (isTracingRequested())
             {
-                tracingId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
+                tracingId = UUIDGen.getTimeUUID();
                 state.prepareTracingSession(tracingId);
             }
 

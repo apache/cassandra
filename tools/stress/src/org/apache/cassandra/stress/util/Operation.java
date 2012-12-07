@@ -211,7 +211,7 @@ public abstract class Operation
     protected ByteBuffer columnName(int index, boolean timeUUIDComparator)
     {
         return timeUUIDComparator
-                ? TimeUUIDType.instance.decompose(UUIDGen.makeType1UUIDFromHost(Session.getLocalAddress()))
+                ? TimeUUIDType.instance.decompose(UUIDGen.getTimeUUID())
                 : ByteBufferUtil.bytes(String.format("C%d", index));
     }
 

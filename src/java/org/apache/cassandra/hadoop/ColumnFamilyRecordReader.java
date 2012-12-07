@@ -19,8 +19,6 @@ package org.apache.cassandra.hadoop;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -197,17 +195,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     // not necessarily on Cassandra machines, too.  This should be adequate for single-DC clusters, at least.
     private String getLocation()
     {
-        ArrayList<InetAddress> localAddresses = new ArrayList<InetAddress>();
-        try
-        {
-            Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
-            while (nets.hasMoreElements())
-                localAddresses.addAll(Collections.list(nets.nextElement().getInetAddresses()));
-        }
-        catch (SocketException e)
-        {
-            throw new AssertionError(e);
-        }
+        Collection<InetAddress> localAddresses = FBUtilities.getAllLocalAddresses();
 
         for (InetAddress address : localAddresses)
         {

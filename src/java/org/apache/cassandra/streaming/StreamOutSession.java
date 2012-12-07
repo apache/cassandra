@@ -44,7 +44,7 @@ public class StreamOutSession extends AbstractStreamSession
 
     public static StreamOutSession create(String table, InetAddress host, IStreamCallback callback)
     {
-        return create(table, host, UUIDGen.makeType1UUIDFromHost(host), callback);
+        return create(table, host, UUIDGen.getTimeUUID(), callback);
     }
 
     public static StreamOutSession create(String table, InetAddress host, UUID sessionId)
