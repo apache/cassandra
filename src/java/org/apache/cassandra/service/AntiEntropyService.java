@@ -603,7 +603,7 @@ public class AntiEntropyService
 
         public RepairSession(Range<Token> range, String tablename, boolean isSequential, boolean isLocal, String... cfnames)
         {
-            this(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()).toString(), range, tablename, isSequential, isLocal, cfnames);
+            this(UUIDGen.getTimeUUID().toString(), range, tablename, isSequential, isLocal, cfnames);
         }
 
         private RepairSession(String id, Range<Token> range, String tablename, boolean isSequential, boolean isLocal, String[] cfnames)

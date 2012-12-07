@@ -72,7 +72,7 @@ public class CqlInserter extends Operation
                     if (session.cqlVersion.startsWith("3"))
                         throw new UnsupportedOperationException("Cannot use UUIDs in column names with CQL3");
 
-                    query.append(wrapInQuotesIfRequired(UUIDGen.makeType1UUIDFromHost(Session.getLocalAddress()).toString()))
+                    query.append(wrapInQuotesIfRequired(UUIDGen.getTimeUUID().toString()))
                          .append(" = ?");
                 }
                 else

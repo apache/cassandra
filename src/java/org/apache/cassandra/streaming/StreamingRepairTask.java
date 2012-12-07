@@ -90,7 +90,7 @@ public class StreamingRepairTask implements Runnable
     public static StreamingRepairTask create(InetAddress ep1, InetAddress ep2, String tableName, String cfName, Collection<Range<Token>> ranges, Runnable callback)
     {
         InetAddress local = FBUtilities.getBroadcastAddress();
-        UUID id = UUIDGen.makeType1UUIDFromHost(local);
+        UUID id = UUIDGen.getTimeUUID();
         // We can take anyone of the node as source or destination, however if one is localhost, we put at source to avoid a forwarding
         InetAddress src = ep2.equals(local) ? ep2 : ep1;
         InetAddress dst = ep2.equals(local) ? ep1 : ep2;

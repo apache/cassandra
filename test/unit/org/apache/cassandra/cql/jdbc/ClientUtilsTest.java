@@ -56,7 +56,7 @@ public class ClientUtilsTest
         JdbcUTF8.instance.compose(JdbcUTF8.instance.decompose("string"));
 
         // UUIDGen
-        UUID uuid = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
+        UUID uuid = UUIDGen.getTimeUUID();
         JdbcTimeUUID.instance.compose(JdbcTimeUUID.instance.decompose(uuid));
         JdbcUUID.instance.compose(JdbcUUID.instance.decompose(uuid));
         JdbcLexicalUUID.instance.compose(JdbcLexicalUUID.instance.decompose(uuid));

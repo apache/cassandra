@@ -85,7 +85,7 @@ public class TraceState
     public void trace(final String message)
     {
         final int elapsed = elapsed();
-        final ByteBuffer eventId = ByteBufferUtil.bytes(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()));
+        final ByteBuffer eventId = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
 
         final String threadName = Thread.currentThread().getName();
 

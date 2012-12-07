@@ -212,7 +212,7 @@ public class UUIDType extends AbstractType<UUID>
         }
         else if (source.toLowerCase().equals("now"))
         {
-            idBytes = ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress())));
+            idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
         }
         // Milliseconds since epoch?
         else if (source.matches("^\\d+$"))

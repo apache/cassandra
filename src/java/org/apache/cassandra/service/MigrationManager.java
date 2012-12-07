@@ -220,6 +220,8 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         if (oldCfm == null)
             throw new ConfigurationException(String.format("Cannot update non existing column family '%s' in keyspace '%s'.", cfm.cfName, cfm.ksName));
 
+        oldCfm.validateCompatility(cfm);
+
         logger.info(String.format("Update ColumnFamily '%s/%s' From %s To %s", cfm.ksName, cfm.cfName, oldCfm, cfm));
         announce(oldCfm.toSchemaUpdate(cfm, FBUtilities.timestampMicros()));
     }
