@@ -544,8 +544,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.register(this);
         Gossiper.instance.register(migrationManager);
         Gossiper.instance.start(SystemTable.incrementAndGetGeneration()); // needed for node-ring gathering.
-        // gossip schema version when gossiper is running
-        Schema.instance.updateVersionAndAnnounce();
+
+        // gossip Schema.emptyVersion forcing immediate check for schema updates (see MigrationManager#maybeScheduleSchemaPull)
+        Schema.instance.updateVersion(); // Ensure we know our own actual Schema UUID in preparation for updates
+        MigrationManager.passiveAnnounce(Schema.emptyVersion);
+
         // add rpc listening info
         Gossiper.instance.addLocalApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(DatabaseDescriptor.getRpcAddress()));
         if (null != DatabaseDescriptor.getReplaceToken())
