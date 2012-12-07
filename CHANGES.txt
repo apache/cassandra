@@ -201,6 +201,7 @@ Merged from 1.1:
  * (cql3) Allow defining default consistency levels (CASSANDRA-4448)
  * (cql3) Fix queries using LIMIT missing results (CASSANDRA-4579)
  * fix cross-version gossip messaging (CASSANDRA-4576)
+ * added inet data type (CASSANDRA-4627)
 
 
 1.1.6
