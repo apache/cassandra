@@ -23,11 +23,10 @@ import java.util.Map;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
+import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
-import org.apache.cassandra.transport.ServerConnection;
-import org.apache.cassandra.thrift.AuthenticationException;
 
 /**
  * Message to indicate that the server is ready to receive requests.

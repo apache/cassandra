@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.auth.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.ResultSet;
@@ -32,7 +32,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class ListPermissionsStatement extends AuthorizationStatement
 {
-    private static final String KS = "auth"; // virtual keyspace to use for now.
+    private static final String KS = Auth.AUTH_KS;
     private static final String CF = "permissions"; // virtual cf to use for now.
 
     private static final List<ColumnSpecification> metadata;
@@ -59,9 +59,12 @@ public class ListPermissionsStatement extends AuthorizationStatement
         this.recursive = recursive;
     }
 
-    // TODO: user existence check (when IAuthenticator rewrite is done)
     public void validate(ClientState state) throws InvalidRequestException
     {
+        // a check to ensure the existence of the user isn't being leaked by user existence check.
+        if (username != null && !Auth.isExistingUser(username))
+            throw new InvalidRequestException(String.format("User %s doesn't exist", username));
+
         if (resource != null)
         {
             resource = maybeCorrectResource(resource, state);
@@ -70,19 +73,24 @@ public class ListPermissionsStatement extends AuthorizationStatement
         }
     }
 
+    public void checkAccess(ClientState state) throws UnauthorizedException
+    {
+        state.ensureNotAnonymous();
+    }
+
     // TODO: Create a new ResultMessage type (?). Rows will do for now.
-    public ResultMessage execute(ClientState state, List<ByteBuffer> variables) throws UnauthorizedException, InvalidRequestException
+    public ResultMessage execute(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
         List<PermissionDetails> details = new ArrayList<PermissionDetails>();
 
         if (resource != null && recursive)
         {
             for (IResource r : Resources.chain(resource))
-                details.addAll(state.listPermissions(permissions, r, username));
+                details.addAll(list(state, r));
         }
         else
         {
-            details.addAll(state.listPermissions(permissions, resource, username));
+            details.addAll(list(state, resource));
         }
 
         Collections.sort(details);
@@ -102,5 +110,10 @@ public class ListPermissionsStatement extends AuthorizationStatement
             result.addColumnValue(UTF8Type.instance.decompose(pd.permission.toString()));
         }
         return new ResultMessage.Rows(result);
+    }
+
+    private Set<PermissionDetails> list(ClientState state, IResource resource) throws UnauthorizedException, InvalidRequestException
+    {
+        return DatabaseDescriptor.getAuthorizer().list(state.getUser(), permissions, resource, username);
     }
 }

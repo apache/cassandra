@@ -29,14 +29,14 @@ public interface IResource
     /**
      * @return printable name of the resource.
      */
-    public String getName();
+    String getName();
 
     /**
      * Gets next resource in the hierarchy. Call hasParent first to make sure there is one.
      *
      * @return Resource parent (or IllegalStateException if there is none). Never a null.
      */
-    public IResource getParent();
+    IResource getParent();
 
     /**
      * Indicates whether or not this resource has a parent in the hierarchy.
@@ -44,10 +44,10 @@ public interface IResource
      * Please perform this check before calling getParent() method.
      * @return Whether or not the resource has a parent.
      */
-    public boolean hasParent();
+    boolean hasParent();
 
     /**
      * @return Whether or not this resource exists in Cassandra.
      */
-    public boolean exists();
+    boolean exists();
 }

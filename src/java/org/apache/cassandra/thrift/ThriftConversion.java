@@ -83,6 +83,11 @@ public class ThriftConversion
         return new UnavailableException();
     }
 
+    public static AuthenticationException toThrift(org.apache.cassandra.exceptions.AuthenticationException e)
+    {
+        return new AuthenticationException(e.getMessage());
+    }
+
     public static TimedOutException toThrift(RequestTimeoutException e)
     {
         TimedOutException toe = new TimedOutException();

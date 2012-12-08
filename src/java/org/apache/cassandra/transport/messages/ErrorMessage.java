@@ -57,6 +57,9 @@ public class ErrorMessage extends Message.Response
                 case PROTOCOL_ERROR:
                     te = new ProtocolException(msg);
                     break;
+                case BAD_CREDENTIALS:
+                    te = new AuthenticationException(msg);
+                    break;
                 case UNAVAILABLE:
                     {
                         ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);

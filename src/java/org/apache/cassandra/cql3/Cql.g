@@ -169,10 +169,14 @@ cqlStatement returns [ParsedStatement stmt]
     | st12=dropColumnFamilyStatement   { $stmt = st12; }
     | st13=dropIndexStatement          { $stmt = st13; }
     | st14=alterTableStatement         { $stmt = st14; }
-    | st15=grantStatement              { $stmt = st15; }
-    | st16=revokeStatement             { $stmt = st16; }
-    | st17=listPermissionsStatement    { $stmt = st17; }
-    | st18=alterKeyspaceStatement      { $stmt = st18; }
+    | st15=alterKeyspaceStatement      { $stmt = st15; }
+    | st16=grantStatement              { $stmt = st16; }
+    | st17=revokeStatement             { $stmt = st17; }
+    | st18=listPermissionsStatement    { $stmt = st18; }
+    | st19=createUserStatement         { $stmt = st19; }
+    | st20=alterUserStatement          { $stmt = st20; }
+    | st21=dropUserStatement           { $stmt = st21; }
+    | st22=listUsersStatement          { $stmt = st22; }
     ;
 
 /*
@@ -545,11 +549,6 @@ permissionOrAll returns [Set<Permission> perms]
     | p=permission ( K_PERMISSION )? { $perms = EnumSet.of($p.perm); }
     ;
 
-username
-    : IDENT
-    | STRING_LITERAL
-    ;
-
 resource returns [IResource res]
     : r=dataResource { $res = $r.res; }
     ;
@@ -559,6 +558,56 @@ dataResource returns [DataResource res]
     | K_KEYSPACE ks = keyspaceName { $res = DataResource.keyspace($ks.id); }
     | ( K_COLUMNFAMILY )? cf = columnFamilyName
       { $res = DataResource.columnFamily($cf.name.getKeyspace(), $cf.name.getColumnFamily()); }
+    ;
+
+/**
+ * CREATE USER <username> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER]
+ */
+createUserStatement returns [CreateUserStatement stmt]
+    @init {
+        UserOptions opts = new UserOptions();
+        boolean superuser = false;
+    }
+    : K_CREATE K_USER username
+      ( K_WITH userOptions[opts] )?
+      ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
+      { $stmt = new CreateUserStatement($username.text, opts, superuser); }
+    ;
+
+/**
+ * ALTER USER <username> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER]
+ */
+alterUserStatement returns [AlterUserStatement stmt]
+    @init {
+        UserOptions opts = new UserOptions();
+        Boolean superuser = null;
+    }
+    : K_ALTER K_USER username
+      ( K_WITH userOptions[opts] )?
+      ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
+      { $stmt = new AlterUserStatement($username.text, opts, superuser); }
+    ;
+
+/**
+ * DROP USER <username>
+ */
+dropUserStatement returns [DropUserStatement stmt]
+    : K_DROP K_USER username { $stmt = new DropUserStatement($username.text); }
+    ;
+
+/**
+ * LIST USERS
+ */
+listUsersStatement returns [ListUsersStatement stmt]
+    : K_LIST K_USERS { $stmt = new ListUsersStatement(); }
+    ;
+
+userOptions[UserOptions opts]
+    : userOption[opts]
+    ;
+
+userOption[UserOptions opts]
+    : k=K_PASSWORD v=STRING_LITERAL { opts.put($k.text, $v.text); }
     ;
 
 /** DEFINITIONS **/
@@ -767,6 +816,11 @@ collection_type returns [ParsedType pt]
         { try { $pt = ParsedType.Collection.set(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
     ;
 
+username
+    : IDENT
+    | STRING_LITERAL
+    ;
+
 unreserved_keyword returns [String str]
     : k=( K_KEY
         | K_CLUSTERING
@@ -784,6 +838,11 @@ unreserved_keyword returns [String str]
         | K_PERMISSIONS
         | K_KEYSPACES
         | K_ALL
+        | K_USER
+        | K_USERS
+        | K_SUPERUSER
+        | K_NOSUPERUSER
+        | K_PASSWORD
         ) { $str = $k.text; }
     | t=native_type { $str = t.toString(); }
     ;
@@ -835,17 +894,24 @@ K_ORDER:       O R D E R;
 K_BY:          B Y;
 K_ASC:         A S C;
 K_DESC:        D E S C;
+K_ALLOW:       A L L O W;
+K_FILTERING:   F I L T E R I N G;
+
 K_GRANT:       G R A N T;
 K_ALL:         A L L;
 K_PERMISSION:  P E R M I S S I O N;
 K_PERMISSIONS: P E R M I S S I O N S;
 K_OF:          O F;
 K_REVOKE:      R E V O K E;
-K_ALLOW:       A L L O W;
-K_FILTERING:   F I L T E R I N G;
 K_MODIFY:      M O D I F Y;
 K_AUTHORIZE:   A U T H O R I Z E;
 K_NORECURSIVE: N O R E C U R S I V E;
+
+K_USER:        U S E R;
+K_USERS:       U S E R S;
+K_SUPERUSER:   S U P E R U S E R;
+K_NOSUPERUSER: N O S U P E R U S E R;
+K_PASSWORD:    P A S S W O R D;
 
 K_CLUSTERING:  C L U S T E R I N G;
 K_ASCII:       A S C I I;
