@@ -31,6 +31,7 @@ import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.Auth;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -219,11 +220,8 @@ public class CassandraDaemon
             System.exit(100);
         }
 
-        // TODO: setup authenticator
-        // setup Authorizer.
-        DatabaseDescriptor.getAuthorizer().setup();
-        // register a custom MigrationListener for permissions cleanup after dropped keyspaces/cfs.
-        MigrationManager.instance.register(new org.apache.cassandra.auth.MigrationListener());
+        // setup Authenticator and Authorizer.
+        Auth.setup();
 
         // clean up debris in the rest of the tables
         for (String table : Schema.instance.getTables())

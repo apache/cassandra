@@ -29,14 +29,6 @@ public class AllowAllAuthorizer implements IAuthorizer
         return Permission.ALL;
     }
 
-    public void validateConfiguration()
-    {
-    }
-
-    public void setup()
-    {
-    }
-
     public void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String to)
     throws InvalidRequestException
     {
@@ -57,7 +49,7 @@ public class AllowAllAuthorizer implements IAuthorizer
     {
     }
 
-    public Set<PermissionDetails> listPermissions(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String of)
+    public Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String of)
     throws InvalidRequestException
     {
         throw new InvalidRequestException("LIST PERMISSIONS operation is not supported by AllowAllAuthorizer");
@@ -66,5 +58,13 @@ public class AllowAllAuthorizer implements IAuthorizer
     public Set<IResource> protectedResources()
     {
         return Collections.emptySet();
+    }
+
+    public void validateConfiguration()
+    {
+    }
+
+    public void setup()
+    {
     }
 }

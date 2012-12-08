@@ -19,13 +19,14 @@ package org.apache.cassandra.auth;
 
 import java.util.*;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 
 /**
  * Provides a transitional IAuthorizer implementation for old-style (pre-1.2) authorizers.
  *
- * Translates old-style authorze() calls to the new-style, expands Permission.READ and Permission.WRITE
+ * Translates old-style authorize() calls to the new-style, expands Permission.READ and Permission.WRITE
  * into the new Permission values, translates the new resource hierarchy into the old hierarchy.
  * Stubs the rest of the new methods.
  * Subclass LegacyAuthorizer instead of implementing the old IAuthority and your old IAuthority implementation should
@@ -40,10 +41,7 @@ public abstract class LegacyAuthorizer implements IAuthorizer
      */
     public abstract EnumSet<Permission> authorize(AuthenticatedUser user, List<Object> resource);
 
-    @Override
-    public void setup()
-    {
-    }
+    public abstract void validateConfiguration() throws ConfigurationException;
 
     /**
      * Translates new-style authorize() method call to the old-style (including permissions and the hierarchy).
@@ -97,7 +95,7 @@ public abstract class LegacyAuthorizer implements IAuthorizer
     }
 
     @Override
-    public Set<PermissionDetails> listPermissions(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String of)
+    public Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String of)
     throws InvalidRequestException, UnauthorizedException
     {
         throw new InvalidRequestException("LIST PERMISSIONS operation is not supported by LegacyAuthorizer");
@@ -107,5 +105,10 @@ public abstract class LegacyAuthorizer implements IAuthorizer
     public Set<IResource> protectedResources()
     {
         return Collections.emptySet();
+    }
+
+    @Override
+    public void setup()
+    {
     }
 }

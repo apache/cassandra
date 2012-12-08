@@ -28,15 +28,13 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
-import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.utils.SemanticVersion;
 
 /**
  * State related to a client connection.
- *
- * TODO: Kill thrift exceptions
  */
 public class ClientState
 {
@@ -57,12 +55,12 @@ public class ClientState
         for (String cf : cfs)
             READABLE_SYSTEM_RESOURCES.add(DataResource.columnFamily(Table.SYSTEM_KS, cf));
 
+        PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthenticator().protectedResources());
         PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthorizer().protectedResources());
-        // TODO: the same with IAuthenticator once it's done.
     }
 
     // Current user for the session
-    private AuthenticatedUser user;
+    private volatile AuthenticatedUser user;
     private String keyspace;
 
     private SemanticVersion cqlVersion = DEFAULT_CQL_VERSION;
@@ -82,7 +80,8 @@ public class ClientState
     public ClientState(boolean internalCall)
     {
         this.internalCall = internalCall;
-        this.user = DatabaseDescriptor.getAuthenticator().defaultUser();
+        if (!DatabaseDescriptor.getAuthenticator().requireAuthentication())
+            this.user = AuthenticatedUser.ANONYMOUS_USER;
     }
 
     public String getRawKeyspace()
@@ -107,9 +106,15 @@ public class ClientState
     /**
      * Attempts to login this client with the given credentials map.
      */
-    public void login(Map<? extends CharSequence,? extends CharSequence> credentials) throws AuthenticationException
+    public void login(Map<String, String> credentials) throws AuthenticationException
     {
-        this.user = DatabaseDescriptor.getAuthenticator().authenticate(credentials);
+        AuthenticatedUser user = DatabaseDescriptor.getAuthenticator().authenticate(credentials);
+
+        if (!user.isAnonymous() && !Auth.isExistingUser(user.getName()))
+           throw new AuthenticationException(String.format("User %s doesn't exist - create it with CREATE USER query first",
+                                                           user.getName()));
+
+        this.user = user;
     }
 
     public void hasAllKeyspacesAccess(Permission perm) throws UnauthorizedException, InvalidRequestException
@@ -154,7 +159,7 @@ public class ClientState
                 return;
         }
         throw new UnauthorizedException(String.format("User %s has no %s permission on %s or any of its parents",
-                                                      user.username,
+                                                      user.getName(),
                                                       perm,
                                                       resource));
     }
@@ -165,15 +170,17 @@ public class ClientState
             throw new UnauthorizedException(keyspace + " keyspace is not user-modifiable.");
     }
 
-    public boolean isLogged()
-    {
-        return user != null;
-    }
-
-    private void validateLogin() throws InvalidRequestException
+    public void validateLogin() throws UnauthorizedException
     {
         if (user == null)
-            throw new InvalidRequestException("You have not logged in");
+            throw new UnauthorizedException("You have not logged in");
+    }
+
+    public void ensureNotAnonymous() throws UnauthorizedException
+    {
+        validateLogin();
+        if (user.isAnonymous())
+            throw new UnauthorizedException("You have to be logged in to perform this query");
     }
 
     private static void validateKeyspace(String keyspace) throws InvalidRequestException
@@ -214,6 +221,11 @@ public class ClientState
                                                             StringUtils.join(getCQLSupportedVersion(), ", ")));
     }
 
+    public AuthenticatedUser getUser()
+    {
+        return user;
+    }
+
     public SemanticVersion getCQLVersion()
     {
         return cqlVersion;
@@ -227,26 +239,8 @@ public class ClientState
         return new SemanticVersion[]{ cql, cql3 };
     }
 
-    public Set<Permission> authorize(IResource resource)
+    private Set<Permission> authorize(IResource resource)
     {
         return DatabaseDescriptor.getAuthorizer().authorize(user, resource);
-
-    }
-    public void grantPermission(Set<Permission> permissions, IResource resource, String to)
-    throws UnauthorizedException, InvalidRequestException
-    {
-        DatabaseDescriptor.getAuthorizer().grant(user, permissions, resource, to);
-    }
-
-    public void revokePermission(Set<Permission> permissions, IResource resource, String from)
-    throws UnauthorizedException, InvalidRequestException
-    {
-        DatabaseDescriptor.getAuthorizer().revoke(user, permissions, resource, from);
-    }
-
-    public Set<PermissionDetails> listPermissions(Set<Permission> permissions, IResource resource, String of)
-    throws UnauthorizedException, InvalidRequestException
-    {
-        return DatabaseDescriptor.getAuthorizer().listPermissions(user, permissions, resource, of);
     }
 }

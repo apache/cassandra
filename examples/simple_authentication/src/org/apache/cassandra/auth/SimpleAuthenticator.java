@@ -29,23 +29,21 @@ import java.security.MessageDigest;
 import java.util.Map;
 import java.util.Properties;
 
+import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 
-public class SimpleAuthenticator implements IAuthenticator
+public class SimpleAuthenticator extends LegacyAuthenticator
 {
     public final static String PASSWD_FILENAME_PROPERTY        = "passwd.properties";
     public final static String PMODE_PROPERTY                  = "passwd.mode";
-    public static final String USERNAME_KEY                    = "username";
-    public static final String PASSWORD_KEY                    = "password";
 
     public enum PasswordMode
     {
         PLAIN, MD5,
-    };
+    }
 
     public AuthenticatedUser defaultUser()
     {
@@ -53,7 +51,7 @@ public class SimpleAuthenticator implements IAuthenticator
         return null;
     }
 
-    public AuthenticatedUser authenticate(Map<? extends CharSequence,? extends CharSequence> credentials) throws AuthenticationException
+    public AuthenticatedUser authenticate(Map<String, String> credentials) throws AuthenticationException
     {
         String pmode_plain = System.getProperty(PMODE_PROPERTY);
         PasswordMode mode = PasswordMode.PLAIN;
@@ -78,19 +76,13 @@ public class SimpleAuthenticator implements IAuthenticator
 
         String pfilename = System.getProperty(PASSWD_FILENAME_PROPERTY);
 
-        String username = null;
-        CharSequence user = credentials.get(USERNAME_KEY);
-        if (user == null)
+        String username = credentials.get(USERNAME_KEY);
+        if (username == null)
             throw new AuthenticationException("Authentication request was missing the required key '" + USERNAME_KEY + "'");
-        else
-            username = user.toString();
 
-        String password = null;
-        CharSequence pass = credentials.get(PASSWORD_KEY);
-        if (pass == null)
+        String password = credentials.get(PASSWORD_KEY);
+        if (password == null)
             throw new AuthenticationException("Authentication request was missing the required key '" + PASSWORD_KEY + "'");
-        else
-            password = pass.toString();
 
         boolean authenticated = false;
 

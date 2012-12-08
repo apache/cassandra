@@ -140,6 +140,27 @@ public class QueryProcessor
         return processStatement(getStatement(queryString, queryState.getClientState()).statement, cl, queryState, Collections.<ByteBuffer>emptyList());
     }
 
+    public static UntypedResultSet process(String query)
+    {
+        try
+        {
+            QueryState state = new QueryState(new ClientState(true));
+            ResultMessage result = process(query, ConsistencyLevel.ONE, state);
+            if (result instanceof ResultMessage.Rows)
+                return new UntypedResultSet(((ResultMessage.Rows)result).result);
+            else
+                return null;
+        }
+        catch (RequestExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (RequestValidationException e)
+        {
+            throw new AssertionError(e);
+        }
+    }
+
     public static UntypedResultSet processInternal(String query)
     {
         try
