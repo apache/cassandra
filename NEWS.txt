@@ -14,6 +14,15 @@ by version X, but the inverse is not necessarily the case.)
 
 Upgrading
 ---------
+    - IAuthenticator interface has been updated to support dynamic
+      user creation, modification and removal. Users, even when stored
+      externally, now have to be explicitly created using
+      CREATE USER query first. AllowAllAuthenticator and SimpleAuthenticator
+      have been updated for the new interface, but you'll have to update
+      your old IAuthenticator implementations for 1.2. To ease this process,
+      a new abstract LegacyAuthenticator class has been added - subclass it
+      in your old IAuthenticator implementaion and everything should just work
+      (this only affects users who implemented custom authenticators).
     - IAuthority interface has been deprecated in favor of IAuthorizer.
       AllowAllAuthority and SimpleAuthority have been renamed to
       AllowAllAuthorizer and SimpleAuthorizer, respectively. In order to
@@ -107,6 +116,11 @@ Features
       GRANT, REVOKE, LIST PERMISSIONS. A native implementation storing
       the permissions in Cassandra is being worked on and we expect to
       include it in 1.2.1 or 1.2.2.
+    - IAuthenticator interface has been updated to support dynamic user
+      creation, modification and removal via new CQL3 statements:
+      CREATE USER, ALTER USER, DROP USER, LIST USERS. A native implementation
+      that stores users in Cassandra itself is being worked on and is expected to
+      become part of 1.2.1 or 1.2.2.
 
 
 1.1.5

@@ -550,6 +550,8 @@ Table of Contents
     0x000A    Protocol error: some client message triggered a protocol
               violation (for instance a QUERY message is sent before a STARTUP
               one has been sent)
+    0x0100    Bad credentials: CREDENTIALS request failed because Cassandra
+              did not accept the provided credentials.
 
     0x1000    Unavailable exception. The rest of the ERROR message body will be
                 <cl><required><alive>

@@ -30,6 +30,8 @@ public enum ExceptionCode
     SERVER_ERROR    (0x0000),
     PROTOCOL_ERROR  (0x000A),
 
+    BAD_CREDENTIALS (0x0100),
+
     // 1xx: problem during request execution
     UNAVAILABLE     (0x1000),
     OVERLOADED      (0x1001),

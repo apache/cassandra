@@ -260,6 +260,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                   | <selectStatement>
                   | <dataChangeStatement>
                   | <schemaChangeStatement>
+                  | <authenticationStatement>
                   | <authorizationStatement>
                   ;
 
@@ -280,10 +281,16 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                           | <alterKeyspaceStatement>
                           ;
 
-<authorizationStatement> ::= | <grantStatement>
-                             | <revokeStatement>
-                             | <listPermissionsStatement>
-                             ;
+<authenticationStatement> ::= <createUserStatement>
+                            | <alterUserStatement>
+                            | <dropUserStatement>
+                            | <listUsersStatement>
+                            ;
+
+<authorizationStatement> ::= <grantStatement>
+                           | <revokeStatement>
+                           | <listPermissionsStatement>
+                           ;
 
 # timestamp is included here, since it's also a keyword
 <simpleStorageType> ::= typename=( <identifier> | <stringLiteral> | <K_TIMESTAMP> ) ;
@@ -1243,6 +1250,27 @@ syntax_rules += r'''
 '''
 
 syntax_rules += r'''
+<username> ::= user=( <identifier> | <stringLiteral> )
+             ;
+
+<createUserStatement> ::= "CREATE" "USER" <username>
+                              ( "WITH" "PASSWORD" <stringLiteral> )?
+                              ( "SUPERUSER" | "NOSUPERUSER" )?
+                        ;
+
+<alterUserStatement> ::= "ALTER" "USER" <username>
+                              ( "WITH" "PASSWORD" <stringLiteral> )?
+                              ( "SUPERUSER" | "NOSUPERUSER" )?
+                       ;
+
+<dropUserStatement> ::= "DROP" "USER" <username>
+                      ;
+
+<listUsersStatement> ::= "LIST" "USERS"
+                       ;
+'''
+
+syntax_rules += r'''
 <grantStatement> ::= "GRANT" <permissionExpr> "ON" <resource> "TO" <username>
                    ;
 
@@ -1272,14 +1300,12 @@ syntax_rules += r'''
                  | ( "KEYSPACE" <nonSystemKeyspaceName> )
                  | ( "TABLE"? <columnFamilyName> )
                  ;
-
-<username> ::= user=( <identifier> | <stringLiteral> )
-             ;
 '''
+
 
 @completer_for('username', 'user')
 def username_user_completer(ctxt, cass):
-    # TODO: implement user autocompletion
+    # TODO: implement user autocompletion for grant/revoke/list/drop user/alter user
     # with I could see a way to do this usefully, but I don't. I don't know
     # how any Authorities other than AllowAllAuthorizer work :/
     return [Hint('<username>')]

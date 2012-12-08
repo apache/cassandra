@@ -17,60 +17,75 @@
  */
 package org.apache.cassandra.auth;
 
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
-public class AllowAllAuthenticator implements IAuthenticator
+/**
+ * Provides a transitional IAuthenticator implementation for old-style (pre-1.2) authenticators.
+ *
+ * Comes with default implementation for the all of the new methods.
+ * Subclass LegacyAuthenticator instead of implementing the old IAuthenticator and your old IAuthenticator
+ * implementation should continue to work.
+ */
+public abstract class LegacyAuthenticator implements IAuthenticator
 {
+    /**
+     * @return The user that a connection is initialized with, or 'null' if a user must call login().
+     */
+    public abstract AuthenticatedUser defaultUser();
+
+    /**
+     * @param credentials An implementation specific collection of identifying information.
+     * @return A successfully authenticated user: should throw AuthenticationException rather than ever returning null.
+     */
+    public abstract AuthenticatedUser authenticate(Map<String, String> credentials) throws AuthenticationException;
+
+    public abstract void validateConfiguration() throws ConfigurationException;
+
+    @Override
     public boolean requireAuthentication()
     {
-        return false;
+        return defaultUser() == null;
     }
 
+    @Override
     public Set<Option> supportedOptions()
     {
         return Collections.emptySet();
     }
 
+    @Override
     public Set<Option> alterableOptions()
     {
         return Collections.emptySet();
     }
 
-    public AuthenticatedUser authenticate(Map<String, String> credentials) throws AuthenticationException
-    {
-        return AuthenticatedUser.ANONYMOUS_USER;
-    }
-
+    @Override
     public void create(String username, Map<Option, Object> options) throws InvalidRequestException
     {
-        throw new InvalidRequestException("CREATE USER operation is not supported by AllowAllAuthenticator");
     }
 
+    @Override
     public void alter(String username, Map<Option, Object> options) throws InvalidRequestException
     {
-        throw new InvalidRequestException("ALTER USER operation is not supported by AllowAllAuthenticator");
+        throw new InvalidRequestException("ALTER USER operation is not supported by LegacyAuthenticator");
     }
 
+    @Override
     public void drop(String username) throws InvalidRequestException
     {
-        throw new InvalidRequestException("DROP USER operation is not supported by AllowAllAuthenticator");
     }
 
+    @Override
     public Set<IResource> protectedResources()
     {
         return Collections.emptySet();
     }
 
-    public void validateConfiguration() throws ConfigurationException
-    {
-    }
-
+    @Override
     public void setup()
     {
     }

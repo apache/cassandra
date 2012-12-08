@@ -100,10 +100,10 @@ public class StartupMessage extends Message.Request
             }
         }
 
-        if (cState.isLogged())
-            return new ReadyMessage();
-        else
+        if (DatabaseDescriptor.getAuthenticator().requireAuthentication())
             return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());
+        else
+            return new ReadyMessage();
     }
 
     @Override

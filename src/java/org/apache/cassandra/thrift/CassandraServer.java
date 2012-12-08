@@ -1238,7 +1238,14 @@ public class CassandraServer implements Cassandra.Iface
 
     public void login(AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
     {
-         state().login(auth_request.getCredentials());
+        try
+        {
+            state().login(auth_request.getCredentials());
+        }
+        catch (org.apache.cassandra.exceptions.AuthenticationException e)
+        {
+            throw ThriftConversion.toThrift(e);
+        }
     }
 
     /**

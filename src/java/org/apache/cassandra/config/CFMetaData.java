@@ -32,6 +32,7 @@ import org.apache.commons.lang.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.Auth;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -221,6 +222,11 @@ public final class CFMetaData
                                                               + "token_bytes blob PRIMARY KEY,"
                                                               + "requested_at timestamp"
                                                               + ") WITH COMMENT='ranges requested for transfer here'");
+
+    public static final CFMetaData AuthUsersCf = compile(18, "CREATE TABLE " + Auth.USERS_CF + " ("
+                                                             + "name text PRIMARY KEY,"
+                                                             + "super boolean"
+                                                             + ");", Auth.AUTH_KS);
 
     public enum Caching
     {

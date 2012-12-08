@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Set;
 
+import org.apache.cassandra.auth.Auth;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
@@ -39,7 +40,7 @@ public abstract class PermissionAlteringStatement extends AuthorizationStatement
         this.username = username;
     }
 
-    public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
+    public void checkAccess(ClientState state) throws UnauthorizedException
     {
         // check that the user has AUTHORIZE permission on the resource or its parents, otherwise reject GRANT/REVOKE.
         state.ensureHasPermission(Permission.AUTHORIZE, resource);
@@ -48,9 +49,11 @@ public abstract class PermissionAlteringStatement extends AuthorizationStatement
             state.ensureHasPermission(p, resource);
     }
 
-    // TODO: user existence check (when IAuthenticator rewrite is done)
     public void validate(ClientState state) throws InvalidRequestException
     {
+        if (!Auth.isExistingUser(username))
+            throw new InvalidRequestException(String.format("User %s doesn't exist", username));
+
         // if a keyspace is omitted when GRANT/REVOKE ON TABLE <table>, we need to correct the resource.
         resource = maybeCorrectResource(resource, state);
         if (!resource.exists())

@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.*;
@@ -28,7 +27,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
-public abstract class AuthorizationStatement extends ParsedStatement implements CQLStatement
+public abstract class AuthenticationStatement extends ParsedStatement implements CQLStatement
 {
     @Override
     public Prepared prepare()
@@ -42,23 +41,17 @@ public abstract class AuthorizationStatement extends ParsedStatement implements 
     }
 
     public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables)
-    throws RequestValidationException, RequestExecutionException
+    throws RequestExecutionException, RequestValidationException
     {
         return execute(state.getClientState());
     }
 
-    public abstract ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException;
+    public abstract ResultMessage execute(ClientState state) throws RequestExecutionException, RequestValidationException;
 
     public ResultMessage executeInternal(QueryState state)
     {
-        // executeInternal is for local query only, thus altering permission doesn't make sense and is not supported
+        // executeInternal is for local query only, thus altering users doesn't make sense and is not supported
         throw new UnsupportedOperationException();
     }
-
-    public static DataResource maybeCorrectResource(DataResource resource, ClientState state) throws InvalidRequestException
-    {
-        if (resource.isColumnFamilyLevel() && resource.getKeyspace() == null)
-            return DataResource.columnFamily(state.getKeyspace(), resource.getColumnFamily());
-        return resource;
-    }
 }
+
