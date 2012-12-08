@@ -20,6 +20,8 @@ package org.apache.cassandra.auth;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -27,10 +29,11 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.WrappedRunnable;
 
 public class Auth
 {
+    private static final Logger logger = LoggerFactory.getLogger(Auth.class);
+
     public static final String DEFAULT_SUPERUSER_NAME = "cassandra";
 
     public static final String AUTH_KS = "system_auth";
@@ -115,13 +118,20 @@ public class Auth
         MigrationManager.instance.register(new MigrationListener());
 
         // schedule seeding a superuser in RING_DELAY milliseconds.
-        Runnable runnable = new WrappedRunnable()
+        Runnable runnable = new Runnable()
         {
-            public void runMayThrow() throws UnavailableException
+            public void run()
             {
-                // insert a default superuser if AUTH_KS.USERS_CF is empty.
-                if (QueryProcessor.process(String.format("SELECT * FROM %s.%s", AUTH_KS, USERS_CF)).isEmpty())
-                    insertUser(DEFAULT_SUPERUSER_NAME, true);
+                try
+                {
+                    // insert a default superuser if AUTH_KS.USERS_CF is empty.
+                    if (QueryProcessor.process(String.format("SELECT * FROM %s.%s", AUTH_KS, USERS_CF)).isEmpty())
+                        insertUser(DEFAULT_SUPERUSER_NAME, true);
+                }
+                catch (UnavailableException e)
+                {
+                    logger.warn("Skipping default superuser setup: some nodes are unavailable");
+                }
             }
         };
         StorageService.tasks.schedule(runnable, StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
