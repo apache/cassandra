@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.utils.*;
 
@@ -373,14 +374,11 @@ public class CounterContext implements IContext
                         long leftCount = leftState.getCount();
                         long rightCount = rightState.getCount();
 
-                        if (leftCount != rightCount)
+                        if (leftCount != rightCount && CompactionManager.isCompactionManager.get())
                         {
-                            logger.error("invalid counter shard detected; ({}, {}, {}) and ({}, {}, {}) differ only in "
-                                    + "count; will pick highest to self-heal; this indicates a bug or corruption generated a bad counter shard",
-                                    new Object[] {
-                                            leftState.getCounterId(), leftClock, leftCount,
-                                            rightState.getCounterId(), rightClock, rightCount,
-                                     });
+                            logger.warn("invalid counter shard detected; ({}, {}, {}) and ({}, {}, {}) differ only in "
+                                        + "count; will pick highest to self-heal on compaction",
+                                        leftState.getCounterId(), leftClock, leftCount, rightState.getCounterId(), rightClock, rightCount);
                         }
 
                         if (leftCount > rightCount)
