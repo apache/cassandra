@@ -24,7 +24,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -45,7 +45,14 @@ public class Auth
     public static boolean isExistingUser(String username)
     {
         String query = String.format("SELECT * FROM %s.%s WHERE name = '%s'", AUTH_KS, USERS_CF, escape(username));
-        return !QueryProcessor.process(query).isEmpty();
+        try
+        {
+            return !QueryProcessor.process(query).isEmpty();
+        }
+        catch (UnavailableException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -57,8 +64,15 @@ public class Auth
     public static boolean isSuperuser(String username)
     {
         String query = String.format("SELECT super FROM %s.%s WHERE name = '%s'", AUTH_KS, USERS_CF, escape(username));
-        UntypedResultSet result = QueryProcessor.process(query);
-        return !result.isEmpty() && result.one().getBoolean("super");
+        try
+        {
+            UntypedResultSet result = QueryProcessor.process(query);
+            return !result.isEmpty() && result.one().getBoolean("super");
+        }
+        catch (UnavailableException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -67,7 +81,7 @@ public class Auth
      * @param username Username to insert.
      * @param isSuper User's new status.
      */
-    public static void insertUser(String username, boolean isSuper)
+    public static void insertUser(String username, boolean isSuper) throws UnavailableException
     {
         QueryProcessor.process(String.format("INSERT INTO %s.%s (name, super) VALUES ('%s', %s)",
                                              AUTH_KS,
@@ -81,7 +95,7 @@ public class Auth
      *
      * @param username Username to delete.
      */
-    public static void deleteUser(String username)
+    public static void deleteUser(String username) throws UnavailableException
     {
         QueryProcessor.process(String.format("DELETE FROM %s.%s WHERE name = '%s'",
                                              AUTH_KS,
@@ -103,7 +117,7 @@ public class Auth
         // schedule seeding a superuser in RING_DELAY milliseconds.
         Runnable runnable = new WrappedRunnable()
         {
-            public void runMayThrow() throws InvalidRequestException
+            public void runMayThrow() throws UnavailableException
             {
                 // insert a default superuser if AUTH_KS.USERS_CF is empty.
                 if (QueryProcessor.process(String.format("SELECT * FROM %s.%s", AUTH_KS, USERS_CF)).isEmpty())

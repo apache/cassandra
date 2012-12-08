@@ -140,7 +140,7 @@ public class QueryProcessor
         return processStatement(getStatement(queryString, queryState.getClientState()).statement, cl, queryState, Collections.<ByteBuffer>emptyList());
     }
 
-    public static UntypedResultSet process(String query)
+    public static UntypedResultSet process(String query) throws UnavailableException
     {
         try
         {
@@ -150,6 +150,10 @@ public class QueryProcessor
                 return new UntypedResultSet(((ResultMessage.Rows)result).result);
             else
                 return null;
+        }
+        catch (UnavailableException e)
+        {
+            throw e;
         }
         catch (RequestExecutionException e)
         {

@@ -22,6 +22,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UserOptions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -55,7 +56,7 @@ public class CreateUserStatement extends AuthenticationStatement
             throw new UnauthorizedException("Only superusers are allowed to perfrom CREATE USER queries");
     }
 
-    public ResultMessage execute(ClientState state) throws InvalidRequestException
+    public ResultMessage execute(ClientState state) throws InvalidRequestException, UnavailableException
     {
         DatabaseDescriptor.getAuthenticator().create(username, opts.getOptions());
         Auth.insertUser(username, superuser);
