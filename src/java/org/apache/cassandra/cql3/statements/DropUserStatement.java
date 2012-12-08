@@ -22,6 +22,7 @@ import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -51,7 +52,7 @@ public class DropUserStatement extends AuthenticationStatement
             throw new UnauthorizedException("Only superusers are allowed to perfrom DROP USER queries");
     }
 
-    public ResultMessage execute(ClientState state) throws InvalidRequestException
+    public ResultMessage execute(ClientState state) throws InvalidRequestException, UnavailableException
     {
         // clean up permissions after the dropped user.
         DatabaseDescriptor.getAuthorizer().revokeAll(username);
