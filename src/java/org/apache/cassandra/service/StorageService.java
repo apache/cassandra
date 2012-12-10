@@ -37,6 +37,7 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.Auth;
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -62,7 +63,6 @@ import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ResponseVerbHandler;
-import org.apache.cassandra.service.AntiEntropyService.RepairFuture;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.Constants;
@@ -739,6 +739,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     Gossiper.instance.replacedEndpoint(existing);
             logger.info("Startup completed! Now serving reads.");
             assert tokenMetadata.sortedTokens().size() > 0;
+
+            // setup default superuser (if needed).
+            Auth.setupSuperuser();
         }
         else
         {
@@ -776,6 +779,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             isSurveyMode = false;
             logger.info("Leaving write survey mode and joining ring at operator request");
             assert tokenMetadata.sortedTokens().size() > 0;
+
+            // setup default superuser (if needed).
+            Auth.setupSuperuser();
         }
     }
 
