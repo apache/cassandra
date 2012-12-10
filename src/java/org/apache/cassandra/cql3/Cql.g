@@ -256,9 +256,9 @@ insertStatement returns [UpdateStatement expr]
         List<Operation> columnOperations = new ArrayList<Operation>();
     }
     : K_INSERT K_INTO cf=columnFamilyName
-          '(' c1=cident { columnNames.add(c1); }  ( ',' cn=cident { columnNames.add(cn); } )+ ')'
+          '(' c1=cident { columnNames.add(c1); }  ( ',' cn=cident { columnNames.add(cn); } )* ')'
         K_VALUES
-          '(' v1=set_operation { columnOperations.add(v1); } ( ',' vn=set_operation { columnOperations.add(vn); } )+ ')'
+          '(' v1=set_operation { columnOperations.add(v1); } ( ',' vn=set_operation { columnOperations.add(vn); } )* ')'
         ( usingClause[attrs] )?
       {
           $expr = new UpdateStatement(cf, attrs, columnNames, columnOperations);
