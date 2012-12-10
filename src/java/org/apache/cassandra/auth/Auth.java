@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.exceptions.UnavailableException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 
@@ -52,7 +52,7 @@ public class Auth
         {
             return !QueryProcessor.process(query).isEmpty();
         }
-        catch (UnavailableException e)
+        catch (RequestExecutionException e)
         {
             throw new RuntimeException(e);
         }
@@ -72,7 +72,7 @@ public class Auth
             UntypedResultSet result = QueryProcessor.process(query);
             return !result.isEmpty() && result.one().getBoolean("super");
         }
-        catch (UnavailableException e)
+        catch (RequestExecutionException e)
         {
             throw new RuntimeException(e);
         }
@@ -84,7 +84,7 @@ public class Auth
      * @param username Username to insert.
      * @param isSuper User's new status.
      */
-    public static void insertUser(String username, boolean isSuper) throws UnavailableException
+    public static void insertUser(String username, boolean isSuper) throws RequestExecutionException
     {
         QueryProcessor.process(String.format("INSERT INTO %s.%s (name, super) VALUES ('%s', %s)",
                                              AUTH_KS,
@@ -98,7 +98,7 @@ public class Auth
      *
      * @param username Username to delete.
      */
-    public static void deleteUser(String username) throws UnavailableException
+    public static void deleteUser(String username) throws RequestExecutionException
     {
         QueryProcessor.process(String.format("DELETE FROM %s.%s WHERE name = '%s'",
                                              AUTH_KS,
@@ -128,9 +128,9 @@ public class Auth
                     if (QueryProcessor.process(String.format("SELECT * FROM %s.%s", AUTH_KS, USERS_CF)).isEmpty())
                         insertUser(DEFAULT_SUPERUSER_NAME, true);
                 }
-                catch (UnavailableException e)
+                catch (RequestExecutionException e)
                 {
-                    logger.warn("Skipping default superuser setup: some nodes are unavailable");
+                    logger.warn("Skipping default superuser setup: some nodes are not ready");
                 }
             }
         };
