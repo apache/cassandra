@@ -107,33 +107,51 @@ public class LeveledManifest
         if (manifestFile == null)
             return;
 
-        ObjectMapper m = new ObjectMapper();
         try
         {
-            JsonNode rootNode = m.readValue(manifestFile, JsonNode.class);
-            JsonNode generations = rootNode.get("generations");
-            assert generations.isArray();
-            for (JsonNode generation : generations)
-            {
-                int level = generation.get("generation").getIntValue();
-                JsonNode generationValues = generation.get("members");
-                for (JsonNode generationValue : generationValues)
-                {
-                    for (SSTableReader ssTableReader : sstables)
-                    {
-                        if (ssTableReader.descriptor.generation == generationValue.getIntValue())
-                        {
-                            logger.debug("Loading {} at L{}", ssTableReader, level);
-                            manifest.add(ssTableReader, level);
-                        }
-                    }
-                }
-            }
+            parseManifest(manifest, sstables, manifestFile);
         }
         catch (Exception e)
         {
-            // TODO try to recover -old first
-            logger.error("Manifest present but corrupt. Cassandra will compact levels from scratch", e);
+            logger.debug("Error parsing manifest", e);
+            File oldFile = new File(manifestFile.getPath().replace(EXTENSION, "-old.json"));
+            if (oldFile.exists())
+            {
+                try
+                {
+                    parseManifest(manifest, sstables, oldFile);
+                    return;
+                }
+                catch (Exception old)
+                {
+                    logger.debug("Old manifest present but corrupt", old);
+                }
+            }
+            logger.warn("Manifest present but corrupt. Cassandra will re-level {} from scratch", cfs.columnFamily);
+        }
+    }
+
+    private static void parseManifest(LeveledManifest manifest, Iterable<SSTableReader> sstables, File manifestFile) throws IOException
+    {
+        ObjectMapper m = new ObjectMapper();
+        JsonNode rootNode = m.readValue(manifestFile, JsonNode.class);
+        JsonNode generations = rootNode.get("generations");
+        assert generations.isArray();
+        for (JsonNode generation : generations)
+        {
+            int level = generation.get("generation").getIntValue();
+            JsonNode generationValues = generation.get("members");
+            for (JsonNode generationValue : generationValues)
+            {
+                for (SSTableReader ssTableReader : sstables)
+                {
+                    if (ssTableReader.descriptor.generation == generationValue.getIntValue())
+                    {
+                        logger.debug("Loading {} at L{}", ssTableReader, level);
+                        manifest.add(ssTableReader, level);
+                    }
+                }
+            }
         }
     }
 
