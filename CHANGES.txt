@@ -3,6 +3,7 @@
  * Improve schema propagation performance (CASSANDRA-5025)
  * Fall back to old describe_splits if d_s_ex is not available (CASSANDRA-4803)
  * Improve error reporting when streaming ranges fail (CASSANDRA-5009)
+ * cqlsh: fix timestamp formatting on some platforms (CASSANDRA-5046)
 
 
 1.1.7

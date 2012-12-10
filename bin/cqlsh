@@ -495,7 +495,7 @@ def format_value(val, casstype, output_encoding, addcolor=False, time_format='',
             offset = -time.altzone
         else:
             offset = -time.timezone
-        if formatted[-4] != '0000' or time_format[-2] != '%z' or offset == 0:
+        if formatted[-4:] != '0000' or time_format[-2:] != '%z' or offset == 0:
             bval = formatted
         else:
             # deal with %z on platforms where it isn't supported. see CASSANDRA-4746.
