@@ -148,7 +148,7 @@ def strftime(time_format, seconds):
         offset = -time.altzone
     else:
         offset = -time.timezone
-    if formatted[-4] != '0000' or time_format[-2] != '%z' or offset == 0:
+    if formatted[-4:] != '0000' or time_format[-2:] != '%z' or offset == 0:
         return formatted
     # deal with %z on platforms where it isn't supported. see CASSANDRA-4746.
     if offset < 0:
