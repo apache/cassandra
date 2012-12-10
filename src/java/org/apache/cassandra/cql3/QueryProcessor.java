@@ -140,7 +140,7 @@ public class QueryProcessor
         return processStatement(getStatement(queryString, queryState.getClientState()).statement, cl, queryState, Collections.<ByteBuffer>emptyList());
     }
 
-    public static UntypedResultSet process(String query) throws UnavailableException
+    public static UntypedResultSet process(String query) throws RequestExecutionException
     {
         try
         {
@@ -151,17 +151,9 @@ public class QueryProcessor
             else
                 return null;
         }
-        catch (UnavailableException e)
-        {
-            throw e;
-        }
-        catch (RequestExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
         catch (RequestValidationException e)
         {
-            throw new AssertionError(e);
+            throw new RuntimeException(e);
         }
     }
 

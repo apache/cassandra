@@ -23,8 +23,8 @@ import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UserOptions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
-import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -76,7 +76,7 @@ public class AlterUserStatement extends AuthenticationStatement
         }
     }
 
-    public ResultMessage execute(ClientState state) throws InvalidRequestException, UnavailableException
+    public ResultMessage execute(ClientState state) throws InvalidRequestException, RequestExecutionException
     {
         if (!opts.isEmpty())
             DatabaseDescriptor.getAuthenticator().alter(username, opts.getOptions());
