@@ -127,7 +127,7 @@ public class LeveledManifest
                     logger.debug("Old manifest present but corrupt", old);
                 }
             }
-            logger.warn("Manifest present but corrupt. Cassandra will re-level {} from scratch", cfs.columnFamily);
+            logger.warn("Manifest present but corrupt. Cassandra will re-level {} from scratch", cfs.getColumnFamilyName());
         }
     }
 
