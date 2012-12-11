@@ -8,6 +8,7 @@
  * Fix message when trying to alter a clustering key type (CASSANDRA-5012)
  * Update IAuthenticator to match the new IAuthorizer (CASSANDRA-5003)
  * Fix inserting only a key in CQL3 (CASSANDRA-5040)
+ * Fix CQL3 token() function when used with strings (CASSANDRA-5050)
 Merged from 1.1
  * reduce log spam from invalid counter shards (CASSANDRA-5026)
  * Improve schema propagation performance (CASSANDRA-5025)

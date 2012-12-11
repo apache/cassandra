@@ -370,7 +370,7 @@ public class SelectStatement implements CQLStatement
         if (t == null)
             return p.getMinimumToken();
 
-        if (t.getType() == Term.Type.STRING)
+        if (t.getType() == Term.Type.STRING && !t.isToken)
         {
             try
             {
