@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.auth;
 
-import java.util.concurrent.TimeUnit;
-
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +26,6 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.service.StorageService;
 
 public class Auth
 {
@@ -116,25 +113,23 @@ public class Auth
 
         // register a custom MigrationListener for permissions cleanup after dropped keyspaces/cfs.
         MigrationManager.instance.register(new MigrationListener());
+    }
 
-        // schedule seeding a superuser in RING_DELAY milliseconds.
-        Runnable runnable = new Runnable()
+    /**
+     * Sets up default superuser.
+     */
+    public static void setupSuperuser()
+    {
+        try
         {
-            public void run()
-            {
-                try
-                {
-                    // insert a default superuser if AUTH_KS.USERS_CF is empty.
-                    if (QueryProcessor.process(String.format("SELECT * FROM %s.%s", AUTH_KS, USERS_CF)).isEmpty())
-                        insertUser(DEFAULT_SUPERUSER_NAME, true);
-                }
-                catch (RequestExecutionException e)
-                {
-                    logger.warn("Skipping default superuser setup: some nodes are not ready");
-                }
-            }
-        };
-        StorageService.tasks.schedule(runnable, StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
+            // insert a default superuser if AUTH_KS.USERS_CF is empty.
+            if (QueryProcessor.process(String.format("SELECT * FROM %s.%s", AUTH_KS, USERS_CF)).isEmpty())
+                insertUser(DEFAULT_SUPERUSER_NAME, true);
+        }
+        catch (RequestExecutionException e)
+        {
+            logger.warn("Skipping default superuser setup: some nodes are not ready");
+        }
     }
 
     // we only worry about one character ('). Make sure it's properly escaped.
