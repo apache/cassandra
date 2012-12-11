@@ -84,7 +84,6 @@ public class SystemTable
     public static final String OLD_HINTS_CF = "HintsColumnFamily";
 
     private static final String LOCAL_KEY = "local";
-    private static final ByteBuffer CURRENT_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("CurrentLocal");
     private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
 
     public enum BootstrapState
