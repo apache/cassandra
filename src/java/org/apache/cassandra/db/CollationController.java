@@ -35,14 +35,15 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.HeapAllocator;
 
 public class CollationController
 {
     private static final Logger logger = LoggerFactory.getLogger(CollationController.class);
 
     private final ColumnFamilyStore cfs;
-    private final boolean mutableColumns;
     private final QueryFilter filter;
+    private final ISortedColumns.Factory factory;
     private final int gcBefore;
 
     private int sstablesIterated = 0;
@@ -50,9 +51,13 @@ public class CollationController
     public CollationController(ColumnFamilyStore cfs, boolean mutableColumns, QueryFilter filter, int gcBefore)
     {
         this.cfs = cfs;
-        this.mutableColumns = mutableColumns;
         this.filter = filter;
         this.gcBefore = gcBefore;
+
+        // AtomicSortedColumns doesn't work for super columns (see #3821)
+        this.factory = mutableColumns
+                     ? cfs.metadata.cfType == ColumnFamilyType.Super ? ThreadSafeSortedColumns.factory() : AtomicSortedColumns.factory()
+                     : ArrayBackedSortedColumns.factory();
     }
 
     public ColumnFamily getTopLevelColumns()
@@ -72,15 +77,17 @@ public class CollationController
     private ColumnFamily collectTimeOrderedData()
     {
         logger.trace("collectTimeOrderedData");
-
-        // AtomicSortedColumns doesn't work for super columi ns (see #3821)
-        ISortedColumns.Factory factory = mutableColumns
-                                       ? cfs.metadata.cfType == ColumnFamilyType.Super ? ThreadSafeSortedColumns.factory() : AtomicSortedColumns.factory()
-                                       : TreeMapBackedSortedColumns.factory();
         ColumnFamily container = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());
         List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>();
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
+
+        // We use a temporary CF object per memtable or sstable source so we can accomodate this.factory being ABSC,
+        // which requires addAtom to happen in sorted order.  Then we use addAll to merge into the final collection,
+        // which allows a (sorted) set of columns to be merged even if they are not uniformly sorted after the existing
+        // ones.
+        ColumnFamily temp = ColumnFamily.create(cfs.metadata, ArrayBackedSortedColumns.factory(), filter.filter.isReversed());
+
         try
         {
             Tracing.trace("Merging memtable contents");
@@ -90,10 +97,13 @@ public class CollationController
                 if (iter != null)
                 {
                     iterators.add(iter);
-                    container.delete(iter.getColumnFamily());
+                    temp.delete(iter.getColumnFamily());
                     while (iter.hasNext())
-                        container.addAtom(iter.next());
+                        temp.addAtom(iter.next());
                 }
+
+                container.addAll(temp, HeapAllocator.instance);
+                temp.clear();
             }
 
             // avoid changing the filter columns of the original filter
@@ -131,12 +141,15 @@ public class CollationController
                         mostRecentRowTombstone = cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
                     }
 
-                    container.delete(cf);
+                    temp.delete(cf);
                     sstablesIterated++;
                     Tracing.trace("Merging data from sstable {}", sstable.descriptor.generation);
                     while (iter.hasNext())
-                        container.addAtom(iter.next());
+                        temp.addAtom(iter.next());
                 }
+
+                container.addAll(temp, HeapAllocator.instance);
+                temp.clear();
             }
 
             // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
@@ -219,10 +232,6 @@ public class CollationController
     private ColumnFamily collectAllData()
     {
         logger.trace("collectAllData");
-        // AtomicSortedColumns doesn't work for super columns (see #3821)
-        ISortedColumns.Factory factory = mutableColumns
-                                       ? cfs.metadata.cfType == ColumnFamilyType.Super ? ThreadSafeSortedColumns.factory() : AtomicSortedColumns.factory()
-                                       : ArrayBackedSortedColumns.factory();
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
         List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>(Iterables.size(view.memtables) + view.sstables.size());
