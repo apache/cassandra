@@ -741,7 +741,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         // invalidate a normal cache value if it's a sentinel, so the read will retry (and include the new update)
-        IRowCacheEntry cachedRow = getCachedRowInternal(cacheKey);
+        IRowCacheEntry cachedRow = CacheService.instance.rowCache.getInternal(cacheKey);
         if (cachedRow != null)
         {
             if (cachedRow instanceof RowCacheSentinel)
@@ -1653,16 +1653,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ColumnFamily getRawCachedRow(DecoratedKey key)
     {
-        if (metadata.cfId == null)
+        if (!isRowCacheEnabled() || metadata.cfId == null)
             return null; // secondary index
 
-        IRowCacheEntry cached = getCachedRowInternal(new RowCacheKey(metadata.cfId, key));
+        IRowCacheEntry cached = CacheService.instance.rowCache.getInternal(new RowCacheKey(metadata.cfId, key));
         return cached == null || cached instanceof RowCacheSentinel ? null : (ColumnFamily) cached;
-    }
-
-    private IRowCacheEntry getCachedRowInternal(RowCacheKey key)
-    {
-        return CacheService.instance.rowCache.getCapacity() == 0 ? null : CacheService.instance.rowCache.getInternal(key);
     }
 
     /**
