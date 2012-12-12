@@ -8,6 +8,10 @@
  * Expose black-listed directories via JMX (CASSANDRA-4848)
 
 
+1.2.0
+ * cqlsh: add DESCRIBE KEYSPACES command (CASSANDRA-5060)
+
+
 1.2-rc1
  * rename rpc_timeout settings to request_timeout (CASSANDRA-5027)
  * add BF with 0.1 FP to LCS by default (CASSANDRA-5029)
