@@ -211,7 +211,8 @@ cqlsh_extra_syntax_rules = r'''
                    ;
 
 <describeCommand> ::= ( "DESCRIBE" | "DESC" )
-                                  ( "KEYSPACE" ksname=<keyspaceName>?
+                                  ( "KEYSPACES"
+                                  | "KEYSPACE" ksname=<keyspaceName>?
                                   | ( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName>
                                   | ( "COLUMNFAMILIES" | "TABLES" )
                                   | "SCHEMA"
@@ -1328,6 +1329,11 @@ class Shell(cmd.Cmd):
             out.write('CREATE INDEX %s ON %s (%s);\n'
                          % (col.index_name, cfname, self.cql_protect_name(col.name)))
 
+    def describe_keyspaces(self):
+        print
+        cmd.Cmd.columnize(self, self.get_keyspace_names())
+        print
+
     def describe_keyspace(self, ksname):
         print
         self.print_recreate_keyspace(self.get_keyspace(ksname), sys.stdout)
@@ -1381,6 +1387,10 @@ class Shell(cmd.Cmd):
           Outputs information about the connected Cassandra cluster, or about
           the data stored on it. Use in one of the following ways:
 
+        DESCRIBE KEYSPACES
+
+          Output the names of all keyspaces.
+
         DESCRIBE KEYSPACE [<keyspacename>]
 
           Output CQL commands that could be used to recreate the given
@@ -1416,6 +1426,8 @@ class Shell(cmd.Cmd):
           k.
         """
         what = parsed.matched[1][1].lower()
+        if what == 'keyspaces':
+            self.describe_keyspaces()
         if what == 'keyspace':
             ksname = self.cql_unprotect_name(parsed.get_binding('ksname', ''))
             if not ksname:
