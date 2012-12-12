@@ -51,8 +51,12 @@ public class DeletionInfo
     {
         // Pre-1.1 node may return MIN_VALUE for non-deleted container, but the new default is MAX_VALUE
         // (see CASSANDRA-3872)
-        this(new DeletionTime(markedForDeleteAt, localDeletionTime == Integer.MIN_VALUE ? Integer.MAX_VALUE : localDeletionTime),
-             IntervalTree.<ByteBuffer, DeletionTime, RangeTombstone>emptyTree());
+        this(new DeletionTime(markedForDeleteAt, localDeletionTime == Integer.MIN_VALUE ? Integer.MAX_VALUE : localDeletionTime));
+    }
+
+    public DeletionInfo(DeletionTime topLevel)
+    {
+        this(topLevel, IntervalTree.<ByteBuffer, DeletionTime, RangeTombstone>emptyTree());
     }
 
     public DeletionInfo(ByteBuffer start, ByteBuffer end, Comparator<ByteBuffer> comparator, long markedForDeleteAt, int localDeletionTime)
@@ -94,7 +98,7 @@ public class DeletionInfo
      * @param column the column to check.
      * @return true if the column is deleted, false otherwise
      */
-    public boolean isDeleted(IColumn column)
+    public boolean isDeleted(Column column)
     {
         return isDeleted(column.name(), column.mostRecentLiveChangeAt());
     }
@@ -209,6 +213,11 @@ public class DeletionInfo
     public Iterator<RangeTombstone> rangeIterator()
     {
         return ranges.iterator();
+    }
+
+    public List<DeletionTime> rangeCovering(ByteBuffer name)
+    {
+        return ranges.search(name);
     }
 
     public int dataSize()
@@ -331,7 +340,7 @@ public class DeletionInfo
 
         public DeletionInfo deserialize(DataInput in, int version, Comparator<ByteBuffer> comparator) throws IOException
         {
-            assert comparator != null;
+            assert version < MessagingService.VERSION_12 || comparator != null;
             DeletionTime topLevel = DeletionTime.serializer.deserialize(in);
             if (version < MessagingService.VERSION_12)
                 return new DeletionInfo(topLevel, IntervalTree.<ByteBuffer, DeletionTime, RangeTombstone>emptyTree());

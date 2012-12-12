@@ -121,7 +121,7 @@ public class PrecompactedRow extends AbstractCompactedRow
             else
             {
                 // addAll is ok even if cf is an ArrayBackedSortedColumns
-                cf.addAllWithSizeDelta(thisCF, HeapAllocator.instance, Functions.<IColumn>identity(), indexer);
+                cf.addAllWithSizeDelta(thisCF, HeapAllocator.instance, Functions.<Column>identity(), indexer);
             }
         }
         return cf;

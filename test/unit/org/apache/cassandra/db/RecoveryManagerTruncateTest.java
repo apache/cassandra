@@ -29,7 +29,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.junit.Test;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -66,7 +65,7 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 		assertNull(getFromTable(table, "Standard1", "keymulti", "col1"));
 	}
 
-	private IColumn getFromTable(Table table, String cfName, String keyName, String columnName)
+	private Column getFromTable(Table table, String cfName, String keyName, String columnName)
 	{
 		ColumnFamily cf;
 		ColumnFamilyStore cfStore = table.getColumnFamilyStore(cfName);
@@ -75,7 +74,7 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 			return null;
 		}
 		cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(
-		        Util.dk(keyName), new QueryPath(cfName), ByteBufferUtil.bytes(columnName)));
+		        Util.dk(keyName), cfName, ByteBufferUtil.bytes(columnName)));
 		if (cf == null)
 		{
 			return null;

@@ -198,7 +198,6 @@ public class SelectStatement implements CQLStatement
 
     private List<ReadCommand> getSliceCommands(List<ByteBuffer> variables) throws RequestValidationException
     {
-        QueryPath queryPath = new QueryPath(columnFamily());
         Collection<ByteBuffer> keys = getKeys(variables);
         List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
 
@@ -214,7 +213,7 @@ public class SelectStatement implements CQLStatement
                 // Note that we should not share the slice filter amongst the command, due to SliceQueryFilter not
                 // being immutable due to its columnCounter used by the lastCounted() method
                 // (this is fairly ugly and we should change that but that's probably not a tiny refactor to do that cleanly)
-                commands.add(new SliceFromReadCommand(keyspace(), key, queryPath, (SliceQueryFilter)makeFilter(variables)));
+                commands.add(new SliceFromReadCommand(keyspace(), key, columnFamily(), (SliceQueryFilter)makeFilter(variables)));
             }
         }
         // ...of a list of column names
@@ -225,7 +224,7 @@ public class SelectStatement implements CQLStatement
             for (ByteBuffer key: keys)
             {
                 QueryProcessor.validateKey(key);
-                commands.add(new SliceByNamesReadCommand(keyspace(), key, queryPath, (NamesQueryFilter)filter));
+                commands.add(new SliceByNamesReadCommand(keyspace(), key, columnFamily(), (NamesQueryFilter)filter));
             }
         }
         return commands;
@@ -239,7 +238,6 @@ public class SelectStatement implements CQLStatement
         // We want to have getRangeSlice to count the number of columns, not the number of keys.
         return new RangeSliceCommand(keyspace(),
                                      columnFamily(),
-                                     null,
                                      filter,
                                      getKeyBounds(variables),
                                      expressions,
@@ -476,9 +474,9 @@ public class SelectStatement implements CQLStatement
 
             // We need to query the selected column as well as the marker
             // column (for the case where the row exists but has no columns outside the PK)
-            // One exception is "static CF" (non-composite non-compact CF) that
-            // don't have marker and for which we must query all columns instead
-            if (cfDef.isComposite)
+            // Two exceptions are "static CF" (non-composite non-compact CF) and "super CF"
+            // that don't have marker and for which we must query all columns instead
+            if (cfDef.isComposite && !cfDef.cfm.isSuper())
             {
                 // marker
                 columns.add(builder.copy().add(ByteBufferUtil.EMPTY_BYTE_BUFFER).build());
@@ -606,14 +604,14 @@ public class SelectStatement implements CQLStatement
         }
     }
 
-    private ByteBuffer value(IColumn c)
+    private ByteBuffer value(Column c)
     {
         return (c instanceof CounterColumn)
              ? ByteBufferUtil.bytes(CounterContext.instance().total(c.value()))
              : c.value();
     }
 
-    private void addReturnValue(ResultSet cqlRows, Selector s, IColumn c)
+    private void addReturnValue(ResultSet cqlRows, Selector s, Column c)
     {
         if (c == null || c.isMarkedForDelete())
         {
@@ -672,7 +670,7 @@ public class SelectStatement implements CQLStatement
         return new ResultSet(names);
     }
 
-    private Iterable<IColumn> columnsInOrder(final ColumnFamily cf, final List<ByteBuffer> variables) throws InvalidRequestException
+    private Iterable<Column> columnsInOrder(final ColumnFamily cf, final List<ByteBuffer> variables) throws InvalidRequestException
     {
         // If the restriction for the last column alias is an IN, respect
         // requested order
@@ -693,18 +691,18 @@ public class SelectStatement implements CQLStatement
             requested.add(b.add(t, Relation.Type.EQ, variables).build());
         }
 
-        return new Iterable<IColumn>()
+        return new Iterable<Column>()
         {
-            public Iterator<IColumn> iterator()
+            public Iterator<Column> iterator()
             {
-                return new AbstractIterator<IColumn>()
+                return new AbstractIterator<Column>()
                 {
                     Iterator<ByteBuffer> iter = requested.iterator();
-                    public IColumn computeNext()
+                    public Column computeNext()
                     {
                         if (!iter.hasNext())
                             return endOfData();
-                        IColumn column = cf.getColumn(iter.next());
+                        Column column = cf.getColumn(iter.next());
                         return column == null ? computeNext() : column;
                     }
                 };
@@ -736,7 +734,7 @@ public class SelectStatement implements CQLStatement
             if (cfDef.isCompact)
             {
                 // One cqlRow per column
-                for (IColumn c : columnsInOrder(row.cf, variables))
+                for (Column c : columnsInOrder(row.cf, variables))
                 {
                     if (c.isMarkedForDelete())
                         continue;
@@ -797,7 +795,7 @@ public class SelectStatement implements CQLStatement
 
                 ColumnGroupMap.Builder builder = new ColumnGroupMap.Builder(composite, cfDef.hasCollections);
 
-                for (IColumn c : row.cf)
+                for (Column c : row.cf)
                 {
                     if (c.isMarkedForDelete())
                         continue;
@@ -825,7 +823,7 @@ public class SelectStatement implements CQLStatement
                         continue;
                     }
 
-                    IColumn c = row.cf.getColumn(name.name.key);
+                    Column c = row.cf.getColumn(name.name.key);
                     addReturnValue(cqlRows, selector, c);
                 }
             }
@@ -936,14 +934,14 @@ public class SelectStatement implements CQLStatement
                 case COLUMN_METADATA:
                     if (name.type.isCollection())
                     {
-                        List<Pair<ByteBuffer, IColumn>> collection = columns.getCollection(name.name.key);
+                        List<Pair<ByteBuffer, Column>> collection = columns.getCollection(name.name.key);
                         if (collection == null)
                             cqlRows.addColumnValue(null);
                         else
                             cqlRows.addColumnValue(((CollectionType)name.type).serialize(collection));
                         break;
                     }
-                    IColumn c = columns.getSimple(name.name.key);
+                    Column c = columns.getSimple(name.name.key);
                     addReturnValue(cqlRows, selector, c);
                     break;
                 default:

@@ -17,31 +17,34 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.DataInput;
+import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.HeapAllocator;
 
 /**
  * Column is immutable, which prevents all kinds of confusion in a multithreaded environment.
- * (TODO: look at making SuperColumn immutable too.  This is trickier but is probably doable
- *  with something like PCollections -- http://code.google.com
  */
-
-public class Column implements IColumn
+public class Column implements OnDiskAtom
 {
+    public static final int MAX_NAME_LENGTH = FBUtilities.MAX_UNSIGNED_SHORT;
+
     private static final ColumnSerializer serializer = new ColumnSerializer();
-    private static final OnDiskAtom.Serializer onDiskSerializer = new OnDiskAtom.Serializer(serializer);
 
     public static ColumnSerializer serializer()
     {
@@ -50,7 +53,38 @@ public class Column implements IColumn
 
     public static OnDiskAtom.Serializer onDiskSerializer()
     {
-        return onDiskSerializer;
+        return OnDiskAtom.Serializer.instance;
+    }
+
+    public static Iterator<OnDiskAtom> onDiskIterator(final DataInput dis, final int count, final ColumnSerializer.Flag flag, final int expireBefore, final Descriptor.Version version)
+    {
+        return new Iterator<OnDiskAtom>()
+        {
+            int i = 0;
+
+            public boolean hasNext()
+            {
+                return i < count;
+            }
+
+            public OnDiskAtom next()
+            {
+                ++i;
+                try
+                {
+                    return onDiskSerializer().deserializeFromSSTable(dis, flag, expireBefore, version);
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
+            }
+
+            public void remove()
+            {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 
     protected final ByteBuffer name;
@@ -71,10 +105,15 @@ public class Column implements IColumn
     {
         assert name != null;
         assert value != null;
-        assert name.remaining() <= IColumn.MAX_NAME_LENGTH;
+        assert name.remaining() <= Column.MAX_NAME_LENGTH;
         this.name = name;
         this.value = value;
         this.timestamp = timestamp;
+    }
+
+    public Column withUpdatedName(ByteBuffer newName)
+    {
+        return new Column(newName, value, timestamp);
     }
 
     public ByteBuffer name()
@@ -82,19 +121,9 @@ public class Column implements IColumn
         return name;
     }
 
-    public Column getSubColumn(ByteBuffer columnName)
-    {
-        throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
-    }
-
     public ByteBuffer value()
     {
         return value;
-    }
-
-    public Collection<IColumn> getSubColumns()
-    {
-        throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
     }
 
     public long timestamp()
@@ -162,17 +191,7 @@ public class Column implements IColumn
         return 0;
     }
 
-    public void addColumn(IColumn column)
-    {
-        addColumn(null, null);
-    }
-
-    public void addColumn(IColumn column, Allocator allocator)
-    {
-        throw new UnsupportedOperationException("This operation is not supported for simple columns.");
-    }
-
-    public IColumn diff(IColumn column)
+    public Column diff(Column column)
     {
         if (timestamp() < column.timestamp())
         {
@@ -204,12 +223,12 @@ public class Column implements IColumn
         return Integer.MAX_VALUE;
     }
 
-    public IColumn reconcile(IColumn column)
+    public Column reconcile(Column column)
     {
         return reconcile(column, HeapAllocator.instance);
     }
 
-    public IColumn reconcile(IColumn column, Allocator allocator)
+    public Column reconcile(Column column, Allocator allocator)
     {
         // tombstones take precedence.  (if both are tombstones, then it doesn't matter which one we use.)
         if (isMarkedForDelete())
@@ -250,12 +269,12 @@ public class Column implements IColumn
         return result;
     }
 
-    public IColumn localCopy(ColumnFamilyStore cfs)
+    public Column localCopy(ColumnFamilyStore cfs)
     {
         return localCopy(cfs, HeapAllocator.instance);
     }
 
-    public IColumn localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    public Column localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
         return new Column(cfs.internOrCopy(name, allocator), allocator.clone(value), timestamp);
     }
@@ -280,8 +299,7 @@ public class Column implements IColumn
 
     protected void validateName(CFMetaData metadata) throws MarshalException
     {
-        AbstractType<?> nameValidator = metadata.cfType == ColumnFamilyType.Super ? metadata.subcolumnComparator : metadata.comparator;
-        nameValidator.validate(name());
+        metadata.comparator.validate(name());
     }
 
     public void validateFields(CFMetaData metadata) throws MarshalException

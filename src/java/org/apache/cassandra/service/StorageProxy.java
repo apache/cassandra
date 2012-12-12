@@ -43,7 +43,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -322,7 +321,7 @@ public class StorageProxy implements StorageProxyMBean
     private static void asyncRemoveFromBatchlog(Collection<InetAddress> endpoints, UUID uuid)
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(uuid));
-        rm.delete(new QueryPath(SystemTable.BATCHLOG_CF), FBUtilities.timestampMicros());
+        rm.delete(SystemTable.BATCHLOG_CF, FBUtilities.timestampMicros());
         AbstractWriteResponseHandler handler = new WriteResponseHandler(endpoints, Collections.<InetAddress>emptyList(), ConsistencyLevel.ANY, Table.SYSTEM_KS, null, WriteType.SIMPLE);
         updateBatchlog(rm, endpoints, handler);
     }
@@ -1099,7 +1098,6 @@ public class StorageProxy implements StorageProxyMBean
             {
                 RangeSliceCommand nodeCmd = new RangeSliceCommand(command.keyspace,
                                                                   command.column_family,
-                                                                  command.super_column,
                                                                   commandPredicate,
                                                                   range,
                                                                   command.row_filter,

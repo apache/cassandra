@@ -92,7 +92,7 @@ public class SSTableSimpleWriterTest extends SchemaLoader
         ColumnFamily cf = Util.getColumnFamily(t, Util.dk("Key10"), cfname);
         assert cf.getColumnCount() == INC * NBCOL : "expecting " + (INC * NBCOL) + " columns, got " + cf.getColumnCount();
         int i = 0;
-        for (IColumn c : cf)
+        for (Column c : cf)
         {
             assert toInt(c.name()) == i : "Column name should be " + i + ", got " + toInt(c.name());
             assert c.value().equals(bytes("v"));

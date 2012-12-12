@@ -31,7 +31,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.*;
 
 public class DynamicCompositeTypeTest extends SchemaLoader
@@ -180,9 +179,9 @@ public class DynamicCompositeTypeTest extends SchemaLoader
         addColumn(rm, cname3);
         rm.apply();
 
-        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("k"), new QueryPath(cfName, null, null)));
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("k"), cfName));
 
-        Iterator<IColumn> iter = cf.getSortedColumns().iterator();
+        Iterator<Column> iter = cf.getSortedColumns().iterator();
 
         assert iter.next().name().equals(cname1);
         assert iter.next().name().equals(cname2);
@@ -231,7 +230,7 @@ public class DynamicCompositeTypeTest extends SchemaLoader
 
     private void addColumn(RowMutation rm, ByteBuffer cname)
     {
-        rm.add(new QueryPath(cfName, null , cname), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        rm.add(cfName, cname, ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
     }
 
     private ByteBuffer createDynamicCompositeKey(String s, UUID uuid, int i, boolean lastIsOne)

@@ -27,7 +27,6 @@ import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -197,7 +196,8 @@ public class UpdateStatement extends AbstractModification
                 ByteBuffer colValue = op.a.getByteBuffer(getValueValidator(keyspace, colName),variables);
 
                 validateColumn(metadata, colName, colValue);
-                rm.add(new QueryPath(columnFamily, null, colName),
+                rm.add(columnFamily,
+                       colName,
                        colValue,
                        (timestamp == null) ? getTimestamp(clientState) : timestamp,
                        getTimeToLive());
@@ -221,7 +221,7 @@ public class UpdateStatement extends AbstractModification
                                                       op.b.getText()));
                 }
 
-                rm.addCounter(new QueryPath(columnFamily, null, colName), value);
+                rm.addCounter(columnFamily, colName, value);
             }
         }
 

@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.io.util;
 
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.AbstractType;
 
-public interface IIterableColumns extends Iterable<IColumn>
+public interface IIterableColumns extends Iterable<Column>
 {
     public int getEstimatedColumnCount();
 

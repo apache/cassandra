@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.DataInput;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.UUID;
@@ -29,10 +30,9 @@ import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
-import org.apache.cassandra.io.IColumnSerializer;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ColumnStats;
 
 public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEntry
@@ -90,12 +90,6 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
         return cloneMeShallow(columns.getFactory(), columns.isInsertReversed());
     }
 
-    public AbstractType<?> getSubComparator()
-    {
-        IColumnSerializer s = getColumnSerializer();
-        return (s instanceof SuperColumnSerializer) ? ((SuperColumnSerializer) s).getComparator() : null;
-    }
-
     public ColumnFamilyType getType()
     {
         return cfm.cfType;
@@ -121,98 +115,38 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
         return cfm;
     }
 
-    public IColumnSerializer getColumnSerializer()
+    public void addColumn(ByteBuffer name, ByteBuffer value, long timestamp)
     {
-        return cfm.getColumnSerializer();
+        addColumn(name, value, timestamp, 0);
     }
 
-    public OnDiskAtom.Serializer getOnDiskSerializer()
+    public void addColumn(ByteBuffer name, ByteBuffer value, long timestamp, int timeToLive)
     {
-        return cfm.getOnDiskSerializer();
-    }
-
-    public boolean isSuper()
-    {
-        return getType() == ColumnFamilyType.Super;
-    }
-
-    /**
-     * Same as addAll() but do a cloneMe of SuperColumn if necessary to
-     * avoid keeping references to the structure (see #3957).
-     */
-    public void addAllWithSCCopy(ColumnFamily cf, Allocator allocator)
-    {
-        if (cf.isSuper())
-        {
-            for (IColumn c : cf)
-            {
-                columns.addColumn(((SuperColumn)c).cloneMe(), allocator);
-            }
-            delete(cf);
-        }
-        else
-        {
-            addAll(cf, allocator);
-        }
-    }
-
-    public void addColumn(QueryPath path, ByteBuffer value, long timestamp)
-    {
-        addColumn(path, value, timestamp, 0);
-    }
-
-    public void addColumn(QueryPath path, ByteBuffer value, long timestamp, int timeToLive)
-    {
-        assert path.columnName != null : path;
         assert !metadata().getDefaultValidator().isCommutative();
-        Column column = Column.create(path.columnName, value, timestamp, timeToLive, metadata());
-        addColumn(path.superColumnName, column);
+        Column column = Column.create(name, value, timestamp, timeToLive, metadata());
+        addColumn(column);
     }
 
-    public void addCounter(QueryPath path, long value)
+    public void addCounter(ByteBuffer name, long value)
     {
-        assert path.columnName != null : path;
-        addColumn(path.superColumnName, new CounterUpdateColumn(path.columnName, value, System.currentTimeMillis()));
+        addColumn(new CounterUpdateColumn(name, value, System.currentTimeMillis()));
     }
 
-    public void addTombstone(QueryPath path, ByteBuffer localDeletionTime, long timestamp)
+    public void addTombstone(ByteBuffer name, ByteBuffer localDeletionTime, long timestamp)
     {
-        assert path.columnName != null : path;
-        addColumn(path.superColumnName, new DeletedColumn(path.columnName, localDeletionTime, timestamp));
-    }
-
-    public void addTombstone(QueryPath path, int localDeletionTime, long timestamp)
-    {
-        assert path.columnName != null : path;
-        addColumn(path.superColumnName, new DeletedColumn(path.columnName, localDeletionTime, timestamp));
+        addColumn(new DeletedColumn(name, localDeletionTime, timestamp));
     }
 
     public void addTombstone(ByteBuffer name, int localDeletionTime, long timestamp)
     {
-        addColumn(null, new DeletedColumn(name, localDeletionTime, timestamp));
-    }
-
-    public void addColumn(ByteBuffer superColumnName, Column column)
-    {
-        IColumn c;
-        if (superColumnName == null)
-        {
-            c = column;
-        }
-        else
-        {
-            assert isSuper();
-            c = new SuperColumn(superColumnName, getSubComparator());
-            c.addColumn(column); // checks subcolumn name
-        }
-        addColumn(c);
+        addColumn(new DeletedColumn(name, localDeletionTime, timestamp));
     }
 
     public void addAtom(OnDiskAtom atom)
     {
-        if (atom instanceof IColumn)
+        if (atom instanceof Column)
         {
-            addColumn((IColumn)atom);
+            addColumn((Column)atom);
         }
         else
         {
@@ -236,20 +170,20 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
         ColumnFamily cfDiff = ColumnFamily.create(cfm);
         cfDiff.delete(cfComposite.deletionInfo());
 
-        // (don't need to worry about cfNew containing IColumns that are shadowed by
+        // (don't need to worry about cfNew containing Columns that are shadowed by
         // the delete tombstone, since cfNew was generated by CF.resolve, which
         // takes care of those for us.)
-        for (IColumn columnExternal : cfComposite)
+        for (Column columnExternal : cfComposite)
         {
             ByteBuffer cName = columnExternal.name();
-            IColumn columnInternal = this.columns.getColumn(cName);
+            Column columnInternal = this.columns.getColumn(cName);
             if (columnInternal == null)
             {
                 cfDiff.addColumn(columnExternal);
             }
             else
             {
-                IColumn columnDiff = columnInternal.diff(columnExternal);
+                Column columnDiff = columnInternal.diff(columnExternal);
                 if (columnDiff != null)
                 {
                     cfDiff.addColumn(columnDiff);
@@ -266,7 +200,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
     int dataSize()
     {
         int size = deletionInfo().dataSize();
-        for (IColumn column : columns)
+        for (Column column : columns)
         {
             size += column.dataSize();
         }
@@ -276,7 +210,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
     public long maxTimestamp()
     {
         long maxTimestamp = deletionInfo().maxTimestamp();
-        for (IColumn column : columns)
+        for (Column column : columns)
             maxTimestamp = Math.max(maxTimestamp, column.maxTimestamp());
         return maxTimestamp;
     }
@@ -329,15 +263,8 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
 
     public void updateDigest(MessageDigest digest)
     {
-        for (IColumn column : columns)
+        for (Column column : columns)
             column.updateDigest(digest);
-    }
-
-    public static AbstractType<?> getComparatorFor(String table, String columnFamilyName, ByteBuffer superColumnName)
-    {
-        return superColumnName == null
-               ? Schema.instance.getComparator(table, columnFamilyName)
-               : Schema.instance.getSubComparator(table, columnFamilyName);
     }
 
     public static ColumnFamily diff(ColumnFamily cf1, ColumnFamily cf2)
@@ -368,7 +295,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
     public void validateColumnFields() throws MarshalException
     {
         CFMetaData metadata = metadata();
-        for (IColumn column : this)
+        for (Column column : this)
         {
             column.validateFields(metadata);
         }
@@ -380,7 +307,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
         long maxTimestampSeen = deletionInfo().maxTimestamp();
         StreamingHistogram tombstones = new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE);
 
-        for (IColumn column : columns)
+        for (Column column : columns)
         {
             minTimestampSeen = Math.min(minTimestampSeen, column.minTimestamp());
             maxTimestampSeen = Math.max(maxTimestampSeen, column.maxTimestamp());

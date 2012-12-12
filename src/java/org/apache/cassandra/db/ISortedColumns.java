@@ -62,7 +62,7 @@ public interface ISortedColumns extends IIterableColumns
      * If a column with the same name is already present in the map, it will
      * be replaced by the newly added column.
      */
-    public void addColumn(IColumn column, Allocator allocator);
+    public void addColumn(Column column, Allocator allocator);
 
     /**
      * Adds all the columns of a given column map to this column map.
@@ -75,19 +75,19 @@ public interface ISortedColumns extends IIterableColumns
      *
      *  @return the difference in size seen after merging the given columns
      */
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer);
+    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer);
 
     /**
      * Adds the columns without necessarily computing the size delta
      */
-    public void addAll(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation);
+    public void addAll(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation);
 
     /**
      * Replace oldColumn if present by newColumn.
      * Returns true if oldColumn was present and thus replaced.
      * oldColumn and newColumn should have the same name.
      */
-    public boolean replace(IColumn oldColumn, IColumn newColumn);
+    public boolean replace(Column oldColumn, Column newColumn);
 
     /**
      * Remove if present a column by name.
@@ -103,7 +103,7 @@ public interface ISortedColumns extends IIterableColumns
      * Get a column given its name, returning null if the column is not
      * present.
      */
-    public IColumn getColumn(ByteBuffer name);
+    public Column getColumn(ByteBuffer name);
 
     /**
      * Returns a set with the names of columns in this column map.
@@ -117,14 +117,14 @@ public interface ISortedColumns extends IIterableColumns
      * The columns in the returned collection should be sorted as the columns
      * in this map.
      */
-    public Collection<IColumn> getSortedColumns();
+    public Collection<Column> getSortedColumns();
 
     /**
      * Returns the columns of this column map as a collection.
      * The columns in the returned collection should be sorted in reverse
      * order of the columns in this map.
      */
-    public Collection<IColumn> getReverseSortedColumns();
+    public Collection<Column> getReverseSortedColumns();
 
     /**
      * Returns the number of columns in this map.
@@ -140,13 +140,13 @@ public interface ISortedColumns extends IIterableColumns
      * Returns an iterator over the columns of this map that returns only the matching @param slices.
      * The provided slices must be in order and must be non-overlapping.
      */
-    public Iterator<IColumn> iterator(ColumnSlice[] slices);
+    public Iterator<Column> iterator(ColumnSlice[] slices);
 
     /**
      * Returns a reversed iterator over the columns of this map that returns only the matching @param slices.
      * The provided slices must be in reversed order and must be non-overlapping.
      */
-    public Iterator<IColumn> reverseIterator(ColumnSlice[] slices);
+    public Iterator<Column> reverseIterator(ColumnSlice[] slices);
 
     /**
      * Returns if this map only support inserts in reverse order.
@@ -171,6 +171,6 @@ public interface ISortedColumns extends IIterableColumns
          * columns in the provided sorted map.
          * See {@code create} for the description of {@code insertReversed}
          */
-        public ISortedColumns fromSorted(SortedMap<ByteBuffer, IColumn> sm, boolean insertReversed);
+        public ISortedColumns fromSorted(SortedMap<ByteBuffer, Column> sm, boolean insertReversed);
     }
 }

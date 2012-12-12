@@ -36,7 +36,6 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -201,7 +200,7 @@ public class CommitLogReplayer
                 {
                     // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
                     // the current version. so do make sure the CL is drained prior to upgrading a node.
-                    rm = RowMutation.serializer.deserialize(new DataInputStream(bufIn), version, IColumnSerializer.Flag.LOCAL);
+                    rm = RowMutation.serializer.deserialize(new DataInputStream(bufIn), version, ColumnSerializer.Flag.LOCAL);
                 }
                 catch (UnknownColumnFamilyException ex)
                 {

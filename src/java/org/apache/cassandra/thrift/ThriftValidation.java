@@ -30,6 +30,7 @@ import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -195,20 +196,22 @@ public class ThriftValidation
     private static void validateColumnNames(CFMetaData metadata, ByteBuffer superColumnName, Iterable<ByteBuffer> column_names)
     throws org.apache.cassandra.exceptions.InvalidRequestException
     {
+        int maxNameLength = org.apache.cassandra.db.Column.MAX_NAME_LENGTH;
+
         if (superColumnName != null)
         {
-            if (superColumnName.remaining() > IColumn.MAX_NAME_LENGTH)
-                throw new org.apache.cassandra.exceptions.InvalidRequestException("supercolumn name length must not be greater than " + IColumn.MAX_NAME_LENGTH);
+            if (superColumnName.remaining() > maxNameLength)
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("supercolumn name length must not be greater than " + maxNameLength);
             if (superColumnName.remaining() == 0)
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("supercolumn name must not be empty");
             if (metadata.cfType == ColumnFamilyType.Standard)
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("supercolumn specified to ColumnFamily " + metadata.cfName + " containing normal columns");
         }
-        AbstractType<?> comparator = metadata.getComparatorFor(superColumnName);
+        AbstractType<?> comparator = SuperColumns.getComparatorFor(metadata, superColumnName);
         for (ByteBuffer name : column_names)
         {
-            if (name.remaining() > IColumn.MAX_NAME_LENGTH)
-                throw new org.apache.cassandra.exceptions.InvalidRequestException("column name length must not be greater than " + IColumn.MAX_NAME_LENGTH);
+            if (name.remaining() > maxNameLength)
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("column name length must not be greater than " + maxNameLength);
             if (name.remaining() == 0)
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("column name must not be empty");
             try
@@ -229,7 +232,7 @@ public class ThriftValidation
 
     public static void validateRange(CFMetaData metadata, ColumnParent column_parent, SliceRange range) throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        AbstractType<?> comparator = metadata.getComparatorFor(column_parent.super_column);
+        AbstractType<?> comparator = SuperColumns.getComparatorFor(metadata, column_parent.super_column);
         try
         {
             comparator.validate(range.start);
@@ -412,20 +415,29 @@ public class ThriftValidation
         {
             if (logger.isDebugEnabled())
                 logger.debug("rejecting invalid value " + ByteBufferUtil.bytesToHex(summarize(column.value)));
+
             throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("(%s) [%s][%s][%s] failed validation",
                                                                       me.getMessage(),
                                                                       metadata.ksName,
                                                                       metadata.cfName,
-                                                                      (isSubColumn ? metadata.subcolumnComparator : metadata.comparator).getString(column.name)));
+                                                                      (SuperColumns.getComparatorFor(metadata, isSubColumn)).getString(column.name)));
         }
 
         // Indexed column values cannot be larger than 64K.  See CASSANDRA-3057/4240 for more details
-        if (!Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validate(column))
+        if (!Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validate(asDBColumn(column)))
                     throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Can't index column value of size %d for index %s in CF %s of KS %s",
                                                                               column.value.remaining(),
                                                                               columnDef.getIndexName(),
                                                                               metadata.cfName,
                                                                               metadata.ksName));
+    }
+
+    private static org.apache.cassandra.db.Column asDBColumn(Column column)
+    {
+        if (column.ttl <= 0)
+            return new org.apache.cassandra.db.Column(column.name, column.value, column.timestamp);
+        else
+            return new org.apache.cassandra.db.ExpiringColumn(column.name, column.value, column.timestamp, column.ttl);
     }
 
     /**
@@ -527,7 +539,7 @@ public class ThriftValidation
             return false;
 
         SecondaryIndexManager idxManager = Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager;
-        AbstractType<?> nameValidator =  ColumnFamily.getComparatorFor(metadata.ksName, metadata.cfName, null);
+        AbstractType<?> nameValidator = SuperColumns.getComparatorFor(metadata, null);
 
         boolean isIndexed = false;
         for (IndexExpression expression : index_clause)
@@ -586,18 +598,26 @@ public class ThriftValidation
             throw new org.apache.cassandra.exceptions.InvalidRequestException("system keyspace is not user-modifiable");
     }
 
-    public static IDiskAtomFilter asIFilter(SlicePredicate sp, AbstractType<?> comparator)
+    public static IDiskAtomFilter asIFilter(SlicePredicate sp, CFMetaData metadata, ByteBuffer superColumn)
     {
+        AbstractType<?> comparator = metadata.isSuper()
+                                   ? ((CompositeType)metadata.comparator).types.get(superColumn == null ? 0 : 1)
+                                   : metadata.comparator;
         SliceRange sr = sp.slice_range;
+        IDiskAtomFilter filter;
         if (sr == null)
         {
             SortedSet<ByteBuffer> ss = new TreeSet<ByteBuffer>(comparator);
             ss.addAll(sp.column_names);
-            return new NamesQueryFilter(ss);
+            filter = new NamesQueryFilter(ss);
         }
         else
         {
-            return new SliceQueryFilter(sr.start, sr.finish, sr.reversed, sr.count);
+            filter = new SliceQueryFilter(sr.start, sr.finish, sr.reversed, sr.count);
         }
+
+        if (metadata.isSuper())
+            filter = SuperColumns.fromSCFilter((CompositeType)metadata.comparator, superColumn, filter);
+        return filter;
     }
 }

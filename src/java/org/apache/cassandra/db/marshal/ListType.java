@@ -21,7 +21,7 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.utils.Pair;
@@ -118,11 +118,11 @@ public class ListType<T> extends CollectionType<List<T>>
         sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Collections.<AbstractType<?>>singletonList(elements)));
     }
 
-    public ByteBuffer serialize(List<Pair<ByteBuffer, IColumn>> columns)
+    public ByteBuffer serialize(List<Pair<ByteBuffer, Column>> columns)
     {
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(columns.size());
         int size = 0;
-        for (Pair<ByteBuffer, IColumn> p : columns)
+        for (Pair<ByteBuffer, Column> p : columns)
         {
             bbs.add(p.right.value());
             size += 2 + p.right.value().remaining();

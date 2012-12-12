@@ -72,7 +72,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
     protected abstract void init(ColumnDefinition columnDef);
 
-    protected abstract ByteBuffer makeIndexColumnName(ByteBuffer rowKey, IColumn column);
+    protected abstract ByteBuffer makeIndexColumnName(ByteBuffer rowKey, Column column);
 
     protected abstract AbstractType getExpressionComparator();
 
@@ -86,7 +86,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
     }
 
 
-    public void delete(ByteBuffer rowKey, IColumn column)
+    public void delete(ByteBuffer rowKey, Column column)
     {
         if (column.isMarkedForDelete())
             return;
@@ -100,7 +100,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
             logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
     }
 
-    public void insert(ByteBuffer rowKey, IColumn column)
+    public void insert(ByteBuffer rowKey, Column column)
     {
         DecoratedKey valueKey = getIndexKeyFor(column.value());
         ColumnFamily cfi = ColumnFamily.create(indexCfs.metadata);
@@ -120,7 +120,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater);
     }
 
-    public void update(ByteBuffer rowKey, IColumn col)
+    public void update(ByteBuffer rowKey, Column col)
     {
         insert(rowKey, col);
     }

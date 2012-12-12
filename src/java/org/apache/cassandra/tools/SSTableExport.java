@@ -51,10 +51,9 @@ import org.apache.cassandra.db.DeletedColumn;
 import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.ExpiringColumn;
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.RangeTombstone;
-import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -136,20 +135,6 @@ public class SSTableExport
             }
             return;
         }
-
-        if (columnContainer instanceof SuperColumn)
-        {
-            SuperColumn superColumn = (SuperColumn) columnContainer;
-            DeletionInfo deletionInfo = new DeletionInfo(superColumn.getMarkedForDeleteAt(),
-                    superColumn.getLocalDeletionTime());
-            if (!deletionInfo.equals(DeletionInfo.LIVE))
-            {
-                writeKey(out, "metadata");
-                writeDeletionInfo(out, deletionInfo.getTopLevelDeletion());
-                out.print(",");
-            }
-            return;
-        }
     }
 
     private static void writeDeletionInfo(PrintStream out, DeletionTime deletionTime)
@@ -169,7 +154,18 @@ public class SSTableExport
      * @param comparator columns comparator
      * @param cfMetaData Column Family metadata (to get validator)
      */
-    private static void serializeColumns(Iterator<OnDiskAtom> columns, PrintStream out, AbstractType<?> comparator, CFMetaData cfMetaData)
+    private static void serializeAtoms(Iterator<OnDiskAtom> atoms, PrintStream out, AbstractType<?> comparator, CFMetaData cfMetaData)
+    {
+        while (atoms.hasNext())
+        {
+            writeJSON(out, serializeAtom(atoms.next(), comparator, cfMetaData));
+
+            if (atoms.hasNext())
+                out.print(", ");
+        }
+    }
+
+    private static void serializeColumns(Iterator<Column> columns, PrintStream out, AbstractType<?> comparator, CFMetaData cfMetaData)
     {
         while (columns.hasNext())
         {
@@ -180,27 +176,16 @@ public class SSTableExport
         }
     }
 
-    private static void serializeIColumns(Iterator<IColumn> columns, PrintStream out, AbstractType<?> comparator, CFMetaData cfMetaData)
+    private static List<Object> serializeAtom(OnDiskAtom atom, AbstractType<?> comparator, CFMetaData cfMetaData)
     {
-        while (columns.hasNext())
+        if (atom instanceof Column)
         {
-            writeJSON(out, serializeColumn(columns.next(), comparator, cfMetaData));
-
-            if (columns.hasNext())
-                out.print(", ");
-        }
-    }
-
-    private static List<Object> serializeColumn(OnDiskAtom column, AbstractType<?> comparator, CFMetaData cfMetaData)
-    {
-        if (column instanceof IColumn)
-        {
-            return serializeColumn((IColumn)column, comparator, cfMetaData);
+            return serializeColumn((Column)atom, comparator, cfMetaData);
         }
         else
         {
-            assert column instanceof RangeTombstone;
-            RangeTombstone rt = (RangeTombstone)column;
+            assert atom instanceof RangeTombstone;
+            RangeTombstone rt = (RangeTombstone)atom;
             ArrayList<Object> serializedColumn = new ArrayList<Object>();
             serializedColumn.add(comparator.getString(rt.min));
             serializedColumn.add(comparator.getString(rt.max));
@@ -220,7 +205,7 @@ public class SSTableExport
      *
      * @return column as serialized list
      */
-    private static List<Object> serializeColumn(IColumn column, AbstractType<?> comparator, CFMetaData cfMetaData)
+    private static List<Object> serializeColumn(Column column, AbstractType<?> comparator, CFMetaData cfMetaData)
     {
         ArrayList<Object> serializedColumn = new ArrayList<Object>();
 
@@ -267,7 +252,6 @@ public class SSTableExport
     private static void serializeRow(SSTableIdentityIterator row, DecoratedKey key, PrintStream out)
     {
         ColumnFamily columnFamily = row.getColumnFamily();
-        boolean isSuperCF = columnFamily.isSuper();
         CFMetaData cfMetaData = columnFamily.metadata();
         AbstractType<?> comparator = columnFamily.getComparator();
 
@@ -279,34 +263,11 @@ public class SSTableExport
         writeMeta(out, columnFamily);
 
         writeKey(out, "columns");
-        out.print(isSuperCF ? "{" : "[");
+        out.print("[");
 
-        if (isSuperCF)
-        {
-            while (row.hasNext())
-            {
-                SuperColumn scol = (SuperColumn)row.next();
-                assert scol instanceof IColumn;
-                IColumn column = (IColumn)scol;
-                writeKey(out, comparator.getString(column.name()));
-                out.print("{");
-                writeMeta(out, scol);
-                writeKey(out, "subColumns");
-                out.print("[");
-                serializeIColumns(column.getSubColumns().iterator(), out, columnFamily.getSubComparator(), cfMetaData);
-                out.print("]");
-                out.print("}");
+        serializeAtoms(row, out, comparator, cfMetaData);
 
-                if (row.hasNext())
-                    out.print(", ");
-            }
-        }
-        else
-        {
-            serializeColumns(row, out, comparator, cfMetaData);
-        }
-
-        out.print(isSuperCF ? "}" : "]");
+        out.print("]");
         out.print("}");
     }
 

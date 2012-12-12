@@ -37,7 +37,6 @@ import org.apache.avro.specific.SpecificRecord;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.avro.KsDef;
@@ -181,7 +180,7 @@ public class DefsTable
             if (Schema.invalidSchemaRow(row))
                 continue;
 
-            for (IColumn column : row.cf.columns)
+            for (Column column : row.cf.columns)
             {
                 Date columnDate = new Date(column.timestamp());
 
@@ -233,10 +232,10 @@ public class DefsTable
 
             RowMutation mutation = new RowMutation(Table.SYSTEM_KS, row.key.key);
 
-            for (IColumn column : row.cf.columns)
+            for (Column column : row.cf.columns)
             {
                 if (column.isLive())
-                    mutation.add(new QueryPath(columnFamily, null, column.name()), column.value(), microTimestamp);
+                    mutation.add(columnFamily, column.name(), column.value(), microTimestamp);
             }
 
             mutation.apply();
@@ -272,7 +271,7 @@ public class DefsTable
     private static Row serializedColumnFamilies(DecoratedKey ksNameKey)
     {
         ColumnFamilyStore cfsStore = SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
-        return new Row(ksNameKey, cfsStore.getColumnFamily(QueryFilter.getIdentityFilter(ksNameKey, new QueryPath(SystemTable.SCHEMA_COLUMNFAMILIES_CF))));
+        return new Row(ksNameKey, cfsStore.getColumnFamily(QueryFilter.getIdentityFilter(ksNameKey, SystemTable.SCHEMA_COLUMNFAMILIES_CF)));
     }
 
     /**
@@ -290,8 +289,8 @@ public class DefsTable
         DecoratedKey vkey = StorageService.getPartitioner().decorateKey(toUTF8Bytes(version));
         Table defs = Table.open(Table.SYSTEM_KS);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(OLD_SCHEMA_CF);
-        ColumnFamily cf = cfStore.getColumnFamily(QueryFilter.getIdentityFilter(vkey, new QueryPath(OLD_SCHEMA_CF)));
-        IColumn avroschema = cf.getColumn(DEFINITION_SCHEMA_COLUMN_NAME);
+        ColumnFamily cf = cfStore.getColumnFamily(QueryFilter.getIdentityFilter(vkey, OLD_SCHEMA_CF));
+        Column avroschema = cf.getColumn(DEFINITION_SCHEMA_COLUMN_NAME);
 
         Collection<KSMetaData> keyspaces = Collections.emptyList();
 
@@ -301,10 +300,10 @@ public class DefsTable
             org.apache.avro.Schema schema = org.apache.avro.Schema.parse(ByteBufferUtil.string(value));
 
             // deserialize keyspaces using schema
-            Collection<IColumn> columns = cf.getSortedColumns();
+            Collection<Column> columns = cf.getSortedColumns();
             keyspaces = new ArrayList<KSMetaData>(columns.size());
 
-            for (IColumn column : columns)
+            for (Column column : columns)
             {
                 if (column.name().equals(DEFINITION_SCHEMA_COLUMN_NAME))
                     continue;

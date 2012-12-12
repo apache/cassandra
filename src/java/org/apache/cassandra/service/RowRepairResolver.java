@@ -30,7 +30,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.MessageIn;
@@ -153,8 +152,8 @@ public class RowRepairResolver extends AbstractRowResolver
         // mimic the collectCollatedColumn + removeDeleted path that getColumnFamily takes.
         // this will handle removing columns and subcolumns that are supressed by a row or
         // supercolumn tombstone.
-        QueryFilter filter = new QueryFilter(null, new QueryPath(resolved.metadata().cfName), new IdentityQueryFilter());
-        List<CloseableIterator<IColumn>> iters = new ArrayList<CloseableIterator<IColumn>>();
+        QueryFilter filter = new QueryFilter(null, resolved.metadata().cfName, new IdentityQueryFilter());
+        List<CloseableIterator<Column>> iters = new ArrayList<CloseableIterator<Column>>();
         for (ColumnFamily version : versions)
         {
             if (version == null)

@@ -33,7 +33,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.ColumnFamilyStore;
 
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -51,7 +50,7 @@ public class OneCompactionTest extends SchemaLoader
         for (int j = 0; j < insertsPerTable; j++) {
             DecoratedKey key = Util.dk(String.valueOf(j));
             RowMutation rm = new RowMutation("Keyspace1", key.key);
-            rm.add(new QueryPath(columnFamilyName, null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
+            rm.add(columnFamilyName, ByteBufferUtil.bytes("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
             inserted.add(key);
             store.forceBlockingFlush();

@@ -35,7 +35,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import static junit.framework.Assert.assertEquals;
@@ -106,10 +105,10 @@ public class KeyCacheTest extends SchemaLoader
 
         // inserts
         rm = new RowMutation(TABLE1, key1.key);
-        rm.add(new QueryPath(COLUMN_FAMILY1, null, ByteBufferUtil.bytes("1")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        rm.add(COLUMN_FAMILY1, ByteBufferUtil.bytes("1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
         rm = new RowMutation(TABLE1, key2.key);
-        rm.add(new QueryPath(COLUMN_FAMILY1, null, ByteBufferUtil.bytes("2")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        rm.add(COLUMN_FAMILY1, ByteBufferUtil.bytes("2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
 
         // to make sure we have SSTable
@@ -117,14 +116,14 @@ public class KeyCacheTest extends SchemaLoader
 
         // reads to cache key position
         cfs.getColumnFamily(QueryFilter.getSliceFilter(key1,
-                                                       new QueryPath(new ColumnParent(COLUMN_FAMILY1)),
+                                                       COLUMN_FAMILY1,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        false,
                                                        10));
 
         cfs.getColumnFamily(QueryFilter.getSliceFilter(key2,
-                                                       new QueryPath(new ColumnParent(COLUMN_FAMILY1)),
+                                                       COLUMN_FAMILY1,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        false,
@@ -140,14 +139,14 @@ public class KeyCacheTest extends SchemaLoader
 
         // re-read same keys to verify that key cache didn't grow further
         cfs.getColumnFamily(QueryFilter.getSliceFilter(key1,
-                                                       new QueryPath(new ColumnParent(COLUMN_FAMILY1)),
+                                                       COLUMN_FAMILY1,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        false,
                                                        10));
 
         cfs.getColumnFamily(QueryFilter.getSliceFilter(key2,
-                                                       new QueryPath(new ColumnParent(COLUMN_FAMILY1)),
+                                                       COLUMN_FAMILY1,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        false,

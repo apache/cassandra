@@ -28,7 +28,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -66,8 +65,7 @@ public class DefsTest extends SchemaLoader
         CFMetaData cfm = new CFMetaData("Keyspace1",
                                         "TestApplyCFM_CF",
                                         ColumnFamilyType.Standard,
-                                        BytesType.instance,
-                                        null);
+                                        BytesType.instance);
 
         cfm.comment("No comment")
            .readRepairChance(0.5)
@@ -188,15 +186,15 @@ public class DefsTest extends SchemaLoader
         // now read and write to it.
         DecoratedKey dk = Util.dk("key0");
         RowMutation rm = new RowMutation(ks, dk.key);
-        rm.add(new QueryPath(cf, null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("value0"), 1L);
+        rm.add(cf, ByteBufferUtil.bytes("col0"), ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(ks).getColumnFamilyStore(cf);
         assert store != null;
         store.forceBlockingFlush();
 
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cf), ByteBufferUtil.bytes("col0")));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, cf, ByteBufferUtil.bytes("col0")));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
-        IColumn col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
+        Column col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
         assert ByteBufferUtil.bytes("value0").equals(col.value());
     }
 
@@ -213,7 +211,7 @@ public class DefsTest extends SchemaLoader
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(cfm.cfName, null, ByteBufferUtil.bytes(("col" + i))), ByteBufferUtil.bytes("anyvalue"), 1L);
+            rm.add(cfm.cfName, ByteBufferUtil.bytes(("col" + i)), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
@@ -229,7 +227,7 @@ public class DefsTest extends SchemaLoader
         boolean success = true;
         try
         {
-            rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("value0"), 1L);
+            rm.add("Standard1", ByteBufferUtil.bytes("col0"), ByteBufferUtil.bytes("value0"), 1L);
             rm.apply();
         }
         catch (Throwable th)
@@ -261,15 +259,15 @@ public class DefsTest extends SchemaLoader
 
         // test reads and writes.
         RowMutation rm = new RowMutation(newCf.ksName, dk.key);
-        rm.add(new QueryPath(newCf.cfName, null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("value0"), 1L);
+        rm.add(newCf.cfName, ByteBufferUtil.bytes("col0"), ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(newCf.ksName).getColumnFamilyStore(newCf.cfName);
         assert store != null;
         store.forceBlockingFlush();
 
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), ByteBufferUtil.bytes("col0")));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, newCf.cfName, ByteBufferUtil.bytes("col0")));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
-        IColumn col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
+        Column col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
         assert ByteBufferUtil.bytes("value0").equals(col.value());
     }
 
@@ -286,7 +284,7 @@ public class DefsTest extends SchemaLoader
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(cfm.cfName, null, ByteBufferUtil.bytes(("col" + i))), ByteBufferUtil.bytes("anyvalue"), 1L);
+            rm.add(cfm.cfName, ByteBufferUtil.bytes(("col" + i)), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
@@ -302,7 +300,7 @@ public class DefsTest extends SchemaLoader
         boolean success = true;
         try
         {
-            rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("value0"), 1L);
+            rm.add("Standard1", ByteBufferUtil.bytes("col0"), ByteBufferUtil.bytes("value0"), 1L);
             rm.apply();
         }
         catch (Throwable th)
@@ -337,7 +335,7 @@ public class DefsTest extends SchemaLoader
         // write some data
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(cfm.cfName, null, ByteBufferUtil.bytes(("col" + i))), ByteBufferUtil.bytes("anyvalue"), 1L);
+            rm.add(cfm.cfName, ByteBufferUtil.bytes(("col" + i)), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
 
         MigrationManager.announceKeyspaceDrop(ks.name);
@@ -369,15 +367,15 @@ public class DefsTest extends SchemaLoader
         // now read and write to it.
         DecoratedKey dk = Util.dk("key0");
         RowMutation rm = new RowMutation(newKs.name, dk.key);
-        rm.add(new QueryPath(newCf.cfName, null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("value0"), 1L);
+        rm.add(newCf.cfName, ByteBufferUtil.bytes("col0"), ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(newKs.name).getColumnFamilyStore(newCf.cfName);
         assert store != null;
         store.forceBlockingFlush();
 
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), ByteBufferUtil.bytes("col0")));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, newCf.cfName, ByteBufferUtil.bytes("col0")));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
-        IColumn col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
+        Column col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
         assert ByteBufferUtil.bytes("value0").equals(col.value());
     }
 
@@ -460,7 +458,7 @@ public class DefsTest extends SchemaLoader
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getDefaultValidator() == UTF8Type.instance;
 
         // Change cfId
-        newCfm = new CFMetaData(cf.ksName, cf.cfName, cf.cfType, cf.comparator, cf.subcolumnComparator, UUID.randomUUID());
+        newCfm = new CFMetaData(cf.ksName, cf.cfName, cf.cfType, cf.comparator, UUID.randomUUID());
         CFMetaData.copyOpts(newCfm, cf);
         try
         {
@@ -470,7 +468,7 @@ public class DefsTest extends SchemaLoader
         catch (ConfigurationException expected) {}
 
         // Change cfName
-        newCfm = new CFMetaData(cf.ksName, cf.cfName + "_renamed", cf.cfType, cf.comparator, cf.subcolumnComparator);
+        newCfm = new CFMetaData(cf.ksName, cf.cfName + "_renamed", cf.cfType, cf.comparator);
         CFMetaData.copyOpts(newCfm, cf);
         try
         {
@@ -480,7 +478,7 @@ public class DefsTest extends SchemaLoader
         catch (ConfigurationException expected) {}
 
         // Change ksName
-        newCfm = new CFMetaData(cf.ksName + "_renamed", cf.cfName, cf.cfType, cf.comparator, cf.subcolumnComparator);
+        newCfm = new CFMetaData(cf.ksName + "_renamed", cf.cfName, cf.cfType, cf.comparator);
         CFMetaData.copyOpts(newCfm, cf);
         try
         {
@@ -490,7 +488,7 @@ public class DefsTest extends SchemaLoader
         catch (ConfigurationException expected) {}
 
         // Change cf type
-        newCfm = new CFMetaData(cf.ksName, cf.cfName, ColumnFamilyType.Super, cf.comparator, cf.subcolumnComparator);
+        newCfm = new CFMetaData(cf.ksName, cf.cfName, ColumnFamilyType.Super, cf.comparator);
         CFMetaData.copyOpts(newCfm, cf);
         try
         {
@@ -500,7 +498,7 @@ public class DefsTest extends SchemaLoader
         catch (ConfigurationException expected) {}
 
         // Change comparator
-        newCfm = new CFMetaData(cf.ksName, cf.cfName, cf.cfType, TimeUUIDType.instance, cf.subcolumnComparator);
+        newCfm = new CFMetaData(cf.ksName, cf.cfName, cf.cfType, TimeUUIDType.instance);
         CFMetaData.copyOpts(newCfm, cf);
         try
         {
@@ -518,8 +516,8 @@ public class DefsTest extends SchemaLoader
 
         // insert some data.  save the sstable descriptor so we can make sure it's marked for delete after the drop
         RowMutation rm = new RowMutation("Keyspace6", ByteBufferUtil.bytes("k1"));
-        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("notbirthdate")), ByteBufferUtil.bytes(1L), 0);
-        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), 0);
+        rm.add("Indexed1", ByteBufferUtil.bytes("notbirthdate"), ByteBufferUtil.bytes(1L), 0);
+        rm.add("Indexed1", ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(1L), 0);
         rm.apply();
         ColumnFamilyStore cfs = Table.open("Keyspace6").getColumnFamilyStore("Indexed1");
         cfs.forceBlockingFlush();
@@ -541,7 +539,7 @@ public class DefsTest extends SchemaLoader
 
     private CFMetaData addTestCF(String ks, String cf, String comment)
     {
-        CFMetaData newCFMD = new CFMetaData(ks, cf, ColumnFamilyType.Standard, UTF8Type.instance, null);
+        CFMetaData newCFMD = new CFMetaData(ks, cf, ColumnFamilyType.Standard, UTF8Type.instance);
         newCFMD.comment(comment)
                .readRepairChance(0.0);
 

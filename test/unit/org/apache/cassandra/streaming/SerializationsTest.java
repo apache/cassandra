@@ -30,7 +30,6 @@ import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -205,7 +204,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         for (int i = 0; i < 100; i++)
         {
             RowMutation rm = new RowMutation(t.getName(), ByteBufferUtil.bytes(Long.toString(System.nanoTime())));
-            rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("cola")), ByteBufferUtil.bytes("value"), 0);
+            rm.add("Standard1", ByteBufferUtil.bytes("cola"), ByteBufferUtil.bytes("value"), 0);
             rm.apply();
         }
         try

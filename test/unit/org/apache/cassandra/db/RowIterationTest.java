@@ -30,7 +30,7 @@ import org.apache.cassandra.Util;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.FBUtilities;
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -52,7 +52,7 @@ public class RowIterationTest extends SchemaLoader
         for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
             DecoratedKey key = Util.dk(String.valueOf(i));
             RowMutation rm = new RowMutation(TABLE1, key.key);
-            rm.add(new QueryPath("Super3", ByteBufferUtil.bytes("sc"), ByteBufferUtil.bytes(String.valueOf(i))), ByteBuffer.wrap(new byte[ROWS_PER_SSTABLE * 10 - i * 2]), i);
+            rm.add("Super3", CompositeType.build(ByteBufferUtil.bytes("sc"), ByteBufferUtil.bytes(String.valueOf(i))), ByteBuffer.wrap(new byte[ROWS_PER_SSTABLE * 10 - i * 2]), i);
             rm.apply();
             inserted.add(key);
         }
@@ -70,16 +70,16 @@ public class RowIterationTest extends SchemaLoader
 
         // Delete row in first sstable
         RowMutation rm = new RowMutation(TABLE1, key.key);
-        rm.delete(new QueryPath(CF_NAME, null, null), 0);
-        rm.add(new QueryPath(CF_NAME, null, ByteBufferUtil.bytes("c")), ByteBufferUtil.bytes("values"), 0L);
+        rm.delete(CF_NAME, 0);
+        rm.add(CF_NAME, ByteBufferUtil.bytes("c"), ByteBufferUtil.bytes("values"), 0L);
         DeletionInfo delInfo1 = rm.getColumnFamilies().iterator().next().deletionInfo();
         rm.apply();
         store.forceBlockingFlush();
 
         // Delete row in second sstable with higher timestamp
         rm = new RowMutation(TABLE1, key.key);
-        rm.delete(new QueryPath(CF_NAME, null, null), 1);
-        rm.add(new QueryPath(CF_NAME, null, ByteBufferUtil.bytes("c")), ByteBufferUtil.bytes("values"), 1L);
+        rm.delete(CF_NAME, 1);
+        rm.add(CF_NAME, ByteBufferUtil.bytes("c"), ByteBufferUtil.bytes("values"), 1L);
         DeletionInfo delInfo2 = rm.getColumnFamilies().iterator().next().deletionInfo();
         assert delInfo2.getTopLevelDeletion().markedForDeleteAt == 1L;
         rm.apply();
@@ -99,7 +99,7 @@ public class RowIterationTest extends SchemaLoader
 
         // Delete a row in first sstable
         RowMutation rm = new RowMutation(TABLE1, key.key);
-        rm.delete(new QueryPath(CF_NAME, null, null), 0);
+        rm.delete(CF_NAME, 0);
         rm.apply();
         store.forceBlockingFlush();
 

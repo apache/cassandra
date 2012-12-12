@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.LinkedList;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class AntiEntropyServiceStandardTest extends AntiEntropyServiceTestAbstract
@@ -40,7 +39,7 @@ public class AntiEntropyServiceStandardTest extends AntiEntropyServiceTestAbstra
         List<IMutation> rms = new LinkedList<IMutation>();
         RowMutation rm;
         rm = new RowMutation(tablename, ByteBufferUtil.bytes("key1"));
-        rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdfasdf"), 0);
+        rm.add(cfname, ByteBufferUtil.bytes("Column1"), ByteBufferUtil.bytes("asdfasdf"), 0);
         rms.add(rm);
         return rms;
     }

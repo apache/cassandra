@@ -49,13 +49,13 @@ import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.IReadCommand;
-import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
@@ -76,7 +76,6 @@ public class RangeSliceCommand implements IReadCommand
     public final String keyspace;
 
     public final String column_family;
-    public final ByteBuffer super_column;
 
     public final IDiskAtomFilter predicate;
     public final List<IndexExpression> row_filter;
@@ -86,26 +85,20 @@ public class RangeSliceCommand implements IReadCommand
     public final boolean countCQL3Rows;
     public final boolean isPaging;
 
-    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, IDiskAtomFilter predicate, AbstractBounds<RowPosition> range, int maxResults)
+    public RangeSliceCommand(String keyspace, String column_family, IDiskAtomFilter predicate, AbstractBounds<RowPosition> range, int maxResults)
     {
-        this(keyspace, column_family, super_column, predicate, range, null, maxResults, false, false);
+        this(keyspace, column_family, predicate, range, null, maxResults, false, false);
     }
 
-    public RangeSliceCommand(String keyspace, ColumnParent column_parent, IDiskAtomFilter predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults)
+    public RangeSliceCommand(String keyspace, String column_family, IDiskAtomFilter predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults)
     {
-        this(keyspace, column_parent.getColumn_family(), column_parent.super_column, predicate, range, row_filter, maxResults, false, false);
+        this(keyspace, column_family, predicate, range, row_filter, maxResults, false, false);
     }
 
-    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, IDiskAtomFilter predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults)
-    {
-        this(keyspace, column_family, super_column, predicate, range, row_filter, maxResults, false, false);
-    }
-
-    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, IDiskAtomFilter predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults, boolean countCQL3Rows, boolean isPaging)
+    public RangeSliceCommand(String keyspace, String column_family, IDiskAtomFilter predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults, boolean countCQL3Rows, boolean isPaging)
     {
         this.keyspace = keyspace;
         this.column_family = column_family;
-        this.super_column = super_column;
         this.predicate = predicate;
         this.range = range;
         this.row_filter = row_filter;
@@ -125,7 +118,6 @@ public class RangeSliceCommand implements IReadCommand
         return "RangeSliceCommand{" +
                "keyspace='" + keyspace + '\'' +
                ", column_family='" + column_family + '\'' +
-               ", super_column=" + super_column +
                ", predicate=" + predicate +
                ", range=" + range +
                ", row_filter =" + row_filter +
@@ -198,10 +190,26 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
     {
         dos.writeUTF(sliceCommand.keyspace);
         dos.writeUTF(sliceCommand.column_family);
-        ByteBuffer sc = sliceCommand.super_column;
-        dos.writeInt(sc == null ? 0 : sc.remaining());
-        if (sc != null)
-            ByteBufferUtil.write(sc, dos);
+
+        IDiskAtomFilter filter = sliceCommand.predicate;
+        if (version < MessagingService.VERSION_20)
+        {
+            // Pre-2.0, we need to know if it's a super column. If it is, we
+            // must extract the super column name from the predicate (and
+            // modify the predicate accordingly)
+            ByteBuffer sc = null;
+            CFMetaData metadata = Schema.instance.getCFMetaData(sliceCommand.getKeyspace(), sliceCommand.column_family);
+            if (metadata.cfType == ColumnFamilyType.Super)
+            {
+                SuperColumns.SCFilter scFilter = SuperColumns.filterToSC((CompositeType)metadata.comparator, filter);
+                sc = scFilter.scName;
+                filter = scFilter.updatedFilter;
+            }
+
+            dos.writeInt(sc == null ? 0 : sc.remaining());
+            if (sc != null)
+                ByteBufferUtil.write(sc, dos);
+        }
 
         if (version < MessagingService.VERSION_12)
         {
@@ -250,26 +258,48 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         String keyspace = dis.readUTF();
         String columnFamily = dis.readUTF();
 
-        int scLength = dis.readInt();
-        ByteBuffer superColumn = null;
-        if (scLength > 0)
-        {
-            byte[] buf = new byte[scLength];
-            dis.readFully(buf);
-            superColumn = ByteBuffer.wrap(buf);
-        }
+        CFMetaData metadata = Schema.instance.getCFMetaData(keyspace, columnFamily);
 
         IDiskAtomFilter predicate;
-        AbstractType<?> comparator = ColumnFamily.getComparatorFor(keyspace, columnFamily, superColumn);
-        if (version < MessagingService.VERSION_12)
+        if (version < MessagingService.VERSION_20)
         {
-            SlicePredicate pred = new SlicePredicate();
-            FBUtilities.deserialize(new TDeserializer(new TBinaryProtocol.Factory()), pred, dis);
-            predicate = ThriftValidation.asIFilter(pred, comparator);
+            int scLength = dis.readInt();
+            ByteBuffer superColumn = null;
+            if (scLength > 0)
+            {
+                byte[] buf = new byte[scLength];
+                dis.readFully(buf);
+                superColumn = ByteBuffer.wrap(buf);
+            }
+
+            AbstractType<?> comparator;
+            if (metadata.cfType == ColumnFamilyType.Super)
+            {
+                CompositeType type = (CompositeType)metadata.comparator;
+                comparator = superColumn == null ? type.types.get(0) : type.types.get(1);
+            }
+            else
+            {
+                comparator = metadata.comparator;
+            }
+
+            if (version < MessagingService.VERSION_12)
+            {
+                SlicePredicate pred = new SlicePredicate();
+                FBUtilities.deserialize(new TDeserializer(new TBinaryProtocol.Factory()), pred, dis);
+                predicate = ThriftValidation.asIFilter(pred, metadata, superColumn);
+            }
+            else
+            {
+                predicate = IDiskAtomFilter.Serializer.instance.deserialize(dis, version, comparator);
+            }
+
+            if (metadata.cfType == ColumnFamilyType.Super)
+                predicate = SuperColumns.fromSCFilter((CompositeType)metadata.comparator, superColumn, predicate);
         }
         else
         {
-            predicate = IDiskAtomFilter.Serializer.instance.deserialize(dis, version, comparator);
+            predicate = IDiskAtomFilter.Serializer.instance.deserialize(dis, version, metadata.comparator);
         }
 
         List<IndexExpression> rowFilter = null;
@@ -304,7 +334,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             countCQL3Rows = dis.readBoolean();
             isPaging = dis.readBoolean();
         }
-        return new RangeSliceCommand(keyspace, columnFamily, superColumn, predicate, range, rowFilter, maxResults, countCQL3Rows, isPaging);
+        return new RangeSliceCommand(keyspace, columnFamily, predicate, range, rowFilter, maxResults, countCQL3Rows, isPaging);
     }
 
     public long serializedSize(RangeSliceCommand rsc, int version)
@@ -312,15 +342,27 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         long size = TypeSizes.NATIVE.sizeof(rsc.keyspace);
         size += TypeSizes.NATIVE.sizeof(rsc.column_family);
 
-        ByteBuffer sc = rsc.super_column;
-        if (sc != null)
+        IDiskAtomFilter filter = rsc.predicate;
+        if (version < MessagingService.VERSION_20)
         {
-            size += TypeSizes.NATIVE.sizeof(sc.remaining());
-            size += sc.remaining();
-        }
-        else
-        {
-            size += TypeSizes.NATIVE.sizeof(0);
+            ByteBuffer sc = null;
+            CFMetaData metadata = Schema.instance.getCFMetaData(rsc.keyspace, rsc.column_family);
+            if (metadata.cfType == ColumnFamilyType.Super)
+            {
+                SuperColumns.SCFilter scFilter = SuperColumns.filterToSC((CompositeType)metadata.comparator, filter);
+                sc = scFilter.scName;
+                filter = scFilter.updatedFilter;
+            }
+
+            if (sc != null)
+            {
+                size += TypeSizes.NATIVE.sizeof(sc.remaining());
+                size += sc.remaining();
+            }
+            else
+            {
+                size += TypeSizes.NATIVE.sizeof(0);
+            }
         }
 
         if (version < MessagingService.VERSION_12)
@@ -328,7 +370,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
             try
             {
-                int predicateLength = ser.serialize(asSlicePredicate(rsc.predicate)).length;
+                int predicateLength = ser.serialize(asSlicePredicate(filter)).length;
                 if (version < MessagingService.VERSION_12)
                     size += TypeSizes.NATIVE.sizeof(predicateLength);
                 size += predicateLength;
@@ -340,7 +382,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         }
         else
         {
-            size += IDiskAtomFilter.Serializer.instance.serializedSize(rsc.predicate, version);
+            size += IDiskAtomFilter.Serializer.instance.serializedSize(filter, version);
         }
 
         if (version >= MessagingService.VERSION_11)

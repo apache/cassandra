@@ -36,7 +36,6 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.IndexExpression;
 
 /**
@@ -49,11 +48,11 @@ public class SecondaryIndexManager
 
     public static final Updater nullUpdater = new Updater()
     {
-        public void insert(IColumn column) { }
+        public void insert(Column column) { }
 
-        public void update(IColumn oldColumn, IColumn column) { }
+        public void update(Column oldColumn, Column column) { }
 
-        public void remove(IColumn current) { }
+        public void remove(Column current) { }
     };
 
     /**
@@ -172,7 +171,7 @@ public class SecondaryIndexManager
         return null;
     }
 
-    public boolean indexes(IColumn column)
+    public boolean indexes(Column column)
     {
         return indexes(column.name());
     }
@@ -434,7 +433,7 @@ public class SecondaryIndexManager
             }
             else
             {
-                for (IColumn column : cf)
+                for (Column column : cf)
                 {
                     if (index.indexes(column.name()))
                         ((PerColumnSecondaryIndex) index).insert(key, column);
@@ -449,12 +448,12 @@ public class SecondaryIndexManager
      * @param key the row key
      * @param indexedColumnsInRow all column names in row
      */
-    public void deleteFromIndexes(DecoratedKey key, List<IColumn> indexedColumnsInRow)
+    public void deleteFromIndexes(DecoratedKey key, List<Column> indexedColumnsInRow)
     {
         // Update entire row only once per row level index
         Set<Class<? extends SecondaryIndex>> cleanedRowLevelIndexes = null;
 
-        for (IColumn column : indexedColumnsInRow)
+        for (Column column : indexedColumnsInRow)
         {
             SecondaryIndex index = indexesByColumn.get(column.name());
             if (index == null)
@@ -574,17 +573,17 @@ public class SecondaryIndexManager
 
     public boolean validate(Column column)
     {
-        SecondaryIndex index = getIndexForColumn(column.name);
+        SecondaryIndex index = getIndexForColumn(column.name());
         return index != null ? index.validate(column) : true;
     }
 
     public static interface Updater
     {
-        public void insert(IColumn column);
+        public void insert(Column column);
 
-        public void update(IColumn oldColumn, IColumn column);
+        public void update(Column oldColumn, Column column);
 
-        public void remove(IColumn current);
+        public void remove(Column current);
     }
 
     private class PerColumnIndexUpdater implements Updater
@@ -596,7 +595,7 @@ public class SecondaryIndexManager
             this.key = key;
         }
 
-        public void insert(IColumn column)
+        public void insert(Column column)
         {
             if (column.isMarkedForDelete())
                 return;
@@ -608,7 +607,7 @@ public class SecondaryIndexManager
             ((PerColumnSecondaryIndex) index).insert(key.key, column);
         }
 
-        public void update(IColumn oldColumn, IColumn column)
+        public void update(Column oldColumn, Column column)
         {
             if (column.isMarkedForDelete())
                 return;
@@ -621,7 +620,7 @@ public class SecondaryIndexManager
             ((PerColumnSecondaryIndex) index).insert(key.key, column);
         }
 
-        public void remove(IColumn column)
+        public void remove(Column column)
         {
             if (column.isMarkedForDelete())
                 return;
@@ -644,7 +643,7 @@ public class SecondaryIndexManager
             this.key = key;
         }
 
-        public void insert(IColumn column)
+        public void insert(Column column)
         {
             if (column.isMarkedForDelete())
                 return;
@@ -664,7 +663,7 @@ public class SecondaryIndexManager
             }
         }
 
-        public void update(IColumn oldColumn, IColumn column)
+        public void update(Column oldColumn, Column column)
         {
             if (column.isMarkedForDelete())
                 return;
@@ -685,7 +684,7 @@ public class SecondaryIndexManager
             }
         }
 
-        public void remove(IColumn column)
+        public void remove(Column column)
         {
             if (column.isMarkedForDelete())
                 return;

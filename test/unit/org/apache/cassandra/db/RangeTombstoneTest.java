@@ -70,8 +70,6 @@ public class RangeTombstoneTest extends SchemaLoader
         rm.apply();
         // We don't flush to test with both a range tomsbtone in memtable and in sstable
 
-        QueryPath path = new QueryPath(CFNAME);
-
         // Queries by name
         int[] live = new int[]{ 4, 9, 11, 17, 28 };
         int[] dead = new int[]{ 12, 19, 21, 24, 27 };
@@ -80,7 +78,7 @@ public class RangeTombstoneTest extends SchemaLoader
             columns.add(b(i));
         for (int i : dead)
             columns.add(b(i));
-        cf = cfs.getColumnFamily(QueryFilter.getNamesFilter(dk(key), path, columns));
+        cf = cfs.getColumnFamily(QueryFilter.getNamesFilter(dk(key), CFNAME, columns));
 
         for (int i : live)
             assert isLive(cf, cf.getColumn(b(i))) : "Column " + i + " should be live";
@@ -88,7 +86,7 @@ public class RangeTombstoneTest extends SchemaLoader
             assert !isLive(cf, cf.getColumn(b(i))) : "Column " + i + " shouldn't be live";
 
         // Queries by slices
-        cf = cfs.getColumnFamily(QueryFilter.getSliceFilter(dk(key), path, b(7), b(30), false, Integer.MAX_VALUE));
+        cf = cfs.getColumnFamily(QueryFilter.getSliceFilter(dk(key), CFNAME, b(7), b(30), false, Integer.MAX_VALUE));
 
         for (int i : new int[]{ 7, 8, 9, 11, 13, 15, 17, 28, 29, 30 })
             assert isLive(cf, cf.getColumn(b(i))) : "Column " + i + " should be live";
@@ -132,8 +130,7 @@ public class RangeTombstoneTest extends SchemaLoader
         rm.apply();
         cfs.forceBlockingFlush();
 
-        QueryPath path = new QueryPath(CFNAME);
-        cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dk(key), path));
+        cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dk(key), CFNAME));
 
         for (int i = 0; i < 5; i++)
             assert isLive(cf, cf.getColumn(b(i))) : "Column " + i + " should be live";
@@ -144,7 +141,7 @@ public class RangeTombstoneTest extends SchemaLoader
 
         // Compact everything and re-test
         CompactionManager.instance.performMaximal(cfs);
-        cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dk(key), path));
+        cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dk(key), CFNAME));
 
         for (int i = 0; i < 5; i++)
             assert isLive(cf, cf.getColumn(b(i))) : "Column " + i + " should be live";
@@ -154,7 +151,7 @@ public class RangeTombstoneTest extends SchemaLoader
             assert !isLive(cf, cf.getColumn(b(i))) : "Column " + i + " shouldn't be live";
     }
 
-    private static boolean isLive(ColumnFamily cf, IColumn c)
+    private static boolean isLive(ColumnFamily cf, Column c)
     {
         return c != null && !c.isMarkedForDelete() && !cf.deletionInfo().isDeleted(c);
     }
@@ -170,7 +167,7 @@ public class RangeTombstoneTest extends SchemaLoader
 
     private static void add(RowMutation rm, int value, long timestamp)
     {
-        rm.add(new QueryPath(CFNAME, null, b(value)), b(value), timestamp);
+        rm.add(CFNAME, b(value), b(value), timestamp);
     }
 
     private static void delete(ColumnFamily cf, int from, int to, long timestamp)

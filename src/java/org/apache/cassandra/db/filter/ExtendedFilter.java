@@ -281,7 +281,7 @@ public abstract class ExtendedFilter
             {
                 // check column data vs expression
                 ByteBuffer colName = builder == null ? expression.column_name : builder.copy().add(expression.column_name).build();
-                IColumn column = data.getColumn(colName);
+                Column column = data.getColumn(colName);
                 if (column == null)
                     return false;
                 int v = data.metadata().getValueValidator(expression.column_name).compare(column.value(), expression.value);

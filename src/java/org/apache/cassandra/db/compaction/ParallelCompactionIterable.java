@@ -207,7 +207,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                     {
                         // addAll is ok even if cf is an ArrayBackedSortedColumns
                         SecondaryIndexManager.Updater indexer = controller.cfs.indexManager.updaterFor(row.key, false);
-                        cf.addAllWithSizeDelta(thisCF, HeapAllocator.instance, Functions.<IColumn>identity(), indexer);
+                        cf.addAllWithSizeDelta(thisCF, HeapAllocator.instance, Functions.<Column>identity(), indexer);
                     }
                 }
 
@@ -218,7 +218,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
         private class DeserializedColumnIterator implements ICountableColumnIterator
         {
             private final Row row;
-            private Iterator<IColumn> iter;
+            private Iterator<Column> iter;
 
             public DeserializedColumnIterator(Row row)
             {

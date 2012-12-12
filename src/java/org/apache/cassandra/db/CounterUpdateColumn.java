@@ -49,14 +49,14 @@ public class CounterUpdateColumn extends Column
     }
 
     @Override
-    public IColumn diff(IColumn column)
+    public Column diff(Column column)
     {
         // Diff is used during reads, but we should never read those columns
         throw new UnsupportedOperationException("This operation is unsupported on CounterUpdateColumn.");
     }
 
     @Override
-    public IColumn reconcile(IColumn column, Allocator allocator)
+    public Column reconcile(Column column, Allocator allocator)
     {
         // The only time this could happen is if a batchAdd ships two
         // increment for the same column. Hence we simply sums the delta.
@@ -88,7 +88,7 @@ public class CounterUpdateColumn extends Column
     }
 
     @Override
-    public IColumn localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    public Column localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
         return new CounterColumn(cfs.internOrCopy(name, allocator),
                                  CounterContext.instance().create(delta(), allocator),

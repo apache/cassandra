@@ -27,7 +27,6 @@ import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.junit.Test;
@@ -69,7 +68,7 @@ public class NameSortTest extends SchemaLoader
             {
                 ByteBuffer bytes = j % 2 == 0 ? ByteBufferUtil.bytes("a") : ByteBufferUtil.bytes("b");
                 rm = new RowMutation("Keyspace1", key);
-                rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(("Column-" + j))), bytes, j);
+                rm.add("Standard1", ByteBufferUtil.bytes(("Column-" + j)), bytes, j);
                 rm.applyUnsafe();
             }
 
@@ -101,32 +100,14 @@ public class NameSortTest extends SchemaLoader
             ColumnFamily cf;
 
             cf = Util.getColumnFamily(table, key, "Standard1");
-            Collection<IColumn> columns = cf.getSortedColumns();
-            for (IColumn column : columns)
+            Collection<Column> columns = cf.getSortedColumns();
+            for (Column column : columns)
             {
                 String name = ByteBufferUtil.string(column.name());
                 int j = Integer.valueOf(name.substring(name.length() - 1));
                 byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
                 assertEquals(new String(bytes), ByteBufferUtil.string(column.value()));
             }
-
-            cf = Util.getColumnFamily(table, key, "Super1");
-            assert cf != null : "key " + key + " is missing!";
-            Collection<IColumn> superColumns = cf.getSortedColumns();
-            assert superColumns.size() == 8 : cf;
-            for (IColumn superColumn : superColumns)
-            {
-                int j = Integer.valueOf(ByteBufferUtil.string(superColumn.name()).split("-")[1]);
-                Collection<IColumn> subColumns = superColumn.getSubColumns();
-                assert subColumns.size() == 4;
-                for (IColumn subColumn : subColumns)
-                {
-                    long k = subColumn.name().getLong(subColumn.name().position());
-                    byte[] bytes = (j + k) % 2 == 0 ? "a".getBytes() : "b".getBytes();
-                    assertEquals(new String(bytes), ByteBufferUtil.string(subColumn.value()));
-                }
-            }
         }
     }
-
 }

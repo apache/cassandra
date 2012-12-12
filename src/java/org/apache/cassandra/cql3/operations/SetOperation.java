@@ -27,7 +27,7 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -53,7 +53,7 @@ public class SetOperation implements Operation
                         ColumnNameBuilder builder,
                         AbstractType<?> validator,
                         UpdateParameters params,
-                        List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
+                        List<Pair<ByteBuffer, Column>> list) throws InvalidRequestException
     {
         if (!(validator instanceof SetType))
             throw new InvalidRequestException("Set operations are only supported on Set typed columns, but " + validator + " given.");

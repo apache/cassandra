@@ -29,21 +29,16 @@ public class RetriedSliceFromReadCommand extends SliceFromReadCommand
     static final Logger logger = LoggerFactory.getLogger(RetriedSliceFromReadCommand.class);
     public final int originalCount;
 
-    public RetriedSliceFromReadCommand(String table, ByteBuffer key, ColumnParent column_parent, SliceQueryFilter filter, int originalCount)
+    public RetriedSliceFromReadCommand(String table, ByteBuffer key, String cfName, SliceQueryFilter filter, int originalCount)
     {
-        this(table, key, new QueryPath(column_parent), filter, originalCount);
-    }
-
-    public RetriedSliceFromReadCommand(String table, ByteBuffer key, QueryPath path, SliceQueryFilter filter, int originalCount)
-    {
-        super(table, key, path, filter);
+        super(table, key, cfName, filter);
         this.originalCount = originalCount;
     }
 
     @Override
     public ReadCommand copy()
     {
-        ReadCommand readCommand = new RetriedSliceFromReadCommand(table, key, queryPath, filter, originalCount);
+        ReadCommand readCommand = new RetriedSliceFromReadCommand(table, key, cfName, filter, originalCount);
         readCommand.setDigestQuery(isDigestQuery());
         return readCommand;
     }

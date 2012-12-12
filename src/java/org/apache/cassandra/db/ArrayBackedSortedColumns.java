@@ -40,7 +40,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
 {
     private final AbstractType<?> comparator;
     private final boolean reversed;
-    private final ArrayList<IColumn> columns;
+    private final ArrayList<Column> columns;
 
     public static final ISortedColumns.Factory factory = new Factory()
     {
@@ -49,7 +49,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
             return new ArrayBackedSortedColumns(comparator, insertReversed);
         }
 
-        public ISortedColumns fromSorted(SortedMap<ByteBuffer, IColumn> sortedMap, boolean insertReversed)
+        public ISortedColumns fromSorted(SortedMap<ByteBuffer, Column> sortedMap, boolean insertReversed)
         {
             return new ArrayBackedSortedColumns(sortedMap.values(), (AbstractType<?>)sortedMap.comparator(), insertReversed);
         }
@@ -65,14 +65,14 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         super();
         this.comparator = comparator;
         this.reversed = reversed;
-        this.columns = new ArrayList<IColumn>();
+        this.columns = new ArrayList<Column>();
     }
 
-    private ArrayBackedSortedColumns(Collection<IColumn> columns, AbstractType<?> comparator, boolean reversed)
+    private ArrayBackedSortedColumns(Collection<Column> columns, AbstractType<?> comparator, boolean reversed)
     {
         this.comparator = comparator;
         this.reversed = reversed;
-        this.columns = new ArrayList<IColumn>(columns);
+        this.columns = new ArrayList<Column>(columns);
     }
 
     public ISortedColumns.Factory getFactory()
@@ -100,7 +100,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         return reversed ? comparator.reverseComparator : comparator;
     }
 
-    public IColumn getColumn(ByteBuffer name)
+    public Column getColumn(ByteBuffer name)
     {
         int pos = binarySearch(name);
         return pos >= 0 ? columns.get(pos) : null;
@@ -116,7 +116,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
      * without knowing about (we can revisit that decision later if we have
      * use cases where most insert are in sorted order but a few are not).
      */
-    public void addColumn(IColumn column, Allocator allocator)
+    public void addColumn(Column column, Allocator allocator)
     {
         if (columns.isEmpty())
         {
@@ -154,21 +154,13 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
      * Resolve against element at position i.
      * Assume that i is a valid position.
      */
-    private void resolveAgainst(int i, IColumn column, Allocator allocator)
+    private void resolveAgainst(int i, Column column, Allocator allocator)
     {
-        IColumn oldColumn = columns.get(i);
-        if (oldColumn instanceof SuperColumn)
-        {
-            // Delegated to SuperColumn
-            assert column instanceof SuperColumn;
-            ((SuperColumn) oldColumn).putColumn((SuperColumn)column, allocator);
-        }
-        else
-        {
-            // calculate reconciled col from old (existing) col and new col
-            IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
-            columns.set(i, reconciledColumn);
-        }
+        Column oldColumn = columns.get(i);
+
+        // calculate reconciled col from old (existing) col and new col
+        Column reconciledColumn = column.reconcile(oldColumn, allocator);
+        columns.set(i, reconciledColumn);
     }
 
     private int binarySearch(ByteBuffer name)
@@ -180,9 +172,9 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
      * Simple binary search for a given column name.
      * The return value has the exact same meaning that the one of Collections.binarySearch().
      * (We don't use Collections.binarySearch() directly because it would require us to create
-     * a fake IColumn (as well as an IColumn comparator) to do the search, which is ugly.
+     * a fake Column (as well as an Column comparator) to do the search, which is ugly.
      */
-    private static int binarySearch(List<IColumn> columns, Comparator<ByteBuffer> comparator, ByteBuffer name, int start)
+    private static int binarySearch(List<Column> columns, Comparator<ByteBuffer> comparator, ByteBuffer name, int start)
     {
         int low = start;
         int mid = columns.size();
@@ -207,21 +199,21 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         return -mid - (result < 0 ? 1 : 2);
     }
 
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer)
+    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
     {
         throw new UnsupportedOperationException();
     }
 
-    public void addAll(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
+    public void addAll(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation)
     {
         delete(cm.getDeletionInfo());
         if (cm.isEmpty())
             return;
 
-        IColumn[] copy = columns.toArray(new IColumn[size()]);
+        Column[] copy = columns.toArray(new Column[size()]);
         int idx = 0;
-        Iterator<IColumn> other = reversed ? cm.reverseIterator(ColumnSlice.ALL_COLUMNS_ARRAY) : cm.iterator();
-        IColumn otherColumn = other.next();
+        Iterator<Column> other = reversed ? cm.reverseIterator(ColumnSlice.ALL_COLUMNS_ARRAY) : cm.iterator();
+        Column otherColumn = other.next();
 
         columns.clear();
 
@@ -257,7 +249,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         }
     }
 
-    public boolean replace(IColumn oldColumn, IColumn newColumn)
+    public boolean replace(Column oldColumn, Column newColumn)
     {
         if (!oldColumn.name().equals(newColumn.name()))
             throw new IllegalArgumentException();
@@ -271,12 +263,12 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         return pos >= 0;
     }
 
-    public Collection<IColumn> getSortedColumns()
+    public Collection<Column> getSortedColumns()
     {
         return reversed ? new ReverseSortedCollection() : columns;
     }
 
-    public Collection<IColumn> getReverseSortedColumns()
+    public Collection<Column> getReverseSortedColumns()
     {
         // If reversed, the element are sorted reversely, so we could expect
         // to return *this*, but *this* redefine the iterator to be in sorted
@@ -307,39 +299,39 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         return new ColumnNamesSet();
     }
 
-    public Iterator<IColumn> iterator()
+    public Iterator<Column> iterator()
     {
         return reversed ? Lists.reverse(columns).iterator() : columns.iterator();
     }
 
-    public Iterator<IColumn> iterator(ColumnSlice[] slices)
+    public Iterator<Column> iterator(ColumnSlice[] slices)
     {
         return new SlicesIterator(columns, comparator, slices, reversed);
     }
 
-    public Iterator<IColumn> reverseIterator(ColumnSlice[] slices)
+    public Iterator<Column> reverseIterator(ColumnSlice[] slices)
     {
         return new SlicesIterator(columns, comparator, slices, !reversed);
     }
 
-    private static class SlicesIterator extends AbstractIterator<IColumn>
+    private static class SlicesIterator extends AbstractIterator<Column>
     {
-        private final List<IColumn> list;
+        private final List<Column> list;
         private final ColumnSlice[] slices;
         private final Comparator<ByteBuffer> comparator;
 
         private int idx = 0;
         private int previousSliceEnd = 0;
-        private Iterator<IColumn> currentSlice;
+        private Iterator<Column> currentSlice;
 
-        public SlicesIterator(List<IColumn> list, AbstractType<?> comparator, ColumnSlice[] slices, boolean reversed)
+        public SlicesIterator(List<Column> list, AbstractType<?> comparator, ColumnSlice[] slices, boolean reversed)
         {
             this.list = reversed ? Lists.reverse(list) : list;
             this.slices = slices;
             this.comparator = reversed ? comparator.reverseComparator : comparator;
         }
 
-        protected IColumn computeNext()
+        protected Column computeNext()
         {
             if (currentSlice == null)
             {
@@ -375,16 +367,16 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         }
     }
 
-    private class ReverseSortedCollection extends AbstractCollection<IColumn>
+    private class ReverseSortedCollection extends AbstractCollection<Column>
     {
         public int size()
         {
             return columns.size();
         }
 
-        public Iterator<IColumn> iterator()
+        public Iterator<Column> iterator()
         {
-            return new Iterator<IColumn>()
+            return new Iterator<Column>()
             {
                 int idx = size() - 1;
 
@@ -393,7 +385,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
                     return idx >= 0;
                 }
 
-                public IColumn next()
+                public Column next()
                 {
                     return columns.get(idx--);
                 }
@@ -406,14 +398,14 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         }
     }
 
-    private class ForwardSortedCollection extends AbstractCollection<IColumn>
+    private class ForwardSortedCollection extends AbstractCollection<Column>
     {
         public int size()
         {
             return columns.size();
         }
 
-        public Iterator<IColumn> iterator()
+        public Iterator<Column> iterator()
         {
             return columns.iterator();
         }
@@ -428,7 +420,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
 
         public Iterator<ByteBuffer> iterator()
         {
-            final Iterator<IColumn> outerIterator = ArrayBackedSortedColumns.this.iterator(); // handles reversed
+            final Iterator<Column> outerIterator = ArrayBackedSortedColumns.this.iterator(); // handles reversed
             return new Iterator<ByteBuffer>()
             {
                 public boolean hasNext()

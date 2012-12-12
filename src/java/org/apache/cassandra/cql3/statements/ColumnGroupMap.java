@@ -24,7 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.Pair;
 
@@ -38,7 +38,7 @@ public class ColumnGroupMap
         this.fullPath = fullPath;
     }
 
-    private void add(ByteBuffer[] fullName, int idx, IColumn column)
+    private void add(ByteBuffer[] fullName, int idx, Column column)
     {
         ByteBuffer columnName = fullName[idx];
         if (fullName.length == idx + 2)
@@ -66,7 +66,7 @@ public class ColumnGroupMap
         return fullPath[pos];
     }
 
-    public IColumn getSimple(ByteBuffer key)
+    public Column getSimple(ByteBuffer key)
     {
         Value v = map.get(key);
         if (v == null)
@@ -76,29 +76,29 @@ public class ColumnGroupMap
         return ((Simple)v).column;
     }
 
-    public List<Pair<ByteBuffer, IColumn>> getCollection(ByteBuffer key)
+    public List<Pair<ByteBuffer, Column>> getCollection(ByteBuffer key)
     {
         Value v = map.get(key);
         if (v == null)
             return null;
 
         assert v instanceof Collection;
-        return (List<Pair<ByteBuffer, IColumn>>)v;
+        return (List<Pair<ByteBuffer, Column>>)v;
     }
 
     private interface Value {};
 
     private static class Simple implements Value
     {
-        public final IColumn column;
+        public final Column column;
 
-        Simple(IColumn column)
+        Simple(Column column)
         {
             this.column = column;
         }
     }
 
-    private static class Collection extends ArrayList<Pair<ByteBuffer, IColumn>> implements Value {}
+    private static class Collection extends ArrayList<Pair<ByteBuffer, Column>> implements Value {}
 
     public static class Builder
     {
@@ -115,7 +115,7 @@ public class ColumnGroupMap
             this.idx = composite.types.size() - (hasCollections ? 2 : 1);
         }
 
-        public void add(IColumn c)
+        public void add(Column c)
         {
             if (c.isMarkedForDelete())
                 return;

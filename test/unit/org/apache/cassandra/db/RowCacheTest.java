@@ -28,7 +28,6 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.db.filter.QueryPath;
 
 public class RowCacheTest extends SchemaLoader
 {
@@ -62,17 +61,16 @@ public class RowCacheTest extends SchemaLoader
         for (int i = 0; i < 100; i++)
         {
             DecoratedKey key = Util.dk("key" + i);
-            QueryPath path = new QueryPath(COLUMN_FAMILY, null, ByteBufferUtil.bytes("col" + i));
 
-            cachedStore.getColumnFamily(key, path, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+            cachedStore.getColumnFamily(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
             assert CacheService.instance.rowCache.size() == i + 1;
             assert cachedStore.containsCachedRow(key); // current key should be stored in the cache
 
             // checking if column is read correctly after cache
-            ColumnFamily cf = cachedStore.getColumnFamily(key, path, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
-            Collection<IColumn> columns = cf.getSortedColumns();
+            ColumnFamily cf = cachedStore.getColumnFamily(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+            Collection<Column> columns = cf.getSortedColumns();
 
-            IColumn column = columns.iterator().next();
+            Column column = columns.iterator().next();
 
             assert columns.size() == 1;
             assert column.name().equals(ByteBufferUtil.bytes("col" + i));
@@ -85,16 +83,15 @@ public class RowCacheTest extends SchemaLoader
         for (int i = 100; i < 110; i++)
         {
             DecoratedKey key = Util.dk("key" + i);
-            QueryPath path = new QueryPath(COLUMN_FAMILY, null, ByteBufferUtil.bytes("col" + i));
 
-            cachedStore.getColumnFamily(key, path, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+            cachedStore.getColumnFamily(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
             assert cachedStore.containsCachedRow(key); // cache should be populated with the latest rows read (old ones should be popped)
 
             // checking if column is read correctly after cache
-            ColumnFamily cf = cachedStore.getColumnFamily(key, path, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
-            Collection<IColumn> columns = cf.getSortedColumns();
+            ColumnFamily cf = cachedStore.getColumnFamily(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+            Collection<Column> columns = cf.getSortedColumns();
 
-            IColumn column = columns.iterator().next();
+            Column column = columns.iterator().next();
 
             assert columns.size() == 1;
             assert column.name().equals(ByteBufferUtil.bytes("col" + i));

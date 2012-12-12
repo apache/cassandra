@@ -129,7 +129,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     private static void deleteHint(ByteBuffer tokenBytes, ByteBuffer columnName, long timestamp) throws IOException
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, tokenBytes);
-        rm.delete(new QueryPath(SystemTable.HINTS_CF, null, columnName), timestamp);
+        rm.delete(SystemTable.HINTS_CF, columnName, timestamp);
         rm.applyUnsafe(); // don't bother with commitlog since we're going to flush as soon as we're done with delivery
     }
 
@@ -155,7 +155,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         UUID hostId = StorageService.instance.getTokenMetadata().getHostId(endpoint);
         ByteBuffer hostIdBytes = ByteBuffer.wrap(UUIDGen.decompose(hostId));
         final RowMutation rm = new RowMutation(Table.SYSTEM_KS, hostIdBytes);
-        rm.delete(new QueryPath(SystemTable.HINTS_CF), System.currentTimeMillis());
+        rm.delete(SystemTable.HINTS_CF, System.currentTimeMillis());
 
         // execute asynchronously to avoid blocking caller (which may be processing gossip)
         Runnable runnable = new Runnable()
@@ -303,7 +303,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         while (true)
         {
-            QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(SystemTable.HINTS_CF), startColumn, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, pageSize);
+            QueryFilter filter = QueryFilter.getSliceFilter(epkey, SystemTable.HINTS_CF, startColumn, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, pageSize);
             ColumnFamily hintsPage = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), (int)(System.currentTimeMillis() / 1000));
             if (pagingFinished(hintsPage, startColumn))
             {
@@ -322,7 +322,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
             }
 
-            for (final IColumn hint : hintsPage.getSortedColumns())
+            for (final Column hint : hintsPage.getSortedColumns())
             {
                 // Skip tombstones:
                 // if we iterate quickly enough, it's possible that we could request a new page in the same millisecond
@@ -400,7 +400,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         RowPosition minPos = p.getMinimumToken().minKeyBound();
         Range<RowPosition> range = new Range<RowPosition>(minPos, minPos, p);
         IDiskAtomFilter filter = new NamesQueryFilter(ImmutableSortedSet.<ByteBuffer>of());
-        List<Row> rows = hintStore.getRangeSlice(null, range, Integer.MAX_VALUE, filter, null);
+        List<Row> rows = hintStore.getRangeSlice(range, Integer.MAX_VALUE, filter, null);
         for (Row row : rows)
         {
             UUID hostId = UUIDGen.getUUID(row.key.key);
@@ -473,9 +473,6 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     private List<Row> getHintsSlice(int columnCount)
     {
-        // ColumnParent for HintsCF...
-        ColumnParent parent = new ColumnParent(SystemTable.HINTS_CF);
-
         // Get count # of columns...
         SliceQueryFilter predicate = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                           ByteBufferUtil.EMPTY_BYTE_BUFFER,
@@ -491,7 +488,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         List<Row> rows;
         try
         {
-            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(Table.SYSTEM_KS, parent, predicate, range, null, LARGE_NUMBER), ConsistencyLevel.ONE);
+            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(Table.SYSTEM_KS, SystemTable.HINTS_CF, predicate, range, null, LARGE_NUMBER), ConsistencyLevel.ONE);
         }
         catch (Exception e)
         {

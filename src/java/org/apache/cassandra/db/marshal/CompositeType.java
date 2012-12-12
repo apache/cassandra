@@ -68,6 +68,11 @@ public class CompositeType extends AbstractCompositeType
         return getInstance(parser.getTypeParameters());
     }
 
+    public static CompositeType getInstance(AbstractType... types)
+    {
+        return getInstance(Arrays.<AbstractType<?>>asList(types));
+    }
+
     public static synchronized CompositeType getInstance(List<AbstractType<?>> types)
     {
         assert types != null && !types.isEmpty();
@@ -124,6 +129,23 @@ public class CompositeType extends AbstractCompositeType
             serialized[i] = buffer;
         }
         return build(serialized);
+    }
+
+    // Extract component idx from bb. Return null if there is not enough component.
+    public static ByteBuffer extractComponent(ByteBuffer bb, int idx)
+    {
+        bb = bb.duplicate();
+        int i = 0;
+        while (bb.remaining() > 0)
+        {
+            ByteBuffer c = getWithShortLength(bb);
+            if (i == idx)
+                return c;
+
+            bb.get(); // skip end-of-component
+            ++i;
+        }
+        return null;
     }
 
     @Override
@@ -190,7 +212,7 @@ public class CompositeType extends AbstractCompositeType
         return new Builder(this);
     }
 
-    public ByteBuffer build(ByteBuffer... buffers)
+    public static ByteBuffer build(ByteBuffer... buffers)
     {
         int totalLength = 0;
         for (ByteBuffer bb : buffers)
@@ -200,7 +222,7 @@ public class CompositeType extends AbstractCompositeType
         for (ByteBuffer bb : buffers)
         {
             putShortLength(out, bb.remaining());
-            out.put(bb);
+            out.put(bb.duplicate());
             out.put((byte) 0);
         }
         out.flip();

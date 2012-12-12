@@ -52,6 +52,8 @@ public class ColumnIndex
      */
     public static class Builder
     {
+        private static final OnDiskAtom.Serializer atomSerializer = Column.onDiskSerializer();
+
         private final ColumnIndex result;
         private final long indexOffset;
         private long startPosition = -1;
@@ -62,7 +64,6 @@ public class ColumnIndex
         private OnDiskAtom lastBlockClosing;
         private final DataOutput output;
         private final RangeTombstone.Tracker tombstoneTracker;
-        private final OnDiskAtom.Serializer atomSerializer;
         private int atomCount;
 
         public Builder(ColumnFamily cf,
@@ -73,7 +74,6 @@ public class ColumnIndex
             this.indexOffset = rowHeaderSize(key, cf.deletionInfo());
             this.result = new ColumnIndex(estimatedColumnCount);
             this.output = output;
-            this.atomSerializer = cf.getOnDiskSerializer();
             this.tombstoneTracker = new RangeTombstone.Tracker(cf.getComparator());
         }
 
@@ -116,7 +116,7 @@ public class ColumnIndex
             RangeTombstone tombstone = rangeIter.hasNext() ? rangeIter.next() : null;
             Comparator<ByteBuffer> comparator = cf.getComparator();
 
-            for (IColumn c : cf)
+            for (Column c : cf)
             {
                 while (tombstone != null && comparator.compare(c.name(), tombstone.min) >= 0)
                 {
@@ -146,7 +146,7 @@ public class ColumnIndex
         {
             atomCount++;
 
-            if (column instanceof IColumn)
+            if (column instanceof Column)
                 result.bloomFilter.add(column.name());
 
             if (firstColumn == null)

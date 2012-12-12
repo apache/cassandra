@@ -107,7 +107,7 @@ public class RowIteratorFactory
                 }
                 else
                 {
-                    QueryFilter keyFilter = new QueryFilter(key, filter.path, filter.filter);
+                    QueryFilter keyFilter = new QueryFilter(key, filter.cfName, filter.filter);
                     returnCF = cfs.filterColumnFamily(cached, keyFilter, gcBefore);
                 }
 

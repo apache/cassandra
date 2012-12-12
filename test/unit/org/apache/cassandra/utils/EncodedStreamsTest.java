@@ -110,14 +110,6 @@ public class EncodedStreamsTest extends SchemaLoader
         return cf;
     }
 
-    private ColumnFamily createSuperCF()
-    {
-        ColumnFamily cf = ColumnFamily.create(tableName, superCFName);
-        cf.addColumn(superColumn(cf, "Avatar", column("$2,782,275,172", "2009", 1)));
-        cf.addColumn(superColumn(cf, "Titanic", column("$1,925,905,151", "1997", 1)));
-        return cf;
-    }
-
     @Test
     public void testCFSerialization() throws IOException
     {
@@ -143,20 +135,6 @@ public class EncodedStreamsTest extends SchemaLoader
         EncodedDataInputStream odis = new EncodedDataInputStream(new DataInputStream(byteArrayIStream1));
         ColumnFamily cf = ColumnFamily.serializer.deserialize(odis, version);
         Assert.assertEquals(cf, createCounterCF());
-        Assert.assertEquals(byteArrayOStream1.size(), (int) ColumnFamily.serializer.serializedSize(cf, TypeSizes.VINT, version));
-    }
-
-    @Test
-    public void testSuperCFSerialization() throws IOException
-    {
-        ByteArrayOutputStream byteArrayOStream1 = new ByteArrayOutputStream();
-        EncodedDataOutputStream odos = new EncodedDataOutputStream(byteArrayOStream1);
-        ColumnFamily.serializer.serialize(createSuperCF(), odos, version);
-
-        ByteArrayInputStream byteArrayIStream1 = new ByteArrayInputStream(byteArrayOStream1.toByteArray());
-        EncodedDataInputStream odis = new EncodedDataInputStream(new DataInputStream(byteArrayIStream1));
-        ColumnFamily cf = ColumnFamily.serializer.deserialize(odis, version);
-        Assert.assertEquals(cf, createSuperCF());
         Assert.assertEquals(byteArrayOStream1.size(), (int) ColumnFamily.serializer.serializedSize(cf, TypeSizes.VINT, version));
     }
 }

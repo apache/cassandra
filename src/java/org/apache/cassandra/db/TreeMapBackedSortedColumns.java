@@ -33,7 +33,7 @@ import org.apache.cassandra.utils.Allocator;
 
 public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumns implements ISortedColumns
 {
-    private final TreeMap<ByteBuffer, IColumn> map;
+    private final TreeMap<ByteBuffer, Column> map;
 
     public static final ISortedColumns.Factory factory = new Factory()
     {
@@ -42,7 +42,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
             return new TreeMapBackedSortedColumns(comparator);
         }
 
-        public ISortedColumns fromSorted(SortedMap<ByteBuffer, IColumn> sortedMap, boolean insertReversed)
+        public ISortedColumns fromSorted(SortedMap<ByteBuffer, Column> sortedMap, boolean insertReversed)
         {
             return new TreeMapBackedSortedColumns(sortedMap);
         }
@@ -60,12 +60,12 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
 
     private TreeMapBackedSortedColumns(AbstractType<?> comparator)
     {
-        this.map = new TreeMap<ByteBuffer, IColumn>(comparator);
+        this.map = new TreeMap<ByteBuffer, Column>(comparator);
     }
 
-    private TreeMapBackedSortedColumns(SortedMap<ByteBuffer, IColumn> columns)
+    private TreeMapBackedSortedColumns(SortedMap<ByteBuffer, Column> columns)
     {
-        this.map = new TreeMap<ByteBuffer, IColumn>(columns);
+        this.map = new TreeMap<ByteBuffer, Column>(columns);
     }
 
     public ISortedColumns.Factory getFactory()
@@ -83,7 +83,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         return false;
     }
 
-    public void addColumn(IColumn column, Allocator allocator)
+    public void addColumn(Column column, Allocator allocator)
     {
         addColumn(column, allocator, SecondaryIndexManager.nullUpdater);
     }
@@ -92,47 +92,33 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
      * If we find an old column that has the same name
      * the ask it to resolve itself else add the new column
     */
-    public long addColumn(IColumn column, Allocator allocator, SecondaryIndexManager.Updater indexer)
+    public long addColumn(Column column, Allocator allocator, SecondaryIndexManager.Updater indexer)
     {
         ByteBuffer name = column.name();
         // this is a slightly unusual way to structure this; a more natural way is shown in ThreadSafeSortedColumns,
         // but TreeMap lacks putAbsent.  Rather than split it into a "get, then put" check, we do it as follows,
         // which saves the extra "get" in the no-conflict case [for both normal and super columns],
         // in exchange for a re-put in the SuperColumn case.
-        IColumn oldColumn = map.put(name, column);
+        Column oldColumn = map.put(name, column);
         if (oldColumn == null)
             return column.dataSize();
 
-        if (oldColumn instanceof SuperColumn)
-        {
-            assert column instanceof SuperColumn;
-            long previousSize = oldColumn.dataSize();
-            // since oldColumn is where we've been accumulating results, it's usually going to be faster to
-            // add the new one to the old, then place old back in the Map, rather than copy the old contents
-            // into the new Map entry.
-            ((SuperColumn) oldColumn).putColumn((SuperColumn)column, allocator);
-            map.put(name, oldColumn);
-            return oldColumn.dataSize() - previousSize;
-        }
+        // calculate reconciled col from old (existing) col and new col
+        Column reconciledColumn = column.reconcile(oldColumn, allocator);
+        map.put(name, reconciledColumn);
+        // for memtable updates we only care about oldcolumn, reconciledcolumn, but when compacting
+        // we need to make sure we update indexes no matter the order we merge
+        if (reconciledColumn == column)
+            indexer.update(oldColumn, reconciledColumn);
         else
-        {
-            // calculate reconciled col from old (existing) col and new col
-            IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
-            map.put(name, reconciledColumn);
-            // for memtable updates we only care about oldcolumn, reconciledcolumn, but when compacting
-            // we need to make sure we update indexes no matter the order we merge
-            if (reconciledColumn == column)
-                indexer.update(oldColumn, reconciledColumn);
-            else
-                indexer.update(column, reconciledColumn);
-            return reconciledColumn.dataSize() - oldColumn.dataSize();
-        }
+            indexer.update(column, reconciledColumn);
+        return reconciledColumn.dataSize() - oldColumn.dataSize();
     }
 
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer)
+    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
     {
         delete(cm.getDeletionInfo());
-        for (IColumn column : cm.getSortedColumns())
+        for (Column column : cm.getSortedColumns())
             addColumn(transformation.apply(column), allocator, indexer);
 
         // we don't use this for memtables, so we don't bother computing size
@@ -142,12 +128,12 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
     /**
      * We need to go through each column in the column container and resolve it before adding
      */
-    public void addAll(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
+    public void addAll(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation)
     {
         addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater);
     }
 
-    public boolean replace(IColumn oldColumn, IColumn newColumn)
+    public boolean replace(Column oldColumn, Column newColumn)
     {
         if (!oldColumn.name().equals(newColumn.name()))
             throw new IllegalArgumentException();
@@ -156,7 +142,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         // column or the column was not equal to oldColumn (to be coherent
         // with other implementation). We optimize for the common case where
         // oldColumn do is present though.
-        IColumn previous = map.put(oldColumn.name(), newColumn);
+        Column previous = map.put(oldColumn.name(), newColumn);
         if (previous == null)
         {
             map.remove(oldColumn.name());
@@ -170,7 +156,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         return true;
     }
 
-    public IColumn getColumn(ByteBuffer name)
+    public Column getColumn(ByteBuffer name)
     {
         return map.get(name);
     }
@@ -190,12 +176,12 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         return map.size();
     }
 
-    public Collection<IColumn> getSortedColumns()
+    public Collection<Column> getSortedColumns()
     {
         return map.values();
     }
 
-    public Collection<IColumn> getReverseSortedColumns()
+    public Collection<Column> getReverseSortedColumns()
     {
         return map.descendingMap().values();
     }
@@ -205,17 +191,17 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         return map.navigableKeySet();
     }
 
-    public Iterator<IColumn> iterator()
+    public Iterator<Column> iterator()
     {
         return map.values().iterator();
     }
 
-    public Iterator<IColumn> iterator(ColumnSlice[] slices)
+    public Iterator<Column> iterator(ColumnSlice[] slices)
     {
         return new ColumnSlice.NavigableMapIterator(map, slices);
     }
 
-    public Iterator<IColumn> reverseIterator(ColumnSlice[] slices)
+    public Iterator<Column> reverseIterator(ColumnSlice[] slices)
     {
         return new ColumnSlice.NavigableMapIterator(map.descendingMap(), slices);
     }

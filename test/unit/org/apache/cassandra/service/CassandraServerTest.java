@@ -27,7 +27,6 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -48,9 +47,7 @@ public class CassandraServerTest extends SchemaLoader
         for (int i = 0; i < 3050; i++)
         {
             RowMutation rm = new RowMutation("Keyspace1", key.key);
-            rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(String.valueOf(i))),
-                          ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                          System.currentTimeMillis());
+            rm.add("Standard1", ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis());
             rm.apply();
         }
 

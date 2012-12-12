@@ -41,7 +41,7 @@ public class SSTableTest extends SchemaLoader
         ByteBuffer cbytes = ByteBuffer.wrap(new byte[1024]);
         new Random().nextBytes(cbytes.array());
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
-        cf.addColumn(null, new Column(cbytes, cbytes));
+        cf.addColumn(new Column(cbytes, cbytes));
 
         SortedMap<DecoratedKey, ColumnFamily> map = new TreeMap<DecoratedKey, ColumnFamily>();
         map.put(Util.dk(key), cf);
@@ -75,7 +75,7 @@ public class SSTableTest extends SchemaLoader
         {
             ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard2");
             ByteBuffer bytes = ByteBufferUtil.bytes(("Avinash Lakshman is a good man: " + i));
-            cf.addColumn(null, new Column(bytes, bytes));
+            cf.addColumn(new Column(bytes, bytes));
             map.put(Util.dk(Integer.toString(i)), cf);
             bytesMap.put(ByteBufferUtil.bytes(Integer.toString(i)), Util.serializeForSSTable(cf));
         }

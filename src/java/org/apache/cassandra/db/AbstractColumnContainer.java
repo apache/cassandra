@@ -32,7 +32,7 @@ import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.HeapAllocator;
 
-public abstract class AbstractColumnContainer implements IColumnContainer, IIterableColumns
+public abstract class AbstractColumnContainer implements IIterableColumns
 {
     protected final ISortedColumns columns;
 
@@ -84,37 +84,37 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         columns.maybeResetDeletionTimes(gcBefore);
     }
 
-    public long addAllWithSizeDelta(AbstractColumnContainer cc, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer)
+    public long addAllWithSizeDelta(AbstractColumnContainer cc, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
     {
         return columns.addAllWithSizeDelta(cc.columns, allocator, transformation, indexer);
     }
 
-    public void addAll(AbstractColumnContainer cc, Allocator allocator, Function<IColumn, IColumn> transformation)
+    public void addAll(AbstractColumnContainer cc, Allocator allocator, Function<Column, Column> transformation)
     {
         columns.addAll(cc.columns, allocator, transformation);
     }
 
     public void addAll(AbstractColumnContainer cc, Allocator allocator)
     {
-        addAll(cc, allocator, Functions.<IColumn>identity());
+        addAll(cc, allocator, Functions.<Column>identity());
     }
 
-    public void addColumn(IColumn column)
+    public void addColumn(Column column)
     {
         addColumn(column, HeapAllocator.instance);
     }
 
-    public void addColumn(IColumn column, Allocator allocator)
+    public void addColumn(Column column, Allocator allocator)
     {
         columns.addColumn(column, allocator);
     }
 
-    public IColumn getColumn(ByteBuffer name)
+    public Column getColumn(ByteBuffer name)
     {
         return columns.getColumn(name);
     }
 
-    public boolean replace(IColumn oldColumn, IColumn newColumn)
+    public boolean replace(Column oldColumn, Column newColumn)
     {
         return columns.replace(oldColumn, newColumn);
     }
@@ -129,12 +129,12 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         return columns.getColumnNames();
     }
 
-    public Collection<IColumn> getSortedColumns()
+    public Collection<Column> getSortedColumns()
     {
         return columns.getSortedColumns();
     }
 
-    public Collection<IColumn> getReverseSortedColumns()
+    public Collection<Column> getReverseSortedColumns()
     {
         return columns.getReverseSortedColumns();
     }
@@ -166,7 +166,7 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
 
     public boolean hasOnlyTombstones()
     {
-        for (IColumn column : columns)
+        for (Column column : columns)
         {
             if (column.isLive())
                 return false;
@@ -174,17 +174,17 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         return true;
     }
 
-    public Iterator<IColumn> iterator()
+    public Iterator<Column> iterator()
     {
         return columns.iterator();
     }
 
-    public Iterator<IColumn> iterator(ColumnSlice[] slices)
+    public Iterator<Column> iterator(ColumnSlice[] slices)
     {
         return columns.iterator(slices);
     }
 
-    public Iterator<IColumn> reverseIterator(ColumnSlice[] slices)
+    public Iterator<Column> reverseIterator(ColumnSlice[] slices)
     {
         return columns.reverseIterator(slices);
     }
@@ -196,7 +196,7 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
             return true;
 
         // Do we have colums that are either deleted by the container or gcable tombstone?
-        for (IColumn column : columns)
+        for (Column column : columns)
             if (deletionInfo().isDeleted(column) || column.hasIrrelevantData(gcBefore))
                 return true;
 

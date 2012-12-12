@@ -30,11 +30,26 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.thrift.AuthenticationRequest;
+import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.ColumnParent;
+import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.CounterColumn;
+import org.apache.cassandra.thrift.CounterSuperColumn;
+import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.thrift.KeyRange;
+import org.apache.cassandra.thrift.KeySlice;
+import org.apache.cassandra.thrift.KsDef;
+import org.apache.cassandra.thrift.SlicePredicate;
+import org.apache.cassandra.thrift.SuperColumn;
+import org.apache.cassandra.thrift.TBinaryProtocol;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -45,8 +60,8 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TSocket;
 
-public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap<ByteBuffer, IColumn>>
-    implements org.apache.hadoop.mapred.RecordReader<ByteBuffer, SortedMap<ByteBuffer, IColumn>>
+public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap<ByteBuffer, Column>>
+    implements org.apache.hadoop.mapred.RecordReader<ByteBuffer, SortedMap<ByteBuffer, Column>>
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyRecordReader.class);
 
@@ -54,7 +69,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
     private ColumnFamilySplit split;
     private RowIterator iter;
-    private Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> currentRow;
+    private Pair<ByteBuffer, SortedMap<ByteBuffer, Column>> currentRow;
     private SlicePredicate predicate;
     private boolean isEmptyPredicate;
     private int totalRowCount; // total number of rows to fetch
@@ -93,7 +108,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         return currentRow.left;
     }
 
-    public SortedMap<ByteBuffer, IColumn> getCurrentValue()
+    public SortedMap<ByteBuffer, Column> getCurrentValue()
     {
         return currentRow.right;
     }
@@ -219,10 +234,11 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         return split.getLocations()[0];
     }
 
-    private abstract class RowIterator extends AbstractIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>>>
+    private abstract class RowIterator extends AbstractIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, Column>>>
     {
         protected List<KeySlice> rows;
         protected int totalRead = 0;
+        protected final boolean isSuper;
         protected final AbstractType<?> comparator;
         protected final AbstractType<?> subComparator;
         protected final IPartitioner partitioner;
@@ -242,6 +258,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 int idx = cfnames.indexOf(cfName);
                 CfDef cf_def = ks_def.cf_defs.get(idx);
 
+                isSuper = cf_def.column_type.equals("Super");
                 comparator = TypeParser.parse(cf_def.comparator_type);
                 subComparator = cf_def.subcomparator_type == null ? null : TypeParser.parse(cf_def.subcomparator_type);
             }
@@ -267,46 +284,50 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             return totalRead;
         }
 
-        protected IColumn unthriftify(ColumnOrSuperColumn cosc)
+        protected List<Column> unthriftify(ColumnOrSuperColumn cosc)
         {
             if (cosc.counter_column != null)
-                return unthriftifyCounter(cosc.counter_column);
+                return Collections.<Column>singletonList(unthriftifyCounter(cosc.counter_column));
             if (cosc.counter_super_column != null)
                 return unthriftifySuperCounter(cosc.counter_super_column);
             if (cosc.super_column != null)
                 return unthriftifySuper(cosc.super_column);
             assert cosc.column != null;
-            return unthriftifySimple(cosc.column);
+            return Collections.<Column>singletonList(unthriftifySimple(cosc.column));
         }
 
-        private IColumn unthriftifySuper(SuperColumn super_column)
+        private List<Column> unthriftifySuper(SuperColumn super_column)
         {
-            org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator);
-            for (Column column : super_column.columns)
+            List<Column> columns = new ArrayList<Column>(super_column.columns.size());
+            for (org.apache.cassandra.thrift.Column column : super_column.columns)
             {
-                sc.addColumn(unthriftifySimple(column));
+                Column c = unthriftifySimple(column);
+                columns.add(c.withUpdatedName(CompositeType.build(super_column.name, c.name())));
             }
-            return sc;
+            return columns;
         }
 
-        protected IColumn unthriftifySimple(Column column)
+        protected Column unthriftifySimple(org.apache.cassandra.thrift.Column column)
         {
-            return new org.apache.cassandra.db.Column(column.name, column.value, column.timestamp);
+            return new Column(column.name, column.value, column.timestamp);
         }
 
-        private IColumn unthriftifyCounter(CounterColumn column)
+        private Column unthriftifyCounter(CounterColumn column)
         {
             //CounterColumns read the counterID from the System table, so need the StorageService running and access
             //to cassandra.yaml. To avoid a Hadoop needing access to yaml return a regular Column.
-            return new org.apache.cassandra.db.Column(column.name, ByteBufferUtil.bytes(column.value), 0);
+            return new Column(column.name, ByteBufferUtil.bytes(column.value), 0);
         }
 
-        private IColumn unthriftifySuperCounter(CounterSuperColumn superColumn)
+        private List<Column> unthriftifySuperCounter(CounterSuperColumn super_column)
         {
-            org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(superColumn.name, subComparator);
-            for (CounterColumn column : superColumn.columns)
-                sc.addColumn(unthriftifyCounter(column));
-            return sc;
+            List<Column> columns = new ArrayList<Column>(super_column.columns.size());
+            for (CounterColumn column : super_column.columns)
+            {
+                Column c = unthriftifyCounter(column);
+                columns.add(c.withUpdatedName(CompositeType.build(super_column.name, c.name())));
+            }
+            return columns;
         }
     }
 
@@ -385,7 +406,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             }
         }
 
-        protected Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> computeNext()
+        protected Pair<ByteBuffer, SortedMap<ByteBuffer, Column>> computeNext()
         {
             maybeInit();
             if (rows == null)
@@ -393,11 +414,12 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
             totalRead++;
             KeySlice ks = rows.get(i++);
-            SortedMap<ByteBuffer, IColumn> map = new TreeMap<ByteBuffer, IColumn>(comparator);
+            SortedMap<ByteBuffer, Column> map = new TreeMap<ByteBuffer, Column>(comparator);
             for (ColumnOrSuperColumn cosc : ks.columns)
             {
-                IColumn column = unthriftify(cosc);
-                map.put(column.name(), column);
+                List<Column> columns = unthriftify(cosc);
+                for (Column column : columns)
+                    map.put(column.name(), column);
             }
             return Pair.create(ks.key, map);
         }
@@ -405,7 +427,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
     private class WideRowIterator extends RowIterator
     {
-        private PeekingIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>>> wideColumns;
+        private PeekingIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, Column>>> wideColumns;
         private ByteBuffer lastColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
         private ByteBuffer lastCountedKey = ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
@@ -454,13 +476,13 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             }
         }
 
-        protected Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> computeNext()
+        protected Pair<ByteBuffer, SortedMap<ByteBuffer, Column>> computeNext()
         {
             maybeInit();
             if (rows == null)
                 return endOfData();
 
-            Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> next = wideColumns.next();
+            Pair<ByteBuffer, SortedMap<ByteBuffer, Column>> next = wideColumns.next();
             lastColumn = next.right.values().iterator().next().name();
 
             maybeIncreaseRowCounter(next);
@@ -472,7 +494,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
          * Increases the row counter only if we really moved to the next row.
          * @param next just fetched row slice
          */
-        private void maybeIncreaseRowCounter(Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> next)
+        private void maybeIncreaseRowCounter(Pair<ByteBuffer, SortedMap<ByteBuffer, Column>> next)
         {
             ByteBuffer currentKey = next.left;
             if (!currentKey.equals(lastCountedKey))
@@ -482,7 +504,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             }
         }
 
-        private class WideColumnIterator extends AbstractIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>>>
+        private class WideColumnIterator extends AbstractIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, Column>>>
         {
             private final Iterator<KeySlice> rows;
             private Iterator<ColumnOrSuperColumn> columns;
@@ -503,16 +525,27 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 columns = currentRow.columns.iterator();
             }
 
-            protected Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> computeNext()
+            protected Pair<ByteBuffer, SortedMap<ByteBuffer, Column>> computeNext()
             {
                 while (true)
                 {
                     if (columns.hasNext())
                     {
                         ColumnOrSuperColumn cosc = columns.next();
-                        IColumn column = unthriftify(cosc);
-                        ImmutableSortedMap<ByteBuffer, IColumn> map = ImmutableSortedMap.of(column.name(), column);
-                        return Pair.<ByteBuffer, SortedMap<ByteBuffer, IColumn>>create(currentRow.key, map);
+                        SortedMap<ByteBuffer, Column> map;
+                        List<Column> columns = unthriftify(cosc);
+                        if (columns.size() == 1)
+                        {
+                            map = ImmutableSortedMap.of(columns.get(0).name(), columns.get(0));
+                        }
+                        else
+                        {
+                            assert isSuper;
+                            map = new TreeMap<ByteBuffer, Column>(CompositeType.getInstance(comparator, subComparator));
+                            for (Column column : columns)
+                                map.put(column.name(), column);
+                        }
+                        return Pair.<ByteBuffer, SortedMap<ByteBuffer, Column>>create(currentRow.key, map);
                     }
 
                     if (!rows.hasNext())
@@ -529,7 +562,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     // to the old. Thus, expect a small performance hit.
     // And obviously this wouldn't work for wide rows. But since ColumnFamilyInputFormat
     // and ColumnFamilyRecordReader don't support them, it should be fine for now.
-    public boolean next(ByteBuffer key, SortedMap<ByteBuffer, IColumn> value) throws IOException
+    public boolean next(ByteBuffer key, SortedMap<ByteBuffer, Column> value) throws IOException
     {
         if (this.nextKeyValue())
         {
@@ -550,9 +583,9 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         return ByteBuffer.wrap(new byte[this.keyBufferSize]);
     }
 
-    public SortedMap<ByteBuffer, IColumn> createValue()
+    public SortedMap<ByteBuffer, Column> createValue()
     {
-        return new TreeMap<ByteBuffer, IColumn>();
+        return new TreeMap<ByteBuffer, Column>();
     }
 
     public long getPos() throws IOException

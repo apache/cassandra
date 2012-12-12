@@ -35,7 +35,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.*;
 
 public class CompositeTypeTest extends SchemaLoader
@@ -182,9 +181,9 @@ public class CompositeTypeTest extends SchemaLoader
         addColumn(rm, cname3);
         rm.apply();
 
-        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("k"), new QueryPath(cfName, null, null)));
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("k"), cfName));
 
-        Iterator<IColumn> iter = cf.getSortedColumns().iterator();
+        Iterator<Column> iter = cf.getSortedColumns().iterator();
 
         assert iter.next().name().equals(cname1);
         assert iter.next().name().equals(cname2);
@@ -258,7 +257,7 @@ public class CompositeTypeTest extends SchemaLoader
 
     private void addColumn(RowMutation rm, ByteBuffer cname)
     {
-        rm.add(new QueryPath(cfName, null , cname), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        rm.add(cfName, cname, ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
     }
 
     private ByteBuffer createCompositeKey(String s, UUID uuid, int i, boolean lastIsOne)

@@ -29,9 +29,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.MessageOut;
@@ -115,8 +113,9 @@ public class RowMutation implements IMutation
             ttl = Math.min(ttl, cf.metadata().getGcGraceSeconds());
 
         // serialize the hint with id and version as a composite column name
-        QueryPath path = new QueryPath(SystemTable.HINTS_CF, null, HintedHandOffManager.comparator.decompose(hintId, MessagingService.current_version));
-        rm.add(path, ByteBuffer.wrap(mutation.getSerializedBuffer(MessagingService.current_version)), System.currentTimeMillis(), ttl);
+        ByteBuffer name = HintedHandOffManager.comparator.decompose(hintId, MessagingService.current_version);
+        ByteBuffer value = ByteBuffer.wrap(mutation.getSerializedBuffer(MessagingService.current_version));
+        rm.add(SystemTable.HINTS_CF, name, value, System.currentTimeMillis(), ttl);
 
         return rm;
     }
@@ -156,81 +155,37 @@ public class RowMutation implements IMutation
         return modifications.isEmpty();
     }
 
-    /*
-     * Specify a column name and a corresponding value for
-     * the column. Column name is specified as <column family>:column.
-     * This will result in a ColumnFamily associated with
-     * <column family> as name and a Column with <column>
-     * as name. The column can be further broken up
-     * as super column name : columnname  in case of super columns
-     *
-     * param @ cf - column name as <column family>:<column>
-     * param @ value - value associated with the column
-     * param @ timestamp - timestamp associated with this data.
-     * param @ timeToLive - ttl for the column, 0 for standard (non expiring) columns
-     *
-     * @Deprecated this tends to be low-performance; we're doing two hash lookups,
-     * one of which instantiates a Pair, and callers tend to instantiate new QP objects
-     * for each call as well.  Use the add(ColumnFamily) overload instead.
-     */
-    public void add(QueryPath path, ByteBuffer value, long timestamp, int timeToLive)
+    public void add(String cfName, ByteBuffer name, ByteBuffer value, long timestamp, int timeToLive)
     {
-        UUID id = Schema.instance.getId(table, path.columnFamilyName);
-        ColumnFamily columnFamily = modifications.get(id);
-
-        if (columnFamily == null)
-        {
-            columnFamily = ColumnFamily.create(table, path.columnFamilyName);
-            modifications.put(id, columnFamily);
-        }
-        columnFamily.addColumn(path, value, timestamp, timeToLive);
+        addOrGet(cfName).addColumn(name, value, timestamp, timeToLive);
     }
 
-    public void addCounter(QueryPath path, long value)
+    public void addCounter(String cfName, ByteBuffer name, long value)
     {
-        UUID id = Schema.instance.getId(table, path.columnFamilyName);
-        ColumnFamily columnFamily = modifications.get(id);
-
-        if (columnFamily == null)
-        {
-            columnFamily = ColumnFamily.create(table, path.columnFamilyName);
-            modifications.put(id, columnFamily);
-        }
-        columnFamily.addCounter(path, value);
+        addOrGet(cfName).addCounter(name, value);
     }
 
-    public void add(QueryPath path, ByteBuffer value, long timestamp)
+    public void add(String cfName, ByteBuffer name, ByteBuffer value, long timestamp)
     {
-        add(path, value, timestamp, 0);
+        add(cfName, name, value, timestamp, 0);
     }
 
-    public void delete(QueryPath path, long timestamp)
+    public void delete(String cfName, long timestamp)
     {
-        UUID id = Schema.instance.getId(table, path.columnFamilyName);
-
         int localDeleteTime = (int) (System.currentTimeMillis() / 1000);
+        addOrGet(cfName).delete(new DeletionInfo(timestamp, localDeleteTime));
+    }
 
-        ColumnFamily columnFamily = modifications.get(id);
-        if (columnFamily == null)
-        {
-            columnFamily = ColumnFamily.create(table, path.columnFamilyName);
-            modifications.put(id, columnFamily);
-        }
+    public void delete(String cfName, ByteBuffer name, long timestamp)
+    {
+        int localDeleteTime = (int) (System.currentTimeMillis() / 1000);
+        addOrGet(cfName).addTombstone(name, localDeleteTime, timestamp);
+    }
 
-        if (path.superColumnName == null && path.columnName == null)
-        {
-            columnFamily.delete(new DeletionInfo(timestamp, localDeleteTime));
-        }
-        else if (path.columnName == null)
-        {
-            SuperColumn sc = new SuperColumn(path.superColumnName, columnFamily.getSubComparator());
-            sc.delete(new DeletionInfo(timestamp, localDeleteTime));
-            columnFamily.addColumn(sc);
-        }
-        else
-        {
-            columnFamily.addTombstone(path, localDeleteTime, timestamp);
-        }
+    public void deleteRange(String cfName, ByteBuffer start, ByteBuffer end, long timestamp)
+    {
+        int localDeleteTime = (int) (System.currentTimeMillis() / 1000);
+        addOrGet(cfName).addAtom(new RangeTombstone(start, end, timestamp, localDeleteTime));
     }
 
     public void addAll(IMutation m)
@@ -314,49 +269,6 @@ public class RowMutation implements IMutation
         return buff.append("])").toString();
     }
 
-    public void addColumnOrSuperColumn(String cfName, ColumnOrSuperColumn cosc)
-    {
-        if (cosc.super_column != null)
-        {
-            for (org.apache.cassandra.thrift.Column column : cosc.super_column.columns)
-            {
-                add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, column.timestamp, column.ttl);
-            }
-        }
-        else if (cosc.column != null)
-        {
-            add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, cosc.column.timestamp, cosc.column.ttl);
-        }
-        else if (cosc.counter_super_column != null)
-        {
-            for (org.apache.cassandra.thrift.CounterColumn column : cosc.counter_super_column.columns)
-            {
-                addCounter(new QueryPath(cfName, cosc.counter_super_column.name, column.name), column.value);
-            }
-        }
-        else // cosc.counter_column != null
-        {
-            addCounter(new QueryPath(cfName, null, cosc.counter_column.name), cosc.counter_column.value);
-        }
-    }
-
-    public void deleteColumnOrSuperColumn(String cfName, Deletion del)
-    {
-        if (del.predicate != null && del.predicate.column_names != null)
-        {
-            for(ByteBuffer c : del.predicate.column_names)
-            {
-                if (del.super_column == null && Schema.instance.getColumnFamilyType(table, cfName) == ColumnFamilyType.Super)
-                    delete(new QueryPath(cfName, c), del.timestamp);
-                else
-                    delete(new QueryPath(cfName, del.super_column, c), del.timestamp);
-            }
-        }
-        else
-        {
-            delete(new QueryPath(cfName, del.super_column), del.timestamp);
-        }
-    }
 
     public static RowMutation fromBytes(byte[] raw, int version) throws IOException
     {
@@ -396,7 +308,7 @@ public class RowMutation implements IMutation
             }
         }
 
-        public RowMutation deserialize(DataInput dis, int version, IColumnSerializer.Flag flag) throws IOException
+        public RowMutation deserialize(DataInput dis, int version, ColumnSerializer.Flag flag) throws IOException
         {
             String table = dis.readUTF();
             ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
@@ -417,7 +329,7 @@ public class RowMutation implements IMutation
 
         public RowMutation deserialize(DataInput dis, int version) throws IOException
         {
-            return deserialize(dis, version, IColumnSerializer.Flag.FROM_REMOTE);
+            return deserialize(dis, version, ColumnSerializer.Flag.FROM_REMOTE);
         }
 
         public long serializedSize(RowMutation rm, int version)

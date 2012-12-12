@@ -27,7 +27,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.service.StorageService;
@@ -70,7 +69,7 @@ public class KeyCollisionTest extends SchemaLoader
         insert("key1", "key2", "key3"); // token = 4
         insert("longKey1", "longKey2"); // token = 8
 
-        List<Row> rows = cfs.getRangeSlice(null, new Bounds<RowPosition>(dk("k2"), dk("key2")), 10000, new IdentityQueryFilter(), null);
+        List<Row> rows = cfs.getRangeSlice(new Bounds<RowPosition>(dk("k2"), dk("key2")), 10000, new IdentityQueryFilter(), null);
         assert rows.size() == 4 : "Expecting 4 keys, got " + rows.size();
         assert rows.get(0).key.key.equals(ByteBufferUtil.bytes("k2"));
         assert rows.get(1).key.key.equals(ByteBufferUtil.bytes("k3"));
@@ -88,7 +87,7 @@ public class KeyCollisionTest extends SchemaLoader
     {
         RowMutation rm;
         rm = new RowMutation(KEYSPACE, ByteBufferUtil.bytes(key));
-        rm.add(new QueryPath(CF, null, ByteBufferUtil.bytes("column")), ByteBufferUtil.bytes("asdf"), 0);
+        rm.add(CF, ByteBufferUtil.bytes("column"), ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
     }
 

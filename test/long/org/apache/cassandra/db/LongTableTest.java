@@ -26,7 +26,6 @@ import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
@@ -57,7 +56,7 @@ public class LongTableTest extends SchemaLoader
                 {
                     for (int j = 0; j < i; j++)
                     {
-                        cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("key" + i), new QueryPath("Standard1"), ByteBufferUtil.bytes("c" + j)));
+                        cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("key" + i), "Standard1", ByteBufferUtil.bytes("c" + j)));
                         TableTest.assertColumns(cf, "c" + j);
                     }
                 }

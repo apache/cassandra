@@ -23,7 +23,6 @@ import java.security.MessageDigest;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.MarshalException;
-import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.ISSTableSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -48,18 +47,15 @@ public interface OnDiskAtom
 
     public static class Serializer implements ISSTableSerializer<OnDiskAtom>
     {
-        private final IColumnSerializer columnSerializer;
+        public static Serializer instance = new Serializer();
 
-        public Serializer(IColumnSerializer columnSerializer)
-        {
-            this.columnSerializer = columnSerializer;
-        }
+        private Serializer() {}
 
         public void serializeForSSTable(OnDiskAtom atom, DataOutput dos) throws IOException
         {
-            if (atom instanceof IColumn)
+            if (atom instanceof Column)
             {
-                columnSerializer.serialize((IColumn)atom, dos);
+                Column.serializer().serialize((Column)atom, dos);
             }
             else
             {
@@ -70,27 +66,20 @@ public interface OnDiskAtom
 
         public OnDiskAtom deserializeFromSSTable(DataInput dis, Descriptor.Version version) throws IOException
         {
-            return deserializeFromSSTable(dis, IColumnSerializer.Flag.LOCAL, (int)(System.currentTimeMillis() / 1000), version);
+            return deserializeFromSSTable(dis, ColumnSerializer.Flag.LOCAL, (int)(System.currentTimeMillis() / 1000), version);
         }
 
-        public OnDiskAtom deserializeFromSSTable(DataInput dis, IColumnSerializer.Flag flag, int expireBefore, Descriptor.Version version) throws IOException
+        public OnDiskAtom deserializeFromSSTable(DataInput dis, ColumnSerializer.Flag flag, int expireBefore, Descriptor.Version version) throws IOException
         {
-            if (columnSerializer instanceof SuperColumnSerializer)
-            {
-                return columnSerializer.deserialize(dis, flag, expireBefore);
-            }
-            else
-            {
-                ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
-                if (name.remaining() <= 0)
-                    throw ColumnSerializer.CorruptColumnException.create(dis, name);
+            ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
+            if (name.remaining() <= 0)
+                throw ColumnSerializer.CorruptColumnException.create(dis, name);
 
-                int b = dis.readUnsignedByte();
-                if ((b & ColumnSerializer.RANGE_TOMBSTONE_MASK) != 0)
-                    return RangeTombstone.serializer.deserializeBody(dis, name, version);
-                else
-                    return ((ColumnSerializer)columnSerializer).deserializeColumnBody(dis, name, b, flag, expireBefore);
-            }
+            int b = dis.readUnsignedByte();
+            if ((b & ColumnSerializer.RANGE_TOMBSTONE_MASK) != 0)
+                return RangeTombstone.serializer.deserializeBody(dis, name, version);
+            else
+                return Column.serializer().deserializeColumnBody(dis, name, b, flag, expireBefore);
         }
     }
 }

@@ -236,20 +236,6 @@ public class Schema
     }
 
     /**
-     * Get subComparator of the ColumnFamily
-     *
-     * @param ksName The keyspace name
-     * @param cfName The ColumnFamily name
-     *
-     * @return The subComparator of the ColumnFamily
-     */
-    public AbstractType<?> getSubComparator(String ksName, String cfName)
-    {
-        assert ksName != null;
-        return getCFMetaData(ksName, cfName).subcolumnComparator;
-    }
-
-    /**
      * Get value validator for specific column
      *
      * @param ksName The keyspace name

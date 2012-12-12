@@ -27,7 +27,6 @@ import org.apache.cassandra.auth.Auth;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.service.StorageService;
@@ -234,9 +233,9 @@ public final class KSMetaData
     public RowMutation dropFromSchema(long timestamp)
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, SystemTable.getSchemaKSKey(name));
-        rm.delete(new QueryPath(SystemTable.SCHEMA_KEYSPACES_CF), timestamp);
-        rm.delete(new QueryPath(SystemTable.SCHEMA_COLUMNFAMILIES_CF), timestamp);
-        rm.delete(new QueryPath(SystemTable.SCHEMA_COLUMNS_CF), timestamp);
+        rm.delete(SystemTable.SCHEMA_KEYSPACES_CF, timestamp);
+        rm.delete(SystemTable.SCHEMA_COLUMNFAMILIES_CF, timestamp);
+        rm.delete(SystemTable.SCHEMA_COLUMNS_CF, timestamp);
 
         return rm;
     }

@@ -30,11 +30,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.PrecompactedRow;
-import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.StreamingMetrics;
@@ -164,7 +164,7 @@ public class IncomingStreamReader
                     {
                         // need to update row cache
                         // Note: Because we won't just echo the columns, there is no need to use the PRESERVE_SIZE flag, contrarily to what appendFromStream does below
-                        SSTableIdentityIterator iter = new SSTableIdentityIterator(cfs.metadata, in, localFile.getFilename(), key, 0, dataSize, IColumnSerializer.Flag.FROM_REMOTE);
+                        SSTableIdentityIterator iter = new SSTableIdentityIterator(cfs.metadata, in, localFile.getFilename(), key, 0, dataSize, ColumnSerializer.Flag.FROM_REMOTE);
                         PrecompactedRow row = new PrecompactedRow(controller, Collections.singletonList(iter));
                         // We don't expire anything so the row shouldn't be empty
                         assert !row.isEmpty();

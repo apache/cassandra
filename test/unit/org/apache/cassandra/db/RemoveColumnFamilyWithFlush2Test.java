@@ -25,7 +25,6 @@ import org.junit.Test;
 
 import static junit.framework.Assert.assertNull;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -44,15 +43,15 @@ public class RemoveColumnFamilyWithFlush2Test extends SchemaLoader
 
         // add data
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdf"), 0);
+        rm.add("Standard1", ByteBufferUtil.bytes("Column1"), ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Standard1"), 1);
+        rm.delete("Standard1", 1);
         rm.apply();
         store.forceBlockingFlush();
 
-        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1"))));
+        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, "Standard1"));
         assert retrieved.isMarkedForDelete();
         assertNull(retrieved.getColumn(ByteBufferUtil.bytes("Column1")));
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));

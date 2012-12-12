@@ -26,7 +26,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -93,21 +92,19 @@ public class DeleteStatement extends AbstractModification
 
         QueryProcessor.validateKeyAlias(metadata, keyName);
 
-        AbstractType<?> comparator = metadata.getComparatorFor(null);
-
         if (columns.size() < 1)
         {
             // No columns, delete the row
-            rm.delete(new QueryPath(columnFamily), (timestamp == null) ? getTimestamp(clientState) : timestamp);
+            rm.delete(columnFamily, (timestamp == null) ? getTimestamp(clientState) : timestamp);
         }
         else
         {
             // Delete specific columns
             for (Term column : columns)
             {
-                ByteBuffer columnName = column.getByteBuffer(comparator, variables);
+                ByteBuffer columnName = column.getByteBuffer(metadata.comparator, variables);
                 validateColumnName(columnName);
-                rm.delete(new QueryPath(columnFamily, null, columnName), (timestamp == null) ? getTimestamp(clientState) : timestamp);
+                rm.delete(columnFamily, columnName, (timestamp == null) ? getTimestamp(clientState) : timestamp);
             }
         }
 

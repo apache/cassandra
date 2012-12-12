@@ -140,21 +140,21 @@ public class ColumnSlice
         }
     }
 
-    public static class NavigableMapIterator extends AbstractIterator<IColumn>
+    public static class NavigableMapIterator extends AbstractIterator<Column>
     {
-        private final NavigableMap<ByteBuffer, IColumn> map;
+        private final NavigableMap<ByteBuffer, Column> map;
         private final ColumnSlice[] slices;
 
         private int idx = 0;
-        private Iterator<IColumn> currentSlice;
+        private Iterator<Column> currentSlice;
 
-        public NavigableMapIterator(NavigableMap<ByteBuffer, IColumn> map, ColumnSlice[] slices)
+        public NavigableMapIterator(NavigableMap<ByteBuffer, Column> map, ColumnSlice[] slices)
         {
             this.map = map;
             this.slices = slices;
         }
 
-        protected IColumn computeNext()
+        protected Column computeNext()
         {
             if (currentSlice == null)
             {

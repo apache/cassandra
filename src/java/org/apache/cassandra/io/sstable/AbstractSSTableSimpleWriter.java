@@ -28,6 +28,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.Pair;
@@ -38,7 +39,7 @@ public abstract class AbstractSSTableSimpleWriter
     protected final CFMetaData metadata;
     protected DecoratedKey currentKey;
     protected ColumnFamily columnFamily;
-    protected SuperColumn currentSuperColumn;
+    protected ByteBuffer currentSuperColumn;
     protected final CounterId counterid = CounterId.generate();
 
     public AbstractSSTableSimpleWriter(File directory, CFMetaData metadata, IPartitioner partitioner)
@@ -102,20 +103,22 @@ public abstract class AbstractSSTableSimpleWriter
      */
     public void newSuperColumn(ByteBuffer name)
     {
-        if (!columnFamily.isSuper())
+        if (!columnFamily.metadata().isSuper())
             throw new IllegalStateException("Cannot add a super column to a standard column family");
 
-        currentSuperColumn = new SuperColumn(name, metadata.subcolumnComparator);
-        columnFamily.addColumn(currentSuperColumn);
+        currentSuperColumn = name;
     }
 
-    private void addColumn(IColumn column)
+    private void addColumn(Column column)
     {
-        if (columnFamily.isSuper() && currentSuperColumn == null)
-            throw new IllegalStateException("Trying to add a column to a super column family, but no super column has been started.");
+        if (columnFamily.metadata().isSuper())
+        {
+            if (currentSuperColumn == null)
+                throw new IllegalStateException("Trying to add a column to a super column family, but no super column has been started.");
 
-        IColumnContainer container = columnFamily.isSuper() ? currentSuperColumn : columnFamily;
-        container.addColumn(column);
+            column = column.withUpdatedName(CompositeType.build(currentSuperColumn, column.name()));
+        }
+        columnFamily.addColumn(column);
     }
 
     /**

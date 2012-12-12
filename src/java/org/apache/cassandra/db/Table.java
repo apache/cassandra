@@ -425,7 +425,7 @@ public class Table
                 {
                     ColumnFamily cf = pager.next();
                     ColumnFamily cf2 = cf.cloneMeShallow();
-                    for (IColumn column : cf)
+                    for (Column column : cf)
                     {
                         if (cfs.indexManager.indexes(column.name(), indexes))
                             cf2.addColumn(column);

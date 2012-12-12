@@ -76,13 +76,12 @@ public class QueryProcessor
     private static List<org.apache.cassandra.db.Row> getSlice(CFMetaData metadata, SelectStatement select, List<ByteBuffer> variables)
     throws InvalidRequestException, ReadTimeoutException, UnavailableException, IsBootstrappingException
     {
-        QueryPath queryPath = new QueryPath(select.getColumnFamily());
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
 
         // ...of a list of column names
         if (!select.isColumnRange())
         {
-            Collection<ByteBuffer> columnNames = getColumnNames(select, metadata, variables);
+            SortedSet<ByteBuffer> columnNames = getColumnNames(select, metadata, variables);
             validateColumnNames(columnNames);
 
             for (Term rawKey: select.getKeys())
@@ -90,7 +89,7 @@ public class QueryProcessor
                 ByteBuffer key = rawKey.getByteBuffer(metadata.getKeyValidator(),variables);
 
                 validateKey(key);
-                commands.add(new SliceByNamesReadCommand(metadata.ksName, key, queryPath, columnNames));
+                commands.add(new SliceByNamesReadCommand(metadata.ksName, key, select.getColumnFamily(), new NamesQueryFilter(columnNames)));
             }
         }
         // ...a range (slice) of column names
@@ -108,11 +107,8 @@ public class QueryProcessor
                 validateSliceFilter(metadata, start, finish, select.isColumnsReversed());
                 commands.add(new SliceFromReadCommand(metadata.ksName,
                                                       key,
-                                                      queryPath,
-                                                      start,
-                                                      finish,
-                                                      select.isColumnsReversed(),
-                                                      select.getColumnsLimit()));
+                                                      select.getColumnFamily(),
+                                                      new SliceQueryFilter(start, finish, select.isColumnsReversed(), select.getColumnsLimit())));
             }
         }
 
@@ -191,7 +187,6 @@ public class QueryProcessor
         {
             rows = StorageProxy.getRangeSlice(new RangeSliceCommand(metadata.ksName,
                                                                     select.getColumnFamily(),
-                                                                    null,
                                                                     columnFilter,
                                                                     bounds,
                                                                     expressions,
@@ -300,10 +295,10 @@ public class QueryProcessor
     {
         for (ByteBuffer name : columns)
         {
-            if (name.remaining() > IColumn.MAX_NAME_LENGTH)
+            if (name.remaining() > org.apache.cassandra.db.Column.MAX_NAME_LENGTH)
                 throw new InvalidRequestException(String.format("column name is too long (%s > %s)",
                                                                 name.remaining(),
-                                                                IColumn.MAX_NAME_LENGTH));
+                                                                org.apache.cassandra.db.Column.MAX_NAME_LENGTH));
             if (name.remaining() == 0)
                 throw new InvalidRequestException("zero-length column name");
         }
@@ -352,7 +347,7 @@ public class QueryProcessor
     private static void validateSliceFilter(CFMetaData metadata, ByteBuffer start, ByteBuffer finish, boolean reversed)
     throws InvalidRequestException
     {
-        AbstractType<?> comparator = metadata.getComparatorFor(null);
+        AbstractType<?> comparator = metadata.comparator;
         Comparator<ByteBuffer> orderedComparator = reversed ? comparator.reverseComparator: comparator;
         if (start.remaining() > 0 && finish.remaining() > 0 && orderedComparator.compare(start, finish) > 0)
             throw new InvalidRequestException("range finish must come after start in traversal order");
@@ -456,7 +451,7 @@ public class QueryProcessor
                         // preserve comparator order
                         if (row.cf != null)
                         {
-                            for (IColumn c : row.cf.getSortedColumns())
+                            for (org.apache.cassandra.db.Column c : row.cf.getSortedColumns())
                             {
                                 if (c.isMarkedForDelete())
                                     continue;
@@ -502,7 +497,7 @@ public class QueryProcessor
                             ColumnDefinition cd = metadata.getColumnDefinitionFromColumnName(name);
                             if (cd != null)
                                 result.schema.value_types.put(name, TypeParser.getShortName(cd.getValidator()));
-                            IColumn c = row.cf.getColumn(name);
+                            org.apache.cassandra.db.Column c = row.cf.getColumn(name);
                             if (c == null || c.isMarkedForDelete())
                                 thriftColumns.add(new Column().setName(name));
                             else
@@ -833,7 +828,7 @@ public class QueryProcessor
         return cql.hashCode();
     }
 
-    private static Column thriftify(IColumn c)
+    private static Column thriftify(org.apache.cassandra.db.Column c)
     {
         ByteBuffer value = (c instanceof CounterColumn)
                            ? ByteBufferUtil.bytes(CounterContext.instance().total(c.value()))

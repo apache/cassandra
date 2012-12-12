@@ -27,7 +27,6 @@ import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionInfo;
-import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -40,11 +39,11 @@ public class SSTableUtils
     public static String TABLENAME = "Keyspace1";
     public static String CFNAME = "Standard1";
 
-    public static ColumnFamily createCF(long mfda, int ldt, IColumn... cols)
+    public static ColumnFamily createCF(long mfda, int ldt, Column... cols)
     {
         ColumnFamily cf = ColumnFamily.create(TABLENAME, CFNAME);
         cf.delete(new DeletionInfo(mfda, ldt));
-        for (IColumn col : cols)
+        for (Column col : cols)
             cf.addColumn(col);
         return cf;
     }
@@ -102,9 +101,9 @@ public class SSTableUtils
         // iterate columns
         while (lhs.hasNext())
         {
-            IColumn clhs = (IColumn)lhs.next();
+            Column clhs = (Column)lhs.next();
             assert rhs.hasNext() : "LHS contained more columns than RHS for " + lhs.getKey();
-            IColumn crhs = (IColumn)rhs.next();
+            Column crhs = (Column)rhs.next();
 
             assertEquals("Mismatched columns for " + lhs.getKey(), clhs, crhs);
         }

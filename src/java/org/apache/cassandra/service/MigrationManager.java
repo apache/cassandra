@@ -41,7 +41,6 @@ import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.*;
@@ -391,7 +390,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         DecoratedKey dkey = StorageService.getPartitioner().decorateKey(LAST_MIGRATION_KEY);
         Table defs = Table.open(Table.SYSTEM_KS);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(DefsTable.OLD_SCHEMA_CF);
-        QueryFilter filter = QueryFilter.getNamesFilter(dkey, new QueryPath(DefsTable.OLD_SCHEMA_CF), LAST_MIGRATION_KEY);
+        QueryFilter filter = QueryFilter.getNamesFilter(dkey, DefsTable.OLD_SCHEMA_CF, LAST_MIGRATION_KEY);
         ColumnFamily cf = cfStore.getColumnFamily(filter);
         if (cf == null || cf.getColumnNames().size() == 0)
             return null;

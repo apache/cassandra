@@ -21,7 +21,7 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.utils.Pair;
@@ -135,11 +135,11 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     /**
      * Creates the same output than decompose, but from the internal representation.
      */
-    public ByteBuffer serialize(List<Pair<ByteBuffer, IColumn>> columns)
+    public ByteBuffer serialize(List<Pair<ByteBuffer, Column>> columns)
     {
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(2 * columns.size());
         int size = 0;
-        for (Pair<ByteBuffer, IColumn> p : columns)
+        for (Pair<ByteBuffer, Column> p : columns)
         {
             bbs.add(p.left);
             bbs.add(p.right.value());

@@ -33,7 +33,6 @@ import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -96,7 +95,7 @@ public class StreamingTransferTest extends SchemaLoader
         {
             String key = "key" + offs[i];
             String col = "col" + offs[i];
-            assert cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk(key), new QueryPath(cfs.name))) != null;
+            assert cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk(key), cfs.name)) != null;
             assert rows.get(i).key.key.equals(ByteBufferUtil.bytes(key));
             assert rows.get(i).cf.getColumn(ByteBufferUtil.bytes(col)) != null;
         }
@@ -159,23 +158,6 @@ public class StreamingTransferTest extends SchemaLoader
             assertEquals(1, rows.size());
             assert rows.get(0).key.key.equals(ByteBufferUtil.bytes(key));
         }
-    }
-
-    @Test
-    public void testTransferTableSuper() throws Exception
-    {
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfs = table.getColumnFamilyStore("Super1");
-
-        createAndTransfer(table, cfs, new Mutator()
-        {
-            public void mutate(String key, String col, long timestamp) throws Exception
-            {
-                RowMutation rm = new RowMutation(table.getName(), ByteBufferUtil.bytes(key));
-                addMutation(rm, cfs.name, col, 1, "val1", timestamp);
-                rm.apply();
-            }
-        });
     }
 
     @Test
@@ -274,10 +256,10 @@ public class StreamingTransferTest extends SchemaLoader
         assert rows.get(1).cf.getColumnCount() == 1;
 
         // these keys fall outside of the ranges and should not be transferred
-        assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer1"), new QueryPath("Standard1"))) == null;
-        assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer2"), new QueryPath("Standard1"))) == null;
-        assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("test2"), new QueryPath("Standard1"))) == null;
-        assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("test3"), new QueryPath("Standard1"))) == null;
+        assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer1"), "Standard1")) == null;
+        assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer2"), "Standard1")) == null;
+        assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("test2"), "Standard1")) == null;
+        assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("test3"), "Standard1")) == null;
     }
 
     @Test

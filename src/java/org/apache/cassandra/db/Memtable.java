@@ -93,9 +93,9 @@ public class Memtable
 
     private final SlabAllocator allocator = new SlabAllocator();
     // We really only need one column by allocator but one by memtable is not a big waste and avoids needing allocators to know about CFS
-    private final Function<IColumn, IColumn> localCopyFunction = new Function<IColumn, IColumn>()
+    private final Function<Column, Column> localCopyFunction = new Function<Column, Column>()
     {
-        public IColumn apply(IColumn c)
+        public Column apply(Column c)
         {
             return c.localCopy(cfs, allocator);
         };
@@ -226,7 +226,7 @@ public class Memtable
         if (previous == null)
         {
             // AtomicSortedColumns doesn't work for super columns (see #3821)
-            ColumnFamily empty = cf.cloneMeShallow(cf.isSuper() ? ThreadSafeSortedColumns.factory() : AtomicSortedColumns.factory(), false);
+            ColumnFamily empty = cf.cloneMeShallow(AtomicSortedColumns.factory(), false);
             // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
             previous = columnFamilies.putIfAbsent(new DecoratedKey(key.token, allocator.clone(key.key)), empty);
             if (previous == null)
@@ -316,7 +316,7 @@ public class Memtable
     public static OnDiskAtomIterator getSliceIterator(final DecoratedKey key, final ColumnFamily cf, SliceQueryFilter filter)
     {
         assert cf != null;
-        final Iterator<IColumn> filteredIter = filter.reversed ? cf.reverseIterator(filter.slices) : cf.iterator(filter.slices);
+        final Iterator<Column> filteredIter = filter.reversed ? cf.reverseIterator(filter.slices) : cf.iterator(filter.slices);
 
         return new AbstractColumnIterator()
         {
@@ -345,7 +345,6 @@ public class Memtable
     public static OnDiskAtomIterator getNamesIterator(final DecoratedKey key, final ColumnFamily cf, final NamesQueryFilter filter)
     {
         assert cf != null;
-        final boolean isStandard = !cf.isSuper();
 
         return new SimpleAbstractColumnIterator()
         {
@@ -366,10 +365,9 @@ public class Memtable
                 while (iter.hasNext())
                 {
                     ByteBuffer current = iter.next();
-                    IColumn column = cf.getColumn(current);
+                    Column column = cf.getColumn(current);
                     if (column != null)
-                        // clone supercolumns so caller can freely removeDeleted or otherwise mutate it
-                        return isStandard ? column : ((SuperColumn)column).cloneMe();
+                        return column;
                 }
                 return endOfData();
             }

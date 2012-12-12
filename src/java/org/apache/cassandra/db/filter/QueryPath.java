@@ -21,10 +21,12 @@ import java.io.*;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.thrift.ColumnParent;
-import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+/**
+ * This class is obsolete internally, but kept for wire compatibility with
+ * older nodes. I.e. we kept it only for the serialization part.
+ */
 public class QueryPath
 {
     public final String columnFamilyName;
@@ -38,29 +40,9 @@ public class QueryPath
         this.columnName = columnName;
     }
 
-    public QueryPath(ColumnParent columnParent)
-    {
-        this(columnParent.column_family, columnParent.super_column, null);
-    }
-
     public QueryPath(String columnFamilyName, ByteBuffer superColumnName)
     {
         this(columnFamilyName, superColumnName, null);
-    }
-
-    public QueryPath(String columnFamilyName)
-    {
-        this(columnFamilyName, null);
-    }
-
-    public QueryPath(ColumnPath column_path)
-    {
-        this(column_path.column_family, column_path.super_column, column_path.column);
-    }
-
-    public static QueryPath column(ByteBuffer columnName)
-    {
-        return new QueryPath(null, null, columnName);
     }
 
     @Override

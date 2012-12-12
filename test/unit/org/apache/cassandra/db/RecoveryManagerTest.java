@@ -96,7 +96,7 @@ public class RecoveryManagerTest extends SchemaLoader
         cf = Util.getColumnFamily(table1, dk, "Counter1");
 
         assert cf.getColumnCount() == 1;
-        IColumn c = cf.getColumn(ByteBufferUtil.bytes("col"));
+        Column c = cf.getColumn(ByteBufferUtil.bytes("col"));
 
         assert c != null;
         assert ((CounterColumn)c).total() == 10L;

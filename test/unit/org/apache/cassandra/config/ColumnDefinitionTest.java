@@ -53,7 +53,7 @@ public class ColumnDefinitionTest
 
     protected void testSerializeDeserialize(ColumnDefinition cd) throws Exception
     {
-        ColumnDefinition newCd = ColumnDefinition.fromThrift(cd.toThrift());
+        ColumnDefinition newCd = ColumnDefinition.fromThrift(cd.toThrift(), false);
         assert cd != newCd;
         assert cd.hashCode() == newCd.hashCode();
         assert cd.equals(newCd);

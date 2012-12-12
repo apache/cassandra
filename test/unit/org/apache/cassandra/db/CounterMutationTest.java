@@ -44,7 +44,7 @@ public class CounterMutationTest extends SchemaLoader
         CounterId id1 = CounterId.getLocalId();
 
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
-        rm.addCounter(new QueryPath("Counter1", null, ByteBufferUtil.bytes("Column1")), 3);
+        rm.addCounter("Counter1", ByteBufferUtil.bytes("Column1"), 3);
         cm = new CounterMutation(rm, ConsistencyLevel.ONE);
         cm.apply();
 
@@ -52,7 +52,7 @@ public class CounterMutationTest extends SchemaLoader
         CounterId id2 = CounterId.getLocalId();
 
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
-        rm.addCounter(new QueryPath("Counter1", null, ByteBufferUtil.bytes("Column1")), 4);
+        rm.addCounter("Counter1", ByteBufferUtil.bytes("Column1"), 4);
         cm = new CounterMutation(rm, ConsistencyLevel.ONE);
         cm.apply();
 
@@ -60,8 +60,8 @@ public class CounterMutationTest extends SchemaLoader
         CounterId id3 = CounterId.getLocalId();
 
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
-        rm.addCounter(new QueryPath("Counter1", null, ByteBufferUtil.bytes("Column1")), 5);
-        rm.addCounter(new QueryPath("Counter1", null, ByteBufferUtil.bytes("Column2")), 1);
+        rm.addCounter("Counter1", ByteBufferUtil.bytes("Column1"), 5);
+        rm.addCounter("Counter1", ByteBufferUtil.bytes("Column2"), 1);
         cm = new CounterMutation(rm, ConsistencyLevel.ONE);
         cm.apply();
 
@@ -71,7 +71,7 @@ public class CounterMutationTest extends SchemaLoader
         // First merges old shards
         CounterColumn.mergeAndRemoveOldShards(dk, cf, Integer.MIN_VALUE, Integer.MAX_VALUE, false);
         long now = System.currentTimeMillis();
-        IColumn c = cf.getColumn(ByteBufferUtil.bytes("Column1"));
+        Column c = cf.getColumn(ByteBufferUtil.bytes("Column1"));
         assert c != null;
         assert c instanceof CounterColumn;
         assert ((CounterColumn)c).total() == 12L;
@@ -98,40 +98,6 @@ public class CounterMutationTest extends SchemaLoader
         s = new ContextState(c.value());
         assert s.getCounterId().equals(id3);
         assert s.getCount() == 12L;
-    }
-
-    @Test
-    public void testMutateSuperColumns() throws IOException
-    {
-        RowMutation rm;
-        CounterMutation cm;
-
-        rm = new RowMutation("Keyspace1", bytes("key1"));
-        rm.addCounter(new QueryPath("SuperCounter1", bytes("sc1"), bytes("Column1")), 1);
-        rm.addCounter(new QueryPath("SuperCounter1", bytes("sc2"), bytes("Column1")), 1);
-        cm = new CounterMutation(rm, ConsistencyLevel.ONE);
-        cm.apply();
-
-        rm = new RowMutation("Keyspace1", bytes("key1"));
-        rm.addCounter(new QueryPath("SuperCounter1", bytes("sc1"), bytes("Column2")), 1);
-        rm.addCounter(new QueryPath("SuperCounter1", bytes("sc2"), bytes("Column2")), 1);
-        cm = new CounterMutation(rm, ConsistencyLevel.ONE);
-        cm.apply();
-
-        RowMutation reprm = cm.makeReplicationMutation();
-        ColumnFamily cf = reprm.getColumnFamilies().iterator().next();
-
-        assert cf.getColumnCount() == 2;
-
-        IColumn sc1 = cf.getColumn(bytes("sc1"));
-        assert sc1 != null && sc1 instanceof SuperColumn;
-        assert sc1.getSubColumns().size() == 1;
-        assert sc1.getSubColumn(bytes("Column2")) != null;
-
-        IColumn sc2 = cf.getColumn(bytes("sc2"));
-        assert sc2 != null && sc2 instanceof SuperColumn;
-        assert sc2.getSubColumns().size() == 1;
-        assert sc2.getSubColumn(bytes("Column2")) != null;
     }
 
     @Test

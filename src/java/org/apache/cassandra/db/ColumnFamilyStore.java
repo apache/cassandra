@@ -54,7 +54,6 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -752,10 +751,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (cachedRow instanceof RowCacheSentinel)
                 invalidateCachedRow(cacheKey);
             else
-                // columnFamily is what is written in the commit log. Because of the PeriodicCommitLog, this can be done in concurrency
-                // with this. So columnFamily shouldn't be modified and if it contains super columns, neither should they. So for super
-                // columns, we must make sure to clone them when adding to the cache. That's what addAllWithSCCopy does (see #3957)
-                ((ColumnFamily) cachedRow).addAllWithSCCopy(columnFamily, HeapAllocator.instance);
+                ((ColumnFamily) cachedRow).addAll(columnFamily, HeapAllocator.instance);
         }
     }
 
@@ -820,23 +816,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private static void removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore, SecondaryIndexManager.Updater indexer)
     {
-        if (cf.isSuper())
-            removeDeletedSuper(cf, gcBefore);
-        else
-            removeDeletedStandard(cf, gcBefore, indexer);
-    }
-
-    public static void removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore)
-    {
-        removeDeletedColumnsOnly(cf, gcBefore, SecondaryIndexManager.nullUpdater);
-    }
-
-    private static void removeDeletedStandard(ColumnFamily cf, int gcBefore, SecondaryIndexManager.Updater indexer)
-    {
-        Iterator<IColumn> iter = cf.iterator();
+        Iterator<Column> iter = cf.iterator();
         while (iter.hasNext())
         {
-            IColumn c = iter.next();
+            Column c = iter.next();
             // remove columns if
             // (a) the column itself is gcable or
             // (b) the column is shadowed by a CF tombstone
@@ -848,36 +831,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    private static void removeDeletedSuper(ColumnFamily cf, int gcBefore)
+    public static void removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore)
     {
-        // TODO assume deletion means "most are deleted?" and add to clone, instead of remove from original?
-        // this could be improved by having compaction, or possibly even removeDeleted, r/m the tombstone
-        // once gcBefore has passed, so if new stuff is added in it doesn't used the wrong algorithm forever
-        Iterator<IColumn> iter = cf.iterator();
-        while (iter.hasNext())
-        {
-            SuperColumn c = (SuperColumn)iter.next();
-            Iterator<IColumn> subIter = c.getSubColumns().iterator();
-            while (subIter.hasNext())
-            {
-                IColumn subColumn = subIter.next();
-                // remove subcolumns if
-                // (a) the subcolumn itself is gcable or
-                // (b) the supercolumn is shadowed by the CF and the column is not newer
-                // (b) the subcolumn is shadowed by the supercolumn
-                if (subColumn.getLocalDeletionTime() < gcBefore
-                    || cf.deletionInfo().isDeleted(c.name(), subColumn.timestamp())
-                    || c.deletionInfo().isDeleted(subColumn))
-                {
-                    subIter.remove();
-                }
-            }
-            c.maybeResetDeletionTimes(gcBefore);
-            if (c.getSubColumns().isEmpty() && !c.isMarkedForDelete())
-            {
-                iter.remove();
-            }
-        }
+        removeDeletedColumnsOnly(cf, gcBefore, SecondaryIndexManager.nullUpdater);
     }
 
     /**
@@ -1139,9 +1095,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return metric.writeLatency.recentLatencyHistogram.getBuckets(true);
     }
 
-    public ColumnFamily getColumnFamily(DecoratedKey key, QueryPath path, ByteBuffer start, ByteBuffer finish, boolean reversed, int limit)
+    public ColumnFamily getColumnFamily(DecoratedKey key, ByteBuffer start, ByteBuffer finish, boolean reversed, int limit)
     {
-        return getColumnFamily(QueryFilter.getSliceFilter(key, path, start, finish, reversed, limit));
+        return getColumnFamily(QueryFilter.getSliceFilter(key, name, start, finish, reversed, limit));
     }
 
     /**
@@ -1195,7 +1151,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         try
         {
-            ColumnFamily data = getTopLevelColumns(QueryFilter.getIdentityFilter(filter.key, new QueryPath(name)),
+            ColumnFamily data = getTopLevelColumns(QueryFilter.getIdentityFilter(filter.key, name),
                                                    Integer.MIN_VALUE,
                                                    true);
             if (sentinelSuccess && data != null)
@@ -1244,9 +1200,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (cf == null)
                     return null;
 
-                // TODO this is necessary because when we collate supercolumns together, we don't check
-                // their subcolumns for relevance, so we need to do a second prune post facto here.
-                result = cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
+                result = removeDeletedCF(cf, gcBefore);
 
             }
         }
@@ -1268,9 +1222,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory(), filter.filter.isReversed());
         OnDiskAtomIterator ci = filter.getMemtableColumnIterator(cached, null);
         filter.collateOnDiskAtom(cf, Collections.singletonList(ci), gcBefore);
-        // TODO this is necessary because when we collate supercolumns together, we don't check
-        // their subcolumns for relevance, so we need to do a second prune post facto here.
-        return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
+        return removeDeletedCF(cf, gcBefore);
     }
 
     /**
@@ -1402,14 +1354,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
       * @param range Either a Bounds, which includes start key, or a Range, which does not.
       * @param columnFilter description of the columns we're interested in for each row
      */
-    public AbstractScanIterator getSequentialIterator(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, IDiskAtomFilter columnFilter)
+    public AbstractScanIterator getSequentialIterator(final AbstractBounds<RowPosition> range, IDiskAtomFilter columnFilter)
     {
         assert !(range instanceof Range) || !((Range)range).isWrapAround() || range.right.isMinimum() : range;
 
         final RowPosition startWith = range.left;
         final RowPosition stopAt = range.right;
 
-        QueryFilter filter = new QueryFilter(null, new QueryPath(name, superColumn, null), columnFilter);
+        QueryFilter filter = new QueryFilter(null, name, columnFilter);
 
         final ViewFragment view = markReferenced(startWith, stopAt);
         Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), range.getString(metadata.getKeyValidator()));
@@ -1439,11 +1391,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                     logger.trace("scanned {}", key);
 
-                    // TODO this is necessary because when we collate supercolumns together, we don't check
-                    // their subcolumns for relevance, so we need to do a second prune post facto here.
-                    return current.cf != null && current.cf.isSuper()
-                        ? new Row(current.key, removeDeleted(current.cf, gcBefore))
-                        : current;
+                    return current;
                 }
 
                 public void close() throws IOException
@@ -1461,14 +1409,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter columnFilter, List<IndexExpression> rowFilter)
+    public List<Row> getRangeSlice(final AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter columnFilter, List<IndexExpression> rowFilter)
     {
-        return getRangeSlice(superColumn, range, maxResults, columnFilter, rowFilter, false, false);
+        return getRangeSlice(range, maxResults, columnFilter, rowFilter, false, false);
     }
 
-    public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter columnFilter, List<IndexExpression> rowFilter, boolean countCQL3Rows, boolean isPaging)
+    public List<Row> getRangeSlice(final AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter columnFilter, List<IndexExpression> rowFilter, boolean countCQL3Rows, boolean isPaging)
     {
-        return filter(getSequentialIterator(superColumn, range, columnFilter), ExtendedFilter.create(this, columnFilter, rowFilter, maxResults, countCQL3Rows, isPaging));
+        return filter(getSequentialIterator(range, columnFilter), ExtendedFilter.create(this, columnFilter, rowFilter, maxResults, countCQL3Rows, isPaging));
     }
 
     public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter)
@@ -1503,8 +1451,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     IDiskAtomFilter extraFilter = filter.getExtraFilter(data);
                     if (extraFilter != null)
                     {
-                        QueryPath path = new QueryPath(name);
-                        ColumnFamily cf = filter.cfs.getColumnFamily(new QueryFilter(rawRow.key, path, extraFilter));
+                        ColumnFamily cf = filter.cfs.getColumnFamily(new QueryFilter(rawRow.key, name, extraFilter));
                         if (cf != null)
                             data.addAll(cf, HeapAllocator.instance);
                     }

@@ -24,7 +24,6 @@ import java.security.MessageDigest;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
-import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -62,9 +61,9 @@ public class ExpiringColumn extends Column
     }
 
     /** @return Either a DeletedColumn, or an ExpiringColumn. */
-    public static Column create(ByteBuffer name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime, int expireBefore, IColumnSerializer.Flag flag)
+    public static Column create(ByteBuffer name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime, int expireBefore, ColumnSerializer.Flag flag)
     {
-        if (localExpirationTime >= expireBefore || flag == IColumnSerializer.Flag.PRESERVE_SIZE)
+        if (localExpirationTime >= expireBefore || flag == ColumnSerializer.Flag.PRESERVE_SIZE)
             return new ExpiringColumn(name, value, timestamp, timeToLive, localExpirationTime);
         // the column is now expired, we can safely return a simple tombstone
         return new DeletedColumn(name, localExpirationTime, timestamp);
@@ -73,6 +72,12 @@ public class ExpiringColumn extends Column
     public int getTimeToLive()
     {
         return timeToLive;
+    }
+
+    @Override
+    public Column withUpdatedName(ByteBuffer newName)
+    {
+        return new ExpiringColumn(newName, value, timestamp, timeToLive, localExpirationTime);
     }
 
     @Override
@@ -119,13 +124,13 @@ public class ExpiringColumn extends Column
     }
 
     @Override
-    public IColumn localCopy(ColumnFamilyStore cfs)
+    public Column localCopy(ColumnFamilyStore cfs)
     {
         return new ExpiringColumn(cfs.internOrCopy(name, HeapAllocator.instance), ByteBufferUtil.clone(value), timestamp, timeToLive, localExpirationTime);
     }
 
     @Override
-    public IColumn localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    public Column localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
         ByteBuffer clonedName = cfs.maybeIntern(name);
         if (clonedName == null)

@@ -29,7 +29,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.index.PerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.PerRowSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
-import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertFalse;
@@ -40,9 +39,6 @@ public class SecondaryIndexColumnSizeTest
     @Test
     public void test64kColumn()
     {
-        Column column = new Column();
-        column.name = ByteBufferUtil.bytes("test");
-
         // a byte buffer more than 64k
         ByteBuffer buffer = ByteBuffer.allocate(1024 * 65);
         buffer.clear();
@@ -53,7 +49,7 @@ public class SecondaryIndexColumnSizeTest
 
         // for read
         buffer.flip();
-        column.value = buffer;
+        Column column = new Column(ByteBufferUtil.bytes("test"), buffer, 0);
 
         MockRowIndex mockRowIndex = new MockRowIndex();
         MockColumnIndex mockColumnIndex = new MockColumnIndex();
@@ -203,17 +199,17 @@ public class SecondaryIndexColumnSizeTest
         }
 
         @Override
-        public void delete(ByteBuffer rowKey, IColumn col)
+        public void delete(ByteBuffer rowKey, Column col)
         {
         }
 
         @Override
-        public void insert(ByteBuffer rowKey, IColumn col)
+        public void insert(ByteBuffer rowKey, Column col)
         {
         }
 
         @Override
-        public void update(ByteBuffer rowKey, IColumn col)
+        public void update(ByteBuffer rowKey, Column col)
         {
         }
 

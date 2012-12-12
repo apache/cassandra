@@ -220,7 +220,9 @@ public class UpdateStatement extends ModificationStatement
         // The last query should return one row (but with c == null). Adding
         // the marker with the insert make sure the semantic is correct (while making sure a
         // 'DELETE FROM t WHERE k = 1' does remove the row entirely)
-        if (cfDef.isComposite && !cfDef.isCompact)
+        //
+        // We never insert markers for Super CF as this would confuse the thrift side.
+        if (cfDef.isComposite && !cfDef.isCompact && !cfDef.cfm.isSuper())
         {
             ByteBuffer name = builder.copy().add(ByteBufferUtil.EMPTY_BYTE_BUFFER).build();
             cf.addColumn(params.makeColumn(name, ByteBufferUtil.EMPTY_BYTE_BUFFER));

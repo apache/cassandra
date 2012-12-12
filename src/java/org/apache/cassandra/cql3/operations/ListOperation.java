@@ -30,7 +30,7 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -99,7 +99,7 @@ public class ListOperation implements Operation
                         ColumnNameBuilder builder,
                         AbstractType<?> validator,
                         UpdateParameters params,
-                        List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
+                        List<Pair<ByteBuffer, Column>> list) throws InvalidRequestException
     {
         if (!(validator instanceof ListType || (kind == Kind.SET_IDX && validator instanceof MapType)))
             throw new InvalidRequestException("List operations are only supported on List typed columns, but " + validator + " given.");
@@ -198,7 +198,7 @@ public class ListOperation implements Operation
         }
     }
 
-    public static void doDiscardFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, ListType validator, Term values, UpdateParameters params, List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
+    public static void doDiscardFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, ListType validator, Term values, UpdateParameters params, List<Pair<ByteBuffer, Column>> list) throws InvalidRequestException
     {
         if (!values.isBindMarker())
             throw new InvalidRequestException("Can't apply operation on column with " + validator + " type.");
@@ -214,9 +214,9 @@ public class ListOperation implements Operation
             for (Object elt : l)
                 toDiscard.add(validator.valueComparator().decompose(elt));
 
-            for (Pair<ByteBuffer, IColumn> p : list)
+            for (Pair<ByteBuffer, Column> p : list)
             {
-                IColumn c = p.right;
+                Column c = p.right;
                 if (toDiscard.contains(c.value()))
                     cf.addColumn(params.makeTombstone(c.name()));
             }
@@ -227,7 +227,7 @@ public class ListOperation implements Operation
         }
     }
 
-    private void doSet(ColumnFamily cf, ColumnNameBuilder builder, UpdateParameters params, CollectionType validator, List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
+    private void doSet(ColumnFamily cf, ColumnNameBuilder builder, UpdateParameters params, CollectionType validator, List<Pair<ByteBuffer, Column>> list) throws InvalidRequestException
     {
         int idx = validateListIdx(values.get(0), list);
         Term value = values.get(1);
@@ -261,7 +261,7 @@ public class ListOperation implements Operation
         }
     }
 
-    private void doDiscard(ColumnFamily cf, CollectionType validator, UpdateParameters params, List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
+    private void doDiscard(ColumnFamily cf, CollectionType validator, UpdateParameters params, List<Pair<ByteBuffer, Column>> list) throws InvalidRequestException
     {
         if (list == null)
             return;
@@ -271,15 +271,15 @@ public class ListOperation implements Operation
         for (Term value : values)
             toDiscard.add(value.getByteBuffer(validator.valueComparator(), params.variables));
 
-        for (Pair<ByteBuffer, IColumn> p : list)
+        for (Pair<ByteBuffer, Column> p : list)
         {
-            IColumn c = p.right;
+            Column c = p.right;
             if (toDiscard.contains(c.value()))
                 cf.addColumn(params.makeTombstone(c.name()));
         }
     }
 
-    private void doDiscardIdx(ColumnFamily cf, UpdateParameters params, List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
+    private void doDiscardIdx(ColumnFamily cf, UpdateParameters params, List<Pair<ByteBuffer, Column>> list) throws InvalidRequestException
     {
         int idx = validateListIdx(values.get(0), list);
         cf.addColumn(params.makeTombstone(list.get(idx).right.name()));
@@ -381,7 +381,7 @@ public class ListOperation implements Operation
         return "ListOperation(" + kind + ", " + values + ")";
     }
 
-    private int validateListIdx(Term value, List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
+    private int validateListIdx(Term value, List<Pair<ByteBuffer, Column>> list) throws InvalidRequestException
     {
         try
         {

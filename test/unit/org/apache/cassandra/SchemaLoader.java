@@ -33,7 +33,7 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.index.composites.CompositesIndex;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -411,9 +411,7 @@ public class SchemaLoader
         {
             ByteBuffer key = ByteBufferUtil.bytes("key" + i);
             RowMutation rowMutation = new RowMutation(keyspace, key);
-            QueryPath path = new QueryPath(columnFamily, null, ByteBufferUtil.bytes("col" + i));
-
-            rowMutation.add(path, ByteBufferUtil.bytes("val" + i), System.currentTimeMillis());
+            rowMutation.add(columnFamily, ByteBufferUtil.bytes("col" + i), ByteBufferUtil.bytes("val" + i), System.currentTimeMillis());
             rowMutation.applyUnsafe();
         }
     }
@@ -425,9 +423,7 @@ public class SchemaLoader
         for (int i = offset; i < offset + numberOfRows; i++)
         {
             DecoratedKey key = Util.dk("key" + i);
-            QueryPath path = new QueryPath(columnFamily, null, ByteBufferUtil.bytes("col" + i));
-
-            store.getColumnFamily(key, path, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+            store.getColumnFamily(QueryFilter.getNamesFilter(key, columnFamily, ByteBufferUtil.bytes("col" + i)));
         }
     }
 

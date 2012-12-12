@@ -93,6 +93,8 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 {
                     if (!cfDef.isComposite)
                         throw new InvalidRequestException("Cannot use collection types with non-composite PRIMARY KEY");
+                    if (cfDef.cfm.isSuper())
+                        throw new InvalidRequestException("Cannot use collection types with Super column family");
 
                     componentIndex--;
 

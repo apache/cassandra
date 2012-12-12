@@ -54,16 +54,14 @@ public class CollationController
         this.filter = filter;
         this.gcBefore = gcBefore;
 
-        // AtomicSortedColumns doesn't work for super columns (see #3821)
         this.factory = mutableColumns
-                     ? cfs.metadata.cfType == ColumnFamilyType.Super ? ThreadSafeSortedColumns.factory() : AtomicSortedColumns.factory()
+                     ? AtomicSortedColumns.factory()
                      : ArrayBackedSortedColumns.factory();
     }
 
     public ColumnFamily getTopLevelColumns()
     {
         return filter.filter instanceof NamesQueryFilter
-               && (cfs.metadata.cfType == ColumnFamilyType.Standard || filter.path.superColumnName != null)
                && cfs.metadata.getDefaultValidator() != CounterColumnType.instance
                ? collectTimeOrderedData()
                : collectAllData();
@@ -110,7 +108,7 @@ public class CollationController
             // (reduceNameFilter removes columns that are known to be irrelevant)
             NamesQueryFilter namesFilter = (NamesQueryFilter) filter.filter;
             TreeSet<ByteBuffer> filterColumns = new TreeSet<ByteBuffer>(namesFilter.columns);
-            QueryFilter reducedFilter = new QueryFilter(filter.key, filter.path, namesFilter.withUpdatedColumns(filterColumns));
+            QueryFilter reducedFilter = new QueryFilter(filter.key, filter.cfName, namesFilter.withUpdatedColumns(filterColumns));
 
             /* add the SSTables on disk */
             Collections.sort(view.sstables, SSTable.maxTimestampComparator);
@@ -161,7 +159,7 @@ public class CollationController
             final ColumnFamily c2 = container;
             CloseableIterator<OnDiskAtom> toCollate = new SimpleAbstractColumnIterator()
             {
-                final Iterator<IColumn> iter = c2.iterator();
+                final Iterator<Column> iter = c2.iterator();
 
                 protected OnDiskAtom computeNext()
                 {
@@ -205,13 +203,10 @@ public class CollationController
     }
 
     /**
-     * remove columns from @param filter where we already have data in @param returnCF newer than @param sstableTimestamp
+     * remove columns from @param filter where we already have data in @param container newer than @param sstableTimestamp
      */
-    private void reduceNameFilter(QueryFilter filter, ColumnFamily returnCF, long sstableTimestamp)
+    private void reduceNameFilter(QueryFilter filter, ColumnFamily container, long sstableTimestamp)
     {
-        AbstractColumnContainer container = filter.path.superColumnName == null
-                                          ? returnCF
-                                          : (SuperColumn) returnCF.getColumn(filter.path.superColumnName);
         // MIN_VALUE means we don't know any information
         if (container == null || sstableTimestamp == Long.MIN_VALUE)
             return;
@@ -219,7 +214,7 @@ public class CollationController
         for (Iterator<ByteBuffer> iterator = ((NamesQueryFilter) filter.filter).columns.iterator(); iterator.hasNext(); )
         {
             ByteBuffer filterColumn = iterator.next();
-            IColumn column = container.getColumn(filterColumn);
+            Column column = container.getColumn(filterColumn);
             if (column != null && column.timestamp() > sstableTimestamp)
                 iterator.remove();
         }

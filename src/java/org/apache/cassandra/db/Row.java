@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 import java.io.*;
 
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -62,7 +61,7 @@ public class Row
             ColumnFamily.serializer.serialize(row.cf, dos, version);
         }
 
-        public Row deserialize(DataInput dis, int version, IColumnSerializer.Flag flag, ISortedColumns.Factory factory) throws IOException
+        public Row deserialize(DataInput dis, int version, ColumnSerializer.Flag flag, ISortedColumns.Factory factory) throws IOException
         {
             return new Row(StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(dis)),
                            ColumnFamily.serializer.deserialize(dis, flag, factory, version));
@@ -70,7 +69,7 @@ public class Row
 
         public Row deserialize(DataInput dis, int version) throws IOException
         {
-            return deserialize(dis, version, IColumnSerializer.Flag.LOCAL, TreeMapBackedSortedColumns.factory());
+            return deserialize(dis, version, ColumnSerializer.Flag.LOCAL, TreeMapBackedSortedColumns.factory());
         }
 
         public long serializedSize(Row row, int version)

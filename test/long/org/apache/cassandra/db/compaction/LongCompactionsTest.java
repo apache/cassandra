@@ -30,7 +30,6 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -83,7 +82,7 @@ public class LongCompactionsTest extends SchemaLoader
             for (int j = 0; j < rowsPerSSTable; j++)
             {
                 String key = String.valueOf(j);
-                IColumn[] cols = new IColumn[colsPerRow];
+                Column[] cols = new Column[colsPerRow];
                 for (int i = 0; i < colsPerRow; i++)
                 {
                     // last sstable has highest timestamps
@@ -131,7 +130,7 @@ public class LongCompactionsTest extends SchemaLoader
                 DecoratedKey key = Util.dk(String.valueOf(i % 2));
                 RowMutation rm = new RowMutation(TABLE1, key.key);
                 long timestamp = j * ROWS_PER_SSTABLE + i;
-                rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(String.valueOf(i / 2))),
+                rm.add("Standard1", ByteBufferUtil.bytes(String.valueOf(i / 2)),
                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                        timestamp);
                 maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
@@ -150,48 +149,6 @@ public class LongCompactionsTest extends SchemaLoader
         // make sure max timestamp of compacted sstables is recorded properly after compaction.
         CompactionsTest.assertMaxTimestamp(cfs, maxTimestampExpected);
         cfs.truncate();
-    }
-
-    @Test
-    public void testSuperColumnCompactions() throws IOException, ExecutionException, InterruptedException
-    {
-        Table table = Table.open(TABLE1);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore("Super1");
-
-        final int ROWS_PER_SSTABLE = 10;
-        final int SSTABLES = cfs.metadata.getIndexInterval() * 3 / ROWS_PER_SSTABLE;
-
-        //disable compaction while flushing
-        cfs.disableAutoCompaction();
-
-        long maxTimestampExpected = Long.MIN_VALUE;
-        Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
-        ByteBuffer superColumn = ByteBufferUtil.bytes("TestSuperColumn");
-        for (int j = 0; j < SSTABLES; j++)
-        {
-            for (int i = 0; i < ROWS_PER_SSTABLE; i++)
-            {
-                DecoratedKey key = Util.dk(String.valueOf(i % 2));
-                RowMutation rm = new RowMutation(TABLE1, key.key);
-                long timestamp = j * ROWS_PER_SSTABLE + i;
-                rm.add(new QueryPath("Super1", superColumn, ByteBufferUtil.bytes((long)(i / 2))),
-                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                       timestamp);
-                maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
-                rm.apply();
-                inserted.add(key);
-            }
-            cfs.forceBlockingFlush();
-            CompactionsTest.assertMaxTimestamp(cfs, maxTimestampExpected);
-            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(cfs, superColumn).size());
-        }
-
-        forceCompactions(cfs);
-
-        assertEquals(inserted.size(), Util.getRangeSlice(cfs, superColumn).size());
-
-        // make sure max timestamp of compacted sstables is recorded properly after compaction.
-        CompactionsTest.assertMaxTimestamp(cfs, maxTimestampExpected);
     }
 
     private void forceCompactions(ColumnFamilyStore cfs) throws ExecutionException, InterruptedException

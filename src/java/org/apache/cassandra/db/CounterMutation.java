@@ -24,9 +24,11 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.UUID;
 
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -92,8 +94,6 @@ public class CounterMutation implements IMutation
                 continue;
 
             ColumnFamily cf = row.cf;
-            if (cf.isSuper())
-                cf.retainAll(rowMutation.getColumnFamily(cf.metadata().cfId));
             replicationMutation.add(cf);
         }
         return replicationMutation;
@@ -101,8 +101,9 @@ public class CounterMutation implements IMutation
 
     private void addReadCommandFromColumnFamily(String table, ByteBuffer key, ColumnFamily columnFamily, List<ReadCommand> commands)
     {
-        QueryPath queryPath = new QueryPath(columnFamily.metadata().cfName);
-        commands.add(new SliceByNamesReadCommand(table, key, queryPath, columnFamily.getColumnNames()));
+        SortedSet s = new TreeSet<ByteBuffer>(columnFamily.metadata().comparator);
+        s.addAll(columnFamily.getColumnNames());
+        commands.add(new SliceByNamesReadCommand(table, key, columnFamily.metadata().cfName, new NamesQueryFilter(s)));
     }
 
     public MessageOut<CounterMutation> makeMutationMessage() throws IOException
@@ -128,7 +129,7 @@ public class CounterMutation implements IMutation
         {
             ColumnFamily cf = cf_.cloneMeShallow();
             ColumnFamilyStore cfs = table.getColumnFamilyStore(cf.id());
-            for (IColumn column : cf_)
+            for (Column column : cf_)
             {
                 cf.addColumn(column.localCopy(cfs), HeapAllocator.instance);
             }

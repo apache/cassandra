@@ -90,6 +90,7 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
              * We are a "sparse" composite, i.e. a non-compact one, if either:
              *   - the last type of the composite is a ColumnToCollectionType
              *   - or we have one less alias than of composite types and the last type is UTF8Type.
+             *   - some metadata are defined
              *
              * Note that this is not perfect: if someone upgrading from thrift "renames" all but
              * the last column alias, the cf will be considered "sparse" and he will be stuck with
@@ -98,7 +99,8 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
              */
             int last = composite.types.size() - 1;
             AbstractType<?> lastType = composite.types.get(last);
-            if (lastType instanceof ColumnToCollectionType
+            if (!cfm.getColumn_metadata().isEmpty()
+                || lastType instanceof ColumnToCollectionType
                 || (cfm.getColumnAliases().size() == last && lastType instanceof UTF8Type))
             {
                 // "sparse" composite

@@ -52,7 +52,7 @@ public class ArrayBackedSortedColumnsTest
         for (int i = 0; i < values.length; ++i)
             map.addColumn(new Column(ByteBufferUtil.bytes(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
 
-        Iterator<IColumn> iter = map.iterator();
+        Iterator<Column> iter = map.iterator();
         assertEquals("1st column", 1, iter.next().name().getInt(0));
         assertEquals("2nd column", 2, iter.next().name().getInt(0));
         assertEquals("3rd column", 3, iter.next().name().getInt(0));
@@ -79,9 +79,9 @@ public class ArrayBackedSortedColumnsTest
         for (int i = 0; i < values2.length; ++i)
             map2.addColumn(new Column(ByteBufferUtil.bytes(values2[reversed ? values2.length - 1 - i : i])), HeapAllocator.instance);
 
-        map2.addAll(map, HeapAllocator.instance, Functions.<IColumn>identity());
+        map2.addAll(map, HeapAllocator.instance, Functions.<Column>identity());
 
-        Iterator<IColumn> iter = map2.iterator();
+        Iterator<Column> iter = map2.iterator();
         assertEquals("1st column", 1, iter.next().name().getInt(0));
         assertEquals("2nd column", 2, iter.next().name().getInt(0));
         assertEquals("3rd column", 3, iter.next().name().getInt(0));
@@ -102,10 +102,10 @@ public class ArrayBackedSortedColumnsTest
         ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
         int[] values = new int[]{ 1, 2, 3, 5, 9 };
 
-        List<IColumn> sorted = new ArrayList<IColumn>();
+        List<Column> sorted = new ArrayList<Column>();
         for (int v : values)
             sorted.add(new Column(ByteBufferUtil.bytes(v)));
-        List<IColumn> reverseSorted = new ArrayList<IColumn>(sorted);
+        List<Column> reverseSorted = new ArrayList<Column>(sorted);
         Collections.reverse(reverseSorted);
 
         for (int i = 0; i < values.length; ++i)
@@ -177,7 +177,7 @@ public class ArrayBackedSortedColumnsTest
             fail("The collection don't have the same size");
     }
 
-    private void assertSame(int[] names, Iterator<IColumn> iter)
+    private void assertSame(int[] names, Iterator<Column> iter)
     {
         for (int name : names)
         {

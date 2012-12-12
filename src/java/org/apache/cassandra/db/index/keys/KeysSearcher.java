@@ -108,8 +108,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
         return new ColumnFamilyStore.AbstractScanIterator()
         {
             private ByteBuffer lastSeenKey = startKey;
-            private Iterator<IColumn> indexColumns;
-            private final QueryPath path = new QueryPath(baseCfs.name);
+            private Iterator<Column> indexColumns;
             private int columnsRead = Integer.MAX_VALUE;
 
             protected Row computeNext()
@@ -132,7 +131,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                                          ((AbstractSimplePerColumnSecondaryIndex)index).expressionString(primary), index.getBaseCfs().metadata.getKeyValidator().getString(startKey));
 
                         QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
-                                                                             new QueryPath(index.getIndexCfs().name),
+                                                                             index.getIndexCfs().name,
                                                                              lastSeenKey,
                                                                              endKey,
                                                                              false,
@@ -145,10 +144,10 @@ public class KeysSearcher extends SecondaryIndexSearcher
                             return endOfData();
                         }
 
-                        Collection<IColumn> sortedColumns = indexRow.getSortedColumns();
+                        Collection<Column> sortedColumns = indexRow.getSortedColumns();
                         columnsRead = sortedColumns.size();
                         indexColumns = sortedColumns.iterator();
-                        IColumn firstColumn = sortedColumns.iterator().next();
+                        Column firstColumn = sortedColumns.iterator().next();
 
                         // Paging is racy, so it is possible the first column of a page is not the last seen one.
                         if (lastSeenKey != startKey && lastSeenKey.equals(firstColumn.name()))
@@ -167,7 +166,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
 
                     while (indexColumns.hasNext())
                     {
-                        IColumn column = indexColumns.next();
+                        Column column = indexColumns.next();
                         lastSeenKey = column.name();
                         if (column.isMarkedForDelete())
                         {
@@ -188,7 +187,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         }
 
                         logger.trace("Returning index hit for {}", dk);
-                        ColumnFamily data = baseCfs.getColumnFamily(new QueryFilter(dk, path, filter.initialFilter()));
+                        ColumnFamily data = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, filter.initialFilter()));
                         // While the column family we'll get in the end should contains the primary clause column, the initialFilter may not have found it and can thus be null
                         if (data == null)
                             data = ColumnFamily.create(baseCfs.metadata);
@@ -198,7 +197,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         IDiskAtomFilter extraFilter = filter.getExtraFilter(data);
                         if (extraFilter != null)
                         {
-                            ColumnFamily cf = baseCfs.getColumnFamily(new QueryFilter(dk, path, extraFilter));
+                            ColumnFamily cf = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, extraFilter));
                             if (cf != null)
                                 data.addAll(cf, HeapAllocator.instance);
                         }
@@ -206,7 +205,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         if (isIndexValueStale(data, primary.column_name, indexKey.key))
                         {
                             // delete the index entry w/ its own timestamp
-                            IColumn dummyColumn = new Column(primary.column_name, indexKey.key, column.timestamp());
+                            Column dummyColumn = new Column(primary.column_name, indexKey.key, column.timestamp());
                             ((PerColumnSecondaryIndex)index).delete(dk.key, dummyColumn);
                             continue;
                         }

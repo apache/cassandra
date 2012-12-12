@@ -43,7 +43,6 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -156,9 +155,9 @@ public class SystemTable
             SortedSet<ByteBuffer> cols = new TreeSet<ByteBuffer>(BytesType.instance);
             cols.add(ByteBufferUtil.bytes("ClusterName"));
             cols.add(ByteBufferUtil.bytes("Token"));
-            QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBufferUtil.bytes("L")), new QueryPath(OLD_STATUS_CF), cols);
+            QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBufferUtil.bytes("L")), OLD_STATUS_CF, cols);
             ColumnFamily oldCf = oldStatusCfs.getColumnFamily(filter);
-            Iterator<IColumn> oldColumns = oldCf.columns.iterator();
+            Iterator<Column> oldColumns = oldCf.columns.iterator();
 
             String clusterName = null;
             try
@@ -514,7 +513,7 @@ public class SystemTable
     {
         ColumnFamilyStore cfs = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(INDEX_CF);
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBufferUtil.bytes(table)),
-                                                        new QueryPath(INDEX_CF),
+                                                        INDEX_CF,
                                                         ByteBufferUtil.bytes(indexName));
         return ColumnFamilyStore.removeDeleted(cfs.getColumnFamily(filter), Integer.MAX_VALUE) != null;
     }
@@ -532,7 +531,7 @@ public class SystemTable
     public static void setIndexRemoved(String table, String indexName)
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, ByteBufferUtil.bytes(table));
-        rm.delete(new QueryPath(INDEX_CF, null, ByteBufferUtil.bytes(indexName)), FBUtilities.timestampMicros());
+        rm.delete(INDEX_CF, ByteBufferUtil.bytes(indexName), FBUtilities.timestampMicros());
         rm.apply();
         forceBlockingFlush(INDEX_CF);
     }
@@ -573,7 +572,7 @@ public class SystemTable
 
         // Get the last CounterId (since CounterId are timeuuid is thus ordered from the older to the newer one)
         QueryFilter filter = QueryFilter.getSliceFilter(decorate(ALL_LOCAL_NODE_ID_KEY),
-                                                        new QueryPath(COUNTER_ID_CF),
+                                                        COUNTER_ID_CF,
                                                         ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                         ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                         true,
@@ -611,11 +610,11 @@ public class SystemTable
         List<CounterId.CounterIdRecord> l = new ArrayList<CounterId.CounterIdRecord>();
 
         Table table = Table.open(Table.SYSTEM_KS);
-        QueryFilter filter = QueryFilter.getIdentityFilter(decorate(ALL_LOCAL_NODE_ID_KEY), new QueryPath(COUNTER_ID_CF));
+        QueryFilter filter = QueryFilter.getIdentityFilter(decorate(ALL_LOCAL_NODE_ID_KEY), COUNTER_ID_CF);
         ColumnFamily cf = table.getColumnFamilyStore(COUNTER_ID_CF).getColumnFamily(filter);
 
         CounterId previous = null;
-        for (IColumn c : cf)
+        for (Column c : cf)
         {
             if (previous != null)
                 l.add(new CounterId.CounterIdRecord(previous, c.timestamp()));
@@ -655,8 +654,7 @@ public class SystemTable
     {
         Token minToken = StorageService.getPartitioner().getMinimumToken();
 
-        return schemaCFS(schemaCfName).getRangeSlice(null,
-                                                     new Range<RowPosition>(minToken.minKeyBound(),
+        return schemaCFS(schemaCfName).getRangeSlice(new Range<RowPosition>(minToken.minKeyBound(),
                                                                             minToken.maxKeyBound()),
                                                      Integer.MAX_VALUE,
                                                      new IdentityQueryFilter(),
@@ -713,7 +711,7 @@ public class SystemTable
         DecoratedKey key = StorageService.getPartitioner().decorateKey(getSchemaKSKey(ksName));
 
         ColumnFamilyStore schemaCFS = SystemTable.schemaCFS(SCHEMA_KEYSPACES_CF);
-        ColumnFamily result = schemaCFS.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(SCHEMA_KEYSPACES_CF)));
+        ColumnFamily result = schemaCFS.getColumnFamily(QueryFilter.getIdentityFilter(key, SCHEMA_KEYSPACES_CF));
 
         return new Row(key, result);
     }
@@ -724,7 +722,6 @@ public class SystemTable
 
         ColumnFamilyStore schemaCFS = SystemTable.schemaCFS(SCHEMA_COLUMNFAMILIES_CF);
         ColumnFamily result = schemaCFS.getColumnFamily(key,
-                                                        new QueryPath(SCHEMA_COLUMNFAMILIES_CF),
                                                         DefsTable.searchComposite(cfName, true),
                                                         DefsTable.searchComposite(cfName, false),
                                                         false,

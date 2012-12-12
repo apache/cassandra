@@ -58,7 +58,7 @@ public class AtomicSortedColumns implements ISortedColumns
             return new AtomicSortedColumns(comparator);
         }
 
-        public ISortedColumns fromSorted(SortedMap<ByteBuffer, IColumn> sortedMap, boolean insertReversed)
+        public ISortedColumns fromSorted(SortedMap<ByteBuffer, Column> sortedMap, boolean insertReversed)
         {
             return new AtomicSortedColumns(sortedMap);
         }
@@ -74,7 +74,7 @@ public class AtomicSortedColumns implements ISortedColumns
         this(new Holder(comparator));
     }
 
-    private AtomicSortedColumns(SortedMap<ByteBuffer, IColumn> columns)
+    private AtomicSortedColumns(SortedMap<ByteBuffer, Column> columns)
     {
         this(new Holder(columns));
     }
@@ -144,7 +144,7 @@ public class AtomicSortedColumns implements ISortedColumns
         while (!ref.compareAndSet(current, modified));
     }
 
-    public void addColumn(IColumn column, Allocator allocator)
+    public void addColumn(Column column, Allocator allocator)
     {
         Holder current, modified;
         do
@@ -156,12 +156,12 @@ public class AtomicSortedColumns implements ISortedColumns
         while (!ref.compareAndSet(current, modified));
     }
 
-    public void addAll(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
+    public void addAll(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation)
     {
         addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater);
     }
 
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer)
+    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
     {
         /*
          * This operation needs to atomicity and isolation. To that end, we
@@ -185,7 +185,7 @@ public class AtomicSortedColumns implements ISortedColumns
             DeletionInfo newDelInfo = current.deletionInfo.add(cm.getDeletionInfo());
             modified = new Holder(current.map.clone(), newDelInfo);
 
-            for (IColumn column : cm.getSortedColumns())
+            for (Column column : cm.getSortedColumns())
             {
                 sizeDelta += modified.addColumn(transformation.apply(column), allocator, indexer);
                 // bail early if we know we've been beaten
@@ -198,7 +198,7 @@ public class AtomicSortedColumns implements ISortedColumns
         return sizeDelta;
     }
 
-    public boolean replace(IColumn oldColumn, IColumn newColumn)
+    public boolean replace(Column oldColumn, Column newColumn)
     {
         if (!oldColumn.name().equals(newColumn.name()))
             throw new IllegalArgumentException();
@@ -238,7 +238,7 @@ public class AtomicSortedColumns implements ISortedColumns
         while (!ref.compareAndSet(current, modified));
     }
 
-    public IColumn getColumn(ByteBuffer name)
+    public Column getColumn(ByteBuffer name)
     {
         return ref.get().map.get(name);
     }
@@ -248,12 +248,12 @@ public class AtomicSortedColumns implements ISortedColumns
         return ref.get().map.keySet();
     }
 
-    public Collection<IColumn> getSortedColumns()
+    public Collection<Column> getSortedColumns()
     {
         return ref.get().map.values();
     }
 
-    public Collection<IColumn> getReverseSortedColumns()
+    public Collection<Column> getReverseSortedColumns()
     {
         return ref.get().map.descendingMap().values();
     }
@@ -273,17 +273,17 @@ public class AtomicSortedColumns implements ISortedColumns
         return ref.get().map.isEmpty();
     }
 
-    public Iterator<IColumn> iterator()
+    public Iterator<Column> iterator()
     {
         return getSortedColumns().iterator();
     }
 
-    public Iterator<IColumn> iterator(ColumnSlice[] slices)
+    public Iterator<Column> iterator(ColumnSlice[] slices)
     {
         return new ColumnSlice.NavigableMapIterator(ref.get().map, slices);
     }
 
-    public Iterator<IColumn> reverseIterator(ColumnSlice[] slices)
+    public Iterator<Column> reverseIterator(ColumnSlice[] slices)
     {
         return new ColumnSlice.NavigableMapIterator(ref.get().map.descendingMap(), slices);
     }
@@ -295,20 +295,20 @@ public class AtomicSortedColumns implements ISortedColumns
 
     private static class Holder
     {
-        final SnapTreeMap<ByteBuffer, IColumn> map;
+        final SnapTreeMap<ByteBuffer, Column> map;
         final DeletionInfo deletionInfo;
 
         Holder(AbstractType<?> comparator)
         {
-            this(new SnapTreeMap<ByteBuffer, IColumn>(comparator), DeletionInfo.LIVE);
+            this(new SnapTreeMap<ByteBuffer, Column>(comparator), DeletionInfo.LIVE);
         }
 
-        Holder(SortedMap<ByteBuffer, IColumn> columns)
+        Holder(SortedMap<ByteBuffer, Column> columns)
         {
-            this(new SnapTreeMap<ByteBuffer, IColumn>(columns), DeletionInfo.LIVE);
+            this(new SnapTreeMap<ByteBuffer, Column>(columns), DeletionInfo.LIVE);
         }
 
-        Holder(SnapTreeMap<ByteBuffer, IColumn> map, DeletionInfo deletionInfo)
+        Holder(SnapTreeMap<ByteBuffer, Column> map, DeletionInfo deletionInfo)
         {
             this.map = map;
             this.deletionInfo = deletionInfo;
@@ -324,7 +324,7 @@ public class AtomicSortedColumns implements ISortedColumns
             return new Holder(map, info);
         }
 
-        Holder with(SnapTreeMap<ByteBuffer, IColumn> newMap)
+        Holder with(SnapTreeMap<ByteBuffer, Column> newMap)
         {
             return new Holder(newMap, deletionInfo);
         }
@@ -333,64 +333,49 @@ public class AtomicSortedColumns implements ISortedColumns
         // afterwards.
         Holder clear()
         {
-            return new Holder(new SnapTreeMap<ByteBuffer, IColumn>(map.comparator()), deletionInfo);
+            return new Holder(new SnapTreeMap<ByteBuffer, Column>(map.comparator()), deletionInfo);
         }
 
-        long addColumn(IColumn column, Allocator allocator, SecondaryIndexManager.Updater indexer)
+        long addColumn(Column column, Allocator allocator, SecondaryIndexManager.Updater indexer)
         {
             ByteBuffer name = column.name();
             while (true)
             {
-                IColumn oldColumn = map.putIfAbsent(name, column);
+                Column oldColumn = map.putIfAbsent(name, column);
                 if (oldColumn == null)
                 {
                     indexer.insert(column);
                     return column.dataSize();
                 }
 
-                if (oldColumn instanceof SuperColumn)
+                Column reconciledColumn = column.reconcile(oldColumn, allocator);
+                if (map.replace(name, oldColumn, reconciledColumn))
                 {
-                    assert column instanceof SuperColumn;
-                    long previousSize = oldColumn.dataSize();
-                    ((SuperColumn) oldColumn).putColumn((SuperColumn)column, allocator);
-                    return oldColumn.dataSize() - previousSize;
+                    // for memtable updates we only care about oldcolumn, reconciledcolumn, but when compacting
+                    // we need to make sure we update indexes no matter the order we merge
+                    if (reconciledColumn == column)
+                        indexer.update(oldColumn, reconciledColumn);
+                    else
+                        indexer.update(column, reconciledColumn);
+                    return reconciledColumn.dataSize() - oldColumn.dataSize();
                 }
-                else
-                {
-                    IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
-                    if (map.replace(name, oldColumn, reconciledColumn))
-                    {
-                        // for memtable updates we only care about oldcolumn, reconciledcolumn, but when compacting
-                        // we need to make sure we update indexes no matter the order we merge
-                        if (reconciledColumn == column)
-                            indexer.update(oldColumn, reconciledColumn);
-                        else
-                            indexer.update(column, reconciledColumn);
-                        return reconciledColumn.dataSize() - oldColumn.dataSize();
-                    }
-                    // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
-                    // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
-                }
+                // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
+                // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
             }
         }
 
         void retainAll(ISortedColumns columns)
         {
-            Iterator<IColumn> iter = map.values().iterator();
-            Iterator<IColumn> toRetain = columns.iterator();
-            IColumn current = iter.hasNext() ? iter.next() : null;
-            IColumn retain = toRetain.hasNext() ? toRetain.next() : null;
+            Iterator<Column> iter = map.values().iterator();
+            Iterator<Column> toRetain = columns.iterator();
+            Column current = iter.hasNext() ? iter.next() : null;
+            Column retain = toRetain.hasNext() ? toRetain.next() : null;
             Comparator<? super ByteBuffer> comparator = map.comparator();
             while (current != null && retain != null)
             {
                 int c = comparator.compare(current.name(), retain.name());
                 if (c == 0)
                 {
-                    if (current instanceof SuperColumn)
-                    {
-                        assert retain instanceof SuperColumn;
-                        ((SuperColumn)current).retainAll((SuperColumn)retain);
-                    }
                     current = iter.hasNext() ? iter.next() : null;
                     retain = toRetain.hasNext() ? toRetain.next() : null;
                 }

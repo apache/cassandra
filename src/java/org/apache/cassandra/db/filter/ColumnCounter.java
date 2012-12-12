@@ -22,8 +22,8 @@ package org.apache.cassandra.db.filter;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.IColumnContainer;
+import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -32,7 +32,7 @@ public class ColumnCounter
     protected int live;
     protected int ignored;
 
-    public void count(IColumn column, IColumnContainer container)
+    public void count(Column column, ColumnFamily container)
     {
         if (!isLive(column, container))
             ignored++;
@@ -40,7 +40,7 @@ public class ColumnCounter
             live++;
     }
 
-    protected static boolean isLive(IColumn column, IColumnContainer container)
+    protected static boolean isLive(Column column, ColumnFamily container)
     {
         return column.isLive() && (!container.deletionInfo().isDeleted(column));
     }
@@ -79,7 +79,7 @@ public class ColumnCounter
             assert toGroup == 0 || type != null;
         }
 
-        public void count(IColumn column, IColumnContainer container)
+        public void count(Column column, ColumnFamily container)
         {
             if (!isLive(column, container))
             {

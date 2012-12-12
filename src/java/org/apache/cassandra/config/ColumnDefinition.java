@@ -25,7 +25,6 @@ import com.google.common.collect.Maps;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.StorageService;
@@ -116,24 +115,25 @@ public class ColumnDefinition
         return cd;
     }
 
-    public static ColumnDefinition fromThrift(ColumnDef thriftColumnDef) throws SyntaxException, ConfigurationException
+    public static ColumnDefinition fromThrift(ColumnDef thriftColumnDef, boolean isSuper) throws SyntaxException, ConfigurationException
     {
+        // For super columns, the componentIndex is 1 because the ColumnDefinition applies to the column component.
         return new ColumnDefinition(ByteBufferUtil.clone(thriftColumnDef.name),
                                     TypeParser.parse(thriftColumnDef.validation_class),
                                     thriftColumnDef.index_type,
                                     thriftColumnDef.index_options,
                                     thriftColumnDef.index_name,
-                                    null);
+                                    isSuper ? 1 : null);
     }
 
-    public static Map<ByteBuffer, ColumnDefinition> fromThrift(List<ColumnDef> thriftDefs) throws SyntaxException, ConfigurationException
+    public static Map<ByteBuffer, ColumnDefinition> fromThrift(List<ColumnDef> thriftDefs, boolean isSuper) throws SyntaxException, ConfigurationException
     {
         if (thriftDefs == null)
             return new HashMap<ByteBuffer,ColumnDefinition>();
 
         Map<ByteBuffer, ColumnDefinition> cds = new TreeMap<ByteBuffer, ColumnDefinition>();
         for (ColumnDef thriftColumnDef : thriftDefs)
-            cds.put(ByteBufferUtil.clone(thriftColumnDef.name), fromThrift(thriftColumnDef));
+            cds.put(ByteBufferUtil.clone(thriftColumnDef.name), fromThrift(thriftColumnDef, isSuper));
 
         return cds;
     }
@@ -224,6 +224,9 @@ public class ColumnDefinition
                     index_name = result.getString("index_name");
                 if (result.has("component_index"))
                     componentIndex = result.getInt("component_index");
+                // A ColumnDefinition for super columns applies to the column component
+                else if (cfm.isSuper())
+                    componentIndex = 1;
 
                 cds.add(new ColumnDefinition(cfm.getColumnDefinitionComparator(componentIndex).fromString(result.getString("column_name")),
                                              TypeParser.parse(result.getString("validator")),
@@ -246,7 +249,6 @@ public class ColumnDefinition
         DecoratedKey key = StorageService.getPartitioner().decorateKey(SystemTable.getSchemaKSKey(ksName));
         ColumnFamilyStore columnsStore = SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNS_CF);
         ColumnFamily cf = columnsStore.getColumnFamily(key,
-                                                       new QueryPath(SystemTable.SCHEMA_COLUMNS_CF),
                                                        DefsTable.searchComposite(cfName, true),
                                                        DefsTable.searchComposite(cfName, false),
                                                        false,

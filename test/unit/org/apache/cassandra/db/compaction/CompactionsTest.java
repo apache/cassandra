@@ -36,7 +36,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.io.util.FileUtils;
@@ -78,7 +78,7 @@ public class CompactionsTest extends SchemaLoader
             DecoratedKey key = Util.dk(Integer.toString(i));
             RowMutation rm = new RowMutation(TABLE1, key.key);
             for (int j = 0; j < 10; j++)
-                rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(Integer.toString(j))),
+                rm.add("Standard1", ByteBufferUtil.bytes(Integer.toString(j)),
                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                        timestamp,
                        j > 0 ? 3 : 0); // let first column never expire, since deleting all columns does not produce sstable
@@ -138,7 +138,7 @@ public class CompactionsTest extends SchemaLoader
 
         // a subcolumn
         RowMutation rm = new RowMutation(TABLE1, key.key);
-        rm.add(new QueryPath("Super1", scName, ByteBufferUtil.bytes(0)),
+        rm.add("Super1", CompositeType.build(scName, ByteBufferUtil.bytes(0)),
                ByteBufferUtil.EMPTY_BYTE_BUFFER,
                FBUtilities.timestampMicros());
         rm.apply();
@@ -146,7 +146,7 @@ public class CompactionsTest extends SchemaLoader
 
         // shadow the subcolumn with a supercolumn tombstone
         rm = new RowMutation(TABLE1, key.key);
-        rm.delete(new QueryPath("Super1", scName), FBUtilities.timestampMicros());
+        rm.deleteRange("Super1", SuperColumns.startOf(scName), SuperColumns.endOf(scName), FBUtilities.timestampMicros());
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -155,12 +155,12 @@ public class CompactionsTest extends SchemaLoader
 
         // check that the shadowed column is gone
         SSTableReader sstable = cfs.getSSTables().iterator().next();
-        SSTableScanner scanner = sstable.getScanner(new QueryFilter(null, new QueryPath("Super1", scName), new IdentityQueryFilter()));
+        SSTableScanner scanner = sstable.getScanner(new QueryFilter(null, "Super1", new IdentityQueryFilter()));
         scanner.seekTo(key);
         OnDiskAtomIterator iter = scanner.next();
         assertEquals(key, iter.getKey());
-        SuperColumn sc = (SuperColumn) iter.next();
-        assert sc.getSubColumns().isEmpty();
+        assert iter.next() instanceof RangeTombstone;
+        assert !iter.hasNext();
     }
 
     public static void assertMaxTimestamp(ColumnFamilyStore cfs, long maxTimestampExpected)
@@ -188,7 +188,7 @@ public class CompactionsTest extends SchemaLoader
         {
             DecoratedKey key = Util.dk(String.valueOf(i));
             RowMutation rm = new RowMutation(TABLE1, key.key);
-            rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
+            rm.add("Standard2", ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
             rm.apply();
 
             if (i % 2 == 0)
@@ -203,7 +203,7 @@ public class CompactionsTest extends SchemaLoader
         {
             DecoratedKey key = Util.dk(String.valueOf(i));
             RowMutation rm = new RowMutation(TABLE1, key.key);
-            rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
+            rm.add("Standard2", ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
             rm.apply();
         }
         cfs.forceBlockingFlush();
@@ -250,19 +250,19 @@ public class CompactionsTest extends SchemaLoader
         // Add test row
         DecoratedKey key = Util.dk(k);
         RowMutation rm = new RowMutation(TABLE1, key.key);
-        rm.add(new QueryPath(cfname, ByteBufferUtil.bytes("sc"), ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        rm.add(cfname, CompositeType.build(ByteBufferUtil.bytes("sc"), ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
 
         cfs.forceBlockingFlush();
 
         Collection<SSTableReader> sstablesBefore = cfs.getSSTables();
 
-        QueryFilter filter = QueryFilter.getIdentityFilter(key, new QueryPath(cfname, null, null));
+        QueryFilter filter = QueryFilter.getIdentityFilter(key, cfname);
         assert !cfs.getColumnFamily(filter).isEmpty();
 
         // Remove key
         rm = new RowMutation(TABLE1, key.key);
-        rm.delete(new QueryPath(cfname, null, null), 2);
+        rm.delete(cfname, 2);
         rm.apply();
 
         ColumnFamily cf = cfs.getColumnFamily(filter);
@@ -306,7 +306,7 @@ public class CompactionsTest extends SchemaLoader
                 DecoratedKey key = Util.dk(String.valueOf(i % 2));
                 RowMutation rm = new RowMutation(TABLE1, key.key);
                 long timestamp = j * ROWS_PER_SSTABLE + i;
-                rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(String.valueOf(i / 2))),
+                rm.add("Standard1", ByteBufferUtil.bytes(String.valueOf(i / 2)),
                         ByteBufferUtil.EMPTY_BYTE_BUFFER,
                         timestamp);
                 maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);

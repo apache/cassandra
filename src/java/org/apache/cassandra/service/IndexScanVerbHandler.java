@@ -43,7 +43,7 @@ public class IndexScanVerbHandler implements IVerbHandler<IndexScanCommand>
             List<Row> rows = cfs.search(command.index_clause.expressions,
                                         command.range,
                                         command.index_clause.count,
-                                        ThriftValidation.asIFilter(command.predicate, cfs.getComparator()));
+                                        ThriftValidation.asIFilter(command.predicate, cfs.metadata, null));
             RangeSliceReply reply = new RangeSliceReply(rows);
             Tracing.trace("Enqueuing response to {}", message.from);
             MessagingService.instance().sendReply(reply.createMessage(), id, message.from);

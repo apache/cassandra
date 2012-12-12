@@ -26,7 +26,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilySerializer;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionInfo;
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -196,13 +196,12 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
 
     private void readSimpleColumns(FileDataInput file, SortedSet<ByteBuffer> columnNames, List<ByteBuffer> filteredColumnNames, List<OnDiskAtom> result) throws IOException
     {
-        OnDiskAtom.Serializer atomSerializer = cf.getOnDiskSerializer();
-        int columns = file.readInt();
+        Iterator<OnDiskAtom> atomIterator = cf.metadata().getOnDiskIterator(file, file.readInt(), sstable.descriptor.version);
         int n = 0;
-        for (int i = 0; i < columns; i++)
+        while (atomIterator.hasNext())
         {
-            OnDiskAtom column = atomSerializer.deserializeFromSSTable(file, sstable.descriptor.version);
-            if (column instanceof IColumn)
+            OnDiskAtom column = atomIterator.next();
+            if (column instanceof Column)
             {
                 if (columnNames.contains(column.name()))
                 {
@@ -255,15 +254,16 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             if (file == null)
                 file = createFileDataInput(positionToSeek);
 
-            OnDiskAtom.Serializer atomSerializer = cf.getOnDiskSerializer();
+            // We'll read as much atom as there is in the index block, so provide a bogus atom count
+            Iterator<OnDiskAtom> atomIterator = cf.metadata().getOnDiskIterator(file, Integer.MAX_VALUE, sstable.descriptor.version);
             file.seek(positionToSeek);
             FileMark mark = file.mark();
             // TODO only completely deserialize columns we are interested in
             while (file.bytesPastMark(mark) < indexInfo.width)
             {
-                OnDiskAtom column = atomSerializer.deserializeFromSSTable(file, sstable.descriptor.version);
+                OnDiskAtom column = atomIterator.next();
                 // we check vs the original Set, not the filtered List, for efficiency
-                if (!(column instanceof IColumn) || columnNames.contains(column.name()))
+                if (!(column instanceof Column) || columnNames.contains(column.name()))
                     result.add(column);
             }
         }

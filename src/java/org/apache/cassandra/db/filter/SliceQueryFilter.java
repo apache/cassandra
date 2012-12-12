@@ -46,7 +46,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
     public final ColumnSlice[] slices;
     public final boolean reversed;
     public volatile int count;
-    private final int compositesToGroup;
+    public final int compositesToGroup;
     // This is a hack to allow rolling upgrade with pre-1.2 nodes
     private final int countMutliplierForCompatibility;
 
@@ -91,6 +91,11 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return new SliceQueryFilter(newSlices, reversed, count, compositesToGroup, countMutliplierForCompatibility);
     }
 
+    public SliceQueryFilter withUpdatedSlice(ByteBuffer start, ByteBuffer finish)
+    {
+        return new SliceQueryFilter(new ColumnSlice[]{ new ColumnSlice(start, finish) }, reversed, count, compositesToGroup, countMutliplierForCompatibility);
+    }
+
     public OnDiskAtomIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key)
     {
         return Memtable.getSliceIterator(key, cf, this);
@@ -106,57 +111,18 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return new SSTableSliceIterator(sstable, file, key, slices, reversed, indexEntry);
     }
 
-    public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)
-    {
-        // we clone shallow, then add, under the theory that generally we're interested in a relatively small number of subcolumns.
-        // this may be a poor assumption.
-        SuperColumn scFiltered = superColumn.cloneMeShallow();
-        final Iterator<IColumn> subcolumns;
-        if (reversed)
-        {
-            List<IColumn> columnsAsList = new ArrayList<IColumn>(superColumn.getSubColumns());
-            subcolumns = Lists.reverse(columnsAsList).iterator();
-        }
-        else
-        {
-            subcolumns = superColumn.getSubColumns().iterator();
-        }
-        final Comparator<ByteBuffer> comparator = reversed ? superColumn.getComparator().reverseComparator : superColumn.getComparator();
-        Iterator<IColumn> results = new AbstractIterator<IColumn>()
-        {
-            protected IColumn computeNext()
-            {
-                while (subcolumns.hasNext())
-                {
-                    IColumn subcolumn = subcolumns.next();
-                    // iterate until we get to the "real" start column
-                    if (comparator.compare(subcolumn.name(), start()) < 0)
-                        continue;
-                    // exit loop when columns are out of the range.
-                    if (finish().remaining() > 0 && comparator.compare(subcolumn.name(), finish()) > 0)
-                        break;
-                    return subcolumn;
-                }
-                return endOfData();
-            }
-        };
-        // subcolumns is either empty now, or has been redefined in the loop above. either is ok.
-        collectReducedColumns(scFiltered, results, gcBefore);
-        return scFiltered;
-    }
-
-    public Comparator<IColumn> getColumnComparator(AbstractType<?> comparator)
+    public Comparator<Column> getColumnComparator(AbstractType<?> comparator)
     {
         return reversed ? comparator.columnReverseComparator : comparator.columnComparator;
     }
 
-    public void collectReducedColumns(IColumnContainer container, Iterator<IColumn> reducedColumns, int gcBefore)
+    public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore)
     {
         columnCounter = getColumnCounter(container);
 
         while (reducedColumns.hasNext())
         {
-            IColumn column = reducedColumns.next();
+            Column column = reducedColumns.next();
             if (logger.isTraceEnabled())
                 logger.trace(String.format("collecting %s of %s: %s",
                                            columnCounter.live(), count, column.getString(container.getComparator())));
@@ -177,12 +143,12 @@ public class SliceQueryFilter implements IDiskAtomFilter
     public int getLiveCount(ColumnFamily cf)
     {
         ColumnCounter counter = getColumnCounter(cf);
-        for (IColumn column : cf)
+        for (Column column : cf)
             counter.count(column, cf);
         return counter.live();
     }
 
-    private ColumnCounter getColumnCounter(IColumnContainer container)
+    private ColumnCounter getColumnCounter(ColumnFamily container)
     {
         AbstractType<?> comparator = container.getComparator();
         if (compositesToGroup < 0)
@@ -200,11 +166,11 @@ public class SliceQueryFilter implements IDiskAtomFilter
         Collection<ByteBuffer> toRemove = null;
         boolean trimRemaining = false;
 
-        Collection<IColumn> columns = reversed
-                                    ? cf.getReverseSortedColumns()
-                                    : cf.getSortedColumns();
+        Collection<Column> columns = reversed
+                                   ? cf.getReverseSortedColumns()
+                                   : cf.getSortedColumns();
 
-        for (IColumn column : columns)
+        for (Column column : columns)
         {
             if (trimRemaining)
             {

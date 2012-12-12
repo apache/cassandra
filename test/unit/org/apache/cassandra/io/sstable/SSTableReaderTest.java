@@ -38,7 +38,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.LocalToken;
@@ -75,7 +74,7 @@ public class SSTableReaderTest extends SchemaLoader
         {
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             RowMutation rm = new RowMutation("Keyspace1", key);
-            rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
+            rm.add("Standard2", ByteBufferUtil.bytes("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
         }
         store.forceBlockingFlush();
@@ -116,7 +115,7 @@ public class SSTableReaderTest extends SchemaLoader
         {
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             RowMutation rm = new RowMutation("Keyspace1", key);
-            rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
+            rm.add("Standard1", ByteBufferUtil.bytes("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
         }
         store.forceBlockingFlush();
@@ -153,7 +152,7 @@ public class SSTableReaderTest extends SchemaLoader
         {
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             RowMutation rm = new RowMutation("Keyspace1", key);
-            rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
+            rm.add("Standard1", ByteBufferUtil.bytes("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
         }
         store.forceBlockingFlush();
@@ -181,7 +180,7 @@ public class SSTableReaderTest extends SchemaLoader
         {
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             RowMutation rm = new RowMutation("Keyspace1", key);
-            rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
+            rm.add("Standard2", ByteBufferUtil.bytes("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
         }
         store.forceBlockingFlush();
@@ -210,7 +209,7 @@ public class SSTableReaderTest extends SchemaLoader
         ColumnFamilyStore store = table.getColumnFamilyStore("Indexed1");
         ByteBuffer key = ByteBufferUtil.bytes(String.valueOf("k1"));
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), System.currentTimeMillis());
+        rm.add("Indexed1", ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(1L), System.currentTimeMillis());
         rm.apply();
         store.forceBlockingFlush();
 
@@ -270,7 +269,7 @@ public class SSTableReaderTest extends SchemaLoader
             if (store.metadata.getKeyValidator().compare(lastKey.key, key.key) < 0)
                 lastKey = key;
             RowMutation rm = new RowMutation(ks, key.key);
-            rm.add(new QueryPath(cf, null, ByteBufferUtil.bytes("col")),
+            rm.add(cf, ByteBufferUtil.bytes("col"),
                    ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp);
             rm.apply();
         }
@@ -294,7 +293,7 @@ public class SSTableReaderTest extends SchemaLoader
         ColumnFamilyStore store = table.getColumnFamilyStore("Indexed1");
         ByteBuffer key = ByteBufferUtil.bytes(String.valueOf("k1"));
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), System.currentTimeMillis());
+        rm.add("Indexed1", ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(1L), System.currentTimeMillis());
         rm.apply();
         store.forceBlockingFlush();
 

@@ -23,7 +23,7 @@ import java.util.List;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ListType;
@@ -50,7 +50,7 @@ public class PreparedOperation implements Operation
                         ColumnNameBuilder builder,
                         AbstractType<?> validator,
                         UpdateParameters params,
-                        List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException
+                        List<Pair<ByteBuffer, Column>> list) throws InvalidRequestException
     {
         if (validator instanceof CollectionType)
         {

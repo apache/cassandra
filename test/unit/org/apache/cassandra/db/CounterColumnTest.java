@@ -33,7 +33,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.context.CounterContext;
 import static org.apache.cassandra.db.context.CounterContext.ContextState;
-import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.*;
 
@@ -74,9 +73,9 @@ public class CounterColumnTest extends SchemaLoader
     @Test
     public void testReconcile() throws UnknownHostException
     {
-        IColumn left;
-        IColumn right;
-        IColumn reconciled;
+        Column left;
+        Column right;
+        Column reconciled;
 
         ByteBuffer context;
 
@@ -286,7 +285,7 @@ public class CounterColumnTest extends SchemaLoader
         assert original.equals(deserialized);
 
         bufIn = new ByteArrayInputStream(serialized, 0, serialized.length);
-        CounterColumn deserializedOnRemote = (CounterColumn)Column.serializer().deserialize(new DataInputStream(bufIn), IColumnSerializer.Flag.FROM_REMOTE);
+        CounterColumn deserializedOnRemote = (CounterColumn)Column.serializer().deserialize(new DataInputStream(bufIn), ColumnSerializer.Flag.FROM_REMOTE);
         assert deserializedOnRemote.name().equals(original.name());
         assert deserializedOnRemote.total() == original.total();
         assert deserializedOnRemote.value().equals(cc.clearAllDelta(original.value()));

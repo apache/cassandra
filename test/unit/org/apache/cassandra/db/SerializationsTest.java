@@ -23,6 +23,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -45,34 +46,39 @@ import java.util.*;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
+    Statics statics = new Statics();
+
     @BeforeClass
     public static void loadSchema() throws IOException
     {
         loadSchema(true);
     }
 
+    private ByteBuffer startCol = ByteBufferUtil.bytes("Start");
+    private ByteBuffer stopCol = ByteBufferUtil.bytes("Stop");
+    private ByteBuffer emptyCol = ByteBufferUtil.bytes("");
+    public NamesQueryFilter namesPred = new NamesQueryFilter(statics.NamedCols);
+    public NamesQueryFilter namesSCPred = new NamesQueryFilter(statics.NamedSCCols);
+    public SliceQueryFilter emptyRangePred = new SliceQueryFilter(emptyCol, emptyCol, false, 100);
+    public SliceQueryFilter nonEmptyRangePred = new SliceQueryFilter(startCol, stopCol, true, 100);
+    public SliceQueryFilter nonEmptyRangeSCPred = new SliceQueryFilter(CompositeType.build(statics.SC, startCol), CompositeType.build(statics.SC, stopCol), true, 100);
+
     private void testRangeSliceCommandWrite() throws IOException
     {
-        ByteBuffer startCol = ByteBufferUtil.bytes("Start");
-        ByteBuffer stopCol = ByteBufferUtil.bytes("Stop");
-        ByteBuffer emptyCol = ByteBufferUtil.bytes("");
-        NamesQueryFilter namesPred = new NamesQueryFilter(Statics.NamedCols);
-        SliceQueryFilter emptyRangePred = new SliceQueryFilter(emptyCol, emptyCol, false, 100);
-        SliceQueryFilter nonEmptyRangePred = new SliceQueryFilter(startCol, stopCol, true, 100);
         IPartitioner part = StorageService.getPartitioner();
         AbstractBounds<RowPosition> bounds = new Range<Token>(part.getRandomToken(), part.getRandomToken()).toRowBounds();
 
-        RangeSliceCommand namesCmd = new RangeSliceCommand(Statics.KS, "Standard1", null, namesPred, bounds, 100);
+        RangeSliceCommand namesCmd = new RangeSliceCommand(statics.KS, "Standard1", namesPred, bounds, 100);
         MessageOut<RangeSliceCommand> namesCmdMsg = namesCmd.createMessage();
-        RangeSliceCommand emptyRangeCmd = new RangeSliceCommand(Statics.KS, "Standard1", null, emptyRangePred, bounds, 100);
+        RangeSliceCommand emptyRangeCmd = new RangeSliceCommand(statics.KS, "Standard1", emptyRangePred, bounds, 100);
         MessageOut<RangeSliceCommand> emptyRangeCmdMsg = emptyRangeCmd.createMessage();
-        RangeSliceCommand regRangeCmd = new RangeSliceCommand(Statics.KS, "Standard1", null,  nonEmptyRangePred, bounds, 100);
+        RangeSliceCommand regRangeCmd = new RangeSliceCommand(statics.KS, "Standard1", nonEmptyRangePred, bounds, 100);
         MessageOut<RangeSliceCommand> regRangeCmdMsg = regRangeCmd.createMessage();
-        RangeSliceCommand namesCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC, namesPred, bounds, 100);
+        RangeSliceCommand namesCmdSup = new RangeSliceCommand(statics.KS, "Super1", namesSCPred, bounds, 100);
         MessageOut<RangeSliceCommand> namesCmdSupMsg = namesCmdSup.createMessage();
-        RangeSliceCommand emptyRangeCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC, emptyRangePred, bounds, 100);
+        RangeSliceCommand emptyRangeCmdSup = new RangeSliceCommand(statics.KS, "Super1", emptyRangePred, bounds, 100);
         MessageOut<RangeSliceCommand> emptyRangeCmdSupMsg = emptyRangeCmdSup.createMessage();
-        RangeSliceCommand regRangeCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC,  nonEmptyRangePred, bounds, 100);
+        RangeSliceCommand regRangeCmdSup = new RangeSliceCommand(statics.KS, "Super1", nonEmptyRangeSCPred, bounds, 100);
         MessageOut<RangeSliceCommand> regRangeCmdSupMsg = regRangeCmdSup.createMessage();
 
         DataOutputStream out = getOutput("db.RangeSliceCommand.bin");
@@ -107,8 +113,8 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testSliceByNamesReadCommandWrite() throws IOException
     {
-        SliceByNamesReadCommand standardCmd = new SliceByNamesReadCommand(Statics.KS, Statics.Key, Statics.StandardPath, Statics.NamedCols);
-        SliceByNamesReadCommand superCmd = new SliceByNamesReadCommand(Statics.KS, Statics.Key, Statics.SuperPath, Statics.NamedCols);
+        SliceByNamesReadCommand standardCmd = new SliceByNamesReadCommand(statics.KS, statics.Key, statics.StandardCF, namesPred);
+        SliceByNamesReadCommand superCmd = new SliceByNamesReadCommand(statics.KS, statics.Key, statics.SuperCF, namesSCPred);
 
         DataOutputStream out = getOutput("db.SliceByNamesReadCommand.bin");
         SliceByNamesReadCommand.serializer.serialize(standardCmd, out, getVersion());
@@ -142,8 +148,9 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testSliceFromReadCommandWrite() throws IOException
     {
-        SliceFromReadCommand standardCmd = new SliceFromReadCommand(Statics.KS, Statics.Key, Statics.StandardPath, Statics.Start, Statics.Stop, true, 100);
-        SliceFromReadCommand superCmd = new SliceFromReadCommand(Statics.KS, Statics.Key, Statics.SuperPath, Statics.Start, Statics.Stop, true, 100);
+        SliceFromReadCommand standardCmd = new SliceFromReadCommand(statics.KS, statics.Key, statics.StandardCF, nonEmptyRangePred);
+        SliceFromReadCommand superCmd = new SliceFromReadCommand(statics.KS, statics.Key, statics.SuperCF, nonEmptyRangeSCPred);
+        
         DataOutputStream out = getOutput("db.SliceFromReadCommand.bin");
         SliceFromReadCommand.serializer.serialize(standardCmd, out, getVersion());
         SliceFromReadCommand.serializer.serialize(superCmd, out, getVersion());
@@ -151,6 +158,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         ReadCommand.serializer.serialize(superCmd, out, getVersion());
         standardCmd.createMessage().serialize(out, getVersion());
         superCmd.createMessage().serialize(out, getVersion());
+
         out.close();
 
         // test serializedSize
@@ -177,15 +185,15 @@ public class SerializationsTest extends AbstractSerializationsTester
     private void testRowWrite() throws IOException
     {
         DataOutputStream out = getOutput("db.Row.bin");
-        Row.serializer.serialize(Statics.StandardRow, out, getVersion());
-        Row.serializer.serialize(Statics.SuperRow, out, getVersion());
-        Row.serializer.serialize(Statics.NullRow, out, getVersion());
+        Row.serializer.serialize(statics.StandardRow, out, getVersion());
+        Row.serializer.serialize(statics.SuperRow, out, getVersion());
+        Row.serializer.serialize(statics.NullRow, out, getVersion());
         out.close();
 
         // test serializedSize
-        testSerializedSize(Statics.StandardRow, Row.serializer);
-        testSerializedSize(Statics.SuperRow, Row.serializer);
-        testSerializedSize(Statics.NullRow, Row.serializer);
+        testSerializedSize(statics.StandardRow, Row.serializer);
+        testSerializedSize(statics.SuperRow, Row.serializer);
+        testSerializedSize(statics.NullRow, Row.serializer);
     }
 
     @Test
@@ -203,17 +211,17 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testRowMutationWrite() throws IOException
     {
-        RowMutation emptyRm = new RowMutation(Statics.KS, Statics.Key);
-        RowMutation standardRowRm = new RowMutation(Statics.KS, Statics.StandardRow);
-        RowMutation superRowRm = new RowMutation(Statics.KS, Statics.SuperRow);
-        RowMutation standardRm = new RowMutation(Statics.KS, Statics.Key);
-        standardRm.add(Statics.StandardCf);
-        RowMutation superRm = new RowMutation(Statics.KS, Statics.Key);
-        superRm.add(Statics.SuperCf);
+        RowMutation emptyRm = new RowMutation(statics.KS, statics.Key);
+        RowMutation standardRowRm = new RowMutation(statics.KS, statics.StandardRow);
+        RowMutation superRowRm = new RowMutation(statics.KS, statics.SuperRow);
+        RowMutation standardRm = new RowMutation(statics.KS, statics.Key);
+        standardRm.add(statics.StandardCf);
+        RowMutation superRm = new RowMutation(statics.KS, statics.Key);
+        superRm.add(statics.SuperCf);
         Map<UUID, ColumnFamily> mods = new HashMap<UUID, ColumnFamily>();
-        mods.put(Statics.StandardCf.metadata().cfId, Statics.StandardCf);
-        mods.put(Statics.SuperCf.metadata().cfId, Statics.SuperCf);
-        RowMutation mixedRm = new RowMutation(Statics.KS, Statics.Key, mods);
+        mods.put(statics.StandardCf.metadata().cfId, statics.StandardCf);
+        mods.put(statics.SuperCf.metadata().cfId, statics.SuperCf);
+        RowMutation mixedRm = new RowMutation(statics.KS, statics.Key, mods);
 
         DataOutputStream out = getOutput("db.RowMutation.bin");
         RowMutation.serializer.serialize(emptyRm, out, getVersion());
@@ -265,9 +273,9 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testTruncateWrite() throws IOException
     {
-        Truncation tr = new Truncation(Statics.KS, "Doesn't Really Matter");
-        TruncateResponse aff = new TruncateResponse(Statics.KS, "Doesn't Matter Either", true);
-        TruncateResponse neg = new TruncateResponse(Statics.KS, "Still Doesn't Matter", false);
+        Truncation tr = new Truncation(statics.KS, "Doesn't Really Matter");
+        TruncateResponse aff = new TruncateResponse(statics.KS, "Doesn't Matter Either", true);
+        TruncateResponse neg = new TruncateResponse(statics.KS, "Still Doesn't Matter", false);
         DataOutputStream out = getOutput("db.Truncation.bin");
         Truncation.serializer.serialize(tr, out, getVersion());
         TruncateResponse.serializer.serialize(aff, out, getVersion());
@@ -338,39 +346,35 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private static class Statics
     {
-        private static final String KS = "Keyspace1";
-        private static final ByteBuffer Key = ByteBufferUtil.bytes("Key01");
-        private static final SortedSet<ByteBuffer> NamedCols = new TreeSet<ByteBuffer>(BytesType.instance)
+        private final String KS = "Keyspace1";
+        private final ByteBuffer Key = ByteBufferUtil.bytes("Key01");
+        private final SortedSet<ByteBuffer> NamedCols = new TreeSet<ByteBuffer>(BytesType.instance)
         {{
             add(ByteBufferUtil.bytes("AAA"));
             add(ByteBufferUtil.bytes("BBB"));
             add(ByteBufferUtil.bytes("CCC"));
         }};
-        private static final ByteBuffer SC = ByteBufferUtil.bytes("SCName");
-        private static final QueryPath StandardPath = new QueryPath("Standard1");
-        private static final QueryPath SuperPath = new QueryPath("Super1", SC);
-        private static final ByteBuffer Start = ByteBufferUtil.bytes("Start");
-        private static final ByteBuffer Stop = ByteBufferUtil.bytes("Stop");
-
-        private static final ColumnFamily StandardCf = ColumnFamily.create(Statics.KS, "Standard1");
-        private static final ColumnFamily SuperCf = ColumnFamily.create(Statics.KS, "Super1");
-
-        private static final SuperColumn SuperCol = new SuperColumn(Statics.SC, Schema.instance.getComparator(Statics.KS, "Super1"))
+        private final ByteBuffer SC = ByteBufferUtil.bytes("SCName");
+        private final SortedSet<ByteBuffer> NamedSCCols = new TreeSet<ByteBuffer>(BytesType.instance)
         {{
-            addColumn(new Column(bb("aaaa")));
-            addColumn(new Column(bb("bbbb"), bb("bbbbb-value")));
-            addColumn(new Column(bb("cccc"), bb("ccccc-value"), 1000L));
-            addColumn(new DeletedColumn(bb("dddd"), 500, 1000));
-            addColumn(new DeletedColumn(bb("eeee"), bb("eeee-value"), 1001));
-            addColumn(new ExpiringColumn(bb("ffff"), bb("ffff-value"), 2000, 1000));
-            addColumn(new ExpiringColumn(bb("gggg"), bb("gggg-value"), 2001, 1000, 2002));
+            add(CompositeType.build(SC, ByteBufferUtil.bytes("AAA")));
+            add(CompositeType.build(SC, ByteBufferUtil.bytes("BBB")));
+            add(CompositeType.build(SC, ByteBufferUtil.bytes("CCC")));
         }};
+        private final String StandardCF = "Standard1";
+        private final String SuperCF = "Super1";
+        private final ByteBuffer Start = ByteBufferUtil.bytes("Start");
+        private final ByteBuffer Stop = ByteBufferUtil.bytes("Stop");
 
-        private static final Row StandardRow = new Row(Util.dk("key0"), Statics.StandardCf);
-        private static final Row SuperRow = new Row(Util.dk("key1"), Statics.SuperCf);
-        private static final Row NullRow = new Row(Util.dk("key2"), null);
+        private final ColumnFamily StandardCf = ColumnFamily.create(KS, StandardCF);
+        private final ColumnFamily SuperCf = ColumnFamily.create(KS, SuperCF);
 
-        static {
+        private final Row StandardRow = new Row(Util.dk("key0"), StandardCf);
+        private final Row SuperRow = new Row(Util.dk("key1"), SuperCf);
+        private final Row NullRow = new Row(Util.dk("key2"), null);
+
+        private Statics()
+        {
             StandardCf.addColumn(new Column(bb("aaaa")));
             StandardCf.addColumn(new Column(bb("bbbb"), bb("bbbbb-value")));
             StandardCf.addColumn(new Column(bb("cccc"), bb("ccccc-value"), 1000L));
@@ -379,7 +383,13 @@ public class SerializationsTest extends AbstractSerializationsTester
             StandardCf.addColumn(new ExpiringColumn(bb("ffff"), bb("ffff-value"), 2000, 1000));
             StandardCf.addColumn(new ExpiringColumn(bb("gggg"), bb("gggg-value"), 2001, 1000, 2002));
 
-            SuperCf.addColumn(Statics.SuperCol);
+            SuperCf.addColumn(new Column(CompositeType.build(SC, bb("aaaa"))));
+            SuperCf.addColumn(new Column(CompositeType.build(SC, bb("bbbb")), bb("bbbbb-value")));
+            SuperCf.addColumn(new Column(CompositeType.build(SC, bb("cccc")), bb("ccccc-value"), 1000L));
+            SuperCf.addColumn(new DeletedColumn(CompositeType.build(SC, bb("dddd")), 500, 1000));
+            SuperCf.addColumn(new DeletedColumn(CompositeType.build(SC, bb("eeee")), bb("eeee-value"), 1001));
+            SuperCf.addColumn(new ExpiringColumn(CompositeType.build(SC, bb("ffff")), bb("ffff-value"), 2000, 1000));
+            SuperCf.addColumn(new ExpiringColumn(CompositeType.build(SC, bb("gggg")), bb("gggg-value"), 2001, 1000, 2002));
         }
     }
 }

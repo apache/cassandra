@@ -56,7 +56,7 @@ public class CompositesIndex extends AbstractSimplePerColumnSecondaryIndex
         indexComparator = (CompositeType)SecondaryIndex.getIndexComparator(baseCfs.metadata, columnDef);
     }
 
-    protected ByteBuffer makeIndexColumnName(ByteBuffer rowKey, IColumn column)
+    protected ByteBuffer makeIndexColumnName(ByteBuffer rowKey, Column column)
     {
         CompositeType baseComparator = (CompositeType)baseCfs.getComparator();
         ByteBuffer[] components = baseComparator.split(column.name());

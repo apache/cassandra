@@ -33,7 +33,7 @@ import org.apache.cassandra.utils.Allocator;
 
 public class ThreadSafeSortedColumns extends AbstractThreadUnsafeSortedColumns implements ISortedColumns
 {
-    private final ConcurrentSkipListMap<ByteBuffer, IColumn> map;
+    private final ConcurrentSkipListMap<ByteBuffer, Column> map;
 
     public static final ISortedColumns.Factory factory = new Factory()
     {
@@ -42,7 +42,7 @@ public class ThreadSafeSortedColumns extends AbstractThreadUnsafeSortedColumns i
             return new ThreadSafeSortedColumns(comparator);
         }
 
-        public ISortedColumns fromSorted(SortedMap<ByteBuffer, IColumn> sortedMap, boolean insertReversed)
+        public ISortedColumns fromSorted(SortedMap<ByteBuffer, Column> sortedMap, boolean insertReversed)
         {
             return new ThreadSafeSortedColumns(sortedMap);
         }
@@ -60,12 +60,12 @@ public class ThreadSafeSortedColumns extends AbstractThreadUnsafeSortedColumns i
 
     private ThreadSafeSortedColumns(AbstractType<?> comparator)
     {
-        this.map = new ConcurrentSkipListMap<ByteBuffer, IColumn>(comparator);
+        this.map = new ConcurrentSkipListMap<ByteBuffer, Column>(comparator);
     }
 
-    private ThreadSafeSortedColumns(SortedMap<ByteBuffer, IColumn> columns)
+    private ThreadSafeSortedColumns(SortedMap<ByteBuffer, Column> columns)
     {
-        this.map = new ConcurrentSkipListMap<ByteBuffer, IColumn>(columns);
+        this.map = new ConcurrentSkipListMap<ByteBuffer, Column>(columns);
     }
 
     public ISortedColumns.Factory getFactory()
@@ -87,59 +87,49 @@ public class ThreadSafeSortedColumns extends AbstractThreadUnsafeSortedColumns i
      * If we find an old column that has the same name
      * the ask it to resolve itself else add the new column
     */
-    public void addColumn(IColumn column, Allocator allocator)
+    public void addColumn(Column column, Allocator allocator)
     {
         addColumnInternal(column, allocator);
     }
 
-    private long addColumnInternal(IColumn column, Allocator allocator)
+    private long addColumnInternal(Column column, Allocator allocator)
     {
         ByteBuffer name = column.name();
         while (true)
         {
-            IColumn oldColumn = map.putIfAbsent(name, column);
+            Column oldColumn = map.putIfAbsent(name, column);
             if (oldColumn == null)
                 return column.dataSize();
 
-            if (oldColumn instanceof SuperColumn)
-            {
-                assert column instanceof SuperColumn;
-                long previousSize = oldColumn.dataSize();
-                ((SuperColumn) oldColumn).putColumn((SuperColumn)column, allocator);
-                return oldColumn.dataSize() - previousSize;
-            }
-            else
-            {
-                // calculate reconciled col from old (existing) col and new col
-                IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
-                if (map.replace(name, oldColumn, reconciledColumn))
-                    return reconciledColumn.dataSize() - oldColumn.dataSize();
+            // calculate reconciled col from old (existing) col and new col
+            Column reconciledColumn = column.reconcile(oldColumn, allocator);
+            if (map.replace(name, oldColumn, reconciledColumn))
+                return reconciledColumn.dataSize() - oldColumn.dataSize();
 
-                // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
-                // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
-            }
+            // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
+            // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
         }
     }
 
     /**
      * We need to go through each column in the column container and resolve it before adding
      */
-    public void addAll(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
+    public void addAll(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation)
     {
         addAllWithSizeDelta(cm, allocator, transformation, null);
     }
 
     @Override
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer)
+    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
     {
         delete(cm.getDeletionInfo());
         long sizeDelta = 0;
-        for (IColumn column : cm.getSortedColumns())
+        for (Column column : cm.getSortedColumns())
             sizeDelta += addColumnInternal(transformation.apply(column), allocator);
         return sizeDelta;
     }
 
-    public boolean replace(IColumn oldColumn, IColumn newColumn)
+    public boolean replace(Column oldColumn, Column newColumn)
     {
         if (!oldColumn.name().equals(newColumn.name()))
             throw new IllegalArgumentException();
@@ -147,7 +137,7 @@ public class ThreadSafeSortedColumns extends AbstractThreadUnsafeSortedColumns i
         return map.replace(oldColumn.name(), oldColumn, newColumn);
     }
 
-    public IColumn getColumn(ByteBuffer name)
+    public Column getColumn(ByteBuffer name)
     {
         return map.get(name);
     }
@@ -167,12 +157,12 @@ public class ThreadSafeSortedColumns extends AbstractThreadUnsafeSortedColumns i
         return map.size();
     }
 
-    public Collection<IColumn> getSortedColumns()
+    public Collection<Column> getSortedColumns()
     {
         return map.values();
     }
 
-    public Collection<IColumn> getReverseSortedColumns()
+    public Collection<Column> getReverseSortedColumns()
     {
         return map.descendingMap().values();
     }
@@ -182,17 +172,17 @@ public class ThreadSafeSortedColumns extends AbstractThreadUnsafeSortedColumns i
         return map.navigableKeySet();
     }
 
-    public Iterator<IColumn> iterator()
+    public Iterator<Column> iterator()
     {
         return map.values().iterator();
     }
 
-    public Iterator<IColumn> iterator(ColumnSlice[] slices)
+    public Iterator<Column> iterator(ColumnSlice[] slices)
     {
         return new ColumnSlice.NavigableMapIterator(map, slices);
     }
 
-    public Iterator<IColumn> reverseIterator(ColumnSlice[] slices)
+    public Iterator<Column> reverseIterator(ColumnSlice[] slices)
     {
         return new ColumnSlice.NavigableMapIterator(map.descendingMap(), slices);
     }

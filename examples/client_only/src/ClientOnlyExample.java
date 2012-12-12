@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.*;
@@ -64,8 +64,7 @@ public class ClientOnlyExample
         for (int i = 0; i < 100; i++)
         {
             RowMutation change = new RowMutation(KEYSPACE, ByteBufferUtil.bytes(("key" + i)));
-            ColumnPath cp = new ColumnPath(COLUMN_FAMILY).setColumn(("colb").getBytes());
-            change.add(new QueryPath(cp), ByteBufferUtil.bytes(("value" + i)), 0);
+            change.add(COLUMN_FAMILY, ByteBufferUtil.bytes("colb"), ByteBufferUtil.bytes(("value" + i)), 0);
 
             // don't call change.apply().  The reason is that is makes a static call into Table, which will perform
             // local storage initialization, which creates local directories.
@@ -80,15 +79,10 @@ public class ClientOnlyExample
     private static void testReading() throws Exception
     {
         // do some queries.
-        Collection<ByteBuffer> cols = new ArrayList<ByteBuffer>()
-        {{
-            add(ByteBufferUtil.bytes("colb"));
-        }};
         for (int i = 0; i < 100; i++)
         {
             List<ReadCommand> commands = new ArrayList<ReadCommand>();
-            SliceByNamesReadCommand readCommand = new SliceByNamesReadCommand(KEYSPACE, ByteBufferUtil.bytes(("key" + i)),
-                                                                              new QueryPath(COLUMN_FAMILY, null, null), cols);
+            SliceByNamesReadCommand readCommand = new SliceByNamesReadCommand(KEYSPACE, ByteBufferUtil.bytes(("key" + i)), COLUMN_FAMILY, new NamesQueryFilter(ByteBufferUtil.bytes("colb")));
             readCommand.setDigestQuery(false);
             commands.add(readCommand);
             List<Row> rows = StorageProxy.read(commands, ConsistencyLevel.ONE);

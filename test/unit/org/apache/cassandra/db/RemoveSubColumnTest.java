@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
@@ -25,7 +26,7 @@ import org.junit.Test;
 
 import static junit.framework.Assert.assertNull;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.CompositeType;
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.SchemaLoader;
@@ -48,13 +49,14 @@ public class RemoveSubColumnTest extends SchemaLoader
         rm.apply();
         store.forceBlockingFlush();
 
+        ByteBuffer cname = CompositeType.build(ByteBufferUtil.bytes("SC1"), getBytes(1L));
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Super1", ByteBufferUtil.bytes("SC1"), getBytes(1L)), 1);
+        rm.delete("Super1", cname, 1);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Super1", ByteBufferUtil.bytes("SC1"))));
-        assert retrieved.getColumn(ByteBufferUtil.bytes("SC1")).getSubColumn(getBytes(1L)).isMarkedForDelete();
+        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, "Super1"));
+        assert retrieved.getColumn(cname).isMarkedForDelete();
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
     }
 
@@ -73,8 +75,10 @@ public class RemoveSubColumnTest extends SchemaLoader
         store.forceBlockingFlush();
 
         // remove the SC
+        ByteBuffer scName = ByteBufferUtil.bytes("SC1");
+        ByteBuffer cname = CompositeType.build(scName, getBytes(1L));
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Super1", ByteBufferUtil.bytes("SC1"), null), 1);
+        rm.deleteRange("Super1", SuperColumns.startOf(scName), SuperColumns.endOf(scName), 1);
         rm.apply();
 
         // Mark current time and make sure the next insert happens at least
@@ -84,11 +88,11 @@ public class RemoveSubColumnTest extends SchemaLoader
 
         // remove the column itself
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Super1", ByteBufferUtil.bytes("SC1"), getBytes(1)), 2);
+        rm.delete("Super1", cname, 2);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Super1", ByteBufferUtil.bytes("SC1"))), gcbefore);
-        assert retrieved.getColumn(ByteBufferUtil.bytes("SC1")).getSubColumn(getBytes(1)).isMarkedForDelete();
+        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, "Super1"), gcbefore);
+        assert retrieved.getColumn(cname).isMarkedForDelete();
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
     }
 }

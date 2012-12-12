@@ -603,7 +603,7 @@ public class CompactionManager implements CompactionManagerMBean
 
             SSTableScanner scanner = sstable.getDirectScanner();
             long rowsRead = 0;
-            List<IColumn> indexedColumnsInRow = null;
+            List<Column> indexedColumnsInRow = null;
 
             CleanupInfo ci = new CleanupInfo(sstable, scanner);
             metrics.beginCompaction(ci);
@@ -637,12 +637,12 @@ public class CompactionManager implements CompactionManagerMBean
                                 OnDiskAtom column = row.next();
                                 if (column instanceof CounterColumn)
                                     renewer.maybeRenew((CounterColumn) column);
-                                if (column instanceof IColumn && cfs.indexManager.indexes((IColumn)column))
+                                if (column instanceof Column && cfs.indexManager.indexes((Column)column))
                                 {
                                     if (indexedColumnsInRow == null)
-                                        indexedColumnsInRow = new ArrayList<IColumn>();
+                                        indexedColumnsInRow = new ArrayList<Column>();
 
-                                    indexedColumnsInRow.add((IColumn)column);
+                                    indexedColumnsInRow.add((Column)column);
                                 }
                             }
 

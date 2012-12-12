@@ -31,7 +31,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -63,7 +62,7 @@ public class LongLeveledCompactionStrategyTest extends SchemaLoader
             RowMutation rm = new RowMutation(ksname, key.key);
             for (int c = 0; c < columns; c++)
             {
-                rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes("column" + c)), value, 0);
+                rm.add(cfname, ByteBufferUtil.bytes("column" + c), value, 0);
             }
             rm.apply();
             store.forceBlockingFlush();

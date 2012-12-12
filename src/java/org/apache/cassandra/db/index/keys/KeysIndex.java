@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Set;
 
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -38,7 +38,7 @@ public class KeysIndex extends AbstractSimplePerColumnSecondaryIndex
         // Nothing specific
     }
 
-    protected ByteBuffer makeIndexColumnName(ByteBuffer rowKey, IColumn column)
+    protected ByteBuffer makeIndexColumnName(ByteBuffer rowKey, Column column)
     {
         return rowKey;
     }

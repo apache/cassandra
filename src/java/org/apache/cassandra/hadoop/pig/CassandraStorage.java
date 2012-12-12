@@ -29,7 +29,6 @@ import org.apache.commons.logging.LogFactory;
 
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.AbstractCompositeType.CompositeComponent;
 import org.apache.cassandra.hadoop.*;
@@ -96,7 +95,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private String storeSignature;
 
     private Configuration conf;
-    private RecordReader<ByteBuffer, Map<ByteBuffer, IColumn>> reader;
+    private RecordReader<ByteBuffer, Map<ByteBuffer, Column>> reader;
     private RecordWriter<ByteBuffer, List<Mutation>> writer;
     private String inputFormatClass;
     private String outputFormatClass;
@@ -105,7 +104,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private boolean usePartitionFilter = false;
     // wide row hacks
     private ByteBuffer lastKey;
-    private Map<ByteBuffer,IColumn> lastRow;
+    private Map<ByteBuffer,Column> lastRow;
     private boolean hasNext = true;
 
     public CassandraStorage()
@@ -147,7 +146,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                             key = (ByteBuffer)reader.getCurrentKey();
                             tuple.append(new DataByteArray(key.array(), key.position()+key.arrayOffset(), key.limit()+key.arrayOffset()));
                         }
-                        for (Map.Entry<ByteBuffer, IColumn> entry : lastRow.entrySet())
+                        for (Map.Entry<ByteBuffer, Column> entry : lastRow.entrySet())
                         {
                             bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
                         }
@@ -171,7 +170,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                 {
                     // read too much, hold on to it for next time
                     lastKey = (ByteBuffer)reader.getCurrentKey();
-                    lastRow = (SortedMap<ByteBuffer,IColumn>)reader.getCurrentValue();
+                    lastRow = (SortedMap<ByteBuffer,Column>)reader.getCurrentValue();
                     // but return what we have so far
                     tuple.append(bag);
                     return tuple;
@@ -182,28 +181,28 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                     if (lastKey != null && !(key.equals(lastKey))) // last key only had one value
                     {
                         tuple.append(new DataByteArray(lastKey.array(), lastKey.position()+lastKey.arrayOffset(), lastKey.limit()+lastKey.arrayOffset()));
-                        for (Map.Entry<ByteBuffer, IColumn> entry : lastRow.entrySet())
+                        for (Map.Entry<ByteBuffer, Column> entry : lastRow.entrySet())
                         {
                             bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
                         }
                         tuple.append(bag);
                         lastKey = key;
-                        lastRow = (SortedMap<ByteBuffer,IColumn>)reader.getCurrentValue();
+                        lastRow = (SortedMap<ByteBuffer,Column>)reader.getCurrentValue();
                         return tuple;
                     }
                     tuple.append(new DataByteArray(key.array(), key.position()+key.arrayOffset(), key.limit()+key.arrayOffset()));
                 }
-                SortedMap<ByteBuffer,IColumn> row = (SortedMap<ByteBuffer,IColumn>)reader.getCurrentValue();
+                SortedMap<ByteBuffer,Column> row = (SortedMap<ByteBuffer,Column>)reader.getCurrentValue();
                 if (lastRow != null) // prepend what was read last time
                 {
-                    for (Map.Entry<ByteBuffer, IColumn> entry : lastRow.entrySet())
+                    for (Map.Entry<ByteBuffer, Column> entry : lastRow.entrySet())
                     {
                         bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
                     }
                     lastKey = null;
                     lastRow = null;
                 }
-                for (Map.Entry<ByteBuffer, IColumn> entry : row.entrySet())
+                for (Map.Entry<ByteBuffer, Column> entry : row.entrySet())
                 {
                     bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
                 }
@@ -228,7 +227,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 
             CfDef cfDef = getCfDef(loadSignature);
             ByteBuffer key = reader.getCurrentKey();
-            Map<ByteBuffer, IColumn> cf = reader.getCurrentValue();
+            Map<ByteBuffer, Column> cf = reader.getCurrentValue();
             assert key != null && cf != null;
 
             // output tuple, will hold the key, each indexed column in a tuple, then a bag of the rest
@@ -253,7 +252,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                 added.put(cdef.name, true);
             }
             // now add all the other columns
-            for (Map.Entry<ByteBuffer, IColumn> entry : cf.entrySet())
+            for (Map.Entry<ByteBuffer, Column> entry : cf.entrySet())
             {
                 if (!added.containsKey(entry.getKey()))
                     bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
@@ -307,7 +306,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         return tuple;
     }
 
-    private Tuple columnToTuple(IColumn col, CfDef cfDef, AbstractType comparator) throws IOException
+    private Tuple columnToTuple(Column col, CfDef cfDef, AbstractType comparator) throws IOException
     {
         Tuple pair = TupleFactory.getInstance().newTuple(2);
 
@@ -319,27 +318,14 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         {
             setTupleValue(pair, 0, comparator.compose(col.name()));
         }
-        if (col instanceof Column)
-        {
-            // standard
-            List<AbstractType> marshallers = getDefaultMarshallers(cfDef);
-            Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
 
-            if (validators.get(col.name()) == null)
-                setTupleValue(pair, 1, marshallers.get(1).compose(col.value()));
-            else
-                setTupleValue(pair, 1, validators.get(col.name()).compose(col.value()));
-            return pair;
-        }
+        List<AbstractType> marshallers = getDefaultMarshallers(cfDef);
+        Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
+
+        if (validators.get(col.name()) == null)
+            setTupleValue(pair, 1, marshallers.get(1).compose(col.value()));
         else
-        {
-            // super
-            ArrayList<Tuple> subcols = new ArrayList<Tuple>();
-            for (IColumn subcol : col.getSubColumns())
-                subcols.add(columnToTuple(subcol, cfDef, parseType(cfDef.getSubcomparator_type())));
-
-            pair.set(1, new DefaultDataBag(subcols));
-        }
+            setTupleValue(pair, 1, validators.get(col.name()).compose(col.value()));
         return pair;
     }
 

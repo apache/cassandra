@@ -35,12 +35,13 @@ import java.util.Map;
 
 public class AbstractSerializationsTester extends SchemaLoader
 {
-    protected static final String CUR_VER = System.getProperty("cassandra.version", "1.2");
+    protected static final String CUR_VER = System.getProperty("cassandra.version", "2.0");
     protected static final Map<String, Integer> VERSION_MAP = new HashMap<String, Integer> ()
     {{
         put("0.7", 1);
         put("1.0", 3);
         put("1.2", MessagingService.VERSION_12);
+        put("2.0", MessagingService.VERSION_20);
     }};
 
     // TODO ant doesn't pass this -D up to the test, so it's kind of useless

@@ -132,6 +132,8 @@ class BaseTester(object):
                 if not is_alive(spid):
                     break
                 slept += 0.5
+            # Give time for cassandra to shutdown
+            time.sleep(1)
             if (slept > max_wait and is_alive(spid)):
                 os.kill(spid, signal.SIGKILL)
                 fpath = os.path.join(root, pid_fname)

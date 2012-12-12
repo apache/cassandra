@@ -37,8 +37,10 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
@@ -90,14 +92,6 @@ public class Util
         return new CounterUpdateColumn(ByteBufferUtil.bytes(name), value, timestamp);
     }
 
-    public static SuperColumn superColumn(ColumnFamily cf, String name, Column... columns)
-    {
-        SuperColumn sc = new SuperColumn(ByteBufferUtil.bytes(name), cf.metadata().comparator);
-        for (Column c : columns)
-            sc.addColumn(c);
-        return sc;
-    }
-
     public static Token token(String key)
     {
         return StorageService.getPartitioner().getToken(ByteBufferUtil.bytes(key));
@@ -120,7 +114,10 @@ public class Util
 
     public static void addMutation(RowMutation rm, String columnFamilyName, String superColumnName, long columnName, String value, long timestamp)
     {
-        rm.add(new QueryPath(columnFamilyName, ByteBufferUtil.bytes(superColumnName), getBytes(columnName)), ByteBufferUtil.bytes(value), timestamp);
+        ByteBuffer cname = superColumnName == null
+                         ? getBytes(columnName)
+                         : CompositeType.build(ByteBufferUtil.bytes(superColumnName), getBytes(columnName));
+        rm.add(columnFamilyName, cname, ByteBufferUtil.bytes(value), timestamp);
     }
 
     public static ByteBuffer getBytes(long v)
@@ -148,11 +145,14 @@ public class Util
 
     public static List<Row> getRangeSlice(ColumnFamilyStore cfs, ByteBuffer superColumn) throws IOException, ExecutionException, InterruptedException
     {
+        IDiskAtomFilter filter = superColumn == null
+                               ? new IdentityQueryFilter()
+                               : new SliceQueryFilter(SuperColumns.startOf(superColumn), SuperColumns.endOf(superColumn), false, Integer.MAX_VALUE);
+
         Token min = StorageService.getPartitioner().getMinimumToken();
-        return cfs.getRangeSlice(superColumn,
-                                 new Bounds<Token>(min, min).toRowBounds(),
+        return cfs.getRangeSlice(new Bounds<Token>(min, min).toRowBounds(),
                                  10000,
-                                 new IdentityQueryFilter(),
+                                 filter,
                                  null);
     }
 
@@ -180,7 +180,7 @@ public class Util
     {
         ColumnFamilyStore cfStore = table.getColumnFamilyStore(cfName);
         assert cfStore != null : "Column family " + cfName + " has not been defined";
-        return cfStore.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
+        return cfStore.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName));
     }
 
     public static byte[] concatByteArrays(byte[] first, byte[]... remaining)

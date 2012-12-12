@@ -33,6 +33,8 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CLibrary;
@@ -93,7 +95,7 @@ public class ScrubTest extends SchemaLoader
         boolean caught = false;
         try
         {
-             rows = cfs.getRangeSlice(ByteBufferUtil.bytes("1"), Util.range("", ""), 1000, new IdentityQueryFilter(), null);
+             rows = cfs.getRangeSlice(Util.range("", ""), 1000, new NamesQueryFilter(CompositeType.build(ByteBufferUtil.bytes("1"))), null);
              fail("This slice should fail");
         }
         catch (NegativeArraySizeException e)
@@ -103,7 +105,7 @@ public class ScrubTest extends SchemaLoader
         assert caught : "'corrupt' test file actually was not";
 
         CompactionManager.instance.performScrub(cfs);
-        rows = cfs.getRangeSlice(ByteBufferUtil.bytes("1"), Util.range("", ""), 1000, new IdentityQueryFilter(), null);
+        rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(100, rows.size());
     }
 
@@ -118,13 +120,13 @@ public class ScrubTest extends SchemaLoader
 
         // insert data and verify we get it back w/ range query
         fillCF(cfs, 1);
-        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
+        rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(1, rows.size());
 
         CompactionManager.instance.performScrub(cfs);
 
         // check data is still there
-        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
+        rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(1, rows.size());
     }
 
@@ -158,13 +160,13 @@ public class ScrubTest extends SchemaLoader
 
         // insert data and verify we get it back w/ range query
         fillCF(cfs, 10);
-        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
+        rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(10, rows.size());
 
         CompactionManager.instance.performScrub(cfs);
 
         // check data is still there
-        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
+        rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(10, rows.size());
     }
 
@@ -198,11 +200,11 @@ public class ScrubTest extends SchemaLoader
         assert cfs.getSSTables().size() > 0;
 
         List<Row> rows;
-        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
+        rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assert !isRowOrdered(rows) : "'corrupt' test file actually was not";
 
         CompactionManager.instance.performScrub(cfs);
-        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
+        rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assert isRowOrdered(rows) : "Scrub failed: " + rows;
         assert rows.size() == 6: "Got " + rows.size();
     }
