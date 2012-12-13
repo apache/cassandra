@@ -116,13 +116,7 @@ public class CFPropDefs extends PropertyDefinitions
     {
         Map<String, String> compressionOptions = getMap(KW_COMPRESSION);
         if (compressionOptions == null)
-        {
-            return new HashMap<String, String>()
-            {{
-                 if (CFMetaData.DEFAULT_COMPRESSOR != null)
-                     put(CompressionParameters.SSTABLE_COMPRESSION, CFMetaData.DEFAULT_COMPRESSOR);
-            }};
-        }
+            return new HashMap<String, String>();
         return compressionOptions;
     }
 

@@ -17,7 +17,15 @@
  */
 package org.apache.cassandra.cql;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
@@ -25,15 +33,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.io.compress.CompressionParameters;
-import org.apache.cassandra.io.compress.SnappyCompressor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 
 public class CFPropDefs {
     private static final Logger logger = LoggerFactory.getLogger(CFPropDefs.class);
@@ -61,8 +60,6 @@ public class CFPropDefs {
 
     public static final String COMPACTION_OPTIONS_PREFIX = "compaction_strategy_options";
     public static final String COMPRESSION_PARAMETERS_PREFIX = "compression_parameters";
-
-    private static final String DEFAULT_COMPRESSOR = SnappyCompressor.isAvailable() ? SnappyCompressor.class.getCanonicalName() : null;
 
     static
     {
@@ -112,11 +109,7 @@ public class CFPropDefs {
     public final Map<String, String> properties = new HashMap<String, String>();
     public Class<? extends AbstractCompactionStrategy> compactionStrategyClass;
     public final Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
-    public final Map<String, String> compressionParameters = new HashMap<String, String>()
-    {{
-        if (CFMetaData.DEFAULT_COMPRESSOR != null)
-            put(CompressionParameters.SSTABLE_COMPRESSION, CFMetaData.DEFAULT_COMPRESSOR);
-    }};
+    public final Map<String, String> compressionParameters = new HashMap<String, String>();
 
     public void validate() throws InvalidRequestException
     {
