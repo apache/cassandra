@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -35,8 +34,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class CFPropDefs extends PropertyDefinitions
 {
@@ -95,11 +92,7 @@ public class CFPropDefs extends PropertyDefinitions
 
     private Class<? extends AbstractCompactionStrategy> compactionStrategyClass = null;
     public final Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
-    public final Map<String, String> compressionParameters = new HashMap<String, String>()
-    {{
-        if (CFMetaData.DEFAULT_COMPRESSOR != null)
-            put(CompressionParameters.SSTABLE_COMPRESSION, CFMetaData.DEFAULT_COMPRESSOR);
-    }};
+    public final Map<String, String> compressionParameters = new HashMap<String, String>();
 
     public static AbstractType<?> parseType(String type) throws InvalidRequestException
     {
@@ -169,7 +162,8 @@ public class CFPropDefs extends PropertyDefinitions
             cfm.compactionStrategyOptions(new HashMap<String, String>(compactionStrategyOptions));
         }
 
-        cfm.compressionParameters(CompressionParameters.create(compressionParameters));
+        if (!compressionParameters.isEmpty())
+            cfm.compressionParameters(CompressionParameters.create(compressionParameters));
     }
 
     @Override
