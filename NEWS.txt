@@ -8,14 +8,28 @@ upgrade, just in case you need to roll back to the previous version.
 (Cassandra version X + 1 will always be able to read data files created
 by version X, but the inverse is not necessarily the case.)
 
+1.1.8
+=====
+
+Upgrading
+---------
+    - Nothing specific to this release, but please see the previous instructions
+      if you are not upgrading from 1.1.7.
+
+Features
+--------
+    - It is now possible override the number of available processor
+      (with -Dcassandra.available_processors), which can useful when multiple
+      instance of Cassandra run on the same machine since Cassandra base some
+      sizings on that value.
 
 1.1.7
 =====
 
 Upgrading
 ---------
-    - Nothing specific to this release, but please see the previous instruction
-      if you are not upgrading from 1.1.7.
+    - Nothing specific to this release, but please see the previous instructions
+      if you are not upgrading from 1.1.6.
 
 
 1.1.6
