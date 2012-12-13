@@ -222,7 +222,7 @@ public final class CFMetaData
     public static final CFMetaData AuthUsersCf = compile(18, "CREATE TABLE " + Auth.USERS_CF + " ("
                                                              + "name text PRIMARY KEY,"
                                                              + "super boolean"
-                                                             + ");", Auth.AUTH_KS);
+                                                             + ") WITH gc_grace_seconds=864000;", Auth.AUTH_KS);
 
     public enum Caching
     {
