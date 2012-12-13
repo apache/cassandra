@@ -40,7 +40,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.FSError;
-import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.thrift.ThriftServer;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Mx4jTool;
@@ -141,35 +141,8 @@ public class CassandraDaemon
                     {
                         if (e2 != e) // make sure FSError gets logged exactly once.
                             logger.error("Exception in thread " + t, e2);
-                        handleFSError((FSError) e2);
+                        FileUtils.handleFSError((FSError) e2);
                     }
-                }
-            }
-
-            private void handleFSError(FSError e)
-            {
-                switch (DatabaseDescriptor.getDiskFailurePolicy())
-                {
-                    case stop:
-                        logger.error("Stopping the gossiper and the RPC server");
-                        StorageService.instance.stopGossiping();
-                        StorageService.instance.stopRPCServer();
-                        break;
-                    case best_effort:
-                        // for both read and write errors mark the path as unwritable.
-                        BlacklistedDirectories.maybeMarkUnwritable(e.path);
-                        if (e instanceof FSReadError)
-                        {
-                            File directory = BlacklistedDirectories.maybeMarkUnreadable(e.path);
-                            if (directory != null)
-                                Table.removeUnreadableSSTables(directory);
-                        }
-                        break;
-                    case ignore:
-                        // already logged, so left nothing to do
-                        break;
-                    default:
-                        throw new IllegalStateException();
                 }
             }
         });

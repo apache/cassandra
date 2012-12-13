@@ -1022,6 +1022,11 @@ public class DatabaseDescriptor
         return indexAccessMode;
     }
 
+    public static void setDiskFailurePolicy(Config.DiskFailurePolicy policy)
+    {
+        conf.disk_failure_policy = policy;
+    }
+
     public static Config.DiskFailurePolicy getDiskFailurePolicy()
     {
         return conf.disk_failure_policy;

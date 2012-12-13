@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.compaction.LeveledManifest;
+import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.sstable.*;
@@ -100,8 +101,18 @@ public class Directories
 
         if (!StorageService.instance.isClientMode())
         {
-            for (File dir : sstableDirectories)
-                FileUtils.createDirectory(dir);
+            for (File dir : sstableDirectories) 
+            {
+                try 
+                {
+                    FileUtils.createDirectory(dir);
+                }
+                catch (FSError e) 
+                {
+                    // don't just let the default exception handler do this, we need the create loop to continue
+                    FileUtils.handleFSError(e);
+                }
+            }
         }
     }
 

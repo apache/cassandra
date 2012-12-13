@@ -27,6 +27,10 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.BlacklistedDirectories;
+import org.apache.cassandra.db.Table;
+import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.service.StorageService;
@@ -358,6 +362,33 @@ public class FileUtils
             if (skipped == 0)
                 throw new EOFException("EOF after " + n + " bytes out of " + bytes);
             n += skipped;
+        }
+    }
+    
+    public static void handleFSError(FSError e)
+    {
+        switch (DatabaseDescriptor.getDiskFailurePolicy())
+        {
+            case stop:
+                logger.error("Stopping the gossiper and the RPC server");
+                StorageService.instance.stopGossiping();
+                StorageService.instance.stopRPCServer();
+                break;
+            case best_effort:
+                // for both read and write errors mark the path as unwritable.
+                BlacklistedDirectories.maybeMarkUnwritable(e.path);
+                if (e instanceof FSReadError)
+                {
+                    File directory = BlacklistedDirectories.maybeMarkUnreadable(e.path);
+                    if (directory != null)
+                        Table.removeUnreadableSSTables(directory);
+                }
+                break;
+            case ignore:
+                // already logged, so left nothing to do
+                break;
+            default:
+                throw new IllegalStateException();
         }
     }
 }
