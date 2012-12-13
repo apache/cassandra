@@ -26,6 +26,9 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Config.DiskFailurePolicy;
+import org.apache.cassandra.db.Directories.DataDirectory;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -196,6 +199,41 @@ public class DirectoriesTest
         catch (Exception e)
         {
             Assert.assertTrue(e.getMessage().contains(f.getPath()));
+        }
+    }
+
+    @Test
+    public void testDiskFailurePolicy_best_effort() throws IOException
+    {
+        DiskFailurePolicy origPolicy = DatabaseDescriptor.getDiskFailurePolicy();
+        
+        try 
+        {
+            DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.best_effort);
+            
+            for (DataDirectory dd : Directories.dataFileLocations)
+            {
+                dd.location.setExecutable(false);
+                dd.location.setWritable(false);
+            }
+            
+            Directories.create(KS, "bad");
+            
+            for (DataDirectory dd : Directories.dataFileLocations)
+            {
+                File file = new File(dd.location, new File(KS, "bad").getPath());
+                Assert.assertTrue(BlacklistedDirectories.isUnwritable(file));
+            }
+        } 
+        finally 
+        {
+            for (DataDirectory dd : Directories.dataFileLocations)
+            {
+                dd.location.setExecutable(true);
+                dd.location.setWritable(true);
+            }
+            
+            DatabaseDescriptor.setDiskFailurePolicy(origPolicy);
         }
     }
 }

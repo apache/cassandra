@@ -127,6 +127,8 @@ public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
         if (file.getPath().endsWith(".db"))
             return file.getParentFile();
 
-        throw new IllegalStateException("Unable to parse directory from path " + file);
+        // We may not be able to determine if it's a file or a directory if
+        // we were called because we couldn't create the file/directory.
+        return file;
     }
 }
