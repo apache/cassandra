@@ -17,11 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,13 +101,7 @@ public class CFPropDefs extends PropertyDefinitions
     {
         Map<String, String> compressionOptions = getMap(KW_COMPRESSION);
         if (compressionOptions == null)
-        {
-            return new HashMap<String, String>()
-            {{
-                 if (CFMetaData.DEFAULT_COMPRESSOR != null)
-                     put(CompressionParameters.SSTABLE_COMPRESSION, CFMetaData.DEFAULT_COMPRESSOR);
-            }};
-        }
+            return new HashMap<String, String>();
         return compressionOptions;
     }
 

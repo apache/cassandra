@@ -18,33 +18,26 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-import org.apache.cassandra.auth.Permission;
-
+import org.apache.cassandra.exceptions.*;
 import org.apache.commons.lang.StringUtils;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
 
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /** A <code>CREATE COLUMNFAMILY</code> parsed from a CQL query statement. */
 public class CreateColumnFamilyStatement extends SchemaAlteringStatement
@@ -64,6 +57,20 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     {
         super(name);
         this.properties = properties;
+
+        try
+        {
+            if (!this.properties.hasProperty(CFPropDefs.KW_COMPRESSION) && CFMetaData.DEFAULT_COMPRESSOR != null)
+                this.properties.addProperty(CFPropDefs.KW_COMPRESSION,
+                                            new HashMap<String, String>()
+                                            {{
+                                                put(CompressionParameters.SSTABLE_COMPRESSION, CFMetaData.DEFAULT_COMPRESSOR);
+                                            }});
+        }
+        catch (SyntaxException e)
+        {
+            throw new AssertionError(e);
+        }
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
