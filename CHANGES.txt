@@ -18,6 +18,8 @@
 
 1.2.0
  * cqlsh: add DESCRIBE KEYSPACES command (CASSANDRA-5060)
+Merged from 1.1:
+ * fix temporarily missing schema after upgrade from pre-1.1.5 (CASSANDRA-5061)
 
 
 1.2-rc1
@@ -31,7 +33,7 @@
  * Update IAuthenticator to match the new IAuthorizer (CASSANDRA-5003)
  * Fix inserting only a key in CQL3 (CASSANDRA-5040)
  * Fix CQL3 token() function when used with strings (CASSANDRA-5050)
-Merged from 1.1
+Merged from 1.1:
  * reduce log spam from invalid counter shards (CASSANDRA-5026)
  * Improve schema propagation performance (CASSANDRA-5025)
  * Fix for IndexHelper.IndexFor throws OOB Exception (CASSANDRA-5030)
