@@ -244,6 +244,19 @@ public class DefsTable
 
             mutation.apply();
         }
+        // flush immediately because we read schema before replaying the commitlog
+        try
+        {
+            cfs.forceBlockingFlush();
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException("Could not flush after fixing schema timestamps", e);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
     }
 
     private static boolean invalidSchemaRow(Row row)

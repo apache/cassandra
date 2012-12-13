@@ -1,4 +1,5 @@
 1.1.8
+ * fix temporarily missing schema after upgrade from pre-1.1.5 (CASSANDRA-5061)
  * reduce log spam from invalid counter shards (CASSANDRA-5026)
  * Improve schema propagation performance (CASSANDRA-5025)
  * Fall back to old describe_splits if d_s_ex is not available (CASSANDRA-4803)
