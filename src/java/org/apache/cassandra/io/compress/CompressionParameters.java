@@ -100,7 +100,11 @@ public class CompressionParameters
     private static ICompressor createCompressor(Class<? extends ICompressor> compressorClass, Map<String, String> compressionOptions) throws ConfigurationException
     {
         if (compressorClass == null)
+        {
+            if (!compressionOptions.isEmpty())
+                throw new ConfigurationException("Unknown compression options (" + compressionOptions.keySet() + ") since no compression class found");
             return null;
+        }
 
         try
         {
