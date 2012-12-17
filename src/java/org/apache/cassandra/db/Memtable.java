@@ -81,7 +81,6 @@ public class Memtable
 
     volatile static Memtable activelyMeasuring;
 
-    private volatile boolean isFrozen;
     private final AtomicLong currentSize = new AtomicLong(0);
     private final AtomicLong currentOperations = new AtomicLong(0);
 
@@ -142,16 +141,6 @@ public class Memtable
         return currentOperations.get();
     }
 
-    boolean isFrozen()
-    {
-        return isFrozen;
-    }
-
-    void freeze()
-    {
-        isFrozen = true;
-    }
-
     /**
      * Should only be called by ColumnFamilyStore.apply.  NOT a public API.
      * (CFS handles locking to avoid submitting an op
@@ -159,7 +148,6 @@ public class Memtable
     */
     void put(DecoratedKey key, ColumnFamily columnFamily, SecondaryIndexManager.Updater indexer)
     {
-        assert !isFrozen; // not 100% foolproof but hell, it's an assert
         resolve(key, columnFamily, indexer);
     }
 

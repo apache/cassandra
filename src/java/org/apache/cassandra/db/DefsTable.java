@@ -634,10 +634,7 @@ public class DefsTable
 
     private static void flushSchemaCF(String cfName)
     {
-        Future<?> flush = SystemTable.schemaCFS(cfName).forceFlush();
-
-        if (flush != null)
-            FBUtilities.waitOnFuture(flush);
+        FBUtilities.waitOnFuture(SystemTable.schemaCFS(cfName).forceFlush());
     }
 
     private static ByteBuffer toUTF8Bytes(UUID version)

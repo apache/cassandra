@@ -93,11 +93,7 @@ public class StreamOut
         logger.info("Flushing memtables for {}...", stores);
         List<Future<?>> flushes = new ArrayList<Future<?>>();
         for (ColumnFamilyStore cfstore : stores)
-        {
-            Future<?> flush = cfstore.forceFlush();
-            if (flush != null)
-                flushes.add(flush);
-        }
+            flushes.add(cfstore.forceFlush());
         FBUtilities.waitOnFutures(flushes);
     }
 
