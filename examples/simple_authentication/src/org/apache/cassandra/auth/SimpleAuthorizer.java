@@ -41,10 +41,10 @@ public class SimpleAuthorizer extends LegacyAuthorizer
     public EnumSet<Permission> authorize(AuthenticatedUser user, List<Object> resource)
     {
         if (resource.size() < 2 || !Resources.ROOT.equals(resource.get(0)) || !Resources.KEYSPACES.equals(resource.get(1)))
-            return EnumSet.copyOf(Permission.NONE);
+            return EnumSet.noneOf(Permission.class);
         
         String keyspace, columnFamily = null;
-        EnumSet<Permission> authorized = EnumSet.copyOf(Permission.NONE);
+        EnumSet<Permission> authorized = EnumSet.noneOf(Permission.class);
         
         // /cassandra/keyspaces
         if (resource.size() == 2)
@@ -82,7 +82,7 @@ public class SimpleAuthorizer extends LegacyAuthorizer
             {
                 String kspAdmins = accessProperties.getProperty(KEYSPACES_WRITE_PROPERTY);
                 for (String admin : kspAdmins.split(","))
-                    if (admin.equals(user.username))
+                    if (admin.equals(user.getName()))
                         return EnumSet.copyOf(Permission.ALL);
             }
             
@@ -104,7 +104,7 @@ public class SimpleAuthorizer extends LegacyAuthorizer
             {
                 for (String reader : readers.split(","))
                 {
-                    if (reader.equals(user.username))
+                    if (reader.equals(user.getName()))
                     {
                         canRead = true;
                         break;
@@ -116,7 +116,7 @@ public class SimpleAuthorizer extends LegacyAuthorizer
             {
                 for (String writer : writers.split(","))
                 {
-                    if (writer.equals(user.username))
+                    if (writer.equals(user.getName()))
                     {
                         canWrite = true;
                         break;
