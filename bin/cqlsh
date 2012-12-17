@@ -743,7 +743,9 @@ class Shell(cmd.Cmd):
         else:
             cf_q = """select "columnfamily" from system.schema_columnfamilies
                        where "keyspace"=:ks"""
-        self.cursor.execute(cf_q, {'ks': self.cql_unprotect_name(ksname)})
+        self.cursor.execute(cf_q,
+                            {'ks': self.cql_unprotect_name(ksname)},
+                            consistency_level='ONE')
         return [str(row[0]) for row in self.cursor.fetchall()]
 
     def get_columnfamily_layout(self, ksname, cfname):
@@ -759,11 +761,15 @@ class Shell(cmd.Cmd):
                        where "keyspace"=:ks and "columnfamily"=:cf"""
             col_q = """select * from system.schema_columns
                         where "keyspace"=:ks and "columnfamily"=:cf"""
-        self.cursor.execute(cf_q, {'ks': ksname, 'cf': cfname})
+        self.cursor.execute(cf_q,
+                            {'ks': ksname, 'cf': cfname},
+                            consistency_level='ONE')
         layout = self.fetchdict()
         if layout is None:
             raise ColumnFamilyNotFound("Column family %r not found" % cfname)
-        self.cursor.execute(col_q, {'ks': ksname, 'cf': cfname})
+        self.cursor.execute(col_q,
+                            {'ks': ksname, 'cf': cfname},
+                            consistency_level='ONE')
         cols = self.fetchdict_all()
         return cql3handling.CqlTableDef.from_layout(layout, cols)
 
