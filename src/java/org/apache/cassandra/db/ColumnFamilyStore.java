@@ -1364,7 +1364,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore, boolean forCache)
     {
         Tracing.trace("Executing single-partition query on {}", name);
-        CollationController controller = new CollationController(this, forCache, filter, gcBefore);
+        CollationController controller = new CollationController(this,
+                                                                 forCache && !CacheService.instance.rowCache.isPutCopying(),
+                                                                 filter,
+                                                                 gcBefore);
         ColumnFamily columns = controller.getTopLevelColumns();
         metric.updateSSTableIterated(controller.getSstablesIterated());
         return columns;
