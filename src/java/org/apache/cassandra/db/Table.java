@@ -450,11 +450,7 @@ public class Table
     {
         List<Future<?>> futures = new ArrayList<Future<?>>();
         for (UUID cfId : columnFamilyStores.keySet())
-        {
-            Future<?> future = columnFamilyStores.get(cfId).forceFlush();
-            if (future != null)
-                futures.add(future);
-        }
+            futures.add(columnFamilyStores.get(cfId).forceFlush());
         return futures;
     }
 

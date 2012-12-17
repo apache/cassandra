@@ -81,10 +81,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
     /*
-     * maybeSwitchMemtable puts Memtable.getSortedContents on the writer executor.  When the write is complete,
+     * switchMemtable puts Memtable.getSortedContents on the writer executor.  When the write is complete,
      * we turn the writer into an SSTableReader and add it to ssTables where it is available for reads.
      *
-     * There are two other things that maybeSwitchMemtable does.
+     * There are two other things that switchMemtable does.
      * First, it puts the Memtable into memtablesPendingFlush, where it stays until the flush is complete
      * and it's been added as an SSTableReader to ssTables_.  Second, it adds an entry to commitLogUpdater
      * that waits for the flush to complete, then calls onMemtableFlush.  This allows multiple flushes
@@ -157,34 +157,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         indexManager.reload();
 
         // If the CF comparator has changed, we need to change the memtable,
-        // because the old one still aliases the previous comparator. We don't
-        // call forceFlush() because it can skip the switch if the memtable is
-        // clean, which we don't want here. Also, because there can be a race
-        // between the time we acquire the current memtable and we flush it
-        // (another thread can have flushed it first), we attempt the switch
-        // until we know the memtable has the current comparator.
-        try
-        {
-            while (true)
-            {
-                AbstractType comparator = metadata.comparator;
-                Memtable memtable = getMemtableThreadSafe();
-                if (memtable.initialComparator == comparator)
-                    break;
-
-                Future future = maybeSwitchMemtable(getMemtableThreadSafe(), true);
-                if (future != null)
-                    future.get();
-            }
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        // because the old one still aliases the previous comparator.
+        if (getMemtableThreadSafe().initialComparator != metadata.comparator)
+            switchMemtable(true, true);
     }
 
     private void maybeReloadCompactionStrategy()
@@ -610,15 +585,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return desc.filenameFor(Component.DATA);
     }
 
-    /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
-    public Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog)
+    /**
+     * Switch and flush the current memtable, if it was dirty. The forceSwitch
+     * flag allow to force switching the memtable even if it is clean (though
+     * in that case we don't flush, as there is no point).
+     */
+    public Future<?> switchMemtable(final boolean writeCommitLog, boolean forceSwitch)
     {
-        if (oldMemtable.isFrozen())
-        {
-            logger.debug("memtable is already frozen; another thread must be flushing it");
-            return null;
-        }
-
         /*
          * If we can get the writelock, that means no new updates can come in and
          * all ongoing updates to memtables have completed. We can get the tail
@@ -632,13 +605,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Table.switchLock.writeLock().lock();
         try
         {
-            if (oldMemtable.isFrozen())
-            {
-                logger.debug("memtable is already frozen; another thread must be flushing it");
-                return null;
-            }
-
-            assert getMemtableThreadSafe() == oldMemtable;
             final Future<ReplayPosition> ctx = writeCommitLog ? CommitLog.instance.getContext() : Futures.immediateFuture(ReplayPosition.NONE);
 
             // submit the memtable for any indexed sub-cfses, and our own.
@@ -646,20 +612,27 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // don't assume that this.memtable is dirty; forceFlush can bring us here during index build even if it is not
             for (ColumnFamilyStore cfs : concatWithIndexes())
             {
-                Memtable mt = cfs.getMemtableThreadSafe();
-                if (!mt.isClean() && !mt.isFrozen())
-                {
-                    // We need to freeze indexes too because they can be concurrently flushed too (#3547)
-                    mt.freeze();
+                if (forceSwitch || !cfs.getMemtableThreadSafe().isClean())
                     icc.add(cfs);
-                }
             }
+
             final CountDownLatch latch = new CountDownLatch(icc.size());
             for (ColumnFamilyStore cfs : icc)
             {
                 Memtable memtable = cfs.data.switchMemtable();
-                logger.info("Enqueuing flush of {}", memtable);
-                memtable.flushAndSignal(latch, flushWriter, ctx);
+                // With forceSwitch it's possible to get a clean memtable here.
+                // In that case, since we've switched it already, just remove
+                // it from the memtable pending flush right away.
+                if (memtable.isClean())
+                {
+                    cfs.replaceFlushed(memtable, null);
+                    latch.countDown();
+                }
+                else
+                {
+                    logger.info("Enqueuing flush of {}", memtable);
+                    memtable.flushAndSignal(latch, flushWriter, ctx);
+                }
             }
 
             if (metric.memtableSwitchCount.count() == Long.MAX_VALUE)
@@ -713,17 +686,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (clean)
         {
             logger.debug("forceFlush requested but everything is clean in {}", columnFamily);
-            return null;
+            return Futures.immediateCheckedFuture(null);
         }
 
-        return maybeSwitchMemtable(getMemtableThreadSafe(), true);
+        return switchMemtable(true, false);
     }
 
     public void forceBlockingFlush() throws ExecutionException, InterruptedException
     {
-        Future<?> future = forceFlush();
-        if (future != null)
-            future.get();
+        forceFlush().get();
     }
 
     public void maybeUpdateRowCache(DecoratedKey key, ColumnFamily columnFamily)
@@ -1046,16 +1017,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return (int) metric.memtableSwitchCount.count();
     }
 
-    /**
-     * get the current memtable in a threadsafe fashion.  note that simply "return memtable_" is
-     * incorrect; you need to lock to introduce a thread safe happens-before ordering.
-     *
-     * do NOT use this method to do either a put or get on the memtable object, since it could be
-     * flushed in the meantime (and its executor terminated).
-     *
-     * also do NOT make this method public or it will really get impossible to reason about these things.
-     * @return
-     */
     private Memtable getMemtableThreadSafe()
     {
         return data.getMemtable();
@@ -1778,7 +1739,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 for (ColumnFamilyStore cfs : concatWithIndexes())
                 {
                     Memtable mt = cfs.getMemtableThreadSafe();
-                    if (!mt.isClean() && !mt.isFrozen())
+                    if (!mt.isClean())
                     {
                         mt.cfs.data.renewMemtable();
                     }

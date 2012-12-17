@@ -479,11 +479,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     if (!ksm.durableWrites)
                     {
                         for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
-                        {
-                            Future<?> future = cfs.forceFlush();
-                            if (future != null)
-                                flushes.add(future);
-                        }
+                            flushes.add(cfs.forceFlush());
                     }
                 }
                 FBUtilities.waitOnFutures(flushes);
