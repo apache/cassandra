@@ -1,4 +1,5 @@
 1.2.1
+ * off-heap cache doesn't need mutable column container (CASSANDRA-5057)
  * apply disk_failure_policy to bad disks on initial directory creation 
    (CASSANDRA-4847)
  * Optimize name-based queries to use ArrayBackedSortedColumns (CASSANDRA-5043)
