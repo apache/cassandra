@@ -13,6 +13,7 @@ bin/sstablekeys usr/bin
 bin/sstableloader usr/bin
 bin/cqlsh usr/bin
 bin/sstablescrub usr/bin
+bin/cassandra-shuffle usr/bin
 tools/bin/cassandra-stress usr/bin
 tools/bin/token-generator usr/bin
 lib/*.jar usr/share/cassandra/lib
