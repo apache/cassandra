@@ -18,6 +18,7 @@
 
 
 1.2.0-rc2
+ * fix nodetool ownership display with vnodes (CASSANDRA-5065)
  * cqlsh: add DESCRIBE KEYSPACES command (CASSANDRA-5060)
  * Fix potential infinite loop when reloading CFS (CASSANDRA-5064)
  * Fix SimpleAuthorizer example (CASSANDRA-5072)
