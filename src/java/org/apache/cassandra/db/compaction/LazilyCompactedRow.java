@@ -193,7 +193,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         return maxTimestamp;
     }
 
-    private void close()
+    public void close()
     {
         for (IColumnIterator row : rows)
         {

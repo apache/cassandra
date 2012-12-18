@@ -185,4 +185,6 @@ public class PrecompactedRow extends AbstractCompactedRow
     {
         return compactedCf;
     }
+
+    public void close() { }
 }

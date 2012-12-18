@@ -1,3 +1,7 @@
+1.1.9
+ * fix multithreaded compaction deadlock (CASSANDRA-4492)
+
+
 1.1.8
  * reset getRangeSlice filter after finishing a row for get_paged_slice
    (CASSANDRA-4919)

@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction;
  */
 
 
+import java.io.Closeable;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.security.MessageDigest;
@@ -32,7 +33,7 @@ import org.apache.cassandra.db.DecoratedKey;
  * and can write a compacted version of those rows to an output stream.  It does
  * NOT necessarily require creating a merged CF object in memory.
  */
-public abstract class AbstractCompactedRow
+public abstract class AbstractCompactedRow implements Closeable
 {
     public final DecoratedKey<?> key;
 
