@@ -25,6 +25,7 @@
  * cqlsh: force CL.ONE for tracing and system.schema* queries (CASSANDRA-5070)
  * Includes cassandra-shuffle in the debian package (CASSANDRA-5058)
 Merged from 1.1:
+ * fix multithreaded compaction deadlock (CASSANDRA-4492)
  * fix temporarily missing schema after upgrade from pre-1.1.5 (CASSANDRA-5061)
  * Fix ALTER TABLE overriding compression options with defaults
    (CASSANDRA-4996, CASSANDRA-5066)

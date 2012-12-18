@@ -196,7 +196,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         return columnStats;
     }
 
-    private void close()
+    public void close()
     {
         for (OnDiskAtomIterator row : rows)
         {

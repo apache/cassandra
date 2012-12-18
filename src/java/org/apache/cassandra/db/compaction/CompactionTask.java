@@ -161,7 +161,10 @@ public class CompactionTask extends AbstractCompactionTask
 
                 AbstractCompactedRow row = nni.next();
                 if (row.isEmpty())
+                {
+                    row.close();
                     continue;
+                }
 
                 RowIndexEntry indexEntry = writer.append(row);
                 totalkeysWritten++;
