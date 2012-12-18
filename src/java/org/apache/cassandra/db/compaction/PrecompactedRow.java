@@ -196,4 +196,6 @@ public class PrecompactedRow extends AbstractCompactedRow
     {
         return columnIndex;
     }
+
+    public void close() { }
 }
