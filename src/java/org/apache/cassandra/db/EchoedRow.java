@@ -73,4 +73,6 @@ public class EchoedRow extends AbstractCompactedRow
     {
         return Long.MIN_VALUE;
     }
+
+    public void close() { }
 }
