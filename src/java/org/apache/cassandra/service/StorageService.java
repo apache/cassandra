@@ -3207,20 +3207,22 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
     }
 
-    public boolean isDcAwareReplicationStrategy(String keyspace)
-    {
-        return SimpleStrategy.class != Table.open(keyspace).getReplicationStrategy().getClass();
-    }
-
     public Map<InetAddress, Float> getOwnership()
     {
         List<Token> sortedTokens = tokenMetadata.sortedTokens();
         // describeOwnership returns tokens in an unspecified order, let's re-order them
         Map<Token, Float> tokenMap = new TreeMap<Token, Float>(getPartitioner().describeOwnership(sortedTokens));
-        Map<InetAddress, Float> stringMap = new LinkedHashMap<InetAddress, Float>();
+        Map<InetAddress, Float> nodeMap = new LinkedHashMap<InetAddress, Float>();
         for (Map.Entry<Token, Float> entry : tokenMap.entrySet())
-            stringMap.put(tokenMetadata.getEndpoint(entry.getKey()), entry.getValue());
-        return stringMap;
+        {
+            InetAddress endpoint = tokenMetadata.getEndpoint(entry.getKey());
+            Float tokenOwnership = entry.getValue();
+            if (nodeMap.containsKey(endpoint))
+                nodeMap.put(endpoint, nodeMap.get(endpoint) + tokenOwnership);
+            else
+                nodeMap.put(endpoint, tokenOwnership);
+        }
+        return nodeMap;
     }
 
     /**
