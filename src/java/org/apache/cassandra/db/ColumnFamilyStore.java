@@ -239,6 +239,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
+    public void setCrcCheckChance(double crcCheckChance)
+    {
+        try
+        {
+            for (SSTableReader sstable : table.getAllSSTables())
+                if (sstable.compression)
+                    sstable.getCompressionMetadata().parameters.setCrcCheckChance(crcCheckChance);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+    }
+
     private ColumnFamilyStore(Table table,
                               String columnFamilyName,
                               IPartitioner partitioner,
