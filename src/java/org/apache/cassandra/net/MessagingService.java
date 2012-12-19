@@ -328,7 +328,7 @@ public final class MessagingService implements MessagingServiceMBean
                 {
                     assert expiredCallbackInfo.sentMessage != null;
                     RowMutation rm = (RowMutation) expiredCallbackInfo.sentMessage.payload;
-                    return StorageProxy.scheduleLocalHint(rm, expiredCallbackInfo.target, null, null);
+                    return StorageProxy.submitHint(rm, expiredCallbackInfo.target, null, null);
                 }
 
                 return null;

@@ -63,7 +63,6 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.WrappedRunnable;
 
 public class StorageProxy implements StorageProxyMBean
 {
@@ -316,16 +315,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                         Table.SYSTEM_KS,
                                                                         null,
                                                                         WriteType.BATCH_LOG);
-
-        try
-        {
-            sendMessagesToOneDC(rm.createMessage(), endpoints, true, handler);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Error writing to batchlog", e);
-        }
-
+        updateBatchlog(rm, endpoints, handler);
         handler.get();
     }
 
@@ -334,14 +324,19 @@ public class StorageProxy implements StorageProxyMBean
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(uuid));
         rm.delete(new QueryPath(SystemTable.BATCHLOG_CF), FBUtilities.timestampMicros());
         AbstractWriteResponseHandler handler = new WriteResponseHandler(endpoints, Collections.<InetAddress>emptyList(), ConsistencyLevel.ANY, Table.SYSTEM_KS, null, WriteType.SIMPLE);
+        updateBatchlog(rm, endpoints, handler);
+    }
 
-        try
+    private static void updateBatchlog(RowMutation rm, Collection<InetAddress> endpoints, AbstractWriteResponseHandler handler)
+    {
+        if (endpoints.contains(FBUtilities.getBroadcastAddress()))
+        {
+            assert endpoints.size() == 1;
+            insertLocal(rm, handler);
+        }
+        else
         {
             sendMessagesToOneDC(rm.createMessage(), endpoints, true, handler);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Error deleting batch " + uuid, e);
         }
     }
 
@@ -352,15 +347,8 @@ public class StorageProxy implements StorageProxyMBean
     {
         for (WriteResponseHandlerWrapper wrapper : wrappers)
         {
-            try
-            {
-                Iterable<InetAddress> endpoints = Iterables.concat(wrapper.handler.naturalEndpoints, wrapper.handler.pendingEndpoints);
-                sendToHintedEndpoints(wrapper.mutation, endpoints, wrapper.handler, localDataCenter, consistencyLevel);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException("Error writing key " + ByteBufferUtil.bytesToHex(wrapper.mutation.key()), e);
-            }
+            Iterable<InetAddress> endpoints = Iterables.concat(wrapper.handler.naturalEndpoints, wrapper.handler.pendingEndpoints);
+            sendToHintedEndpoints(wrapper.mutation, endpoints, wrapper.handler, localDataCenter, consistencyLevel);
         }
 
         for (WriteResponseHandlerWrapper wrapper : wrappers)
@@ -384,11 +372,11 @@ public class StorageProxy implements StorageProxyMBean
      * successful.
      */
     public static AbstractWriteResponseHandler performWrite(IMutation mutation,
-                                                     ConsistencyLevel consistency_level,
-                                                     String localDataCenter,
-                                                     WritePerformer performer,
-                                                     Runnable callback,
-                                                     WriteType writeType)
+                                                            ConsistencyLevel consistency_level,
+                                                            String localDataCenter,
+                                                            WritePerformer performer,
+                                                            Runnable callback,
+                                                            WriteType writeType)
     throws UnavailableException, OverloadedException, IOException
     {
         String table = mutation.getTable();
@@ -492,7 +480,7 @@ public class StorageProxy implements StorageProxyMBean
                                              AbstractWriteResponseHandler responseHandler,
                                              String localDataCenter,
                                              ConsistencyLevel consistency_level)
-    throws IOException, OverloadedException
+    throws OverloadedException
     {
         // Multimap that holds onto all the messages and addresses meant for a specific datacenter
         Map<String, Multimap<MessageOut, InetAddress>> dcMessages = new HashMap<String, Multimap<MessageOut, InetAddress>>();
@@ -539,45 +527,41 @@ public class StorageProxy implements StorageProxyMBean
                     continue;
 
                 // Schedule a local hint
-                scheduleLocalHint(rm, destination, responseHandler, consistency_level);
+                submitHint(rm, destination, responseHandler, consistency_level);
             }
         }
 
         sendMessages(localDataCenter, dcMessages, responseHandler);
     }
 
-    public static Future<Void> scheduleLocalHint(final RowMutation mutation,
-                                                 final InetAddress target,
-                                                 final AbstractWriteResponseHandler responseHandler,
-                                                 final ConsistencyLevel consistencyLevel)
+    public static Future<Void> submitHint(final RowMutation mutation,
+                                          final InetAddress target,
+                                          final AbstractWriteResponseHandler responseHandler,
+                                          final ConsistencyLevel consistencyLevel)
     {
-        // Hint of itself doesn't make sense.
+        // local write that time out should be handled by LocalMutationRunnable
         assert !target.equals(FBUtilities.getBroadcastAddress()) : target;
-        totalHintsInProgress.incrementAndGet();
-        final AtomicInteger targetHints = hintsInProgress.get(target);
-        targetHints.incrementAndGet();
 
-        Runnable runnable = new WrappedRunnable()
+        HintRunnable runnable = new HintRunnable(target)
         {
             public void runMayThrow() throws IOException
             {
                 logger.debug("Adding hint for {}", target);
 
-                try
-                {
-                    writeHintForMutation(mutation, target);
-                    // Notify the handler only for CL == ANY
-                    if (responseHandler != null && consistencyLevel == ConsistencyLevel.ANY)
-                        responseHandler.response(null);
-                }
-                finally
-                {
-                    totalHintsInProgress.decrementAndGet();
-                    targetHints.decrementAndGet();
-                }
+                writeHintForMutation(mutation, target);
+                // Notify the handler only for CL == ANY
+                if (responseHandler != null && consistencyLevel == ConsistencyLevel.ANY)
+                    responseHandler.response(null);
             }
         };
 
+        return submitHint(runnable);
+    }
+
+    private static Future<Void> submitHint(HintRunnable runnable)
+    {
+        totalHintsInProgress.incrementAndGet();
+        hintsInProgress.get(runnable.target).incrementAndGet();
         return (Future<Void>) StageManager.getStage(Stage.MUTATION).submit(runnable);
     }
 
@@ -600,7 +584,6 @@ public class StorageProxy implements StorageProxyMBean
      * for each datacenter, send a message to one node to relay the write to other replicas
      */
     private static void sendMessages(String localDataCenter, Map<String, Multimap<MessageOut, InetAddress>> dcMessages, AbstractWriteResponseHandler handler)
-    throws IOException
     {
         for (Map.Entry<String, Multimap<MessageOut, InetAddress>> entry: dcMessages.entrySet())
         {
@@ -617,7 +600,19 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static void sendMessagesToOneDC(MessageOut message, Collection<InetAddress> targets, boolean localDC, AbstractWriteResponseHandler handler) throws IOException
+    private static void sendMessagesToOneDC(MessageOut message, Collection<InetAddress> targets, boolean localDC, AbstractWriteResponseHandler handler)
+    {
+        try
+        {
+            sendMessagesToOneDCInternal(message, targets, localDC, handler);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void sendMessagesToOneDCInternal(MessageOut message, Collection<InetAddress> targets, boolean localDC, AbstractWriteResponseHandler handler) throws IOException
     {
         Iterator<InetAddress> iter = targets.iterator();
         InetAddress target = iter.next();
@@ -771,7 +766,7 @@ public class StorageProxy implements StorageProxyMBean
                                              final String localDataCenter,
                                              final ConsistencyLevel consistency_level)
     {
-        return new DroppableRunnable(MessagingService.Verb.MUTATION)
+        return new LocalMutationRunnable()
         {
             public void runMayThrow() throws IOException
             {
@@ -937,7 +932,6 @@ public class StorageProxy implements StorageProxyMBean
                 ReadCommand command = commands.get(i);
                 try
                 {
-                    long startTime2 = System.currentTimeMillis();
                     Row row = handler.get();
                     if (row != null)
                     {
@@ -1181,14 +1175,6 @@ public class StorageProxy implements StorageProxyMBean
             rangeMetrics.addNano(System.nanoTime() - startTime);
         }
         return trim(command, rows);
-    }
-
-    private static IDiskAtomFilter getEmptySlicePredicate()
-    {
-        return new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                    ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                    false,
-                                    -1);
     }
 
     private static List<Row> trim(RangeSliceCommand command, List<Row> rows)
@@ -1485,6 +1471,9 @@ public class StorageProxy implements StorageProxyMBean
         public void apply(IMutation mutation, Iterable<InetAddress> targets, AbstractWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException, OverloadedException;
     }
 
+    /**
+     * A Runnable that aborts if it doesn't start running before it times out
+     */
     private static abstract class DroppableRunnable implements Runnable
     {
         private final long constructionTime = System.currentTimeMillis();
@@ -1510,6 +1499,76 @@ public class StorageProxy implements StorageProxyMBean
             catch (Exception e)
             {
                 throw new RuntimeException(e);
+            }
+        }
+
+        abstract protected void runMayThrow() throws Exception;
+    }
+
+    /**
+     * Like DroppableRunnable, but if it aborts, it will rerun (on the mutation stage) after
+     * marking itself as a hint in progress so that the hint backpressure mechanism can function.
+     */
+    private static abstract class LocalMutationRunnable implements Runnable
+    {
+        private final long constructionTime = System.currentTimeMillis();
+
+        public final void run()
+        {
+            if (System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getTimeout(MessagingService.Verb.MUTATION))
+            {
+                MessagingService.instance().incrementDroppedMessages(MessagingService.Verb.MUTATION);
+                HintRunnable runnable = new HintRunnable(FBUtilities.getBroadcastAddress())
+                {
+                    protected void runMayThrow() throws Exception
+                    {
+                        LocalMutationRunnable.this.runMayThrow();
+                    }
+                };
+                submitHint(runnable);
+                return;
+            }
+
+            try
+            {
+                runMayThrow();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        abstract protected void runMayThrow() throws Exception;
+    }
+
+    /**
+     * HintRunnable will decrease totalHintsInProgress and targetHints when finished.
+     * It is the caller's responsibility to increment them initially.
+     */
+    private abstract static class HintRunnable implements Runnable
+    {
+        public final InetAddress target;
+
+        protected HintRunnable(InetAddress target)
+        {
+            this.target = target;
+        }
+
+        public void run()
+        {
+            try
+            {
+                runMayThrow();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+            finally
+            {
+                totalHintsInProgress.decrementAndGet();
+                hintsInProgress.get(target).decrementAndGet();
             }
         }
 
