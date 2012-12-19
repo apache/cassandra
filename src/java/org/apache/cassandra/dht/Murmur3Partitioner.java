@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.dht;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -125,20 +126,21 @@ public class Murmur3Partitioner extends AbstractPartitioner<LongToken>
         // n-case
         else
         {
-            final float ri = MAXIMUM;                                            //  (used for addition later)
-            Token start = (Token) i.next(); Long ti = ((LongToken)start).token;  // The first token and its value
-            Token t; Long tim1 = ti;                                             // The last token and its value (after loop)
+            final BigInteger ri = BigInteger.valueOf(MAXIMUM).subtract(BigInteger.valueOf(MINIMUM.token + 1));  //  (used for addition later)
+            final BigDecimal r  = new BigDecimal(ri);
+            Token start = (Token) i.next();BigInteger ti = BigInteger.valueOf(((LongToken)start).token);  // The first token and its value
+            Token t; BigInteger tim1 = ti;                                                                // The last token and its value (after loop)
 
             while (i.hasNext())
             {
-                t = (Token) i.next(); ti = ((LongToken) t).token; // The next token and its value
-                float age = ((ti - tim1 + ri) % ri) / ri;         // %age = ((T(i) - T(i-1) + R) % R) / R
+                t = (Token) i.next(); ti = BigInteger.valueOf(((LongToken) t).token); // The next token and its value
+                float age = new BigDecimal(ti.subtract(tim1).add(ri).mod(ri)).divide(r, 6, BigDecimal.ROUND_HALF_EVEN).floatValue(); // %age = ((T(i) - T(i-1) + R) % R) / R
                 ownerships.put(t, age);                           // save (T(i) -> %age)
                 tim1 = ti;                                        // -> advance loop
             }
 
             // The start token's range extends backward to the last token, which is why both were saved above.
-            float x = ((((LongToken) start).token - ti + ri) % ri) / ri;
+            float x = new BigDecimal(BigInteger.valueOf(((LongToken)start).token).subtract(ti).add(ri).mod(ri)).divide(r, 6, BigDecimal.ROUND_HALF_EVEN).floatValue();
             ownerships.put(start, x);
         }
 
