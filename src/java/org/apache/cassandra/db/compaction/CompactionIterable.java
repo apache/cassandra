@@ -70,17 +70,10 @@ public class CompactionIterable extends AbstractCompactionIterable
             CompactionIterable.this.updateCounterFor(rows.size());
             try
             {
-                AbstractCompactedRow compactedRow = controller.getCompactedRow(new ArrayList<SSTableIdentityIterator>(rows));
-                if (compactedRow.isEmpty())
-                {
-                    controller.invalidateCachedRow(compactedRow.key);
-                    return null;
-                }
-
-                // If the row is cached, we call removeDeleted on at read time it to have coherent query returns,
-                // but if the row is not pushed out of the cache, obsolete tombstones will persist indefinitely.
-                controller.removeDeletedInCache(compactedRow.key);
-                return compactedRow;
+                // create a new container for rows, since we're going to clear ours for the next one,
+                // and the AbstractCompactionRow code should be able to assume that the collection it receives
+                // won't be pulled out from under it.
+                return controller.getCompactedRow(new ArrayList<SSTableIdentityIterator>(rows));
             }
             finally
             {

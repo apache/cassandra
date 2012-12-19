@@ -109,27 +109,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                 throw new RuntimeException(e);
             }
 
-            if (compactedRow.isEmpty())
-            {
-                controller.invalidateCachedRow(compactedRow.key);
-                try
-                {
-                    compactedRow.close();
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-                return null;
-            }
-            else
-            {
-                // If the raw is cached, we call removeDeleted on it to have/ coherent query returns. However it would look
-                // like some deleted columns lived longer than gc_grace + compaction. This can also free up big amount of
-                // memory on long running instances
-                controller.invalidateCachedRow(compactedRow.key);
-                return compactedRow;
-            }
+            return compactedRow;
         }
 
         public void close() throws IOException

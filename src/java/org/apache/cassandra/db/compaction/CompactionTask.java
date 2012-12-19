@@ -129,7 +129,6 @@ public class CompactionTask extends AbstractCompactionTask
                                       ? new ParallelCompactionIterable(compactionType, strategy.getScanners(toCompact), controller)
                                       : new CompactionIterable(compactionType, strategy.getScanners(toCompact), controller);
         CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
-        Iterator<AbstractCompactedRow> nni = Iterators.filter(iter, Predicates.notNull());
         Map<DecoratedKey, RowIndexEntry> cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
 
         // we can't preheat until the tracker has been set. This doesn't happen until we tell the cfs to
@@ -143,7 +142,7 @@ public class CompactionTask extends AbstractCompactionTask
             collector.beginCompaction(ci);
         try
         {
-            if (!nni.hasNext())
+            if (!iter.hasNext())
             {
                 // don't mark compacted in the finally block, since if there _is_ nondeleted data,
                 // we need to sync it (via closeAndOpen) first, so there is no period during which
@@ -154,17 +153,21 @@ public class CompactionTask extends AbstractCompactionTask
 
             SSTableWriter writer = cfs.createCompactionWriter(keysPerSSTable, cfs.directories.getLocationForDisk(dataDirectory), toCompact);
             writers.add(writer);
-            while (nni.hasNext())
+            while (iter.hasNext())
             {
                 if (ci.isStopRequested())
                     throw new CompactionInterruptedException(ci.getCompactionInfo());
 
-                AbstractCompactedRow row = nni.next();
+                AbstractCompactedRow row = iter.next();
                 if (row.isEmpty())
                 {
+                    controller.invalidateCachedRow(row.key);
                     row.close();
                     continue;
                 }
+                // If the row is cached, we call removeDeleted on at read time it to have coherent query returns,
+                // but if the row is not pushed out of the cache, obsolete tombstones will persist indefinitely.
+                controller.removeDeletedInCache(row.key);
 
                 RowIndexEntry indexEntry = writer.append(row);
                 totalkeysWritten++;
@@ -180,12 +183,12 @@ public class CompactionTask extends AbstractCompactionTask
                         }
                     }
                 }
-                if (!nni.hasNext() || newSSTableSegmentThresholdReached(writer))
+                if (!iter.hasNext() || newSSTableSegmentThresholdReached(writer))
                 {
                     SSTableReader toIndex = writer.closeAndOpenReader(getMaxDataAge(toCompact));
                     cachedKeyMap.put(toIndex, cachedKeys);
                     sstables.add(toIndex);
-                    if (nni.hasNext())
+                    if (iter.hasNext())
                     {
                         writer = cfs.createCompactionWriter(keysPerSSTable, cfs.directories.getLocationForDisk(dataDirectory), toCompact);
                         writers.add(writer);

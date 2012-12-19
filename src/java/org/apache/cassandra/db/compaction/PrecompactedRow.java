@@ -46,8 +46,6 @@ public class PrecompactedRow extends AbstractCompactedRow
         compactedCf = cf;
     }
 
-
-
     public static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, CompactionController controller, ColumnFamily cf)
     {
         assert key != null;
