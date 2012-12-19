@@ -20,10 +20,15 @@ package org.apache.cassandra.dht;
 
 import org.junit.Test;
 
-public class OrderPreservingPartitionerTest extends PartitionerTestCase<StringToken> {
+import org.apache.cassandra.SchemaLoader;
+
+public class OrderPreservingPartitionerTest extends PartitionerTestCase<StringToken>
+{
     public void initPartitioner()
     {
         partitioner = new OrderPreservingPartitioner();
+        // need to clear data dir
+        SchemaLoader.cleanupAndLeaveDirs();
     }
 
     @Test
