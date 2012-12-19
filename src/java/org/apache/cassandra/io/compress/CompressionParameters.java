@@ -23,16 +23,22 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.AbstractSet;
 import java.util.Set;
 
-import org.apache.avro.util.Utf8;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ConfigurationException;
 
 public class CompressionParameters
 {
+    private static final Logger logger = LoggerFactory.getLogger(CompressionParameters.class);
+
     public final static int DEFAULT_CHUNK_LENGTH = 65536;
     public final static double DEFAULT_CRC_CHECK_CHANCE = 1.0;
 
@@ -40,9 +46,11 @@ public class CompressionParameters
     public static final String CHUNK_LENGTH_KB = "chunk_length_kb";
     public static final String CRC_CHECK_CHANCE = "crc_check_chance";
 
+    public static final Set<String> GLOBAL_OPTIONS = ImmutableSet.of(CRC_CHECK_CHANCE);
+
     public final ICompressor sstableCompressor;
     private final Integer chunkLength;
-    public final double crcChance;
+    private volatile double crcCheckChance;
     public final Map<String, String> otherOptions; // Unrecognized options, can be use by the compressor
 
     public static CompressionParameters create(Map<? extends CharSequence, ? extends CharSequence> opts) throws ConfigurationException
@@ -64,16 +72,53 @@ public class CompressionParameters
 
     public CompressionParameters(ICompressor sstableCompressor)
     {
-        this(sstableCompressor, null, Collections.<String, String>emptyMap());
+        // can't try/catch as first statement in the constructor, thus repeating constructor code here.
+        this.sstableCompressor = sstableCompressor;
+        chunkLength = null;
+        otherOptions = Collections.emptyMap();
+        crcCheckChance = DEFAULT_CRC_CHECK_CHANCE;
     }
 
-    public CompressionParameters(ICompressor sstableCompressor, Integer chunkLength, Map<String, String> otherOptions)
+    public CompressionParameters(ICompressor sstableCompressor, Integer chunkLength, Map<String, String> otherOptions) throws ConfigurationException
     {
         this.sstableCompressor = sstableCompressor;
         this.chunkLength = chunkLength;
         this.otherOptions = otherOptions;
-        String chance = otherOptions.get(CRC_CHECK_CHANCE);
-        this.crcChance = (chance == null) ? DEFAULT_CRC_CHECK_CHANCE : Double.parseDouble(chance);
+        this.crcCheckChance = otherOptions.get(CRC_CHECK_CHANCE) == null
+                              ? DEFAULT_CRC_CHECK_CHANCE
+                              : parseCrcCheckChance(otherOptions.get(CRC_CHECK_CHANCE));
+    }
+
+    public void setCrcCheckChance(double crcCheckChance) throws ConfigurationException
+    {
+        validateCrcCheckChance(crcCheckChance);
+        logger.debug("Setting crcCheckChance to {}", crcCheckChance);
+        this.crcCheckChance = crcCheckChance;
+    }
+
+    public double getCrcCheckChance()
+    {
+        return this.crcCheckChance;
+    }
+
+    private static double parseCrcCheckChance(String crcCheckChance) throws ConfigurationException
+    {
+        try
+        {
+            double chance = Double.parseDouble(crcCheckChance);
+            validateCrcCheckChance(chance);
+            return chance;
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException("crc_check_chance should be a double");
+        }
+    }
+
+    private static void validateCrcCheckChance(double crcCheckChance) throws ConfigurationException
+    {
+        if (crcCheckChance < 0.0d || crcCheckChance > 1.0d)
+            throw new ConfigurationException("crc_check_chance should be between 0.0 and 1.0");
     }
 
     public int chunkLength()
@@ -111,7 +156,7 @@ public class CompressionParameters
             Method method = compressorClass.getMethod("create", Map.class);
             ICompressor compressor = (ICompressor)method.invoke(null, compressionOptions);
             // Check for unknown options
-            Set<String> supportedOpts = compressor.supportedOptions();
+            AbstractSet<String> supportedOpts =  Sets.union(compressor.supportedOptions(), GLOBAL_OPTIONS);
             for (String provided : compressionOptions.keySet())
                 if (!supportedOpts.contains(provided))
                     throw new ConfigurationException("Unknown compression options " + provided);
@@ -203,8 +248,7 @@ public class CompressionParameters
             }
         }
 
-        if (crcChance > 1.0d || crcChance < 0.0d)
-            throw new ConfigurationException("crc_check_chance should be between 0.0 to 1.0");
+        validateCrcCheckChance(crcCheckChance);
     }
 
     public Map<String, String> asThriftOptions()

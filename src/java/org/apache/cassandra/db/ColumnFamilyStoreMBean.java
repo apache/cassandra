@@ -215,6 +215,11 @@ public interface ColumnFamilyStoreMBean
     public void setCompressionParameters(Map<String,String> opts) throws ConfigurationException;
 
     /**
+     * Set new crc check chance
+     */
+    public void setCrcCheckChance(double crcCheckChance) throws ConfigurationException;
+
+    /**
      * Disable automatic compaction.
      */
     public void disableAutoCompaction();

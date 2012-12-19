@@ -90,7 +90,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
         validBufferBytes = metadata.compressor().uncompress(compressed, 0, chunk.length, buffer, 0);
 
-        if (metadata.parameters.crcChance > FBUtilities.threadLocalRandom().nextDouble())
+        if (metadata.parameters.getCrcCheckChance() > FBUtilities.threadLocalRandom().nextDouble())
         {
             checksum.update(buffer, 0, validBufferBytes);
 

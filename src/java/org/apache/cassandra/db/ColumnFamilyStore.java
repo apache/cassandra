@@ -201,6 +201,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         metadata.compressionParameters = CompressionParameters.create(opts);
     }
 
+    public void setCrcCheckChance(double crcCheckChance) throws ConfigurationException
+    {
+        for (SSTableReader sstable : table.getAllSSTables())
+            if (sstable.compression)
+                sstable.getCompressionMetadata().parameters.setCrcCheckChance(crcCheckChance);
+    }
+
     private ColumnFamilyStore(Table table,
                               String columnFamilyName,
                               IPartitioner partitioner,
