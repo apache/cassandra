@@ -158,6 +158,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
         {
             assert rows.size() > 0;
 
+            ParallelCompactionIterable.this.updateCounterFor(rows.size());
             CompactedRowContainer compacted = getCompactedRow(rows);
             rows.clear();
             if ((row++ % 1000) == 0)
