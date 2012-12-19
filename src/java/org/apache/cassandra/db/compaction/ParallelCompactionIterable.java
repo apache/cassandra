@@ -112,6 +112,14 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
             if (compactedRow.isEmpty())
             {
                 controller.invalidateCachedRow(compactedRow.key);
+                try
+                {
+                    compactedRow.close();
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
                 return null;
             }
             else
