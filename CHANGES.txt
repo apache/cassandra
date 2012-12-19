@@ -15,6 +15,7 @@
  * Add debug logging to list filenames processed by Directories.migrateFile 
    method (CASSANDRA-4939)
  * Expose black-listed directories via JMX (CASSANDRA-4848)
+ * Log compaction merge counts (CASSANDRA-4894)
 
 
 1.2.0-rc2

@@ -67,6 +67,7 @@ public class CompactionIterable extends AbstractCompactionIterable
         {
             assert !rows.isEmpty();
 
+            CompactionIterable.this.updateCounterFor(rows.size());
             try
             {
                 AbstractCompactedRow compactedRow = controller.getCompactedRow(new ArrayList<SSTableIdentityIterator>(rows));
