@@ -277,6 +277,11 @@ public interface ColumnFamilyStoreMBean
     public void setCompressionParameters(Map<String,String> opts);
 
     /**
+     * Set new crc check chance
+     */
+    public void setCrcCheckChance(double crcCheckChance);
+
+    /**
      * Disable automatic compaction.
      */
     public void disableAutoCompaction();

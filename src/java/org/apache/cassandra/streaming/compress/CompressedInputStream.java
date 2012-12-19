@@ -102,7 +102,7 @@ public class CompressedInputStream extends InputStream
         uncompressedBytes += validBufferBytes;
 
         // validate crc randomly
-        if (info.parameters.crcChance > FBUtilities.threadLocalRandom().nextDouble())
+        if (info.parameters.getCrcCheckChance() > FBUtilities.threadLocalRandom().nextDouble())
         {
             checksum.update(buffer, 0, validBufferBytes);
 

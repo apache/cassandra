@@ -133,7 +133,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             throw new CorruptBlockException(getPath(), chunk);
         }
 
-        if (metadata.parameters.crcChance > FBUtilities.threadLocalRandom().nextDouble())
+        if (metadata.parameters.getCrcCheckChance() > FBUtilities.threadLocalRandom().nextDouble())
         {
             checksum.update(buffer, 0, validBufferBytes);
 
