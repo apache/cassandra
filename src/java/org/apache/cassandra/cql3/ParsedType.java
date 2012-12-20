@@ -25,6 +25,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 public interface ParsedType
 {
     public boolean isCollection();
+    public boolean isCounter();
     public AbstractType<?> getType();
 
     public enum Native implements ParsedType
@@ -62,6 +63,11 @@ public interface ParsedType
         {
             return type;
         }
+
+        public boolean isCounter()
+        {
+            return this == COUNTER;
+        }
     }
 
     public static class Custom implements ParsedType
@@ -82,6 +88,11 @@ public interface ParsedType
         {
             return type;
         }
+
+        public boolean isCounter()
+        {
+            return false;
+        }
     }
 
     public static class Collection implements ParsedType
@@ -97,6 +108,8 @@ public interface ParsedType
         {
             if (t1.isCollection() || t2.isCollection())
                 throw new InvalidRequestException("map type cannot contain another collection");
+            if (t1.isCounter() || t2.isCounter())
+                throw new InvalidRequestException("counters are not allowed inside a collection");
 
             return new Collection(MapType.getInstance(t1.getType(), t2.getType()));
         }
@@ -105,6 +118,8 @@ public interface ParsedType
         {
             if (t.isCollection())
                 throw new InvalidRequestException("list type cannot contain another collection");
+            if (t.isCounter())
+                throw new InvalidRequestException("counters are not allowed inside a collection");
 
             return new Collection(ListType.getInstance(t.getType()));
         }
@@ -113,6 +128,8 @@ public interface ParsedType
         {
             if (t.isCollection())
                 throw new InvalidRequestException("set type cannot contain another collection");
+            if (t.isCounter())
+                throw new InvalidRequestException("counters are not allowed inside a collection");
 
             return new Collection(SetType.getInstance(t.getType()));
         }
@@ -125,6 +142,11 @@ public interface ParsedType
         public AbstractType<?> getType()
         {
             return type;
+        }
+
+        public boolean isCounter()
+        {
+            return false;
         }
     }
 }
