@@ -12,6 +12,7 @@ Merged from 1.1:
    (CASSANDRA-4996, 5066)
  * fix specifying and altering crc_check_chance (CASSANDRA-5053)
  * fix Murmur3Partitioner ownership% calculation (CASSANDRA-5076)
+ * Don't expire columns sooner than they should in 2ndary indexes (CASSANDRA-5079)
 
 
 1.2-rc1
