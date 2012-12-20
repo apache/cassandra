@@ -898,8 +898,10 @@ public class CompactionManager implements CompactionManagerMBean
 
     static int getDefaultGcBefore(ColumnFamilyStore cfs)
     {
+        // 2ndary indexes have ExpiringColumns too, so we need to purge tombstones deleted before now. We do not need to
+        // add any GcGrace however since 2ndary indexes are local to a node.
         return cfs.isIndex()
-               ? GC_ALL
+               ? (int) (System.currentTimeMillis() / 1000)
                : (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
     }
 
