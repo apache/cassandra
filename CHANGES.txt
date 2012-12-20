@@ -13,6 +13,10 @@
  * Log compaction merge counts (CASSANDRA-4894)
 
 
+1.2.0
+ * Disallow counters in collections (CASSANDRA-5082)
+
+
 1.2.0-rc2
  * fix nodetool ownership display with vnodes (CASSANDRA-5065)
  * cqlsh: add DESCRIBE KEYSPACES command (CASSANDRA-5060)
