@@ -693,8 +693,9 @@ public class CassandraServer implements Cassandra.Iface
             }
             else
             {
-                RowPosition end = range.end_key == null ? p.getTokenFactory().fromString(range.end_token).maxKeyBound(p)
-                                                    : RowPosition.forKey(range.end_key, p);
+                RowPosition end = range.end_key == null
+                                ? p.getTokenFactory().fromString(range.end_token).maxKeyBound(p)
+                                : RowPosition.forKey(range.end_key, p);
                 bounds = new Bounds<RowPosition>(RowPosition.forKey(range.start_key, p), end);
             }
             schedule(DatabaseDescriptor.getRpcTimeout());
@@ -748,8 +749,9 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            RowPosition end = range.end_key == null ? p.getTokenFactory().fromString(range.end_token).maxKeyBound(p)
-                                                    : RowPosition.forKey(range.end_key, p);
+            RowPosition end = range.end_key == null
+                            ? p.getTokenFactory().fromString(range.end_token).maxKeyBound(p)
+                            : RowPosition.forKey(range.end_key, p);
             bounds = new Bounds<RowPosition>(RowPosition.forKey(range.start_key, p), end);
         }
 

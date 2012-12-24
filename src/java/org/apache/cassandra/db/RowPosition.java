@@ -51,7 +51,9 @@ public abstract class RowPosition implements RingPosition<RowPosition>
 
     public static RowPosition forKey(ByteBuffer key, IPartitioner p)
     {
-        return key == null || key.remaining() == 0 ? p.getMinimumToken().minKeyBound() : p.decorateKey(key);
+        return (key == null || key.remaining() == 0)
+               ? p.getMinimumToken().minKeyBound()
+               : p.decorateKey(key);
     }
 
     public abstract Token getToken();
