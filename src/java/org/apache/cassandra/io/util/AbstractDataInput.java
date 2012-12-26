@@ -78,11 +78,11 @@ public abstract class AbstractDataInput extends InputStream implements DataInput
      *             if this file is closed or another I/O error occurs.
      */
     public final char readChar() throws IOException {
-        byte[] buffer = new byte[2];
-        if (read(buffer, 0, buffer.length) != buffer.length) {
+        int ch1 = this.read();
+        int ch2 = this.read();
+        if ((ch1 | ch2) < 0)
             throw new EOFException();
-        }
-        return (char) (((buffer[0] & 0xff) << 8) + (buffer[1] & 0xff));
+        return (char)((ch1 << 8) + (ch2 << 0));
     }
 
     /**
@@ -188,12 +188,13 @@ public abstract class AbstractDataInput extends InputStream implements DataInput
      *             if this file is closed or another I/O error occurs.
      */
     public int readInt() throws IOException {
-        byte[] buffer = new byte[4];
-        if (read(buffer, 0, buffer.length) != buffer.length) {
+        int ch1 = this.read();
+        int ch2 = this.read();
+        int ch3 = this.read();
+        int ch4 = this.read();
+        if ((ch1 | ch2 | ch3 | ch4) < 0)
             throw new EOFException();
-        }
-        return ((buffer[0] & 0xff) << 24) + ((buffer[1] & 0xff) << 16)
-                + ((buffer[2] & 0xff) << 8) + (buffer[3] & 0xff);
+        return ((ch1 << 24) + (ch2 << 16) + (ch3 << 8) + (ch4 << 0));
     }
 
     /**
@@ -252,17 +253,7 @@ public abstract class AbstractDataInput extends InputStream implements DataInput
      *             if this file is closed or another I/O error occurs.
      */
     public long readLong() throws IOException {
-        byte[] buffer = new byte[8];
-        int n = read(buffer, 0, buffer.length);
-        if (n != buffer.length) {
-            throw new EOFException("expected 8 bytes; read " + n + " at final position " + getPosition());
-        }
-        return ((long) (((buffer[0] & 0xff) << 24) + ((buffer[1] & 0xff) << 16)
-                + ((buffer[2] & 0xff) << 8) + (buffer[3] & 0xff)) << 32)
-                + ((long) (buffer[4] & 0xff) << 24)
-                + ((buffer[5] & 0xff) << 16)
-                + ((buffer[6] & 0xff) << 8)
-                + (buffer[7] & 0xff);
+        return ((long)(readInt()) << 32) + (readInt() & 0xFFFFFFFFL);
     }
 
     /**
@@ -277,11 +268,11 @@ public abstract class AbstractDataInput extends InputStream implements DataInput
      *             if this file is closed or another I/O error occurs.
      */
     public short readShort() throws IOException {
-        byte[] buffer = new byte[2];
-        if (read(buffer, 0, buffer.length) != buffer.length) {
+        int ch1 = this.read();
+        int ch2 = this.read();
+        if ((ch1 | ch2) < 0)
             throw new EOFException();
-        }
-        return (short) (((buffer[0] & 0xff) << 8) + (buffer[1] & 0xff));
+        return (short)((ch1 << 8) + (ch2 << 0));
     }
 
     /**
@@ -315,11 +306,11 @@ public abstract class AbstractDataInput extends InputStream implements DataInput
      *             if this file is closed or another I/O error occurs.
      */
     public int readUnsignedShort() throws IOException {
-        byte[] buffer = new byte[2];
-        if (read(buffer, 0, buffer.length) != buffer.length) {
+        int ch1 = this.read();
+        int ch2 = this.read();
+        if ((ch1 | ch2) < 0)
             throw new EOFException();
-        }
-        return ((buffer[0] & 0xff) << 8) + (buffer[1] & 0xff);
+        return (ch1 << 8) + (ch2 << 0);
     }
 
     /**

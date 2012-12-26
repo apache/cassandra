@@ -135,10 +135,8 @@ public abstract class AbstractDataOutput extends OutputStream implements DataOut
      *             DataOutputStream.
      */
     public final void writeChar(int val) throws IOException {
-        byte[] buffer = new byte[2];
-        buffer[0] = (byte) (val >> 8);
-        buffer[1] = (byte) val;
-        write(buffer, 0, buffer.length);
+        write((val >>> 8) & 0xFF);
+        write((val >>> 0) & 0xFF);
     }
 
     /**
@@ -206,12 +204,10 @@ public abstract class AbstractDataOutput extends OutputStream implements DataOut
      *             DataOutputStream.
      */
     public void writeInt(int val) throws IOException {
-        byte[] buffer = new byte[4];
-        buffer[0] = (byte) (val >> 24);
-        buffer[1] = (byte) (val >> 16);
-        buffer[2] = (byte) (val >> 8);
-        buffer[3] = (byte) val;
-        write(buffer, 0, buffer.length);
+        write((val >>> 24) & 0xFF);
+        write((val >>> 16) & 0xFF);
+        write((val >>>  8) & 0xFF);
+        write((val >>>  0) & 0xFF);
     }
 
     /**
@@ -226,17 +222,14 @@ public abstract class AbstractDataOutput extends OutputStream implements DataOut
      *             DataOutputStream.
      */
     public void writeLong(long val) throws IOException {
-        byte[] buffer = new byte[8];
-        int t = (int) (val >> 32);
-        buffer[0] = (byte) (t >> 24);
-        buffer[1] = (byte) (t >> 16);
-        buffer[2] = (byte) (t >> 8);
-        buffer[3] = (byte) t;
-        buffer[4] = (byte) (val >> 24);
-        buffer[5] = (byte) (val >> 16);
-        buffer[6] = (byte) (val >> 8);
-        buffer[7] = (byte) val;
-        write(buffer, 0, buffer.length);
+        write((int)(val >>> 56) & 0xFF);
+        write((int)(val >>> 48) & 0xFF);
+        write((int)(val >>> 40) & 0xFF);
+        write((int)(val >>> 32) & 0xFF);
+        write((int)(val >>> 24) & 0xFF);
+        write((int)(val >>> 16) & 0xFF);
+        write((int)(val >>>  8) & 0xFF);
+        write((int)(val >>>  0) & 0xFF);
     }
 
     /**
