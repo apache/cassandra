@@ -21,9 +21,13 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import javax.print.attribute.IntegerSyntax;
+
 import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+import com.google.common.primitives.Longs;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -229,20 +233,29 @@ public class CompactionTask extends AbstractCompactionTask
                key.cacheKey(entry.getKey(), entry.getValue());
         }
 
+        // log a bunch of statistics about the result
         long dTime = System.currentTimeMillis() - startTime;
         long startsize = SSTable.getTotalBytes(toCompact);
         long endsize = SSTable.getTotalBytes(sstables);
         double ratio = (double)endsize / (double)startsize;
 
         StringBuilder builder = new StringBuilder();
-        builder.append("[");
         for (SSTableReader reader : sstables)
-            builder.append(reader.getFilename()).append(",");
-        builder.append("]");
+            builder.append(reader.descriptor.baseFilename()).append(",");
 
         double mbps = dTime > 0 ? (double)endsize/(1024*1024)/((double)dTime/1000) : 0;
-        logger.info(String.format("Compacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys at %fMB/s.  Time: %,dms.  Compaction merge counts: %s.",
-                                  builder.toString(), startsize, endsize, (int) (ratio * 100), totalkeysWritten, mbps, dTime, Arrays.toString(ci.getMergedRowCounts())));
+        long totalSourceRows = 0;
+        String mergeSummary = "";
+        for (int i = 0; i < ci.getMergedRowCounts().length; i++)
+        {
+            int rows = i + 1;
+            int count = ci.getMergedRowCounts()[i];
+            totalSourceRows += rows * count;
+            mergeSummary += String.format("%d:%d, ", rows, count);
+        }
+
+        logger.info(String.format("Compacted %d sstables to [%s].  %,d bytes to %,d (~%d%% of original) in %,dms = %fMB/s.  %,d total rows, %,d unique.  Row merge counts were {%s}",
+                                  toCompact.size(), builder.toString(), startsize, endsize, (int) (ratio * 100), dTime, mbps, totalSourceRows, totalkeysWritten, mergeSummary));
         logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
     }
 
