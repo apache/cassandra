@@ -38,7 +38,7 @@ class UnexpectedTableStructure(UserWarning):
     def __str__(self):
         return 'Unexpected table structure; may not translate correctly to CQL. ' + self.msg
 
-SYSTEM_KEYSPACES = ('system', 'system_traces')
+SYSTEM_KEYSPACES = ('system', 'system_auth', 'system_traces')
 
 class Cql3ParsingRuleSet(CqlParsingRuleSet):
     keywords = set((
@@ -58,39 +58,37 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
     columnfamily_options = (
         # (CQL option name, Thrift option name (or None if same))
         ('comment', None),
-        ('comparator', 'comparator_type'),
-        ('read_repair_chance', None),
-        ('gc_grace_seconds', None),
-        ('default_validation', 'default_validation_class'),
-        ('replicate_on_write', None),
         ('compaction_strategy_class', 'compaction_strategy'),
+        ('comparator', 'comparator_type'),
+        ('default_validation', 'default_validation_class'),
+        ('gc_grace_seconds', None),
         ('index_interval', None),
+        ('read_repair_chance', None),
+        ('replicate_on_write', None),
     )
 
     old_columnfamily_layout_options = (
         # (CQL3 option name, schema_columnfamilies column name (or None if same))
-        ('comment', None),
         ('bloom_filter_fp_chance', None),
         ('caching', None),
-        ('read_repair_chance', None),
+        ('comment', None),
+        ('compaction_strategy_class', None),
         ('dclocal_read_repair_chance', 'local_read_repair_chance'),
         ('gc_grace_seconds', None),
-        ('replicate_on_write', None),
-        ('compaction_strategy_class', None),
         ('index_interval', None),
+        ('read_repair_chance', None),
+        ('replicate_on_write', None),
     )
 
     new_columnfamily_layout_options = (
-        ('comment', None),
         ('bloom_filter_fp_chance', None),
         ('caching', None),
-        ('read_repair_chance', None),
+        ('comment', None),
         ('dclocal_read_repair_chance', 'local_read_repair_chance'),
         ('gc_grace_seconds', None),
-        ('replicate_on_write', None),
-        ('default_read_consistency', None),
-        ('default_write_consistency', None),
         ('index_interval', None),
+        ('read_repair_chance', None),
+        ('replicate_on_write', None),
     )
 
     old_columnfamily_layout_map_options = (
@@ -106,18 +104,18 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         # (CQL3 option name, schema_columnfamilies column name (or None if same),
         #  list of known map keys)
         ('compaction', 'compaction_strategy_options',
-            ('min_threshold', 'max_threshold')),
+            ('class', 'min_threshold', 'max_threshold')),
         ('compression', 'compression_parameters',
             ('sstable_compression', 'chunk_length_kb', 'crc_check_chance')),
     )
 
     new_obsolete_cf_options = (
+        'compaction_parameters',
         'compaction_strategy_class',
         'compaction_strategy_options',
-        'min_compaction_threshold',
-        'max_compaction_threshold',
-        'compaction_parameters',
         'compression_parameters',
+        'max_compaction_threshold',
+        'min_compaction_threshold',
     )
 
     @staticmethod
@@ -1517,7 +1515,7 @@ class CqlTableDef:
         if len(self.column_aliases) == 0:
             if self.comparator is not UTF8Type:
                 warn(UnexpectedTableStructure("Compact storage CF %s has no column aliases,"
-                                              " but comparator is not UTF8Type." % (self,)))
+                                              " but comparator is not UTF8Type." % (self.name,)))
             colalias_types = []
         elif issubclass(self.comparator, CompositeType):
             colalias_types = self.comparator.subtypes
