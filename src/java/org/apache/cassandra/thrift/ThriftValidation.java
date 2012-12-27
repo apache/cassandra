@@ -467,9 +467,10 @@ public class ThriftValidation
         if (range.start_token != null && range.end_key != null)
             throw new org.apache.cassandra.exceptions.InvalidRequestException("start token + end key is not a supported key range");
 
+        IPartitioner p = StorageService.getPartitioner();
+
         if (range.start_key != null && range.end_key != null)
         {
-            IPartitioner p = StorageService.getPartitioner();
             Token startToken = p.getToken(range.start_key);
             Token endToken = p.getToken(range.end_key);
             if (startToken.compareTo(endToken) > 0 && !endToken.isMinimum(p))
@@ -479,6 +480,14 @@ public class ThriftValidation
                 else
                     throw new org.apache.cassandra.exceptions.InvalidRequestException("start key must sort before (or equal to) finish key in your partitioner!");
             }
+        }
+        else if (range.end_token != null)
+        {
+            RowPosition stop = p.getTokenFactory().fromString(range.end_token).maxKeyBound(p);
+            if (range.start_key != null && RowPosition.forKey(range.start_key, p).compareTo(stop) > 0)
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("Start key's token sorts after end token");
+            if (range.start_token != null && p.getTokenFactory().fromString(range.start_token).maxKeyBound(p).compareTo(stop) > 0)
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("Start token sorts after end token");
         }
 
         validateFilterClauses(metadata, range.row_filter);
