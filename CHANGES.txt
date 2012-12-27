@@ -1,4 +1,5 @@
 1.2.1
+ * Improve handling a changing target throttle rate mid-compaction (CASSANDRA-5087)
  * fix hinting for dropped local writes (CASSANDRA-4753)
  * off-heap cache doesn't need mutable column container (CASSANDRA-5057)
  * apply disk_failure_policy to bad disks on initial directory creation 
