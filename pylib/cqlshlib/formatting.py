@@ -16,6 +16,7 @@
 
 import re
 import time
+import binascii
 from collections import defaultdict
 from . import wcwidth
 from .displaying import colorme, FormattedValue, DEFAULT_VALUE_COLORS
@@ -66,13 +67,29 @@ def format_by_type(cqltype, val, encoding, colormap=None, addcolor=False,
                         time_format=time_format, float_precision=float_precision,
                         nullval=nullval)
 
+def color_text(bval, colormap, displaywidth=None):
+    # note that here, we render natural backslashes as just backslashes,
+    # in the same color as surrounding text, when using color. When not
+    # using color, we need to double up the backslashes so it's not
+    # ambiguous. This introduces the unique difficulty of having different
+    # display widths for the colored and non-colored versions. To avoid
+    # adding the smarts to handle that in to FormattedValue, we just
+    # make an explicit check to see if a null colormap is being used or
+    # not.
+
+    if displaywidth is None:
+        displaywidth = len(bval)
+    tbr = _make_turn_bits_red_f(colormap['hex'], colormap['text'])
+    coloredval = colormap['text'] + bits_to_turn_red_re.sub(tbr, bval) + colormap['reset']
+    if colormap['text']:
+        displaywidth -= bval.count(r'\\')
+    return FormattedValue(bval, coloredval, displaywidth)
+
 def format_value_default(val, colormap, **_):
     val = str(val)
     escapedval = val.replace('\\', '\\\\')
     bval = controlchars_re.sub(_show_control_chars, escapedval)
-    tbr = _make_turn_bits_red_f(colormap['hex'], colormap['text'])
-    coloredval = colormap['text'] + bits_to_turn_red_re.sub(tbr, bval) + colormap['reset']
-    return FormattedValue(bval, coloredval)
+    return color_text(bval, colormap)
 
 # Mapping cql type base names ("int", "map", etc) to formatter functions,
 # making format_value a generic function
@@ -164,9 +181,7 @@ def format_value_text(val, encoding, colormap, **_):
     escapedval = unicode_controlchars_re.sub(_show_control_chars, escapedval)
     bval = escapedval.encode(encoding, 'backslashreplace')
     displaywidth = wcwidth.wcswidth(bval.decode(encoding))
-    tbr = _make_turn_bits_red_f(colormap['hex'], colormap['text'])
-    coloredval = colormap['text'] + bits_to_turn_red_re.sub(tbr, bval) + colormap['reset']
-    return FormattedValue(bval, coloredval)
+    return color_text(bval, colormap, displaywidth)
 
 # name alias
 formatter_for('varchar')(format_value_text)

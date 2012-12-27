@@ -53,20 +53,24 @@ class FormattedValue:
         else:
             return ''
 
-    def ljust(self, width, fill=' '):
+    def ljust(self, width, fill=' ', color=False):
         """
         Similar to self.strval.ljust(width), but takes expected terminal
         display width into account for special characters, and does not
         take color escape codes into account.
         """
+        if color:
+            return self.color_ljust(width, fill=fill)
         return self.strval + self._pad(width, fill)
 
-    def rjust(self, width, fill=' '):
+    def rjust(self, width, fill=' ', color=False):
         """
         Similar to self.strval.rjust(width), but takes expected terminal
         display width into account for special characters, and does not
         take color escape codes into account.
         """
+        if color:
+            return self.color_rjust(width, fill=fill)
         return self._pad(width, fill) + self.strval
 
     def color_rjust(self, width, fill=' '):
