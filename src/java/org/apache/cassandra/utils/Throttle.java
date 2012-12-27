@@ -51,7 +51,7 @@ public class Throttle
         throttleDelta(currentBytes - bytesAtLastDelay);
     }
 
-    /** @param bytesDelta Bytes of throughput since the last call to throttle*(). */
+    /** @param bytesDelta Bytes of throughput since the last call to throttle*() */
     public void throttleDelta(long bytesDelta)
     {
         int newTargetBytesPerMS = fun.targetThroughput();
@@ -59,10 +59,18 @@ public class Throttle
             // throttling disabled
             return;
 
-        // if the target changed, log
         if (newTargetBytesPerMS != targetBytesPerMS)
+        {
+            // restart throttling based on the new target to avoid getting bogus answers based on comparing
+            // the rate under the old throttle, with the desired rate under the new.  (If the new rate is higher
+            // than the old, it doesn't much matter, but if the new rate is lower, it would result in a long
+            // sleep to bring the average down.  See CASSANDRA-5087.)
             logger.debug("{} target throughput now {} bytes/ms.", this, newTargetBytesPerMS);
-        targetBytesPerMS = newTargetBytesPerMS;
+            targetBytesPerMS = newTargetBytesPerMS;
+            bytesAtLastDelay += bytesDelta;
+            timeAtLastDelay = System.currentTimeMillis();
+            return;
+        }
 
         // time passed since last delay
         long msSinceLast = System.currentTimeMillis() - timeAtLastDelay;
