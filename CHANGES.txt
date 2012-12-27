@@ -1,4 +1,5 @@
 1.1.9
+ * Improve handling a changing target throttle rate mid-compaction (CASSANDRA-5087)
  * fix multithreaded compaction deadlock (CASSANDRA-4492)
  * fix specifying and altering crc_check_chance (CASSANDRA-5053)
  * Don't expire columns sooner than they should in 2ndary indexes (CASSANDRA-5079)
