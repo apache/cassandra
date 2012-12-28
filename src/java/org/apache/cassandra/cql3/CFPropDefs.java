@@ -23,10 +23,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.io.compress.CompressionParameters;
 
 public class CFPropDefs extends PropertyDefinitions
@@ -117,7 +116,6 @@ public class CFPropDefs extends PropertyDefinitions
         cfm.minCompactionThreshold(toInt(KW_MINCOMPACTIONTHRESHOLD, getCompactionOptions().get(KW_MINCOMPACTIONTHRESHOLD), cfm.getMinCompactionThreshold()));
         cfm.maxCompactionThreshold(toInt(KW_MAXCOMPACTIONTHRESHOLD, getCompactionOptions().get(KW_MAXCOMPACTIONTHRESHOLD), cfm.getMaxCompactionThreshold()));
         cfm.caching(CFMetaData.Caching.fromString(getString(KW_CACHING, cfm.getCaching().toString())));
-        cfm.bloomFilterFpChance(getDouble(KW_BF_FP_CHANCE, cfm.getBloomFilterFpChance()));
 
         if (compactionStrategyClass != null)
         {
@@ -125,24 +123,10 @@ public class CFPropDefs extends PropertyDefinitions
             cfm.compactionStrategyOptions(new HashMap<String, String>(getCompactionOptions()));
         }
 
+        cfm.bloomFilterFpChance(getDouble(KW_BF_FP_CHANCE, cfm.getBloomFilterFpChance()));
+
         if (!getCompressionOptions().isEmpty())
             cfm.compressionParameters(CompressionParameters.create(getCompressionOptions()));
-    }
-
-    public ConsistencyLevel getConsistencyLevel(String key) throws ConfigurationException, SyntaxException
-    {
-        String value = getSimple(key);
-        if (value == null)
-            return null;
-
-        try
-        {
-            return Enum.valueOf(ConsistencyLevel.class, value);
-        }
-        catch (IllegalArgumentException e)
-        {
-            throw new ConfigurationException(String.format("Invalid consistency level value: %s", value));
-        }
     }
 
     @Override
