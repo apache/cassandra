@@ -18,6 +18,7 @@
 1.2.0
  * Disallow counters in collections (CASSANDRA-5082)
  * cqlsh: add unit tests (CASSANDRA-3920)
+ * fix default bloom_filter_fp_chance for LeveledCompactionStrategy (CASSANDRA-5093)
 
 
 1.2.0-rc2
