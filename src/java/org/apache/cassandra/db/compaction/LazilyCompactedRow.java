@@ -71,18 +71,20 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         super(rows.get(0).getKey());
         this.rows = rows;
         this.controller = controller;
-        this.shouldPurge = controller.shouldPurge(key);
         indexer = controller.cfs.indexManager.updaterFor(key, false);
 
+        long maxDelTimestamp = Long.MIN_VALUE;
         for (OnDiskAtomIterator row : rows)
         {
             ColumnFamily cf = row.getColumnFamily();
+            maxDelTimestamp = Math.max(maxDelTimestamp, cf.deletionInfo().maxTimestamp());
 
             if (emptyColumnFamily == null)
                 emptyColumnFamily = cf;
             else
                 emptyColumnFamily.delete(cf);
         }
+        this.shouldPurge = controller.shouldPurge(key, maxDelTimestamp);
 
         try
         {
@@ -94,7 +96,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         }
         // reach into the reducer used during iteration to get column count, size, max column timestamp
         // (however, if there are zero columns, iterator() will not be called by ColumnIndexer and reducer will be null)
-        columnStats = new ColumnStats(reducer == null ? 0 : reducer.columns, reducer == null ? Long.MIN_VALUE : reducer.maxTimestampSeen,
+        columnStats = new ColumnStats(reducer == null ? 0 : reducer.columns, 
+                                      reducer == null ? Long.MAX_VALUE : reducer.minTimestampSeen, 
+                                      reducer == null ? Long.MIN_VALUE : reducer.maxTimestampSeen,
                                       reducer == null ? new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE) : reducer.tombstones
         );
         columnSerializedSize = reducer == null ? 0 : reducer.serializedSize;
@@ -236,6 +240,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
 
         long serializedSize = 4; // int for column count
         int columns = 0;
+        long minTimestampSeen = Long.MAX_VALUE;
         long maxTimestampSeen = Long.MIN_VALUE;
         StreamingHistogram tombstones = new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE);
 
@@ -290,6 +295,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
 
                 serializedSize += reduced.serializedSizeForSSTable();
                 columns++;
+                minTimestampSeen = Math.min(minTimestampSeen, reduced.minTimestamp());
                 maxTimestampSeen = Math.max(maxTimestampSeen, reduced.maxTimestamp());
                 int deletionTime = reduced.getLocalDeletionTime();
                 if (deletionTime < Integer.MAX_VALUE)

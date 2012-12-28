@@ -34,8 +34,9 @@ public interface OnDiskAtom
 
     /**
      * For a standard column, this is the same as timestamp().
-     * For a super column, this is the max column timestamp of the sub columns.
+     * For a super column, this is the min/max column timestamp of the sub columns.
      */
+    public long minTimestamp();
     public long maxTimestamp();
     public int getLocalDeletionTime(); // for tombstone GC, so int is sufficient granularity
 

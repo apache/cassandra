@@ -178,6 +178,16 @@ public class DeletionInfo
         }
     }
 
+    public long minTimestamp()
+    {
+        long minTimestamp = topLevel.markedForDeleteAt;
+        for (RangeTombstone i : ranges)
+        {
+            minTimestamp = Math.min(minTimestamp, i.data.markedForDeleteAt);
+        }
+        return minTimestamp;
+    }
+
     /**
      * The maximum timestamp mentioned by this DeletionInfo.
      */

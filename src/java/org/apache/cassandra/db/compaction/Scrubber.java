@@ -353,7 +353,7 @@ public class Scrubber implements Closeable
         }
 
         @Override
-        public boolean shouldPurge(DecoratedKey key)
+        public boolean shouldPurge(DecoratedKey key, long delTimestamp)
         {
             return false;
         }

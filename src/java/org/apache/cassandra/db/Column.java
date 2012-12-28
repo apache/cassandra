@@ -102,6 +102,11 @@ public class Column implements IColumn
         return timestamp;
     }
 
+    public long minTimestamp()
+    {
+        return timestamp;
+    }
+
     public long maxTimestamp()
     {
         return timestamp;

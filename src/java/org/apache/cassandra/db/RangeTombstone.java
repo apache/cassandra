@@ -57,6 +57,11 @@ public class RangeTombstone extends Interval<ByteBuffer, DeletionTime> implement
         return data.localDeletionTime;
     }
 
+    public long minTimestamp()
+    {
+        return data.markedForDeleteAt;
+    }
+
     public long maxTimestamp()
     {
         return data.markedForDeleteAt;

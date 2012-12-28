@@ -154,6 +154,14 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
         throw new UnsupportedOperationException("This operation is not supported for Super Columns.");
     }
 
+    public long minTimestamp()
+    {
+        long minTimestamp = getMarkedForDeleteAt();
+        for (IColumn subColumn : getSubColumns())
+            minTimestamp = Math.min(minTimestamp, subColumn.minTimestamp());
+        return minTimestamp;
+    }
+
     public long maxTimestamp()
     {
         long maxTimestamp = getMarkedForDeleteAt();

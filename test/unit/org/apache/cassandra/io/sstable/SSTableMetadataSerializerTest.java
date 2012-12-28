@@ -43,12 +43,14 @@ public class SSTableMetadataSerializerTest
             new long[] { 6L, 7L },
             new long[] { 8L, 9L, 10L });
         ReplayPosition rp = new ReplayPosition(11L, 12);
+        long minTimestamp = 2162517136L;
         long maxTimestamp = 4162517136L;
 
         SSTableMetadata.Collector collector = SSTableMetadata.createCollector()
                                                              .estimatedRowSize(rowSizes)
                                                              .estimatedColumnCount(columnCounts)
                                                              .replayPosition(rp);
+        collector.updateMinTimestamp(minTimestamp);
         collector.updateMaxTimestamp(maxTimestamp);
         SSTableMetadata originalMetadata = collector.finalizeMetadata(RandomPartitioner.class.getCanonicalName());
 
@@ -68,7 +70,9 @@ public class SSTableMetadataSerializerTest
         assert stats.estimatedColumnCount.equals(columnCounts);
         assert stats.replayPosition.equals(originalMetadata.replayPosition);
         assert stats.replayPosition.equals(rp);
+        assert stats.minTimestamp == minTimestamp;
         assert stats.maxTimestamp == maxTimestamp;
+        assert stats.minTimestamp == originalMetadata.minTimestamp;
         assert stats.maxTimestamp == originalMetadata.maxTimestamp;
         assert RandomPartitioner.class.getCanonicalName().equals(stats.partitioner);
     }
