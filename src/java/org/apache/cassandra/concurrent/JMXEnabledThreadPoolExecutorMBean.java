@@ -34,4 +34,24 @@ public interface JMXEnabledThreadPoolExecutorMBean extends IExecutorMBean
      * the executor (because all threads are busy and the backing queue is full).
      */
     public int getCurrentlyBlockedTasks();
+
+    /**
+     * Returns core pool size of thread pool.
+     */
+    public int getCoreThreads();
+
+    /**
+     * Allows user to resize core pool size of the thread pool.
+     */
+    public void setCoreThreads(int number);
+
+    /**
+     * Returns maximum pool size of thread pool.
+     */
+    public int getMaximumThreads();
+
+    /**
+     * Allows user to resize maximum size of the thread pool.
+     */
+    public void setMaximumThreads(int number);
 }

@@ -159,6 +159,26 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
         return (int) metrics.currentBlocked.count();
     }
 
+    public int getCoreThreads()
+    {
+        return getCorePoolSize();
+    }
+
+    public void setCoreThreads(int number)
+    {
+        setCorePoolSize(number);
+    }
+
+    public int getMaximumThreads()
+    {
+        return getMaximumPoolSize();
+    }
+
+    public void setMaximumThreads(int number)
+    {
+        setMaximumPoolSize(number);
+    }
+
     @Override
     protected void onInitialRejection(Runnable task)
     {

@@ -74,4 +74,48 @@ public interface CompactionManagerMBean
      *   - INDEX_BUILD
      */
     public void stopCompaction(String type);
+
+    /**
+     * Returns core size of compaction thread pool
+     */
+    public int getCoreCompactorThreads();
+
+    /**
+     * Allows user to resize maximum size of the compaction thread pool.
+     * @param number New maximum of compaction threads
+     */
+    public void setCoreCompactorThreads(int number);
+
+    /**
+     * Returns maximum size of compaction thread pool
+     */
+    public int getMaximumCompactorThreads();
+
+    /**
+     * Allows user to resize maximum size of the compaction thread pool.
+     * @param number New maximum of compaction threads
+     */
+    public void setMaximumCompactorThreads(int number);
+
+    /**
+     * Returns core size of validation thread pool
+     */
+    public int getCoreValidationThreads();
+
+    /**
+     * Allows user to resize maximum size of the compaction thread pool.
+     * @param number New maximum of compaction threads
+     */
+    public void setCoreValidationThreads(int number);
+
+    /**
+     * Returns size of validator thread pool
+     */
+    public int getMaximumValidatorThreads();
+
+    /**
+     * Allows user to resize maximum size of the validator thread pool.
+     * @param number New maximum of validator threads
+     */
+    public void setMaximumValidatorThreads(int number);
 }
