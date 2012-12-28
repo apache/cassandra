@@ -1126,6 +1126,46 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
+    public int getCoreCompactorThreads()
+    {
+        return executor.getCorePoolSize();
+    }
+
+    public void setCoreCompactorThreads(int number)
+    {
+        executor.setCorePoolSize(number);
+    }
+
+    public int getMaximumCompactorThreads()
+    {
+        return executor.getMaximumPoolSize();
+    }
+
+    public void setMaximumCompactorThreads(int number)
+    {
+        executor.setMaximumPoolSize(number);
+    }
+
+    public int getCoreValidationThreads()
+    {
+        return validationExecutor.getCorePoolSize();
+    }
+
+    public void setCoreValidationThreads(int number)
+    {
+        validationExecutor.setCorePoolSize(number);
+    }
+
+    public int getMaximumValidatorThreads()
+    {
+        return validationExecutor.getMaximumPoolSize();
+    }
+
+    public void setMaximumValidatorThreads(int number)
+    {
+        validationExecutor.setMaximumPoolSize(number);
+    }
+
     /**
      * Try to stop all of the compactions for given ColumnFamilies.
      * Note that this method does not wait indefinitely for all compactions to finish, maximum wait time is 30 secs.
