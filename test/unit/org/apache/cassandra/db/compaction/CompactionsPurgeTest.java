@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
+import junit.framework.Assert;
+
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -140,12 +142,47 @@ public class CompactionsPurgeTest extends SchemaLoader
         // verify that minor compaction does not GC when key is present
         // in a non-compacted sstable
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key1, new QueryPath(cfName)));
-        assert cf.getColumnCount() == 10;
+        Assert.assertEquals(10, cf.getColumnCount());
 
         // verify that minor compaction does GC when key is provably not
         // present in a non-compacted sstable
         cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key2, new QueryPath(cfName)));
         assert cf == null;
+    }
+
+    @Test
+    public void testMinTimestampPurge() throws IOException, ExecutionException, InterruptedException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Table table = Table.open(TABLE2);
+        String cfName = "Standard1";
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+
+        RowMutation rm;
+        DecoratedKey key3 = Util.dk("key3");
+        // inserts
+        rm = new RowMutation(TABLE2, key3.key);
+        rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes("c1")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 8);
+        rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes("c2")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 8);
+        rm.apply();
+        cfs.forceBlockingFlush();
+        // deletes
+        rm = new RowMutation(TABLE2, key3.key);
+        rm.delete(new QueryPath(cfName, null, ByteBufferUtil.bytes("c1")), 10);
+        rm.apply();
+        cfs.forceBlockingFlush();
+        Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
+
+        // delete so we have new delete in a diffrent SST.
+        rm = new RowMutation(TABLE2, key3.key);
+        rm.delete(new QueryPath(cfName, null, ByteBufferUtil.bytes("c2")), 9);
+        rm.apply();
+        cfs.forceBlockingFlush();
+        new CompactionTask(cfs, sstablesIncomplete, Integer.MAX_VALUE).execute(null);
+
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key3, new QueryPath(cfName)));
+        Assert.assertTrue(!cf.getColumn(ByteBufferUtil.bytes("c2")).isLive());
+        Assert.assertEquals(1, cf.getColumnCount());
     }
 
     @Test

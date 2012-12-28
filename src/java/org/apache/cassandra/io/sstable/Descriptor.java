@@ -47,7 +47,7 @@ public class Descriptor
     public static class Version
     {
         // This needs to be at the begining for initialization sake
-        private static final String current_version = "ia";
+        private static final String current_version = "ib";
 
         public static final Version LEGACY = new Version("a"); // "pre-history"
         // b (0.7.0): added version to sstable filenames
@@ -65,6 +65,7 @@ public class Descriptor
         // ia (1.2.0): column indexes are promoted to the index file
         //             records estimated histogram of deletion times in tombstones
         //             bloom filter (keys and columns) upgraded to Murmur3
+        // ib (1.2.1): tracks min client timestamp in metadata component
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -77,6 +78,7 @@ public class Descriptor
         public final boolean metadataIncludesReplayPosition;
         public final boolean metadataIncludesModernReplayPosition;
         public final boolean tracksMaxTimestamp;
+        public final boolean tracksMinTimestamp;
         public final boolean hasCompressionRatio;
         public final boolean hasPartitioner;
         public final boolean tracksTombstones;
@@ -94,6 +96,7 @@ public class Descriptor
             hasCompressionRatio = version.compareTo("hb") >= 0;
             hasPartitioner = version.compareTo("hc") >= 0;
             tracksMaxTimestamp = version.compareTo("hd") >= 0;
+            tracksMinTimestamp = version.compareTo("ib") >= 0;
             hasAncestors = version.compareTo("he") >= 0;
             metadataIncludesModernReplayPosition = version.compareTo("hf") >= 0;
             tracksTombstones = version.compareTo("ia") >= 0;

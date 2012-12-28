@@ -28,13 +28,15 @@ public class ColumnStats
     public final int columnCount;
 
     /** the largest (client-supplied) timestamp in the row */
+    public final long minTimestamp;
     public final long maxTimestamp;
 
     /** histogram of tombstone drop time */
     public final StreamingHistogram tombstoneHistogram;
 
-    public ColumnStats(int columnCount, long maxTimestamp, StreamingHistogram tombstoneHistogram)
+    public ColumnStats(int columnCount, long minTimestamp, long maxTimestamp, StreamingHistogram tombstoneHistogram)
     {
+        this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
         this.columnCount = columnCount;
         this.tombstoneHistogram = tombstoneHistogram;

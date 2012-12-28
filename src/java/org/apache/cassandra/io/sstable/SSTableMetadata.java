@@ -51,6 +51,7 @@ public class SSTableMetadata
     public final EstimatedHistogram estimatedRowSize;
     public final EstimatedHistogram estimatedColumnCount;
     public final ReplayPosition replayPosition;
+    public final long minTimestamp;
     public final long maxTimestamp;
     public final double compressionRatio;
     public final String partitioner;
@@ -62,6 +63,7 @@ public class SSTableMetadata
         this(defaultRowSizeHistogram(),
              defaultColumnCountHistogram(),
              ReplayPosition.NONE,
+             Long.MAX_VALUE,
              Long.MIN_VALUE,
              NO_COMPRESSION_RATIO,
              null,
@@ -69,12 +71,13 @@ public class SSTableMetadata
              defaultTombstoneDropTimeHistogram());
     }
 
-    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long maxTimestamp,
-                            double cr, String partitioner, Set<Integer> ancestors, StreamingHistogram estimatedTombstoneDropTime)
+    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long minTimestamp,
+            long maxTimestamp, double cr, String partitioner, Set<Integer> ancestors, StreamingHistogram estimatedTombstoneDropTime)
     {
         this.estimatedRowSize = rowSizes;
         this.estimatedColumnCount = columnCounts;
         this.replayPosition = replayPosition;
+        this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
         this.compressionRatio = cr;
         this.partitioner = partitioner;
@@ -129,6 +132,7 @@ public class SSTableMetadata
         protected EstimatedHistogram estimatedRowSize = defaultRowSizeHistogram();
         protected EstimatedHistogram estimatedColumnCount = defaultColumnCountHistogram();
         protected ReplayPosition replayPosition = ReplayPosition.NONE;
+        protected long minTimestamp = Long.MAX_VALUE;
         protected long maxTimestamp = Long.MIN_VALUE;
         protected double compressionRatio = NO_COMPRESSION_RATIO;
         protected Set<Integer> ancestors = new HashSet<Integer>();
@@ -158,6 +162,11 @@ public class SSTableMetadata
             compressionRatio = (double) compressed/uncompressed;
         }
 
+        public void updateMinTimestamp(long potentialMin)
+        {
+            minTimestamp = Math.min(minTimestamp, potentialMin);
+        }
+
         public void updateMaxTimestamp(long potentialMax)
         {
             maxTimestamp = Math.max(maxTimestamp, potentialMax);
@@ -168,6 +177,7 @@ public class SSTableMetadata
             return new SSTableMetadata(estimatedRowSize,
                                        estimatedColumnCount,
                                        replayPosition,
+                                       minTimestamp,
                                        maxTimestamp,
                                        compressionRatio,
                                        partitioner,
@@ -201,6 +211,7 @@ public class SSTableMetadata
 
         void update(long size, ColumnStats stats)
         {
+            updateMinTimestamp(stats.minTimestamp);
             /*
              * The max timestamp is not always collected here (more precisely, row.maxTimestamp() may return Long.MIN_VALUE),
              * to avoid deserializing an EchoedRow.
@@ -226,6 +237,7 @@ public class SSTableMetadata
             EstimatedHistogram.serializer.serialize(sstableStats.estimatedRowSize, dos);
             EstimatedHistogram.serializer.serialize(sstableStats.estimatedColumnCount, dos);
             ReplayPosition.serializer.serialize(sstableStats.replayPosition, dos);
+            dos.writeLong(sstableStats.minTimestamp);
             dos.writeLong(sstableStats.maxTimestamp);
             dos.writeDouble(sstableStats.compressionRatio);
             dos.writeUTF(sstableStats.partitioner);
@@ -269,6 +281,9 @@ public class SSTableMetadata
                 // make sure we don't omit replaying something that we should.  see CASSANDRA-4782
                 replayPosition = ReplayPosition.NONE;
             }
+            long minTimestamp = desc.version.tracksMinTimestamp ? dis.readLong() : Long.MIN_VALUE;
+            if (!desc.version.tracksMinTimestamp)
+                minTimestamp = Long.MAX_VALUE;
             long maxTimestamp = desc.version.containsTimestamp() ? dis.readLong() : Long.MIN_VALUE;
             if (!desc.version.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
                 maxTimestamp = Long.MIN_VALUE;
@@ -283,7 +298,7 @@ public class SSTableMetadata
             StreamingHistogram tombstoneHistogram = desc.version.tracksTombstones
                                                    ? StreamingHistogram.serializer.deserialize(dis)
                                                    : defaultTombstoneDropTimeHistogram();
-            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp, compressionRatio, partitioner, ancestors, tombstoneHistogram);
+            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, minTimestamp, maxTimestamp, compressionRatio, partitioner, ancestors, tombstoneHistogram);
         }
     }
 }

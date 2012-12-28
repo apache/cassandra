@@ -376,16 +376,18 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
 
     public ColumnStats getColumnStats()
     {
+        long minTimestampSeen = deletionInfo() == DeletionInfo.LIVE ? Long.MAX_VALUE : deletionInfo().minTimestamp();
         long maxTimestampSeen = deletionInfo().maxTimestamp();
         StreamingHistogram tombstones = new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE);
 
         for (IColumn column : columns)
         {
+            minTimestampSeen = Math.min(minTimestampSeen, column.minTimestamp());
             maxTimestampSeen = Math.max(maxTimestampSeen, column.maxTimestamp());
             int deletionTime = column.getLocalDeletionTime();
             if (deletionTime < Integer.MAX_VALUE)
                 tombstones.update(deletionTime);
         }
-        return new ColumnStats(getColumnCount(), maxTimestampSeen, tombstones);
+        return new ColumnStats(getColumnCount(), minTimestampSeen, maxTimestampSeen, tombstones);
     }
 }

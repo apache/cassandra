@@ -234,6 +234,7 @@ public class SSTableWriter extends SSTable
         }
 
         // deserialize each column to obtain maxTimestamp and immediately serialize it.
+        long minTimestamp = Long.MAX_VALUE;
         long maxTimestamp = Long.MIN_VALUE;
         StreamingHistogram tombstones = new StreamingHistogram(TOMBSTONE_HISTOGRAM_BIN_SIZE);
         ColumnFamily cf = ColumnFamily.create(metadata, ArrayBackedSortedColumns.factory());
@@ -268,6 +269,7 @@ public class SSTableWriter extends SSTable
             {
                 tombstones.update(deletionTime);
             }
+            minTimestamp = Math.min(minTimestamp, atom.minTimestamp());
             maxTimestamp = Math.max(maxTimestamp, atom.maxTimestamp());
             try
             {
@@ -281,6 +283,7 @@ public class SSTableWriter extends SSTable
 
         assert dataSize == dataFile.getFilePointer() - (dataStart + 8)
                 : "incorrect row data size " + dataSize + " written to " + dataFile.getPath() + "; correct is " + (dataFile.getFilePointer() - (dataStart + 8));
+        sstableMetadataCollector.updateMinTimestamp(minTimestamp);
         sstableMetadataCollector.updateMaxTimestamp(maxTimestamp);
         sstableMetadataCollector.addRowSize(dataFile.getFilePointer() - currentPosition);
         sstableMetadataCollector.addColumnCount(columnCount);

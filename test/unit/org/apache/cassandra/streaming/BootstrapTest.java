@@ -36,7 +36,7 @@ public class BootstrapTest extends SchemaLoader
     @Test
     public void testGetNewNames() throws IOException
     {
-        Descriptor desc = Descriptor.fromFilename(new File("Keyspace1", "Keyspace1-Standard1-ia-500-Data.db").toString());
+        Descriptor desc = Descriptor.fromFilename(new File("Keyspace1", "Keyspace1-Standard1-ib-500-Data.db").toString());
         // assert !desc.isLatestVersion; // minimum compatible version -- for now it is the latest as well
         PendingFile inContext = new PendingFile(null, desc, "Data.db", Arrays.asList(Pair.create(0L, 1L)), OperationType.BOOTSTRAP);
 

@@ -1102,6 +1102,11 @@ public class SSTableReader extends SSTable
         return sstableMetadata.replayPosition;
     }
 
+    public long getMinTimestamp()
+    {
+        return sstableMetadata.minTimestamp;
+    }
+
     public long getMaxTimestamp()
     {
         return sstableMetadata.maxTimestamp;

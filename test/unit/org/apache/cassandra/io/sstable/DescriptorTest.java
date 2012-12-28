@@ -50,6 +50,7 @@ public class DescriptorTest
         desc = Descriptor.fromFilename("Keyspace1-Standard1-gz-1-Data.db");
         assert "gz".equals(desc.version.toString());
         assert !desc.version.tracksMaxTimestamp;
+        assert !desc.version.tracksMinTimestamp;
     }
 
     @Test

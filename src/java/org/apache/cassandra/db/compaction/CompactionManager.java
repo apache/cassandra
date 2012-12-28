@@ -929,7 +929,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
 
         @Override
-        public boolean shouldPurge(DecoratedKey key)
+        public boolean shouldPurge(DecoratedKey key, long delTimestamp)
         {
             /*
              * The main reason we always purge is that including gcable tombstone would mean that the

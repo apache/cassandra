@@ -59,7 +59,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         Boolean shouldPurge = null;
 
         if (cf.hasIrrelevantData(controller.gcBefore))
-            shouldPurge = controller.shouldPurge(key);
+            shouldPurge = controller.shouldPurge(key, cf.maxTimestamp());
 
         // We should only gc tombstone if shouldPurge == true. But otherwise,
         // it is still ok to collect column that shadowed by their (deleted)
@@ -69,7 +69,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         if (compacted != null && compacted.metadata().getDefaultValidator().isCommutative())
         {
             if (shouldPurge == null)
-                shouldPurge = controller.shouldPurge(key);
+                shouldPurge = controller.shouldPurge(key, cf.deletionInfo().maxTimestamp());
             if (shouldPurge)
                 CounterColumn.mergeAndRemoveOldShards(key, compacted, controller.gcBefore, controller.mergeShardBefore);
         }
