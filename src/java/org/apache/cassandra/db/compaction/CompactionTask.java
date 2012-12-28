@@ -169,6 +169,7 @@ public class CompactionTask extends AbstractCompactionTask
                     row.close();
                     continue;
                 }
+
                 // If the row is cached, we call removeDeleted on at read time it to have coherent query returns,
                 // but if the row is not pushed out of the cache, obsolete tombstones will persist indefinitely.
                 controller.removeDeletedInCache(row.key);
@@ -187,18 +188,27 @@ public class CompactionTask extends AbstractCompactionTask
                         }
                     }
                 }
-                if (!iter.hasNext() || newSSTableSegmentThresholdReached(writer))
+
+                if (newSSTableSegmentThresholdReached(writer))
                 {
-                    SSTableReader toIndex = writer.closeAndOpenReader(getMaxDataAge(toCompact));
-                    cachedKeyMap.put(toIndex, cachedKeys);
-                    sstables.add(toIndex);
-                    if (iter.hasNext())
-                    {
-                        writer = cfs.createCompactionWriter(keysPerSSTable, cfs.directories.getLocationForDisk(dataDirectory), toCompact);
-                        writers.add(writer);
-                        cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
-                    }
+                    SSTableReader sstable = writer.closeAndOpenReader(getMaxDataAge(toCompact));
+                    cachedKeyMap.put(sstable, cachedKeys);
+                    sstables.add(sstable);
+                    writer = cfs.createCompactionWriter(keysPerSSTable, cfs.directories.getLocationForDisk(dataDirectory), toCompact);
+                    writers.add(writer);
+                    cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
                 }
+            }
+
+            if (writer.getFilePointer() > 0)
+            {
+                SSTableReader sstable = writer.closeAndOpenReader(getMaxDataAge(toCompact));
+                cachedKeyMap.put(sstable, cachedKeys);
+                sstables.add(sstable);
+            }
+            else
+            {
+                writer.abort();
             }
         }
         catch (Throwable t)
