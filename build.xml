@@ -124,6 +124,10 @@
           <include name="**/*.jar" />
         </fileset>
     </path>
+	
+	<path id="cobertura.classpath">
+		<pathelement location="${cobertura.classes.dir}"/>
+	</path>
 
   <macrodef name="create-javadoc">
     <attribute name="destdir"/>
@@ -150,6 +154,7 @@
         <mkdir dir="${test.lib}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${build.src.gen-java}"/>
+        <mkdir dir="${build.dir.lib}"/>
     </target>
 
     <target name="clean" description="Remove all locally created artifacts">
@@ -245,24 +250,21 @@
        can be run stand-alone from a binary release artifact.
     -->
     <target name="maven-ant-tasks-localrepo" unless="maven-ant-tasks.jar.exists" if="maven-ant-tasks.jar.local"
-            description="Fetch Maven ANT Tasks from Maven Local Repository">
-      <mkdir dir="${build.dir}" />
+            depends="init" description="Fetch Maven ANT Tasks from Maven Local Repository">
       <copy file="${maven-ant-tasks.local}/${maven-ant-tasks.version}/maven-ant-tasks-${maven-ant-tasks.version}.jar"
            tofile="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar"/>
       <property name="maven-ant-tasks.jar.exists" value="true"/>
     </target>
 
-    <target name="maven-ant-tasks-download" depends="maven-ant-tasks-localrepo" unless="maven-ant-tasks.jar.exists"
+    <target name="maven-ant-tasks-download" depends="init,maven-ant-tasks-localrepo" unless="maven-ant-tasks.jar.exists"
             description="Fetch Maven ANT Tasks from Maven Central Repositroy">
       <echo>Downloading Maven ANT Tasks...</echo>
-      <mkdir dir="${build.dir}" />
       <get src="${maven-ant-tasks.url}/${maven-ant-tasks.version}/maven-ant-tasks-${maven-ant-tasks.version}.jar"
            dest="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" usetimestamp="true" />
     </target>
 
-    <target name="maven-ant-tasks-init" depends="maven-ant-tasks-download" unless="maven-ant-tasks.initialized"
+    <target name="maven-ant-tasks-init" depends="init,maven-ant-tasks-download" unless="maven-ant-tasks.initialized"
             description="Initialize Maven ANT Tasks">
-      <mkdir dir="${build.dir.lib}"/>
       <typedef uri="antlib:org.apache.maven.artifact.ant" classpathref="maven-ant-tasks.classpath" />
 
       <!-- define the remote repositories we use -->
@@ -513,7 +515,7 @@
       </artifact:pom>
     </target>
 
-    <target name="maven-ant-tasks-retrieve-build" depends="maven-declare-dependencies">
+    <target name="_maven-ant-tasks-retrieve-build" depends="maven-declare-dependencies">
       <artifact:dependencies pomRefId="build-deps-pom"
                              filesetId="build-dependency-jars" 
                              sourcesFilesetId="build-dependency-sources" 
@@ -536,6 +538,10 @@
           <fileset refid="build-dependency-sources"/>
           <mapper type="flatten"/>
       </copy>
+    </target>
+
+    <target name="maven-ant-tasks-retrieve-build" unless="without.maven">
+      <antcall target="_maven-ant-tasks-retrieve-build" />
     </target>
 
     <target name="maven-ant-tasks-retrieve-test" depends="maven-ant-tasks-init">
@@ -562,7 +568,7 @@
     <!--
        Generate avro code
     -->
-    <target name="check-avro-generate" depends="maven-ant-tasks-init">
+    <target name="check-avro-generate" depends="init">
       <taskdef name="avro-protocol" classname="org.apache.avro.specific.ProtocolTask">
         <classpath refid="cassandra.classpath" />
       </taskdef>
@@ -571,11 +577,9 @@
     </target>
 
     <target name="avro-generate"
-            depends="avro-interface-generate-internode"
-            description="Generates Java Avro classes for client and internal use." />
-    
-    <target name="avro-interface-generate-internode" unless="avroINProtoUpToDate"
-            depends="init,check-avro-generate,maven-ant-tasks-retrieve-build">
+            unless="avroINProtoUpToDate"
+            depends="init,check-avro-generate,maven-ant-tasks-retrieve-build"
+            description="Generates Java Avro classes for internal use.">
       <avromacro protocolname="internode" inputfile="${avro.src}/internode.genavro"
                  jsondir="${build.dir}" outputdir="${build.src}"/>
     </target>
@@ -609,13 +613,22 @@
        Cassandra depends on it, and python because that is what the system
        tests run.
     -->
-    <target name="gen-thrift-java" depends="rat-init" description="Generate Thrift Java artifacts">
-      <echo>Generating Thrift Java code from ${basedir}/interface/cassandra.thrift ....</echo>
+    <target name="check-gen-thrift-java">
+      <uptodate property="thriftUpToDate" srcfile="${interface.dir}/cassandra.thrift"
+            targetfile="${interface.thrift.gen-java}/org/apache/cassandra/thrift/Cassandra.java" />
+    </target>
+    <target name="gen-thrift-java" unless="thriftUpToDate" depends="check-gen-thrift-java"
+            description="Generate Thrift Java artifacts">
+      <echo>Generating Thrift Java code from ${basedir}/interface/cassandra.thrift...</echo>
       <exec executable="thrift" dir="${basedir}/interface" failonerror="true">
         <arg line="--gen java:hashcode" />
         <arg line="-o ${interface.thrift.dir}" />
         <arg line="cassandra.thrift" />
       </exec>
+      <antcall target="write-java-license-headers" />
+    </target>
+
+    <target name="_write-java-license-headers" depends="rat-init">
       <java classname="org.apache.rat.Report" fork="true"
             output="${build.dir}/rat-report.log">
         <classpath refid="rat.classpath" />
@@ -624,8 +637,13 @@
         <arg value="interface/thrift" />
       </java>
     </target>
+
+    <target name="write-java-license-headers" unless="without.rat" description="Add missing java license headers">
+      <antcall target="_write-java-license-headers" />
+    </target>
+
     <target name="gen-thrift-py" description="Generate Thrift Python artifacts">
-      <echo>Generating Thrift Python code from ${basedir}/interface/cassandra.thrift ....</echo>
+      <echo>Generating Thrift Python code from ${basedir}/interface/cassandra.thrift...</echo>
       <exec executable="thrift" dir="${basedir}/interface" failonerror="true">
         <arg line="--gen py" />
         <arg line="-o ${interface.thrift.dir}" />
@@ -663,8 +681,7 @@
         The build target builds all the .class files
     -->
     <target name="build"
-        depends="maven-ant-tasks-retrieve-build,avro-generate,build-subprojects,build-project" description="Compile Cassandra classes"/>
-    <target name="build-subprojects" description="Compile Cassandra contrib projects"/>
+        depends="maven-ant-tasks-retrieve-build,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report" description="Create code coverage report"/>
 
     <target depends="init,avro-generate,gen-cli-grammar,gen-cql2-grammar,gen-cql3-grammar"
@@ -715,11 +732,24 @@
         </javac>
     </target>
 
+	<target name="_write-poms" depends="maven-declare-dependencies">
+	    <artifact:writepom pomRefId="parent-pom" file="${build.dir}/${final.name}-parent.pom"/>
+	    <artifact:writepom pomRefId="thrift-pom"
+	                       file="${build.dir}/${ant.project.name}-thrift-${version}.pom"/>
+	    <artifact:writepom pomRefId="all-pom" file="${build.dir}/${final.name}.pom"/>
+	    <artifact:writepom pomRefId="clientutil-pom"
+	    	               file="${build.dir}/${ant.project.name}-clientutil-${version}.pom"/>
+	</target>
+
+	<target name="write-poms" unless="without.maven">
+	    <antcall target="_write-poms" />
+	</target>
+	
     <!--
         The jar target makes cassandra.jar output.
     -->
     <target name="jar"
-            depends="maven-declare-dependencies,build, build-test, stress-build"
+            depends="build, build-test, stress-build, write-poms"
             description="Assemble Cassandra JAR files">
       <mkdir dir="${build.classes.main}/META-INF" />
       <mkdir dir="${build.classes.thrift}/META-INF" />
@@ -732,11 +762,7 @@
       <copy file="NOTICE.txt"
             tofile="${build.classes.thrift}/META-INF/NOTICE.txt"/>
 
-      <artifact:writepom pomRefId="parent-pom" file="${build.dir}/${final.name}-parent.pom"/>
-
       <!-- Thrift Jar -->
-      <artifact:writepom pomRefId="thrift-pom" 
-              file="${build.dir}/${ant.project.name}-thrift-${version}.pom"/>
       <jar jarfile="${build.dir}/${ant.project.name}-thrift-${version}.jar"
            basedir="${build.classes.thrift}">
         <fileset dir="${build.classes.main}">
@@ -751,8 +777,6 @@
       </jar>
 
       <!-- Main Jar -->
-      <artifact:writepom pomRefId="all-pom" 
-              file="${build.dir}/${final.name}.pom"/>
       <jar jarfile="${build.dir}/${final.name}.jar"
            basedir="${build.classes.main}">
         <manifest>
@@ -770,8 +794,6 @@
 
       <!-- Clientutil Jar -->
       <!-- TODO: write maven pom here -->
-      <artifact:writepom pomRefId="clientutil-pom"
-              file="${build.dir}/${ant.project.name}-clientutil-${version}.pom"/>
       <jar jarfile="${build.dir}/${ant.project.name}-clientutil-${version}.jar">
         <fileset dir="${build.classes.main}">
           <include name="org/apache/cassandra/cql/jdbc/*" />
@@ -1145,6 +1167,10 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
     </testmacro>
   </target>
+
+  <target name="test-all" 
+          depends="test,long-test,test-compression,test-clientutil-jar" 
+          description="Run all tests" />
 
   <!-- instruments the classes to later create code coverage reports -->
   <target name="cobertura-instrument" depends="build,build-test">
