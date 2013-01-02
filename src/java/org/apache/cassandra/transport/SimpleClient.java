@@ -20,24 +20,44 @@ package org.apache.cassandra.transport;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.util.concurrent.*;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.SynchronousQueue;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.transport.messages.CredentialsMessage;
+import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.transport.messages.ExecuteMessage;
+import org.apache.cassandra.transport.messages.PrepareMessage;
+import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.messages.StartupMessage;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.ChannelStateEvent;
+import org.jboss.netty.channel.Channels;
+import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
+import org.jboss.netty.handler.logging.LoggingHandler;
+import org.jboss.netty.handler.ssl.SslHandler;
 import org.jboss.netty.logging.InternalLoggerFactory;
 import org.jboss.netty.logging.Slf4JLoggerFactory;
-
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.transport.messages.*;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 
 public class SimpleClient
 {
@@ -46,8 +66,10 @@ public class SimpleClient
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
     }
 
+    private static final Logger logger = LoggerFactory.getLogger(SimpleClient.class);
     public final String host;
     public final int port;
+    private final ClientEncryptionOptions encryptionOptions;
 
     protected final ResponseHandler responseHandler = new ResponseHandler();
     protected final Connection.Tracker tracker = new ConnectionTracker();
@@ -64,10 +86,11 @@ public class SimpleClient
         }
     };
 
-    public SimpleClient(String host, int port)
+    public SimpleClient(String host, int port, ClientEncryptionOptions encryptionOptions)
     {
         this.host = host;
         this.port = port;
+        this.encryptionOptions = encryptionOptions;
     }
 
     public void connect(boolean useCompression) throws IOException
@@ -95,7 +118,14 @@ public class SimpleClient
         bootstrap.setOption("tcpNoDelay", true);
 
         // Configure the pipeline factory.
-        bootstrap.setPipelineFactory(new PipelineFactory());
+        if(encryptionOptions.enabled)
+        {
+            bootstrap.setPipelineFactory(new SecurePipelineFactory());
+        }
+        else
+        {
+            bootstrap.setPipelineFactory(new PipelineFactory());
+        }
         ChannelFuture future = bootstrap.connect(new InetSocketAddress(host, port));
 
         // Wait until the connection attempt succeeds or fails.
@@ -202,6 +232,27 @@ public class SimpleClient
         }
     }
 
+    private class SecurePipelineFactory extends PipelineFactory
+    {
+        private final SSLContext sslContext;
+
+        public SecurePipelineFactory() throws IOException
+        {
+            this.sslContext = SSLFactory.createSSLContext(encryptionOptions, true);
+        }
+
+        public ChannelPipeline getPipeline() throws Exception
+        {
+            SSLEngine sslEngine = sslContext.createSSLEngine();
+            sslEngine.setUseClientMode(true);
+            sslEngine.setEnabledCipherSuites(encryptionOptions.cipher_suites);
+            ChannelPipeline pipeline = super.getPipeline();
+
+            pipeline.addFirst("ssl", new SslHandler(sslEngine));
+            return pipeline;
+        }
+    }
+
     private static class ResponseHandler extends SimpleChannelUpstreamHandler
     {
         public final BlockingQueue<Message.Response> responses = new SynchronousQueue<Message.Response>(true);
@@ -218,6 +269,13 @@ public class SimpleClient
             {
                 throw new RuntimeException(ie);
             }
+        }
+
+        public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception
+        {
+            if (this == ctx.getPipeline().getLast())
+                logger.error("Exception in response", e.getCause());
+            ctx.sendUpstream(e);
         }
     }
 }

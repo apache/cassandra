@@ -29,6 +29,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLSocket;
+import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 
 import org.apache.cassandra.config.EncryptionOptions;
@@ -49,7 +50,7 @@ public final class SSLFactory
 
     public static SSLServerSocket getServerSocket(EncryptionOptions options, InetAddress address, int port) throws IOException
     {
-        SSLContext ctx = createSSLContext(options);
+        SSLContext ctx = createSSLContext(options, true);
         SSLServerSocket serverSocket = (SSLServerSocket)ctx.getServerSocketFactory().createServerSocket();
         serverSocket.setReuseAddress(true);
         String[] suits = filterCipherSuites(serverSocket.getSupportedCipherSuites(), options.cipher_suites);
@@ -61,7 +62,7 @@ public final class SSLFactory
     /** Create a socket and connect */
     public static SSLSocket getSocket(EncryptionOptions options, InetAddress address, int port, InetAddress localAddress, int localPort) throws IOException
     {
-        SSLContext ctx = createSSLContext(options);
+        SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port, localAddress, localPort);
         String[] suits = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
         socket.setEnabledCipherSuites(suits);
@@ -71,7 +72,7 @@ public final class SSLFactory
     /** Create a socket and connect, using any local address */
     public static SSLSocket getSocket(EncryptionOptions options, InetAddress address, int port) throws IOException
     {
-        SSLContext ctx = createSSLContext(options);
+        SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port);
         String[] suits = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
         socket.setEnabledCipherSuites(suits);
@@ -81,35 +82,40 @@ public final class SSLFactory
     /** Just create a socket */
     public static SSLSocket getSocket(EncryptionOptions options) throws IOException
     {
-        SSLContext ctx = createSSLContext(options);
+        SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket();
         String[] suits = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
         socket.setEnabledCipherSuites(suits);
         return socket;
     }
 
-    private static SSLContext createSSLContext(EncryptionOptions options) throws IOException
+    public static SSLContext createSSLContext(EncryptionOptions options, boolean buildTruststore) throws IOException
     {
-        FileInputStream tsf = new FileInputStream(options.truststore);
-        FileInputStream ksf = new FileInputStream(options.keystore);
+        FileInputStream tsf = null;
+        FileInputStream ksf = null;
         SSLContext ctx;
         try
         {
             ctx = SSLContext.getInstance(options.protocol);
-            TrustManagerFactory tmf;
-            KeyManagerFactory kmf;
+            TrustManager[] trustManagers = null;
 
-            tmf = TrustManagerFactory.getInstance(options.algorithm);
-            KeyStore ts = KeyStore.getInstance(options.store_type);
-            ts.load(tsf, options.truststore_password.toCharArray());
-            tmf.init(ts);
+            if(buildTruststore)
+            {
+                tsf = new FileInputStream(options.truststore);
+                TrustManagerFactory tmf = TrustManagerFactory.getInstance(options.algorithm);
+                KeyStore ts = KeyStore.getInstance(options.store_type);
+                ts.load(tsf, options.truststore_password.toCharArray());
+                tmf.init(ts);
+                trustManagers = tmf.getTrustManagers();
+            }
 
-            kmf = KeyManagerFactory.getInstance(options.algorithm);
+            ksf = new FileInputStream(options.keystore);
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(options.algorithm);
             KeyStore ks = KeyStore.getInstance(options.store_type);
             ks.load(ksf, options.keystore_password.toCharArray());
             kmf.init(ks, options.keystore_password.toCharArray());
 
-            ctx.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+            ctx.init(kmf.getKeyManagers(), trustManagers, null);
 
         }
         catch (Exception e)

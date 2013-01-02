@@ -17,30 +17,41 @@
  */
 package org.apache.cassandra.transport;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.EnumMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.service.IEndpointLifecycleSubscriber;
+import org.apache.cassandra.service.IMigrationListener;
+import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.transport.messages.EventMessage;
 import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFactory;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.group.ChannelGroup;
 import org.jboss.netty.channel.group.DefaultChannelGroup;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.handler.execution.ExecutionHandler;
+import org.jboss.netty.handler.ssl.SslHandler;
 import org.jboss.netty.logging.InternalLoggerFactory;
 import org.jboss.netty.logging.Slf4JLoggerFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.service.CassandraDaemon;
-import org.apache.cassandra.service.IMigrationListener;
-import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.service.IEndpointLifecycleSubscriber;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.transport.messages.EventMessage;
 
 public class Server implements CassandraDaemon.Server
 {
@@ -109,7 +120,16 @@ public class Server implements CassandraDaemon.Server
         bootstrap.setOption("child.tcpNoDelay", true);
 
         // Set up the event pipeline factory.
-        bootstrap.setPipelineFactory(new PipelineFactory(this));
+        final EncryptionOptions.ClientEncryptionOptions clientEnc = DatabaseDescriptor.getClientEncryptionOptions();
+        if (clientEnc.enabled)
+        {
+            logger.info("enabling encrypted CQL connections between client and server");
+            bootstrap.setPipelineFactory(new SecurePipelineFactory(this, clientEnc));
+        }
+        else
+        {
+            bootstrap.setPipelineFactory(new PipelineFactory(this));
+        }
 
         // Bind and start to accept incoming connections.
         logger.info("Starting listening for CQL clients on " + socket + "...");
@@ -203,6 +223,39 @@ public class Server implements CassandraDaemon.Server
 
             return pipeline;
       }
+    }
+
+    private static class SecurePipelineFactory extends PipelineFactory
+    {
+        private final SSLContext sslContext;
+        private final EncryptionOptions encryptionOptions;
+
+        public SecurePipelineFactory(Server server, EncryptionOptions encryptionOptions)
+        {
+            super(server);
+            this.encryptionOptions = encryptionOptions;
+            try
+            {
+                this.sslContext = SSLFactory.createSSLContext(encryptionOptions, false);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException("Failed to setup secure pipeline", e);
+            }
+        }
+
+        public ChannelPipeline getPipeline() throws Exception
+        {
+            SSLEngine sslEngine = sslContext.createSSLEngine();
+            sslEngine.setUseClientMode(false);
+            sslEngine.setEnabledCipherSuites(encryptionOptions.cipher_suites);
+
+            SslHandler sslHandler = new SslHandler(sslEngine);
+            sslHandler.setIssueHandshake(true);
+            ChannelPipeline pipeline = super.getPipeline();
+            pipeline.addFirst("ssl", sslHandler);
+            return pipeline;
+        }
     }
 
     private static class EventNotifier implements IEndpointLifecycleSubscriber, IMigrationListener

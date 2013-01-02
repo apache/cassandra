@@ -15,6 +15,7 @@
  * Expose black-listed directories via JMX (CASSANDRA-4848)
  * Log compaction merge counts (CASSANDRA-4894)
  * Minimize byte array allocation by AbstractData{Input,Output} (CASSANDRA-5090)
+ * Add SSL support for the binary protocol (CASSANDRA-5031)
 
 
 1.2.0
