@@ -143,7 +143,7 @@ public class ClientState
         if (internalCall)
             return;
         validateLogin();
-        preventSystemKSSModification(keyspace, perm);
+        preventSystemKSSchemaModification(keyspace, perm);
         if (perm.equals(Permission.SELECT) && READABLE_SYSTEM_RESOURCES.contains(resource))
             return;
         if (PROTECTED_AUTH_RESOURCES.contains(resource))
@@ -164,9 +164,9 @@ public class ClientState
                                                       resource));
     }
 
-    private void preventSystemKSSModification(String keyspace, Permission perm) throws UnauthorizedException
+    private void preventSystemKSSchemaModification(String keyspace, Permission perm) throws UnauthorizedException
     {
-        if (Schema.systemKeyspaceNames.contains(keyspace.toLowerCase()) && !perm.equals(Permission.SELECT))
+        if (Schema.systemKeyspaceNames.contains(keyspace.toLowerCase()) && !(perm.equals(Permission.SELECT) || perm.equals(Permission.MODIFY)))
             throw new UnauthorizedException(keyspace + " keyspace is not user-modifiable.");
     }
 
