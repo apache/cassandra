@@ -31,3 +31,4 @@ build.properties.default
 test/data/legacy-sstables/**
 examples/pig/**
 examples/hadoop_word_count/conf/log4j.properties
+pylib/cqlshlib/test/**

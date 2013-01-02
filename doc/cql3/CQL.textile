@@ -202,8 +202,11 @@ bc(syntax)..
 <column-definition> ::= <identifier> <type> ( PRIMARY KEY )?
                       | PRIMARY KEY '(' <partition-key> ( ',' <identifier> )* ')'
 
+<partition-key> ::= <partition-key>
+                  | '(' <partition-key> ( ',' <identifier> )* ')'
+
 <partition-key> ::= <identifier>
-                  | '(' <identifier> ( ',' <identifier> )* ')'
+                  | '(' <identifier> (',' <identifier> )* ')'
 
 <option> ::= <property>
            | COMPACT STORAGE
@@ -847,13 +850,14 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 
 |_. Keyword      |_. Reserved? |
 | @ADD@          | yes |
-| @ALL@          | yes |
+| @ALL@          | no  |
 | @ALTER@        | yes |
 | @AND@          | yes |
 | @ANY@          | yes |
 | @APPLY@        | yes |
 | @ASC@          | yes |
 | @ASCII@        | no  |
+| @AUTHORIZE@    | yes |
 | @BATCH@        | yes |
 | @BEGIN@        | yes |
 | @BIGINT@       | no  |
@@ -875,6 +879,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @EACH_QUORUM@  | yes |
 | @FLOAT@        | no  |
 | @FROM@         | yes |
+| @GRANT@        | yes |
 | @IN@           | yes |
 | @INDEX@        | yes |
 | @INSERT@       | yes |
@@ -885,15 +890,24 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @LEVEL@        | no  |
 | @LIMIT@        | yes |
 | @LOCAL_QUORUM@ | yes |
+| @MODIFY@       | yes |
+| @NORECURSIVE@  | yes |
+| @NOSUPERUSER@  | no  |
+| @OF@           | yes |
 | @ON@           | yes |
 | @ONE@          | yes |
 | @ORDER@        | yes |
+| @PASSWORD@     | no  |
+| @PERMISSION@   | no  |
+| @PERMISSIONS@  | no  |
 | @PRIMARY@      | yes |
 | @QUORUM@       | yes |
+| @REVOKE@       | yes |
 | @SCHEMA@       | yes |
 | @SELECT@       | yes |
 | @SET@          | yes |
 | @STORAGE@      | no  |
+| @SUPERUSER@    | no  |
 | @TABLE@        | yes |
 | @TEXT@         | no  |
 | @TIMESTAMP@    | no  |
@@ -906,6 +920,8 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @TYPE@         | no  |
 | @UPDATE@       | yes |
 | @USE@          | yes |
+| @USER@         | no  |
+| @USERS@        | no  |
 | @USING@        | yes |
 | @UUID@         | no  |
 | @VALUES@       | no  |
@@ -914,6 +930,8 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @WHERE@        | yes |
 | @WITH@         | yes |
 | @WRITETIME@    | no  |
+
+
 
 
 h2. Versioning
