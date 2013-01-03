@@ -1369,7 +1369,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         try
         {
             final CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(view.memtables, view.sstables, startWith, stopAt, filter, this);
-            final int gcBefore = (int)(System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
 
             return new AbstractScanIterator()
             {
