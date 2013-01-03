@@ -38,19 +38,16 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAtomIterator
 {
-    private final SSTableReader sstable;
     private final FileDataInput file;
     private final boolean needsClosing;
     private final ByteBuffer finishColumn;
     private final AbstractType<?> comparator;
     private final ColumnFamily emptyColumnFamily;
-    private int i;
     private FileMark mark;
     private final Iterator<OnDiskAtom> atomIterator;
 
     public SimpleSliceReader(SSTableReader sstable, RowIndexEntry indexEntry, FileDataInput input, ByteBuffer finishColumn)
     {
-        this.sstable = sstable;
         this.finishColumn = finishColumn;
         this.comparator = sstable.metadata.comparator;
         try
