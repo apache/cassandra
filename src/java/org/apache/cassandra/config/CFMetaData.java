@@ -536,7 +536,8 @@ public final class CFMetaData
 
     public double getBloomFilterFpChance()
     {
-        return bloomFilterFpChance == null
+        // we disallow bFFPC==null starting in 1.2.1 but tolerated it before that
+        return (bloomFilterFpChance == null || bloomFilterFpChance == 0)
                ? compactionStrategyClass == LeveledCompactionStrategy.class ? 0.1 : 0.01
                : bloomFilterFpChance;
     }
@@ -1124,6 +1125,9 @@ public final class CFMetaData
         }
 
         validateCompactionThresholds();
+
+        if (bloomFilterFpChance != null && bloomFilterFpChance == 0)
+            throw new ConfigurationException("Zero false positives is impossible; bloom filter false positive chance bffpc must be 0 < bffpc <= 1");
 
         return this;
     }
