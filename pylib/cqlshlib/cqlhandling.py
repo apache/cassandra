@@ -557,7 +557,7 @@ syntax_rules += r'''
                         "FROM" cf=<columnFamilyName>
                           ("USING" "CONSISTENCY" selcl=<consistencylevel>)?
                           ("WHERE" <selectWhereClause>)?
-                          ("LIMIT" <integer>)?
+                          ("LIMIT" limit=<integer>)?
                     ;
 <selectWhereClause> ::= <relation> ("AND" <relation>)*
                       | keyname=<colname> "IN" "(" <term> ("," <term>)* ")"
