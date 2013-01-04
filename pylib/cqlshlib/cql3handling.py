@@ -38,7 +38,7 @@ class UnexpectedTableStructure(UserWarning):
     def __str__(self):
         return 'Unexpected table structure; may not translate correctly to CQL. ' + self.msg
 
-SYSTEM_KEYSPACES = ('system', 'system_auth', 'system_traces')
+SYSTEM_KEYSPACES = ('system', 'system_traces', 'system_auth')
 
 class Cql3ParsingRuleSet(CqlParsingRuleSet):
     keywords = set((
@@ -1444,7 +1444,11 @@ class CqlTableDef:
         cf.keyspace = ksname
         for attr in cls.json_attrs:
             try:
-                setattr(cf, attr, json.loads(getattr(cf, attr)))
+                val = getattr(cf, attr)
+                # cfs created in 1.1 may not have key_aliases defined
+                if attr == 'key_aliases' and val is None:
+                    val = '[]'
+                setattr(cf, attr, json.loads(val))
             except AttributeError:
                 pass
         cf.partition_key_validator = lookup_casstype(cf.key_validator)
@@ -1475,7 +1479,7 @@ class CqlTableDef:
 
     def get_key_aliases(self):
         if not issubclass(self.partition_key_validator, CompositeType):
-            return self.key_aliases or [u'key']
+            return self.key_aliases or (self.key_alias and [self.key_alias]) or [u'key']
         expected = len(self.partition_key_validator.subtypes)
         # key, key2, key3, ..., keyN
         aliases = [u'key'] + [ u'key' + str(i) for i in range(2, expected + 1) ]
