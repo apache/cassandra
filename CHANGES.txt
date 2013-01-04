@@ -17,6 +17,7 @@
  * Minimize byte array allocation by AbstractData{Input,Output} (CASSANDRA-5090)
  * Add SSL support for the binary protocol (CASSANDRA-5031)
  * Allow non-schema system ks modification for shuffle to work (CASSANDRA-5097)
+ * cqlsh: Add default limit to SELECT statements (CASSANDRA-4972)
 
 
 1.2.0

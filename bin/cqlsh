@@ -101,7 +101,7 @@ except ImportError, e:
              'Error: %s\n' % (sys.executable, sys.path, e))
 
 import cql.decoders
-from cql.cursor import _COUNT_DESCRIPTION, _VOID_DESCRIPTION
+from cql.cursor import _VOID_DESCRIPTION
 from cql.cqltypes import (cql_types, cql_typename, lookup_casstype, lookup_cqltype,
                           CassandraType)
 
@@ -127,6 +127,7 @@ DEFAULT_TRANSPORT_FACTORY = 'cqlshlib.tfactory.regular_transport_factory'
 
 DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S%z'
 DEFAULT_FLOAT_PRECISION = 5
+DEFAULT_SELECT_LIMIT = 10000
 
 if readline is not None and 'libedit' in readline.__doc__:
     DEFAULT_COMPLETEKEY = '\t'
@@ -969,19 +970,29 @@ class Shell(cmd.Cmd):
             ksname = self.cql_unprotect_name(ksname)
         cfname = self.cql_unprotect_name(parsed.get_binding('cfname'))
         decoder = self.determine_decoder_for(cfname, ksname=ksname)
-        self.perform_statement(parsed.extract_orig(), decoder=decoder)
+        statement = parsed.extract_orig()
+        with_default_limit = parsed.get_binding('limit') is None
+        if with_default_limit:
+            statement = "%s LIMIT %d;" % (statement[:-1], DEFAULT_SELECT_LIMIT)
+        self.perform_statement(statement,
+                               decoder=decoder,
+                               with_default_limit=with_default_limit)
 
-    def perform_statement(self, statement, decoder=None):
+    def perform_statement(self, statement, decoder=None, with_default_limit=False):
         if self.tracing_enabled:
             session_id = UUID(bytes=self.trace_next_query())
-            result = self.perform_statement_untraced(statement, decoder=None)
+            result = self.perform_statement_untraced(statement,
+                                                     decoder=decoder,
+                                                     with_default_limit=with_default_limit)
             time.sleep(0.5) # trace writes are async so we wait a little.
             print_trace_session(self, self.cursor, session_id)
             return result
         else:
-            return self.perform_statement_untraced(statement, decoder=decoder)
+            return self.perform_statement_untraced(statement,
+                                                   decoder=decoder,
+                                                   with_default_limit=with_default_limit)
 
-    def perform_statement_untraced(self, statement, decoder=None):
+    def perform_statement_untraced(self, statement, decoder=None, with_default_limit=False):
         if not statement:
             return False
         trynum = 1
@@ -1015,10 +1026,8 @@ class Shell(cmd.Cmd):
                 self.printerr(traceback.format_exc())
                 return False
 
-        if self.cursor.description is _COUNT_DESCRIPTION:
-            self.print_count_result(self.cursor)
-        elif self.cursor.description is not _VOID_DESCRIPTION:
-            self.print_result(self.cursor)
+        if self.cursor.description is not _VOID_DESCRIPTION:
+            self.print_result(self.cursor, with_default_limit)
         self.flush_output()
         return True
 
@@ -1053,14 +1062,6 @@ class Shell(cmd.Cmd):
 
         return cursor.name_info[num][1]
 
-    def print_count_result(self, cursor):
-        if not cursor.result:
-            return
-        self.writeresult('count')
-        self.writeresult('-----')
-        self.writeresult(cursor.result[0])
-        self.writeresult("")
-
     def has_static_result_set(self, cursor):
         if self.cqlver_atleast(3):
             return True  # all cql3 resultsets are static, don't bother scanning
@@ -1073,7 +1074,7 @@ class Shell(cmd.Cmd):
         cursor._reset()
         return True
 
-    def print_result(self, cursor):
+    def print_result(self, cursor, with_default_limit):
         self.decoding_errors = []
 
         self.writeresult("")
@@ -1089,6 +1090,20 @@ class Shell(cmd.Cmd):
             if len(self.decoding_errors) > 2:
                 self.writeresult('%d more decoding errors suppressed.'
                                  % (len(self.decoding_errors) - 2), color=RED)
+
+        if with_default_limit:
+            if (self.is_count_result(cursor) and self.get_count(cursor) == DEFAULT_SELECT_LIMIT) \
+                    or cursor.rowcount == DEFAULT_SELECT_LIMIT:
+                self.writeresult("Default LIMIT of %d was used. "
+                                 "Specify your own LIMIT clause to get more results."
+                                 % DEFAULT_SELECT_LIMIT, color=RED)
+                self.writeresult("")
+
+    def is_count_result(self, cursor):
+        return cursor.description == [(u'count', 'LongType', None, None, None, None, True)]
+
+    def get_count(self, cursor):
+        return lookup_casstype('LongType').deserialize(cursor.result[0][0].value)
 
     def print_static_result(self, cursor):
         colnames = [d[0] for d in cursor.description]
