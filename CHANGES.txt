@@ -26,6 +26,8 @@
  * Allow non-schema system ks modification for shuffle to work (CASSANDRA-5097)
  * cqlsh: Add default limit to SELECT statements (CASSANDRA-4972)
  * cqlsh: fix DESCRIBE for 1.1 cfs in CQL3 (CASSANDRA-5101)
+Merged from 1.1:
+ * Pig: correctly decode row keys in widerow mode (CASSANDRA-5098)
 
 
 1.2.0
@@ -49,7 +51,6 @@ Merged from 1.1:
  * fix specifying and altering crc_check_chance (CASSANDRA-5053)
  * fix Murmur3Partitioner ownership% calculation (CASSANDRA-5076)
  * Don't expire columns sooner than they should in 2ndary indexes (CASSANDRA-5079)
- * Pig: correctly decode row keys in widerow mode (CASSANDRA-5098)
 
 
 1.2-rc1
