@@ -737,7 +737,7 @@ syntax_rules += r'''
                         "FROM" cf=<columnFamilyName>
                           ("WHERE" <whereClause>)?
                           ("ORDER" "BY" <orderByClause> ( "," <orderByClause> )* )?
-                          ("LIMIT" <wholenumber>)?
+                          ("LIMIT" limit=<wholenumber>)?
                     ;
 <whereClause> ::= <relation> ("AND" <relation>)*
                 ;
