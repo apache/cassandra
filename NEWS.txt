@@ -8,6 +8,14 @@ upgrade, just in case you need to roll back to the previous version.
 (Cassandra version X + 1 will always be able to read data files created
 by version X, but the inverse is not necessarily the case.)
 
+1.1.9
+=====
+
+Upgrading
+---------
+    - If you are upgrading from a version less than 1.1.7, all nodes must be
+      upgraded before any streaming can take place.
+
 1.1.8
 =====
 
