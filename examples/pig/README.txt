@@ -21,7 +21,7 @@ underscored), or as Hadoop configuration variables (lowercase, dotted):
 For example, against a local node with the default settings, you'd use:
 export PIG_INITIAL_ADDRESS=localhost
 export PIG_RPC_PORT=9160
-export PIG_PARTITIONER=org.apache.cassandra.dht.RandomPartitioner
+export PIG_PARTITIONER=org.apache.cassandra.dht.Murmur3Partitioner
 
 These properties can be overridden with the following if you use different clusters
 for input and output:
