@@ -49,7 +49,7 @@ public class SSTableLoader
 
     static
     {
-        Config.setLoadYaml(false);
+        Config.setClientMode(true);
     }
 
     public SSTableLoader(File directory, Client client, OutputHandler outputHandler)

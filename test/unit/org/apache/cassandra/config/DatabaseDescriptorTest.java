@@ -26,6 +26,8 @@ import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
 
 import org.junit.Test;
+import static org.junit.Assert.*;
+
 
 import java.io.IOException;
 
@@ -92,6 +94,31 @@ public class DatabaseDescriptorTest
         finally
         {
             Gossiper.instance.stop();
+        }
+    }
+
+    @Test
+    public void testConfigurationLoader() throws Exception
+    {
+        // By default, we should load from the yaml
+        Config config = DatabaseDescriptor.loadConfig();
+        assertEquals("Test Cluster", config.cluster_name);
+
+        // Now try custom loader
+        ConfigurationLoader testLoader = new TestLoader();
+        System.setProperty("cassandra.config.loader", testLoader.getClass().getName());
+
+        config = DatabaseDescriptor.loadConfig();
+        assertEquals("ConfigurationLoader Test", config.cluster_name);
+    }
+
+    public static class TestLoader implements ConfigurationLoader
+    {
+        public Config loadConfig() throws ConfigurationException
+        {
+            Config testConfig = new Config();
+            testConfig.cluster_name = "ConfigurationLoader Test";;
+            return testConfig;
         }
     }
 }

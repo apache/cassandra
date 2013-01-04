@@ -169,7 +169,7 @@ public class Config
 
     public boolean inter_dc_tcp_nodelay = false;
 
-    private static boolean loadYaml = true;
+    private static boolean isClientMode = false;
     private static boolean outboundBindAny = false;
 
     public static boolean getOutboundBindAny()
@@ -182,14 +182,14 @@ public class Config
         outboundBindAny = value;
     }
 
-    public static boolean getLoadYaml()
+    public static boolean isClientMode()
     {
-       return loadYaml;
+       return isClientMode;
     }
 
-    public static void setLoadYaml(boolean value)
+    public static void setClientMode(boolean clientMode)
     {
-        loadYaml = value;
+        isClientMode = clientMode;
     }
 
     public static enum CommitLogSync

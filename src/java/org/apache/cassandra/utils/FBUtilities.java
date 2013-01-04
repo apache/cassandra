@@ -453,7 +453,7 @@ public class FBUtilities
     }
 
     /**
-     * Constructs an instance of the given class, which must have a no-arg constructor.
+     * Constructs an instance of the given class, which must have a no-arg or default constructor.
      * @param classname Fully qualified classname.
      * @param readable Descriptive noun for the role the class plays.
      * @throws ConfigurationException If the class cannot be found.
@@ -463,11 +463,7 @@ public class FBUtilities
         Class<T> cls = FBUtilities.classForName(classname, readable);
         try
         {
-            return cls.getConstructor().newInstance();
-        }
-        catch (NoSuchMethodException e)
-        {
-            throw new ConfigurationException(String.format("No default constructor for %s class '%s'.", readable, classname));
+            return cls.newInstance();
         }
         catch (IllegalAccessException e)
         {
@@ -477,8 +473,9 @@ public class FBUtilities
         {
             throw new ConfigurationException(String.format("Cannot use abstract class '%s' as %s.", classname, readable));
         }
-        catch (InvocationTargetException e)
+        catch (Exception e)
         {
+            // Catch-all because Class.newInstance() "propagates any exception thrown by the nullary constructor, including a checked exception".
             if (e.getCause() instanceof ConfigurationException)
                 throw (ConfigurationException)e.getCause();
             throw new ConfigurationException(String.format("Error instantiating %s class '%s'.", readable, classname), e);
