@@ -3,6 +3,7 @@
  * fix multithreaded compaction deadlock (CASSANDRA-4492)
  * fix specifying and altering crc_check_chance (CASSANDRA-5053)
  * Don't expire columns sooner than they should in 2ndary indexes (CASSANDRA-5079)
+ * Pig: correctly decode row keys in widerow mode (CASSANDRA-5098)
 
 
 1.1.8

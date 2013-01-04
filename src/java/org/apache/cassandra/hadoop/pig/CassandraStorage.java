@@ -143,7 +143,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                         if (tuple.size() == 0) // lastRow is a new one
                         {
                             key = (ByteBuffer)reader.getCurrentKey();
-                            tuple.append(new DataByteArray(key.array(), key.position()+key.arrayOffset(), key.limit()+key.arrayOffset()));
+                            addKeyToTuple(tuple, key, cfDef, parseType(cfDef.getKey_validation_class()));
                         }
                         for (Map.Entry<ByteBuffer, IColumn> entry : lastRow.entrySet())
                         {
@@ -179,7 +179,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                     key = (ByteBuffer)reader.getCurrentKey();
                     if (lastKey != null && !(key.equals(lastKey))) // last key only had one value
                     {
-                        tuple.append(new DataByteArray(lastKey.array(), lastKey.position()+lastKey.arrayOffset(), lastKey.limit()+lastKey.arrayOffset()));
+                        addKeyToTuple(tuple, lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
                         for (Map.Entry<ByteBuffer, IColumn> entry : lastRow.entrySet())
                         {
                             bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
@@ -189,7 +189,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                         lastRow = (SortedMap<ByteBuffer,IColumn>)reader.getCurrentValue();
                         return tuple;
                     }
-                    tuple.append(new DataByteArray(key.array(), key.position()+key.arrayOffset(), key.limit()+key.arrayOffset()));
+                    addKeyToTuple(tuple, lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
                 }
                 SortedMap<ByteBuffer,IColumn> row = (SortedMap<ByteBuffer,IColumn>)reader.getCurrentValue();
                 if (lastRow != null) // prepend what was read last time
@@ -294,6 +294,12 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private Tuple keyToTuple(ByteBuffer key, CfDef cfDef, AbstractType comparator) throws IOException
     {
         Tuple tuple = TupleFactory.getInstance().newTuple(1);
+        addKeyToTuple(tuple, key, cfDef, comparator);
+        return tuple;
+    }
+
+    private void addKeyToTuple(Tuple tuple, ByteBuffer key, CfDef cfDef, AbstractType comparator) throws IOException
+    {
         if( comparator instanceof AbstractCompositeType )
         {
             setTupleValue(tuple, 0, composeComposite((AbstractCompositeType)comparator,key));
@@ -302,7 +308,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         {
             setTupleValue(tuple, 0, getDefaultMarshallers(cfDef).get(2).compose(key));
         }
-        return tuple;
+
     }
 
     private Tuple columnToTuple(IColumn col, CfDef cfDef, AbstractType comparator) throws IOException
