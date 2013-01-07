@@ -6,6 +6,7 @@
 
 
 1.2.1
+ * disallow bloom filter false positive chance of 0 (CASSANDRA-5013)
  * add threadpool size adjustment methods to JMXEnabledThreadPoolExecutor and 
    CompactionManagerMBean (CASSANDRA-5044)
  * Improve handling a changing target throttle rate mid-compaction (CASSANDRA-5087)

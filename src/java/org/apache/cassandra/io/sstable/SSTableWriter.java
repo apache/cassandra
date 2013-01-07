@@ -427,15 +427,7 @@ public class SSTableWriter extends SSTable
                                               !DatabaseDescriptor.populateIOCacheOnFlush());
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
             summary = new IndexSummary(keyCount, metadata.getIndexInterval());
-
-            double fpChance = metadata.getBloomFilterFpChance();
-            if (fpChance == 0)
-            {
-                // paranoia -- we've had bugs in the thrift <-> avro <-> CfDef dance before, let's not let that break things
-                logger.error("Bloom filter FP chance of zero isn't supposed to happen");
-                fpChance = 0.01;
-            }
-            bf = FilterFactory.getFilter(keyCount, fpChance, true);
+            bf = FilterFactory.getFilter(keyCount, metadata.getBloomFilterFpChance(), true);
         }
 
         public void append(DecoratedKey key, RowIndexEntry indexEntry)
