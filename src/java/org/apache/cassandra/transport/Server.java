@@ -249,7 +249,8 @@ public class Server implements CassandraDaemon.Server
             SSLEngine sslEngine = sslContext.createSSLEngine();
             sslEngine.setUseClientMode(false);
             sslEngine.setEnabledCipherSuites(encryptionOptions.cipher_suites);
-
+            sslEngine.setNeedClientAuth(encryptionOptions.require_client_auth);
+            
             SslHandler sslHandler = new SslHandler(sslEngine);
             sslHandler.setIssueHandshake(true);
             ChannelPipeline pipeline = super.getPipeline();
