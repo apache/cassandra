@@ -22,6 +22,7 @@
  * cqlsh: fix DESCRIBE for 1.1 cfs in CQL3 (CASSANDRA-5101)
  * Correctly gossip with nodes >= 1.1.7 (CASSANDRA-5102)
  * Ensure CL guarantees on digest mismatch (CASSANDRA-5113)
+ * Validate correctly selects on composite partition key (CASSANDRA-5122)
 Merged from 1.1:
  * Pig: correctly decode row keys in widerow mode (CASSANDRA-5098)
 
