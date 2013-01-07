@@ -32,7 +32,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.IReadCommand;
-import org.apache.cassandra.service.RepairCallback;
+import org.apache.cassandra.service.RowDataResolver;
 import org.apache.cassandra.utils.IFilter;
 
 
@@ -94,7 +94,7 @@ public abstract class ReadCommand implements IReadCommand
     }
 
     // maybeGenerateRetryCommand is used to generate a retry for short reads
-    public ReadCommand maybeGenerateRetryCommand(RepairCallback handler, Row row)
+    public ReadCommand maybeGenerateRetryCommand(RowDataResolver resolver, Row row)
     {
         return null;
     }

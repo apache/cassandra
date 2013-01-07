@@ -30,7 +30,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.service.RepairCallback;
+import org.apache.cassandra.service.RowDataResolver;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -71,9 +71,9 @@ public class SliceFromReadCommand extends ReadCommand
     }
 
     @Override
-    public ReadCommand maybeGenerateRetryCommand(RepairCallback handler, Row row)
+    public ReadCommand maybeGenerateRetryCommand(RowDataResolver resolver, Row row)
     {
-        int maxLiveColumns = handler.getMaxLiveCount();
+        int maxLiveColumns = resolver.getMaxLiveCount();
 
         int count = filter.count;
         assert maxLiveColumns <= count;

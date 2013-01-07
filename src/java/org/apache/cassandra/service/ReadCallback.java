@@ -60,7 +60,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
     private final long startTime;
     protected final int blockfor;
     final List<InetAddress> endpoints;
-    private final IReadCommand command;
+    protected final IReadCommand command;
     protected final ConsistencyLevel consistencyLevel;
     protected final AtomicInteger received = new AtomicInteger(0);
 
@@ -75,9 +75,24 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         this.startTime = System.currentTimeMillis();
         this.consistencyLevel = consistencyLevel;
         sortForConsistencyLevel(endpoints);
-        this.endpoints = resolver instanceof RowRepairResolver ? endpoints : filterEndpoints(endpoints);
+        this.endpoints = filterEndpoints(endpoints);
         if (logger.isTraceEnabled())
             logger.trace(String.format("Blockfor is %s; setting up requests to %s", blockfor, StringUtils.join(this.endpoints, ",")));
+    }
+
+    protected ReadCallback(IResponseResolver<TMessage, TResolved> resolver, ConsistencyLevel consistencyLevel, int blockfor, IReadCommand command, List<InetAddress> endpoints)
+    {
+        this.command = command;
+        this.blockfor = blockfor;
+        this.consistencyLevel = consistencyLevel;
+        this.resolver = resolver;
+        this.startTime = System.currentTimeMillis();
+        this.endpoints = endpoints;
+    }
+
+    public ReadCallback<TMessage, TResolved> withNewResolver(IResponseResolver<TMessage, TResolved> newResolver)
+    {
+        return new ReadCallback(newResolver, consistencyLevel, blockfor, command, endpoints);
     }
 
     /**
@@ -209,17 +224,22 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
     {
         protected void runMayThrow() throws IOException
         {
+            // If the resolver is a RowDigestResolver, we need to do a full data read if there is a mismatch.
+            // Otherwise, resolve will send the repairs directly if needs be (and in that case we should never
+            // get a digest mismatch)
             try
             {
                 resolver.resolve();
             }
             catch (DigestMismatchException e)
             {
+                assert resolver instanceof RowDigestResolver;
+
                 if (logger.isDebugEnabled())
                     logger.debug("Digest mismatch:", e);
 
                 ReadCommand readCommand = (ReadCommand) command;
-                final RowRepairResolver repairResolver = new RowRepairResolver(readCommand.table, readCommand.key, readCommand.filter());
+                final RowDataResolver repairResolver = new RowDataResolver(readCommand.table, readCommand.key, readCommand.filter());
                 IAsyncCallback repairHandler = new AsyncRepairCallback(repairResolver, endpoints.size());
 
                 MessageOut<ReadCommand> message = ((ReadCommand) command).createMessage();

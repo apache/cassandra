@@ -40,13 +40,13 @@ import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.IFilter;
 
-public class RowRepairResolver extends AbstractRowResolver
+public class RowDataResolver extends AbstractRowResolver
 {
     private int maxLiveCount = 0;
     public List<IAsyncResult> repairResults = Collections.emptyList();
     private final IDiskAtomFilter filter;
 
-    public RowRepairResolver(String table, ByteBuffer key, IDiskAtomFilter qFilter)
+    public RowDataResolver(String table, ByteBuffer key, IDiskAtomFilter qFilter)
     {
         super(key, table);
         this.filter = qFilter;
@@ -167,12 +167,12 @@ public class RowRepairResolver extends AbstractRowResolver
 
     public Row getData() throws IOException
     {
-        throw new UnsupportedOperationException();
+        return replies.iterator().next().payload.row();
     }
 
     public boolean isDataPresent()
     {
-        throw new UnsupportedOperationException();
+        return !replies.isEmpty();
     }
 
     public int getMaxLiveCount()

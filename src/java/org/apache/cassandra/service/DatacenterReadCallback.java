@@ -46,9 +46,20 @@ public class DatacenterReadCallback<TMessage, TResolved> extends ReadCallback<TM
         }
     };
 
-    public DatacenterReadCallback(IResponseResolver resolver, ConsistencyLevel consistencyLevel, IReadCommand command, List<InetAddress> endpoints)
+    public DatacenterReadCallback(IResponseResolver<TMessage, TResolved> resolver, ConsistencyLevel consistencyLevel, IReadCommand command, List<InetAddress> endpoints)
     {
         super(resolver, consistencyLevel, command, endpoints);
+    }
+
+    protected DatacenterReadCallback(IResponseResolver<TMessage, TResolved> resolver, ConsistencyLevel consistencyLevel, int blockfor, IReadCommand command, List<InetAddress> endpoints)
+    {
+        super(resolver, consistencyLevel, blockfor, command, endpoints);
+    }
+
+    @Override
+    public ReadCallback<TMessage, TResolved> withNewResolver(IResponseResolver<TMessage, TResolved> newResolver)
+    {
+        return new DatacenterReadCallback(newResolver, consistencyLevel, blockfor, command, endpoints);
     }
 
     @Override
