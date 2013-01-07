@@ -44,7 +44,7 @@ public class RowResolverTest extends SchemaLoader
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
         cf2.addColumn(column("c1", "v2", 1));
 
-        ColumnFamily resolved = RowRepairResolver.resolveSuperset(Arrays.asList(cf1, cf2));
+        ColumnFamily resolved = RowDataResolver.resolveSuperset(Arrays.asList(cf1, cf2));
         assertColumns(resolved, "c1");
         assertColumns(ColumnFamily.diff(cf1, resolved), "c1");
         assertNull(ColumnFamily.diff(cf2, resolved));
@@ -59,7 +59,7 @@ public class RowResolverTest extends SchemaLoader
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
         cf2.addColumn(column("c2", "v2", 1));
 
-        ColumnFamily resolved = RowRepairResolver.resolveSuperset(Arrays.asList(cf1, cf2));
+        ColumnFamily resolved = RowDataResolver.resolveSuperset(Arrays.asList(cf1, cf2));
         assertColumns(resolved, "c1", "c2");
         assertColumns(ColumnFamily.diff(cf1, resolved), "c2");
         assertColumns(ColumnFamily.diff(cf2, resolved), "c1");
@@ -71,7 +71,7 @@ public class RowResolverTest extends SchemaLoader
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
         cf2.addColumn(column("c2", "v2", 1));
 
-        ColumnFamily resolved = RowRepairResolver.resolveSuperset(Arrays.asList(null, cf2));
+        ColumnFamily resolved = RowDataResolver.resolveSuperset(Arrays.asList(null, cf2));
         assertColumns(resolved, "c2");
         assertColumns(ColumnFamily.diff(null, resolved), "c2");
         assertNull(ColumnFamily.diff(cf2, resolved));
@@ -83,7 +83,7 @@ public class RowResolverTest extends SchemaLoader
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
         cf1.addColumn(column("c1", "v1", 0));
 
-        ColumnFamily resolved = RowRepairResolver.resolveSuperset(Arrays.asList(cf1, null));
+        ColumnFamily resolved = RowDataResolver.resolveSuperset(Arrays.asList(cf1, null));
         assertColumns(resolved, "c1");
         assertNull(ColumnFamily.diff(cf1, resolved));
         assertColumns(ColumnFamily.diff(null, resolved), "c1");
@@ -92,7 +92,7 @@ public class RowResolverTest extends SchemaLoader
     @Test
     public void testResolveSupersetNullBoth()
     {
-        assertNull(RowRepairResolver.resolveSuperset(Arrays.<ColumnFamily>asList(null, null)));
+        assertNull(RowDataResolver.resolveSuperset(Arrays.<ColumnFamily>asList(null, null)));
     }
 
     @Test
@@ -105,7 +105,7 @@ public class RowResolverTest extends SchemaLoader
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
         cf2.delete(new DeletionInfo(1L, (int) (System.currentTimeMillis() / 1000)));
 
-        ColumnFamily resolved = RowRepairResolver.resolveSuperset(Arrays.asList(cf1, cf2));
+        ColumnFamily resolved = RowDataResolver.resolveSuperset(Arrays.asList(cf1, cf2));
         // no columns in the cf
         assertColumns(resolved);
         assertTrue(resolved.isMarkedForDelete());
@@ -132,7 +132,7 @@ public class RowResolverTest extends SchemaLoader
         ColumnFamily cf4 = ColumnFamily.create("Keyspace1", "Standard1");
         cf4.delete(new DeletionInfo(2L, (int) (System.currentTimeMillis() / 1000)));
 
-        ColumnFamily resolved = RowRepairResolver.resolveSuperset(Arrays.asList(cf1, cf2, cf3, cf4));
+        ColumnFamily resolved = RowDataResolver.resolveSuperset(Arrays.asList(cf1, cf2, cf3, cf4));
         // will have deleted marker and one column
         assertColumns(resolved, "two");
         assertColumn(resolved, "two", "B", 3);

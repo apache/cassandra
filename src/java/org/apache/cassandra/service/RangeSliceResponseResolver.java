@@ -138,7 +138,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
         protected Row getReduced()
         {
             ColumnFamily resolved = versions.size() > 1
-                                  ? RowRepairResolver.resolveSuperset(versions)
+                                  ? RowDataResolver.resolveSuperset(versions)
                                   : versions.get(0);
             if (versions.size() < sources.size())
             {
@@ -154,7 +154,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
             }
             // resolved can be null even if versions doesn't have all nulls because of the call to removeDeleted in resolveSuperSet
             if (resolved != null)
-                repairResults.addAll(RowRepairResolver.scheduleRepairs(resolved, table, key, versions, versionSources));
+                repairResults.addAll(RowDataResolver.scheduleRepairs(resolved, table, key, versions, versionSources));
             versions.clear();
             versionSources.clear();
             return new Row(key, resolved);

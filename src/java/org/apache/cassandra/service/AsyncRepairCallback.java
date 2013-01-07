@@ -28,11 +28,11 @@ import org.apache.cassandra.utils.WrappedRunnable;
 
 public class AsyncRepairCallback implements IAsyncCallback
 {
-    private final RowRepairResolver repairResolver;
+    private final RowDataResolver repairResolver;
     private final int blockfor;
     protected final AtomicInteger received = new AtomicInteger(0);
 
-    public AsyncRepairCallback(RowRepairResolver repairResolver, int blockfor)
+    public AsyncRepairCallback(RowDataResolver repairResolver, int blockfor)
     {
         this.repairResolver = repairResolver;
         this.blockfor = blockfor;

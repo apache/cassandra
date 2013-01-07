@@ -924,7 +924,7 @@ public class StorageProxy implements StorageProxyMBean
 
             // read results and make a second pass for any digest mismatches
             List<ReadCommand> repairCommands = null;
-            List<RepairCallback> repairResponseHandlers = null;
+            List<ReadCallback<ReadResponse, Row>> repairResponseHandlers = null;
             for (int i = 0; i < commands.size(); i++)
             {
                 ReadCallback<ReadResponse, Row> handler = readCallbacks[i];
@@ -947,13 +947,14 @@ public class StorageProxy implements StorageProxyMBean
                 catch (DigestMismatchException ex)
                 {
                     logger.debug("Digest mismatch: {}", ex.toString());
-                    RowRepairResolver resolver = new RowRepairResolver(command.table, command.key, command.filter());
-                    RepairCallback repairHandler = new RepairCallback(resolver, handler.endpoints);
+                    // Do a full data read to resolve the correct response (and repair node that need be)
+                    RowDataResolver resolver = new RowDataResolver(command.table, command.key, command.filter());
+                    ReadCallback<ReadResponse, Row> repairHandler = handler.withNewResolver(resolver);
 
                     if (repairCommands == null)
                     {
                         repairCommands = new ArrayList<ReadCommand>();
-                        repairResponseHandlers = new ArrayList<RepairCallback>();
+                        repairResponseHandlers = new ArrayList<ReadCallback<ReadResponse, Row>>();
                     }
                     repairCommands.add(command);
                     repairResponseHandlers.add(repairHandler);
@@ -975,7 +976,7 @@ public class StorageProxy implements StorageProxyMBean
                 for (int i = 0; i < repairCommands.size(); i++)
                 {
                     ReadCommand command = repairCommands.get(i);
-                    RepairCallback handler = repairResponseHandlers.get(i);
+                    ReadCallback<ReadResponse, Row> handler = repairResponseHandlers.get(i);
 
                     Row row;
                     try
@@ -987,11 +988,12 @@ public class StorageProxy implements StorageProxyMBean
                         throw new AssertionError(e); // full data requested from each node here, no digests should be sent
                     }
 
+                    RowDataResolver resolver = (RowDataResolver)handler.resolver;
                     try
                     {
                         // wait for the repair writes to be acknowledged, to minimize impact on any replica that's
                         // behind on writes in case the out-of-sync row is read multiple times in quick succession
-                        FBUtilities.waitOnFutures(handler.resolver.repairResults, DatabaseDescriptor.getWriteRpcTimeout());
+                        FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getWriteRpcTimeout());
                     }
                     catch (TimeoutException e)
                     {
@@ -1000,7 +1002,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
 
                     // retry any potential short reads
-                    ReadCommand retryCommand = command.maybeGenerateRetryCommand(handler, row);
+                    ReadCommand retryCommand = command.maybeGenerateRetryCommand(resolver, row);
                     if (retryCommand != null)
                     {
                         logger.debug("Issuing retry for read command");
