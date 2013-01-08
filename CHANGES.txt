@@ -36,6 +36,7 @@ Merged from 1.1:
  * Improve handling a changing target throttle rate mid-compaction (CASSANDRA-5087)
  * Pig: correctly decode row keys in widerow mode (CASSANDRA-5098)
  * nodetool repair command now prints progress (CASSANDRA-4767)
+ * Ensure Jackson dependency matches lib (CASSANDRA-5126)
 
 
 1.2.0
