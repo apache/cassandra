@@ -1193,16 +1193,21 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return vvalue.getBytes(ISO_8859_1);
     }
 
-    private Collection<Token> getTokensFor(InetAddress endpoint)
+    private Collection<Token> getTokensFor(InetAddress endpoint, String piece)
     {
-        try
+        if (Gossiper.instance.usesVnodes(endpoint))
         {
-            return TokenSerializer.deserialize(getPartitioner(), new DataInputStream(new ByteArrayInputStream(getApplicationStateValue(endpoint, ApplicationState.TOKENS))));
+            try
+            {
+                return TokenSerializer.deserialize(getPartitioner(), new DataInputStream(new ByteArrayInputStream(getApplicationStateValue(endpoint, ApplicationState.TOKENS))));
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        else
+            return Arrays.asList(getPartitioner().getTokenFactory().fromString(piece));
     }
 
     /**
@@ -1220,10 +1225,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         //   versions >= 1.2 .....: use TOKENS app state
         Collection<Token> tokens;
         // explicitly check for TOKENS, because a bootstrapping node might be bootstrapping in legacy mode; that is, not using vnodes and no token specified
-        if (Gossiper.instance.usesHostId(endpoint) && Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.TOKENS) != null)
-            tokens = getTokensFor(endpoint);
-        else
-            tokens = Arrays.asList(getPartitioner().getTokenFactory().fromString(pieces[1]));
+        tokens = getTokensFor(endpoint, pieces[1]);
 
         if (logger.isDebugEnabled())
             logger.debug("Node " + endpoint + " state bootstrapping, token " + tokens);
@@ -1267,10 +1269,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         Collection<Token> tokens;
 
-        if (Gossiper.instance.usesHostId(endpoint))
-            tokens = getTokensFor(endpoint);
-        else
-            tokens = Arrays.asList(getPartitioner().getTokenFactory().fromString(pieces[1]));
+        tokens = getTokensFor(endpoint, pieces[1]);
 
         if (logger.isDebugEnabled())
             logger.debug("Node " + endpoint + " state normal, token " + tokens);
@@ -1407,10 +1406,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         assert pieces.length >= 2;
         Collection<Token> tokens;
-        if (Gossiper.instance.usesHostId(endpoint))
-            tokens = getTokensFor(endpoint);
-        else
-            tokens =  Arrays.asList(getPartitioner().getTokenFactory().fromString(pieces[1]));
+        tokens = getTokensFor(endpoint, pieces[1]);
 
         if (logger.isDebugEnabled())
             logger.debug("Node " + endpoint + " state leaving, tokens " + tokens);
@@ -1446,10 +1442,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         assert pieces.length >= 2;
         Collection<Token> tokens;
         Integer version = MessagingService.instance().getVersion(endpoint);
-        if (!Gossiper.instance.usesHostId(endpoint))
-            tokens = Arrays.asList(getPartitioner().getTokenFactory().fromString(pieces[1]));
-        else
-            tokens = getTokensFor(endpoint);
+        tokens = getTokensFor(endpoint, pieces[1]);
 
         if (logger.isDebugEnabled())
             logger.debug("Node " + endpoint + " state left, tokens " + tokens);
