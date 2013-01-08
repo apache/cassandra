@@ -26,12 +26,14 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
+import javax.management.NotificationEmitter;
+
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.UnavailableException;
 
 
-public interface StorageServiceMBean
+public interface StorageServiceMBean extends NotificationEmitter
 {
     /**
      * Retrieve the list of live nodes in the cluster, where "liveness" is
@@ -240,6 +242,18 @@ public interface StorageServiceMBean
      * @throws IOException
      */
     public void forceTableFlush(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
+
+    /**
+     * Invoke repair asynchronously.
+     * You can track repair progress by subscribing JMX notification sent from this StorageServiceMBean.
+     * Notification format is:
+     *   type: "repair"
+     *   userObject: int array of length 2, [0]=command number, [1]=ordinal of AntiEntropyService.Status
+     *
+     * @return Repair command number, or 0 if nothing to repair
+     * @see #forceTableRepair(String, boolean, String...)
+     */
+    public int forceRepairAsync(String tableName, boolean isSequential, boolean primaryRange, String... columnFamilies);
 
     /**
      * Triggers proactive repair for given column families, or all columnfamilies for the given table

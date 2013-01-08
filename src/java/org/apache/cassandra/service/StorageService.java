@@ -29,7 +29,10 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.management.MBeanServer;
+import javax.management.Notification;
+import javax.management.NotificationBroadcasterSupport;
 import javax.management.ObjectName;
 
 import com.google.common.base.Supplier;
@@ -78,11 +81,14 @@ import org.apache.cassandra.utils.WrappedRunnable;
  * This class will also maintain histograms of the load information
  * of other nodes in the cluster.
  */
-public class StorageService implements IEndpointStateChangeSubscriber, StorageServiceMBean
+public class StorageService extends NotificationBroadcasterSupport implements IEndpointStateChangeSubscriber, StorageServiceMBean
 {
     private static Logger logger_ = LoggerFactory.getLogger(StorageService.class);
 
     public static final int RING_DELAY = getRingDelay(); // delay after which we assume ring has stablized
+
+    /* JMX notification serial number counter */
+    private final AtomicLong notificationSerialNumber = new AtomicLong();
 
     /* All verb handler identifiers */
     public enum Verb
@@ -244,6 +250,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     private static final AtomicInteger nextRepairCommand = new AtomicInteger();
 
+    private final ObjectName jmxObjectName;
+
     public void finishBootstrapping()
     {
         isBootstrapMode = false;
@@ -265,7 +273,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.db:type=StorageService"));
+            jmxObjectName = new ObjectName("org.apache.cassandra.db:type=StorageService");
+            mbs.registerMBean(this, jmxObjectName);
         }
         catch (Exception e)
         {
@@ -1932,6 +1941,82 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.debug("Forcing flush on keyspace " + tableName + ", CF " + cfStore.getColumnFamilyName());
             cfStore.forceBlockingFlush();
         }
+    }
+
+    /**
+     * Sends JMX notification to subscribers.
+     *
+     * @param type Message type
+     * @param message Message itself
+     * @param userObject Arbitrary object to attach to notification
+     */
+    public void sendNotification(String type, String message, Object userObject)
+    {
+        Notification jmxNotification = new Notification(type, jmxObjectName, notificationSerialNumber.incrementAndGet(), message);
+        jmxNotification.setUserData(userObject);
+        sendNotification(jmxNotification);
+    }
+
+    public int forceRepairAsync(final String tableName, final boolean isSequential, final boolean primaryRange, final String... columnFamilies)
+    {
+        if (Table.SYSTEM_TABLE.equals(tableName))
+            return 0;
+
+        final int cmd = nextRepairCommand.incrementAndGet();
+        final Collection<Range<Token>> ranges = primaryRange ? Collections.singletonList(getLocalPrimaryRange()) : getLocalRanges(tableName);
+        if (ranges.size() > 0)
+        {
+            new Thread(new WrappedRunnable()
+            {
+                protected void runMayThrow() throws Exception
+                {
+                    String message = String.format("Starting repair command #%d, repairing %d ranges for keyspace %s", cmd, ranges.size(), tableName);
+                    logger_.info(message);
+                    sendNotification("repair", message, new int[]{cmd, AntiEntropyService.Status.STARTED.ordinal()});
+
+                    List<AntiEntropyService.RepairFuture> futures = new ArrayList<AntiEntropyService.RepairFuture>(ranges.size());
+                    for (Range<Token> range : ranges)
+                    {
+                        AntiEntropyService.RepairFuture future = forceTableRepair(range, tableName, isSequential, columnFamilies);
+                        if (future == null)
+                            continue;
+                        futures.add(future);
+                        // wait for a session to be done with its differencing before starting the next one
+                        try
+                        {
+                            future.session.differencingDone.await();
+                        }
+                        catch (InterruptedException e)
+                        {
+                            message = "Interrupted while waiting for the differencing of repair session " + future.session + " to be done. Repair may be imprecise.";
+                            logger_.error(message, e);
+                            sendNotification("repair", message, new int[]{cmd, AntiEntropyService.Status.SESSION_FAILED.ordinal()});
+                        }
+                    }
+                    for (AntiEntropyService.RepairFuture future : futures)
+                    {
+                        try
+                        {
+                            future.get();
+                            message = String.format("Repair session %s for range %s finished", future.session.getName(), future.session.getRange().toString());
+                            sendNotification("repair", message, new int[]{cmd, AntiEntropyService.Status.SESSION_SUCCESS.ordinal()});
+                        }
+                        catch (ExecutionException e)
+                        {
+                            message = String.format("Repair session %s for range %s failed with error %s", future.session.getName(), future.session.getRange().toString(), e.getCause().getMessage());
+                            sendNotification("repair", message, new int[]{cmd, AntiEntropyService.Status.SESSION_FAILED.ordinal()});
+                        }
+                        catch (Exception e)
+                        {
+                            message = String.format("Repair session %s for range %s failed with error %s", future.session.getName(), future.session.getRange().toString(), e.getMessage());
+                            sendNotification("repair", message, new int[]{cmd, AntiEntropyService.Status.SESSION_FAILED.ordinal()});
+                        }
+                    }
+                    sendNotification("repair", String.format("Repair command #%d finished", cmd), new int[]{cmd, AntiEntropyService.Status.FINISHED.ordinal()});
+                }
+            }).start();
+        }
+        return cmd;
     }
 
     /**
