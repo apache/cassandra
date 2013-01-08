@@ -87,14 +87,11 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     }
                 }
 
-                Integer componentIndex = cfDef.isComposite ? ((CompositeType)meta.comparator).types.size() - 1 : null;
                 AbstractType<?> type = validator.getType();
                 if (type instanceof CollectionType)
                 {
                     if (!cfDef.isComposite)
                         throw new InvalidRequestException("Cannot use collection types with non-composite PRIMARY KEY");
-
-                    componentIndex--;
 
                     Map<ByteBuffer, CollectionType> collections = cfDef.hasCollections
                                                                 ? new HashMap<ByteBuffer, CollectionType>(cfDef.getCollectionType().defined)
@@ -109,11 +106,10 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         ctypes.add(newColType);
                     cfm.comparator = CompositeType.getInstance(ctypes);
                 }
-                else if (cfDef.hasCollections)
-                {
-                    componentIndex--;
-                }
 
+                Integer componentIndex = cfDef.isComposite
+                                       ? ((CompositeType)meta.comparator).types.size() - (cfDef.hasCollections ? 2 : 1)
+                                       : null;
                 cfm.addColumnDefinition(new ColumnDefinition(columnName.key,
                                                              type,
                                                              null,
