@@ -25,18 +25,17 @@ import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.DecimalFormat;
-import java.util.concurrent.ExecutionException;
-import java.util.Map.Entry;
 import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Maps;
 import org.apache.commons.cli.*;
-
-import org.apache.cassandra.service.CacheServiceMBean;
-import org.apache.cassandra.service.PBSPredictionResult;
-import org.apache.cassandra.service.PBSPredictorMBean;
-import org.apache.cassandra.service.StorageProxyMBean;
+import org.yaml.snakeyaml.Loader;
+import org.yaml.snakeyaml.TypeDescription;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.Constructor;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
@@ -44,16 +43,15 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingServiceMBean;
+import org.apache.cassandra.service.CacheServiceMBean;
+import org.apache.cassandra.service.PBSPredictionResult;
+import org.apache.cassandra.service.PBSPredictorMBean;
+import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
-import org.yaml.snakeyaml.Loader;
-import org.yaml.snakeyaml.TypeDescription;
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.constructor.Constructor;
 
 public class NodeCmd
 {
@@ -1335,10 +1333,8 @@ public class NodeCmd
                 case REPAIR  :
                     boolean snapshot = cmd.hasOption(SNAPSHOT_REPAIR_OPT.left);
                     boolean localDC = cmd.hasOption(LOCAL_DC_REPAIR_OPT.left);
-                    if (cmd.hasOption(PRIMARY_RANGE_OPT.left))
-                        probe.forceTableRepairPrimaryRange(keyspace, snapshot, localDC, columnFamilies);
-                    else
-                        probe.forceTableRepair(keyspace, snapshot, localDC, columnFamilies);
+                    boolean primaryRange = cmd.hasOption(PRIMARY_RANGE_OPT.left);
+                    probe.forceRepairAsync(System.out, keyspace, snapshot, localDC, primaryRange, columnFamilies);
                     break;
                 case FLUSH   :
                     try { probe.forceTableFlush(keyspace, columnFamilies); }

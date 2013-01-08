@@ -100,6 +100,11 @@ public class AntiEntropyService
                                                          "internal");
     }
 
+    public static enum Status
+    {
+        STARTED, SESSION_SUCCESS, SESSION_FAILED, FINISHED
+    }
+
     /**
      * A map of active session.
      */
@@ -620,6 +625,11 @@ public class AntiEntropyService
         public String getName()
         {
             return sessionName;
+        }
+
+        public Range<Token> getRange()
+        {
+            return range;
         }
 
         RepairFuture getFuture()
