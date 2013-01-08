@@ -625,6 +625,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return false;
     }
 
+    public boolean usesVnodes(InetAddress endpoint)
+    {
+        return usesHostId(endpoint) && getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.TOKENS) != null;
+    }
+
     public UUID getHostId(InetAddress endpoint)
     {
         if (!usesHostId(endpoint))

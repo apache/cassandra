@@ -31,6 +31,7 @@
  * Ensure CL guarantees on digest mismatch (CASSANDRA-5113)
  * Validate correctly selects on composite partition key (CASSANDRA-5122)
  * Fix exception when adding collection (CASSANDRA-5117)
+ * Handle states for non-vnode clusters correctly (CASSANDRA-5127)
 Merged from 1.1:
  * Pig: correctly decode row keys in widerow mode (CASSANDRA-5098)
 
