@@ -269,10 +269,10 @@ public class SelectStatement implements CQLStatement
             RowPosition finishKey = RowPosition.forKey(finishKeyBytes, p);
             if (startKey.compareTo(finishKey) > 0 && !finishKey.isMinimum(p))
             {
-                if (p instanceof RandomPartitioner)
-                    throw new InvalidRequestException("Start key sorts after end key. This is not allowed; you probably should not specify end key at all, under RandomPartitioner");
-                else
+                if (p.preservesOrder())
                     throw new InvalidRequestException("Start key must sort before (or equal to) finish key in your partitioner!");
+                else
+                    throw new InvalidRequestException("Start key sorts after end key. This is not allowed; you probably should not specify end key at all under random partitioner");
             }
             if (includeKeyBound(Bound.START))
             {
@@ -989,6 +989,7 @@ public class SelectStatement implements CQLStatement
             CFDefinition cfDef = cfm.getCfDef();
             SelectStatement stmt = new SelectStatement(cfDef, getBoundsTerms(), parameters);
             CFDefinition.Name[] names = new CFDefinition.Name[getBoundsTerms()];
+            IPartitioner partitioner = StorageService.getPartitioner();
 
             // Select clause
             if (parameters.isCount)
@@ -1042,8 +1043,6 @@ public class SelectStatement implements CQLStatement
                 switch (name.kind)
                 {
                     case KEY_ALIAS:
-                        if (rel.operator() != Relation.Type.EQ && rel.operator() != Relation.Type.IN && !rel.onToken && !StorageService.getPartitioner().preservesOrder())
-                            throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key for RandomPartitioner (unless you use the token() function)");
                         stmt.keyRestrictions[name.position] = updateRestriction(name, stmt.keyRestrictions[name.position], rel);
                         break;
                     case COLUMN_ALIAS:
@@ -1109,7 +1108,11 @@ public class SelectStatement implements CQLStatement
                 if (restriction == null)
                 {
                     if (stmt.onToken)
-                        throw new InvalidRequestException(String.format("The token() function must be applied to all partition key components or none of them"));
+                        throw new InvalidRequestException("The token() function must be applied to all partition key components or none of them");
+
+                    // Under a non order perserving partitioner, the only time not restricting a key part is allowed is if none are restricted
+                    if (!partitioner.preservesOrder() && i > 0 && stmt.keyRestrictions[i-1] != null)
+                        throw new InvalidRequestException(String.format("Partition key part %s must be restricted since preceding part is", cname));
 
                     stmt.isKeyRange = true;
                     shouldBeDone = true;
@@ -1143,6 +1146,9 @@ public class SelectStatement implements CQLStatement
                 }
                 else
                 {
+                    if (!partitioner.preservesOrder())
+                        throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key for random partitioners (unless you use the token() function)");
+
                     stmt.isKeyRange = true;
                     shouldBeDone = true;
                 }
