@@ -783,7 +783,7 @@ comparatorType returns [ParsedType t]
         } catch (SyntaxException e) {
             addRecognitionError("Cannot parse type " + $s.text + ": " + e.getMessage());
         } catch (ConfigurationException e) {
-            addRecognitionError("Errot setting type " + $s.text + ": " + e.getMessage());
+            addRecognitionError("Error setting type " + $s.text + ": " + e.getMessage());
         }
       }
     ;
@@ -809,11 +809,15 @@ native_type returns [ParsedType t]
 
 collection_type returns [ParsedType pt]
     : K_MAP  '<' t1=comparatorType ',' t2=comparatorType '>'
-        { try { $pt = ParsedType.Collection.map(t1, t2); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+        { try {
+            // if we can't parse either t1 or t2, antlr will "recover" and we may have t1 or t2 null.
+            if (t1 != null && t2 != null)
+                $pt = ParsedType.Collection.map(t1, t2);
+          } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
     | K_LIST '<' t=comparatorType '>'
-        { try { $pt = ParsedType.Collection.list(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+        { try { if (t != null) $pt = ParsedType.Collection.list(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
     | K_SET  '<' t=comparatorType '>'
-        { try { $pt = ParsedType.Collection.set(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+        { try { if (t != null) $pt = ParsedType.Collection.set(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
     ;
 
 username
