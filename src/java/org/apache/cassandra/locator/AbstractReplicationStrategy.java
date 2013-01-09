@@ -60,7 +60,7 @@ public abstract class AbstractReplicationStrategy
         this.tokenMetadata = tokenMetadata;
         this.snitch = snitch;
         this.tokenMetadata.register(this);
-        this.configOptions = configOptions;
+        this.configOptions = configOptions == null ? Collections.<String, String>emptyMap() : configOptions;
         this.table = table;
     }
 
@@ -238,7 +238,12 @@ public abstract class AbstractReplicationStrategy
     public static Class<AbstractReplicationStrategy> getClass(String cls) throws ConfigurationException
     {
         String className = cls.contains(".") ? cls : "org.apache.cassandra.locator." + cls;
-        return FBUtilities.classForName(className, "replication strategy");
+        Class<AbstractReplicationStrategy> strategyClass = FBUtilities.classForName(className, "replication strategy");
+        if (!AbstractReplicationStrategy.class.isAssignableFrom(strategyClass))
+        {
+            throw new ConfigurationException(String.format("Specified replication strategy class (%s) is not derived from AbstractReplicationStrategy", className));
+        }
+        return strategyClass;
     }
 
     protected void validateReplicationFactor(String rf) throws ConfigurationException
@@ -256,12 +261,12 @@ public abstract class AbstractReplicationStrategy
         }
     }
 
-    protected void warnOnUnexpectedOptions(Collection<String> expectedOptions)
+    protected void validateExpectedOptions(Collection<String> expectedOptions) throws ConfigurationException
     {
         for (String key : configOptions.keySet())
         {
             if (!expectedOptions.contains(key))
-                logger.warn("Unrecognized strategy option {" + key + "} passed to " + getClass().getSimpleName() + " for keyspace " + table);
+                throw new ConfigurationException(String.format("Unrecognized strategy option {%s} passed to %s for keyspace %s", key, getClass().getSimpleName(), table));
         }
     }
 }

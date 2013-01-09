@@ -189,6 +189,5 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         {
             validateReplicationFactor(e.getValue());
         }
-
     }
 }

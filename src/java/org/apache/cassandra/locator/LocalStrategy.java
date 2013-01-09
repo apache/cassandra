@@ -61,6 +61,6 @@ public class LocalStrategy extends AbstractReplicationStrategy
     public void validateOptions() throws ConfigurationException
     {
         // LocalStrategy doesn't expect any options.
-        warnOnUnexpectedOptions(Collections.<String>emptySet());
+        validateExpectedOptions(Collections.<String>emptySet());
     }
 }
