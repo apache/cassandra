@@ -40,6 +40,8 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
+import org.apache.cassandra.db.HintedHandOffManager;
+import org.apache.cassandra.db.HintedHandOffManagerMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.gms.FailureDetector;
@@ -77,6 +79,7 @@ public class NodeProbe
     private CacheServiceMBean cacheService;
     private PBSPredictorMBean PBSPredictorProxy;
     private StorageProxyMBean spProxy;
+    private HintedHandOffManagerMBean hhProxy;
 
     /**
      * Creates a NodeProbe using the specified JMX host, port, username, and password.
@@ -159,6 +162,8 @@ public class NodeProbe
             cacheService = JMX.newMBeanProxy(mbeanServerConn, name, CacheServiceMBean.class);
             name = new ObjectName(StorageProxy.MBEAN_NAME);
             spProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageProxyMBean.class);
+            name = new ObjectName(HintedHandOffManager.MBEAN_NAME);
+            hhProxy = JMX.newMBeanProxy(mbeanServerConn, name, HintedHandOffManagerMBean.class);
         } catch (MalformedObjectNameException e)
         {
             throw new RuntimeException(
@@ -645,6 +650,26 @@ public class NodeProbe
     public List<String> getKeyspaces()
     {
         return ssProxy.getKeyspaces();
+    }
+
+    public void disableHintedHandoff()
+    {
+        spProxy.setHintedHandoffEnabled(false);
+    }
+
+    public void enableHintedHandoff()
+    {
+        spProxy.setHintedHandoffEnabled(true);
+    }
+
+    public void pauseHintsDelivery()
+    {
+        hhProxy.pauseHintsDelivery(true);
+    }
+
+    public void resumeHintsDelivery()
+    {
+        hhProxy.pauseHintsDelivery(false);
     }
 
     public void stopGossiping()

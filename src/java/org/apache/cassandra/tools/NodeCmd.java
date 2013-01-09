@@ -102,9 +102,11 @@ public class NodeCmd
         COMPACTIONSTATS,
         DECOMMISSION,
         DISABLEGOSSIP,
+        DISABLEHANDOFF,
         DISABLETHRIFT,
         DRAIN,
         ENABLEGOSSIP,
+        ENABLEHANDOFF,
         ENABLETHRIFT,
         FLUSH,
         GETCOMPACTIONTHRESHOLD,
@@ -118,12 +120,14 @@ public class NodeCmd
         JOIN,
         MOVE,
         NETSTATS,
+        PAUSEHANDOFF,
         PROXYHISTOGRAMS,
         REBUILD,
         REFRESH,
         REMOVETOKEN,
         REMOVENODE,
         REPAIR,
+        RESUMEHANDOFF,
         RING,
         SCRUB,
         SETCACHECAPACITY,
@@ -1006,6 +1010,10 @@ public class NodeCmd
                 case COMPACTIONSTATS : nodeCmd.printCompactionStats(System.out); break;
                 case DISABLEGOSSIP   : probe.stopGossiping(); break;
                 case ENABLEGOSSIP    : probe.startGossiping(); break;
+                case DISABLEHANDOFF  : probe.disableHintedHandoff(); break;
+                case ENABLEHANDOFF   : probe.enableHintedHandoff(); break;
+                case PAUSEHANDOFF    : probe.pauseHintsDelivery(); break;
+                case RESUMEHANDOFF   : probe.resumeHintsDelivery(); break;
                 case DISABLETHRIFT   : probe.stopThriftServer(); break;
                 case ENABLETHRIFT    : probe.startThriftServer(); break;
                 case STATUSTHRIFT    : nodeCmd.printIsThriftServerRunning(System.out); break;

@@ -45,5 +45,8 @@ public interface HintedHandOffManagerMBean
 
     /** force hint delivery to an endpoint **/
     public void scheduleHintDelivery(String host) throws UnknownHostException;
+
+    /** pause hints delivery process **/
+    public void pauseHintsDelivery(boolean b);
 }
 
