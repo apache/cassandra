@@ -768,16 +768,17 @@ public class CompactionManager implements CompactionManagerMBean
         metrics.beginCompaction(ci);
         try
         {
-            Iterator<AbstractCompactedRow> nni = Iterators.filter(iter, Predicates.notNull());
-
             // validate the CF as we iterate over it
             validator.prepare(cfs);
-            while (nni.hasNext())
+            while (iter.hasNext())
             {
                 if (ci.isStopRequested())
                     throw new CompactionInterruptedException(ci.getCompactionInfo());
-                AbstractCompactedRow row = nni.next();
-                validator.add(row);
+                AbstractCompactedRow row = iter.next();
+                if (row.isEmpty())
+                    row.close();
+                else
+                    validator.add(row);
             }
             validator.complete();
         }

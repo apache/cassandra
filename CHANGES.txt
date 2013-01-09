@@ -1,4 +1,5 @@
 1.2.1
+ * fix validation compaction of empty rows (CASSADRA-5136)
  * nodetool methods to enable/disable hint storage/delivery (CASSANDRA-4750)
  * disallow bloom filter false positive chance of 0 (CASSANDRA-5013)
  * add threadpool size adjustment methods to JMXEnabledThreadPoolExecutor and 
