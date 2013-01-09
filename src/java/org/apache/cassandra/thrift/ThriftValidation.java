@@ -486,7 +486,7 @@ public class ThriftValidation
         if ((range.start_key == null) == (range.start_token == null)
             || (range.end_key == null) == (range.end_token == null))
         {
-            throw new InvalidRequestException("exactly one of {start key, end key} or {start token, end token} must be specified");
+            throw new InvalidRequestException("exactly one each of {start key, start token} and {end key, end token} must be specified");
         }
 
         // (key, token) is supported (for wide-row CFRR) but not (token, key)
@@ -501,10 +501,10 @@ public class ThriftValidation
             Token endToken = p.getToken(range.end_key);
             if (startToken.compareTo(endToken) > 0 && !endToken.isMinimum(p))
             {
-                if (p instanceof RandomPartitioner)
-                    throw new InvalidRequestException("start key's md5 sorts after end key's md5.  this is not allowed; you probably should not specify end key at all, under RandomPartitioner");
-                else
+                if (p.preservesOrder())
                     throw new InvalidRequestException("start key must sort before (or equal to) finish key in your partitioner!");
+                else
+                    throw new InvalidRequestException("start key's md5 sorts after end key's md5.  this is not allowed; you probably should not specify end key at all, under RandomPartitioner");
             }
         }
         else if (range.end_token != null)
