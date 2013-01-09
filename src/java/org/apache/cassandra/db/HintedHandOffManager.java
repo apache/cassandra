@@ -87,11 +87,14 @@ import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 public class HintedHandOffManager implements HintedHandOffManagerMBean
 {
+    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=HintedHandoffManager";
     public static final HintedHandOffManager instance = new HintedHandOffManager();
 
     private static final Logger logger = LoggerFactory.getLogger(HintedHandOffManager.class);
     private static final int PAGE_SIZE = 128;
     private static final int LARGE_NUMBER = 65536; // 64k nodes ought to be enough for anybody.
+
+    private volatile boolean hintedHandOffPaused = false;
 
     static final CompositeType comparator = CompositeType.getInstance(Arrays.<AbstractType<?>>asList(UUIDType.instance, Int32Type.instance));
 
@@ -108,7 +111,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.db:type=HintedHandoffManager"));
+            mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
         }
         catch (Exception e)
         {
@@ -256,6 +259,13 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         if (hintStore.isEmpty())
             return; // nothing to do, don't confuse users by logging a no-op handoff
 
+        // check if hints delivery has been paused
+        if (hintedHandOffPaused)
+        {
+            logger.debug("Hints delivery process is paused, aborting");
+            return;
+        }
+
         logger.debug("Checking remote({}) schema before delivering hints", endpoint);
         try
         {
@@ -303,7 +313,15 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         while (true)
         {
+            // check if hints delivery has been paused during the process
+            if (hintedHandOffPaused)
+            {
+                logger.debug("Hints delivery process is paused, aborting");
+                break;
+            }
+
             QueryFilter filter = QueryFilter.getSliceFilter(epkey, SystemTable.HINTS_CF, startColumn, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, pageSize);
+
             ColumnFamily hintsPage = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), (int)(System.currentTimeMillis() / 1000));
             if (pagingFinished(hintsPage, startColumn))
             {
@@ -332,6 +350,11 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 if (!hint.isLive())
                     continue;
 
+                if (hintedHandOffPaused)
+                {
+                    logger.debug("Hints delivery process is paused, aborting");
+                    break;
+                }
                 startColumn = hint.name();
 
                 ByteBuffer[] components = comparator.split(hint.name());
@@ -384,6 +407,10 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         }
 
         logger.info(String.format("Finished hinted handoff of %s rows to endpoint %s", rowsReplayed, endpoint));
+        if (hintedHandOffPaused)
+        {
+            logger.info("Hints delivery process is paused, not delivering further hints");
+        }
     }
 
     /**
@@ -438,6 +465,10 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     public void scheduleHintDelivery(String to) throws UnknownHostException
     {
         scheduleHintDelivery(InetAddress.getByName(to));
+    }
+
+    public void pauseHintsDelivery(boolean b) {
+        hintedHandOffPaused = b;
     }
 
     public List<String> listEndpointsPendingHints()

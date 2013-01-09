@@ -219,7 +219,7 @@ public class SSTableExport
         }
         else
         {
-            AbstractType<?> validator = cfMetaData.getValueValidator(name);
+            AbstractType<?> validator = cfMetaData.getValueValidator(cfMetaData.getColumnDefinitionFromColumnName(name));
             serializedColumn.add(validator.getString(value));
         }
         serializedColumn.add(column.timestamp());
