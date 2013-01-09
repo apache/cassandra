@@ -58,7 +58,8 @@ Upgrading
       starting up 1.2 for the first time.  Additionally, upgraded nodes
       will not store new hints destined for older (pre-1.2) nodes. It is
       therefore recommended that you perform a cluster upgrade when all
-      nodes are up.
+      nodes are up. Because hints will be lost, a cluster-wide repair (with
+      -pr) is recommended after upgrade of all nodes.
     - The `nodetool removetoken` command (and corresponding JMX operation)
       have been renamed to `nodetool removenode`.  This function is
       incompatible with the earlier `nodetool removetoken`, and attempts to
