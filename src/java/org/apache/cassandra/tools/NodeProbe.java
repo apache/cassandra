@@ -25,10 +25,12 @@ import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.Condition;
 import javax.management.*;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
@@ -48,6 +50,7 @@ import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.streaming.StreamingServiceMBean;
+import org.apache.cassandra.utils.SimpleCondition;
 
 /**
  * JMX client operations for Cassandra.
@@ -201,6 +204,28 @@ public class NodeProbe
     public void forceTableRepair(String tableName, boolean isSequential, boolean isLocal, String... columnFamilies) throws IOException
     {
         ssProxy.forceTableRepair(tableName, isSequential, isLocal, columnFamilies);
+    }
+
+    public void forceRepairAsync(final PrintStream out, final String tableName, boolean isSequential, boolean isLocal, boolean primaryRange, String... columnFamilies) throws IOException
+    {
+        RepairRunner runner = new RepairRunner(out, tableName, columnFamilies);
+        try
+        {
+            ssProxy.addNotificationListener(runner, null, null);
+            runner.repairAndWait(ssProxy, isSequential, isLocal, primaryRange);
+        }
+        catch (Exception e)
+        {
+            throw new IOException(e) ;
+        }
+        finally
+        {
+            try
+            {
+               ssProxy.removeNotificationListener(runner);
+            }
+            catch (ListenerNotFoundException ignored) {}
+        }
     }
 
     public void forceTableRepairPrimaryRange(String tableName, boolean isSequential, boolean isLocal, String... columnFamilies) throws IOException
@@ -795,5 +820,53 @@ class ThreadPoolProxyMBeanIterator implements Iterator<Map.Entry<String, JMXEnab
     public void remove()
     {
         throw new UnsupportedOperationException();
+    }
+}
+
+class RepairRunner implements NotificationListener
+{
+    private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
+    private final Condition condition = new SimpleCondition();
+    private final PrintStream out;
+    private final String keyspace;
+    private final String[] columnFamilies;
+    private int cmd;
+
+    RepairRunner(PrintStream out, String keyspace, String... columnFamilies)
+    {
+        this.out = out;
+        this.keyspace = keyspace;
+        this.columnFamilies = columnFamilies;
+    }
+
+    public void repairAndWait(StorageServiceMBean ssProxy, boolean isSequential, boolean isLocal, boolean primaryRangeOnly) throws InterruptedException
+    {
+        cmd = ssProxy.forceRepairAsync(keyspace, isSequential, isLocal, primaryRangeOnly, columnFamilies);
+        if (cmd > 0)
+        {
+            condition.await();
+        }
+        else
+        {
+            String message = String.format("[%s] Nothing to repair for keyspace '%s'", format.format(System.currentTimeMillis()), keyspace);
+            out.println(message);
+        }
+    }
+
+    public void handleNotification(Notification notification, Object handback)
+    {
+        if ("repair".equals(notification.getType()))
+        {
+            int[] status = (int[]) notification.getUserData();
+            assert status.length == 2;
+            if (cmd == status[0])
+            {
+                String message = String.format("[%s] %s", format.format(notification.getTimeStamp()), notification.getMessage());
+                out.println(message);
+                // repair status is int array with [0] = cmd number, [1] = status
+                if (status[1] == AntiEntropyService.Status.FINISHED.ordinal())
+                    condition.signalAll();
+            }
+        }
     }
 }

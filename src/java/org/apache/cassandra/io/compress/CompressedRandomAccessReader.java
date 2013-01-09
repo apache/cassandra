@@ -17,11 +17,8 @@
  */
 package org.apache.cassandra.io.compress;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.nio.channels.FileChannel;
+import java.io.*;
+import java.nio.ByteBuffer;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -35,7 +32,10 @@ import org.apache.cassandra.io.util.PoolingSegmentedFile;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.FBUtilities;
 
-// TODO refactor this to separate concept of "buffer to avoid lots of read() syscalls" and "compression buffer"
+/**
+ * CRAR extends RAR to transparently uncompress blocks from the file into RAR.buffer.  Most of the RAR
+ * "read bytes from the buffer, rebuffering when necessary" machinery works unchanged after that.
+ */
 public class CompressedRandomAccessReader extends RandomAccessReader
 {
     public static CompressedRandomAccessReader open(String path, CompressionMetadata metadata, CompressedSegmentedFile owner)
@@ -63,37 +63,21 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     }
 
     private final CompressionMetadata metadata;
-    // used by reBuffer() to escape creating lots of temporary buffers
-    private byte[] compressed;
+
+    // we read the raw compressed bytes into this buffer, then move the uncompressed ones into super.buffer.
+    private ByteBuffer compressed;
 
     // re-use single crc object
     private final Checksum checksum = new CRC32();
 
     // raw checksum bytes
-    private final byte[] checksumBytes = new byte[4];
-
-    private final FileInputStream source;
-    private final FileChannel channel;
+    private final ByteBuffer checksumBytes = ByteBuffer.wrap(new byte[4]);
 
     private CompressedRandomAccessReader(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache, PoolingSegmentedFile owner) throws FileNotFoundException
     {
         super(new File(dataFilePath), metadata.chunkLength(), skipIOCache, owner);
         this.metadata = metadata;
-        compressed = new byte[metadata.compressor().initialCompressedBufferLength(metadata.chunkLength())];
-        // can't use super.read(...) methods
-        // that is why we are allocating special InputStream to read data from disk
-        // from already open file descriptor
-        try
-        {
-            source = new FileInputStream(getFD());
-        }
-        catch (IOException e)
-        {
-            // fd == null, Not Supposed To Happen
-            throw new RuntimeException(e);
-        }
-
-        channel = source.getChannel(); // for position manipulation
+        compressed = ByteBuffer.wrap(new byte[metadata.compressor().initialCompressedBufferLength(metadata.chunkLength())]);
     }
 
     @Override
@@ -118,15 +102,21 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         if (channel.position() != chunk.offset)
             channel.position(chunk.offset);
 
-        if (compressed.length < chunk.length)
-            compressed = new byte[chunk.length];
+        if (compressed.capacity() < chunk.length)
+            compressed = ByteBuffer.wrap(new byte[chunk.length]);
+        else
+            compressed.clear();
+        compressed.limit(chunk.length);
 
-        if (source.read(compressed, 0, chunk.length) != chunk.length)
+        if (channel.read(compressed) != chunk.length)
             throw new CorruptBlockException(getPath(), chunk);
 
+        // technically flip() is unnecessary since all the remaining work uses the raw array, but if that changes
+        // in the future this will save a lot of hair-pulling
+        compressed.flip();
         try
         {
-            validBufferBytes = metadata.compressor().uncompress(compressed, 0, chunk.length, buffer, 0);
+            validBufferBytes = metadata.compressor().uncompress(compressed.array(), 0, chunk.length, buffer, 0);
         }
         catch (IOException e)
         {
@@ -151,32 +141,16 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     private int checksum(CompressionMetadata.Chunk chunk) throws IOException
     {
         assert channel.position() == chunk.offset + chunk.length;
-
-        if (source.read(checksumBytes, 0, checksumBytes.length) != checksumBytes.length)
+        checksumBytes.clear();
+        if (channel.read(checksumBytes) != checksumBytes.capacity())
             throw new CorruptBlockException(getPath(), chunk);
-
-        return Ints.fromByteArray(checksumBytes);
+        return checksumBytes.getInt(0);
     }
 
     @Override
     public long length()
     {
         return metadata.dataLength;
-    }
-
-    @Override
-    public void deallocate()
-    {
-        super.deallocate();
-
-        try
-        {
-            source.close();
-        }
-        catch (IOException e)
-        {
-            throw new FSReadError(e, getPath());
-        }
     }
 
     @Override

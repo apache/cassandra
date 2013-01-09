@@ -28,7 +28,10 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.management.MBeanServer;
+import javax.management.Notification;
+import javax.management.NotificationBroadcasterSupport;
 import javax.management.ObjectName;
 
 import com.google.common.collect.*;
@@ -79,11 +82,14 @@ import static com.google.common.base.Charsets.ISO_8859_1;
  * This class will also maintain histograms of the load information
  * of other nodes in the cluster.
  */
-public class StorageService implements IEndpointStateChangeSubscriber, StorageServiceMBean
+public class StorageService extends NotificationBroadcasterSupport implements IEndpointStateChangeSubscriber, StorageServiceMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
 
     public static final int RING_DELAY = getRingDelay(); // delay after which we assume ring has stablized
+
+    /* JMX notification serial number counter */
+    private final AtomicLong notificationSerialNumber = new AtomicLong();
 
     private static int getRingDelay()
     {
@@ -184,6 +190,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     private final List<IEndpointLifecycleSubscriber> lifecycleSubscribers = new CopyOnWriteArrayList<IEndpointLifecycleSubscriber>();
 
+    private final ObjectName jmxObjectName;
+
     public void finishBootstrapping()
     {
         isBootstrapMode = false;
@@ -207,7 +215,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.db:type=StorageService"));
+            jmxObjectName = new ObjectName("org.apache.cassandra.db:type=StorageService");
+            mbs.registerMBean(this, jmxObjectName);
         }
         catch (Exception e)
         {
@@ -1193,16 +1202,21 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return vvalue.getBytes(ISO_8859_1);
     }
 
-    private Collection<Token> getTokensFor(InetAddress endpoint)
+    private Collection<Token> getTokensFor(InetAddress endpoint, String piece)
     {
-        try
+        if (Gossiper.instance.usesVnodes(endpoint))
         {
-            return TokenSerializer.deserialize(getPartitioner(), new DataInputStream(new ByteArrayInputStream(getApplicationStateValue(endpoint, ApplicationState.TOKENS))));
+            try
+            {
+                return TokenSerializer.deserialize(getPartitioner(), new DataInputStream(new ByteArrayInputStream(getApplicationStateValue(endpoint, ApplicationState.TOKENS))));
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        else
+            return Arrays.asList(getPartitioner().getTokenFactory().fromString(piece));
     }
 
     /**
@@ -1220,10 +1234,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         //   versions >= 1.2 .....: use TOKENS app state
         Collection<Token> tokens;
         // explicitly check for TOKENS, because a bootstrapping node might be bootstrapping in legacy mode; that is, not using vnodes and no token specified
-        if (Gossiper.instance.usesHostId(endpoint) && Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.TOKENS) != null)
-            tokens = getTokensFor(endpoint);
-        else
-            tokens = Arrays.asList(getPartitioner().getTokenFactory().fromString(pieces[1]));
+        tokens = getTokensFor(endpoint, pieces[1]);
 
         if (logger.isDebugEnabled())
             logger.debug("Node " + endpoint + " state bootstrapping, token " + tokens);
@@ -1267,10 +1278,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         Collection<Token> tokens;
 
-        if (Gossiper.instance.usesHostId(endpoint))
-            tokens = getTokensFor(endpoint);
-        else
-            tokens = Arrays.asList(getPartitioner().getTokenFactory().fromString(pieces[1]));
+        tokens = getTokensFor(endpoint, pieces[1]);
 
         if (logger.isDebugEnabled())
             logger.debug("Node " + endpoint + " state normal, token " + tokens);
@@ -1407,10 +1415,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         assert pieces.length >= 2;
         Collection<Token> tokens;
-        if (Gossiper.instance.usesHostId(endpoint))
-            tokens = getTokensFor(endpoint);
-        else
-            tokens =  Arrays.asList(getPartitioner().getTokenFactory().fromString(pieces[1]));
+        tokens = getTokensFor(endpoint, pieces[1]);
 
         if (logger.isDebugEnabled())
             logger.debug("Node " + endpoint + " state leaving, tokens " + tokens);
@@ -1446,10 +1451,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         assert pieces.length >= 2;
         Collection<Token> tokens;
         Integer version = MessagingService.instance().getVersion(endpoint);
-        if (!Gossiper.instance.usesHostId(endpoint))
-            tokens = Arrays.asList(getPartitioner().getTokenFactory().fromString(pieces[1]));
-        else
-            tokens = getTokensFor(endpoint);
+        tokens = getTokensFor(endpoint, pieces[1]);
 
         if (logger.isDebugEnabled())
             logger.debug("Node " + endpoint + " state left, tokens " + tokens);
@@ -2232,6 +2234,34 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /**
+     * Sends JMX notification to subscribers.
+     *
+     * @param type Message type
+     * @param message Message itself
+     * @param userObject Arbitrary object to attach to notification
+     */
+    public void sendNotification(String type, String message, Object userObject)
+    {
+        Notification jmxNotification = new Notification(type, jmxObjectName, notificationSerialNumber.incrementAndGet(), message);
+        jmxNotification.setUserData(userObject);
+        sendNotification(jmxNotification);
+    }
+
+    public int forceRepairAsync(final String keyspace, final boolean isSequential, final boolean isLocal, final boolean primaryRange, final String... columnFamilies)
+    {
+        if (Table.SYSTEM_KS.equals(keyspace) || Tracing.TRACE_KS.equals(keyspace) || Auth.AUTH_KS.equals(keyspace))
+            return 0;
+
+        final int cmd = nextRepairCommand.incrementAndGet();
+        final Collection<Range<Token>> ranges = primaryRange ? Collections.singletonList(getLocalPrimaryRange()) : getLocalRanges(keyspace);
+        if (ranges.size() > 0)
+        {
+            new Thread(createRepairTask(cmd, keyspace, ranges, isSequential, isLocal, columnFamilies)).start();
+        }
+        return cmd;
+    }
+
+    /**
      * Trigger proactive repair for a table and column families.
      * @param tableName
      * @param columnFamilies
@@ -2259,55 +2289,65 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void forceTableRepairRange(final String tableName, final Collection<Range<Token>> ranges, boolean isSequential, boolean  isLocal, final String... columnFamilies) throws IOException
     {
-        if (Table.SYSTEM_KS.equals(tableName) || Tracing.TRACE_KS.equals(tableName))
+        if (Table.SYSTEM_KS.equals(tableName) || Tracing.TRACE_KS.equals(tableName) || Auth.AUTH_KS.equals(tableName))
             return;
+        createRepairTask(nextRepairCommand.incrementAndGet(), tableName, ranges, isSequential, isLocal, columnFamilies).run();
+    }
 
-        int cmd = nextRepairCommand.incrementAndGet();
-        logger.info("Starting repair command #{}, repairing {} ranges.", cmd, ranges.size());
-
-        List<AntiEntropyService.RepairFuture> futures = new ArrayList<AntiEntropyService.RepairFuture>(ranges.size());
-        for (Range<Token> range : ranges)
+    private FutureTask<Object> createRepairTask(final int cmd, final String keyspace, final Collection<Range<Token>> ranges, final boolean isSequential, final boolean isLocal, final String... columnFamilies)
+    {
+        FutureTask<Object> task = new FutureTask<Object>(new WrappedRunnable()
         {
-            AntiEntropyService.RepairFuture future = forceTableRepair(range, tableName, isSequential, isLocal, columnFamilies);
-            if (future == null)
-                continue;
-            futures.add(future);
-            // wait for a session to be done with its differencing before starting the next one
-            try
+            protected void runMayThrow() throws Exception
             {
-                future.session.differencingDone.await();
-            }
-            catch (InterruptedException e)
-            {
-                logger.error("Interrupted while waiting for the differencing of repair session " + future.session + " to be done. Repair may be imprecise.", e);
-            }
-        }
-        if (futures.isEmpty())
-        {
-            logger.info("Nothing to repair on {} for command #{}", tableName, cmd);
-            return;
-        }
+                String message = String.format("Starting repair command #%d, repairing %d ranges for keyspace %s", cmd, ranges.size(), keyspace);
+                logger.info(message);
+                sendNotification("repair", message, new int[]{cmd, AntiEntropyService.Status.STARTED.ordinal()});
 
-        boolean failedSession = false;
-
-        // block until all repair sessions have completed
-        for (AntiEntropyService.RepairFuture future : futures)
-        {
-            try
-            {
-                future.get();
+                List<AntiEntropyService.RepairFuture> futures = new ArrayList<AntiEntropyService.RepairFuture>(ranges.size());
+                for (Range<Token> range : ranges)
+                {
+                    AntiEntropyService.RepairFuture future = forceTableRepair(range, keyspace, isSequential, isLocal, columnFamilies);
+                    if (future == null)
+                        continue;
+                    futures.add(future);
+                    // wait for a session to be done with its differencing before starting the next one
+                    try
+                    {
+                        future.session.differencingDone.await();
+                    }
+                    catch (InterruptedException e)
+                    {
+                        message = "Interrupted while waiting for the differencing of repair session " + future.session + " to be done. Repair may be imprecise.";
+                        logger.error(message, e);
+                        sendNotification("repair", message, new int[]{cmd, AntiEntropyService.Status.SESSION_FAILED.ordinal()});
+                    }
+                }
+                for (AntiEntropyService.RepairFuture future : futures)
+                {
+                    try
+                    {
+                        future.get();
+                        message = String.format("Repair session %s for range %s finished", future.session.getName(), future.session.getRange().toString());
+                        sendNotification("repair", message, new int[]{cmd, AntiEntropyService.Status.SESSION_SUCCESS.ordinal()});
+                    }
+                    catch (ExecutionException e)
+                    {
+                        message = String.format("Repair session %s for range %s failed with error %s", future.session.getName(), future.session.getRange().toString(), e.getCause().getMessage());
+                        logger.error(message, e);
+                        sendNotification("repair", message, new int[]{cmd, AntiEntropyService.Status.SESSION_FAILED.ordinal()});
+                    }
+                    catch (Exception e)
+                    {
+                        message = String.format("Repair session %s for range %s failed with error %s", future.session.getName(), future.session.getRange().toString(), e.getMessage());
+                        logger.error(message, e);
+                        sendNotification("repair", message, new int[]{cmd, AntiEntropyService.Status.SESSION_FAILED.ordinal()});
+                    }
+                }
+                sendNotification("repair", String.format("Repair command #%d finished", cmd), new int[]{cmd, AntiEntropyService.Status.FINISHED.ordinal()});
             }
-            catch (Exception e)
-            {
-                logger.error("Repair session " + future.session.getName() + " failed.", e);
-                failedSession = true;
-            }
-        }
-
-        if (failedSession)
-            throw new IOException("Repair command #" + cmd + ": some repair session(s) failed (see log for details).");
-        else
-            logger.info("Repair command #{} completed successfully", cmd);
+        }, null);
+        return task;
     }
 
     public AntiEntropyService.RepairFuture forceTableRepair(final Range<Token> range, final String tableName, boolean isSequential, boolean  isLocal, final String... columnFamilies) throws IOException
