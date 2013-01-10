@@ -493,13 +493,12 @@ public class ThriftValidation
                     throw new org.apache.cassandra.exceptions.InvalidRequestException("start key's token sorts after end key's token.  this is not allowed; you probably should not specify end key at all except with an ordered partitioner");
             }
         }
-        else if (range.end_token != null)
+        else if (range.start_key != null && range.end_token != null)
         {
+            // start_token/end_token can wrap, but key/token should not
             RowPosition stop = p.getTokenFactory().fromString(range.end_token).maxKeyBound(p);
-            if (range.start_key != null && RowPosition.forKey(range.start_key, p).compareTo(stop) > 0)
+            if (RowPosition.forKey(range.start_key, p).compareTo(stop) > 0)
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("Start key's token sorts after end token");
-            if (range.start_token != null && p.getTokenFactory().fromString(range.start_token).maxKeyBound(p).compareTo(stop) > 0)
-                throw new org.apache.cassandra.exceptions.InvalidRequestException("Start token sorts after end token");
         }
 
         validateFilterClauses(metadata, range.row_filter);
