@@ -507,13 +507,12 @@ public class ThriftValidation
                     throw new InvalidRequestException("start key's md5 sorts after end key's md5.  this is not allowed; you probably should not specify end key at all, under RandomPartitioner");
             }
         }
-        else if (range.end_token != null)
+        else if (range.start_key != null && range.end_token != null)
         {
+            // start_token/end_token can wrap, but key/token should not
             RowPosition stop = p.getTokenFactory().fromString(range.end_token).maxKeyBound(p);
-            if (range.start_key != null && RowPosition.forKey(range.start_key, p).compareTo(stop) > 0)
+            if (RowPosition.forKey(range.start_key, p).compareTo(stop) > 0)
                 throw new InvalidRequestException("Start key's token sorts after end token");
-            if (range.start_token != null && p.getTokenFactory().fromString(range.start_token).maxKeyBound(p).compareTo(stop) > 0)
-                throw new InvalidRequestException("Start token sorts after end token");
         }
 
         validateFilterClauses(metadata, range.row_filter);
