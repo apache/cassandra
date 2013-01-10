@@ -50,6 +50,7 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -57,7 +58,6 @@ import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.TException;
@@ -879,8 +879,22 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
+    private void validateLogin() throws InvalidRequestException
+    {
+        try
+        {
+            state().validateLogin();
+        }
+        catch (UnauthorizedException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
+    }
+
     public KsDef describe_keyspace(String table) throws NotFoundException, InvalidRequestException
     {
+        validateLogin();
+
         KSMetaData ksm = Schema.instance.getTableDefinition(table);
         if (ksm == null)
             throw new NotFoundException();
@@ -1148,6 +1162,8 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<KsDef> describe_keyspaces() throws TException, InvalidRequestException
     {
+        validateLogin();
+
         Set<String> keyspaces = Schema.instance.getTables();
         List<KsDef> ksset = new ArrayList<KsDef>(keyspaces.size());
         for (String ks : keyspaces)
@@ -1482,6 +1498,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public void set_keyspace(String keyspace) throws InvalidRequestException, TException
     {
+        validateLogin();
         try
         {
             ThriftValidation.validateTable(keyspace);

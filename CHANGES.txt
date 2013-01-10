@@ -29,6 +29,8 @@
  * Handle states for non-vnode clusters correctly (CASSANDRA-5127)
  * Refuse unrecognized replication strategy options (CASSANDRA-4795)
  * Pick the correct value validator in sstable2json for cql3 tables (CASSANDRA-5134)
+ * Validate login for describe_keyspace, describe_keyspaces and set_keyspace
+   (CASSANDRA-5144)
 Merged from 1.1:
  * Simplify CompressedRandomAccessReader to work around JDK FD bug (CASSANDRA-5088)
  * Improve handling a changing target throttle rate mid-compaction (CASSANDRA-5087)
