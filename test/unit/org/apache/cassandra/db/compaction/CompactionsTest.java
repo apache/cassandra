@@ -279,6 +279,46 @@ public class CompactionsTest extends SchemaLoader
         testDontPurgeAccidentaly("test2", "SuperDirectGC", true);
     }
 
+    @Test
+    public void testUserDefinedCompaction() throws Exception
+    {
+        Table table = Table.open(TABLE1);
+        final String cfname = "Standard3"; // use clean(no sstable) CF
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfname);
+
+        // disable compaction while flushing
+        cfs.disableAutoCompaction();
+
+        final int ROWS_PER_SSTABLE = 10;
+        for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
+            DecoratedKey key = Util.dk(String.valueOf(i));
+            RowMutation rm = new RowMutation(TABLE1, key.key);
+            rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes("col")),
+                   ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                   System.currentTimeMillis());
+            rm.apply();
+        }
+        cfs.forceBlockingFlush();
+        Collection<SSTableReader> sstables = cfs.getSSTables();
+
+        assert sstables.size() == 1;
+        SSTableReader sstable = sstables.iterator().next();
+
+        int prevGeneration = sstable.descriptor.generation;
+        String file = new File(sstable.descriptor.filenameFor(Component.DATA)).getName();
+        // submit user defined compaction on flushed sstable
+        CompactionManager.instance.forceUserDefinedCompaction(TABLE1, file);
+        // wait until user defined compaction finishes
+        do
+        {
+            Thread.sleep(100);
+        } while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0);
+        // CF should have only one sstable with generation number advanced
+        sstables = cfs.getSSTables();
+        assert sstables.size() == 1;
+        assert sstables.iterator().next().descriptor.generation == prevGeneration + 1;
+    }
+
     private void testDontPurgeAccidentaly(String k, String cfname, boolean forceDeserialize) throws IOException, ExecutionException, InterruptedException
     {
         // This test catches the regression of CASSANDRA-2786

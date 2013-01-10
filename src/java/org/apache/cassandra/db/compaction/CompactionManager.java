@@ -323,27 +323,32 @@ public class CompactionManager implements CompactionManagerMBean
         if (!Schema.instance.getTables().contains(ksname))
             throw new IllegalArgumentException("Unknown keyspace " + ksname);
 
-        File directory = new File(ksname);
         String[] filenames = dataFiles.split(",");
         Collection<Descriptor> descriptors = new ArrayList<Descriptor>(filenames.length);
 
         String cfname = null;
         for (String filename : filenames)
         {
+            // extract keyspace and columnfamily name from filename
+            Descriptor desc = Descriptor.fromFilename(filename.trim());
+            if (!desc.ksname.equals(ksname))
+            {
+                throw new IllegalArgumentException("Given keyspace " + ksname + " does not match with file " + filename);
+            }
+            if (cfname == null)
+            {
+                cfname = desc.cfname;
+            }
+            else if (!cfname.equals(desc.cfname))
+            {
+                throw new IllegalArgumentException("All provided sstables should be for the same column family");
+            }
+            File directory = new File(ksname + File.separator + cfname);
             Pair<Descriptor, String> p = Descriptor.fromFilename(directory, filename.trim());
             if (!p.right.equals(Component.DATA.name()))
             {
                 throw new IllegalArgumentException(filename + " does not appear to be a data file");
             }
-            if (cfname == null)
-            {
-                cfname = p.left.cfname;
-            }
-            else if (!cfname.equals(p.left.cfname))
-            {
-                throw new IllegalArgumentException("All provided sstables should be for the same column family");
-            }
-
             descriptors.add(p.left);
         }
 

@@ -6,6 +6,7 @@
  * Don't expire columns sooner than they should in 2ndary indexes (CASSANDRA-5079)
  * Pig: correctly decode row keys in widerow mode (CASSANDRA-5098)
  * nodetool repair command now prints progress (CASSANDRA-4767)
+ * fix user defined compaction to run against 1.1 data directory (CASSANDRA-5118)
 
 
 1.1.8
