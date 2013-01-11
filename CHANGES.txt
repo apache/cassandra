@@ -8,6 +8,7 @@
  * nodetool repair command now prints progress (CASSANDRA-4767)
  * fix user defined compaction to run against 1.1 data directory (CASSANDRA-5118)
  * Fix CQL3 BATCH authorization caching (CASSANDRA-5145)
+ * fix get_count returns incorrect value with TTL (CASSANDRA-5099)
 
 
 1.1.8
