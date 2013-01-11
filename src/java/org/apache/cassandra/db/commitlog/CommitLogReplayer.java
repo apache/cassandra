@@ -88,6 +88,7 @@ public class CommitLogReplayer
             cfPositions.put(cfs.metadata.cfId, rp);
         }
         globalPosition = replayPositionOrdering.min(cfPositions.values());
+        logger.debug("Global replay position is {} from columnfamilies {}", globalPosition, FBUtilities.toString(cfPositions));
     }
 
     public void recover(File[] clogs) throws IOException
@@ -125,24 +126,22 @@ public class CommitLogReplayer
             assert reader.length() <= Integer.MAX_VALUE;
             int replayPosition;
             if (globalPosition.segment < segment)
-                replayPosition = 0;
-            else if (globalPosition.segment == segment)
-                replayPosition = globalPosition.position;
-            else
-                replayPosition = (int) reader.length();
-
-            if (replayPosition < 0 || replayPosition >= reader.length())
             {
-                // replayPosition > reader.length() can happen if some data gets flushed before it is written to the commitlog
-                // (see https://issues.apache.org/jira/browse/CASSANDRA-2285)
+                replayPosition = 0;
+            }
+            else if (globalPosition.segment == segment)
+            {
+                replayPosition = globalPosition.position;
+            }
+            else
+            {
                 logger.debug("skipping replay of fully-flushed {}", file);
                 return;
             }
 
-            reader.seek(replayPosition);
-
             if (logger.isDebugEnabled())
-                logger.debug("Replaying " + file + " starting at " + reader.getFilePointer());
+                logger.debug("Replaying " + file + " starting at " + replayPosition);
+            reader.seek(replayPosition);
 
             /* read the logs populate RowMutation and apply */
             while (!reader.isEOF())
