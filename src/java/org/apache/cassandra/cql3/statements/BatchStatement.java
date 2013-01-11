@@ -64,14 +64,21 @@ public class BatchStatement extends ModificationStatement
     @Override
     public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
-        Set<String> cfamsSeen = new HashSet<String>();
+        Map<String, Set<String>> cfamsSeen = new HashMap<String, Set<String>>();
         for (ModificationStatement statement : statements)
         {
-            // Avoid unnecessary authorizations.
-            if (!(cfamsSeen.contains(statement.columnFamily())))
+            String ks = statement.keyspace();
+            String cf = statement.columnFamily();
+
+            if (!cfamsSeen.containsKey(ks))
+                cfamsSeen.put(ks, new HashSet<String>());
+
+            // Avoid unnecessary authorization.
+            Set<String> cfs = cfamsSeen.get(ks);
+            if (!(cfs.contains(cf)))
             {
-                state.hasColumnFamilyAccess(statement.keyspace(), statement.columnFamily(), Permission.MODIFY);
-                cfamsSeen.add(statement.columnFamily());
+                state.hasColumnFamilyAccess(ks, cf, Permission.MODIFY);
+                cfs.add(cf);
             }
         }
     }
