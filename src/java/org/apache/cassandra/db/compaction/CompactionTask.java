@@ -32,9 +32,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorStatsCollector;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -127,7 +125,7 @@ public class CompactionTask extends AbstractCompactionTask
 
         // we can't preheat until the tracker has been set. This doesn't happen until we tell the cfs to
         // replace the old entries.  Track entries to preheat here until then.
-        Map<SSTableReader, Map<DecoratedKey, Long>> cachedKeyMap =  new HashMap<SSTableReader, Map<DecoratedKey, Long>>();
+        Map<Descriptor, Map<DecoratedKey, Long>> cachedKeyMap =  new HashMap<Descriptor, Map<DecoratedKey, Long>>();
 
         Collection<SSTableReader> sstables = new ArrayList<SSTableReader>();
         Collection<SSTableWriter> writers = new ArrayList<SSTableWriter>();
@@ -175,9 +173,8 @@ public class CompactionTask extends AbstractCompactionTask
                 }
                 if (!nni.hasNext() || newSSTableSegmentThresholdReached(writer))
                 {
-                    SSTableReader toIndex = writer.closeAndOpenReader(getMaxDataAge(toCompact));
-                    cachedKeyMap.put(toIndex, cachedKeys);
-                    sstables.add(toIndex);
+                    // tmp = false because later we want to query it with descriptor from SSTableReader
+                    cachedKeyMap.put(writer.descriptor.asTemporary(false), cachedKeys);
                     if (nni.hasNext())
                     {
                         writer = cfs.createCompactionWriter(keysPerSSTable, compactionFileLocation, toCompact);
@@ -186,11 +183,21 @@ public class CompactionTask extends AbstractCompactionTask
                     }
                 }
             }
+
+            long maxAge = getMaxDataAge(toCompact);
+            for (SSTableWriter completedWriter : writers)
+                sstables.add(completedWriter.closeAndOpenReader(maxAge));
         }
         catch (Exception e)
         {
             for (SSTableWriter writer : writers)
                 writer.abort();
+            // also remove already completed SSTables
+            for (SSTableReader sstable : sstables)
+            {
+                sstable.markCompacted();
+                sstable.releaseReference();
+            }
             throw FBUtilities.unchecked(e);
         }
         finally
@@ -202,11 +209,10 @@ public class CompactionTask extends AbstractCompactionTask
 
         cfs.replaceCompactedSSTables(toCompact, sstables, compactionType);
         // TODO: this doesn't belong here, it should be part of the reader to load when the tracker is wired up
-        for (Map.Entry<SSTableReader, Map<DecoratedKey, Long>> ssTableReaderMapEntry : cachedKeyMap.entrySet())
+        for (SSTableReader sstable : sstables)
         {
-            SSTableReader key = ssTableReaderMapEntry.getKey();
-            for (Map.Entry<DecoratedKey, Long> entry : ssTableReaderMapEntry.getValue().entrySet())
-               key.cacheKey(entry.getKey(), entry.getValue());
+            for (Map.Entry<DecoratedKey, Long> entry : cachedKeyMap.get(sstable.descriptor).entrySet())
+               sstable.cacheKey(entry.getKey(), entry.getValue());
         }
 
         long dTime = System.currentTimeMillis() - startTime;

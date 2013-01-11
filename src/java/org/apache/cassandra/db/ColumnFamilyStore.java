@@ -244,20 +244,33 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Directories.SSTableLister sstableFiles = directories.sstableLister().skipCompacted(true).skipTemporary(true);
             Collection<SSTableReader> sstables = SSTableReader.batchOpen(sstableFiles.list().entrySet(), savedKeys, data, metadata, this.partitioner);
 
-            // Filter non-compacted sstables, remove compacted ones
-            Set<Integer> compactedSSTables = new HashSet<Integer>();
-            for (SSTableReader sstable : sstables)
-                compactedSSTables.addAll(sstable.getAncestors());
-
-            Set<SSTableReader> liveSSTables = new HashSet<SSTableReader>();
-            for (SSTableReader sstable : sstables)
+            if (metadata.getDefaultValidator().isCommutative())
             {
-                if (compactedSSTables.contains(sstable.descriptor.generation))
-                    sstable.releaseReference(); // this amount to deleting the sstable
-                else
-                    liveSSTables.add(sstable);
+                // Filter non-compacted sstables, remove compacted ones
+                Set<Integer> compactedSSTables = new HashSet<Integer>();
+                for (SSTableReader sstable : sstables)
+                    compactedSSTables.addAll(sstable.getAncestors());
+
+                Set<SSTableReader> liveSSTables = new HashSet<SSTableReader>();
+                for (SSTableReader sstable : sstables)
+                {
+                    if (compactedSSTables.contains(sstable.descriptor.generation))
+                    {
+                        logger.info("{} is already compacted and will be removed.", sstable);
+                        sstable.markCompacted(); // we need to mark as compacted to be deleted
+                        sstable.releaseReference(); // this amount to deleting the sstable
+                    }
+                    else
+                    {
+                        liveSSTables.add(sstable);
+                    }
+                }
+                data.addInitialSSTables(liveSSTables);
             }
-            data.addInitialSSTables(liveSSTables);
+            else
+            {
+                data.addInitialSSTables(sstables);
+            }
         }
 
         // compaction strategy should be created after the CFS has been prepared
