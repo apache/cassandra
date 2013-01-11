@@ -224,7 +224,7 @@ public class IntervalTree<C, D, I extends Interval<C, D>> implements Iterable<I>
         public IntervalNode(Collection<I> toBisect)
         {
             assert !toBisect.isEmpty();
-            logger.debug("Creating IntervalNode from {}", toBisect);
+            logger.trace("Creating IntervalNode from {}", toBisect);
 
             // Building IntervalTree with one interval will be a reasonably
             // common case for range tombstones, so it's worth optimizing
