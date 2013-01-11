@@ -7,6 +7,7 @@
  * Pig: correctly decode row keys in widerow mode (CASSANDRA-5098)
  * nodetool repair command now prints progress (CASSANDRA-4767)
  * fix user defined compaction to run against 1.1 data directory (CASSANDRA-5118)
+ * Fix CQL3 BATCH authorization caching (CASSANDRA-5145)
 
 
 1.1.8
