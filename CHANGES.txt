@@ -38,6 +38,7 @@ Merged from 1.1:
  * nodetool repair command now prints progress (CASSANDRA-4767)
  * Ensure Jackson dependency matches lib (CASSANDRA-5126)
  * fix user defined compaction to run against 1.1 data directory (CASSANDRA-5118)
+ * Fix CQL3 BATCH authorization caching (CASSANDRA-5145)
 
 
 1.2.0
