@@ -37,9 +37,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorStatsCollector;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.CloseableIterator;
 
 public class CompactionTask extends AbstractCompactionTask
@@ -137,7 +135,7 @@ public class CompactionTask extends AbstractCompactionTask
 
         // we can't preheat until the tracker has been set. This doesn't happen until we tell the cfs to
         // replace the old entries.  Track entries to preheat here until then.
-        Map<SSTableReader, Map<DecoratedKey, RowIndexEntry>> cachedKeyMap =  new HashMap<SSTableReader, Map<DecoratedKey, RowIndexEntry>>();
+        Map<Descriptor, Map<DecoratedKey, RowIndexEntry>> cachedKeyMap =  new HashMap<Descriptor, Map<DecoratedKey, RowIndexEntry>>();
 
         Collection<SSTableReader> sstables = new ArrayList<SSTableReader>();
         Collection<SSTableWriter> writers = new ArrayList<SSTableWriter>();
@@ -191,9 +189,8 @@ public class CompactionTask extends AbstractCompactionTask
 
                 if (newSSTableSegmentThresholdReached(writer))
                 {
-                    SSTableReader sstable = writer.closeAndOpenReader(getMaxDataAge(toCompact));
-                    cachedKeyMap.put(sstable, cachedKeys);
-                    sstables.add(sstable);
+                    // tmp = false because later we want to query it with descriptor from SSTableReader
+                    cachedKeyMap.put(writer.descriptor.asTemporary(false), cachedKeys);
                     writer = cfs.createCompactionWriter(keysPerSSTable, cfs.directories.getLocationForDisk(dataDirectory), toCompact);
                     writers.add(writer);
                     cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
@@ -202,19 +199,28 @@ public class CompactionTask extends AbstractCompactionTask
 
             if (writer.getFilePointer() > 0)
             {
-                SSTableReader sstable = writer.closeAndOpenReader(getMaxDataAge(toCompact));
-                cachedKeyMap.put(sstable, cachedKeys);
-                sstables.add(sstable);
+                cachedKeyMap.put(writer.descriptor.asTemporary(false), cachedKeys);
             }
             else
             {
                 writer.abort();
+                writers.remove(writer);
             }
+
+            long maxAge = getMaxDataAge(toCompact);
+            for (SSTableWriter completedWriter : writers)
+                sstables.add(completedWriter.closeAndOpenReader(maxAge));
         }
         catch (Throwable t)
         {
             for (SSTableWriter writer : writers)
                 writer.abort();
+            // also remove already completed SSTables
+            for (SSTableReader sstable : sstables)
+            {
+                sstable.markCompacted();
+                sstable.releaseReference();
+            }
             throw Throwables.propagate(t);
         }
         finally
@@ -236,11 +242,10 @@ public class CompactionTask extends AbstractCompactionTask
 
         cfs.replaceCompactedSSTables(toCompact, sstables, compactionType);
         // TODO: this doesn't belong here, it should be part of the reader to load when the tracker is wired up
-        for (Map.Entry<SSTableReader, Map<DecoratedKey, RowIndexEntry>> ssTableReaderMapEntry : cachedKeyMap.entrySet())
+        for (SSTableReader sstable : sstables)
         {
-            SSTableReader key = ssTableReaderMapEntry.getKey();
-            for (Map.Entry<DecoratedKey, RowIndexEntry> entry : ssTableReaderMapEntry.getValue().entrySet())
-               key.cacheKey(entry.getKey(), entry.getValue());
+            for (Map.Entry<DecoratedKey, RowIndexEntry> entry : cachedKeyMap.get(sstable.descriptor).entrySet())
+               sstable.cacheKey(entry.getKey(), entry.getValue());
         }
 
         // log a bunch of statistics about the result
