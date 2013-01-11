@@ -642,3 +642,9 @@ client_encryption_options:
 #          dc   - traffic between different datacenters is compressed
 #          none - nothing is compressed.
 internode_compression: all
+
+# Enable or disable tcp_nodelay for inter-dc communication.
+# Disabling it will result in larger (but fewer) network packets being sent,
+# reducing overhead from the TCP protocol itself, at the cost of increasing
+# latency if you block for cross-datacenter responses.
+inter_dc_tcp_nodelay: true

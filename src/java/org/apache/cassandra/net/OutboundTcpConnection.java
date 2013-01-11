@@ -263,7 +263,14 @@ public class OutboundTcpConnection extends Thread
             {
                 socket = poolReference.newSocket();
                 socket.setKeepAlive(true);
-                socket.setTcpNoDelay(true);
+                if (isLocalDC(poolReference.endPoint()))
+                {
+                    socket.setTcpNoDelay(true);
+                }
+                else
+                {
+                    socket.setTcpNoDelay(DatabaseDescriptor.getInterDCTcpNoDelay());
+                }
                 out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 4096));
 
                 if (targetVersion >= MessagingService.VERSION_12)

@@ -164,6 +164,8 @@ public class Config
     public String memory_allocator = NativeAllocator.class.getSimpleName();
     public boolean populate_io_cache_on_flush = false;
 
+    public boolean inter_dc_tcp_nodelay = true;
+
     private static boolean loadYaml = true;
     private static boolean outboundBindAny = false;
 

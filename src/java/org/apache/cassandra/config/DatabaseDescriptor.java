@@ -1259,4 +1259,9 @@ public class DatabaseDescriptor
     {
         return conf.internode_compression;
     }
+
+    public static boolean getInterDCTcpNoDelay()
+    {
+        return conf.inter_dc_tcp_nodelay;
+    }
 }
