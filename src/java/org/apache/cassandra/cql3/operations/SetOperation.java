@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.operations;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -71,6 +72,25 @@ public class SetOperation implements Operation
             default:
                 throw new AssertionError("Unsupported Set operation: " + kind);
         }
+    }
+
+    public Operation maybeConvertToEmptyMapOperation()
+    {
+        // If it's not empty or a DISCARD, it's a proper invalid query, not
+        // just the parser that hasn't been able to distinguish empty set from
+        // empty map. However, we just this as it will be rejected later and
+        // there is no point in duplicating validation
+        if (!values.isEmpty())
+            return this;
+
+        switch (kind)
+        {
+            case SET:
+                return MapOperation.Set(Collections.<Term, Term>emptyMap());
+            case ADD:
+                return MapOperation.Put(Collections.<Term, Term>emptyMap());
+        }
+        return this;
     }
 
     public static void doSetFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, SetType validator, Term values, UpdateParameters params) throws InvalidRequestException

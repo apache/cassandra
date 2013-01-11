@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.operations.ColumnOperation;
 import org.apache.cassandra.cql3.operations.Operation;
+import org.apache.cassandra.cql3.operations.SetOperation;
 import org.apache.cassandra.cql3.operations.PreparedOperation;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
@@ -302,7 +303,7 @@ public class UpdateStatement extends ModificationStatement
                     case COLUMN_METADATA:
                         if (processedColumns.containsKey(name))
                             throw new InvalidRequestException(String.format("Multiple definitions found for column %s", name));
-                        processedColumns.put(name, operation);
+                        addNewOperation(name, operation);
                         break;
                 }
             }
@@ -352,7 +353,7 @@ public class UpdateStatement extends ModificationStatement
                                 throw new InvalidRequestException(String.format("Multiple definitions found for column %s", name));
 
                         operation.addBoundNames(name, boundNames);
-                        processedColumns.put(name, operation);
+                        addNewOperation(name, operation);
                         break;
                 }
             }
@@ -360,6 +361,16 @@ public class UpdateStatement extends ModificationStatement
         }
 
         return new ParsedStatement.Prepared(this, Arrays.<ColumnSpecification>asList(boundNames));
+    }
+
+    private void addNewOperation(CFDefinition.Name name, Operation operation)
+    {
+        // On the parser side, we're unable to differentiate an empty map from an empty set for add and set operations.
+        // Fix it now that we have the actual type.
+        if (operation.getType() == Operation.Type.SET && (name.type instanceof MapType))
+            operation = ((SetOperation)operation).maybeConvertToEmptyMapOperation();
+
+        processedColumns.put(name, operation);
     }
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException
