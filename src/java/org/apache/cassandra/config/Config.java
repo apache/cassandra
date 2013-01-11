@@ -162,6 +162,8 @@ public class Config
     public String row_cache_provider = SerializingCacheProvider.class.getSimpleName();
     public boolean populate_io_cache_on_flush = false;
 
+    public boolean inter_dc_tcp_nodelay = true;
+
     private static boolean loadYaml = true;
     private static boolean outboundBindAny = false;
 
