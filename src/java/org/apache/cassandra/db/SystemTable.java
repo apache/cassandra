@@ -52,7 +52,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.Constants;
+import org.apache.cassandra.thrift.cassandraConstants;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
@@ -139,7 +139,7 @@ public class SystemTable
                                          LOCAL_KEY,
                                          FBUtilities.getReleaseVersionString(),
                                          QueryProcessor.CQL_VERSION.toString(),
-                                         Constants.VERSION,
+                                         cassandraConstants.VERSION,
                                          snitch.getDatacenter(FBUtilities.getBroadcastAddress()),
                                          snitch.getRack(FBUtilities.getBroadcastAddress()),
                                          DatabaseDescriptor.getPartitioner().getClass().getName()));

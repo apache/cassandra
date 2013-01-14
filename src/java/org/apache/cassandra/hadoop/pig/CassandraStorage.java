@@ -1095,15 +1095,15 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                                                              column_family,
                                                              keyspace));
             }
-            catch (TException e)
-            {
-                throw new RuntimeException(e);
-            }
             catch (InvalidRequestException e)
             {
                 throw new RuntimeException(e);
             }
             catch (NotFoundException e)
+            {
+                throw new RuntimeException(e);
+            }
+            catch (TException e)
             {
                 throw new RuntimeException(e);
             }

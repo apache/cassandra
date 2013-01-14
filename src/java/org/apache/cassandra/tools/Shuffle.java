@@ -538,14 +538,14 @@ public class Shuffle extends AbstractJmxClient
         {
             partitionerName = getThriftClient(hostName, port, framed).describe_partitioner();
         }
+        catch (InvalidRequestException e)
+        {
+            throw new RuntimeException("Error calling describe_partitioner() defies explanation", e);
+        }
         catch (TException e)
         {
             throw new ShuffleError(
                     String.format("Thrift request to %s:%d failed: %s", hostName, port, e.getMessage()));
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException("Error calling describe_partitioner() defies explanation", e);
         }
 
         try

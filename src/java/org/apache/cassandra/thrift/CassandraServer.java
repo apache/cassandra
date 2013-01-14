@@ -1309,7 +1309,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public String describe_version() throws TException
     {
-        return Constants.VERSION;
+        return cassandraConstants.VERSION;
     }
 
     public List<TokenRange> describe_ring(String keyspace) throws InvalidRequestException

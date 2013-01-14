@@ -271,11 +271,11 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
             {
                 logger.debug("failed connect to endpoint " + host, e);
             }
-            catch (TException e)
+            catch (InvalidRequestException e)
             {
                 throw new RuntimeException(e);
             }
-            catch (InvalidRequestException e)
+            catch (TException e)
             {
                 throw new RuntimeException(e);
             }
@@ -302,11 +302,11 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         {
             map = client.describe_ring(ConfigHelper.getInputKeyspace(conf));
         }
-        catch (TException e)
+        catch (InvalidRequestException e)
         {
             throw new RuntimeException(e);
         }
-        catch (InvalidRequestException e)
+        catch (TException e)
         {
             throw new RuntimeException(e);
         }

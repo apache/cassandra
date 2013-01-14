@@ -127,14 +127,14 @@ public class CliMain
                 sessionState.err.println("Keyspace " + sessionState.keyspace + " not found");
                 return;
             }
-            catch (TException e)
-            {
-                sessionState.err.println("Did you specify 'keyspace'?");
-                return;
-            }
             catch (NotFoundException e)
             {
                 sessionState.err.println("Keyspace " + sessionState.keyspace + " not found");
+                return;
+            }
+            catch (TException e)
+            {
+                sessionState.err.println("Did you specify 'keyspace'?");
                 return;
             }
         }

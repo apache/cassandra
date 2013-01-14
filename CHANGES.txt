@@ -3,7 +3,7 @@
  * add default_tim_to_live (CASSANDRA-3974)
  * add memtable_flush_period_in_ms (CASSANDRA-4237)
  * replace supercolumns internally by composites (CASSANDRA-3237)
-
+ * upgrade thrift to 0.9.0 (CASSANDRA-3719)
 
 1.2.1
  * add inter_dc_tcp_nodelay setting (CASSANDRA-5148)
