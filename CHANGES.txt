@@ -10,6 +10,7 @@
  * Fix CQL3 BATCH authorization caching (CASSANDRA-5145)
  * fix get_count returns incorrect value with TTL (CASSANDRA-5099)
  * better handling for amid compaction failure (CASSANDRA-5137)
+ * calculate pending ranges asynchronously (CASSANDRA-5135)
 
 
 1.1.8
