@@ -139,6 +139,9 @@ commands:
   - name: upgradesstables [keyspace] [cfnames]
     help: |
       Scrub (rebuild sstables for) one or more column families
+  - name: setcompactionthreshold <keyspace> <cfname>
+    help: |
+      Set min and max compaction thresholds for a given column family
   - name: getcompactionthreshold <keyspace> <cfname>
     help: |
       Print min and max compaction thresholds for a given column family
