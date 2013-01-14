@@ -75,6 +75,13 @@ public class Table
     private final ConcurrentMap<UUID, ColumnFamilyStore> columnFamilyStores = new ConcurrentHashMap<UUID, ColumnFamilyStore>();
     private final Object[] indexLocks;
     private volatile AbstractReplicationStrategy replicationStrategy;
+    public static final Function<String,Table> tableTransformer = new Function<String, Table>()
+    {
+        public Table apply(String tableName)
+        {
+            return Table.open(tableName);
+        }
+    };
 
     public static Table open(String table)
     {
@@ -456,14 +463,17 @@ public class Table
 
     public static Iterable<Table> all()
     {
-        Function<String, Table> transformer = new Function<String, Table>()
-        {
-            public Table apply(String tableName)
-            {
-                return Table.open(tableName);
-            }
-        };
-        return Iterables.transform(Schema.instance.getTables(), transformer);
+        return Iterables.transform(Schema.instance.getTables(), tableTransformer);
+    }
+
+    public static Iterable<Table> nonSystem()
+    {
+        return Iterables.transform(Schema.instance.getNonSystemTables(), tableTransformer);
+    }
+
+    public static Iterable<Table> system()
+    {
+        return Iterables.transform(Schema.systemKeyspaceNames, tableTransformer);
     }
 
     @Override

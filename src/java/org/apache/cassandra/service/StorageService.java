@@ -3193,18 +3193,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         StorageProxy.instance.verifyNoHintsInProgress();
 
         setMode(Mode.DRAINING, "flushing column families", false);
-        List<ColumnFamilyStore> cfses = new ArrayList<ColumnFamilyStore>();
-        for (String tableName : Schema.instance.getNonSystemTables())
+        // count CFs first, since forceFlush could block for the flushWriter to get a queue slot empty
+        totalCFs = 0;
+        for (Table table : Table.nonSystem())
+            totalCFs += table.getColumnFamilyStores().size();
+        remainingCFs = totalCFs;
+        // flush
+        List<Future<?>> flushes = new ArrayList<Future<?>>();
+        for (Table table : Table.nonSystem())
         {
-            Table table = Table.open(tableName);
-            cfses.addAll(table.getColumnFamilyStores());
+            for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
+                flushes.add(cfs.forceFlush());
         }
-        totalCFs = remainingCFs = cfses.size();
-        for (ColumnFamilyStore cfs : cfses)
+        // wait for the flushes.
+        // TODO this is a godawful way to track progress, since they flush in parallel.  a long one could
+        // thus make several short ones "instant" if we wait for them later.
+        for (Future f : flushes)
         {
-            cfs.forceBlockingFlush();
+            FBUtilities.waitOnFuture(f);
             remainingCFs--;
         }
+        // flush the system ones after all the rest are done, just in case flushing modifies any system state
+        // like CASSANDRA-5151. don't bother with progress tracking since system data is tiny.
+        flushes.clear();
+        for (Table table : Table.system())
+        {
+            for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
+                flushes.add(cfs.forceFlush());
+        }
+        FBUtilities.waitOnFutures(flushes);
 
         ColumnFamilyStore.postFlushExecutor.shutdown();
         ColumnFamilyStore.postFlushExecutor.awaitTermination(60, TimeUnit.SECONDS);
