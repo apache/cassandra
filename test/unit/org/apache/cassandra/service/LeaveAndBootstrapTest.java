@@ -84,6 +84,7 @@ public class LeaveAndBootstrapTest
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         Map<Token, List<InetAddress>> expectedEndpoints = new HashMap<Token, List<InetAddress>>();
         for (String table : Schema.instance.getNonSystemTables())
@@ -104,6 +105,7 @@ public class LeaveAndBootstrapTest
         ss.onChange(hosts.get(LEAVING_NODE),
                 ApplicationState.STATUS,
                 valueFactory.leaving(endpointTokens.get(LEAVING_NODE)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
         assertTrue(tmd.isLeaving(hosts.get(LEAVING_NODE)));
 
         AbstractReplicationStrategy strategy;
@@ -152,18 +154,20 @@ public class LeaveAndBootstrapTest
 
         // create a ring or 10 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         // nodes 6, 8 and 9 leave
         final int[] LEAVING = new int[] {6, 8, 9};
         for (int leaving : LEAVING)
             ss.onChange(hosts.get(leaving), ApplicationState.STATUS, valueFactory.leaving(endpointTokens.get(leaving)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
         InetAddress boot1 = InetAddress.getByName("127.0.1.1");
         ss.onChange(boot1, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(5)));
         InetAddress boot2 = InetAddress.getByName("127.0.1.2");
         ss.onChange(boot2, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(7)));
-
+        PendingRangeCalculatorService.instance.blockUntilFinished();
         Collection<InetAddress> endpoints = null;
 
         /* don't require test update every time a new keyspace is added to test/conf/cassandra.yaml */
@@ -316,9 +320,12 @@ public class LeaveAndBootstrapTest
         // leaving and boot2 in progress
         ss.onChange(hosts.get(LEAVING[0]), ApplicationState.STATUS,
                 valueFactory.left(endpointTokens.get(LEAVING[0]), Gossiper.computeExpireTime()));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
         ss.onChange(hosts.get(LEAVING[2]), ApplicationState.STATUS,
                 valueFactory.left(endpointTokens.get(LEAVING[2]), Gossiper.computeExpireTime()));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
         ss.onChange(boot1, ApplicationState.STATUS, valueFactory.normal(keyTokens.get(5)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         // adjust precalcuated results.  this changes what the epected endpoints are.
         expectedEndpoints.get("Keyspace1").get(new BigIntegerToken("55")).removeAll(makeAddrs("127.0.0.7", "127.0.0.8"));
@@ -340,6 +347,7 @@ public class LeaveAndBootstrapTest
         expectedEndpoints.get("Keyspace4").get(new BigIntegerToken("75")).removeAll(makeAddrs("127.0.0.10"));
         expectedEndpoints.get("Keyspace4").get(new BigIntegerToken("85")).removeAll(makeAddrs("127.0.0.10"));
 
+        PendingRangeCalculatorService.instance.blockUntilFinished();
         for (Map.Entry<String, AbstractReplicationStrategy> tableStrategy : tableStrategyMap.entrySet())
         {
             String table = tableStrategy.getKey();
@@ -437,9 +445,11 @@ public class LeaveAndBootstrapTest
 
         // create a ring or 5 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 7);
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         // node 2 leaves
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(endpointTokens.get(2)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         // don't bother to test pending ranges here, that is extensively tested by other
         // tests. Just check that the node is in appropriate lists.
@@ -449,6 +459,7 @@ public class LeaveAndBootstrapTest
 
         // Bootstrap the node immedidiately to keyTokens.get(4) without going through STATE_LEFT
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(4)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
@@ -456,6 +467,7 @@ public class LeaveAndBootstrapTest
 
         // Bootstrap node hosts.get(3) to keyTokens.get(1)
         ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(1)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertFalse(tmd.isMember(hosts.get(3)));
         assertFalse(tmd.isLeaving(hosts.get(3)));
@@ -473,7 +485,9 @@ public class LeaveAndBootstrapTest
 
         // Go to normal again for both nodes
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(keyTokens.get(3)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
         ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.normal(keyTokens.get(2)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertTrue(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
@@ -500,24 +514,30 @@ public class LeaveAndBootstrapTest
 
         // create a ring or 5 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         // node 2 leaves
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(endpointTokens.get(2)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertTrue(tmd.isLeaving(hosts.get(2)));
         assertTrue(tmd.getToken(hosts.get(2)).equals(endpointTokens.get(2)));
 
         // back to normal
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(keyTokens.get(2)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertTrue(tmd.getLeavingEndpoints().isEmpty());
         assertTrue(tmd.getToken(hosts.get(2)).equals(keyTokens.get(2)));
 
         // node 3 goes through leave and left and then jumps to normal at its new token
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(keyTokens.get(2)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
                 valueFactory.left(keyTokens.get(2), Gossiper.computeExpireTime()));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(keyTokens.get(4)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
         assertTrue(tmd.getLeavingEndpoints().isEmpty());
@@ -539,9 +559,11 @@ public class LeaveAndBootstrapTest
 
         // create a ring or 5 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         // node 2 leaves with _different_ token
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(keyTokens.get(0)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertTrue(tmd.getToken(hosts.get(2)).equals(keyTokens.get(0)));
         assertTrue(tmd.isLeaving(hosts.get(2)));
@@ -549,6 +571,7 @@ public class LeaveAndBootstrapTest
 
         // go to boostrap
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(1)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertFalse(tmd.isLeaving(hosts.get(2)));
         assertTrue(tmd.getBootstrapTokens().size() == 1);
@@ -556,6 +579,7 @@ public class LeaveAndBootstrapTest
 
         // jump to leaving again
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(keyTokens.get(1)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertTrue(tmd.getEndpoint(keyTokens.get(1)).equals(hosts.get(2)));
         assertTrue(tmd.isLeaving(hosts.get(2)));
@@ -564,6 +588,7 @@ public class LeaveAndBootstrapTest
         // go to state left
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
                 valueFactory.left(keyTokens.get(1), Gossiper.computeExpireTime()));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
@@ -584,15 +609,18 @@ public class LeaveAndBootstrapTest
 
         // create a ring of 6 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 7);
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         // node hosts.get(2) goes jumps to left
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
                 valueFactory.left(endpointTokens.get(2), Gossiper.computeExpireTime()));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertFalse(tmd.isMember(hosts.get(2)));
 
         // node hosts.get(4) goes to bootstrap
         ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(1)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertFalse(tmd.isMember(hosts.get(3)));
         assertTrue(tmd.getBootstrapTokens().size() == 1);
@@ -601,6 +629,7 @@ public class LeaveAndBootstrapTest
         // and then directly to 'left'
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
                 valueFactory.left(keyTokens.get(1), Gossiper.computeExpireTime()));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertTrue(tmd.getBootstrapTokens().size() == 0);
         assertFalse(tmd.isMember(hosts.get(2)));
