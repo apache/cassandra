@@ -88,7 +88,7 @@ public class MoveTest
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
-
+        PendingRangeCalculatorService.instance.blockUntilFinished();
         Map<Token, List<InetAddress>> expectedEndpoints = new HashMap<Token, List<InetAddress>>();
         for (Token token : keyTokens)
         {
@@ -106,6 +106,7 @@ public class MoveTest
 
         // Third node leaves
         ss.onChange(hosts.get(MOVING_NODE), ApplicationState.STATUS, valueFactory.moving(newToken));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertTrue(tmd.isMoving(hosts.get(MOVING_NODE)));
 
@@ -139,6 +140,7 @@ public class MoveTest
 
         // moving endpoint back to the normal state
         ss.onChange(hosts.get(MOVING_NODE), ApplicationState.STATUS, valueFactory.normal(newToken));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
     }
 
     /*
@@ -160,6 +162,7 @@ public class MoveTest
 
         // create a ring or 10 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         // nodes 6, 8 and 9 leave
         final int[] MOVING = new int[] {6, 8, 9};
@@ -170,6 +173,7 @@ public class MoveTest
         {
             Token newToken = positionToken(movingIndex);
             ss.onChange(hosts.get(movingIndex), ApplicationState.STATUS, valueFactory.moving(newToken));
+            PendingRangeCalculatorService.instance.blockUntilFinished();
 
             // storing token associated with a node index
             newTokens.put(movingIndex, newToken);
@@ -183,8 +187,10 @@ public class MoveTest
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
         InetAddress boot1 = InetAddress.getByName("127.0.1.1");
         ss.onChange(boot1, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(5)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
         InetAddress boot2 = InetAddress.getByName("127.0.1.2");
         ss.onChange(boot2, ApplicationState.STATUS, valueFactory.bootstrapping(keyTokens.get(7)));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         // don't require test update every time a new keyspace is added to test/conf/cassandra.yaml
         Map<String, AbstractReplicationStrategy> tableStrategyMap = new HashMap<String, AbstractReplicationStrategy>();
@@ -493,12 +499,14 @@ public class MoveTest
         // node 2 leaves
         Token newToken = positionToken(7);
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.moving(newToken));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertTrue(tmd.isMoving(hosts.get(2)));
         assertTrue(tmd.getToken(hosts.get(2)).equals(endpointTokens.get(2)));
 
         // back to normal
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(newToken));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertTrue(tmd.getMovingEndpoints().isEmpty());
         assertTrue(tmd.getToken(hosts.get(2)).equals(newToken));
@@ -506,7 +514,9 @@ public class MoveTest
         newToken = positionToken(8);
         // node 2 goes through leave and left and then jumps to normal at its new token
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.moving(newToken));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(newToken));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
         assertTrue(tmd.getMovingEndpoints().isEmpty());
