@@ -1389,7 +1389,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         tokenMetadata.updateNormalTokens(tokensToUpdateInMetadata, endpoint);
         for (InetAddress ep : endpointsToRemove)
             Gossiper.instance.removeEndpoint(ep);
-        SystemTable.updateTokens(endpoint, tokensToUpdateInSystemTable);
+        if (!tokensToUpdateInSystemTable.isEmpty())
+            SystemTable.updateTokens(endpoint, tokensToUpdateInSystemTable);
         SystemTable.updateLocalTokens(Collections.<Token>emptyList(), localTokensToRemove);
 
         if (tokenMetadata.isMoving(endpoint)) // if endpoint was moving to a new token
