@@ -25,6 +25,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,6 +34,7 @@ import org.junit.Test;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class SystemTableTest
 {
@@ -40,7 +42,9 @@ public class SystemTableTest
     public void testLocalTokens()
     {
         // Remove all existing tokens
-        SystemTable.updateTokens(Collections.<Token> emptySet());
+        Collection<Token> current = SystemTable.loadTokens().asMap().get(FBUtilities.getLocalAddress());
+        if (current != null && !current.isEmpty())
+            SystemTable.updateTokens(current);
 
         List<Token> tokens = new ArrayList<Token>()
         {{
