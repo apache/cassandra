@@ -42,6 +42,7 @@
    (CASSANDRA-5144)
  * Fix inserting empty maps (CASSANDRA-5141)
  * Don't remove tokens from System table for node we know (CASSANDRA-5121)
+ * fix streaming progress report for compresed files (CASSANDRA-5130)
 Merged from 1.1:
  * Simplify CompressedRandomAccessReader to work around JDK FD bug (CASSANDRA-5088)
  * Improve handling a changing target throttle rate mid-compaction (CASSANDRA-5087)

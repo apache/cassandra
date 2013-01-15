@@ -181,10 +181,11 @@ public class IncomingStreamReader
                     }
 
                     bytesRead += in.getBytesRead();
-                    // when compressed, report total bytes of decompressed chunks since remoteFile.size is the sum of chunks transferred
-                    remoteFile.progress += remoteFile.compressionInfo != null
-                                           ? ((CompressedInputStream) underliningStream).uncompressedBytes()
-                                           : in.getBytesRead();
+                    // when compressed, report total bytes of compressed chunks read since remoteFile.size is the sum of chunks transferred
+                    if (remoteFile.compressionInfo != null)
+                        remoteFile.progress = ((CompressedInputStream) underliningStream).getTotalCompressedBytesRead();
+                    else
+                        remoteFile.progress += in.getBytesRead();
                     totalBytesRead += in.getBytesRead();
                 }
             }
