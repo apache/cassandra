@@ -54,7 +54,7 @@ public class CompressedInputStream extends InputStream
     // raw checksum bytes
     private final byte[] checksumBytes = new byte[4];
 
-    private long uncompressedBytes;
+    private long totalCompressedBytesRead;
 
     /**
      * @param source Input source to read compressed data from
@@ -99,7 +99,7 @@ public class CompressedInputStream extends InputStream
     {
         // uncompress
         validBufferBytes = info.parameters.sstableCompressor.uncompress(compressed, 0, compressed.length - checksumBytes.length, buffer, 0);
-        uncompressedBytes += validBufferBytes;
+        totalCompressedBytesRead += compressed.length;
 
         // validate crc randomly
         if (info.parameters.getCrcCheckChance() > FBUtilities.threadLocalRandom().nextDouble())
@@ -118,9 +118,9 @@ public class CompressedInputStream extends InputStream
         bufferOffset = current & ~(buffer.length - 1);
     }
 
-    public long uncompressedBytes()
+    public long getTotalCompressedBytesRead()
     {
-        return uncompressedBytes;
+        return totalCompressedBytesRead;
     }
 
     static class Reader extends WrappedRunnable
