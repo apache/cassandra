@@ -1671,7 +1671,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public static List<ColumnFamilyStore> allUserDefined()
     {
         List<ColumnFamilyStore> cfses = new ArrayList<ColumnFamilyStore>();
-        for (Table table : Sets.difference(ImmutableSet.copyOf(Table.all()), ImmutableSet.of(Table.open(Table.SYSTEM_KS))))
+        for (Table table : Sets.difference(ImmutableSet.copyOf(Table.all()), Schema.systemKeyspaceNames))
             cfses.addAll(table.getColumnFamilyStores());
         return cfses;
     }
