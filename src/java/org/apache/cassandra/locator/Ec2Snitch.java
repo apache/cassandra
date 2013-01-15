@@ -60,6 +60,9 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
         ec2region = az.substring(0, az.length() - 1);
         if (ec2region.endsWith("1"))
             ec2region = az.substring(0, az.length() - 3);
+
+        String datacenterSuffix = SnitchProperties.get("dc_suffix", "");
+        ec2region = ec2region.concat(datacenterSuffix);
         logger.info("EC2Snitch using region: " + ec2region + ", zone: " + ec2zone + ".");
     }
 

@@ -36,21 +36,16 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
 {
     private static final Logger logger = LoggerFactory.getLogger(GossipingPropertyFileSnitch.class);
 
-    public static final String RACKDC_PROPERTY_FILENAME = "cassandra-rackdc.properties";
     private PropertyFileSnitch psnitch;
     private String myDC;
     private String myRack;
 
     public GossipingPropertyFileSnitch() throws ConfigurationException
     {
-        try
-        {
-            loadConfiguration();
-        }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException("Unable to load " + RACKDC_PROPERTY_FILENAME + " : ", e);
-        }
+        myDC = SnitchProperties.get("dc", null);
+        myRack = SnitchProperties.get("rack", null);
+        if (myDC == null || myRack == null)
+            throw new ConfigurationException("DC or rack not found in snitch properties");
         try
         {
             psnitch = new PropertyFileSnitch();
@@ -60,35 +55,6 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
         {
             logger.info("Unable to load " + PropertyFileSnitch.RACK_PROPERTY_FILENAME + "; compatibility mode disabled");
         }
-    }
-
-    private void loadConfiguration() throws ConfigurationException
-    {
-        InputStream stream = GossipingPropertyFileSnitch.class.getClassLoader().getResourceAsStream(RACKDC_PROPERTY_FILENAME);
-        Properties properties = new Properties();
-        try
-        {
-            properties.load(stream);
-        }
-        catch (Exception e)
-        {
-            throw new ConfigurationException("Unable to read " + RACKDC_PROPERTY_FILENAME, e);
-        }
-        finally
-        {
-            FileUtils.closeQuietly(stream);
-        }
-        for (Map.Entry<Object, Object> entry : properties.entrySet())
-        {
-            String key = (String) entry.getKey();
-            String value = (String) entry.getValue();
-            if (key.equals("dc"))
-                myDC = value;
-            else if (key.equals("rack"))
-                myRack = value;
-        }
-        if (myDC == null || myRack == null)
-            throw new ConfigurationException("DC or rack not found in " + RACKDC_PROPERTY_FILENAME);
     }
 
     /**
