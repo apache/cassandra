@@ -1390,7 +1390,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Gossiper.instance.removeEndpoint(ep);
         if (!tokensToUpdateInSystemTable.isEmpty())
             SystemTable.updateTokens(endpoint, tokensToUpdateInSystemTable);
-        SystemTable.updateLocalTokens(Collections.<Token>emptyList(), localTokensToRemove);
+        if (!localTokensToRemove.isEmpty())
+            SystemTable.updateLocalTokens(Collections.<Token>emptyList(), localTokensToRemove);
 
         if (tokenMetadata.isMoving(endpoint)) // if endpoint was moving to a new token
         {
