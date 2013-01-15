@@ -321,6 +321,7 @@ public class SystemTable
     */
     public static synchronized void updateTokens(Collection<Token> tokens)
     {
+        assert !tokens.isEmpty() : "removeTokens should be used instead";
         String req = "INSERT INTO system.%s (key, tokens) VALUES ('%s', %s)";
         processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, tokensAsSet(tokens)));
         forceBlockingFlush(LOCAL_CF);
