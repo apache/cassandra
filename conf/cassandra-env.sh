@@ -30,6 +30,11 @@ calculate_heap_sizes()
             system_memory_in_mb=`prtconf | awk '/Memory size:/ {print $3}'`
             system_cpu_cores=`psrinfo | wc -l`
         ;;
+        Darwin)
+            system_memory_in_bytes=`sysctl hw.memsize | awk '{print $2}'`
+            system_memory_in_mb=`expr $system_memory_in_bytes / 1024 / 1024`
+            system_cpu_cores=`sysctl hw.ncpu | awk '{print $2}'`
+        ;;
         *)
             # assume reasonable defaults for e.g. a modern desktop or
             # cheap server
