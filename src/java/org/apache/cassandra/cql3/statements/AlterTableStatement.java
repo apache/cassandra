@@ -112,12 +112,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 Integer componentIndex = cfDef.isComposite
                                        ? ((CompositeType)meta.comparator).types.size() - (cfDef.hasCollections ? 2 : 1)
                                        : null;
-                cfm.addColumnDefinition(new ColumnDefinition(columnName.key,
-                                                             type,
-                                                             null,
-                                                             null,
-                                                             null,
-                                                             componentIndex));
+                cfm.addColumnDefinition(ColumnDefinition.regularDef(columnName.key, type, componentIndex));
                 break;
 
             case ALTER:
@@ -153,7 +148,6 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     case COLUMN_METADATA:
                         ColumnDefinition column = cfm.getColumnDefinition(columnName.key);
                         column.setValidator(validator.getType());
-                        cfm.addColumnDefinition(column);
                         break;
                 }
                 break;
@@ -171,7 +165,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         throw new InvalidRequestException(String.format("Cannot drop PRIMARY KEY part %s", columnName));
                     case COLUMN_METADATA:
                         ColumnDefinition toDelete = null;
-                        for (ColumnDefinition columnDef : cfm.getColumn_metadata().values())
+                        for (ColumnDefinition columnDef : cfm.regularColumns())
                         {
                             if (columnDef.name.equals(columnName.key))
                                 toDelete = columnDef;
@@ -191,52 +185,14 @@ public class AlterTableStatement extends SchemaAlteringStatement
             case RENAME:
                 for (Map.Entry<ColumnIdentifier, ColumnIdentifier> entry : renames.entrySet())
                 {
-                    CFDefinition.Name from = cfDef.get(entry.getKey());
+                    ColumnIdentifier from = entry.getKey();
                     ColumnIdentifier to = entry.getValue();
-                    if (from == null)
-                        throw new InvalidRequestException(String.format("Column %s was not found in table %s", entry.getKey(), columnFamily()));
-
-                    CFDefinition.Name exists = cfDef.get(to);
-                    if (exists != null)
-                        throw new InvalidRequestException(String.format("Cannot rename column %s in table %s to %s; another column of that name already exist", from, columnFamily(), to));
-
-                    switch (from.kind)
-                    {
-                        case KEY_ALIAS:
-                            cfm.keyAliases(rename(from.position, to, cfm.getKeyAliases()));
-                            break;
-                        case COLUMN_ALIAS:
-                            cfm.columnAliases(rename(from.position, to, cfm.getColumnAliases()));
-                            break;
-                        case VALUE_ALIAS:
-                            cfm.valueAlias(to.key);
-                            break;
-                        case COLUMN_METADATA:
-                            throw new InvalidRequestException(String.format("Cannot rename non PRIMARY KEY part %s", from));
-                    }
+                    cfm.renameColumn(from.key, from.toString(), to.key, to.toString());
                 }
                 break;
         }
 
-        MigrationManager.announceColumnFamilyUpdate(cfm);
-    }
-
-    private static List<ByteBuffer> rename(int pos, ColumnIdentifier newName, List<ByteBuffer> aliases)
-    {
-        if (pos < aliases.size())
-        {
-            List<ByteBuffer> newList = new ArrayList<ByteBuffer>(aliases);
-            newList.set(pos, newName.key);
-            return newList;
-        }
-        else
-        {
-            List<ByteBuffer> newList = new ArrayList<ByteBuffer>(pos + 1);
-            for (int i = 0; i < pos; ++i)
-                newList.add(i < aliases.size() ? aliases.get(i) : null);
-            newList.add(newName.key);
-            return newList;
-        }
+        MigrationManager.announceColumnFamilyUpdate(cfm, false);
     }
 
     public String toString()

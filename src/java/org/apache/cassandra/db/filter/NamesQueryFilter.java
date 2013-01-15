@@ -138,6 +138,16 @@ public class NamesQueryFilter implements IDiskAtomFilter
         return count;
     }
 
+    public boolean maySelectPrefix(Comparator<ByteBuffer> cmp, ByteBuffer prefix)
+    {
+        for (ByteBuffer column : columns)
+        {
+            if (ByteBufferUtil.isPrefix(prefix, column))
+                return true;
+        }
+        return false;
+    }
+
     public static class Serializer implements IVersionedSerializer<NamesQueryFilter>
     {
         public void serialize(NamesQueryFilter f, DataOutput out, int version) throws IOException

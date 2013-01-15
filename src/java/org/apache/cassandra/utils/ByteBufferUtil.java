@@ -534,4 +534,14 @@ public class ByteBufferUtil
     {
         return ByteBuffer.wrap(UUIDGen.decompose(uuid));
     }
+
+    // Returns whether {@code prefix} is a prefix of {@code value}.
+    public static boolean isPrefix(ByteBuffer prefix, ByteBuffer value)
+    {
+        if (prefix.remaining() > value.remaining())
+            return false;
+
+        int diff = value.remaining() - prefix.remaining();
+        return prefix.equals(value.duplicate().limit(value.remaining() - diff));
+    }
 }

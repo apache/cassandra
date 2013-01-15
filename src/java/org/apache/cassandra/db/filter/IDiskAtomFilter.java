@@ -22,6 +22,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.ISSTableColumnIterator;
@@ -76,6 +77,7 @@ public interface IDiskAtomFilter
     public int getLiveCount(ColumnFamily cf);
 
     public IDiskAtomFilter cloneShallow();
+    public boolean maySelectPrefix(Comparator<ByteBuffer> cmp, ByteBuffer prefix);
 
     public static class Serializer implements IVersionedSerializer<IDiskAtomFilter>
     {

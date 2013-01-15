@@ -241,7 +241,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         announce(oldKsm.toSchemaUpdate(ksm, FBUtilities.timestampMicros()));
     }
 
-    public static void announceColumnFamilyUpdate(CFMetaData cfm) throws ConfigurationException
+    public static void announceColumnFamilyUpdate(CFMetaData cfm, boolean fromThrift) throws ConfigurationException
     {
         cfm.validate();
 
@@ -252,7 +252,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         oldCfm.validateCompatility(cfm);
 
         logger.info(String.format("Update ColumnFamily '%s/%s' From %s To %s", cfm.ksName, cfm.cfName, oldCfm, cfm));
-        announce(oldCfm.toSchemaUpdate(cfm, FBUtilities.timestampMicros()));
+        announce(oldCfm.toSchemaUpdate(cfm, FBUtilities.timestampMicros(), fromThrift));
     }
 
     public static void announceKeyspaceDrop(String ksName) throws ConfigurationException

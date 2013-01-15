@@ -650,7 +650,7 @@ public class QueryProcessor
                 ByteBuffer columnName = createIdx.getColumnName().getByteBuffer();
                 // mutating oldCfm directly would be bad, but mutating a copy is fine.
                 CFMetaData cfm = oldCfm.clone();
-                for (ColumnDefinition cd : cfm.getColumn_metadata().values())
+                for (ColumnDefinition cd : cfm.regularColumns())
                 {
                     if (cd.name.equals(columnName))
                     {
@@ -670,7 +670,7 @@ public class QueryProcessor
                 try
                 {
                     cfm.addDefaultIndexNames();
-                    MigrationManager.announceColumnFamilyUpdate(cfm);
+                    MigrationManager.announceColumnFamilyUpdate(cfm, true); // As far as metadata are concerned, CQL2 == thrift
                 }
                 catch (ConfigurationException e)
                 {
@@ -691,7 +691,7 @@ public class QueryProcessor
                 try
                 {
                     CFMetaData updatedCF = dropIdx.generateCFMetadataUpdate();
-                    MigrationManager.announceColumnFamilyUpdate(updatedCF);
+                    MigrationManager.announceColumnFamilyUpdate(updatedCF, true); // As far as metadata are concerned, CQL2 == thrift
                 }
                 catch (ConfigurationException e)
                 {
@@ -748,7 +748,7 @@ public class QueryProcessor
 
                 try
                 {
-                    MigrationManager.announceColumnFamilyUpdate(alterTable.getCFMetaData(keyspace));
+                    MigrationManager.announceColumnFamilyUpdate(alterTable.getCFMetaData(keyspace), true); // As far as metadata are concerned, CQL2 == thrift
                 }
                 catch (ConfigurationException e)
                 {

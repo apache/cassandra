@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Set;
 
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
@@ -33,9 +34,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
  */
 public class KeysIndex extends AbstractSimplePerColumnSecondaryIndex
 {
-    public void init(ColumnDefinition columnDef)
+    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Column column)
     {
-        // Nothing specific
+        return column.value();
     }
 
     protected ByteBuffer makeIndexColumnName(ByteBuffer rowKey, Column column)
@@ -46,6 +47,16 @@ public class KeysIndex extends AbstractSimplePerColumnSecondaryIndex
     public SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns)
     {
         return new KeysSearcher(baseCfs.indexManager, columns);
+    }
+
+    public boolean isIndexEntryStale(ByteBuffer indexedValue, ColumnFamily data)
+    {
+        Column liveColumn = data.getColumn(columnDef.name);
+        if (liveColumn == null || liveColumn.isMarkedForDelete())
+            return true;
+
+        ByteBuffer liveValue = liveColumn.value();
+        return columnDef.getValidator().compare(indexedValue, liveValue) != 0;
     }
 
     public void validateOptions() throws ConfigurationException

@@ -52,7 +52,7 @@ public class DropIndexStatement extends SchemaAlteringStatement
     public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
         CFMetaData updatedCfm = updateCFMetadata(findIndexedCF());
-        MigrationManager.announceColumnFamilyUpdate(updatedCfm);
+        MigrationManager.announceColumnFamilyUpdate(updatedCfm, false);
     }
 
     private CFMetaData updateCFMetadata(CFMetaData cfm) throws InvalidRequestException
@@ -60,7 +60,7 @@ public class DropIndexStatement extends SchemaAlteringStatement
         ColumnDefinition column = findIndexedColumn(cfm);
         assert column != null;
         CFMetaData cloned = cfm.clone();
-        ColumnDefinition toChange = cloned.getColumn_metadata().get(column.name);
+        ColumnDefinition toChange = cloned.getColumnDefinition(column.name);
         assert toChange.getIndexName() != null && toChange.getIndexName().equals(indexName);
         toChange.setIndexName(null);
         toChange.setIndexType(null, null);
@@ -80,7 +80,7 @@ public class DropIndexStatement extends SchemaAlteringStatement
 
     private ColumnDefinition findIndexedColumn(CFMetaData cfm)
     {
-        for (ColumnDefinition column : cfm.getColumn_metadata().values())
+        for (ColumnDefinition column : cfm.allColumns())
         {
             if (column.getIndexType() != null && column.getIndexName() != null && column.getIndexName().equals(indexName))
                 return column;

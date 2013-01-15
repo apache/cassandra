@@ -33,19 +33,10 @@ public class ColumnDefinitionTest
     @Test
     public void testSerializeDeserialize() throws Exception
     {
-        ColumnDefinition cd0 = new ColumnDefinition(ByteBufferUtil.bytes("TestColumnDefinitionName0"),
-                                                    BytesType.instance,
-                                                    IndexType.KEYS,
-                                                    null,
-                                                    "random index name 0",
-                                                    null);
+        ColumnDefinition cd0 = ColumnDefinition.regularDef(ByteBufferUtil.bytes("TestColumnDefinitionName0"), BytesType.instance, null)
+                                               .setIndex("random index name 0", IndexType.KEYS, null);
 
-        ColumnDefinition cd1 = new ColumnDefinition(ByteBufferUtil.bytes("TestColumnDefinition1"),
-                                                    LongType.instance,
-                                                    null,
-                                                    null,
-                                                    null,
-                                                    null);
+        ColumnDefinition cd1 = ColumnDefinition.regularDef(ByteBufferUtil.bytes("TestColumnDefinition1"), LongType.instance, null);
 
         testSerializeDeserialize(cd0);
         testSerializeDeserialize(cd1);

@@ -46,34 +46,6 @@ public class KeysSearcher extends SecondaryIndexSearcher
         super(indexManager, columns);
     }
 
-    private IndexExpression highestSelectivityPredicate(List<IndexExpression> clause)
-    {
-        IndexExpression best = null;
-        int bestMeanCount = Integer.MAX_VALUE;
-        for (IndexExpression expression : clause)
-        {
-            //skip columns belonging to a different index type
-            if(!columns.contains(expression.column_name))
-                continue;
-
-            SecondaryIndex index = indexManager.getIndexForColumn(expression.column_name);
-            if (index == null || (expression.op != IndexOperator.EQ))
-                continue;
-            int columns = index.getIndexCfs().getMeanColumns();
-            if (columns < bestMeanCount)
-            {
-                best = expression;
-                bestMeanCount = columns;
-            }
-        }
-        return best;
-    }
-
-    public boolean isIndexing(List<IndexExpression> clause)
-    {
-        return highestSelectivityPredicate(clause) != null;
-    }
-
     @Override
     public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean countCQL3Rows)
     {
@@ -201,8 +173,8 @@ public class KeysSearcher extends SecondaryIndexSearcher
                             if (cf != null)
                                 data.addAll(cf, HeapAllocator.instance);
                         }
-                        
-                        if (isIndexValueStale(data, primary.column_name, indexKey.key))
+
+                        if (((KeysIndex)index).isIndexEntryStale(indexKey.key, data))
                         {
                             // delete the index entry w/ its own timestamp
                             Column dummyColumn = new Column(primary.column_name, indexKey.key, column.timestamp());

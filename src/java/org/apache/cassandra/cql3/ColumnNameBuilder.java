@@ -56,6 +56,11 @@ public interface ColumnNameBuilder
     public int remainingCount();
 
     /**
+     * @return the ith component in this builder.
+     */
+    public ByteBuffer get(int idx);
+
+    /**
      * Build the column name.
      * @return the built column name
      */
@@ -73,4 +78,14 @@ public interface ColumnNameBuilder
      * @return the cloned builder.
      */
     public ColumnNameBuilder copy();
+
+    /**
+     * Returns the ith component added to this builder.
+     *
+     * @param i the component to return
+     * @return the ith component added to this builder.
+     * @throws IllegalArgumentException if i >= componentCount().
+     */
+    public ByteBuffer getComponent(int i);
+
 }

@@ -74,22 +74,13 @@ public class AlterTableStatement
         switch (oType)
         {
             case ADD:
-                if (!cfm.getKeyAliases().isEmpty() && cfm.getKeyAliases().contains(columnName))
-                    throw new InvalidRequestException("Invalid column name: "
-                                                      + this.columnName
-                                                      + ", because it equals to a key alias.");
-
-                cfm.addColumnDefinition(new ColumnDefinition(columnName,
-                                                             TypeParser.parse(validator),
-                                                             null,
-                                                             null,
-                                                             null,
-                                                             null));
+                cfm.addColumnDefinition(ColumnDefinition.regularDef(columnName, TypeParser.parse(validator), null));
                 break;
 
             case ALTER:
                 // We only look for the first key alias which is ok for CQL2
-                if (!cfm.getKeyAliases().isEmpty() && cfm.getKeyAliases().get(0).equals(columnName))
+                ColumnDefinition partionKeyDef = cfm.partitionKeyColumns().get(0);
+                if (partionKeyDef != null && partionKeyDef.name.equals(columnName))
                 {
                     cfm.keyValidator(TypeParser.parse(validator));
                 }
@@ -97,7 +88,7 @@ public class AlterTableStatement
                 {
                     ColumnDefinition toUpdate = null;
 
-                    for (ColumnDefinition columnDef : cfm.getColumn_metadata().values())
+                    for (ColumnDefinition columnDef : cfm.regularColumns())
                     {
                         if (columnDef.name.equals(columnName))
                         {
@@ -118,7 +109,7 @@ public class AlterTableStatement
             case DROP:
                 ColumnDefinition toDelete = null;
 
-                for (ColumnDefinition columnDef : cfm.getColumn_metadata().values())
+                for (ColumnDefinition columnDef : cfm.regularColumns())
                 {
                     if (columnDef.name.equals(columnName))
                     {

@@ -18,92 +18,150 @@
 package org.apache.cassandra.db.index.composites;
 
 import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndex;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 /**
- * Implements a secondary index for a column family using a second column family
- * in which the row keys are indexed values, and column names are base row keys.
+ * Base class for secondary indexes where composites are involved.
  */
-public class CompositesIndex extends AbstractSimplePerColumnSecondaryIndex
+public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIndex
 {
-    public static final String PREFIX_SIZE_OPTION = "prefix_size";
+    private volatile CompositeType indexComparator;
 
-    private CompositeType indexComparator;
-    private int prefixSize;
-
-    public void init(ColumnDefinition columnDef)
+    protected CompositeType getIndexComparator()
     {
-        assert baseCfs.getComparator() instanceof CompositeType;
-
-        try
+        // Yes, this is racy, but doing this more than once is not a big deal, we just want to avoid doing it every time
+        // More seriously, we should fix that whole SecondaryIndex API so this can be a final and avoid all that non-sense.
+        if (indexComparator == null)
         {
-            prefixSize = Integer.parseInt(columnDef.getIndexOptions().get(PREFIX_SIZE_OPTION));
+            assert columnDef != null;
+            indexComparator = getIndexComparator(baseCfs.metadata, columnDef);
         }
-        catch (NumberFormatException e)
-        {
-            // Shouldn't happen since validateOptions must have been called
-            throw new AssertionError(e);
-        }
+        return indexComparator;
+    }
 
-        indexComparator = (CompositeType)SecondaryIndex.getIndexComparator(baseCfs.metadata, columnDef);
+    public static CompositesIndex create(ColumnDefinition cfDef)
+    {
+        switch (cfDef.type)
+        {
+            case CLUSTERING_KEY:
+                return new CompositesIndexOnClusteringKey();
+            case REGULAR:
+                return new CompositesIndexOnRegular();
+            case PARTITION_KEY:
+                return new CompositesIndexOnPartitionKey();
+            //case COMPACT_VALUE:
+            //    return new CompositesIndexOnCompactValue();
+        }
+        throw new AssertionError();
+    }
+
+    // Check SecondaryIndex.getIndexComparator if you want to know why this is static
+    public static CompositeType getIndexComparator(CFMetaData baseMetadata, ColumnDefinition cfDef)
+    {
+        switch (cfDef.type)
+        {
+            case CLUSTERING_KEY:
+                return CompositesIndexOnClusteringKey.buildIndexComparator(baseMetadata, cfDef);
+            case REGULAR:
+                return CompositesIndexOnRegular.buildIndexComparator(baseMetadata, cfDef);
+            case PARTITION_KEY:
+                return CompositesIndexOnPartitionKey.buildIndexComparator(baseMetadata, cfDef);
+            //case COMPACT_VALUE:
+            //    return CompositesIndexOnCompactValue.buildIndexComparator(baseMetadata, cfDef);
+        }
+        throw new AssertionError();
     }
 
     protected ByteBuffer makeIndexColumnName(ByteBuffer rowKey, Column column)
     {
-        CompositeType baseComparator = (CompositeType)baseCfs.getComparator();
-        ByteBuffer[] components = baseComparator.split(column.name());
-        CompositeType.Builder builder = new CompositeType.Builder(indexComparator);
-        builder.add(rowKey);
-        for (int i = 0; i < Math.min(prefixSize, components.length); i++)
-            builder.add(components[i]);
-        return builder.build();
+        return makeIndexColumnNameBuilder(rowKey, column.name()).build();
+    }
+
+    protected abstract ColumnNameBuilder makeIndexColumnNameBuilder(ByteBuffer rowKey, ByteBuffer columnName);
+
+    public abstract IndexedEntry decodeEntry(DecoratedKey indexedValue, Column indexEntry);
+
+    public abstract boolean isStale(IndexedEntry entry, ColumnFamily data);
+
+    public void delete(IndexedEntry entry)
+    {
+        int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
+        ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
+        cfi.addTombstone(entry.indexEntry, (int) (System.currentTimeMillis() / 1000), entry.timestamp);
+        indexCfs.apply(entry.indexValue, cfi, SecondaryIndexManager.nullUpdater);
+        if (logger.isDebugEnabled())
+            logger.debug("removed index entry for cleaned-up value {}:{}", entry.indexValue, cfi);
+
     }
 
     protected AbstractType getExpressionComparator()
     {
-        CompositeType baseComparator = (CompositeType)baseCfs.getComparator();
-        return baseComparator.types.get(prefixSize);
+        return baseCfs.metadata.getColumnDefinitionComparator(columnDef);
     }
 
-    @Override
-    public boolean indexes(ByteBuffer name)
+    protected CompositeType getBaseComparator()
     {
-        ColumnDefinition columnDef = columnDefs.iterator().next();
-        CompositeType baseComparator = (CompositeType)baseCfs.getComparator();
-        ByteBuffer[] components = baseComparator.split(name);
-        AbstractType<?> comp = baseCfs.metadata.getColumnDefinitionComparator(columnDef);
-        return components.length > columnDef.componentIndex
-            && comp.compare(components[columnDef.componentIndex], columnDef.name) == 0;
+        assert baseCfs.getComparator() instanceof CompositeType;
+        return (CompositeType)baseCfs.getComparator();
     }
 
     public SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns)
     {
-        return new CompositesSearcher(baseCfs.indexManager, columns, prefixSize);
+        return new CompositesSearcher(baseCfs.indexManager, columns);
     }
 
     public void validateOptions() throws ConfigurationException
     {
         ColumnDefinition columnDef = columnDefs.iterator().next();
-        String option = columnDef.getIndexOptions().get(PREFIX_SIZE_OPTION);
+        Map<String, String> options = new HashMap<String, String>(columnDef.getIndexOptions());
 
-        if (option == null)
-            throw new ConfigurationException("Missing option " + PREFIX_SIZE_OPTION);
+        // We take no options though we used to have one called "prefix_size",
+        // so skip it silently for backward compatibility sake.
+        options.remove("prefix_size");
 
-        try
+        if (!options.isEmpty())
+            throw new ConfigurationException("Unknown options provided for COMPOSITES index: " + options.keySet());
+    }
+
+    public class IndexedEntry
+    {
+        public final DecoratedKey indexValue;
+        public final ByteBuffer indexEntry;
+        public final long timestamp;
+
+        public final ByteBuffer indexedKey;
+        public final ColumnNameBuilder indexedEntryNameBuilder;
+
+        public IndexedEntry(DecoratedKey indexValue, ByteBuffer indexEntry, long timestamp, ByteBuffer indexedKey, ColumnNameBuilder indexedEntryNameBuilder)
         {
-            Integer.parseInt(option);
+            this.indexValue = indexValue;
+            this.indexEntry = indexEntry;
+            this.timestamp = timestamp;
+            this.indexedKey = indexedKey;
+            this.indexedEntryNameBuilder = indexedEntryNameBuilder;
         }
-        catch (NumberFormatException e)
+
+        public ByteBuffer indexedEntryStart()
         {
-            throw new ConfigurationException(String.format("Invalid non integer value for option %s (got '%s')", PREFIX_SIZE_OPTION, option));
+            return indexedEntryNameBuilder.build();
+        }
+
+        public ByteBuffer indexedEntryEnd()
+        {
+            return indexedEntryNameBuilder.buildAsEndOfRange();
         }
     }
 }

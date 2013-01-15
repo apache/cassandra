@@ -65,137 +65,59 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
     {
         this.cfm = cfm;
 
-        if (cfm.getKeyValidator() instanceof CompositeType)
+        this.hasCompositeKey = cfm.getKeyValidator() instanceof CompositeType;
+        for (int i = 0; i < cfm.partitionKeyColumns().size(); ++i)
         {
-            this.hasCompositeKey = true;
-            CompositeType keyComposite = (CompositeType)cfm.getKeyValidator();
-            assert keyComposite.types.size() > 1;
-            for (int i = 0; i < keyComposite.types.size(); i++)
-            {
-                ColumnIdentifier id = getKeyId(cfm, i);
-                this.keys.put(id, new Name(cfm.ksName, cfm.cfName, id, Name.Kind.KEY_ALIAS, i, keyComposite.types.get(i)));
-            }
+            ColumnIdentifier id = getKeyId(cfm, i);
+            this.keys.put(id, new Name(cfm.ksName, cfm.cfName, id, Name.Kind.KEY_ALIAS, i, cfm.getKeyValidator().getComponents().get(i)));
+        }
+
+        this.isComposite = cfm.comparator instanceof CompositeType;
+        this.hasCollections = cfm.comparator.getComponents().get(cfm.comparator.componentsCount() - 1) instanceof ColumnToCollectionType;
+        this.isCompact = cfm.clusteringKeyColumns().size() == cfm.comparator.componentsCount();
+        for (int i = 0; i < cfm.clusteringKeyColumns().size(); ++i)
+        {
+            ColumnIdentifier id = getColumnId(cfm, i);
+            this.columns.put(id, new Name(cfm.ksName, cfm.cfName, id, Name.Kind.COLUMN_ALIAS, i, cfm.comparator.getComponents().get(i)));
+        }
+
+        if (isCompact)
+        {
+            this.value = createValue(cfm);
         }
         else
         {
-            this.hasCompositeKey = false;
-            ColumnIdentifier id = getKeyId(cfm, 0);
-            this.keys.put(id, new Name(cfm.ksName, cfm.cfName, id, Name.Kind.KEY_ALIAS, 0, cfm.getKeyValidator()));
-        }
-
-        if (cfm.comparator instanceof CompositeType)
-        {
-            this.isComposite = true;
-            CompositeType composite = (CompositeType)cfm.comparator;
-            /*
-             * We are a "sparse" composite, i.e. a non-compact one, if either:
-             *   - the last type of the composite is a ColumnToCollectionType
-             *   - or we have one less alias than of composite types and the last type is UTF8Type.
-             *   - some metadata are defined
-             *
-             * Note that this is not perfect: if someone upgrading from thrift "renames" all but
-             * the last column alias, the cf will be considered "sparse" and he will be stuck with
-             * that even though that might not be what he wants. But the simple workaround is
-             * for that user to rename all the aliases at the same time in the first place.
-             */
-            int last = composite.types.size() - 1;
-            AbstractType<?> lastType = composite.types.get(last);
-            if (!cfm.getColumn_metadata().isEmpty()
-                || lastType instanceof ColumnToCollectionType
-                || (cfm.getColumnAliases().size() == last && lastType instanceof UTF8Type))
+            this.value = null;
+            for (ColumnDefinition def : cfm.regularColumns())
             {
-                // "sparse" composite
-                this.isCompact = false;
-                this.value = null;
-                assert cfm.getValueAlias() == null;
-                // check for collection type
-                if (lastType instanceof ColumnToCollectionType)
-                {
-                    --last;
-                    this.hasCollections = true;
-                }
-                else
-                {
-                    this.hasCollections = false;
-                }
-
-                for (int i = 0; i < last; i++)
-                {
-                    ColumnIdentifier id = getColumnId(cfm, i);
-                    this.columns.put(id, new Name(cfm.ksName, cfm.cfName, id, Name.Kind.COLUMN_ALIAS, i, composite.types.get(i)));
-                }
-
-                for (Map.Entry<ByteBuffer, ColumnDefinition> def : cfm.getColumn_metadata().entrySet())
-                {
-                    ColumnIdentifier id = new ColumnIdentifier(def.getKey(), cfm.getColumnDefinitionComparator(def.getValue()));
-                    this.metadata.put(id, new Name(cfm.ksName, cfm.cfName, id, Name.Kind.COLUMN_METADATA, def.getValue().getValidator()));
-                }
-            }
-            else
-            {
-                // "dense" composite
-                this.isCompact = true;
-                this.hasCollections = false;
-                for (int i = 0; i < composite.types.size(); i++)
-                {
-                    ColumnIdentifier id = getColumnId(cfm, i);
-                    this.columns.put(id, new Name(cfm.ksName, cfm.cfName, id, Name.Kind.COLUMN_ALIAS, i, composite.types.get(i)));
-                }
-                this.value = createValue(cfm);
+                ColumnIdentifier id = new ColumnIdentifier(def.name, cfm.getColumnDefinitionComparator(def));
+                this.metadata.put(id, new Name(cfm.ksName, cfm.cfName, id, Name.Kind.COLUMN_METADATA, def.getValidator()));
             }
         }
-        else
-        {
-            this.isComposite = false;
-            this.hasCollections = false;
-            if (!cfm.getColumnAliases().isEmpty() || cfm.getColumn_metadata().isEmpty())
-            {
-                // dynamic CF
-                this.isCompact = true;
-                ColumnIdentifier id = getColumnId(cfm, 0);
-                Name name = new Name(cfm.ksName, cfm.cfName, id, Name.Kind.COLUMN_ALIAS, 0, cfm.comparator);
-                this.columns.put(id, name);
-                this.value = createValue(cfm);
-            }
-            else
-            {
-                // static CF
-                this.isCompact = false;
-                this.value = null;
-                assert cfm.getValueAlias() == null;
-                assert cfm.getColumnAliases() == null || cfm.getColumnAliases().isEmpty();
-                for (Map.Entry<ByteBuffer, ColumnDefinition> def : cfm.getColumn_metadata().entrySet())
-                {
-                    ColumnIdentifier id = new ColumnIdentifier(def.getKey(), cfm.getColumnDefinitionComparator(def.getValue()));
-                    this.metadata.put(id, new Name(cfm.ksName, cfm.cfName, id, Name.Kind.COLUMN_METADATA, def.getValue().getValidator()));
-                }
-            }
-        }
-        assert value == null || metadata.isEmpty();
     }
 
     private static ColumnIdentifier getKeyId(CFMetaData cfm, int i)
     {
-        List<ByteBuffer> definedNames = cfm.getKeyAliases();
+        List<ColumnDefinition> definedNames = cfm.partitionKeyColumns();
         // For compatibility sake, non-composite key default alias is 'key', not 'key1'.
-        return definedNames == null || i >= definedNames.size() || cfm.getKeyAliases().get(i) == null
+        return definedNames == null || i >= definedNames.size() || definedNames.get(i) == null
              ? new ColumnIdentifier(i == 0 ? DEFAULT_KEY_ALIAS : DEFAULT_KEY_ALIAS + (i + 1), false)
-             : new ColumnIdentifier(cfm.getKeyAliases().get(i), definitionType);
+             : new ColumnIdentifier(definedNames.get(i).name, definitionType);
     }
 
     private static ColumnIdentifier getColumnId(CFMetaData cfm, int i)
     {
-        List<ByteBuffer> definedNames = cfm.getColumnAliases();
-        return definedNames == null || i >= definedNames.size() || cfm.getColumnAliases().get(i) == null
+        List<ColumnDefinition> definedNames = cfm.clusteringKeyColumns();
+        return definedNames == null || i >= definedNames.size() || definedNames.get(i) == null
              ? new ColumnIdentifier(DEFAULT_COLUMN_ALIAS + (i + 1), false)
-             : new ColumnIdentifier(cfm.getColumnAliases().get(i), definitionType);
+             : new ColumnIdentifier(definedNames.get(i).name, definitionType);
     }
 
     private static ColumnIdentifier getValueId(CFMetaData cfm)
     {
-        return cfm.getValueAlias() == null
+        return cfm.compactValueColumn() == null
              ? new ColumnIdentifier(DEFAULT_VALUE_ALIAS, false)
-             : new ColumnIdentifier(cfm.getValueAlias(), definitionType);
+             : new ColumnIdentifier(cfm.compactValueColumn().name, definitionType);
     }
 
     public ColumnToCollectionType getCollectionType()
@@ -367,6 +289,14 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
             return columnName == null ? 1 : 0;
         }
 
+        public ByteBuffer get(int i)
+        {
+            if (i < 0 || i >= (columnName == null ? 0 : 1))
+                throw new IllegalArgumentException();
+
+            return columnName;
+        }
+
         public ByteBuffer build()
         {
             return columnName == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : columnName;
@@ -382,6 +312,14 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
             NonCompositeBuilder newBuilder = new NonCompositeBuilder(type);
             newBuilder.columnName = columnName;
             return newBuilder;
+        }
+
+        public ByteBuffer getComponent(int i)
+        {
+            if (i != 0 || columnName == null)
+                throw new IllegalArgumentException();
+
+            return columnName;
         }
     }
 }

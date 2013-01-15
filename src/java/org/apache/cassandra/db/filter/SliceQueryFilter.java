@@ -226,10 +226,10 @@ public class SliceQueryFilter implements IDiskAtomFilter
         count = newLimit;
     }
 
-    public boolean includes(Comparator<ByteBuffer> cmp, ByteBuffer name)
+    public boolean maySelectPrefix(Comparator<ByteBuffer> cmp, ByteBuffer prefix)
     {
         for (ColumnSlice slice : slices)
-            if (slice.includes(cmp, name))
+            if (slice.includes(cmp, prefix))
                 return true;
         return false;
     }

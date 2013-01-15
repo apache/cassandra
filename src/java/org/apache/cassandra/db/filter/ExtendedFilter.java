@@ -26,8 +26,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.thrift.IndexExpression;
@@ -139,7 +141,7 @@ public abstract class ExtendedFilter
      * @return true if the provided data satisfies all the expressions from
      * the clause of this filter.
      */
-    public abstract boolean isSatisfiedBy(ColumnFamily data, ColumnNameBuilder builder);
+    public abstract boolean isSatisfiedBy(ByteBuffer rowKey, ColumnFamily data, ColumnNameBuilder builder);
 
     public static boolean satisfies(int comparison, IndexOperator op)
     {
@@ -273,22 +275,61 @@ public abstract class ExtendedFilter
             return pruned;
         }
 
-        public boolean isSatisfiedBy(ColumnFamily data, ColumnNameBuilder builder)
+        public boolean isSatisfiedBy(ByteBuffer rowKey, ColumnFamily data, ColumnNameBuilder builder)
         {
             // We enforces even the primary clause because reads are not synchronized with writes and it is thus possible to have a race
             // where the index returned a row which doesn't have the primary column when we actually read it
             for (IndexExpression expression : clause)
             {
-                // check column data vs expression
-                ByteBuffer colName = builder == null ? expression.column_name : builder.copy().add(expression.column_name).build();
-                Column column = data.getColumn(colName);
-                if (column == null)
+                ColumnDefinition def = data.metadata().getColumnDefinition(expression.column_name);
+                ByteBuffer dataValue = null;
+                AbstractType<?> validator = null;
+                if (def == null)
+                {
+                    // This can't happen with CQL3 as this should be rejected upfront. For thrift however,
+                    // column name are not predefined. But that means the column name correspond to an internal one.
+                    Column column = data.getColumn(expression.column_name);
+                    if (column != null)
+                    {
+                        dataValue = column.value();
+                        validator = data.metadata().getDefaultValidator();
+                    }
+                }
+                else
+                {
+                    dataValue = extractDataValue(def, rowKey, data, builder);
+                    validator = def.getValidator();
+                }
+
+                if (dataValue == null)
                     return false;
-                int v = data.metadata().getValueValidator(expression.column_name).compare(column.value(), expression.value);
+
+                int v = validator.compare(dataValue, expression.value);
                 if (!satisfies(v, expression.op))
                     return false;
             }
             return true;
+        }
+
+        private ByteBuffer extractDataValue(ColumnDefinition def, ByteBuffer rowKey, ColumnFamily data, ColumnNameBuilder builder)
+        {
+            switch (def.type)
+            {
+                case PARTITION_KEY:
+                    return def.componentIndex == null
+                         ? rowKey
+                         : ((CompositeType)data.metadata().getKeyValidator()).split(rowKey)[def.componentIndex];
+                case CLUSTERING_KEY:
+                    return builder.get(def.componentIndex);
+                case REGULAR:
+                    ByteBuffer colName = builder == null ? def.name : builder.copy().add(def.name).build();
+                    Column column = data.getColumn(colName);
+                    return column == null ? null : column.value();
+                case COMPACT_VALUE:
+                    assert data.getColumnCount() == 1;
+                    return data.getSortedColumns().iterator().next().value();
+            }
+            throw new AssertionError();
         }
     }
 
@@ -343,7 +384,7 @@ public abstract class ExtendedFilter
             return data;
         }
 
-        public boolean isSatisfiedBy(ColumnFamily data, ColumnNameBuilder builder)
+        public boolean isSatisfiedBy(ByteBuffer rowKey, ColumnFamily data, ColumnNameBuilder builder)
         {
             return true;
         }

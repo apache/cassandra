@@ -1536,7 +1536,7 @@ public class CassandraServer implements Cassandra.Iface
             CFMetaData cfm = CFMetaData.fromThrift(cf_def);
             CFMetaData.validateCompactionOptions(cfm.compactionStrategyClass, cfm.compactionStrategyOptions);
             cfm.addDefaultIndexNames();
-            MigrationManager.announceColumnFamilyUpdate(cfm);
+            MigrationManager.announceColumnFamilyUpdate(cfm, true);
             return Schema.instance.getVersion().toString();
         }
         catch (RequestValidationException e)

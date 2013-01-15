@@ -33,7 +33,8 @@ public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
         return new EmptyColumns(metadata, deletionInfo);
     }
 
-    public void clear() {
+    public void clear()
+    {
     }
 
     public Factory<EmptyColumns> getFactory()

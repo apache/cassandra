@@ -50,7 +50,6 @@ public class CliTest extends SchemaLoader
         "create column family 123 with comparator=UTF8Type and column_metadata=[{ column_name:world, validation_class:IntegerType, index_type:0, index_name:IdxName }, " +
                                                                                "{ column_name:world2, validation_class:LongType, index_type:KEYS, index_name:LongIdxName}, " +
                                                                                "{ column_name:617070, validation_class:UTF8Type, index_type:KEYS }, " +
-                                                                               "{ column_name:28292, validation_class:UTF8Type, index_type:CUSTOM, index_options:{class_name:'org.apache.cassandra.db.index.keys.KeysIndex', foo:bar}}," +
                                                                                "{ column_name:'-617071', validation_class:UTF8Type, index_type:KEYS }," +
                                                                                "{ column_name:time_spent_uuid, validation_class:TimeUUIDType}] and default_validation_class=UTF8Type;",
         "assume 123 keys as utf8;",

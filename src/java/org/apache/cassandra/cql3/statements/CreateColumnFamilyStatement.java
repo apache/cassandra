@@ -93,7 +93,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
         for (Map.Entry<ColumnIdentifier, AbstractType> col : columns.entrySet())
         {
-            columnDefs.put(col.getKey().key, new ColumnDefinition(col.getKey().key, col.getValue(), null, null, null, componentIndex));
+            columnDefs.put(col.getKey().key, ColumnDefinition.regularDef(col.getKey().key, col.getValue(), componentIndex));
         }
 
         return columnDefs;
@@ -131,11 +131,13 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     public void applyPropertiesTo(CFMetaData cfmd) throws RequestValidationException
     {
         cfmd.defaultValidator(defaultValidator)
-            .columnMetadata(getColumns())
             .keyValidator(keyValidator)
-            .keyAliases(keyAliases)
-            .columnAliases(columnAliases)
-            .valueAlias(valueAlias);
+            .columnMetadata(getColumns());
+
+        cfmd.addColumnMetadataFromAliases(keyAliases, keyValidator, ColumnDefinition.Type.PARTITION_KEY);
+        cfmd.addColumnMetadataFromAliases(columnAliases, comparator, ColumnDefinition.Type.CLUSTERING_KEY);
+        if (valueAlias != null)
+            cfmd.addColumnMetadataFromAliases(Collections.<ByteBuffer>singletonList(valueAlias), defaultValidator, ColumnDefinition.Type.COMPACT_VALUE);
 
         properties.applyToCFMetadata(cfmd);
     }

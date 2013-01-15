@@ -149,6 +149,18 @@ public class CompositeType extends AbstractCompositeType
     }
 
     @Override
+    public int componentsCount()
+    {
+        return types.size();
+    }
+
+    @Override
+    public List<AbstractType<?>> getComponents()
+    {
+        return types;
+    }
+
+    @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
         if (this == previous)
@@ -305,6 +317,11 @@ public class CompositeType extends AbstractCompositeType
             return composite.types.size() - components.size();
         }
 
+        public ByteBuffer get(int i)
+        {
+            return components.get(i);
+        }
+
         public ByteBuffer build()
         {
             DataOutputBuffer out = new DataOutputBuffer(serializedSize);
@@ -336,6 +353,14 @@ public class CompositeType extends AbstractCompositeType
         public Builder copy()
         {
             return new Builder(this);
+        }
+
+        public ByteBuffer getComponent(int i)
+        {
+            if (i >= components.size())
+                throw new IllegalArgumentException();
+
+            return components.get(i);
         }
     }
 }

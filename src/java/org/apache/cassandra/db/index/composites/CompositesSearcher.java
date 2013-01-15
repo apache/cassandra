@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
@@ -41,40 +42,9 @@ public class CompositesSearcher extends SecondaryIndexSearcher
 {
     private static final Logger logger = LoggerFactory.getLogger(CompositesSearcher.class);
 
-    private final int prefixSize;
-
-    public CompositesSearcher(SecondaryIndexManager indexManager, Set<ByteBuffer> columns, int prefixSize)
+    public CompositesSearcher(SecondaryIndexManager indexManager, Set<ByteBuffer> columns)
     {
         super(indexManager, columns);
-        this.prefixSize = prefixSize;
-    }
-
-    private IndexExpression highestSelectivityPredicate(List<IndexExpression> clause)
-    {
-        IndexExpression best = null;
-        int bestMeanCount = Integer.MAX_VALUE;
-        for (IndexExpression expression : clause)
-        {
-            //skip columns belonging to a different index type
-            if(!columns.contains(expression.column_name))
-                continue;
-
-            SecondaryIndex index = indexManager.getIndexForColumn(expression.column_name);
-            if (index == null || (expression.op != IndexOperator.EQ))
-                continue;
-            int columns = index.getIndexCfs().getMeanColumns();
-            if (columns < bestMeanCount)
-            {
-                best = expression;
-                bestMeanCount = columns;
-            }
-        }
-        return best;
-    }
-
-    public boolean isIndexing(List<IndexExpression> clause)
-    {
-        return highestSelectivityPredicate(clause) != null;
     }
 
     @Override
@@ -85,13 +55,31 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         return baseCfs.filter(getIndexedIterator(range, filter), filter);
     }
 
+    private ByteBuffer makePrefix(CompositesIndex index, ByteBuffer key, ExtendedFilter filter, boolean isStart)
+    {
+        if (key.remaining() == 0)
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
+        ColumnNameBuilder builder;
+        if (filter.originalFilter() instanceof SliceQueryFilter)
+        {
+            SliceQueryFilter originalFilter = (SliceQueryFilter)filter.originalFilter();
+            builder = index.makeIndexColumnNameBuilder(key, isStart ? originalFilter.start() : originalFilter.finish());
+        }
+        else
+        {
+            builder = index.getIndexComparator().builder().add(key);
+        }
+        return isStart ? builder.build() : builder.buildAsEndOfRange();
+    }
+
     public ColumnFamilyStore.AbstractScanIterator getIndexedIterator(final AbstractBounds<RowPosition> range, final ExtendedFilter filter)
     {
         // Start with the most-restrictive indexed clause, then apply remaining clauses
         // to each row matching that clause.
         // TODO: allow merge join instead of just one index + loop
         final IndexExpression primary = highestSelectivityPredicate(filter.getClause());
-        final SecondaryIndex index = indexManager.getIndexForColumn(primary.column_name);
+        final CompositesIndex index = (CompositesIndex)indexManager.getIndexForColumn(primary.column_name);
         assert index != null;
         final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 
@@ -101,7 +89,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
 
         /*
          * XXX: If the range requested is a token range, we'll have to start at the beginning (and stop at the end) of
-         * the indexed row unfortunately (which will be inefficient), because we have not way to intuit the small
+         * the indexed row unfortunately (which will be inefficient), because we have not way to intuit the smallest
          * possible key having a given token. A fix would be to actually store the token along the key in the
          * indexed row.
          */
@@ -112,50 +100,8 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         final CompositeType indexComparator = (CompositeType)index.getIndexCfs().getComparator();
 
         CompositeType.Builder builder = null;
-        if (startKey.remaining() > 0)
-        {
-            builder = indexComparator.builder().add(startKey);
-            // For names filter, we have no choice but to query from the beginning of the key. This can be highly inefficient however.
-            if (filter.originalFilter() instanceof SliceQueryFilter)
-            {
-                ByteBuffer[] components = baseComparator.split(((SliceQueryFilter)filter.originalFilter()).start());
-                for (int i = 0; i < Math.min(prefixSize, components.length); ++i)
-                    builder.add(components[i]);
-            }
-        }
-        final ByteBuffer startPrefix = startKey.remaining() == 0 ? ByteBufferUtil.EMPTY_BYTE_BUFFER : builder.build();
-
-        if (endKey.remaining() > 0)
-        {
-            builder = indexComparator.builder().add(endKey);
-            // For names filter, we have no choice but to query until the end of the key. This can be highly inefficient however.
-            if (filter.originalFilter() instanceof SliceQueryFilter)
-            {
-                ByteBuffer[] components = baseComparator.split(((SliceQueryFilter)filter.originalFilter()).finish());
-                for (int i = 0; i < Math.min(prefixSize, components.length); ++i)
-                    builder.add(components[i]);
-            }
-        }
-        final ByteBuffer endPrefix = endKey.remaining() == 0 ? ByteBufferUtil.EMPTY_BYTE_BUFFER : builder.buildAsEndOfRange();
-
-        // We will need to filter clustering keys based on the user filter. If
-        // it is a names filter, we are really interested on the clustering
-        // part, not the actual column name (NOTE: this is a hack that assumes CQL3).
-        final SliceQueryFilter originalFilter;
-        if (filter.originalFilter() instanceof SliceQueryFilter)
-        {
-            originalFilter = (SliceQueryFilter)filter.originalFilter();
-        }
-        else
-        {
-            ByteBuffer first = ((NamesQueryFilter)filter.originalFilter()).columns.iterator().next();
-            ByteBuffer[] components = baseComparator.split(first);
-            builder = baseComparator.builder();
-            // All all except the last component, since it's the column name
-            for (int i = 0; i < components.length - 1; i++)
-                builder.add(components[i]);
-            originalFilter = new SliceQueryFilter(builder.copy().build(), builder.copy().buildAsEndOfRange(), false, Integer.MAX_VALUE);
-        }
+        final ByteBuffer startPrefix = makePrefix(index, startKey, filter, true);
+        final ByteBuffer endPrefix = makePrefix(index, endKey, filter, false);
 
         return new ColumnFamilyStore.AbstractScanIterator()
         {
@@ -223,7 +169,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                                                                              false,
                                                                              rowsPerQuery);
                         ColumnFamily indexRow = index.getIndexCfs().getColumnFamily(indexFilter);
-                        if (indexRow == null)
+                        if (indexRow == null || indexRow.isEmpty())
                             return makeReturn(currentKey, data);
 
                         Collection<Column> sortedColumns = indexRow.getSortedColumns();
@@ -238,12 +184,6 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                             indexColumns.poll();
                             logger.trace("Skipping {}", indexComparator.getString(firstColumn.name()));
                         }
-                        else if (range instanceof Range && !indexColumns.isEmpty() && firstColumn.name().equals(startPrefix))
-                        {
-                            // skip key excluded by range
-                            indexColumns.poll();
-                            logger.trace("Skipping first key as range excludes it");
-                        }
                     }
 
                     while (!indexColumns.isEmpty() && columnsCount <= limit)
@@ -256,8 +196,8 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                             continue;
                         }
 
-                        ByteBuffer[] components = indexComparator.split(lastSeenPrefix);
-                        DecoratedKey dk = baseCfs.partitioner.decorateKey(components[0]);
+                        CompositesIndex.IndexedEntry entry = index.decodeEntry(indexKey, column);
+                        DecoratedKey dk = baseCfs.partitioner.decorateKey(entry.indexedKey);
 
                         // Are we done for this row?
                         if (currentKey == null)
@@ -277,52 +217,52 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                                 return makeReturn(previousKey, data);
                         }
 
-                        if (!range.right.isMinimum(baseCfs.partitioner) && range.right.compareTo(dk) < 0)
-                        {
-                            logger.trace("Reached end of assigned scan range");
-                            return endOfData();
-                        }
                         if (!range.contains(dk))
                         {
-                            logger.debug("Skipping entry {} outside of assigned scan range", dk.token);
-                            continue;
-                        }
-
-                        logger.trace("Adding index hit to current row for {}", indexComparator.getString(lastSeenPrefix));
-                        // For sparse composites, we're good querying the whole logical row
-                        // Obviously if this index is used for other usage, that might be inefficient
-                        CompositeType.Builder builder = baseComparator.builder();
-                        for (int i = 0; i < prefixSize; i++)
-                            builder.add(components[i + 1]);
-
-                        // Does this "row" match the user original filter
-                        ByteBuffer start = builder.copy().build();
-                        if (!originalFilter.includes(baseComparator, start))
-                            continue;
-
-                        SliceQueryFilter dataFilter = new SliceQueryFilter(start, builder.copy().buildAsEndOfRange(), false, Integer.MAX_VALUE, prefixSize);
-                        ColumnFamily newData = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, dataFilter));
-                        if (newData != null)
-                        {
-                            ByteBuffer baseColumnName = builder.copy().add(primary.column_name).build();
-                            ByteBuffer indexedValue = indexKey.key;
-
-                            if (isIndexValueStale(newData, baseColumnName, indexedValue))
+                            // Either we're not yet in the range cause the range is start excluding, or we're
+                            // past it.
+                            if (!range.right.isMinimum(baseCfs.partitioner) && range.right.compareTo(dk) < 0)
                             {
-                                // delete the index entry w/ its own timestamp
-                                Column dummyColumn = new Column(baseColumnName, indexedValue, column.timestamp());
-                                ((PerColumnSecondaryIndex) index).delete(dk.key, dummyColumn);
+                                logger.trace("Reached end of assigned scan range");
+                                return endOfData();
+                            }
+                            else
+                            {
+                                logger.debug("Skipping entry {} before assigned scan range", dk.token);
                                 continue;
                             }
-
-                            if (!filter.isSatisfiedBy(newData, builder))
-                                continue;
-
-                            if (data == null)
-                                data = TreeMapBackedSortedColumns.factory.create(baseCfs.metadata);
-                            data.resolve(newData);
-                            columnsCount += dataFilter.lastCounted();
                         }
+
+                        // Check if this entry cannot be a hit due to the original column filter
+                        ByteBuffer start = entry.indexedEntryStart();
+                        if (!filter.originalFilter().maySelectPrefix(baseComparator, start))
+                            continue;
+
+                        logger.trace("Adding index hit to current row for {}", indexComparator.getString(column.name()));
+
+                        // We always query the whole CQL3 row. In the case where the original filter was a name filter this might be
+                        // slightly wasteful, but this probably doesn't matter in practice and it simplify things.
+                        SliceQueryFilter dataFilter = new SliceQueryFilter(start,
+                                                                           entry.indexedEntryEnd(),
+                                                                           false,
+                                                                           Integer.MAX_VALUE,
+                                                                           baseCfs.metadata.clusteringKeyColumns().size());
+                        ColumnFamily newData = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, dataFilter));
+                        if (index.isStale(entry, newData))
+                        {
+                            index.delete(entry);
+                            continue;
+                        }
+
+                        assert newData != null : "An entry with not data should have been considered stale";
+
+                        if (!filter.isSatisfiedBy(dk.key, newData, entry.indexedEntryNameBuilder))
+                            continue;
+
+                        if (data == null)
+                            data = TreeMapBackedSortedColumns.factory.create(baseCfs.metadata);
+                        data.resolve(newData);
+                        columnsCount += dataFilter.lastCounted();
                     }
                  }
              }

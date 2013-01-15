@@ -50,7 +50,7 @@ public class DropIndexStatement
         ColumnDefinition column = findIndexedColumn(cfm);
         assert column != null;
         CFMetaData cloned = cfm.clone();
-        ColumnDefinition toChange = cloned.getColumn_metadata().get(column.name);
+        ColumnDefinition toChange = cloned.getColumnDefinition(column.name);
         assert toChange.getIndexName() != null && toChange.getIndexName().equals(indexName);
         toChange.setIndexName(null);
         toChange.setIndexType(null, null);
@@ -70,7 +70,7 @@ public class DropIndexStatement
 
     private ColumnDefinition findIndexedColumn(CFMetaData cfm)
     {
-        for (ColumnDefinition column : cfm.getColumn_metadata().values())
+        for (ColumnDefinition column : cfm.regularColumns())
         {
             if (column.getIndexType() != null && column.getIndexName() != null && column.getIndexName().equals(indexName))
                 return column;

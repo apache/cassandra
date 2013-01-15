@@ -129,12 +129,11 @@ public class CFMetaDataTest extends SchemaLoader
         // are only used by CQL (so far) so we don't expose them through thrift
         // There is a CFM with componentIndex defined in Keyspace2 which is used by 
         // ColumnFamilyStoreTest to verify index repair (CASSANDRA-2897)
-        for (Map.Entry<ByteBuffer, ColumnDefinition> cMeta: cfm.column_metadata.entrySet())
+        for (ColumnDefinition def: cfm.allColumns())
         {
-            // Non-null componentIndex are only used by CQL (so far) so we don't expose
-            // them through thrift
-            if (cMeta.getValue().componentIndex != null)
-                cfm.column_metadata.remove(cMeta.getKey());
+            // Remove what we know is not thrift compatible
+            if (!def.isThriftCompatible())
+                cfm.removeColumnDefinition(def);
         }
 
         // Test thrift conversion

@@ -269,7 +269,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.compactionStrategy = metadata.createCompactionStrategyInstance(this);
 
         // create the private ColumnFamilyStores for the secondary column indexes
-        for (ColumnDefinition info : metadata.getColumn_metadata().values())
+        for (ColumnDefinition info : metadata.allColumns())
         {
             if (info.getIndexType() != null)
                 indexManager.addIndexedColumn(info);
@@ -452,7 +452,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CFMetaData cfm = Schema.instance.getCFMetaData(table, columnFamily);
         if (cfm != null) // secondary indexes aren't stored in DD.
         {
-            for (ColumnDefinition def : cfm.getColumn_metadata().values())
+            for (ColumnDefinition def : cfm.allColumns())
                 scrubDataDirectories(table, cfm.indexColumnFamilyName(def));
         }
     }
@@ -1535,7 +1535,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                             data.addAll(cf, HeapAllocator.instance);
                     }
 
-                    if (!filter.isSatisfiedBy(data, null))
+                    if (!filter.isSatisfiedBy(rawRow.key.key, data, null))
                         continue;
 
                     logger.trace("{} satisfies all filter expressions", data);

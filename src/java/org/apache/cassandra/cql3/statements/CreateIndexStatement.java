@@ -67,24 +67,29 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         CFMetaData cfm = oldCfm.clone();
         CFDefinition cfDef = oldCfm.getCfDef();
 
-        for (ColumnDefinition cd : cfm.getColumn_metadata().values())
+        for (ColumnDefinition cd : cfm.allColumns())
         {
             if (cd.name.equals(columnName.key))
             {
                 if (cd.getIndexType() != null)
                     throw new InvalidRequestException("Index already exists");
-                if (logger.isDebugEnabled())
-                    logger.debug("Updating column {} definition for index {}", columnName, indexName);
+
+                if (cd.type == ColumnDefinition.Type.PARTITION_KEY && (cd.componentIndex == null || cd.componentIndex == 0))
+                    throw new InvalidRequestException(String.format("Cannot add secondary index to already primarily indexed column %s", columnName));
+
+                // TODO: we could lift that limitation
+                if (cfDef.isCompact && cd.type != ColumnDefinition.Type.REGULAR)
+                    throw new InvalidRequestException(String.format("Secondary index on %s column %s is not yet supported for compact table", cd.type, columnName));
 
                 if (cd.getValidator().isCollection())
                     throw new InvalidRequestException("Indexes on collections are no yet supported");
 
+                if (logger.isDebugEnabled())
+                    logger.debug("Updating column {} definition for index {}", columnName, indexName);
+
                 if (cfDef.isComposite)
                 {
-                    CompositeType composite = (CompositeType)cfm.comparator;
-                    Map<String, String> opts = new HashMap<String, String>();
-                    opts.put(CompositesIndex.PREFIX_SIZE_OPTION, String.valueOf(composite.types.size() - (cfDef.hasCollections ? 2 : 1)));
-                    cd.setIndexType(IndexType.COMPOSITES, opts);
+                    cd.setIndexType(IndexType.COMPOSITES, Collections.<String, String>emptyMap());
                 }
                 else
                 {
@@ -113,7 +118,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         }
 
         cfm.addDefaultIndexNames();
-        MigrationManager.announceColumnFamilyUpdate(cfm);
+        MigrationManager.announceColumnFamilyUpdate(cfm, false);
     }
 
     public ResultMessage.SchemaChange.Change changeType()

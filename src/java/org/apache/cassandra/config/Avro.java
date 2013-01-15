@@ -24,6 +24,7 @@ import java.util.*;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.migration.avro.CfDef;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -145,10 +146,28 @@ public class Avro
         //  Isn't AVRO supposed to handle stuff like this?
         if (cf.min_compaction_threshold != null) { newCFMD.minCompactionThreshold(cf.min_compaction_threshold); }
         if (cf.max_compaction_threshold != null) { newCFMD.maxCompactionThreshold(cf.max_compaction_threshold); }
-        if (cf.key_alias != null) { newCFMD.keyAliases(Collections.<ByteBuffer>singletonList(cf.key_alias)); }
+
+        if (cf.key_alias != null)
+            newCFMD.addOrReplaceColumnDefinition(ColumnDefinition.partitionKeyDef(cf.key_alias, keyValidator, null));
         if (cf.column_aliases != null)
-            newCFMD.columnAliases(new ArrayList<ByteBuffer>(cf.column_aliases)); // fix avro stupidity
-        if (cf.value_alias != null) { newCFMD.valueAlias(cf.value_alias); }
+        {
+            if (comparator instanceof CompositeType)
+            {
+                List<AbstractType<?>> components = ((CompositeType)comparator).types;
+                for (int i = 0; i < cf.column_aliases.size(); ++i)
+                    if (cf.column_aliases.get(i) != null)
+                        newCFMD.addOrReplaceColumnDefinition(ColumnDefinition.clusteringKeyDef(cf.column_aliases.get(i), components.get(i), i));
+            }
+            else
+            {
+                assert cf.column_aliases.size() <= 1;
+                if (cf.column_aliases.get(0) != null)
+                    newCFMD.addOrReplaceColumnDefinition(ColumnDefinition.clusteringKeyDef(cf.column_aliases.get(0), comparator, null));
+            }
+        }
+        if (cf.value_alias != null)
+            newCFMD.addOrReplaceColumnDefinition(ColumnDefinition.compactValueDef(cf.value_alias, validator));
+
         if (cf.compaction_strategy != null)
         {
             try
@@ -211,11 +230,28 @@ public class Avro
         try
         {
             AbstractType<?> validatorType = TypeParser.parse(cd.validation_class);
-            return new ColumnDefinition(ByteBufferUtil.clone(cd.name), validatorType, index_type, ColumnDefinition.getStringMap(cd.index_options), index_name, null);
+            ColumnDefinition def = ColumnDefinition.regularDef(ByteBufferUtil.clone(cd.name), validatorType, null);
+            def.setIndexName(index_name);
+            def.setIndexType(index_type, getStringMap(cd.index_options));
+            return def;
         }
         catch (RequestValidationException e)
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static Map<String,String> getStringMap(Map<CharSequence, CharSequence> charMap)
+    {
+        if (charMap == null)
+            return null;
+
+        Map<String,String> stringMap = new HashMap<String, String>();
+
+        for (Map.Entry<CharSequence, CharSequence> entry : charMap.entrySet())
+            stringMap.put(entry.getKey().toString(), entry.getValue().toString());
+
+
+        return stringMap;
     }
 }

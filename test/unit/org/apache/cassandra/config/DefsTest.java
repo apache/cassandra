@@ -63,7 +63,7 @@ public class DefsTest extends SchemaLoader
         for (int i = 0; i < 5; i++)
         {
             ByteBuffer name = ByteBuffer.wrap(new byte[] { (byte)i });
-            indexes.put(name, new ColumnDefinition(name, BytesType.instance, IndexType.KEYS, null, Integer.toString(i), null));
+            indexes.put(name, ColumnDefinition.regularDef(name, BytesType.instance, null).setIndex(Integer.toString(i), IndexType.KEYS, null));
         }
         CFMetaData cfm = new CFMetaData("Keyspace1",
                                         "TestApplyCFM_CF",
@@ -80,34 +80,26 @@ public class DefsTest extends SchemaLoader
            .columnMetadata(indexes);
 
         // we'll be adding this one later. make sure it's not already there.
-        assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 5 })) == null;
+        assert cfm.getColumnDefinition(ByteBuffer.wrap(new byte[] { 5 })) == null;
 
         CFMetaData cfNew = cfm.clone();
 
         // add one.
-        ColumnDefinition addIndexDef = new ColumnDefinition(ByteBuffer.wrap(new byte[] { 5 }),
-                                                            BytesType.instance,
-                                                            IndexType.KEYS,
-                                                            null,
-                                                            "5",
-                                                            null);
+        ColumnDefinition addIndexDef = ColumnDefinition.regularDef(ByteBuffer.wrap(new byte[] { 5 }), BytesType.instance, null)
+                                                       .setIndex("5", IndexType.KEYS, null);
         cfNew.addColumnDefinition(addIndexDef);
 
         // remove one.
-        ColumnDefinition removeIndexDef = new ColumnDefinition(ByteBuffer.wrap(new byte[] { 0 }),
-                                                               BytesType.instance,
-                                                               IndexType.KEYS,
-                                                               null,
-                                                               "0",
-                                                               null);
+        ColumnDefinition removeIndexDef = ColumnDefinition.regularDef(ByteBuffer.wrap(new byte[] { 0 }), BytesType.instance, null)
+                                                          .setIndex("0", IndexType.KEYS, null);
         assert cfNew.removeColumnDefinition(removeIndexDef);
 
         cfm.apply(cfNew);
 
         for (int i = 1; i < indexes.size(); i++)
-            assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 1 })) != null;
-        assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 0 })) == null;
-        assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 5 })) != null;
+            assert cfm.getColumnDefinition(ByteBuffer.wrap(new byte[] { 1 })) != null;
+        assert cfm.getColumnDefinition(ByteBuffer.wrap(new byte[] { 0 })) == null;
+        assert cfm.getColumnDefinition(ByteBuffer.wrap(new byte[] { 5 })) != null;
     }
 
     @Test
@@ -435,22 +427,22 @@ public class DefsTest extends SchemaLoader
 
         // test valid operations.
         newCfm.comment("Modified comment");
-        MigrationManager.announceColumnFamilyUpdate(newCfm); // doesn't get set back here.
+        MigrationManager.announceColumnFamilyUpdate(newCfm, false); // doesn't get set back here.
 
         newCfm.readRepairChance(0.23);
-        MigrationManager.announceColumnFamilyUpdate(newCfm);
+        MigrationManager.announceColumnFamilyUpdate(newCfm, false);
 
         newCfm.gcGraceSeconds(12);
-        MigrationManager.announceColumnFamilyUpdate(newCfm);
+        MigrationManager.announceColumnFamilyUpdate(newCfm, false);
 
         newCfm.defaultValidator(UTF8Type.instance);
-        MigrationManager.announceColumnFamilyUpdate(newCfm);
+        MigrationManager.announceColumnFamilyUpdate(newCfm, false);
 
         newCfm.minCompactionThreshold(3);
-        MigrationManager.announceColumnFamilyUpdate(newCfm);
+        MigrationManager.announceColumnFamilyUpdate(newCfm, false);
 
         newCfm.maxCompactionThreshold(33);
-        MigrationManager.announceColumnFamilyUpdate(newCfm);
+        MigrationManager.announceColumnFamilyUpdate(newCfm, false);
 
         // can't test changing the reconciler because there is only one impl.
 
@@ -529,10 +521,10 @@ public class DefsTest extends SchemaLoader
 
         // drop the index
         CFMetaData meta = cfs.metadata.clone();
-        ColumnDefinition cdOld = meta.getColumn_metadata().values().iterator().next();
-        ColumnDefinition cdNew = new ColumnDefinition(cdOld.name, cdOld.getValidator(), null, null, null, null);
+        ColumnDefinition cdOld = meta.regularColumns().iterator().next();
+        ColumnDefinition cdNew = ColumnDefinition.regularDef(cdOld.name, cdOld.getValidator(), null);
         meta.columnMetadata(Collections.singletonMap(cdOld.name, cdNew));
-        MigrationManager.announceColumnFamilyUpdate(meta);
+        MigrationManager.announceColumnFamilyUpdate(meta, false);
 
         // check
         assert cfs.indexManager.getIndexes().isEmpty();

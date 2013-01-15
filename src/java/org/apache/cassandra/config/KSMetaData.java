@@ -183,7 +183,7 @@ public final class KSMetaData
         for (CFMetaData cfm : cfMetaData().values())
         {
             // Don't expose CF that cannot be correctly handle by thrift; see CASSANDRA-4377 for further details
-            if (!cfm.isThriftIncompatible())
+            if (cfm.isThriftCompatible())
                 cfDefs.add(cfm.toThrift());
         }
         KsDef ksdef = new KsDef(name, strategyClass.getName(), cfDefs);
@@ -311,7 +311,11 @@ public final class KSMetaData
         {
             Row columnRow = ColumnDefinition.readSchema(cfm.ksName, cfm.cfName);
             for (ColumnDefinition cd : ColumnDefinition.fromSchema(columnRow, cfm))
-                cfm.column_metadata.put(cd.name, cd);
+            {
+                // This may replace some existing definition coming from the old key, column and
+                // value aliases. But that's what we want (see CFMetaData.fromSchemaNoColumns).
+                cfm.addOrReplaceColumnDefinition(cd);
+            }
         }
 
         return cfms;

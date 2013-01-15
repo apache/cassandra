@@ -24,6 +24,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.thrift.IndexOperator;
 
 public abstract class SecondaryIndexSearcher
 {
@@ -43,8 +44,11 @@ public abstract class SecondaryIndexSearcher
     /**
      * @return true this index is able to handle given clauses.
      */
-    public abstract boolean isIndexing(List<IndexExpression> clause);
-    
+    public boolean isIndexing(List<IndexExpression> clause)
+    {
+        return highestSelectivityPredicate(clause) != null;
+    }
+
     protected boolean isIndexValueStale(ColumnFamily liveData, ByteBuffer indexedColumnName, ByteBuffer indexedValue)
     {
         Column liveColumn = liveData.getColumn(indexedColumnName);
@@ -53,5 +57,28 @@ public abstract class SecondaryIndexSearcher
         
         ByteBuffer liveValue = liveColumn.value();
         return 0 != liveData.metadata().getValueValidator(indexedColumnName).compare(indexedValue, liveValue);
+    }
+
+    protected IndexExpression highestSelectivityPredicate(List<IndexExpression> clause)
+    {
+        IndexExpression best = null;
+        int bestMeanCount = Integer.MAX_VALUE;
+        for (IndexExpression expression : clause)
+        {
+            //skip columns belonging to a different index type
+            if(!columns.contains(expression.column_name))
+                continue;
+
+            SecondaryIndex index = indexManager.getIndexForColumn(expression.column_name);
+            if (index == null || (expression.op != IndexOperator.EQ))
+                continue;
+            int columns = index.getIndexCfs().getMeanColumns();
+            if (columns < bestMeanCount)
+            {
+                best = expression;
+                bestMeanCount = columns;
+            }
+        }
+        return best;
     }
 }

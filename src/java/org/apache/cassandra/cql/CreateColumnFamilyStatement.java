@@ -135,7 +135,7 @@ public class CreateColumnFamilyStatement
                                           ? CFPropDefs.comparators.get(col.getValue())
                                           : col.getValue();
                 AbstractType<?> validator = TypeParser.parse(validatorClassName);
-                columnDefs.put(columnName, new ColumnDefinition(columnName, validator, null, null, null, null));
+                columnDefs.put(columnName, ColumnDefinition.regularDef(columnName, validator, null));
             }
             catch (ConfigurationException e)
             {
@@ -202,7 +202,7 @@ public class CreateColumnFamilyStatement
 
             // CQL2 can have null keyAliases
             if (keyAlias != null)
-                newCFMD.keyAliases(Collections.<ByteBuffer>singletonList(keyAlias));
+                newCFMD.addColumnDefinition(ColumnDefinition.partitionKeyDef(keyAlias, newCFMD.getKeyValidator(), null));
         }
         catch (ConfigurationException e)
         {
