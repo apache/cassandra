@@ -20,6 +20,8 @@ package org.apache.cassandra.locator;
 import java.net.InetAddress;
 import java.util.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+
 public abstract class AbstractEndpointSnitch implements IEndpointSnitch
 {
     public abstract int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2);
@@ -56,5 +58,27 @@ public abstract class AbstractEndpointSnitch implements IEndpointSnitch
     public void gossiperStarting()
     {
         // noop by default
+    }
+
+    public boolean isWorthMergingForRangeQuery(List<InetAddress> merged, List<InetAddress> l1, List<InetAddress> l2)
+    {
+        // Querying remote DC is likely to be an order of magnitude slower than
+        // querying locally, so 2 queries to local nodes is likely to still be
+        // faster than 1 query involving remote ones
+        boolean mergedHasRemote = hasRemoteNode(merged);
+        return mergedHasRemote
+             ? hasRemoteNode(l1) || hasRemoteNode(l2)
+             : true;
+    }
+
+    private boolean hasRemoteNode(List<InetAddress> l)
+    {
+        String localDc = DatabaseDescriptor.getLocalDataCenter();
+        for (InetAddress ep : l)
+        {
+            if (!localDc.equals(getDatacenter(ep)))
+                return true;
+        }
+        return false;
     }
 }

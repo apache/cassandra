@@ -34,9 +34,9 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
@@ -46,43 +46,34 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SimpleCondition;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-import com.google.common.collect.Lists;
-
 public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessage>
 {
     protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
 
-    protected static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-    protected static final String localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
-
     public final IResponseResolver<TMessage, TResolved> resolver;
-    protected final SimpleCondition condition = new SimpleCondition();
+    private final SimpleCondition condition = new SimpleCondition();
     private final long startTime;
-    protected final int blockfor;
+    private final int blockfor;
     final List<InetAddress> endpoints;
-    protected final IReadCommand command;
-    protected final ConsistencyLevel consistencyLevel;
-    protected final AtomicInteger received = new AtomicInteger(0);
+    private final IReadCommand command;
+    private final ConsistencyLevel consistencyLevel;
+    private final AtomicInteger received = new AtomicInteger(0);
+    private final Table table; // TODO push this into ConsistencyLevel?
 
     /**
      * Constructor when response count has to be calculated and blocked for.
      */
-    public ReadCallback(IResponseResolver<TMessage, TResolved> resolver, ConsistencyLevel consistencyLevel, IReadCommand command, List<InetAddress> endpoints)
+    public ReadCallback(IResponseResolver<TMessage, TResolved> resolver, ConsistencyLevel consistencyLevel, IReadCommand command, List<InetAddress> filteredEndpoints)
     {
-        this.command = command;
-        this.blockfor = consistencyLevel.blockFor(command.getKeyspace());
-        this.resolver = resolver;
-        this.startTime = System.currentTimeMillis();
-        this.consistencyLevel = consistencyLevel;
-        sortForConsistencyLevel(endpoints);
-        this.endpoints = filterEndpoints(endpoints);
+        this(resolver, consistencyLevel, consistencyLevel.blockFor(Table.open(command.getKeyspace())), command, Table.open(command.getKeyspace()), filteredEndpoints);
         if (logger.isTraceEnabled())
             logger.trace(String.format("Blockfor is %s; setting up requests to %s", blockfor, StringUtils.join(this.endpoints, ",")));
     }
 
-    protected ReadCallback(IResponseResolver<TMessage, TResolved> resolver, ConsistencyLevel consistencyLevel, int blockfor, IReadCommand command, List<InetAddress> endpoints)
+    private ReadCallback(IResponseResolver<TMessage, TResolved> resolver, ConsistencyLevel consistencyLevel, int blockfor, IReadCommand command, Table table, List<InetAddress> endpoints)
     {
         this.command = command;
+        this.table = table;
         this.blockfor = blockfor;
         this.consistencyLevel = consistencyLevel;
         this.resolver = resolver;
@@ -92,54 +83,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
 
     public ReadCallback<TMessage, TResolved> withNewResolver(IResponseResolver<TMessage, TResolved> newResolver)
     {
-        return new ReadCallback(newResolver, consistencyLevel, blockfor, command, endpoints);
-    }
-
-    /**
-     * Endpoints is already restricted to live replicas, sorted by snitch preference.  This is a hook for
-     * DatacenterReadCallback to move local-DC replicas to the front of the list.  We need this both
-     * when doing read repair (because the first replica gets the data read) and otherwise (because
-     * only the first 1..blockfor replicas will get digest reads).
-     */
-    protected void sortForConsistencyLevel(List<InetAddress> endpoints)
-    {
-        // no-op except in DRC
-    }
-
-    private List<InetAddress> filterEndpoints(List<InetAddress> ep)
-    {
-        if (resolver instanceof RowDigestResolver)
-        {
-            assert command instanceof ReadCommand : command;
-            String table = ((RowDigestResolver) resolver).table;
-            String columnFamily = ((ReadCommand) command).getColumnFamilyName();
-            CFMetaData cfmd = Schema.instance.getTableMetaData(table).get(columnFamily);
-            double chance = FBUtilities.threadLocalRandom().nextDouble();
-
-            // if global repair then just return all the ep's
-            if (cfmd.getReadRepairChance() > chance)
-                return ep;
-
-            // if local repair then just return localDC ep's
-            if (cfmd.getDcLocalReadRepair() > chance)
-            {
-                List<InetAddress> local = Lists.newArrayList();
-                List<InetAddress> other = Lists.newArrayList();
-                for (InetAddress add : ep)
-                {
-                    if (snitch.getDatacenter(add).equals(localdc))
-                        local.add(add);
-                    else
-                        other.add(add);
-                }
-                // check if blockfor more than we have localep's
-                if (local.size() < blockfor)
-                    local.addAll(other.subList(0, Math.min(blockfor - local.size(), other.size())));
-                return local;
-            }
-        }
-        // we don't read repair on range scans
-        return ep.subList(0, Math.min(ep.size(), blockfor));
+        return new ReadCallback(newResolver, consistencyLevel, blockfor, command, table, endpoints);
     }
 
     public TResolved get() throws ReadTimeoutException, DigestMismatchException, IOException
@@ -177,9 +121,11 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
     /**
      * @return true if the message counts towards the blockfor threshold
      */
-    protected boolean waitingFor(MessageIn message)
+    private boolean waitingFor(MessageIn message)
     {
-        return true;
+        return consistencyLevel == ConsistencyLevel.LOCAL_QUORUM
+             ? DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(message.from))
+             : true;
     }
 
     public void response(TMessage result)
@@ -207,12 +153,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
 
     public void assureSufficientLiveNodes() throws UnavailableException
     {
-        if (endpoints.size() < blockfor)
-        {
-            logger.debug("Live nodes {} do not satisfy ConsistencyLevel ({} required)",
-                         StringUtils.join(endpoints, ", "), blockfor);
-            throw new UnavailableException(consistencyLevel, blockfor, endpoints.size());
-        }
+        consistencyLevel.assureSufficientLiveNodes(table, endpoints);
     }
 
     public boolean isLatencyForSnitch()

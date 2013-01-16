@@ -2491,14 +2491,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param key key for which we need to find the endpoint
      * @return the endpoint responsible for this key
      */
-    public List<InetAddress> getLiveNaturalEndpoints(String table, ByteBuffer key)
+    public List<InetAddress> getLiveNaturalEndpoints(Table table, ByteBuffer key)
     {
         return getLiveNaturalEndpoints(table, getPartitioner().decorateKey(key));
     }
 
-    public List<InetAddress> getLiveNaturalEndpoints(String table, RingPosition pos)
+    public List<InetAddress> getLiveNaturalEndpoints(Table table, RingPosition pos)
     {
-        List<InetAddress> endpoints = Table.open(table).getReplicationStrategy().getNaturalEndpoints(pos);
+        List<InetAddress> endpoints = table.getReplicationStrategy().getNaturalEndpoints(pos);
         List<InetAddress> liveEps = new ArrayList<InetAddress>(endpoints.size());
 
         for (InetAddress endpoint : endpoints)

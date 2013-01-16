@@ -123,6 +123,8 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
      */
     public abstract AbstractBounds<Token> toTokenBounds();
 
+    public abstract AbstractBounds<T> withNewRight(T newRight);
+
     public static class AbstractBoundsSerializer implements IVersionedSerializer<AbstractBounds<?>>
     {
         public void serialize(AbstractBounds<?> range, DataOutput out, int version) throws IOException

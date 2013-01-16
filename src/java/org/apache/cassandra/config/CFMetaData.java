@@ -465,6 +465,18 @@ public final class CFMetaData
         return dcLocalReadRepairChance;
     }
 
+    public ReadRepairDecision newReadRepairDecision()
+    {
+        double chance = FBUtilities.threadLocalRandom().nextDouble();
+        if (getReadRepairChance() > chance)
+            return ReadRepairDecision.GLOBAL;
+
+        if (getDcLocalReadRepair() > chance)
+            return ReadRepairDecision.DC_LOCAL;
+
+        return ReadRepairDecision.NONE;
+    }
+
     public boolean getReplicateOnWrite()
     {
         return replicateOnWrite;

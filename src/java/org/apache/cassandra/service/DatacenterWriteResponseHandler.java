@@ -23,6 +23,7 @@ import java.util.Collection;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -38,16 +39,10 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
 {
     private static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
 
-    private static final String localdc;
-    static
-    {
-        localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
-    }
-
     public DatacenterWriteResponseHandler(Collection<InetAddress> naturalEndpoints,
                                           Collection<InetAddress> pendingEndpoints,
                                           ConsistencyLevel consistencyLevel,
-                                          String table,
+                                          Table table,
                                           Runnable callback,
                                           WriteType writeType)
     {
@@ -58,27 +53,10 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     @Override
     public void response(MessageIn message)
     {
-        if (message == null || localdc.equals(snitch.getDatacenter(message.from)))
+        if (message == null || DatabaseDescriptor.getLocalDataCenter().equals(snitch.getDatacenter(message.from)))
         {
             if (responses.decrementAndGet() == 0)
                 signal();
         }
     }
-
-    @Override
-    public void assureSufficientLiveNodes() throws UnavailableException
-    {
-        int liveNodes = 0;
-        for (InetAddress destination : Iterables.concat(naturalEndpoints, pendingEndpoints))
-        {
-            if (localdc.equals(snitch.getDatacenter(destination)) && FailureDetector.instance.isAlive(destination))
-                liveNodes++;
-        }
-
-        if (liveNodes < responses.get())
-        {
-            throw new UnavailableException(consistencyLevel, responses.get(), liveNodes);
-        }
-    }
-
 }

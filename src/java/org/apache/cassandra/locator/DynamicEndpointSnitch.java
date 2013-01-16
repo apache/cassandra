@@ -306,4 +306,34 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         return StorageService.instance.getSeverity(FBUtilities.getBroadcastAddress());
     }
 
+    public boolean isWorthMergingForRangeQuery(List<InetAddress> merged, List<InetAddress> l1, List<InetAddress> l2)
+    {
+        if (!subsnitch.isWorthMergingForRangeQuery(merged, l1, l2))
+            return false;
+
+        // Make sure we return the subsnitch decision (i.e true if we're here) if we lack too much scores
+        double maxMerged = maxScore(merged);
+        double maxL1 = maxScore(l1);
+        double maxL2 = maxScore(l2);
+        if (maxMerged < 0 || maxL1 < 0 || maxL2 < 0)
+            return true;
+
+        return maxMerged < maxL1 + maxL2;
+    }
+
+    // Return the max score for the endpoint in the provided list, or -1.0 if no node have a score.
+    private double maxScore(List<InetAddress> endpoints)
+    {
+        double maxScore = -1.0;
+        for (InetAddress endpoint : endpoints)
+        {
+            Double score = scores.get(endpoint);
+            if (score == null)
+                continue;
+
+            if (score > maxScore)
+                maxScore = score;
+        }
+        return maxScore;
+    }
 }
