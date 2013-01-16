@@ -21,12 +21,14 @@ import java.lang.reflect.Constructor;
 import java.net.InetAddress;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.RingPosition;
@@ -46,22 +48,25 @@ public abstract class AbstractReplicationStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
 
-    public final String table;
+    @VisibleForTesting
+    final String tableName;
+    private Table table;
     public final Map<String, String> configOptions;
     private final TokenMetadata tokenMetadata;
 
     public IEndpointSnitch snitch;
 
-    AbstractReplicationStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+    AbstractReplicationStrategy(String tableName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
-        assert table != null;
+        assert tableName != null;
         assert snitch != null;
         assert tokenMetadata != null;
         this.tokenMetadata = tokenMetadata;
         this.snitch = snitch;
         this.tokenMetadata.register(this);
         this.configOptions = configOptions == null ? Collections.<String, String>emptyMap() : configOptions;
-        this.table = table;
+        this.tableName = tableName;
+        // lazy-initialize table itself since we don't create them until after the replication strategies
     }
 
     private final Map<Token, ArrayList<InetAddress>> cachedEndpoints = new NonBlockingHashMap<Token, ArrayList<InetAddress>>();
@@ -120,13 +125,20 @@ public abstract class AbstractReplicationStrategy
         if (consistency_level == ConsistencyLevel.LOCAL_QUORUM)
         {
             // block for in this context will be localnodes block.
-            return new DatacenterWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, table, callback, writeType);
+            return new DatacenterWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, getTable(), callback, writeType);
         }
         else if (consistency_level == ConsistencyLevel.EACH_QUORUM)
         {
-            return new DatacenterSyncWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, table, callback, writeType);
+            return new DatacenterSyncWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, getTable(), callback, writeType);
         }
-        return new WriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, table, callback, writeType);
+        return new WriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, getTable(), callback, writeType);
+    }
+
+    private Table getTable()
+    {
+        if (table == null)
+            table = Table.open(tableName);
+        return table;
     }
 
     /**
@@ -266,7 +278,7 @@ public abstract class AbstractReplicationStrategy
         for (String key : configOptions.keySet())
         {
             if (!expectedOptions.contains(key))
-                throw new ConfigurationException(String.format("Unrecognized strategy option {%s} passed to %s for keyspace %s", key, getClass().getSimpleName(), table));
+                throw new ConfigurationException(String.format("Unrecognized strategy option {%s} passed to %s for keyspace %s", key, getClass().getSimpleName(), tableName));
         }
     }
 }

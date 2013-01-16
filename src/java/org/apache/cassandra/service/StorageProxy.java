@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
@@ -311,7 +312,7 @@ public class StorageProxy implements StorageProxyMBean
         AbstractWriteResponseHandler handler = new WriteResponseHandler(endpoints,
                                                                         Collections.<InetAddress>emptyList(),
                                                                         ConsistencyLevel.ONE,
-                                                                        Table.SYSTEM_KS,
+                                                                        Table.open(Table.SYSTEM_KS),
                                                                         null,
                                                                         WriteType.BATCH_LOG);
         updateBatchlog(rm, endpoints, handler);
@@ -322,7 +323,12 @@ public class StorageProxy implements StorageProxyMBean
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(uuid));
         rm.delete(SystemTable.BATCHLOG_CF, FBUtilities.timestampMicros());
-        AbstractWriteResponseHandler handler = new WriteResponseHandler(endpoints, Collections.<InetAddress>emptyList(), ConsistencyLevel.ANY, Table.SYSTEM_KS, null, WriteType.SIMPLE);
+        AbstractWriteResponseHandler handler = new WriteResponseHandler(endpoints,
+                                                                        Collections.<InetAddress>emptyList(),
+                                                                        ConsistencyLevel.ANY,
+                                                                        Table.open(Table.SYSTEM_KS),
+                                                                        null,
+                                                                        WriteType.SIMPLE);
         updateBatchlog(rm, endpoints, handler);
     }
 
@@ -717,8 +723,9 @@ public class StorageProxy implements StorageProxyMBean
      * is unclear we want to mix those latencies with read latencies, so this
      * may be a bit involved.
      */
-    private static InetAddress findSuitableEndpoint(String table, ByteBuffer key, String localDataCenter, ConsistencyLevel cl) throws UnavailableException
+    private static InetAddress findSuitableEndpoint(String tableName, ByteBuffer key, String localDataCenter, ConsistencyLevel cl) throws UnavailableException
     {
+        Table table = Table.open(tableName);
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(table, key);
         if (endpoints.isEmpty())
@@ -870,21 +877,22 @@ public class StorageProxy implements StorageProxyMBean
             for (int i = 0; i < commands.size(); i++)
             {
                 ReadCommand command = commands.get(i);
+                Table table = Table.open(command.getKeyspace());
                 assert !command.isDigestQuery();
                 logger.trace("Command/ConsistencyLevel is {}/{}", command, consistency_level);
 
-                List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table,
-                                                                                              command.key);
-                DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), endpoints);
+                List<InetAddress> endpoints = getLiveSortedEndpoints(table, command.key);
+                CFMetaData cfm = Schema.instance.getCFMetaData(command.getKeyspace(), command.getColumnFamilyName());
+                endpoints = consistency_level.filterForQuery(table, endpoints, cfm.newReadRepairDecision());
 
                 RowDigestResolver resolver = new RowDigestResolver(command.table, command.key);
-                ReadCallback<ReadResponse, Row> handler = getReadCallback(resolver, command, consistency_level, endpoints);
+                ReadCallback<ReadResponse, Row> handler = new ReadCallback(resolver, consistency_level, command, endpoints);
                 handler.assureSufficientLiveNodes();
-                assert !handler.endpoints.isEmpty();
+                assert !endpoints.isEmpty();
                 readCallbacks[i] = handler;
 
                 // The data-request message is sent to dataPoint, the node that will actually get the data for us
-                InetAddress dataPoint = handler.endpoints.get(0);
+                InetAddress dataPoint = endpoints.get(0);
                 if (dataPoint.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
                 {
                     logger.trace("reading data locally");
@@ -896,14 +904,14 @@ public class StorageProxy implements StorageProxyMBean
                     MessagingService.instance().sendRR(command.createMessage(), dataPoint, handler);
                 }
 
-                if (handler.endpoints.size() == 1)
+                if (endpoints.size() == 1)
                     continue;
 
                 // send the other endpoints a digest request
                 ReadCommand digestCommand = command.copy();
                 digestCommand.setDigestQuery(true);
                 MessageOut message = null;
-                for (InetAddress digestPoint : handler.endpoints.subList(1, handler.endpoints.size()))
+                for (InetAddress digestPoint : endpoints.subList(1, endpoints.size()))
                 {
                     if (digestPoint.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
                     {
@@ -997,7 +1005,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     catch (TimeoutException e)
                     {
-                        int blockFor = consistency_level.blockFor(command.getKeyspace());
+                        int blockFor = consistency_level.blockFor(Table.open(command.getKeyspace()));
                         throw new ReadTimeoutException(consistency_level, blockFor, blockFor, true);
                     }
 
@@ -1072,13 +1080,28 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    static <TMessage, TResolved> ReadCallback<TMessage, TResolved> getReadCallback(IResponseResolver<TMessage, TResolved> resolver, IReadCommand command, ConsistencyLevel consistencyLevel, List<InetAddress> endpoints)
+    private static List<InetAddress> getLiveSortedEndpoints(Table table, ByteBuffer key)
     {
-        if (consistencyLevel == ConsistencyLevel.LOCAL_QUORUM || consistencyLevel == ConsistencyLevel.EACH_QUORUM)
-        {
-            return new DatacenterReadCallback(resolver, consistencyLevel, command, endpoints);
-        }
-        return new ReadCallback(resolver, consistencyLevel, command, endpoints);
+        return getLiveSortedEndpoints(table, StorageService.instance.getPartitioner().decorateKey(key));
+    }
+
+    private static List<InetAddress> getLiveSortedEndpoints(Table table, RingPosition pos)
+    {
+        List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(table, pos);
+        DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), liveEndpoints);
+        return liveEndpoints;
+    }
+
+    private static List<InetAddress> intersection(List<InetAddress> l1, List<InetAddress> l2)
+    {
+        // Note: we don't use Guava Sets.intersection() for 3 reasons:
+        //   1) retainAll would be inefficient if l1 and l2 are large but in practice both are the replicas for a range and
+        //   so will be very small (< RF). In that case, retainAll is in fact more efficient.
+        //   2) we do ultimately need a list so converting everything to sets don't make sense
+        //   3) l1 and l2 are sorted by proximity. The use of retainAll  maintain that sorting in the result, while using sets wouldn't.
+        List<InetAddress> inter = new ArrayList<InetAddress>(l1);
+        inter.retainAll(l2);
+        return inter;
     }
 
     public static List<Row> getRangeSlice(RangeSliceCommand command, ConsistencyLevel consistency_level)
@@ -1087,6 +1110,8 @@ public class StorageProxy implements StorageProxyMBean
         Tracing.trace("Determining replicas to query");
         logger.trace("Command/ConsistencyLevel is {}/{}", command.toString(), consistency_level);
         long startTime = System.nanoTime();
+
+        Table table = Table.open(command.keyspace);
         List<Row> rows;
         // now scan until we have enough results
         try
@@ -1096,8 +1121,51 @@ public class StorageProxy implements StorageProxyMBean
             int cql3RowCount = 0;
             rows = new ArrayList<Row>();
             List<AbstractBounds<RowPosition>> ranges = getRestrictedRanges(command.range);
-            for (AbstractBounds<RowPosition> range : ranges)
+            int i = 0;
+            AbstractBounds<RowPosition> nextRange = null;
+            List<InetAddress> nextEndpoints = null;
+            List<InetAddress> nextFilteredEndpoints = null;
+            while (i < ranges.size())
             {
+                AbstractBounds<RowPosition> range = nextRange == null
+                                                  ? ranges.get(i)
+                                                  : nextRange;
+                List<InetAddress> liveEndpoints = nextEndpoints == null
+                                                ? getLiveSortedEndpoints(table, range.right)
+                                                : nextEndpoints;
+                List<InetAddress> filteredEndpoints = nextFilteredEndpoints == null
+                                                    ? consistency_level.filterForQuery(table, liveEndpoints)
+                                                    : nextFilteredEndpoints;
+                ++i;
+
+                // getRestrictedRange has broken the queried range into per-[vnode] token ranges, but this doesn't take
+                // the replication factor into account. If the intersection of live endpoints for 2 consecutive ranges
+                // still meets the CL requirements, then we can merge both ranges into the same RangeSliceCommand.
+                while (i < ranges.size())
+                {
+                    nextRange = ranges.get(i);
+                    nextEndpoints = getLiveSortedEndpoints(table, nextRange.right);
+                    nextFilteredEndpoints = consistency_level.filterForQuery(table, liveEndpoints);
+
+                    List<InetAddress> merged = intersection(liveEndpoints, nextEndpoints);
+
+                    // Check if there is enough endpoint for the merge to be possible.
+                    if (!consistency_level.isSufficientLiveNodes(table, merged))
+                        break;
+
+                    List<InetAddress> filteredMerged = consistency_level.filterForQuery(table, merged);
+
+                    // Estimate whether merging will be a win or not
+                    if (!DatabaseDescriptor.getEndpointSnitch().isWorthMergingForRangeQuery(filteredMerged, filteredEndpoints, nextFilteredEndpoints))
+                        break;
+
+                    // If we get there, merge this range and the next one
+                    range = range.withNewRight(nextRange.right);
+                    liveEndpoints = merged;
+                    filteredEndpoints = filteredMerged;
+                    ++i;
+                }
+
                 RangeSliceCommand nodeCmd = new RangeSliceCommand(command.keyspace,
                                                                   command.column_family,
                                                                   commandPredicate,
@@ -1107,16 +1175,13 @@ public class StorageProxy implements StorageProxyMBean
                                                                   command.countCQL3Rows,
                                                                   command.isPaging);
 
-                List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(nodeCmd.keyspace, range.right);
-                DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), liveEndpoints);
-
                 // collect replies and resolve according to consistency level
                 RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(nodeCmd.keyspace);
-                ReadCallback<RangeSliceReply, Iterable<Row>> handler = getReadCallback(resolver, nodeCmd, consistency_level, liveEndpoints);
+                ReadCallback<RangeSliceReply, Iterable<Row>> handler = new ReadCallback(resolver, consistency_level, nodeCmd, filteredEndpoints);
                 handler.assureSufficientLiveNodes();
-                resolver.setSources(handler.endpoints);
-                if (handler.endpoints.size() == 1
-                    && handler.endpoints.get(0).equals(FBUtilities.getBroadcastAddress())
+                resolver.setSources(filteredEndpoints);
+                if (filteredEndpoints.size() == 1
+                    && filteredEndpoints.get(0).equals(FBUtilities.getBroadcastAddress())
                     && OPTIMIZE_LOCAL_REQUESTS)
                 {
                     logger.trace("reading data locally");
@@ -1125,7 +1190,7 @@ public class StorageProxy implements StorageProxyMBean
                 else
                 {
                     MessageOut<RangeSliceCommand> message = nodeCmd.createMessage();
-                    for (InetAddress endpoint : handler.endpoints)
+                    for (InetAddress endpoint : filteredEndpoints)
                     {
                         MessagingService.instance().sendRR(message, endpoint, handler);
                         logger.trace("reading {} from {}", nodeCmd, endpoint);
@@ -1147,7 +1212,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     logger.debug("Range slice timeout: {}", ex.toString());
                     // We actually got all response at that point
-                    int blockFor = consistency_level.blockFor(command.keyspace);
+                    int blockFor = consistency_level.blockFor(table);
                     throw new ReadTimeoutException(consistency_level, blockFor, blockFor, true);
                 }
                 catch (DigestMismatchException e)

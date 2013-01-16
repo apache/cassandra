@@ -165,16 +165,6 @@ public class SimpleStrategyTest extends SchemaLoader
         StorageServiceAccessor.setTokenMetadata(oldTmd);
     }
 
-    private AbstractReplicationStrategy getStrategyWithNewTokenMetadata(AbstractReplicationStrategy strategy, TokenMetadata newTmd) throws ConfigurationException
-    {
-        return AbstractReplicationStrategy.createReplicationStrategy(
-                strategy.table,
-                strategy.getClass().getName(),
-                newTmd,
-                strategy.snitch,
-                strategy.configOptions);
-    }
-
     private AbstractReplicationStrategy getStrategy(String table, TokenMetadata tmd) throws ConfigurationException
     {
         KSMetaData ksmd = Schema.instance.getKSMetaData(table);

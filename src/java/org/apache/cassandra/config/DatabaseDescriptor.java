@@ -90,6 +90,7 @@ public class DatabaseDescriptor
     private static IAllocator memoryAllocator;
 
     private static String localDC;
+    private static Comparator<InetAddress> localComparator;
 
     /**
      * Inspect the classpath to find storage configuration file
@@ -340,6 +341,19 @@ public class DatabaseDescriptor
             EndpointSnitchInfo.create();
 
             localDC = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
+            localComparator = new Comparator<InetAddress>()
+            {
+                public int compare(InetAddress endpoint1, InetAddress endpoint2)
+                {
+                    boolean local1 = localDC.equals(snitch.getDatacenter(endpoint1));
+                    boolean local2 = localDC.equals(snitch.getDatacenter(endpoint2));
+                    if (local1 && !local2)
+                        return -1;
+                    if (local2 && !local1)
+                        return 1;
+                    return 0;
+                }
+            };
 
             /* Request Scheduler setup */
             requestSchedulerOptions = conf.request_scheduler_options;
@@ -1253,6 +1267,11 @@ public class DatabaseDescriptor
     public static String getLocalDataCenter()
     {
         return localDC;
+    }
+
+    public static Comparator<InetAddress> getLocalComparator()
+    {
+        return localComparator;
     }
 
     public static Config.InternodeCompression internodeCompression()
