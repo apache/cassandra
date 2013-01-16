@@ -81,6 +81,11 @@ public class SliceQueryFilter implements IDiskAtomFilter
         this.countMutliplierForCompatibility = countMutliplierForCompatibility;
     }
 
+    public SliceQueryFilter cloneShallow()
+    {
+        return new SliceQueryFilter(slices, reversed, count, compositesToGroup, countMutliplierForCompatibility);
+    }
+
     public SliceQueryFilter withUpdatedCount(int newCount)
     {
         return new SliceQueryFilter(slices, reversed, newCount, compositesToGroup, countMutliplierForCompatibility);

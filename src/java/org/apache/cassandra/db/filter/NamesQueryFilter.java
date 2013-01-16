@@ -66,6 +66,12 @@ public class NamesQueryFilter implements IDiskAtomFilter
         this(FBUtilities.singleton(column));
     }
 
+    public NamesQueryFilter cloneShallow()
+    {
+        // NQF is immutable as far as shallow cloning is concerned, so save the allocation.
+        return this;
+    }
+
     public NamesQueryFilter withUpdatedColumns(SortedSet<ByteBuffer> newColumns)
     {
        return new NamesQueryFilter(newColumns, countCQL3Rows);

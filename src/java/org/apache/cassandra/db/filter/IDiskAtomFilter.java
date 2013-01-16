@@ -75,6 +75,8 @@ public interface IDiskAtomFilter
 
     public int getLiveCount(ColumnFamily cf);
 
+    public IDiskAtomFilter cloneShallow();
+
     public static class Serializer implements IVersionedSerializer<IDiskAtomFilter>
     {
         public static Serializer instance = new Serializer();

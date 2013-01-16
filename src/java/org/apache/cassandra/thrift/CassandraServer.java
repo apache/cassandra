@@ -434,7 +434,9 @@ public class CassandraServer implements Cassandra.Iface
         for (ByteBuffer key: keys)
         {
             ThriftValidation.validateKey(metadata, key);
-            commands.add(ReadCommand.create(keyspace, key, column_parent.getColumn_family(), filter));
+            // Note that we should not share a slice filter amongst the command, due to SliceQueryFilter not  being immutable
+            // due to its columnCounter used by the lastCounted() method (also see SelectStatement.getSliceCommands)
+            commands.add(ReadCommand.create(keyspace, key, column_parent.getColumn_family(), filter.cloneShallow()));
         }
 
         return getSlice(commands, column_parent.isSetSuper_column(), consistencyLevel);

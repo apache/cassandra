@@ -201,31 +201,16 @@ public class SelectStatement implements CQLStatement
         Collection<ByteBuffer> keys = getKeys(variables);
         List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
 
-        // ...a range (slice) of column names
-        if (isColumnRange())
+        IDiskAtomFilter filter = makeFilter(variables);
+        // Note that we use the total limit for every key, which is potentially inefficient.
+        // However, IN + LIMIT is not a very sensible choice.
+        for (ByteBuffer key : keys)
         {
-            // Note that we use the total limit for every key. This is
-            // potentially inefficient, but then again, IN + LIMIT is not a
-            // very sensible choice
-            for (ByteBuffer key : keys)
-            {
-                QueryProcessor.validateKey(key);
-                // Note that we should not share the slice filter amongst the command, due to SliceQueryFilter not
-                // being immutable due to its columnCounter used by the lastCounted() method
-                // (this is fairly ugly and we should change that but that's probably not a tiny refactor to do that cleanly)
-                commands.add(new SliceFromReadCommand(keyspace(), key, columnFamily(), (SliceQueryFilter)makeFilter(variables)));
-            }
-        }
-        // ...of a list of column names
-        else
-        {
-            // ByNames commands can share the filter
-            IDiskAtomFilter filter = makeFilter(variables);
-            for (ByteBuffer key: keys)
-            {
-                QueryProcessor.validateKey(key);
-                commands.add(new SliceByNamesReadCommand(keyspace(), key, columnFamily(), (NamesQueryFilter)filter));
-            }
+            QueryProcessor.validateKey(key);
+            // We should not share the slice filter amongst the commands (hence the cloneShallow), due to
+            // SliceQueryFilter not being immutable due to its columnCounter used by the lastCounted() method
+            // (this is fairly ugly and we should change that but that's probably not a tiny refactor to do that cleanly)
+            commands.add(ReadCommand.create(keyspace(), key, columnFamily(), filter.cloneShallow()));
         }
         return commands;
     }

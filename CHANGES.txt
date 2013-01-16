@@ -2,7 +2,7 @@
  * make index_interval configurable per columnfamily (CASSANDRA-3961)
  * add default_tim_to_live (CASSANDRA-3974)
  * add memtable_flush_period_in_ms (CASSANDRA-4237)
- * replace supercolumns internally by composites (CASSANDRA-3237)
+ * replace supercolumns internally by composites (CASSANDRA-3237, 5123)
  * upgrade thrift to 0.9.0 (CASSANDRA-3719)
 
 1.2.1
