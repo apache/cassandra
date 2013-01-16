@@ -688,14 +688,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return ep1.getHeartBeatState().getGeneration() - ep2.getHeartBeatState().getGeneration();
     }
 
-    void notifyFailureDetector(List<GossipDigest> gDigests)
-    {
-        for ( GossipDigest gDigest : gDigests )
-        {
-            notifyFailureDetector(gDigest.endpoint, endpointStateMap.get(gDigest.endpoint));
-        }
-    }
-
     void notifyFailureDetector(Map<InetAddress, EndpointState> remoteEpStateMap)
     {
         for (Entry<InetAddress, EndpointState> entry : remoteEpStateMap.entrySet())

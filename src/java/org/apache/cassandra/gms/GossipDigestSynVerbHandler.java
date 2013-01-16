@@ -70,8 +70,6 @@ public class GossipDigestSynVerbHandler implements IVerbHandler<GossipDigestSyn>
             }
             logger.trace("Gossip syn digests are : " + sb.toString());
         }
-        /* Notify the Failure Detector */
-        Gossiper.instance.notifyFailureDetector(gDigestList);
 
         doSort(gDigestList);
 
