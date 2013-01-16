@@ -395,6 +395,26 @@ public class SystemTable
     }
 
     /**
+     * Return a map of IP addresses containing a map of dc and rack info
+     */
+    public static Map<InetAddress, Map<String,String>> loadDcRackInfo()
+    {
+        Map<InetAddress, Map<String, String>> result = new HashMap<InetAddress, Map<String, String>>();
+        for (UntypedResultSet.Row row : processInternal("SELECT peer, data_center, rack from system." + PEERS_CF))
+        {
+            InetAddress peer = row.getInetAddress("peer");
+            if (row.has("data_center"))
+            {
+                Map<String, String> dcRack = new HashMap<String, String>();
+                dcRack.put("data_center", row.getString("data_center"));
+                dcRack.put("rack", row.getString("rack"));
+                result.put(peer, dcRack);
+            }
+        }
+        return result;
+    }
+
+    /**
      * One of three things will happen if you try to read the system table:
      * 1. files are present and you can read them: great
      * 2. no files are there: great (new node is assumed)

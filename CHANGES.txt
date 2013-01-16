@@ -1,4 +1,5 @@
 1.2.1
+ * GossipingPropertyFileSnitch loads saved dc/rack info if needed (CASSANDRA-5133)
  * drain should flush system CFs too (CASSANDRA-4446)
  * add inter_dc_tcp_nodelay setting (CASSANDRA-5148)
  * re-allow wrapping ranges for start_token/end_token range pairing (CASSANDRA-5106)
