@@ -48,8 +48,10 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
         myRack = SnitchProperties.get("rack", null);
         if (myDC == null || myRack == null)
             throw new ConfigurationException("DC or rack not found in snitch properties");
+
         myDC = myDC.trim();
         myRack = myRack.trim();
+
         try
         {
             psnitch = new PropertyFileSnitch();
