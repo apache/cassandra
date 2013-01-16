@@ -128,7 +128,7 @@ public class DatabaseDescriptor
         {
             URL url = getStorageConfigURL();
             logger.info("Loading settings from " + url);
-            InputStream input = null;
+            InputStream input;
             try
             {
                 input = url.openStream();
@@ -206,7 +206,7 @@ public class DatabaseDescriptor
 
             /* Authentication and authorization backend, implementing IAuthenticator and IAuthorizer */
             if (conf.authenticator != null)
-                authenticator = FBUtilities.<IAuthenticator>construct(conf.authenticator, "authenticator");
+                authenticator = FBUtilities.construct(conf.authenticator, "authenticator");
 
             if (conf.authority != null)
             {
@@ -217,7 +217,7 @@ public class DatabaseDescriptor
             }
 
             if (conf.authorizer != null)
-                authorizer = FBUtilities.<IAuthorizer>construct(conf.authorizer, "authorizer");
+                authorizer = FBUtilities.construct(conf.authorizer, "authorizer");
 
             authenticator.validateConfiguration();
             authorizer.validateConfiguration();
