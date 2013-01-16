@@ -19,7 +19,9 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
+import java.util.Map;
 
+import org.apache.cassandra.db.SystemTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +38,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
     private PropertyFileSnitch psnitch;
     private String myDC;
     private String myRack;
+    private Map<InetAddress, Map<String, String>> savedEndpoints;
 
     public GossipingPropertyFileSnitch() throws ConfigurationException
     {
@@ -69,7 +72,13 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
         if (epState == null || epState.getApplicationState(ApplicationState.DC) == null)
         {
             if (psnitch == null)
+            {
+                if (savedEndpoints == null)
+                    savedEndpoints = SystemTable.loadDcRackInfo();
+                if (savedEndpoints.containsKey(endpoint))
+                    return savedEndpoints.get(endpoint).get("data_center");
                 throw new RuntimeException("Could not retrieve DC for " + endpoint + " from gossip and PFS compatibility is disabled");
+            }
             else
                 return psnitch.getDatacenter(endpoint);
         }
@@ -91,7 +100,13 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
         if (epState == null || epState.getApplicationState(ApplicationState.RACK) == null)
         {
             if (psnitch == null)
+            {
+                if (savedEndpoints == null)
+                    savedEndpoints = SystemTable.loadDcRackInfo();
+                if (savedEndpoints.containsKey(endpoint))
+                    return savedEndpoints.get(endpoint).get("rack");
                 throw new RuntimeException("Could not retrieve rack for " + endpoint + " from gossip and PFS compatibility is disabled");
+            }
             else
                 return psnitch.getRack(endpoint);
         }
