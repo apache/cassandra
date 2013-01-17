@@ -55,11 +55,8 @@ Merged from 1.1:
  * Fix CQL3 BATCH authorization caching (CASSANDRA-5145)
  * fix get_count returns incorrect value with TTL (CASSANDRA-5099)
  * better handling for amid compaction failure (CASSANDRA-5137)
-<<<<<<< HEAD
-=======
  * calculate pending ranges asynchronously (CASSANDRA-5135)
  * convert default marshallers list to map for better readability (CASSANDRA-5109)
->>>>>>> cassandra-1.1
 
 
 1.2.0
