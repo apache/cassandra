@@ -1144,7 +1144,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     nextRange = ranges.get(i);
                     nextEndpoints = getLiveSortedEndpoints(table, nextRange.right);
-                    nextFilteredEndpoints = consistency_level.filterForQuery(table, liveEndpoints);
+                    nextFilteredEndpoints = consistency_level.filterForQuery(table, nextEndpoints);
 
                     List<InetAddress> merged = intersection(liveEndpoints, nextEndpoints);
 
