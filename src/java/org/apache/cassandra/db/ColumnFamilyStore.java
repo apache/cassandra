@@ -2043,4 +2043,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         markCompacted(truncatedSSTables, OperationType.UNKNOWN);
         return ReplayPosition.getReplayPosition(truncatedSSTables);
     }
+
+    public double getDroppableTombstoneRatio()
+    {
+        return getDataTracker().getDroppableTombstoneRatio();
+    }
 }

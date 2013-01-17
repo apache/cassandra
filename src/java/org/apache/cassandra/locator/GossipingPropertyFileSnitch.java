@@ -39,6 +39,8 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
     private String myDC;
     private String myRack;
     private Map<InetAddress, Map<String, String>> savedEndpoints;
+    private String DEFAULT_DC = "UNKNOWN_DC";
+    private String DEFAULT_RACK = "UNKNOWN_RACK";
 
     public GossipingPropertyFileSnitch() throws ConfigurationException
     {
@@ -46,6 +48,10 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
         myRack = SnitchProperties.get("rack", null);
         if (myDC == null || myRack == null)
             throw new ConfigurationException("DC or rack not found in snitch properties");
+
+        myDC = myDC.trim();
+        myRack = myRack.trim();
+
         try
         {
             psnitch = new PropertyFileSnitch();
@@ -77,7 +83,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
                     savedEndpoints = SystemTable.loadDcRackInfo();
                 if (savedEndpoints.containsKey(endpoint))
                     return savedEndpoints.get(endpoint).get("data_center");
-                throw new RuntimeException("Could not retrieve DC for " + endpoint + " from gossip and PFS compatibility is disabled");
+                return DEFAULT_DC;
             }
             else
                 return psnitch.getDatacenter(endpoint);
@@ -105,7 +111,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch
                     savedEndpoints = SystemTable.loadDcRackInfo();
                 if (savedEndpoints.containsKey(endpoint))
                     return savedEndpoints.get(endpoint).get("rack");
-                throw new RuntimeException("Could not retrieve rack for " + endpoint + " from gossip and PFS compatibility is disabled");
+                return DEFAULT_RACK;
             }
             else
                 return psnitch.getRack(endpoint);

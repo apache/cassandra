@@ -157,8 +157,9 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
             {
                 String[] newDefault = value.split(":");
                 if (newDefault.length < 2)
-                    newDefault = new String[] { "default", "default" };
-                defaultDCRack = newDefault;
+                    defaultDCRack = new String[] { "default", "default" };
+                else
+                    defaultDCRack = new String[] { newDefault[0].trim(), newDefault[1].trim() };
             }
             else
             {
@@ -175,6 +176,8 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
                 String[] token = value.split(":");
                 if (token.length < 2)
                     token = new String[] { "default", "default" };
+                else
+                    token = new String[] { token[0].trim(), token[1].trim() };
                 reloadedMap.put(host, token);
             }
         }
