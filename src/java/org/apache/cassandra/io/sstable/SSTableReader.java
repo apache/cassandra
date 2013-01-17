@@ -1086,6 +1086,11 @@ public class SSTableReader extends SSTable
         return sstableMetadata.getEstimatedDroppableTombstoneRatio(gcBefore);
     }
 
+    public double getDroppableTombstonesBefore(int gcBefore)
+    {
+        return sstableMetadata.getDroppableTombstonesBefore(gcBefore);
+    }
+
     public double getCompressionRatio()
     {
         return sstableMetadata.compressionRatio;
