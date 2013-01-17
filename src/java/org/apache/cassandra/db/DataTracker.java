@@ -389,6 +389,24 @@ public class DataTracker
         return count > 0 ? (int) (sum / count) : 0;
     }
 
+    public double getDroppableTombstoneRatio()
+    {
+        double allDroppable = 0;
+        long allColumns = 0;
+        int localTime = (int)(System.currentTimeMillis()/1000);
+
+        for (SSTableReader sstable : getSSTables())
+        {
+            allDroppable += sstable.getDroppableTombstonesBefore(localTime - sstable.metadata.getGcGraceSeconds());
+            allColumns += sstable.getEstimatedColumnCount().mean() * sstable.getEstimatedColumnCount().count();
+        }
+        if (allColumns > 0)
+        {
+            return allDroppable / allColumns;
+        }
+        return 0;
+    }
+
     public void notifySSTablesChanged(Iterable<SSTableReader> removed, Iterable<SSTableReader> added, OperationType compactionType)
     {
         for (INotificationConsumer subscriber : subscribers)

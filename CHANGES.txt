@@ -57,6 +57,8 @@ Merged from 1.1:
  * better handling for amid compaction failure (CASSANDRA-5137)
  * calculate pending ranges asynchronously (CASSANDRA-5135)
  * convert default marshallers list to map for better readability (CASSANDRA-5109)
+ * Expose droppable tombstone ratio stats over JMX (CASSANDRA-5159)
+ 
 
 
 1.2.0

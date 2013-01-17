@@ -121,10 +121,20 @@ public class SSTableMetadata
         long estimatedColumnCount = this.estimatedColumnCount.mean() * this.estimatedColumnCount.count();
         if (estimatedColumnCount > 0)
         {
-            double droppable = estimatedTombstoneDropTime.sum(gcBefore);
+            double droppable = getDroppableTombstonesBefore(gcBefore);
             return droppable / estimatedColumnCount;
         }
         return 0.0f;
+    }
+
+    /**
+     * Get the amount of droppable tombstones
+     * @param gcBefore the gc time
+     * @return amount of droppable tombstones
+     */
+    public double getDroppableTombstonesBefore(int gcBefore)
+    {
+        return estimatedTombstoneDropTime.sum(gcBefore);
     }
 
     public static class Collector

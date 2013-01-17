@@ -333,4 +333,10 @@ public interface ColumnFamilyStoreMBean
      *         array index corresponds to level(int[0] is for level 0, ...).
      */
     public int[] getSSTableCountPerLevel();
+
+    /**
+     * Get the ratio of droppable tombstones to real columns (and non-droppable tombstones)
+     * @return ratio
+     */
+    public double getDroppableTombstoneRatio();
 }
