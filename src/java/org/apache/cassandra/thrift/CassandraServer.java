@@ -1842,9 +1842,18 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
+    /*
+     * Deprecated, but if a client sets CQL2, it is a no-op for compatibility sake.
+     * If it sets CQL3 however, we throw an IRE because this mean the client
+     * hasn't been updated for Cassandra 1.2 and should start using the new
+     * execute_cql3_query, etc... and there is no point no warning it early.
+     */
     public void set_cql_version(String version) throws InvalidRequestException
     {
-        // Deprecated, no-op
+        if (version.trim().startsWith("2"))
+            return;
+
+        throw new InvalidRequestException("Invalid use of the CQL thrift interface. This most likely mean the client you are using has not been updated for Cassandra 1.2");
     }
 
     public ByteBuffer trace_next_query() throws TException
