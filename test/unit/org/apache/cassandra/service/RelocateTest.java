@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
@@ -186,6 +187,7 @@ public class RelocateTest
 
         // Create a list of the endpoint's existing tokens, and add the relocatee to it.
         List<Token> tokens = new ArrayList<Token>(tmd.getTokens(relocator));
+        SystemTable.updateTokens(tokens);
         tokens.add(relocatee);
 
         // Send a normal status, then ensure all is copesetic.
