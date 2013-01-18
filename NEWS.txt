@@ -8,6 +8,20 @@ upgrade, just in case you need to roll back to the previous version.
 (Cassandra version X + 1 will always be able to read data files created
 by version X, but the inverse is not necessarily the case.)
 
+1.2.1
+=====
+
+Upgrading
+---------
+    - In CQL3, date string are no longer accepted as timeuuid value since a
+      date string is not a correct representation of a timeuuid. Instead, new
+      methods (minTimeuuid, maxTimeuuid, now, dateOf, unixTimestampOf) have been
+      introduced to make working on timeuuid from date string easy. cqlsh also
+      does not display timeuuid as date string (since this is a lossy
+      representation), but the new dateOf method can be used instead. Please
+      refer to the reference documentation (http://cassandra.apache.org/doc/cql3/CQL.html)
+      for more detail.
+
 
 1.2
 ===

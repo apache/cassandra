@@ -19,6 +19,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.cql.jdbc.JdbcTimeUUID;
@@ -30,6 +31,7 @@ public class TimeUUIDType extends AbstractType<UUID>
     public static final TimeUUIDType instance = new TimeUUIDType();
 
     static final Pattern regexPattern = Pattern.compile("[A-Fa-f0-9]{8}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{12}");
+    static final Pattern functionPattern = Pattern.compile("(\\w+)\\((.*)\\)");
 
     TimeUUIDType() {} // singleton
 
@@ -100,7 +102,10 @@ public class TimeUUIDType extends AbstractType<UUID>
         }
     }
 
-    public ByteBuffer fromString(String source) throws MarshalException
+    // This accepts dates are valid TimeUUID represensation, which is bogus
+    // (see #4936) but kept for CQL2 for compatibility sake.
+    @Override
+    public ByteBuffer fromStringCQL2(String source) throws MarshalException
     {
         // Return an empty ByteBuffer for an empty string.
         if (source.isEmpty())
@@ -128,6 +133,64 @@ public class TimeUUIDType extends AbstractType<UUID>
         else
         {
             idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(DateType.dateStringToTimestamp(source)));
+        }
+
+        return idBytes;
+    }
+
+    public ByteBuffer fromString(String source) throws MarshalException
+    {
+        // Return an empty ByteBuffer for an empty string.
+        if (source.isEmpty())
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
+        ByteBuffer idBytes = null;
+
+        // ffffffff-ffff-ffff-ffff-ffffffffff
+        if (regexPattern.matcher(source).matches())
+        {
+            UUID uuid = null;
+            try
+            {
+                uuid = UUID.fromString(source);
+                idBytes = decompose(uuid);
+            }
+            catch (IllegalArgumentException e)
+            {
+                throw new MarshalException(String.format("Unable to make UUID from '%s'", source), e);
+            }
+
+            if (uuid.version() != 1)
+                throw new MarshalException("TimeUUID supports only version 1 UUIDs");
+        }
+        else
+        {
+            Matcher m = functionPattern.matcher(source);
+            if (!m.matches())
+                throw new MarshalException(String.format("Unable to make a time-based UUID from '%s'", source));
+
+            String fct = m.group(1);
+            String arg = m.group(2);
+
+            if (fct.equalsIgnoreCase("minTimeUUID"))
+            {
+                idBytes = decompose(UUIDGen.minTimeUUID(DateType.dateStringToTimestamp(arg)));
+            }
+            else if (fct.equalsIgnoreCase("maxTimeUUID"))
+            {
+                idBytes = decompose(UUIDGen.maxTimeUUID(DateType.dateStringToTimestamp(arg)));
+            }
+            else if (fct.equalsIgnoreCase("now"))
+            {
+                if (!arg.trim().isEmpty())
+                    throw new MarshalException(String.format("The 'now' timeuuid method takes no argument ('%s' provided)", arg));
+
+                idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
+            }
+            else
+            {
+                throw new MarshalException(String.format("Unknown timeuuid method '%s'", fct));
+            }
         }
 
         return idBytes;

@@ -52,6 +52,7 @@ import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * Encapsulates a completely parsed SELECT query, including the target
@@ -627,7 +628,7 @@ public class SelectStatement implements CQLStatement
             {
                 case WRITE_TIME:
                     cqlRows.addColumnValue(ByteBufferUtil.bytes(c.timestamp()));
-                    break;
+                    return;
                 case TTL:
                     if (c instanceof ExpiringColumn)
                     {
@@ -638,13 +639,31 @@ public class SelectStatement implements CQLStatement
                     {
                         cqlRows.addColumnValue(null);
                     }
-                    break;
+                    return;
             }
         }
-        else
+
+        addReturnValue(cqlRows, s, value(c));
+    }
+
+    private void addReturnValue(ResultSet cqlRows, Selector s, ByteBuffer value)
+    {
+        if (value != null && s.hasFunction())
         {
-            cqlRows.addColumnValue(value(c));
+            switch (s.function())
+            {
+                case DATE_OF:
+                    value = DateType.instance.decompose(new Date(UUIDGen.unixTimestamp(UUIDGen.getUUID(value))));
+                    break;
+                case UNIXTIMESTAMP_OF:
+                    value = ByteBufferUtil.bytes(UUIDGen.unixTimestamp(UUIDGen.getUUID(value)));
+                    break;
+                case WRITE_TIME:
+                case TTL:
+                    throw new AssertionError("Cannot return the timestamp or ttl of a value");
+            }
         }
+        cqlRows.addColumnValue(value);
     }
 
     private ResultSet createResult(List<Pair<CFDefinition.Name, Selector>> selection)
@@ -652,22 +671,9 @@ public class SelectStatement implements CQLStatement
         List<ColumnSpecification> names = new ArrayList<ColumnSpecification>(selection.size());
         for (Pair<CFDefinition.Name, Selector> p : selection)
         {
-            if (p.right.hasFunction())
-            {
-                switch (p.right.function())
-                {
-                    case WRITE_TIME:
-                        names.add(new ColumnSpecification(p.left.ksName, p.left.cfName, new ColumnIdentifier(p.right.toString(), true), LongType.instance));
-                        break;
-                    case TTL:
-                        names.add(new ColumnSpecification(p.left.ksName, p.left.cfName, new ColumnIdentifier(p.right.toString(), true), Int32Type.instance));
-                        break;
-                }
-            }
-            else
-            {
-                names.add(p.left);
-            }
+            names.add(p.right.hasFunction()
+                      ? new ColumnSpecification(p.left.ksName, p.left.cfName, new ColumnIdentifier(p.right.toString(), true), p.right.function().resultType)
+                      : p.left);
         }
         return new ResultSet(names);
     }
@@ -763,20 +769,13 @@ public class SelectStatement implements CQLStatement
                         switch (name.kind)
                         {
                             case KEY_ALIAS:
-                                cqlRows.addColumnValue(keyComponents[name.position]);
+                                addReturnValue(cqlRows, selector, keyComponents[name.position]);
                                 break;
                             case COLUMN_ALIAS:
-                                if (cfDef.isComposite)
-                                {
-                                    if (name.position < components.length)
-                                        cqlRows.addColumnValue(components[name.position]);
-                                    else
-                                        cqlRows.addColumnValue(null);
-                                }
-                                else
-                                {
-                                    cqlRows.addColumnValue(c.name());
-                                }
+                                ByteBuffer val = cfDef.isComposite
+                                               ? (name.position < components.length ? components[name.position] : null)
+                                               : c.name();
+                                addReturnValue(cqlRows, selector, val);
                                 break;
                             case VALUE_ALIAS:
                                 addReturnValue(cqlRows, selector, c);
@@ -821,7 +820,7 @@ public class SelectStatement implements CQLStatement
                     Selector selector = p.right;
                     if (name.kind == CFDefinition.Name.Kind.KEY_ALIAS)
                     {
-                        cqlRows.addColumnValue(keyComponents[name.position]);
+                        addReturnValue(cqlRows, selector, keyComponents[name.position]);
                         continue;
                     }
 
@@ -925,10 +924,10 @@ public class SelectStatement implements CQLStatement
             switch (name.kind)
             {
                 case KEY_ALIAS:
-                    cqlRows.addColumnValue(keyComponents[name.position]);
+                    addReturnValue(cqlRows, selector, keyComponents[name.position]);
                     break;
                 case COLUMN_ALIAS:
-                    cqlRows.addColumnValue(columns.getKeyComponent(name.position));
+                    addReturnValue(cqlRows, selector, columns.getKeyComponent(name.position));
                     break;
                 case VALUE_ALIAS:
                     // This should not happen for SPARSE
@@ -937,14 +936,16 @@ public class SelectStatement implements CQLStatement
                     if (name.type.isCollection())
                     {
                         List<Pair<ByteBuffer, IColumn>> collection = columns.getCollection(name.name.key);
-                        if (collection == null)
-                            cqlRows.addColumnValue(null);
-                        else
-                            cqlRows.addColumnValue(((CollectionType)name.type).serialize(collection));
-                        break;
+                        ByteBuffer value = collection == null
+                                         ? null
+                                         : ((CollectionType)name.type).serialize(collection);
+                        addReturnValue(cqlRows, selector, value);
                     }
-                    IColumn c = columns.getSimple(name.name.key);
-                    addReturnValue(cqlRows, selector, c);
+                    else
+                    {
+                        IColumn c = columns.getSimple(name.name.key);
+                        addReturnValue(cqlRows, selector, c);
+                    }
                     break;
                 default:
                     throw new AssertionError();
@@ -1006,10 +1007,24 @@ public class SelectStatement implements CQLStatement
                     CFDefinition.Name name = cfDef.get(t.id());
                     if (name == null)
                         throw new InvalidRequestException(String.format("Undefined name %s in selection clause", t.id()));
-                    if (t.hasFunction() && name.kind != CFDefinition.Name.Kind.COLUMN_METADATA && name.kind != CFDefinition.Name.Kind.VALUE_ALIAS)
-                        throw new InvalidRequestException(String.format("Cannot use function %s on PRIMARY KEY part %s", t.function(), name));
-                    if (t.hasFunction() && name.type.isCollection())
-                        throw new InvalidRequestException(String.format("Function %s is not supported on collections", t.function()));
+                    if (t.hasFunction())
+                    {
+                        if (name.type.isCollection())
+                            throw new InvalidRequestException(String.format("Function %s is not supported on collections", t.function()));
+                        switch (t.function())
+                        {
+                            case WRITE_TIME:
+                            case TTL:
+                                if (name.kind != CFDefinition.Name.Kind.COLUMN_METADATA && name.kind != CFDefinition.Name.Kind.VALUE_ALIAS)
+                                    throw new InvalidRequestException(String.format("Cannot use function %s on PRIMARY KEY part %s", t.function(), name));
+                                break;
+                            case DATE_OF:
+                            case UNIXTIMESTAMP_OF:
+                                if (!(name.type instanceof TimeUUIDType))
+                                    throw new InvalidRequestException(String.format("Function %s is only allowed on timeuuid columns", t.function()));
+                                break;
+                        }
+                    }
 
                     stmt.selectedNames.add(Pair.create(name, t));
                 }

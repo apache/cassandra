@@ -122,6 +122,8 @@ def format_value_decimal(val, colormap, **_):
 def format_value_uuid(val, colormap, **_):
     return format_python_formatted_type(val, colormap, 'uuid')
 
+formatter_for('timeuuid')(format_value_uuid)
+
 @formatter_for('inet')
 def formatter_value_inet(val, colormap, **_):
     return format_python_formatted_type(val, colormap, 'inet')
@@ -150,12 +152,6 @@ formatter_for('counter')(format_integer_type)
 @formatter_for('timestamp')
 def format_value_timestamp(val, colormap, time_format, **_):
     bval = strftime(time_format, val)
-    return colorme(bval, colormap, 'timestamp')
-
-@formatter_for('timeuuid')
-def format_value_timeuuid(val, colormap, time_format, **_):
-    utime = cqltypes.unix_time_from_uuid1(val)
-    bval = strftime(time_format, utime)
     return colorme(bval, colormap, 'timestamp')
 
 def strftime(time_format, seconds):

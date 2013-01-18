@@ -22,12 +22,23 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.db.marshal.*;
 
 public abstract class Selector
 {
     public enum Function
     {
-        WRITE_TIME, TTL;
+        WRITE_TIME      (LongType.instance),
+        TTL             (Int32Type.instance),
+        DATE_OF         (DateType.instance),
+        UNIXTIMESTAMP_OF(LongType.instance);
+
+        public final AbstractType<?> resultType;
+
+        private Function(AbstractType<?> resultType)
+        {
+            this.resultType = resultType;
+        }
 
         @Override
         public String toString()
@@ -38,6 +49,10 @@ public abstract class Selector
                     return "writetime";
                 case TTL:
                     return "ttl";
+                case DATE_OF:
+                    return "dateof";
+                case UNIXTIMESTAMP_OF:
+                    return "unixtimestampof";
             }
             throw new AssertionError();
         }

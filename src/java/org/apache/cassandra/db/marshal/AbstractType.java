@@ -138,6 +138,12 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     /** get a byte representation of the given string. */
     public abstract ByteBuffer fromString(String source) throws MarshalException;
 
+    /** for compatibility with TimeUUID in CQL2. See TimeUUIDType (that overrides it). */
+    public ByteBuffer fromStringCQL2(String source) throws MarshalException
+    {
+        return fromString(source);
+    }
+
     /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
     public abstract void validate(ByteBuffer bytes) throws MarshalException;
 

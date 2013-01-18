@@ -69,7 +69,7 @@ public class AlterTableStatement
         CFMetaData cfm = meta.clone();
 
         ByteBuffer columnName = this.oType == OperationType.OPTS ? null
-                                                                 : meta.comparator.fromString(this.columnName);
+                                                                 : meta.comparator.fromStringCQL2(this.columnName);
 
         switch (oType)
         {
