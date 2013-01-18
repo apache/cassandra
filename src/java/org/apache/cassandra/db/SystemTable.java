@@ -248,7 +248,7 @@ public class SystemTable
     {
         if (ep.equals(FBUtilities.getBroadcastAddress()))
         {
-            removeTokens(tokens);
+            removeEndpoint(ep);
             return;
         }
 
@@ -300,18 +300,10 @@ public class SystemTable
     /**
      * Remove stored tokens being used by another node
      */
-    public static synchronized void removeTokens(Collection<Token> tokens)
+    public static synchronized void removeEndpoint(InetAddress ep)
     {
-        Set<Token> tokenSet = new HashSet<Token>(tokens);
-        for (Map.Entry<InetAddress, Collection<Token>> entry : loadTokens().asMap().entrySet())
-        {
-            Set<Token> toRemove = Sets.intersection(tokenSet, ((Set<Token>)entry.getValue())).immutableCopy();
-            if (toRemove.isEmpty())
-                continue;
-
-            String req = "UPDATE system.%s SET tokens = tokens - %s WHERE peer = '%s'";
-            processInternal(String.format(req, PEERS_CF, tokensAsSet(toRemove), entry.getKey().getHostAddress()));
-        }
+        String req = "DELETE FROM system.%s WHERE peer = '%s'";
+        processInternal(String.format(req, PEERS_CF, ep.getHostAddress()));
         forceBlockingFlush(PEERS_CF);
     }
 
@@ -320,7 +312,7 @@ public class SystemTable
     */
     public static synchronized void updateTokens(Collection<Token> tokens)
     {
-        assert !tokens.isEmpty() : "removeTokens should be used instead";
+        assert !tokens.isEmpty() : "removeEndpoint should be used instead";
         String req = "INSERT INTO system.%s (key, tokens) VALUES ('%s', %s)";
         processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, tokensAsSet(tokens)));
         forceBlockingFlush(LOCAL_CF);

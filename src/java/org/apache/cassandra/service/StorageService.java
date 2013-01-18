@@ -443,7 +443,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (ep.equals(FBUtilities.getBroadcastAddress()))
                 {
                     // entry has been mistakenly added, delete it
-                    SystemTable.removeTokens(loadedTokens.get(ep));
+                    SystemTable.removeEndpoint(ep);
                 }
                 else
                 {
@@ -1388,7 +1388,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         tokenMetadata.updateNormalTokens(tokensToUpdateInMetadata, endpoint);
         for (InetAddress ep : endpointsToRemove)
-            Gossiper.instance.removeEndpoint(ep);
+            removeEndpoint(ep);
         if (!tokensToUpdateInSystemTable.isEmpty())
             SystemTable.updateTokens(endpoint, tokensToUpdateInSystemTable);
         if (!localTokensToRemove.isEmpty())
@@ -1550,13 +1550,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
         else // now that the gossiper has told us about this nonexistent member, notify the gossiper to remove it
-            Gossiper.instance.removeEndpoint(endpoint);
+            removeEndpoint(endpoint);
     }
 
     private void excise(Collection<Token> tokens, InetAddress endpoint)
     {
+        logger.info("Removing tokens " + tokens + " for " + endpoint);
         HintedHandOffManager.instance.deleteHintsForEndpoint(endpoint);
-        Gossiper.instance.removeEndpoint(endpoint);
+        removeEndpoint(endpoint);
         tokenMetadata.removeEndpoint(endpoint);
         tokenMetadata.removeBootstrapTokens(tokens);
         if (!isClientMode)
@@ -1565,17 +1566,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 subscriber.onLeaveCluster(endpoint);
         }
         calculatePendingRanges();
-        if (!isClientMode)
-        {
-            logger.info("Removing tokens " + tokens + " for " + endpoint);
-            SystemTable.removeTokens(tokens);
-        }
     }
 
     private void excise(Collection<Token> tokens, InetAddress endpoint, long expireTime)
     {
         addExpireTimeIfFound(endpoint, expireTime);
         excise(tokens, endpoint);
+    }
+
+    /** unlike excise we just need this endpoint gone without going through any notifications **/
+    private void removeEndpoint(InetAddress endpoint)
+    {
+        Gossiper.instance.removeEndpoint(endpoint);
+        if (!isClientMode)
+            SystemTable.removeEndpoint(endpoint);
     }
 
     protected void addExpireTimeIfFound(InetAddress endpoint, long expireTime)
