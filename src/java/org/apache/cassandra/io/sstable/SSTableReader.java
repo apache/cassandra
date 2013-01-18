@@ -353,7 +353,9 @@ public class SSTableReader extends SSTable
      */
     private void load(boolean recreatebloom, Set<DecoratedKey> keysToLoadInCache) throws IOException
     {
-        boolean cacheLoading = keyCache != null && !keysToLoadInCache.isEmpty();
+        boolean cacheLoading = !keysToLoadInCache.isEmpty();
+        if (cacheLoading && keyCache == null)
+            keyCache = CacheService.instance.keyCache;
 
         SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
         SegmentedFile.Builder dbuilder = compression

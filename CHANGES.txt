@@ -1,3 +1,6 @@
+1.1.10
+ * fix saved key cache not loading at startup (CASSANDRA-5166)
+
 1.1.9
  * Simplify CompressedRandomAccessReader to work around JDK FD bug (CASSANDRA-5088)
  * Improve handling a changing target throttle rate mid-compaction (CASSANDRA-5087)

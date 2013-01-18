@@ -35,7 +35,10 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.cache.KeyCacheKey;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -43,6 +46,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
@@ -282,6 +286,34 @@ public class SSTableReaderTest extends SchemaLoader
         assert keySamples.size() == 1 && keySamples.iterator().next().equals(firstKey);
         assert target.first.equals(firstKey);
         assert target.last.equals(lastKey);
+    }
+
+    @Test
+    public void testLoadingSavedKeyCache() throws Exception
+    {
+        final String ks = "Keyspace1";
+        final String cf = "Standard1";
+        CFMetaData meta = Schema.instance.getCFMetaData(ks, cf);
+        Table.clear(ks);
+
+        ByteBuffer key = ByteBufferUtil.bytes("key");
+        CacheService.instance.keyCache.setCapacity(1024);
+        File dir = Directories.create(ks, cf).getDirectoryForNewSSTables(100);
+        SSTableSimpleWriter writer = new SSTableSimpleWriter(dir, meta, StorageService.getPartitioner());
+        writer.newRow(key);
+        writer.addColumn(ByteBufferUtil.bytes("col"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 1);
+        writer.close();
+        Descriptor desc = Descriptor.fromFilename(dir, String.format("%s-%s-%s-1-Data.db", ks, cf, Descriptor.CURRENT_VERSION)).left;
+
+        File cachePath = CacheService.instance.keyCache.getCachePath(ks, cf);
+        SequentialWriter out = SequentialWriter.open(cachePath);
+        new KeyCacheKey(desc, key).write(out.stream);
+        out.close();
+
+        ColumnFamilyStore cfs = Table.open(ks).getColumnFamilyStore(cf);
+        cfs.disableAutoCompaction();
+        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        assert 0 == sstable.getCachedPosition(StorageService.getPartitioner().decorateKey(key), false);
     }
 
     private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS) throws IOException
