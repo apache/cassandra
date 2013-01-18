@@ -43,6 +43,8 @@
  * Detect (and warn) unintentional use of the cql2 thrift methods when cql3 was
    intended (CASSANDRA-5172)
 Merged from 1.1:
+ * fix saved key cache not loading at startup (CASSANDRA-5166)
+ * fix ConcurrentModificationException in getBootstrapSource (CASSANDRA-5170)
  * Simplify CompressedRandomAccessReader to work around JDK FD bug (CASSANDRA-5088)
  * Improve handling a changing target throttle rate mid-compaction (CASSANDRA-5087)
  * Pig: correctly decode row keys in widerow mode (CASSANDRA-5098)
