@@ -964,6 +964,7 @@ The following describes the addition/changes brought for each version of CQL.
 h3. 3.0.1
 
 - "Date strings":#usingdates (and timestamps) are no longer accepted as valid @timeuuid@ values. Doing so was a bug in the sense that date string are not valid @timeuuid@, and it was thus resulting in "confusing behaviors":https://issues.apache.org/jira/browse/CASSANDRA-4936.  However, the following new methods have been added to help working with @timeuuid@: @now@, @minTimeuuid@, @maxTimeuuid@ , @dateOf@ and @unixTimestampOf@. See the "section dedicated to these methods":#usingtimeuuid for more detail.
+- "Float constants"#constants now support the exponent notation. In other words, @4.2E10@ is now a valid floating point value.
 
 
 h2. Versioning
