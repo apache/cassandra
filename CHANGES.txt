@@ -47,6 +47,8 @@
  * Coverage analysis for low-CL queries (CASSANDRA-4858)
  * Stop interpreting dates as valid timeUUID value (CASSANDRA-4936)
  * Adds E notation for floating point numbers (CASSANDRA-4927)
+ * Detect (and warn) unintentional use of the cql2 thrift methods when cql3 was
+   intended (CASSANDRA-5172)
 Merged from 1.1:
  * Simplify CompressedRandomAccessReader to work around JDK FD bug (CASSANDRA-5088)
  * Improve handling a changing target throttle rate mid-compaction (CASSANDRA-5087)

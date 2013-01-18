@@ -1147,6 +1147,16 @@ public class StorageProxy implements StorageProxyMBean
                     nextEndpoints = getLiveSortedEndpoints(table, nextRange.right);
                     nextFilteredEndpoints = consistency_level.filterForQuery(table, nextEndpoints);
 
+                    /*
+                     * If the current range right is the min token, we should stop merging because CFS.getRangeSlice
+                     * don't know how to deal with a wrapping range.
+                     * Note: it would be slightly more efficient to have CFS.getRangeSlice on the destination nodes unwraps
+                     * the range if necessary and deal with it. However, we can't start sending wrapped range without breaking
+                     * wire compatibility, so It's likely easier not to bother;
+                     */
+                    if (range.right.isMinimum())
+                        break;
+
                     List<InetAddress> merged = intersection(liveEndpoints, nextEndpoints);
 
                     // Check if there is enough endpoint for the merge to be possible.
