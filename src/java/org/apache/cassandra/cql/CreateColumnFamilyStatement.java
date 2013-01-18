@@ -131,7 +131,7 @@ public class CreateColumnFamilyStatement
         {
             try
             {
-                ByteBuffer columnName = comparator.fromString(col.getKey().getText());
+                ByteBuffer columnName = comparator.fromStringCQL2(col.getKey().getText());
                 String validatorClassName = CFPropDefs.comparators.containsKey(col.getValue())
                                           ? CFPropDefs.comparators.get(col.getValue())
                                           : col.getValue();

@@ -39,6 +39,20 @@ public class UUIDGen
     private static final long START_EPOCH = -12219292800000L;
     private static final long clockSeqAndNode = makeClockSeqAndNode();
 
+    /*
+     * The min and max possible lsb for a UUID.
+     * Note that his is not 0 and all 1's because Cassandra TimeUUIDType
+     * compares the lsb parts as a signed byte array comparison. So the min
+     * value is 8 times -128 and the max is 8 times +127.
+     *
+     * Note that we ignore the uuid variant (namely, MIN_CLOCK_SEQ_AND_NODE
+     * have variant 2 as it should, but MAX_CLOCK_SEQ_AND_NODE have variant 0).
+     * I don't think that has any practical consequence and is more robust in
+     * case someone provides a UUID with a broken variant.
+     */
+    private static final long MIN_CLOCK_SEQ_AND_NODE = 0x8080808080808080L;
+    private static final long MAX_CLOCK_SEQ_AND_NODE = 0x7f7f7f7f7f7f7f7fL;
+
     // placement of this singleton is important.  It needs to be instantiated *AFTER* the other statics.
     private static final UUIDGen instance = new UUIDGen();
 
@@ -92,8 +106,53 @@ public class UUIDGen
     }
 
     /**
+     * Returns the smaller possible type 1 UUID having the provided timestamp.
+     *
+     * <b>Warning:</b> this method should only be used for querying as this
+     * doesn't at all guarantee the uniqueness of the resulting UUID.
+     */
+    public static UUID minTimeUUID(long timestamp)
+    {
+        return new UUID(createTime(fromUnixTimestamp(timestamp)), MIN_CLOCK_SEQ_AND_NODE);
+    }
+
+    /**
+     * Returns the biggest possible type 1 UUID having the provided timestamp.
+     *
+     * <b>Warning:</b> this method should only be used for querying as this
+     * doesn't at all guarantee the uniqueness of the resulting UUID.
+     */
+    public static UUID maxTimeUUID(long timestamp)
+    {
+        // unix timestamp are milliseconds precision, uuid timestamp are 100's
+        // nanoseconds precision. If we ask for the biggest uuid have unix
+        // timestamp 1ms, then we should not extend 100's nanoseconds
+        // precision by taking 10000, but rather 19999.
+        long uuidTstamp = fromUnixTimestamp(timestamp + 1) - 1;
+        return new UUID(createTime(uuidTstamp), MAX_CLOCK_SEQ_AND_NODE);
+    }
+
+    public static long unixTimestamp(UUID uuid) {
+        if (uuid.version() != 1)
+            throw new IllegalArgumentException(String.format("Can only retrieve the unix timestamp for version 1 uuid (provided version %d)", uuid.version()));
+
+        long timestamp = uuid.timestamp();
+        return (timestamp / 10000) + START_EPOCH;
+    }
+
+    private static long fromUnixTimestamp(long tstamp) {
+        return (tstamp - START_EPOCH) * 10000;
+    }
+
+    /**
      * Converts a milliseconds-since-epoch timestamp into the 16 byte representation
      * of a type 1 UUID (a time-based UUID).
+     *
+     * <p><i><b>Deprecated:</b> This method goes again the principle of a time
+     * UUID and should not be used. For queries based on timestamp, minTimeUUID() and
+     * maxTimeUUID() can be used but this method has questionable usefulness. This is
+     * only kept because CQL2 uses it (see TimeUUID.fromStringCQL2) and we
+     * don't want to break compatibility.</i></p>
      *
      * <p><i><b>Warning:</b> This method is not guaranteed to return unique UUIDs; Multiple
      * invocations using identical timestamps will result in identical UUIDs.</i></p>
@@ -188,7 +247,7 @@ public class UUIDGen
         return createTime(nanosSince);
     }
 
-    private long createTime(long nanosSince)
+    private static long createTime(long nanosSince)
     {
         long msb = 0L;
         msb |= (0x00000000ffffffffL & nanosSince) << 32;

@@ -90,7 +90,7 @@ public class Term
     {
         try
         {
-            if (!isBindMarker()) return validator.fromString(text);
+            if (!isBindMarker()) return validator.fromStringCQL2(text);
 
             // must be a marker term so check for a CqlBindValue stored in the term
             if (bindIndex == null)

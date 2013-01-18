@@ -221,8 +221,10 @@ selectClause returns [List<Selector> expr]
 
 selector returns [Selector s]
     : c=cident             { $s = c; }
-    | K_WRITETIME '(' c=cident ')' { $s = new Selector.WithFunction(c, Selector.Function.WRITE_TIME); }
-    | K_TTL '(' c=cident ')'       { $s = new Selector.WithFunction(c, Selector.Function.TTL); }
+    | K_WRITETIME        '(' c=cident ')' { $s = new Selector.WithFunction(c, Selector.Function.WRITE_TIME); }
+    | K_TTL              '(' c=cident ')' { $s = new Selector.WithFunction(c, Selector.Function.TTL); }
+    | K_DATE_OF          '(' c=cident ')' { $s = new Selector.WithFunction(c, Selector.Function.DATE_OF); }
+    | K_UNIXTIMESTAMP_OF '(' c=cident ')' { $s = new Selector.WithFunction(c, Selector.Function.UNIXTIMESTAMP_OF); }
     ;
 
 selectCountClause returns [List<Selector> expr]
@@ -661,6 +663,7 @@ map_literal returns [Map<Term, Term> value]
 
 finalTerm returns [Term term]
     : t=(STRING_LITERAL | UUID | INTEGER | FLOAT | K_TRUE | K_FALSE ) { $term = new Term($t.text, $t.type); }
+    | f=(K_MIN_TIMEUUID | K_MAX_TIMEUUID | K_NOW) '(' (v=(STRING_LITERAL | INTEGER))? ')' { $term = new Term($f.text + "(" + ($v == null ? "" : $v.text) + ")", UUID); }
     ;
 
 term returns [Term term]
@@ -847,6 +850,9 @@ unreserved_keyword returns [String str]
         | K_SUPERUSER
         | K_NOSUPERUSER
         | K_PASSWORD
+        | K_MIN_TIMEUUID
+        | K_MAX_TIMEUUID
+        | K_NOW
         ) { $str = $k.text; }
     | t=native_type { $str = t.toString(); }
     ;
@@ -941,6 +947,12 @@ K_LIST:        L I S T;
 
 K_TRUE:        T R U E;
 K_FALSE:       F A L S E;
+
+K_MIN_TIMEUUID:     M I N T I M E U U I D;
+K_MAX_TIMEUUID:     M A X T I M E U U I D;
+K_NOW:              N O W;
+K_DATE_OF:          D A T E O F;
+K_UNIXTIMESTAMP_OF: U N I X T I M E S T A M P O F;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
