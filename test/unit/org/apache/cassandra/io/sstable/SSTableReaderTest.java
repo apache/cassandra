@@ -292,18 +292,19 @@ public class SSTableReaderTest extends SchemaLoader
     public void testLoadingSavedKeyCache() throws Exception
     {
         final String ks = "Keyspace1";
-        final String cf = "Standard1";
+        final String cf = "Standard4";
         CFMetaData meta = Schema.instance.getCFMetaData(ks, cf);
         Table.clear(ks);
 
         ByteBuffer key = ByteBufferUtil.bytes("key");
         CacheService.instance.keyCache.setCapacity(1024);
-        File dir = Directories.create(ks, cf).getDirectoryForNewSSTables(100);
+        Directories directories = Directories.create(ks, cf);
+        File dir = directories.getDirectoryForNewSSTables(100);
         SSTableSimpleWriter writer = new SSTableSimpleWriter(dir, meta, StorageService.getPartitioner());
         writer.newRow(key);
         writer.addColumn(ByteBufferUtil.bytes("col"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 1);
         writer.close();
-        Descriptor desc = Descriptor.fromFilename(dir, String.format("%s-%s-%s-1-Data.db", ks, cf, Descriptor.CURRENT_VERSION)).left;
+        Descriptor desc = directories.sstableLister().list().keySet().iterator().next();
 
         File cachePath = CacheService.instance.keyCache.getCachePath(ks, cf);
         SequentialWriter out = SequentialWriter.open(cachePath);
