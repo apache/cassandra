@@ -995,11 +995,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
     }
 
+    public void start(int generationNumber)
+    {
+        start(generationNumber, new HashMap<ApplicationState, VersionedValue>());
+    }
+
     /**
-     * Start the gossiper with the generation # retrieved from the System
-     * table
+     * Start the gossiper with the generation number, preloading the map of application states before starting
      */
-    public void start(int generationNbr)
+    public void start(int generationNbr, Map<ApplicationState, VersionedValue> preloadLocalStates)
     {
         /* Get the seeds from the config and initialize them. */
         Set<InetAddress> seedHosts = DatabaseDescriptor.getSeeds();
@@ -1013,6 +1017,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         /* initialize the heartbeat state for this localEndpoint */
         maybeInitializeLocalState(generationNbr);
         EndpointState localState = endpointStateMap.get(FBUtilities.getBroadcastAddress());
+        for (Map.Entry<ApplicationState, VersionedValue> entry : preloadLocalStates.entrySet())
+            localState.addApplicationState(entry.getKey(), entry.getValue());
 
         //notify snitches that Gossiper is about to start
         DatabaseDescriptor.getEndpointSnitch().gossiperStarting();
