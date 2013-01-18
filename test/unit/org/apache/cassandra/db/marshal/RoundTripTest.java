@@ -118,32 +118,6 @@ public class RoundTripTest
 
         assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(uuid.toString())));
         assert JdbcTimeUUID.instance.toString(uuid).equals(uuid.toString());
-
-        TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"));
-        Calendar c = Calendar.getInstance();
-        c.set(Calendar.YEAR, 2011);
-        c.set(Calendar.MONTH, Calendar.MARCH);
-        c.set(Calendar.DAY_OF_MONTH, 8);
-        c.set(Calendar.HOUR_OF_DAY, 0);
-        c.set(Calendar.MINUTE, 0);
-        c.set(Calendar.SECOND, 0);
-        c.set(Calendar.MILLISECOND, 0);
-        Long ts = new Long(1299560400000L);
-        assert ts.equals(c.getTimeInMillis()) : c.getTimeInMillis();
-
-        // create a uuid with a known time.
-        uuid = TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(ts.toString()));
-        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(uuid.toString())));
-        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08 00:00")));
-        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08 00:00:00")));
-        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08 00:00-0500")));
-        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08 00:00:00-0500")));
-        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08T00:00")));
-        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08T00:00-0500")));
-        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08T00:00:00")));
-        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08T00:00:00-0500")));
-        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08")));
-        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08-0500")));
     }
 
     @Test
