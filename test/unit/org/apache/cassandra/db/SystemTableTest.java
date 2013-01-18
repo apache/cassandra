@@ -66,7 +66,7 @@ public class SystemTableTest
         InetAddress address = InetAddress.getByName("127.0.0.2");
         SystemTable.updateTokens(address, Collections.<Token>singletonList(token));
         assert SystemTable.loadTokens().get(address).contains(token);
-        SystemTable.removeTokens(Collections.<Token>singletonList(token));
+        SystemTable.removeEndpoint(address);
         assert !SystemTable.loadTokens().containsValue(token);
     }
 

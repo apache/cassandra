@@ -443,7 +443,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (ep.equals(FBUtilities.getBroadcastAddress()))
                 {
                     // entry has been mistakenly added, delete it
-                    SystemTable.removeTokens(loadedTokens.get(ep));
+                    SystemTable.removeEndpoint(ep);
                 }
                 else
                 {
@@ -524,24 +524,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // have to start the gossip service before we can see any info on other nodes.  this is necessary
         // for bootstrap to get the load info it needs.
         // (we won't be part of the storage ring though until we add a counterId to our state, below.)
+        Map<ApplicationState, VersionedValue> appStates = new HashMap<ApplicationState, VersionedValue>();
+        appStates.put(ApplicationState.NET_VERSION, valueFactory.networkVersion());
+        appStates.put(ApplicationState.HOST_ID, valueFactory.hostId(SystemTable.getLocalHostId()));
+        appStates.put(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(DatabaseDescriptor.getRpcAddress()));
+        if (0 != DatabaseDescriptor.getReplaceTokens().size())
+            appStates.put(ApplicationState.STATUS, valueFactory.hibernate(true));
+        appStates.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
         Gossiper.instance.register(this);
         Gossiper.instance.register(migrationManager);
-        Gossiper.instance.start(SystemTable.incrementAndGetGeneration()); // needed for node-ring gathering.
-        // gossip network proto version
-        Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
-        Gossiper.instance.addLocalApplicationState(ApplicationState.HOST_ID, valueFactory.hostId(SystemTable.getLocalHostId()));
+        Gossiper.instance.start(SystemTable.incrementAndGetGeneration(), appStates); // needed for node-ring gathering.
         // gossip snitch infos (local DC and rack)
         gossipSnitchInfo();
+        // gossip Schema.emptyVersion forcing immediate check for schema updates (see MigrationManager#maybeScheduleSchemaPull)
         Schema.instance.updateVersionAndAnnounce(); // Ensure we know our own actual Schema UUID in preparation for updates
 
-        // add rpc listening info
-        Gossiper.instance.addLocalApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(DatabaseDescriptor.getRpcAddress()));
-        if (0 != DatabaseDescriptor.getReplaceTokens().size())
-            Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.hibernate(true));
 
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
         LoadBroadcaster.instance.startBroadcasting();
-        Gossiper.instance.addLocalApplicationState(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
 
         HintedHandOffManager.instance.start();
         BatchlogManager.instance.start();
@@ -1387,7 +1387,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         tokenMetadata.updateNormalTokens(tokensToUpdateInMetadata, endpoint);
         for (InetAddress ep : endpointsToRemove)
-            Gossiper.instance.removeEndpoint(ep);
+            removeEndpoint(ep);
         if (!tokensToUpdateInSystemTable.isEmpty())
             SystemTable.updateTokens(endpoint, tokensToUpdateInSystemTable);
         if (!localTokensToRemove.isEmpty())
@@ -1549,13 +1549,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
         else // now that the gossiper has told us about this nonexistent member, notify the gossiper to remove it
-            Gossiper.instance.removeEndpoint(endpoint);
+            removeEndpoint(endpoint);
     }
 
     private void excise(Collection<Token> tokens, InetAddress endpoint)
     {
+        logger.info("Removing tokens " + tokens + " for " + endpoint);
         HintedHandOffManager.instance.deleteHintsForEndpoint(endpoint);
-        Gossiper.instance.removeEndpoint(endpoint);
+        removeEndpoint(endpoint);
         tokenMetadata.removeEndpoint(endpoint);
         tokenMetadata.removeBootstrapTokens(tokens);
         if (!isClientMode)
@@ -1564,17 +1565,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 subscriber.onLeaveCluster(endpoint);
         }
         calculatePendingRanges();
-        if (!isClientMode)
-        {
-            logger.info("Removing tokens " + tokens + " for " + endpoint);
-            SystemTable.removeTokens(tokens);
-        }
     }
 
     private void excise(Collection<Token> tokens, InetAddress endpoint, long expireTime)
     {
         addExpireTimeIfFound(endpoint, expireTime);
         excise(tokens, endpoint);
+    }
+
+    /** unlike excise we just need this endpoint gone without going through any notifications **/
+    private void removeEndpoint(InetAddress endpoint)
+    {
+        Gossiper.instance.removeEndpoint(endpoint);
+        if (!isClientMode)
+            SystemTable.removeEndpoint(endpoint);
     }
 
     protected void addExpireTimeIfFound(InetAddress endpoint, long expireTime)
