@@ -20,6 +20,8 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -35,7 +37,7 @@ public class LoadBroadcaster implements IEndpointStateChangeSubscriber
 
     private static final Logger logger_ = LoggerFactory.getLogger(LoadBroadcaster.class);
 
-    private Map<InetAddress, Double> loadInfo_ = new HashMap<InetAddress, Double>();
+    private ConcurrentMap<InetAddress, Double> loadInfo_ = new ConcurrentHashMap<InetAddress, java.lang.Double>();
 
     private LoadBroadcaster()
     {
@@ -71,7 +73,7 @@ public class LoadBroadcaster implements IEndpointStateChangeSubscriber
 
     public Map<InetAddress, Double> getLoadInfo()
     {
-        return loadInfo_;
+        return Collections.unmodifiableMap(loadInfo_);
     }
 
     public void startBroadcasting()
