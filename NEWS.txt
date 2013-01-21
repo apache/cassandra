@@ -21,11 +21,11 @@ Upgrading
       representation), but the new dateOf method can be used instead. Please
       refer to the reference documentation (http://cassandra.apache.org/doc/cql3/CQL.html)
       for more detail.
-    - Calling the set_cql_version of the thrift interface with a version that
-      don't start with 2 now raise an error (instead of being a no-op). Not
-      raising an error in that case makes it hard for CQL3 client that haven't
-      upgraded to use the new thrift CQL3 methods to understand what is going
-      wrong.
+    - For client implementors: CQL3 client using the thrift interface should
+      use the new execute_cql3_query, prepare_cql3_query and execute_prepared_cql3_query
+      since 1.2.0. However, Cassandra 1.2.0 was not complaining if CQL3 was set
+      through set_cql_version but the now CQL2 only methods were used. This is
+      now the case.
 
 
 1.2
