@@ -63,7 +63,7 @@ public class ClientState
     private volatile AuthenticatedUser user;
     private String keyspace;
 
-    private SemanticVersion cqlVersion = DEFAULT_CQL_VERSION;
+    private SemanticVersion cqlVersion;
 
     // internalCall is used to mark ClientState as used by some internal component
     // that should have an ability to modify system keyspace

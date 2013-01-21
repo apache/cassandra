@@ -59,6 +59,7 @@ import org.apache.cassandra.service.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.SemanticVersion;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.TException;
 
@@ -1785,9 +1786,32 @@ public class CassandraServer implements Cassandra.Iface
         return queryString;
     }
 
+    private void validateCQLVersion(int major) throws InvalidRequestException
+    {
+        /*
+         * The rules are:
+         *   - If no version are set, we don't validate anything. The reason is
+         *     that 1) old CQL2 client might not have called set_cql_version
+         *     and 2) some client may have removed the set_cql_version for CQL3
+         *     when updating to 1.2.0. A CQL3 client upgrading from pre-1.2
+         *     shouldn't be in that case however since set_cql_version uses to
+         *     be mandatory (for CQL3).
+         *   - Otherwise, checks the major matches whatever was set.
+         */
+        SemanticVersion versionSet = state().getCQLVersion();
+        if (versionSet == null)
+            return;
+
+        if (versionSet.major != major)
+            throw new InvalidRequestException(
+                "Cannot execute/prepare CQL" + major + " statement since the CQL has been set to CQL" + versionSet.major
+              + "(This might mean your client hasn't been upgraded correctly to use the new CQL3 methods introduced in Cassandra 1.2+).");
+    }
+
     public CqlResult execute_cql_query(ByteBuffer query, Compression compression)
     throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
+        validateCQLVersion(2);
         try
         {
             String queryString = uncompress(query, compression);
@@ -1821,6 +1845,7 @@ public class CassandraServer implements Cassandra.Iface
     public CqlResult execute_cql3_query(ByteBuffer query, Compression compression, ConsistencyLevel cLevel)
     throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
+        validateCQLVersion(3);
         try
         {
             String queryString = uncompress(query, compression);
@@ -1858,6 +1883,8 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("prepare_cql_query");
 
+        validateCQLVersion(2);
+
         try
         {
             ThriftClientState cState = state();
@@ -1876,6 +1903,8 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("prepare_cql3_query");
 
+        validateCQLVersion(3);
+
         try
         {
             ThriftClientState cState = state();
@@ -1891,6 +1920,8 @@ public class CassandraServer implements Cassandra.Iface
     public CqlResult execute_prepared_cql_query(int itemId, List<ByteBuffer> bindVariables)
     throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
+        validateCQLVersion(2);
+
         if (startSessionIfRequested())
         {
             // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
@@ -1930,6 +1961,8 @@ public class CassandraServer implements Cassandra.Iface
     public CqlResult execute_prepared_cql3_query(int itemId, List<ByteBuffer> bindVariables, ConsistencyLevel cLevel)
     throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
+        validateCQLVersion(3);
+
         if (startSessionIfRequested())
         {
             // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
@@ -1977,10 +2010,14 @@ public class CassandraServer implements Cassandra.Iface
      */
     public void set_cql_version(String version) throws InvalidRequestException
     {
-        if (version.trim().startsWith("2"))
-            return;
-
-        throw new InvalidRequestException("Invalid use of the CQL thrift interface. This most likely mean the client you are using has not been updated for Cassandra 1.2");
+        try
+        {
+            state().setCQLVersion(version);
+        }
+        catch (org.apache.cassandra.exceptions.InvalidRequestException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
     }
 
     public ByteBuffer trace_next_query() throws TException
