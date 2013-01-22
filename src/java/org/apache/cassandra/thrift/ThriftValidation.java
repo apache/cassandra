@@ -599,13 +599,14 @@ public class ThriftValidation
 
     public static IDiskAtomFilter asIFilter(SlicePredicate sp, CFMetaData metadata, ByteBuffer superColumn)
     {
-        AbstractType<?> comparator = metadata.isSuper()
-                                   ? ((CompositeType)metadata.comparator).types.get(superColumn == null ? 0 : 1)
-                                   : metadata.comparator;
         SliceRange sr = sp.slice_range;
         IDiskAtomFilter filter;
         if (sr == null)
         {
+            AbstractType<?> comparator = metadata.isSuper()
+                    ? ((CompositeType)metadata.comparator).types.get(superColumn == null ? 0 : 1)
+                    : metadata.comparator;
+
             SortedSet<ByteBuffer> ss = new TreeSet<ByteBuffer>(comparator);
             ss.addAll(sp.column_names);
             filter = new NamesQueryFilter(ss);
