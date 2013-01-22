@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.utils.CloseableIterator;
 
@@ -34,7 +35,7 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
      * array index represents (number of merged rows - 1), so index 0 is counter for no merge (1 row),
      * index 1 is counter for 2 rows merged, and so on.
      */
-    protected final AtomicInteger[] mergeCounters;
+    protected final AtomicLong[] mergeCounters;
 
     public AbstractCompactionIterable(CompactionController controller, OperationType type, List<ICompactionScanner> scanners)
     {
@@ -47,9 +48,9 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
         for (ICompactionScanner scanner : scanners)
             bytes += scanner.getLengthInBytes();
         this.totalBytes = bytes;
-        mergeCounters = new AtomicInteger[scanners.size()];
+        mergeCounters = new AtomicLong[scanners.size()];
         for (int i = 0; i < mergeCounters.length; i++)
-            mergeCounters[i] = new AtomicInteger();
+            mergeCounters[i] = new AtomicLong();
     }
 
     public CompactionInfo getCompactionInfo()
@@ -66,9 +67,9 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
         mergeCounters[rows - 1].incrementAndGet();
     }
 
-    public int[] getMergedRowCounts()
+    public long[] getMergedRowCounts()
     {
-        int[] counters = new int[mergeCounters.length];
+        long[] counters = new long[mergeCounters.length];
         for (int i = 0; i < counters.length; i++)
             counters[i] = mergeCounters[i].get();
         return counters;

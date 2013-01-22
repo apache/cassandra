@@ -261,10 +261,11 @@ public class CompactionTask extends AbstractCompactionTask
         double mbps = dTime > 0 ? (double)endsize/(1024*1024)/((double)dTime/1000) : 0;
         long totalSourceRows = 0;
         String mergeSummary = "";
-        for (int i = 0; i < ci.getMergedRowCounts().length; i++)
+        long[] counts = ci.getMergedRowCounts();
+        for (int i = 0; i < counts.length; i++)
         {
             int rows = i + 1;
-            int count = ci.getMergedRowCounts()[i];
+            long count = counts[i];
             totalSourceRows += rows * count;
             mergeSummary += String.format("%d:%d, ", rows, count);
         }
