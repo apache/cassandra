@@ -133,7 +133,7 @@ public class OutboundTcpConnection extends Thread
             if (m == CLOSE_SENTINEL)
             {
                 disconnect();
-                if (!isStopped)
+                if (isStopped)
                     break;
                 continue;
             }
