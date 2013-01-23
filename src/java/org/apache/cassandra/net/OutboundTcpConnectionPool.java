@@ -68,7 +68,7 @@ public class OutboundTcpConnectionPool
     void reset()
     {
         for (OutboundTcpConnection conn : new OutboundTcpConnection[] { cmdCon, ackCon })
-            conn.closeSocket();
+            conn.closeSocket(false);
     }
 
     public void resetToNewerVersion(int version)
@@ -161,9 +161,9 @@ public class OutboundTcpConnectionPool
     {
         // these null guards are simply for tests
         if (ackCon != null)
-            ackCon.closeSocket();
+            ackCon.closeSocket(true);
         if (cmdCon != null)
-            cmdCon.closeSocket();
+            cmdCon.closeSocket(true);
         metrics.release();
     }
 }
