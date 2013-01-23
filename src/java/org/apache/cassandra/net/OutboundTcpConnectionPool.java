@@ -63,7 +63,7 @@ public class OutboundTcpConnectionPool
     synchronized void reset()
     {
         for (OutboundTcpConnection con : new OutboundTcpConnection[] { cmdCon, ackCon })
-            con.closeSocket();
+            con.closeSocket(false);
     }
 
     /**

@@ -305,9 +305,9 @@ public final class MessagingService implements MessagingServiceMBean
             return;
         // these null guards are simply for tests
         if (cp.ackCon != null)
-            cp.ackCon.closeSocket();
+            cp.ackCon.closeSocket(true);
         if (cp.cmdCon != null)
-            cp.cmdCon.closeSocket();
+            cp.cmdCon.closeSocket(true);
         connectionManagers_.remove(to);
         recentTimeoutsPerHost.remove(to.getHostAddress());
         timeoutsPerHost.remove(to.getHostAddress());
