@@ -46,6 +46,7 @@ public class OutboundTcpConnection extends Thread
     private static final Logger logger = LoggerFactory.getLogger(OutboundTcpConnection.class);
 
     private static final MessageOut CLOSE_SENTINEL = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE);
+    private volatile boolean isStopped = false;
 
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
 
@@ -92,6 +93,7 @@ public class OutboundTcpConnection extends Thread
     {
         active.clear();
         backlog.clear();
+        isStopped = true; // Exit loop to stop the thread
         enqueue(CLOSE_SENTINEL, null);
     }
 
@@ -107,7 +109,7 @@ public class OutboundTcpConnection extends Thread
 
     public void run()
     {
-        while (true)
+        while (!isStopped)
         {
             QueuedMessage qm = active.poll();
             if (qm == null)
