@@ -29,8 +29,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTableReader;
 
-import com.google.common.collect.Sets;
-
 /**
  * Pluggable compaction strategy determines how SSTables get merged.
  *
@@ -214,7 +212,7 @@ public abstract class AbstractCompactionStrategy
                 float thresholdValue = Float.parseFloat(threshold);
                 if (thresholdValue < 0)
                 {
-                    throw new ConfigurationException(String.format("%s must be greater than 0, but was %d", TOMBSTONE_THRESHOLD_OPTION, thresholdValue));
+                    throw new ConfigurationException(String.format("%s must be greater than 0, but was %f", TOMBSTONE_THRESHOLD_OPTION, thresholdValue));
                 }
             }
             catch (NumberFormatException e)
