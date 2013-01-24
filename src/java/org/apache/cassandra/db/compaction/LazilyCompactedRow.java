@@ -91,7 +91,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         // (however, if there are zero columns, iterator() will not be called by ColumnIndexer and reducer will be null)
         columnCount = reducer == null ? 0 : reducer.size;
         columnSerializedSize = reducer == null ? 0 : reducer.serializedSize;
-        maxTimestamp = reducer == null ? Long.MIN_VALUE : reducer.maxTimestampSeen;
+        long rowTombstone = emptyColumnFamily.getMarkedForDeleteAt();
+        maxTimestamp = reducer == null ? rowTombstone : Math.max(rowTombstone, reducer.maxTimestampSeen);
         reducer = null;
     }
 
