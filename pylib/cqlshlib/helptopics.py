@@ -648,7 +648,7 @@ class CQL2HelpTopics(CQLHelpTopics):
                VALUES ( <colval1>, <colval2> [, <colval3> [, ...]] )
                [USING CONSISTENCY <consistencylevel>
                  [AND TIMESTAMP <timestamp>]
-                 [AND TTL <timeToLive]];
+                 [AND TTL <timeToLive>]];
 
         An INSERT is used to write one or more columns to a record in a
         CQL table. No results are returned.
