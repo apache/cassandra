@@ -2688,12 +2688,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setMode(Mode.LEAVING, "streaming data to other nodes", true);
 
         CountDownLatch latch = streamRanges(rangesToStream);
+        CountDownLatch hintsLatch = streamHints();
 
         // wait for the transfer runnables to signal the latch.
         logger.debug("waiting for stream aks.");
         try
         {
             latch.await();
+            hintsLatch.await();
         }
         catch (InterruptedException e)
         {
@@ -2702,6 +2704,47 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.debug("stream acks all received.");
         leaveRing();
         onFinish.run();
+    }
+
+    private CountDownLatch streamHints()
+    {
+        if (HintedHandOffManager.instance.listEndpointsPendingHints().size() == 0)
+            return new CountDownLatch(0);
+
+        // gather all live nodes in the cluster that aren't also leaving
+        List<InetAddress> candidates = new ArrayList<InetAddress>(StorageService.instance.getTokenMetadata().cloneAfterAllLeft().getAllEndpoints());
+        candidates.remove(FBUtilities.getBroadcastAddress());
+        for (Iterator<InetAddress> iter = candidates.iterator(); iter.hasNext(); )
+        {
+            InetAddress address = iter.next();
+            if (!FailureDetector.instance.isAlive(address))
+                iter.remove();
+        }
+
+        if (candidates.isEmpty())
+        {
+            logger.warn("Unable to stream hints since no live endpoints seen");
+            return new CountDownLatch(0);
+        }
+        else
+        {
+            // stream to the closest peer as chosen by the snitch
+            DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), candidates);
+            InetAddress hintsDestinationHost = candidates.get(0);
+
+            // stream all hints -- range list will be a singleton of "the entire ring"
+            Token token = StorageService.getPartitioner().getMinimumToken();
+            List<Range<Token>> ranges = Collections.singletonList(new Range<Token>(token, token));
+
+            CountDownLatch latch = new CountDownLatch(1);
+            StreamOut.transferRanges(hintsDestinationHost,
+                                     Table.open(Table.SYSTEM_KS),
+                                     Collections.singletonList(Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.HINTS_CF)),
+                                     ranges,
+                                     new CountingDownStreamCallback(latch, hintsDestinationHost),
+                                     OperationType.UNBOOTSTRAP);
+            return latch;
+        }
     }
 
     public void move(String newToken) throws IOException
@@ -3474,26 +3517,39 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 final List<Range<Token>> ranges = rangesEntry.getValue();
                 final InetAddress newEndpoint = rangesEntry.getKey();
 
-                final IStreamCallback callback = new IStreamCallback()
-                {
-                    public void onSuccess()
-                    {
-                        latch.countDown();
-                    }
-
-                    public void onFailure()
-                    {
-                        logger.warn("Streaming to " + newEndpoint + " failed");
-                        onSuccess(); // calling onSuccess for latch countdown
-                    }
-                };
-
                 // TODO each call to transferRanges re-flushes, this is potentially a lot of waste
-                StreamOut.transferRanges(newEndpoint, Table.open(table), ranges, callback, OperationType.UNBOOTSTRAP);
+                StreamOut.transferRanges(newEndpoint,
+                                         Table.open(table),
+                                         ranges,
+                                         new CountingDownStreamCallback(latch, newEndpoint),
+                                         OperationType.UNBOOTSTRAP);
             }
         }
         return latch;
     }
+
+    class CountingDownStreamCallback implements IStreamCallback
+    {
+        private final CountDownLatch latch;
+        private final InetAddress targetAddr;
+
+        CountingDownStreamCallback(CountDownLatch latch, InetAddress targetAddr)
+        {
+            this.latch = latch;
+            this.targetAddr = targetAddr;
+        }
+
+        public void onSuccess()
+        {
+            latch.countDown();
+        }
+
+        public void onFailure()
+        {
+            logger.warn("Streaming to " + targetAddr + " failed");
+            onSuccess(); // calling onSuccess for latch countdown
+        }
+    };
 
     /**
      * Used to request ranges from endpoints in the ring (will block until all data is fetched and ready)

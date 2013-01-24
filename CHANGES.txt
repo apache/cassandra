@@ -1,4 +1,5 @@
 1.2.1
+ * stream undelivered hints on decommission (CASSANDRA-5128)
  * GossipingPropertyFileSnitch loads saved dc/rack info if needed (CASSANDRA-5133)
  * drain should flush system CFs too (CASSANDRA-4446)
  * add inter_dc_tcp_nodelay setting (CASSANDRA-5148)
