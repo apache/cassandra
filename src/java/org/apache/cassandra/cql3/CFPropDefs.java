@@ -85,7 +85,14 @@ public class CFPropDefs extends PropertyDefinitions
 
             compactionStrategyClass = CFMetaData.createCompactionStrategy(strategy);
             compactionOptions.remove(COMPACTION_STRATEGY_CLASS_KEY);
+
+            CFMetaData.validateCompactionOptions(compactionStrategyClass, compactionOptions);
         }
+    }
+
+    public Class<? extends AbstractCompactionStrategy> getCompactionStrategy()
+    {
+        return compactionStrategyClass;
     }
 
     public Map<String, String> getCompactionOptions() throws SyntaxException

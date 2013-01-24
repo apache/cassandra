@@ -107,7 +107,7 @@ public class CFPropDefs {
     public final Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
     public final Map<String, String> compressionParameters = new HashMap<String, String>();
 
-    public void validate() throws InvalidRequestException
+    public void validate() throws InvalidRequestException, ConfigurationException
     {
         compactionStrategyClass = CFMetaData.DEFAULT_COMPACTION_STRATEGY_CLASS;
 
@@ -171,6 +171,8 @@ public class CFPropDefs {
                         KW_MINCOMPACTIONTHRESHOLD,
                         CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD));
         }
+
+        CFMetaData.validateCompactionOptions(compactionStrategyClass, compactionStrategyOptions);
     }
 
     /** Map a keyword to the corresponding value */

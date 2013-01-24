@@ -52,8 +52,6 @@ public class CreateColumnFamilyStatement
     /** Perform validation of parsed params */
     private void validate(List<ByteBuffer> variables) throws InvalidRequestException
     {
-        cfProps.validate();
-
         // Ensure that exactly one key has been specified.
         if (keyValidator.size() < 1)
             throw new InvalidRequestException("You must specify a PRIMARY KEY");
@@ -64,6 +62,7 @@ public class CreateColumnFamilyStatement
 
         try
         {
+            cfProps.validate();
             comparator = cfProps.getComparator();
         }
         catch (ConfigurationException e)

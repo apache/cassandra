@@ -19,6 +19,7 @@ package org.apache.cassandra.config;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -838,10 +839,42 @@ public final class CFMetaData
             throw new ConfigurationException("subcolumncomparators do not match or are note compatible.");
     }
 
+    public static void validateCompactionOptions(Class<? extends AbstractCompactionStrategy> strategyClass, Map<String, String> options) throws ConfigurationException
+    {
+        try
+        {
+            if (options == null)
+                return;
+
+            Method validateMethod = strategyClass.getMethod("validateOptions", Map.class);
+            Map<String, String> unknownOptions = (Map<String, String>) validateMethod.invoke(null, options);
+            if (!unknownOptions.isEmpty())
+                throw new ConfigurationException(String.format("Properties specified %s are not understood by %s", unknownOptions.keySet(), strategyClass.getSimpleName()));
+        }
+        catch (NoSuchMethodException e)
+        {
+            logger.warn("Compaction Strategy {} does not have a static validateOptions method. Validation ignored", strategyClass.getName());
+        }
+        catch (InvocationTargetException e)
+        {
+            if (e.getTargetException() instanceof ConfigurationException)
+                throw (ConfigurationException) e.getTargetException();
+            throw new ConfigurationException("Failed to validate compaction options");
+        }
+        catch (Exception e)
+        {
+            throw new ConfigurationException("Failed to validate compaction options");
+        }
+    }
+
     public static Class<? extends AbstractCompactionStrategy> createCompactionStrategy(String className) throws ConfigurationException
     {
         className = className.contains(".") ? className : "org.apache.cassandra.db.compaction." + className;
-        return FBUtilities.classForName(className, "compaction strategy");
+        Class<AbstractCompactionStrategy> strategyClass = FBUtilities.classForName(className, "compaction strategy");
+        if (!AbstractCompactionStrategy.class.isAssignableFrom(strategyClass))
+            throw new ConfigurationException(String.format("Specified compaction strategy class (%s) is not derived from AbstractReplicationStrategy", className));
+
+        return strategyClass;
     }
 
     public AbstractCompactionStrategy createCompactionStrategyInstance(ColumnFamilyStore cfs)

@@ -31,6 +31,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
@@ -54,19 +55,8 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         int configuredMaxSSTableSize = 5;
         if (options != null)
         {
-            String value = options.containsKey(SSTABLE_SIZE_OPTION) ? options.get(SSTABLE_SIZE_OPTION) : null;
-            if (value != null)
-            {
-                try
-                {
-                    configuredMaxSSTableSize = Integer.parseInt(value);
-                }
-                catch (NumberFormatException ex)
-                {
-                    logger.warn(String.format("%s is not a parsable int (base10) for %s using default value",
-                                              value, SSTABLE_SIZE_OPTION));
-                }
-            }
+            String value = options.containsKey(SSTABLE_SIZE_OPTION) ? options.get(SSTABLE_SIZE_OPTION) : "5";
+            configuredMaxSSTableSize = Integer.parseInt(value);
         }
         maxSSTableSizeInMB = configuredMaxSSTableSize;
 
@@ -308,5 +298,28 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
             }
         }
         return null;
+    }
+
+    public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
+    {
+        Map<String, String> uncheckedOptions = AbstractCompactionStrategy.validateOptions(options);
+
+        String size = options.containsKey(SSTABLE_SIZE_OPTION) ? options.get(SSTABLE_SIZE_OPTION) : "1";
+        try
+        {
+            int ssSize = Integer.parseInt(size);
+            if (ssSize < 1)
+            {
+                throw new ConfigurationException(String.format("%s must be larger than 0, but was %s", SSTABLE_SIZE_OPTION, ssSize));
+            }
+        }
+        catch (NumberFormatException ex)
+        {
+            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", size, SSTABLE_SIZE_OPTION), ex);
+        }
+
+        uncheckedOptions.remove(SSTABLE_SIZE_OPTION);
+
+        return uncheckedOptions;
     }
 }

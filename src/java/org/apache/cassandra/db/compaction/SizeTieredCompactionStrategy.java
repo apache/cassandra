@@ -23,7 +23,9 @@ import java.util.Map.Entry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.CFPropDefs;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.Pair;
 
@@ -52,12 +54,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         bucketLow = optionValue == null ? DEFAULT_BUCKET_LOW : Double.parseDouble(optionValue);
         optionValue = options.get(BUCKET_HIGH_KEY);
         bucketHigh = optionValue == null ? DEFAULT_BUCKET_HIGH : Double.parseDouble(optionValue);
-        if (bucketHigh <= bucketLow)
-        {
-            logger.warn("Bucket low/high marks for {} incorrect, using defaults.", cfs.getColumnFamilyName());
-            bucketLow = DEFAULT_BUCKET_LOW;
-            bucketHigh = DEFAULT_BUCKET_HIGH;
-        }
+
         cfs.setCompactionThresholds(cfs.metadata.getMinCompactionThreshold(), cfs.metadata.getMaxCompactionThreshold());
     }
 
@@ -225,6 +222,59 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     public long getMaxSSTableSize()
     {
         return Long.MAX_VALUE;
+    }
+
+    public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
+    {
+        Map<String, String> uncheckedOptions = AbstractCompactionStrategy.validateOptions(options);
+
+        String optionValue = options.get(MIN_SSTABLE_SIZE_KEY);
+        try
+        {
+            long minSSTableSize = optionValue == null ? DEFAULT_MIN_SSTABLE_SIZE : Long.parseLong(optionValue);
+            if (minSSTableSize < 0)
+            {
+                throw new ConfigurationException(String.format("%s must be non negative: %d", MIN_SSTABLE_SIZE_KEY, minSSTableSize));
+            }
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, MIN_SSTABLE_SIZE_KEY), e);
+        }
+
+        double bucketLow, bucketHigh;
+        optionValue = options.get(BUCKET_LOW_KEY);
+        try
+        {
+            bucketLow = optionValue == null ? DEFAULT_BUCKET_LOW : Double.parseDouble(optionValue);
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, DEFAULT_BUCKET_LOW), e);
+        }
+
+        optionValue = options.get(BUCKET_HIGH_KEY);
+        try
+        {
+            bucketHigh = optionValue == null ? DEFAULT_BUCKET_HIGH : Double.parseDouble(optionValue);
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, DEFAULT_BUCKET_HIGH), e);
+        }
+
+        if (bucketHigh <= bucketLow)
+        {
+            throw new ConfigurationException(String.format("BucketHigh value (%s) is less than or equal BucketLow value (%s)", bucketHigh, bucketLow));
+        }
+
+        uncheckedOptions.remove(MIN_SSTABLE_SIZE_KEY);
+        uncheckedOptions.remove(BUCKET_LOW_KEY);
+        uncheckedOptions.remove(BUCKET_HIGH_KEY);
+        uncheckedOptions.remove(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD);
+        uncheckedOptions.remove(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD);
+
+        return uncheckedOptions;
     }
 
     public String toString()
