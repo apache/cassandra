@@ -296,7 +296,7 @@ public class SSTableMetadata
                 minTimestamp = Long.MAX_VALUE;
             long maxTimestamp = desc.version.containsTimestamp() ? dis.readLong() : Long.MIN_VALUE;
             if (!desc.version.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
-                maxTimestamp = Long.MIN_VALUE;
+                maxTimestamp = Long.MAX_VALUE;
             double compressionRatio = desc.version.hasCompressionRatio
                                     ? dis.readDouble()
                                     : NO_COMPRESSION_RATIO;
