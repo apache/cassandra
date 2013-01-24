@@ -25,8 +25,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTableReader;
+
+import com.google.common.collect.Sets;
 
 /**
  * Pluggable compaction strategy determines how SSTables get merged.
@@ -49,7 +52,7 @@ public abstract class AbstractCompactionStrategy
     public final Map<String, String> options;
 
     protected final ColumnFamilyStore cfs;
-    protected final float tombstoneThreshold;
+    protected float tombstoneThreshold;
     protected long tombstoneCompactionInterval;
 
     protected AbstractCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
@@ -58,14 +61,20 @@ public abstract class AbstractCompactionStrategy
         this.cfs = cfs;
         this.options = options;
 
-        String optionValue = options.get(TOMBSTONE_THRESHOLD_OPTION);
-        tombstoneThreshold = optionValue == null ? DEFAULT_TOMBSTONE_THRESHOLD : Float.parseFloat(optionValue);
-        optionValue = options.get(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
-        tombstoneCompactionInterval = optionValue == null ? DEFAULT_TOMBSTONE_COMPACTION_INTERVAL : Long.parseLong(optionValue);
-        if (tombstoneCompactionInterval < 0)
+        /* checks must be repeated here, as user supplied strategies might not call validateOptions directly */
+
+        try
         {
-            logger.warn("tombstone_compaction_interval should not be negative({}). Using default value of {}.",
-                        tombstoneCompactionInterval, DEFAULT_TOMBSTONE_COMPACTION_INTERVAL);
+            validateOptions(options);
+            String optionValue = options.get(TOMBSTONE_THRESHOLD_OPTION);
+            tombstoneThreshold = optionValue == null ? DEFAULT_TOMBSTONE_THRESHOLD : Float.parseFloat(optionValue);
+            optionValue = options.get(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
+            tombstoneCompactionInterval = optionValue == null ? DEFAULT_TOMBSTONE_COMPACTION_INTERVAL : Long.parseLong(optionValue);
+        }
+        catch (ConfigurationException e)
+        {
+            logger.warn("Error setting compaction strategy options ({}), defaults will be used", e.getMessage());
+            tombstoneThreshold = DEFAULT_TOMBSTONE_THRESHOLD;
             tombstoneCompactionInterval = DEFAULT_TOMBSTONE_COMPACTION_INTERVAL;
         }
     }
@@ -193,5 +202,47 @@ public abstract class AbstractCompactionStrategy
             // return if we still expect to have droppable tombstones in rest of columns
             return remainingColumnsRatio * droppableRatio > tombstoneThreshold;
         }
+    }
+
+    public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
+    {
+        String threshold = options.get(TOMBSTONE_THRESHOLD_OPTION);
+        if (threshold != null)
+        {
+            try
+            {
+                float thresholdValue = Float.parseFloat(threshold);
+                if (thresholdValue < 0)
+                {
+                    throw new ConfigurationException(String.format("%s must be greater than 0, but was %d", TOMBSTONE_THRESHOLD_OPTION, thresholdValue));
+                }
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", threshold, TOMBSTONE_THRESHOLD_OPTION), e);
+            }
+        }
+
+        String interval = options.get(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
+        if (interval != null)
+        {
+            try
+            {
+                long tombstoneCompactionInterval = Long.parseLong(interval);
+                if (tombstoneCompactionInterval < 0)
+                {
+                    throw new ConfigurationException(String.format("%s must be greater than 0, but was %d", TOMBSTONE_COMPACTION_INTERVAL_OPTION, tombstoneCompactionInterval));
+                }
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", interval, TOMBSTONE_COMPACTION_INTERVAL_OPTION), e);
+            }
+        }
+
+        Map<String, String> uncheckedOptions = new HashMap<String, String>(options);
+        uncheckedOptions.remove(TOMBSTONE_THRESHOLD_OPTION);
+        uncheckedOptions.remove(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
+        return uncheckedOptions;
     }
 }

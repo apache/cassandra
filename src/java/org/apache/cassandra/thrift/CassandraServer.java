@@ -1425,6 +1425,8 @@ public class CassandraServer implements Cassandra.Iface
             cState.hasKeyspaceAccess(keyspace, Permission.CREATE);
             cf_def.unsetId(); // explicitly ignore any id set by client (Hector likes to set zero)
             CFMetaData cfm = CFMetaData.fromThrift(cf_def);
+            CFMetaData.validateCompactionOptions(cfm.compactionStrategyClass, cfm.compactionStrategyOptions);
+
             cfm.addDefaultIndexNames();
             MigrationManager.announceNewColumnFamily(cfm);
             return Schema.instance.getVersion().toString();
@@ -1560,6 +1562,7 @@ public class CassandraServer implements Cassandra.Iface
 
             CFMetaData.applyImplicitDefaults(cf_def);
             CFMetaData cfm = CFMetaData.fromThrift(cf_def);
+            CFMetaData.validateCompactionOptions(cfm.compactionStrategyClass, cfm.compactionStrategyOptions);
             cfm.addDefaultIndexNames();
             MigrationManager.announceColumnFamilyUpdate(cfm);
             return Schema.instance.getVersion().toString();

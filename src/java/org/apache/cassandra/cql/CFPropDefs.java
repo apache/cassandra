@@ -111,7 +111,7 @@ public class CFPropDefs {
     public final Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
     public final Map<String, String> compressionParameters = new HashMap<String, String>();
 
-    public void validate() throws InvalidRequestException
+    public void validate() throws InvalidRequestException, ConfigurationException
     {
         compactionStrategyClass = CFMetaData.DEFAULT_COMPACTION_STRATEGY_CLASS;
 
@@ -175,7 +175,7 @@ public class CFPropDefs {
                         KW_MINCOMPACTIONTHRESHOLD,
                         CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD));
         }
-        
+
         Integer defaultTimeToLive = getPropertyInt(KW_DEFAULT_TIME_TO_LIVE, null);
 
         if (defaultTimeToLive != null)
@@ -186,6 +186,8 @@ public class CFPropDefs {
                         0,
                         CFMetaData.DEFAULT_DEFAULT_TIME_TO_LIVE));
         }
+
+        CFMetaData.validateCompactionOptions(compactionStrategyClass, compactionStrategyOptions);
     }
 
     /** Map a keyword to the corresponding value */

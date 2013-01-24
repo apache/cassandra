@@ -89,6 +89,8 @@ public class CFPropDefs extends PropertyDefinitions
 
             compactionStrategyClass = CFMetaData.createCompactionStrategy(strategy);
             compactionOptions.remove(COMPACTION_STRATEGY_CLASS_KEY);
+
+            CFMetaData.validateCompactionOptions(compactionStrategyClass, compactionOptions);
         }
 
         Integer defaultTimeToLive = getInt(KW_DEFAULT_TIME_TO_LIVE, null);
@@ -101,6 +103,11 @@ public class CFPropDefs extends PropertyDefinitions
                         0,
                         CFMetaData.DEFAULT_DEFAULT_TIME_TO_LIVE));
         }
+    }
+
+    public Class<? extends AbstractCompactionStrategy> getCompactionStrategy()
+    {
+        return compactionStrategyClass;
     }
 
     public Map<String, String> getCompactionOptions() throws SyntaxException

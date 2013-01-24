@@ -26,6 +26,8 @@ Upgrading
       since 1.2.0. However, Cassandra 1.2.0 was not complaining if CQL3 was set
       through set_cql_version but the now CQL2 only methods were used. This is
       now the case.
+    - Queries that uses unrecognized or bad compaction or replication strategy
+      options are now refused (instead of simply logging a warning).
 
 
 1.2
