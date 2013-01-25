@@ -105,14 +105,16 @@ public class TokenMetadata
 
     public TokenMetadata()
     {
-        this(SortedBiMultiValMap.<Token, InetAddress>create(null, inetaddressCmp), new Topology());
+        this(SortedBiMultiValMap.<Token, InetAddress>create(null, inetaddressCmp),
+             HashBiMap.<InetAddress, UUID>create(),
+             new Topology());
     }
 
-    public TokenMetadata(BiMultiValMap<Token, InetAddress> tokenToEndpointMap, Topology topology)
+    private TokenMetadata(BiMultiValMap<Token, InetAddress> tokenToEndpointMap, BiMap<InetAddress, UUID> endpointsMap, Topology topology)
     {
         this.tokenToEndpointMap = tokenToEndpointMap;
         this.topology = topology;
-        endpointToHostIdMap = HashBiMap.create();
+        endpointToHostIdMap = endpointsMap;
         sortedTokens = sortTokens();
     }
 
@@ -556,7 +558,9 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
-            return new TokenMetadata(SortedBiMultiValMap.<Token, InetAddress>create(tokenToEndpointMap, null, inetaddressCmp), new Topology(topology));
+            return new TokenMetadata(SortedBiMultiValMap.<Token, InetAddress>create(tokenToEndpointMap, null, inetaddressCmp),
+                                     HashBiMap.create(endpointToHostIdMap),
+                                     new Topology(topology));
         }
         finally
         {
@@ -717,6 +721,11 @@ public class TokenMetadata
         {
             lock.readLock().unlock();
         }
+    }
+
+    public Set<InetAddress> getAllEndpoints()
+    {
+        return endpointToHostIdMap.keySet();
     }
 
     /** caller should not modify leavingEndpoints */

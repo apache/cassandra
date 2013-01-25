@@ -80,8 +80,16 @@ public class StreamOut
     */
     public static void transferRanges(InetAddress target, Table table, Collection<Range<Token>> ranges, IStreamCallback callback, OperationType type)
     {
+        transferRanges(target, table, table.getColumnFamilyStores(), ranges, callback, type);
+    }
+
+    /**
+     * Stream the given ranges to the target endpoint for provided CFs in the given keyspace.
+     */
+    public static void transferRanges(InetAddress target, Table table, Iterable<ColumnFamilyStore> cfses, Collection<Range<Token>> ranges, IStreamCallback callback, OperationType type)
+    {
         StreamOutSession session = StreamOutSession.create(table.name, target, callback);
-        transferRanges(session, table.getColumnFamilyStores(), ranges, type);
+        transferRanges(session, cfses, ranges, type);
     }
 
     /**
