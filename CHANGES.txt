@@ -47,6 +47,10 @@ Merged from 1.1:
  * fix saved key cache not loading at startup (CASSANDRA-5166)
  * fix ConcurrentModificationException in getBootstrapSource (CASSANDRA-5170)
  * fix sstable maxtimestamp for row deletes and pre-1.1.1 sstables (CASSANDRA-5153)
+ * fix start key/end token validation for wide row iteration (CASSANDRA-5168)
+
+
+1.1.9
  * Simplify CompressedRandomAccessReader to work around JDK FD bug (CASSANDRA-5088)
  * Improve handling a changing target throttle rate mid-compaction (CASSANDRA-5087)
  * Pig: correctly decode row keys in widerow mode (CASSANDRA-5098)

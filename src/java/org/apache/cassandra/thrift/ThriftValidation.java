@@ -485,7 +485,7 @@ public class ThriftValidation
         {
             // start_token/end_token can wrap, but key/token should not
             RowPosition stop = p.getTokenFactory().fromString(range.end_token).maxKeyBound(p);
-            if (RowPosition.forKey(range.start_key, p).compareTo(stop) > 0)
+            if (RowPosition.forKey(range.start_key, p).compareTo(stop) > 0 && !stop.isMinimum())
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("Start key's token sorts after end token");
         }
 
