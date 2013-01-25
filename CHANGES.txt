@@ -1,3 +1,6 @@
+1.2.2
+ * fix symlinks under data dir not working (CASSANDRA-5185)
+
 1.2.1
  * stream undelivered hints on decommission (CASSANDRA-5128)
  * GossipingPropertyFileSnitch loads saved dc/rack info if needed (CASSANDRA-5133)
