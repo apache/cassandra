@@ -2,6 +2,7 @@
  * fix saved key cache not loading at startup (CASSANDRA-5166)
  * fix ConcurrentModificationException in getBootstrapSource (CASSANDRA-5170)
  * fix sstable maxtimestamp for row deletes and pre-1.1.1 sstables (CASSANDRA-5153)
+ * fix start key/end token validation for wide row iteration (CASSANDRA-5168)
 
 
 1.1.9
