@@ -3,6 +3,7 @@
  * fix ConcurrentModificationException in getBootstrapSource (CASSANDRA-5170)
  * fix sstable maxtimestamp for row deletes and pre-1.1.1 sstables (CASSANDRA-5153)
  * fix start key/end token validation for wide row iteration (CASSANDRA-5168)
+ * add ConfigHelper support for Thrift frame and max message sizes (CASSANDRA-5188)
 
 
 1.1.9

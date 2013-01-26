@@ -21,6 +21,7 @@ package org.apache.cassandra.thrift;
  *
  */
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
@@ -30,5 +31,5 @@ import javax.security.auth.login.LoginException;
 
 public interface ITransportFactory
 {
-    TTransport openTransport(TSocket socket) throws LoginException, TTransportException;
+    TTransport openTransport(TSocket socket, Configuration conf) throws LoginException, TTransportException;
 }
