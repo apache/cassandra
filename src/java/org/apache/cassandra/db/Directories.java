@@ -126,7 +126,7 @@ public class Directories
     {
         for (File dir : sstableDirectories)
         {
-            if (FileUtils.getCanonicalPath(dir).startsWith(FileUtils.getCanonicalPath(dataDirectory)))
+            if (dir.getAbsolutePath().startsWith(dataDirectory.getAbsolutePath()))
                 return dir;
         }
         return null;
