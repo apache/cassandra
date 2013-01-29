@@ -88,9 +88,10 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
         return resolvedRows;
     }
 
-    public void preprocess(MessageIn message)
+    public boolean preprocess(MessageIn message)
     {
         responses.add(message);
+        return true;
     }
 
     public boolean isDataPresent()

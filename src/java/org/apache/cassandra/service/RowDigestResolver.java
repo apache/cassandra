@@ -35,7 +35,7 @@ public class RowDigestResolver extends AbstractRowResolver
     /**
      * Special case of resolve() so that CL.ONE reads never throw DigestMismatchException in the foreground
      */
-    public Row getData() throws IOException
+    public Row getData()
     {
         for (MessageIn<ReadResponse> message : replies)
         {
@@ -43,8 +43,7 @@ public class RowDigestResolver extends AbstractRowResolver
             if (!result.isDigestQuery())
                 return result.row();
         }
-
-        throw new AssertionError("getData should not be invoked when no data is present");
+        return null;
     }
 
     /*

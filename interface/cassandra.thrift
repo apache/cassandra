@@ -445,6 +445,7 @@ struct CfDef {
     38: optional i32 memtable_flush_period_in_ms,
     39: optional i32 default_time_to_live,
     40: optional i32 index_interval,
+    41: optional string speculative_retry="NONE",
 
     /* All of the following are now ignored and unsupplied. */
 

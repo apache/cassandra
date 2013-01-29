@@ -80,6 +80,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField MEMTABLE_FLUSH_PERIOD_IN_MS_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_flush_period_in_ms", org.apache.thrift.protocol.TType.I32, (short)38);
   private static final org.apache.thrift.protocol.TField DEFAULT_TIME_TO_LIVE_FIELD_DESC = new org.apache.thrift.protocol.TField("default_time_to_live", org.apache.thrift.protocol.TType.I32, (short)39);
   private static final org.apache.thrift.protocol.TField INDEX_INTERVAL_FIELD_DESC = new org.apache.thrift.protocol.TField("index_interval", org.apache.thrift.protocol.TType.I32, (short)40);
+  private static final org.apache.thrift.protocol.TField SPECULATIVE_RETRY_FIELD_DESC = new org.apache.thrift.protocol.TField("speculative_retry", org.apache.thrift.protocol.TType.STRING, (short)41);
   private static final org.apache.thrift.protocol.TField ROW_CACHE_SIZE_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_size", org.apache.thrift.protocol.TType.DOUBLE, (short)9);
   private static final org.apache.thrift.protocol.TField KEY_CACHE_SIZE_FIELD_DESC = new org.apache.thrift.protocol.TField("key_cache_size", org.apache.thrift.protocol.TType.DOUBLE, (short)11);
   private static final org.apache.thrift.protocol.TField ROW_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_save_period_in_seconds", org.apache.thrift.protocol.TType.I32, (short)19);
@@ -122,6 +123,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   public int memtable_flush_period_in_ms; // optional
   public int default_time_to_live; // optional
   public int index_interval; // optional
+  public String speculative_retry; // optional
   /**
    * @deprecated
    */
@@ -190,6 +192,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     MEMTABLE_FLUSH_PERIOD_IN_MS((short)38, "memtable_flush_period_in_ms"),
     DEFAULT_TIME_TO_LIVE((short)39, "default_time_to_live"),
     INDEX_INTERVAL((short)40, "index_interval"),
+    SPECULATIVE_RETRY((short)41, "speculative_retry"),
     /**
      * @deprecated
      */
@@ -294,6 +297,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return DEFAULT_TIME_TO_LIVE;
         case 40: // INDEX_INTERVAL
           return INDEX_INTERVAL;
+        case 41: // SPECULATIVE_RETRY
+          return SPECULATIVE_RETRY;
         case 9: // ROW_CACHE_SIZE
           return ROW_CACHE_SIZE;
         case 11: // KEY_CACHE_SIZE
@@ -375,7 +380,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 18;
   private static final int __ROW_CACHE_KEYS_TO_SAVE_ISSET_ID = 19;
   private int __isset_bitfield = 0;
-  private _Fields optionals[] = {_Fields.COLUMN_TYPE,_Fields.COMPARATOR_TYPE,_Fields.SUBCOMPARATOR_TYPE,_Fields.COMMENT,_Fields.READ_REPAIR_CHANCE,_Fields.COLUMN_METADATA,_Fields.GC_GRACE_SECONDS,_Fields.DEFAULT_VALIDATION_CLASS,_Fields.ID,_Fields.MIN_COMPACTION_THRESHOLD,_Fields.MAX_COMPACTION_THRESHOLD,_Fields.REPLICATE_ON_WRITE,_Fields.KEY_VALIDATION_CLASS,_Fields.KEY_ALIAS,_Fields.COMPACTION_STRATEGY,_Fields.COMPACTION_STRATEGY_OPTIONS,_Fields.COMPRESSION_OPTIONS,_Fields.BLOOM_FILTER_FP_CHANCE,_Fields.CACHING,_Fields.DCLOCAL_READ_REPAIR_CHANCE,_Fields.MEMTABLE_FLUSH_PERIOD_IN_MS,_Fields.DEFAULT_TIME_TO_LIVE,_Fields.INDEX_INTERVAL,_Fields.ROW_CACHE_SIZE,_Fields.KEY_CACHE_SIZE,_Fields.ROW_CACHE_SAVE_PERIOD_IN_SECONDS,_Fields.KEY_CACHE_SAVE_PERIOD_IN_SECONDS,_Fields.MEMTABLE_FLUSH_AFTER_MINS,_Fields.MEMTABLE_THROUGHPUT_IN_MB,_Fields.MEMTABLE_OPERATIONS_IN_MILLIONS,_Fields.MERGE_SHARDS_CHANCE,_Fields.ROW_CACHE_PROVIDER,_Fields.ROW_CACHE_KEYS_TO_SAVE};
+  private _Fields optionals[] = {_Fields.COLUMN_TYPE,_Fields.COMPARATOR_TYPE,_Fields.SUBCOMPARATOR_TYPE,_Fields.COMMENT,_Fields.READ_REPAIR_CHANCE,_Fields.COLUMN_METADATA,_Fields.GC_GRACE_SECONDS,_Fields.DEFAULT_VALIDATION_CLASS,_Fields.ID,_Fields.MIN_COMPACTION_THRESHOLD,_Fields.MAX_COMPACTION_THRESHOLD,_Fields.REPLICATE_ON_WRITE,_Fields.KEY_VALIDATION_CLASS,_Fields.KEY_ALIAS,_Fields.COMPACTION_STRATEGY,_Fields.COMPACTION_STRATEGY_OPTIONS,_Fields.COMPRESSION_OPTIONS,_Fields.BLOOM_FILTER_FP_CHANCE,_Fields.CACHING,_Fields.DCLOCAL_READ_REPAIR_CHANCE,_Fields.MEMTABLE_FLUSH_PERIOD_IN_MS,_Fields.DEFAULT_TIME_TO_LIVE,_Fields.INDEX_INTERVAL,_Fields.SPECULATIVE_RETRY,_Fields.ROW_CACHE_SIZE,_Fields.KEY_CACHE_SIZE,_Fields.ROW_CACHE_SAVE_PERIOD_IN_SECONDS,_Fields.KEY_CACHE_SAVE_PERIOD_IN_SECONDS,_Fields.MEMTABLE_FLUSH_AFTER_MINS,_Fields.MEMTABLE_THROUGHPUT_IN_MB,_Fields.MEMTABLE_OPERATIONS_IN_MILLIONS,_Fields.MERGE_SHARDS_CHANCE,_Fields.ROW_CACHE_PROVIDER,_Fields.ROW_CACHE_KEYS_TO_SAVE};
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
     Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
@@ -434,6 +439,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     tmpMap.put(_Fields.INDEX_INTERVAL, new org.apache.thrift.meta_data.FieldMetaData("index_interval", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.SPECULATIVE_RETRY, new org.apache.thrift.meta_data.FieldMetaData("speculative_retry", org.apache.thrift.TFieldRequirementType.OPTIONAL,
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     tmpMap.put(_Fields.ROW_CACHE_SIZE, new org.apache.thrift.meta_data.FieldMetaData("row_cache_size", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
     tmpMap.put(_Fields.KEY_CACHE_SIZE, new org.apache.thrift.meta_data.FieldMetaData("key_cache_size", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
@@ -466,6 +473,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.caching = "keys_only";
 
     this.dclocal_read_repair_chance = 0;
+
+    this.speculative_retry = "NONE";
 
   }
 
@@ -565,6 +574,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.memtable_flush_period_in_ms = other.memtable_flush_period_in_ms;
     this.default_time_to_live = other.default_time_to_live;
     this.index_interval = other.index_interval;
+    if (other.isSetSpeculative_retry()) {
+      this.speculative_retry = other.speculative_retry;
+    }
     this.row_cache_size = other.row_cache_size;
     this.key_cache_size = other.key_cache_size;
     this.row_cache_save_period_in_seconds = other.row_cache_save_period_in_seconds;
@@ -624,6 +636,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.default_time_to_live = 0;
     setIndex_intervalIsSet(false);
     this.index_interval = 0;
+    this.speculative_retry = "NONE";
+
     setRow_cache_sizeIsSet(false);
     this.row_cache_size = 0.0;
     setKey_cache_sizeIsSet(false);
@@ -1281,6 +1295,30 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     __isset_bitfield = EncodingUtils.setBit(__isset_bitfield, __INDEX_INTERVAL_ISSET_ID, value);
   }
 
+  public String getSpeculative_retry() {
+    return this.speculative_retry;
+  }
+
+  public CfDef setSpeculative_retry(String speculative_retry) {
+    this.speculative_retry = speculative_retry;
+    return this;
+  }
+
+  public void unsetSpeculative_retry() {
+    this.speculative_retry = null;
+  }
+
+  /** Returns true if field speculative_retry is set (has been assigned a value) and false otherwise */
+  public boolean isSetSpeculative_retry() {
+    return this.speculative_retry != null;
+  }
+
+  public void setSpeculative_retryIsSet(boolean value) {
+    if (!value) {
+      this.speculative_retry = null;
+    }
+  }
+
   /**
    * @deprecated
    */
@@ -1774,6 +1812,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       break;
 
+    case SPECULATIVE_RETRY:
+      if (value == null) {
+        unsetSpeculative_retry();
+      } else {
+        setSpeculative_retry((String)value);
+      }
+      break;
+
     case ROW_CACHE_SIZE:
       if (value == null) {
         unsetRow_cache_size();
@@ -1934,6 +1980,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     case INDEX_INTERVAL:
       return Integer.valueOf(getIndex_interval());
 
+    case SPECULATIVE_RETRY:
+      return getSpeculative_retry();
+
     case ROW_CACHE_SIZE:
       return Double.valueOf(getRow_cache_size());
 
@@ -2025,6 +2074,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetDefault_time_to_live();
     case INDEX_INTERVAL:
       return isSetIndex_interval();
+    case SPECULATIVE_RETRY:
+      return isSetSpeculative_retry();
     case ROW_CACHE_SIZE:
       return isSetRow_cache_size();
     case KEY_CACHE_SIZE:
@@ -2284,6 +2335,15 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (!(this_present_index_interval && that_present_index_interval))
         return false;
       if (this.index_interval != that.index_interval)
+        return false;
+    }
+
+    boolean this_present_speculative_retry = true && this.isSetSpeculative_retry();
+    boolean that_present_speculative_retry = true && that.isSetSpeculative_retry();
+    if (this_present_speculative_retry || that_present_speculative_retry) {
+      if (!(this_present_speculative_retry && that_present_speculative_retry))
+        return false;
+      if (!this.speculative_retry.equals(that.speculative_retry))
         return false;
     }
 
@@ -2559,6 +2619,11 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     if (present_row_cache_keys_to_save)
       builder.append(row_cache_keys_to_save);
 
+    boolean preset_speculative_retry = true && (isSetSpeculative_retry());
+    builder.append(preset_speculative_retry);
+    if (preset_speculative_retry)
+      builder.append(speculative_retry);
+
     return builder.toHashCode();
   }
 
@@ -2816,6 +2881,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
     if (isSetIndex_interval()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.index_interval, typedOther.index_interval);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetSpeculative_retry()).compareTo(typedOther.isSetSpeculative_retry());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetSpeculative_retry()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.speculative_retry, typedOther.speculative_retry);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -3139,6 +3214,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (!first) sb.append(", ");
       sb.append("index_interval:");
       sb.append(this.index_interval);
+      first = false;
+    }
+    if (isSetSpeculative_retry()) {
+      if (!first) sb.append(", ");
+      sb.append("speculative_retry:");
+      if (this.speculative_retry == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.speculative_retry);
+      }
       first = false;
     }
     if (isSetRow_cache_size()) {
@@ -3491,6 +3576,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
+          case 41: // SPECULATIVE_RETRY
+            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+              struct.speculative_retry = iprot.readString();
+              struct.setSpeculative_retryIsSet(true);
+            } else {
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+            }
+            break;
           case 9: // ROW_CACHE_SIZE
             if (schemeField.type == org.apache.thrift.protocol.TType.DOUBLE) {
               struct.row_cache_size = iprot.readDouble();
@@ -3810,6 +3903,13 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         oprot.writeI32(struct.index_interval);
         oprot.writeFieldEnd();
       }
+      if (struct.speculative_retry != null) {
+        if (struct.isSetSpeculative_retry()) {
+          oprot.writeFieldBegin(SPECULATIVE_RETRY_FIELD_DESC);
+          oprot.writeString(struct.speculative_retry);
+          oprot.writeFieldEnd();
+        }
+      }
       oprot.writeFieldStop();
       oprot.writeStructEnd();
     }
@@ -3899,37 +3999,40 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (struct.isSetIndex_interval()) {
         optionals.set(22);
       }
-      if (struct.isSetRow_cache_size()) {
+      if (struct.isSetSpeculative_retry()) {
         optionals.set(23);
       }
-      if (struct.isSetKey_cache_size()) {
+      if (struct.isSetRow_cache_size()) {
         optionals.set(24);
       }
-      if (struct.isSetRow_cache_save_period_in_seconds()) {
+      if (struct.isSetKey_cache_size()) {
         optionals.set(25);
       }
-      if (struct.isSetKey_cache_save_period_in_seconds()) {
+      if (struct.isSetRow_cache_save_period_in_seconds()) {
         optionals.set(26);
       }
-      if (struct.isSetMemtable_flush_after_mins()) {
+      if (struct.isSetKey_cache_save_period_in_seconds()) {
         optionals.set(27);
       }
-      if (struct.isSetMemtable_throughput_in_mb()) {
+      if (struct.isSetMemtable_flush_after_mins()) {
         optionals.set(28);
       }
-      if (struct.isSetMemtable_operations_in_millions()) {
+      if (struct.isSetMemtable_throughput_in_mb()) {
         optionals.set(29);
       }
-      if (struct.isSetMerge_shards_chance()) {
+      if (struct.isSetMemtable_operations_in_millions()) {
         optionals.set(30);
       }
-      if (struct.isSetRow_cache_provider()) {
+      if (struct.isSetMerge_shards_chance()) {
         optionals.set(31);
       }
-      if (struct.isSetRow_cache_keys_to_save()) {
+      if (struct.isSetRow_cache_provider()) {
         optionals.set(32);
       }
-      oprot.writeBitSet(optionals, 33);
+      if (struct.isSetRow_cache_keys_to_save()) {
+        optionals.set(33);
+      }
+      oprot.writeBitSet(optionals, 34);
       if (struct.isSetColumn_type()) {
         oprot.writeString(struct.column_type);
       }
@@ -4019,6 +4122,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (struct.isSetIndex_interval()) {
         oprot.writeI32(struct.index_interval);
       }
+      if (struct.isSetSpeculative_retry()) {
+        oprot.writeString(struct.speculative_retry);
+      }
       if (struct.isSetRow_cache_size()) {
         oprot.writeDouble(struct.row_cache_size);
       }
@@ -4058,7 +4164,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       struct.setKeyspaceIsSet(true);
       struct.name = iprot.readString();
       struct.setNameIsSet(true);
-      BitSet incoming = iprot.readBitSet(33);
+      BitSet incoming = iprot.readBitSet(34);
       if (incoming.get(0)) {
         struct.column_type = iprot.readString();
         struct.setColumn_typeIsSet(true);
@@ -4184,42 +4290,46 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         struct.setIndex_intervalIsSet(true);
       }
       if (incoming.get(23)) {
+        struct.speculative_retry = iprot.readString();
+        struct.setSpeculative_retryIsSet(true);
+      }
+      if (incoming.get(24)) {
         struct.row_cache_size = iprot.readDouble();
         struct.setRow_cache_sizeIsSet(true);
       }
-      if (incoming.get(24)) {
+      if (incoming.get(25)) {
         struct.key_cache_size = iprot.readDouble();
         struct.setKey_cache_sizeIsSet(true);
       }
-      if (incoming.get(25)) {
+      if (incoming.get(26)) {
         struct.row_cache_save_period_in_seconds = iprot.readI32();
         struct.setRow_cache_save_period_in_secondsIsSet(true);
       }
-      if (incoming.get(26)) {
+      if (incoming.get(27)) {
         struct.key_cache_save_period_in_seconds = iprot.readI32();
         struct.setKey_cache_save_period_in_secondsIsSet(true);
       }
-      if (incoming.get(27)) {
+      if (incoming.get(28)) {
         struct.memtable_flush_after_mins = iprot.readI32();
         struct.setMemtable_flush_after_minsIsSet(true);
       }
-      if (incoming.get(28)) {
+      if (incoming.get(29)) {
         struct.memtable_throughput_in_mb = iprot.readI32();
         struct.setMemtable_throughput_in_mbIsSet(true);
       }
-      if (incoming.get(29)) {
+      if (incoming.get(30)) {
         struct.memtable_operations_in_millions = iprot.readDouble();
         struct.setMemtable_operations_in_millionsIsSet(true);
       }
-      if (incoming.get(30)) {
+      if (incoming.get(31)) {
         struct.merge_shards_chance = iprot.readDouble();
         struct.setMerge_shards_chanceIsSet(true);
       }
-      if (incoming.get(31)) {
+      if (incoming.get(32)) {
         struct.row_cache_provider = iprot.readString();
         struct.setRow_cache_providerIsSet(true);
       }
-      if (incoming.get(32)) {
+      if (incoming.get(33)) {
         struct.row_cache_keys_to_save = iprot.readI32();
         struct.setRow_cache_keys_to_saveIsSet(true);
       }

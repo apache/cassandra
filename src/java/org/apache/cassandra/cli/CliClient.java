@@ -140,7 +140,8 @@ public class CliClient
         INDEX_INTERVAL,
         MEMTABLE_FLUSH_PERIOD_IN_MS,
         CACHING,
-        DEFAULT_TIME_TO_LIVE
+        DEFAULT_TIME_TO_LIVE,
+        SPECULATIVE_RETRY
     }
 
     private static final String DEFAULT_PLACEMENT_STRATEGY = "org.apache.cassandra.locator.NetworkTopologyStrategy";
@@ -1338,6 +1339,9 @@ public class CliClient
             case INDEX_INTERVAL:
                 cfDef.setIndex_interval(Integer.parseInt(mValue));
                 break;
+            case SPECULATIVE_RETRY:
+                cfDef.setSpeculative_retry(CliUtils.unescapeSQLString(mValue));
+                break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
                 assert(false);
@@ -1793,6 +1797,7 @@ public class CliClient
         writeAttr(output, false, "compaction_strategy", cfDef.compaction_strategy);
         writeAttr(output, false, "caching", cfDef.caching);
         writeAttr(output, false, "default_time_to_live", cfDef.default_time_to_live);
+        writeAttr(output, false, "speculative_retry", cfDef.speculative_retry);
 
         if (cfDef.isSetBloom_filter_fp_chance())
             writeAttr(output, false, "bloom_filter_fp_chance", cfDef.bloom_filter_fp_chance);
@@ -2163,6 +2168,7 @@ public class CliClient
         sessionState.out.printf("      Default time to live: %s%n", cf_def.default_time_to_live);
         sessionState.out.printf("      Bloom Filter FP chance: %s%n", cf_def.isSetBloom_filter_fp_chance() ? cf_def.bloom_filter_fp_chance : "default");
         sessionState.out.printf("      Index interval: %s%n", cf_def.isSetIndex_interval() ? cf_def.index_interval : "default");
+        sessionState.out.printf("      Speculative Retry: %s%n", cf_def.speculative_retry);
 
         // if we have connection to the cfMBean established
         if (cfMBean != null)

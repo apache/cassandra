@@ -26,7 +26,7 @@ import java.util.concurrent.locks.Condition;
 // _after_ signal(), it will work as desired.)
 public class SimpleCondition implements Condition
 {
-    boolean set;
+    private boolean set;
 
     public synchronized void await() throws InterruptedException
     {

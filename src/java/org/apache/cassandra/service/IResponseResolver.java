@@ -40,6 +40,6 @@ public interface IResponseResolver<TMessage, TResolved> {
      */
     public TResolved getData() throws IOException;
 
-    public void preprocess(MessageIn<TMessage> message);
+    public boolean preprocess(MessageIn<TMessage> message);
     public Iterable<MessageIn<TMessage>> getMessages();
 }
