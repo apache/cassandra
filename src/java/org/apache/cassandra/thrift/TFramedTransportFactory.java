@@ -21,16 +21,19 @@ package org.apache.cassandra.thrift;
  *
  */
 
+import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
+import org.apache.hadoop.conf.Configuration;
+
 public class TFramedTransportFactory implements ITransportFactory
 {
-    public TTransport openTransport(TSocket socket) throws TTransportException
+    public TTransport openTransport(TSocket socket, Configuration conf) throws TTransportException
     {
-        TTransport transport = new TFramedTransport(socket);
+        TTransport transport = new TFramedTransport(socket, ConfigHelper.getThriftFramedTransportSize(conf));
         transport.open();
         return transport;
     }

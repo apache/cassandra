@@ -149,8 +149,8 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
             throws InvalidRequestException, TException, AuthenticationException, AuthorizationException, LoginException
     {
         logger.debug("Creating authenticated client for CF output format");
-        TTransport transport = ConfigHelper.getOutputTransportFactory(conf).openTransport(socket);
-        TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport);
+        TTransport transport = ConfigHelper.getOutputTransportFactory(conf).openTransport(socket, conf);
+        TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport, ConfigHelper.getThriftMaxMessageLength(conf));
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
         client.set_keyspace(ConfigHelper.getOutputKeyspace(conf));
         if (ConfigHelper.getOutputKeyspaceUserName(conf) != null)

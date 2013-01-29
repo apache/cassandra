@@ -276,13 +276,10 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                 }
             }
 
-            if (useCompactStorage && stmt.columns.size() <= 1)
+            if (useCompactStorage && !stmt.columnAliases.isEmpty())
             {
                 if (stmt.columns.isEmpty())
                 {
-                    if (columnAliases.isEmpty())
-                        throw new InvalidRequestException(String.format("COMPACT STORAGE with non-composite PRIMARY KEY require one column not part of the PRIMARY KEY (got: %s)", StringUtils.join(stmt.columns.keySet(), ", ")));
-
                     // The only value we'll insert will be the empty one, so the default validator don't matter
                     stmt.defaultValidator = BytesType.instance;
                     // We need to distinguish between
@@ -293,6 +290,9 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                 }
                 else
                 {
+                    if (stmt.columns.size() > 1)
+                        throw new InvalidRequestException(String.format("COMPACT STORAGE with composite PRIMARY KEY allows no more than one column not part of the PRIMARY KEY (got: %s)", StringUtils.join(stmt.columns.keySet(), ", ")));
+
                     Map.Entry<ColumnIdentifier, AbstractType> lastEntry = stmt.columns.entrySet().iterator().next();
                     stmt.defaultValidator = lastEntry.getValue();
                     stmt.valueAlias = lastEntry.getKey().key;
@@ -301,8 +301,10 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
             }
             else
             {
-                if (useCompactStorage && !columnAliases.isEmpty())
-                    throw new InvalidRequestException(String.format("COMPACT STORAGE with composite PRIMARY KEY allows no more than one column not part of the PRIMARY KEY (got: %s)", StringUtils.join(stmt.columns.keySet(), ", ")));
+                // For compact, we are in the "static" case, so we need at least one column defined. For non-compact however, having
+                // just the PK is fine since we have CQL3 row marker.
+                if (useCompactStorage && stmt.columns.isEmpty())
+                    throw new InvalidRequestException("COMPACT STORAGE with non-composite PRIMARY KEY require one column not part of the PRIMARY KEY, none given");
 
                 // There is no way to insert/access a column that is not defined for non-compact storage, so
                 // the actual validator don't matter much (except that we want to recognize counter CF as limitation apply to them).

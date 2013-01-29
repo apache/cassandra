@@ -37,6 +37,14 @@ public class TBinaryProtocol extends org.apache.thrift.protocol.TBinaryProtocol
         this(trans, false, true);
     }
 
+    public TBinaryProtocol(TTransport trans, int readLength)
+    {
+        this(trans);
+
+        if (readLength > 0)
+            setReadLength(readLength);
+    }
+
     public TBinaryProtocol(TTransport trans, boolean strictRead, boolean strictWrite)
     {
         super(trans);

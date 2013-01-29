@@ -7,6 +7,7 @@
 
 1.2.2
  * fix symlinks under data dir not working (CASSANDRA-5185)
+ * fix bug in compact storage metadata handling (CASSANDRA-5189)
 
 
 1.2.1
@@ -59,6 +60,7 @@ Merged from 1.1:
  * fix ConcurrentModificationException in getBootstrapSource (CASSANDRA-5170)
  * fix sstable maxtimestamp for row deletes and pre-1.1.1 sstables (CASSANDRA-5153)
  * fix start key/end token validation for wide row iteration (CASSANDRA-5168)
+ * add ConfigHelper support for Thrift frame and max message sizes (CASSANDRA-5188)
 
 
 1.1.9
