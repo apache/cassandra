@@ -571,9 +571,10 @@ public class QueryProcessor
                 return result;
 
             case USE:
+                clientState.validateLogin();
                 clientState.setKeyspace(CliUtils.unescapeSQLString((String) statement.statement));
-                result.type = CqlResultType.VOID;
 
+                result.type = CqlResultType.VOID;
                 return result;
 
             case TRUNCATE:

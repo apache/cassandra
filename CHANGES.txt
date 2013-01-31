@@ -1,6 +1,7 @@
 1.2.2
  * fix symlinks under data dir not working (CASSANDRA-5185)
  * fix bug in compact storage metadata handling (CASSANDRA-5189)
+ * Validate login for USE queries (CASSANDRA-5207)
 
 1.2.1
  * stream undelivered hints on decommission (CASSANDRA-5128)
