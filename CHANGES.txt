@@ -1,4 +1,5 @@
 1.2.2
+ * more robust solution to incomplete compactions + counters (CASSANDRA-5151)
  * fix symlinks under data dir not working (CASSANDRA-5185)
  * fix bug in compact storage metadata handling (CASSANDRA-5189)
  * Validate login for USE queries (CASSANDRA-5207)

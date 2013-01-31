@@ -36,6 +36,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorStatsCollector;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -110,6 +111,8 @@ public class CompactionTask extends AbstractCompactionTask
         // sanity check: all sstables must belong to the same cfs
         for (SSTableReader sstable : toCompact)
             assert sstable.descriptor.cfname.equals(cfs.columnFamily);
+
+        UUID taskId = SystemTable.startCompaction(cfs, toCompact);
 
         CompactionController controller = new CompactionController(cfs, toCompact, gcBefore);
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,
@@ -235,6 +238,11 @@ public class CompactionTask extends AbstractCompactionTask
             {
                 throw new RuntimeException(e);
             }
+
+            // point of no return -- the new sstables are live on disk; next we'll start deleting the old ones
+            // (in replaceCompactedSSTables)
+            if (taskId != null)
+                SystemTable.finishCompaction(taskId);
 
             if (collector != null)
                 collector.finishCompaction(ci);

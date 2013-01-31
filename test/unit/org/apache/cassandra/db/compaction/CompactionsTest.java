@@ -24,6 +24,10 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.SetMultimap;
+import com.google.common.collect.Sets;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -40,6 +44,7 @@ import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static junit.framework.Assert.*;
 
@@ -273,6 +278,37 @@ public class CompactionsTest extends SchemaLoader
         sstables = cfs.getSSTables();
         assert sstables.size() == 1;
         assert sstables.iterator().next().descriptor.generation == prevGeneration + 1;
+    }
+
+    @Test
+    public void testCompactionLog() throws Exception
+    {
+        SystemTable.discardCompactionsInProgress();
+        SetMultimap<Pair<String, String>, Integer> compactionLogs = SystemTable.getUnfinishedCompactions();
+        assert compactionLogs.isEmpty();
+
+        String cf = "Standard1";
+        ColumnFamilyStore cfs = Table.open(TABLE1).getColumnFamilyStore(cf);
+        insertData(TABLE1, cf, 0, 1);
+        cfs.forceBlockingFlush();
+
+        Collection<SSTableReader> sstables = cfs.getSSTables();
+        assert !sstables.isEmpty();
+        Set<Integer> generations = Sets.newHashSet(Iterables.transform(sstables, new Function<SSTableReader, Integer>()
+        {
+            public Integer apply(SSTableReader sstable)
+            {
+                return sstable.descriptor.generation;
+            }
+        }));
+        UUID taskId = SystemTable.startCompaction(cfs, sstables);
+        compactionLogs = SystemTable.getUnfinishedCompactions();
+        Set<Integer> unfinishedCompactions = compactionLogs.get(Pair.create(TABLE1, cf));
+        assert unfinishedCompactions.containsAll(generations);
+
+        SystemTable.finishCompaction(taskId);
+        compactionLogs = SystemTable.getUnfinishedCompactions();
+        assert compactionLogs.isEmpty();
     }
 
     private void testDontPurgeAccidentaly(String k, String cfname, boolean forceDeserialize) throws IOException, ExecutionException, InterruptedException

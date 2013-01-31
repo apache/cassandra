@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
@@ -26,38 +25,33 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
+import com.google.common.base.Function;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
-import com.google.common.collect.Sets;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.avro.ipc.ByteBufferInputStream;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Constants;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.CounterId;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.*;
 
 import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
 
@@ -77,6 +71,7 @@ public class SystemTable
     public static final String SCHEMA_KEYSPACES_CF = "schema_keyspaces";
     public static final String SCHEMA_COLUMNFAMILIES_CF = "schema_columnfamilies";
     public static final String SCHEMA_COLUMNS_CF = "schema_columns";
+    public static final String COMPACTION_LOG = "compactions_in_progress";
 
     @Deprecated
     public static final String OLD_STATUS_CF = "LocationInfo";
@@ -184,6 +179,74 @@ public class SystemTable
         {
             logger.info("Possible old-format hints found. Truncating");
             oldHintsCfs.truncate();
+        }
+    }
+
+    /**
+     * Write compaction log, except columfamilies under system keyspace.
+     *
+     * @param cfs
+     * @param toCompact sstables to compact
+     * @return compaction task id or null if cfs is under system keyspace
+     */
+    public static UUID startCompaction(ColumnFamilyStore cfs, Iterable<SSTableReader> toCompact)
+    {
+        if (Table.SYSTEM_KS.equals(cfs.table.name))
+            return null;
+
+        UUID compactionId = UUIDGen.getTimeUUID();
+        String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, inputs) VALUES (%s, '%s', '%s', {%s})";
+        Iterable<Integer> generations = Iterables.transform(toCompact, new Function<SSTableReader, Integer>()
+        {
+            public Integer apply(SSTableReader sstable)
+            {
+                return sstable.descriptor.generation;
+            }
+        });
+        processInternal(String.format(req, COMPACTION_LOG, compactionId, cfs.table.name, cfs.columnFamily, StringUtils.join(generations.iterator(), ',')));
+        forceBlockingFlush(COMPACTION_LOG);
+        return compactionId;
+    }
+
+    public static void finishCompaction(UUID taskId)
+    {
+        assert taskId != null;
+
+        String req = "DELETE FROM system.%s WHERE id = %s";
+        processInternal(String.format(req, COMPACTION_LOG, taskId));
+        forceBlockingFlush(COMPACTION_LOG);
+    }
+
+    /**
+     * @return unfinished compactions, grouped by keyspace/columnfamily pair.
+     */
+    public static SetMultimap<Pair<String, String>, Integer> getUnfinishedCompactions()
+    {
+        String req = "SELECT * FROM system.%s";
+        UntypedResultSet resultSet = processInternal(String.format(req, COMPACTION_LOG));
+
+        SetMultimap<Pair<String, String>, Integer> unfinishedCompactions = HashMultimap.create();
+        for (UntypedResultSet.Row row : resultSet)
+        {
+            String keyspace = row.getString("keyspace_name");
+            String columnfamily = row.getString("columnfamily_name");
+            Set<Integer> inputs = row.getSet("inputs", Int32Type.instance);
+
+            unfinishedCompactions.putAll(Pair.create(keyspace, columnfamily), inputs);
+        }
+        return unfinishedCompactions;
+    }
+
+    public static void discardCompactionsInProgress()
+    {
+        ColumnFamilyStore compactionLog = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(COMPACTION_LOG);
+        try
+        {
+            compactionLog.truncate().get();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
         }
     }
 
