@@ -204,7 +204,7 @@ public class SystemTable
         {
             throw new RuntimeException(e);
         }
-        return String.format("{'%s': '%s'}",
+        return String.format("{%s: 0x%s}",
                              cfs.metadata.cfId,
                              ByteBufferUtil.bytesToHex(ByteBuffer.wrap(out.getData(), 0, out.getLength())));
     }
@@ -262,7 +262,7 @@ public class SystemTable
         if (ep.equals(FBUtilities.getBroadcastAddress()))
             return;
 
-        String req = "INSERT INTO system.%s (peer, %s) VALUES ('%s', '%s')";
+        String req = "INSERT INTO system.%s (peer, %s) VALUES ('%s', %s)";
         processInternal(String.format(req, PEERS_CF, columnName, ep.getHostAddress(), value));
     }
 
@@ -570,7 +570,7 @@ public class SystemTable
         hostId = UUID.randomUUID();
         logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
 
-        req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', '%s')";
+        req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', %s)";
         processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, hostId));
         return hostId;
     }

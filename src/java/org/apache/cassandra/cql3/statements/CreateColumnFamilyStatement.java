@@ -142,7 +142,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
     public static class RawStatement extends CFStatement
     {
-        private final Map<ColumnIdentifier, ParsedType> definitions = new HashMap<ColumnIdentifier, ParsedType>();
+        private final Map<ColumnIdentifier, CQL3Type> definitions = new HashMap<ColumnIdentifier, CQL3Type>();
         public final CFPropDefs properties = new CFPropDefs();
 
         private final List<List<ColumnIdentifier>> keyAliases = new ArrayList<List<ColumnIdentifier>>();
@@ -178,10 +178,10 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
             stmt.setBoundTerms(getBoundsTerms());
 
             Map<ByteBuffer, CollectionType> definedCollections = null;
-            for (Map.Entry<ColumnIdentifier, ParsedType> entry : definitions.entrySet())
+            for (Map.Entry<ColumnIdentifier, CQL3Type> entry : definitions.entrySet())
             {
                 ColumnIdentifier id = entry.getKey();
-                ParsedType pt = entry.getValue();
+                CQL3Type pt = entry.getValue();
                 if (pt.isCollection())
                 {
                     if (definedCollections == null)
@@ -350,7 +350,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
             return isReversed != null && isReversed ? ReversedType.getInstance(type) : type;
         }
 
-        public void addDefinition(ColumnIdentifier def, ParsedType type)
+        public void addDefinition(ColumnIdentifier def, CQL3Type type)
         {
             definedNames.add(def);
             definitions.put(def, type);

@@ -1176,16 +1176,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     handleStateRelocating(endpoint, pieces);
                 break;
             case RELEASE_VERSION:
-                SystemTable.updatePeerInfo(endpoint, "release_version", value.value);
+                SystemTable.updatePeerInfo(endpoint, "release_version", quote(value.value));
                 break;
             case DC:
-                SystemTable.updatePeerInfo(endpoint, "data_center", value.value);
+                SystemTable.updatePeerInfo(endpoint, "data_center", quote(value.value));
                 break;
             case RACK:
-                SystemTable.updatePeerInfo(endpoint, "rack", value.value);
+                SystemTable.updatePeerInfo(endpoint, "rack", quote(value.value));
                 break;
             case RPC_ADDRESS:
-                SystemTable.updatePeerInfo(endpoint, "rpc_address", value.value);
+                SystemTable.updatePeerInfo(endpoint, "rpc_address", quote(value.value));
                 break;
             case SCHEMA:
                 SystemTable.updatePeerInfo(endpoint, "schema_version", value.value);
@@ -1194,6 +1194,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 SystemTable.updatePeerInfo(endpoint, "host_id", value.value);
                 break;
         }
+    }
+
+    private String quote(String value)
+    {
+        return "'" + value + "'";
     }
 
     private byte[] getApplicationStateValue(InetAddress endpoint, ApplicationState appstate)

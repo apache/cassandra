@@ -1,6 +1,6 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.0.1
+h1. Cassandra Query Language (CQL) v3.0.2
 
 
  <span id="tableOfContents">
@@ -47,12 +47,15 @@ p. There is a second kind of identifiers called _quoted identifiers_ defined by 
 
 h3(#constants). Constants
 
-CQL defines 4 kinds of _implicitly-typed constants_: strings, numbers, uuids and booleans:
+CQL defines the following kind of _constants_: strings, integers, floats, booleans, uuids and blobs:
 * A string constant is an arbitrary sequence of characters characters enclosed by single-quote(@'@). One can include a single-quote in a string by repeating it, e.g. @'It''s raining today'@. Those are not to be confused with quoted identifiers that use double-quotes.
-* Numeric constants are either integer constant defined by @'-'?[0-9]+@ or a float constant defined by @'-'?[0-9]+('.'[0-9]*)?([eE][+-]?[0-9+])?@.
-* A "UUID":http://en.wikipedia.org/wiki/Universally_unique_identifier constant is defined by @hex{8}-hex{4}-hex{4}-hex{4}-hex{12}@ where @hex@ is an hexadecimal character, e.g. @[0-9a-fA-F]@ and @{4}@ is the number of such characters.
+* An integer constant is defined by @'-'?[0-9]+@.
+* A float constant is defined by @'-'?[0-9]+('.'[0-9]*)?([eE][+-]?[0-9+])?@.
 * A boolean constant is either @true@ or @false@ up to case-insensitivity (i.e. @True@ is a valid boolean constant).
+* A "UUID":http://en.wikipedia.org/wiki/Universally_unique_identifier constant is defined by @hex{8}-hex{4}-hex{4}-hex{4}-hex{12}@ where @hex@ is an hexadecimal character, e.g. @[0-9a-fA-F]@ and @{4}@ is the number of such characters.
+* A blob constant is an hexadecimal number defined by @0[xX](hex)+@ where @hex@ is an hexadecimal character, e.g. @[0-9a-fA-F]@.
 
+For how these constants are typed, see the "data types section":#types.
 
 h3. Comments
 
@@ -564,6 +567,7 @@ bc(syntax)..
                   ( WHERE <where-clause> )?
                   ( ORDER BY <order-by> )?
                   ( LIMIT <integer> )?
+                  ( ALLOW FILTERING )?
 
 <select-clause> ::= <column-list>
                   | COUNT '(' ( '*' | '1' ) ')'
@@ -646,14 +650,52 @@ The @ORDER BY@ option allows to select the order of the returned results. It tak
 * if the table has been defined without any specific @CLUSTERING ORDER@, then then allowed orderings are the order induced by the clustering key and the reverse of that one.
 * otherwise, the orderings allowed are the order of the @CLUSTERING ORDER@ option and the reversed one.
 
-h4(#selectOther). Other options
+h4(#selectLimit). @LIMIT@
 
 The @LIMIT@ option to a @SELECT@ statement limits the number of rows returned by a query.
+
+h4(#selectAllowFiltering). @ALLOW FILTERING@
+
+By default, CQL only allows select queries that don't involve "filtering" server side, i.e. queries where we know that all (live) record read will be returned (maybe partly) in the result set. The reasoning is that those "non filtering" queries have predictable performance in the sense that they will execute in a time that is proportional to the amount of data *returned* by the query (which can be controlled through @LIMIT@).
+
+The @ALLOW FILTERING@ option allows to explicitely allow (some) queries that require filtering. Please note that a query using @ALLOW FILTERING@ may thus have unpredictable performance (for the definition above), i.e. even a query that selects a handful of records *may* exhibit performance that depends on the total amount of data stored in the cluster.
+
+For instance, considering the following table holding user profiles with their year of birth (with a secondary index on it) and country of residence:
+
+bc(sample).. 
+CREATE TABLE users (
+    username text PRIMARY KEY,
+    firstname text,
+    lastname text,
+    birth_year int,
+    country text
+)
+
+CREATE INDEX ON users(birth_year);
+p. 
+
+Then the following queries are valid:
+
+bc(sample). 
+SELECT * FROM users;
+SELECT firstname, lastname FROM users WHERE birth_year = 1981;
+
+because in both case, Cassandra guarantees that these queries performance will be proportional to the amount of data returned. In particular, if no users are born in 1981, then the second query performance will not depend of the number of user profile stored in the database (not directly at least: due to 2ndary index implementation consideration, this query may still depend on the number of node in the cluster, which indirectly depends on the amount of data stored.  Nevertheless, the number of nodes will always be multiple number of magnitude lower than the number of user profile stored). Of course, both query may return very large result set in practice, but the amount of data returned can always be controlled by adding a @LIMIT@.
+
+However, the following query will be rejected:
+
+bc(sample). 
+SELECT firstname, lastname FROM users WHERE birth_year = 1981 AND country = 'FR';
+
+because Cassandra cannot guarantee that it won't have to scan large amount of data even if the result to those query is small. Typically, it will scan all the index entries for users born in 1981 even if only a handful are actually from France. However, if you "know what you are doing", you can force the execution of this query by using @ALLOW FILTERING@ and so the following query is valid:
+
+bc(sample). 
+SELECT firstname, lastname FROM users WHERE birth_year = 1981 AND country = 'FR' ALLOW FILTERING;
 
 
 h2(#types). Data Types
 
-CQL supports a rich set of native data types for columns defined in a table.  On top of those native types, users can also provide custom types (through a JAVA class extending @AbstractType@ loadable by Cassandra). The syntax of types is thus:
+CQL supports a rich set of data types for columns defined in a table, including collection types. On top of those native and collection types, users can also provide custom types (through a JAVA class extending @AbstractType@ loadable by Cassandra). The syntax of types is thus:
 
 bc(syntax).. 
 <type> ::= <native-type>
@@ -682,25 +724,27 @@ bc(syntax)..
                     | map  '<' <native-type> ',' <native-type> '>'
 p. Note that the native types are keywords and as such are case-insensitive. They are however not reserved ones.
 
-p. The following table gives additional informations on the native data types:
+p. The following table gives additional informations on the native data types, and on which kind of "constants":#constants each type supports:
 
-|_. type    |_. description|
-|@ascii@    |ASCII character string|
-|@bigint@   |64-bit signed long|
-|@blob@     |Arbitrary bytes (no validation)|
-|@boolean@  |true or false|
-|@counter@  |Counter column (64-bit signed value). See "Counters":#counters for details|
-|@decimal@  |Variable-precision decimal|
-|@double@   |64-bit IEEE-754 floating point|
-|@float@    |32-bit IEEE-754 floating point|
-|@inet@     |An IP address. It can be either 4 bytes long (IPv4) or 16 bytes long (IPv6)|
-|@int@      |32-bit signed int|
-|@text@     |UTF8 encoded string|
-|@timestamp@|A timestamp. See "Working with dates":#usingdates below for more information.|
-|@timeuuid@ |Type 1 UUID. This is generally used as a "conflict-free" timestamp. See "Working with @timeuuid@":#usingtimeuuid below.|
-|@uuid@     |Type 1 or type 4 UUID|
-|@varchar@  |UTF8 encoded string|
-|@varint@   |Arbitrary-precision integer|
+|_. type    |_. constants supported|_. description|
+|@ascii@    |   strings            |ASCII character string|
+|@bigint@   |   integers           |64-bit signed long|
+|@blob@     |   blobs              |Arbitrary bytes (no validation)|
+|@boolean@  |   booleans           |true or false|
+|@counter@  |   integers           |Counter column (64-bit signed value). See "Counters":#counters for details|
+|@decimal@  |   integers, floats   |Variable-precision decimal|
+|@double@   |   integers           |64-bit IEEE-754 floating point|
+|@float@    |   integers, floats   |32-bit IEEE-754 floating point|
+|@inet@     |   strings            |An IP address. It can be either 4 bytes long (IPv4) or 16 bytes long (IPv6). There is no @inet@ constant, IP address should be inputed as strings|
+|@int@      |   integers           |32-bit signed int|
+|@text@     |   strings            |UTF8 encoded string|
+|@timestamp@|   integers, strings  |A timestamp. Strings constant are allow to input timestamps as dates, see "Working with dates":#usingdates below for more information.|
+|@timeuuid@ |   uuids              |Type 1 UUID. This is generally used as a "conflict-free" timestamp. See "Working with @timeuuid@":#usingtimeuuid below.|
+|@uuid@     |   uuids              |Type 1 or type 4 UUID|
+|@varchar@  |   strings            |UTF8 encoded string|
+|@varint@   |   integers           |Arbitrary-precision integer|
+
+For more information on how to use the collection types, see the "Working with collections":#collections section below.
 
 h3(#usingdates). Working with dates
 
@@ -960,6 +1004,10 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 h2(#changes). Changes
 
 The following describes the addition/changes brought for each version of CQL.
+
+h3. 3.0.2
+
+- Type validation for the "constants":#constants has been fixed. For instance, the implementation used to allow @'2'@ as a valid value for an @int@ column (interpreting it has the equivalent of @2@), or @42@ as a valid @blob@ value (in which case @42@ was interpreted as an hexadecimal representation of the blob). This is no longer the case, type validation of constants is now more strict. See the "data types":#dataTypes section for details on which constant is allowed for which type, but note that this let to the introduction of "blobs constants":#constants.
 
 h3. 3.0.1
 

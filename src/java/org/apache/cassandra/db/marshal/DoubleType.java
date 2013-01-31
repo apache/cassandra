@@ -18,13 +18,19 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
+import java.util.Set;
 
 import org.apache.cassandra.cql.jdbc.JdbcDouble;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DoubleType extends AbstractType<Double>
 {
     public static final DoubleType instance = new DoubleType();
+
+    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.INTEGER, Term.Type.FLOAT);
 
     DoubleType() {} // singleton
 
@@ -87,5 +93,15 @@ public class DoubleType extends AbstractType<Double>
     {
         if (bytes.remaining() != 8 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 8 or 0 byte value for a double (%d)", bytes.remaining()));
+    }
+
+    public Set<Term.Type> supportedCQL3Constants()
+    {
+        return supportedCQL3Constants;
+    }
+
+    public CQL3Type asCQL3Type()
+    {
+        return CQL3Type.Native.DOUBLE;
     }
 }

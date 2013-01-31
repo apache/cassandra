@@ -22,13 +22,13 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 
-public interface ParsedType
+public interface CQL3Type
 {
     public boolean isCollection();
     public boolean isCounter();
     public AbstractType<?> getType();
 
-    public enum Native implements ParsedType
+    public enum Native implements CQL3Type
     {
         ASCII    (AsciiType.instance),
         BIGINT   (LongType.instance),
@@ -68,15 +68,26 @@ public interface ParsedType
         {
             return this == COUNTER;
         }
+
+        @Override
+        public String toString()
+        {
+            return super.toString().toLowerCase();
+        }
     }
 
-    public static class Custom implements ParsedType
+    public static class Custom implements CQL3Type
     {
         private final AbstractType<?> type;
 
+        public Custom(AbstractType<?> type)
+        {
+            this.type = type;
+        }
+
         public Custom(String className) throws SyntaxException, ConfigurationException
         {
-            this.type = TypeParser.parse(className);
+            this(TypeParser.parse(className));
         }
 
         public boolean isCollection()
@@ -93,18 +104,24 @@ public interface ParsedType
         {
             return false;
         }
+
+        @Override
+        public String toString()
+        {
+            return "'" + type + "'";
+        }
     }
 
-    public static class Collection implements ParsedType
+    public static class Collection implements CQL3Type
     {
         CollectionType type;
 
-        private Collection(CollectionType type)
+        public Collection(CollectionType type)
         {
             this.type = type;
         }
 
-        public static Collection map(ParsedType t1, ParsedType t2) throws InvalidRequestException
+        public static Collection map(CQL3Type t1, CQL3Type t2) throws InvalidRequestException
         {
             if (t1.isCollection() || t2.isCollection())
                 throw new InvalidRequestException("map type cannot contain another collection");
@@ -114,7 +131,7 @@ public interface ParsedType
             return new Collection(MapType.getInstance(t1.getType(), t2.getType()));
         }
 
-        public static Collection list(ParsedType t) throws InvalidRequestException
+        public static Collection list(CQL3Type t) throws InvalidRequestException
         {
             if (t.isCollection())
                 throw new InvalidRequestException("list type cannot contain another collection");
@@ -124,7 +141,7 @@ public interface ParsedType
             return new Collection(ListType.getInstance(t.getType()));
         }
 
-        public static Collection set(ParsedType t) throws InvalidRequestException
+        public static Collection set(CQL3Type t) throws InvalidRequestException
         {
             if (t.isCollection())
                 throw new InvalidRequestException("set type cannot contain another collection");
@@ -147,6 +164,22 @@ public interface ParsedType
         public boolean isCounter()
         {
             return false;
+        }
+
+        @Override
+        public String toString()
+        {
+            switch (type.kind)
+            {
+                case LIST:
+                    return "list<" + ((ListType)type).elements.asCQL3Type() + ">";
+                case SET:
+                    return "set<" + ((SetType)type).elements.asCQL3Type() + ">";
+                case MAP:
+                    MapType mt = (MapType)type;
+                    return "set<" + mt.keys.asCQL3Type() + ", " + mt.values.asCQL3Type() + ">";
+            }
+            throw new AssertionError();
         }
     }
 }

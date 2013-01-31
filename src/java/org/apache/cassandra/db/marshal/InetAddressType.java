@@ -20,13 +20,19 @@ package org.apache.cassandra.db.marshal;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
+import java.util.Set;
 
 import org.apache.cassandra.cql.jdbc.JdbcInetAddress;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class InetAddressType extends AbstractType<InetAddress>
 {
     public static final InetAddressType instance = new InetAddressType();
+
+    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.STRING);
 
     InetAddressType() {} // singleton
 
@@ -80,5 +86,15 @@ public class InetAddressType extends AbstractType<InetAddress>
         {
             throw new MarshalException(String.format("Expected 4 or 16 byte inetaddress; got %s", ByteBufferUtil.bytesToHex(bytes)));
         }
+    }
+
+    public Set<Term.Type> supportedCQL3Constants()
+    {
+        return supportedCQL3Constants;
+    }
+
+    public CQL3Type asCQL3Type()
+    {
+        return CQL3Type.Native.INET;
     }
 }

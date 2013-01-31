@@ -79,4 +79,9 @@ public class LocalPartitioner extends AbstractPartitioner<LocalToken>
     {
         return Collections.singletonMap((Token)getMinimumToken(), new Float(1.0));
     }
+
+    public AbstractType<?> getTokenValidator()
+    {
+        return comparator;
+    }
 }

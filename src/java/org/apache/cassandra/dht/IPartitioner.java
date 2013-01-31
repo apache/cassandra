@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
 
 public interface IPartitioner<T extends Token>
 {
@@ -83,6 +84,8 @@ public interface IPartitioner<T extends Token>
      * @return the mapping from 'token' to 'percentage of the ring owned by that token'.
      */
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens);
+
+    public AbstractType<?> getTokenValidator();
 
     public <R extends RingPosition> R minValue(Class<R> klass);
 }

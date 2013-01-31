@@ -19,13 +19,19 @@ package org.apache.cassandra.db.marshal;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
+import java.util.Set;
 
 import org.apache.cassandra.cql.jdbc.JdbcDecimal;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DecimalType extends AbstractType<BigDecimal>
 {
     public static final DecimalType instance = new DecimalType();
+
+    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.INTEGER, Term.Type.FLOAT);
 
     DecimalType() {} // singleton
 
@@ -84,5 +90,15 @@ public class DecimalType extends AbstractType<BigDecimal>
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         // no useful check for invalid decimals.
+    }
+
+    public Set<Term.Type> supportedCQL3Constants()
+    {
+        return supportedCQL3Constants;
+    }
+
+    public CQL3Type asCQL3Type()
+    {
+        return CQL3Type.Native.DECIMAL;
     }
 }

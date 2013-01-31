@@ -18,11 +18,15 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.cql.jdbc.JdbcTimeUUID;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -32,6 +36,8 @@ public class TimeUUIDType extends AbstractType<UUID>
 
     static final Pattern regexPattern = Pattern.compile("[A-Fa-f0-9]{8}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{12}");
     static final Pattern functionPattern = Pattern.compile("(\\w+)\\((.*)\\)");
+
+    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.UUID);
 
     TimeUUIDType() {} // singleton
 
@@ -208,5 +214,15 @@ public class TimeUUIDType extends AbstractType<UUID>
             if ((slice.get() & 0xf0) != 0x10)
                 throw new MarshalException("Invalid version for TimeUUID type.");
         }
+    }
+
+    public Set<Term.Type> supportedCQL3Constants()
+    {
+        return supportedCQL3Constants;
+    }
+
+    public CQL3Type asCQL3Type()
+    {
+        return CQL3Type.Native.TIMEUUID;
     }
 }

@@ -285,26 +285,29 @@ public class ListOperation implements Operation
         cf.addColumn(params.makeTombstone(list.get(idx).right.name()));
     }
 
-    public void addBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
+    public Operation validateAndAddBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
     {
         // Since the parser couldn't disambiguate between a 'list set by idx'
         // and a 'map put by key', we have to do it now.
         if (kind == Kind.SET_IDX && (column.type instanceof MapType))
         {
             assert values.size() == 2;
-            MapOperation.Put(values.get(0), values.get(1)).addBoundNames(column, boundNames);
-            return;
+            return MapOperation.Put(values.get(0), values.get(1)).validateAndAddBoundNames(column, boundNames);
         }
 
         if (!(column.type instanceof ListType))
-            throw new InvalidRequestException(String.format("Invalid operation, %s is not of list type", column.name));
+            throw new InvalidRequestException(String.format("Cannot apply list operation on column %s of type %s", column, column.type));
 
         ListType lt = (ListType)column.type;
         if (kind == Kind.SET_IDX)
         {
             assert values.size() == 2;
             Term idx = values.get(0);
+            idx.validateType("list index", Int32Type.instance);
+
             Term value = values.get(1);
+            value.validateType(column + " element", lt.elements);
+
             if (idx.isBindMarker())
                 boundNames[idx.bindIndex] = indexSpecOf(column);
             if (value.isBindMarker())
@@ -313,9 +316,13 @@ public class ListOperation implements Operation
         else
         {
             for (Term t : values)
+            {
+                t.validateType(column + " element", lt.elements);
                 if (t.isBindMarker())
                     boundNames[t.bindIndex] = column;
+            }
         }
+        return this;
     }
 
     public static ColumnSpecification indexSpecOf(ColumnSpecification column)

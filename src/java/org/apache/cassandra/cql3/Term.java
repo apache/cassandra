@@ -20,8 +20,10 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
@@ -30,11 +32,11 @@ public class Term
 {
     public enum Type
     {
-        STRING, INTEGER, UUID, FLOAT, BOOLEAN, QMARK;
+        STRING, INTEGER, UUID, FLOAT, BOOLEAN, HEX, QMARK;
 
         static Type forInt(int type)
         {
-            if ((type == CqlParser.STRING_LITERAL) || (type == CqlParser.IDENT))
+            if (type == CqlParser.STRING_LITERAL)
                 return STRING;
             else if (type == CqlParser.INTEGER)
                 return INTEGER;
@@ -42,13 +44,14 @@ public class Term
                 return UUID;
             else if (type == CqlParser.FLOAT)
                 return FLOAT;
-            else if (type == CqlParser.K_TRUE || type == CqlParser.K_FALSE)
+            else if (type == CqlParser.BOOLEAN)
                 return BOOLEAN;
+            else if (type == CqlParser.HEXNUMBER)
+                return HEX;
             else if (type == CqlParser.QMARK)
                 return QMARK;
 
-            // FIXME: handled scenario that should never occur.
-            return null;
+            throw new AssertionError();
         }
     }
 
@@ -57,17 +60,27 @@ public class Term
     public final int bindIndex;
     public final boolean isToken;
 
-    private Term(String text, Type type, int bindIndex, boolean isToken)
+    // This is a hack for the timeuuid functions (minTimeuuid, maxTimeuuid, now) because instead of handling them as
+    // true function we let the TimeUUID.fromString() method handle it. We should probably clean that up someday
+    private final boolean skipTypeValidation;
+
+    private Term(String text, Type type, int bindIndex, boolean isToken, boolean skipTypeValidation)
     {
-        this.text = text == null ? "" : text;
+        this.text = text;
         this.type = type;
         this.bindIndex = bindIndex;
         this.isToken = isToken;
+        this.skipTypeValidation = skipTypeValidation;
+    }
+
+    public Term(String text, Type type, boolean skipTypeValidation)
+    {
+        this(text, type, -1, false, skipTypeValidation);
     }
 
     public Term(String text, Type type)
     {
-        this(text, type, -1, false);
+        this(text, type, -1, false, false);
     }
 
     /**
@@ -89,12 +102,12 @@ public class Term
 
     public Term(String text, int type, int index)
     {
-        this(text, Type.forInt(type), index, false);
+        this(text, Type.forInt(type), index, false, false);
     }
 
     public static Term tokenOf(Term t)
     {
-        return new Term(t.text, t.type, t.bindIndex, true);
+        return new Term(t.text, t.type, t.bindIndex, true, false);
     }
 
     /**
@@ -119,7 +132,12 @@ public class Term
         try
         {
             if (!isBindMarker())
+            {
+                // BytesType doesn't want it's input prefixed by '0x'.
+                if (type == Type.HEX && validator instanceof BytesType)
+                    return validator.fromString(text.substring(2));
                 return validator.fromString(text);
+            }
 
             // must be a marker term so check for a CqlBindValue stored in the term
             if (bindIndex == -1)
@@ -135,6 +153,23 @@ public class Term
         catch (MarshalException e)
         {
             throw new InvalidRequestException(e.getMessage());
+        }
+    }
+
+    public void validateType(String identifier, AbstractType<?> validator) throws InvalidRequestException
+    {
+        if (skipTypeValidation)
+            return;
+
+        Set<Type> supported = validator.supportedCQL3Constants();
+        // Treat null specially as this mean "I don't have a supportedCQL3Type method"
+        if (supported == null)
+            return;
+
+        if (!supported.contains(type))
+        {
+            // TODO: Ideallly we'd keep the declared CQL3 type of columns and use that in the following message, instead of the AbstracType class name.
+            throw new InvalidRequestException(String.format("Invalid %s constant for %s of type %s", type, identifier, validator.asCQL3Type()));
         }
     }
 

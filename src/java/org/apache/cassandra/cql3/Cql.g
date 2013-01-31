@@ -662,8 +662,8 @@ map_literal returns [Map<Term, Term> value]
     ;
 
 finalTerm returns [Term term]
-    : t=(STRING_LITERAL | UUID | INTEGER | FLOAT | K_TRUE | K_FALSE ) { $term = new Term($t.text, $t.type); }
-    | f=(K_MIN_TIMEUUID | K_MAX_TIMEUUID | K_NOW) '(' (v=(STRING_LITERAL | INTEGER))? ')' { $term = new Term($f.text + "(" + ($v == null ? "" : $v.text) + ")", UUID); }
+    : t=(STRING_LITERAL | UUID | INTEGER | FLOAT | BOOLEAN | HEXNUMBER ) { $term = new Term($t.text, $t.type); }
+    | f=(K_MIN_TIMEUUID | K_MAX_TIMEUUID | K_NOW) '(' (v=(STRING_LITERAL | INTEGER))? ')' { $term = new Term($f.text + "(" + ($v == null ? "" : $v.text) + ")", Term.Type.UUID, true); }
     ;
 
 term returns [Term term]
@@ -741,15 +741,15 @@ property[PropertyDefinitions props]
     ;
 
 propertyValue returns [String str]
-    : v=(STRING_LITERAL | IDENT | INTEGER | FLOAT | K_TRUE | K_FALSE) { $str = $v.text; }
+    : v=(STRING_LITERAL | IDENT | INTEGER | FLOAT | BOOLEAN | HEXNUMBER) { $str = $v.text; }
     | u=unreserved_keyword                         { $str = u; }
     ;
 
-// Either a string or a list of terms
-tokenDefinition returns [Pair<String, List<Term>> tkdef]
+// Either a term or a list of terms
+tokenDefinition returns [Pair<Term, List<Term>> tkdef]
     : K_TOKEN { List<Term> l = new ArrayList<Term>(); }
-         '(' t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )*  ')' { $tkdef = Pair.<String, List<Term>>create(null, l); }
-    | t=STRING_LITERAL { $tkdef = Pair.<String, List<Term>>create($t.text, null); }
+         '(' t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )*  ')' { $tkdef = Pair.<Term, List<Term>>create(null, l); }
+    | t=term  { $tkdef = Pair.<Term, List<Term>>create(t, null); }
     ;
 
 relation[List<Relation> clauses]
@@ -764,10 +764,10 @@ relation[List<Relation> clauses]
            }
            else
            {
-               Term str = tkd.left == null ? null : new Term(tkd.left, Term.Type.STRING);
+               Term tokenLitteral = tkd.left;
                for (int i = 0; i < l.size(); i++)
                {
-                   Term tt = str == null ? Term.tokenOf(tkd.right.get(i)) : str;
+                   Term tt = tokenLitteral == null ? Term.tokenOf(tkd.right.get(i)) : tokenLitteral;
                    $clauses.add(new Relation(l.get(i), $type.text, tt, true));
                }
            }
@@ -776,13 +776,13 @@ relation[List<Relation> clauses]
        '(' f1=term { rel.addInValue(f1); } (',' fN=term { rel.addInValue(fN); } )* ')' { $clauses.add(rel); }
     ;
 
-comparatorType returns [ParsedType t]
+comparatorType returns [CQL3Type t]
     : c=native_type     { $t = c; }
     | c=collection_type { $t = c; }
     | s=STRING_LITERAL
       {
         try {
-            $t = new ParsedType.Custom($s.text);
+            $t = new CQL3Type.Custom($s.text);
         } catch (SyntaxException e) {
             addRecognitionError("Cannot parse type " + $s.text + ": " + e.getMessage());
         } catch (ConfigurationException e) {
@@ -791,36 +791,36 @@ comparatorType returns [ParsedType t]
       }
     ;
 
-native_type returns [ParsedType t]
-    : K_ASCII     { $t = ParsedType.Native.ASCII; }
-    | K_BIGINT    { $t = ParsedType.Native.BIGINT; }
-    | K_BLOB      { $t = ParsedType.Native.BLOB; }
-    | K_BOOLEAN   { $t = ParsedType.Native.BOOLEAN; }
-    | K_COUNTER   { $t = ParsedType.Native.COUNTER; }
-    | K_DECIMAL   { $t = ParsedType.Native.DECIMAL; }
-    | K_DOUBLE    { $t = ParsedType.Native.DOUBLE; }
-    | K_FLOAT     { $t = ParsedType.Native.FLOAT; }
-    | K_INET      { $t = ParsedType.Native.INET;}
-    | K_INT       { $t = ParsedType.Native.INT; }
-    | K_TEXT      { $t = ParsedType.Native.TEXT; }
-    | K_TIMESTAMP { $t = ParsedType.Native.TIMESTAMP; }
-    | K_UUID      { $t = ParsedType.Native.UUID; }
-    | K_VARCHAR   { $t = ParsedType.Native.VARCHAR; }
-    | K_VARINT    { $t = ParsedType.Native.VARINT; }
-    | K_TIMEUUID  { $t = ParsedType.Native.TIMEUUID; }
+native_type returns [CQL3Type t]
+    : K_ASCII     { $t = CQL3Type.Native.ASCII; }
+    | K_BIGINT    { $t = CQL3Type.Native.BIGINT; }
+    | K_BLOB      { $t = CQL3Type.Native.BLOB; }
+    | K_BOOLEAN   { $t = CQL3Type.Native.BOOLEAN; }
+    | K_COUNTER   { $t = CQL3Type.Native.COUNTER; }
+    | K_DECIMAL   { $t = CQL3Type.Native.DECIMAL; }
+    | K_DOUBLE    { $t = CQL3Type.Native.DOUBLE; }
+    | K_FLOAT     { $t = CQL3Type.Native.FLOAT; }
+    | K_INET      { $t = CQL3Type.Native.INET;}
+    | K_INT       { $t = CQL3Type.Native.INT; }
+    | K_TEXT      { $t = CQL3Type.Native.TEXT; }
+    | K_TIMESTAMP { $t = CQL3Type.Native.TIMESTAMP; }
+    | K_UUID      { $t = CQL3Type.Native.UUID; }
+    | K_VARCHAR   { $t = CQL3Type.Native.VARCHAR; }
+    | K_VARINT    { $t = CQL3Type.Native.VARINT; }
+    | K_TIMEUUID  { $t = CQL3Type.Native.TIMEUUID; }
     ;
 
-collection_type returns [ParsedType pt]
+collection_type returns [CQL3Type pt]
     : K_MAP  '<' t1=comparatorType ',' t2=comparatorType '>'
         { try {
             // if we can't parse either t1 or t2, antlr will "recover" and we may have t1 or t2 null.
             if (t1 != null && t2 != null)
-                $pt = ParsedType.Collection.map(t1, t2);
+                $pt = CQL3Type.Collection.map(t1, t2);
           } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
     | K_LIST '<' t=comparatorType '>'
-        { try { if (t != null) $pt = ParsedType.Collection.list(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+        { try { if (t != null) $pt = CQL3Type.Collection.list(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
     | K_SET  '<' t=comparatorType '>'
-        { try { if (t != null) $pt = ParsedType.Collection.set(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+        { try { if (t != null) $pt = CQL3Type.Collection.set(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
     ;
 
 username
@@ -945,9 +945,6 @@ K_WRITETIME:   W R I T E T I M E;
 K_MAP:         M A P;
 K_LIST:        L I S T;
 
-K_TRUE:        T R U E;
-K_FALSE:       F A L S E;
-
 K_MIN_TIMEUUID:     M I N T I M E U U I D;
 K_MAX_TIMEUUID:     M A X T I M E U U I D;
 K_NOW:              N O W;
@@ -1027,8 +1024,19 @@ FLOAT
     | INTEGER '.' DIGIT* EXPONENT?
     ;
 
+/*
+ * This has to be before IDENT so it takes precendence over it.
+ */
+BOOLEAN
+    : T R U E | F A L S E
+    ;
+
 IDENT
     : LETTER (LETTER | DIGIT | '_')*
+    ;
+
+HEXNUMBER
+    : '0' X HEX+
     ;
 
 UUID

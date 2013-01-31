@@ -25,6 +25,8 @@ import java.util.*;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
@@ -182,5 +184,10 @@ public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
             ownerships.put(start, x);
         }
         return ownerships;
+    }
+
+    public AbstractType<?> getTokenValidator()
+    {
+        return IntegerType.instance;
     }
 }

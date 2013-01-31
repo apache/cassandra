@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -186,4 +188,9 @@ public class Murmur3Partitioner extends AbstractPartitioner<LongToken>
             return new LongToken(Long.valueOf(string));
         }
     };
+
+    public AbstractType<?> getTokenValidator()
+    {
+        return LongType.instance;
+    }
 }

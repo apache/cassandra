@@ -354,7 +354,7 @@ public class SelectStatement implements CQLStatement
         if (t == null)
             return p.getMinimumToken();
 
-        if (t.getType() == Term.Type.STRING && !t.isToken)
+        if (!t.isToken)
         {
             try
             {
@@ -1009,6 +1009,9 @@ public class SelectStatement implements CQLStatement
                         }
                     }
 
+                    if (t.hasKey())
+                        throw new InvalidRequestException("Selecting a list/map element by index/key is not yet supported");
+
                     stmt.selectedNames.add(Pair.create(name, t));
                 }
             }
@@ -1030,12 +1033,22 @@ public class SelectStatement implements CQLStatement
                 if (rel.operator() == Relation.Type.IN)
                 {
                     for (Term value : rel.getInValues())
+                    {
+                        if (!rel.onToken || value.isToken)
+                            value.validateType(name.toString(), name.type);
+                        else
+                            value.validateType("token of " + name.toString(), StorageService.getPartitioner().getTokenValidator());
                         if (value.isBindMarker())
                             names[value.bindIndex] = name;
+                    }
                 }
                 else
                 {
                     Term value = rel.getValue();
+                    if (!rel.onToken || value.isToken)
+                        value.validateType(name.toString(), name.type);
+                    else
+                        value.validateType("token of " + name.toString(), StorageService.getPartitioner().getTokenValidator());
                     if (value.isBindMarker())
                         names[value.bindIndex] = name;
                 }
