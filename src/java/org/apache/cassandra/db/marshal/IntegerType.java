@@ -19,19 +19,14 @@ package org.apache.cassandra.db.marshal;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.EnumSet;
-import java.util.Set;
 
 import org.apache.cassandra.cql.jdbc.JdbcInteger;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public final class IntegerType extends AbstractType<BigInteger>
 {
     public static final IntegerType instance = new IntegerType();
-
-    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.INTEGER);
 
     private static int findMostSignificantByte(ByteBuffer bytes)
     {
@@ -157,11 +152,6 @@ public final class IntegerType extends AbstractType<BigInteger>
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         // no invalid integers.
-    }
-
-    public Set<Term.Type> supportedCQL3Constants()
-    {
-        return supportedCQL3Constants;
     }
 
     public CQL3Type asCQL3Type()

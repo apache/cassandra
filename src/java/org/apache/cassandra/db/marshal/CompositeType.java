@@ -235,14 +235,12 @@ public class CompositeType extends AbstractCompositeType
             this.serializedSize = b.serializedSize;
         }
 
-        public Builder add(Term t, Relation.Type op, List<ByteBuffer> variables) throws InvalidRequestException
+        public Builder add(ByteBuffer buffer, Relation.Type op)
         {
             if (components.size() >= composite.types.size())
                 throw new IllegalStateException("Composite column is already fully constructed");
 
             int current = components.size();
-            AbstractType currentType = composite.types.get(current);
-            ByteBuffer buffer = t.getByteBuffer(currentType, variables);
             components.add(buffer);
 
             /*
@@ -272,13 +270,7 @@ public class CompositeType extends AbstractCompositeType
 
         public Builder add(ByteBuffer bb)
         {
-            int current = components.size();
-            if (current >= composite.types.size())
-                throw new IllegalStateException("Composite column is already fully constructed");
-
-            components.add(bb);
-            endOfComponents[current] = (byte) 0;
-            return this;
+            return add(bb, Relation.Type.EQ);
         }
 
         public int componentCount()

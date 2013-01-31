@@ -163,7 +163,7 @@ public class Murmur3Partitioner extends AbstractPartitioner<LongToken>
 
         public Token<Long> fromByteArray(ByteBuffer bytes)
         {
-            return new LongToken(bytes.getLong());
+            return new LongToken(ByteBufferUtil.toLong(bytes));
         }
 
         public String toString(Token<Long> longToken)

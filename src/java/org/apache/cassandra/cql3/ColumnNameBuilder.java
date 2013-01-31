@@ -36,14 +36,13 @@ public interface ColumnNameBuilder
     public ColumnNameBuilder add(ByteBuffer bb);
 
     /**
-     * Add a new Term as the next component for this name.
-     * @param t the Term to add
+     * Add a new ByteBuffer as the next component for this name.
+     * @param bb the ByteBuffer to add
      * @param op the relationship this component should respect.
-     * @param variables the variables corresponding to prepared markers
      * @throws IllegalStateException if the builder if full, i.e. if enough component has been added.
      * @return this builder
      */
-    public ColumnNameBuilder add(Term t, Relation.Type op, List<ByteBuffer> variables) throws InvalidRequestException;
+    public ColumnNameBuilder add(ByteBuffer t, Relation.Type op);
 
     /**
      * Returns the number of component already added to this builder.

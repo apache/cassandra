@@ -18,9 +18,13 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
+import org.apache.cassandra.cql3.statements.ColumnGroupMap;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * A simple container that simplify passing parameters for collections methods.
@@ -32,12 +36,16 @@ public class UpdateParameters
     private final int ttl;
     public final int localDeletionTime;
 
-    public UpdateParameters(List<ByteBuffer> variables, long timestamp, int ttl)
+    // For lists operation that require a read-before-write. Will be null otherwise.
+    private final Map<ByteBuffer, ColumnGroupMap> prefetchedLists;
+
+    public UpdateParameters(List<ByteBuffer> variables, long timestamp, int ttl, Map<ByteBuffer, ColumnGroupMap> prefetchedLists)
     {
         this.variables = variables;
         this.timestamp = timestamp;
         this.ttl = ttl;
         this.localDeletionTime = (int)(System.currentTimeMillis() / 1000);
+        this.prefetchedLists = prefetchedLists;
     }
 
     public Column makeColumn(ByteBuffer name, ByteBuffer value)
@@ -60,5 +68,14 @@ public class UpdateParameters
     public RangeTombstone makeTombstoneForOverwrite(ByteBuffer start, ByteBuffer end)
     {
         return new RangeTombstone(start, end, timestamp - 1, localDeletionTime);
+    }
+
+    public List<Pair<ByteBuffer, IColumn>> getPrefetchedList(ByteBuffer rowKey, ByteBuffer cql3ColumnName)
+    {
+        if (prefetchedLists == null)
+            return Collections.emptyList();
+
+        ColumnGroupMap m = prefetchedLists.get(rowKey);
+        return m == null ? Collections.<Pair<ByteBuffer, IColumn>>emptyList() : m.getCollection(cql3ColumnName);
     }
 }

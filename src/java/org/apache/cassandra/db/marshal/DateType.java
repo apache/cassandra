@@ -23,12 +23,10 @@ import java.nio.ByteBuffer;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.EnumSet;
-import java.util.Set;
 
 import org.apache.cassandra.cql.jdbc.JdbcDate;
+import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.time.DateUtils;
 
@@ -38,8 +36,6 @@ public class DateType extends AbstractType<Date>
 
     static final String DEFAULT_FORMAT = iso8601Patterns[3];
     static final SimpleDateFormat FORMATTER = new SimpleDateFormat(DEFAULT_FORMAT);
-
-    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.STRING, Term.Type.INTEGER);
 
     DateType() {} // singleton
 
@@ -128,11 +124,6 @@ public class DateType extends AbstractType<Date>
     {
         if (bytes.remaining() != 8 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 8 or 0 byte long for date (%d)", bytes.remaining()));
-    }
-
-    public Set<Term.Type> supportedCQL3Constants()
-    {
-        return supportedCQL3Constants;
     }
 
     public CQL3Type asCQL3Type()

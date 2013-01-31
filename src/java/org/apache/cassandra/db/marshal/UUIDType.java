@@ -20,13 +20,10 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.text.ParseException;
-import java.util.EnumSet;
-import java.util.Set;
 import java.util.UUID;
 
 import org.apache.cassandra.cql.jdbc.JdbcUUID;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -47,8 +44,6 @@ import static org.apache.cassandra.cql.jdbc.JdbcDate.iso8601Patterns;
 public class UUIDType extends AbstractType<UUID>
 {
     public static final UUIDType instance = new UUIDType();
-
-    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.UUID);
 
     UUIDType()
     {
@@ -247,11 +242,6 @@ public class UUIDType extends AbstractType<UUID>
         }
 
         return idBytes;
-    }
-
-    public Set<Term.Type> supportedCQL3Constants()
-    {
-        return supportedCQL3Constants;
     }
 
     public CQL3Type asCQL3Type()

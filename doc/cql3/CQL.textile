@@ -84,37 +84,45 @@ bc(syntax)..
     <number> ::= <integer> | <float>
       <uuid> ::= a uuid constant
    <boolean> ::= a boolean constant
+       <hex> ::= a blob constant
 
-  <final-term> ::= <string>
-                 | <number>
-                 | <uuid>
-                 | <boolean>
-        <term> ::= <final-term>
-                 | '?'
-    <int-term> ::= <integer>
-                 | '?'
+  <constant> ::= <string>
+               | <number>
+               | <uuid>
+               | <boolean>
+               | <hex>
+  <variable> ::= '?'
+      <term> ::= <constant>
+               | <collection-literal>
+               | <variable>
+               | <function> '(' (<term> (',' <term>)*)? ')'
 
   <collection-literal> ::= <map-literal>
                          | <set-literal>
                          | <list-literal>
-         <map-literal> ::= '{' ( <final-term> ':' <final-term> ( ',' <final-term> ':' <final-term> )* )? '}'
-         <set-literal> ::= '{' ( <final-term> ( ',' <final-term> )* )? '}'
-        <list-literal> ::= '[' ( <final-term> ( ',' <final-term> )* )? ']'
+         <map-literal> ::= '{' ( <term> ':' <term> ( ',' <term> ':' <term> )* )? '}'
+         <set-literal> ::= '{' ( <term> ( ',' <term> )* )? '}'
+        <list-literal> ::= '[' ( <term> ( ',' <term> )* )? ']'
+
+    <function> ::= <ident>
 
   <properties> ::= <property> (AND <property>)*
-    <property> ::= <identifier> '=' ( <value> | <map-literal> )
-       <value> ::= <identifier> | <string> | <number> | <boolean>
+    <property> ::= <identifier> '=' ( <identifier> | <constant> | <map-literal> )
 p. 
-The question mark (@?@) in the syntax above is a bind variables for "prepared statements":#preparedStatement.
+Please note that not every possible productions of the grammar above will be valid in practice. Most notably, @<variable>@ and nested @<collection-literal>@ are currently not allowed inside @<collection-literal>@.
 
-The @<properties>@ production is use by statement that create and alter keyspaces and tables. Each @<property>@ is either a _simple_ one, in which case it just has a value, or a _map_ one, in which case it's value is a map grouping sub-options. The following will refer to one or the other as the _kind_ (_simple_ or _map_) of the property.
+p. The question mark (@?@) of @<variable>@ is a bind variables for "prepared statements":#preparedStatement.
+
+p. The @<properties>@ production is use by statement that create and alter keyspaces and tables. Each @<property>@ is either a _simple_ one, in which case it just has a value, or a _map_ one, in which case it's value is a map grouping sub-options. The following will refer to one or the other as the _kind_ (_simple_ or _map_) of the property.
 
 p. A @<tablename>@ will be used to identify a table. This is an identifier representing the table name that can be preceded by a keyspace name. The keyspace name, if provided, allow to identify a table in another keyspace than the currently active one (the currently active keyspace is set through the <a href="#useStmt"><tt>USE</tt></a> statement).
+
+p. For supported @<function>@, see the section on "functions":#functions.
 
 
 h3(#preparedStatement). Prepared Statement
 
-CQL supports _prepared statements_. Prepared statement is an optimization that allows to parse a query only once but execute it multiple times with differente concrete values.
+CQL supports _prepared statements_. Prepared statement is an optimization that allows to parse a query only once but execute it multiple times with different concrete values.
 
 In a statement, each time a column value is expected (in the data manipulation and query statements), a bind variable marker (denoted by a @?@ symbol) can be used instead. A statement with bind variables must then be _prepared_. Once it has been prepared, it can executed by providing concrete values for the bind variables (values for bind variables must be provided in the order the bind variables are defined in the query string). The exact procedure to prepare a statement and execute a prepared statement depends on the CQL driver used and is beyond the scope of this document.
 
@@ -569,15 +577,16 @@ bc(syntax)..
                   ( LIMIT <integer> )?
                   ( ALLOW FILTERING )?
 
-<select-clause> ::= <column-list>
+<select-clause> ::= <selection-list>
                   | COUNT '(' ( '*' | '1' ) ')'
 
-<column-list> ::= <selected_id> ( ',' <selected_id> )*
-                | '*'
+<selection-list> ::= <selector> ( ',' <selector> )*
+                   | '*'
 
-<selected_id> ::= <identifier>
-                | WRITETIME '(' <identifier> ')'
-                | TTL '(' <identifier> ')'
+<selector> ::= <identifier>
+             | WRITETIME '(' <identifier> ')'
+             | TTL '(' <identifier> ')'
+             | <function> '(' (<selector> (',' <selector>)*)? ')'
 
 <where-clause> ::= <relation> ( "AND" <relation> )*
 
@@ -605,9 +614,9 @@ The @SELECT@ statements reads one or more columns for one or more rows in a tabl
 
 h4(#selectSelection). @<select-clause>@
 
-The @<select-clause>@ determines which columns needs to be queried and returned in the result-set. It consists of either the comma-separated list of column names to query, or the wildcard character (@*@) to select all the columns defined for the table.
+The @<select-clause>@ determines which columns needs to be queried and returned in the result-set. It consists of either the comma-separated list of <selector> or the wildcard character (@*@) to select all the columns defined for the table.
 
-In addition to selecting columns, the @WRITETIME@ (resp. @TTL@) function allows to select the timestamp of when the column was inserted (resp. the time to live (in seconds) for the column (or null if the column has no expiration set)).
+A @<selector>@ is either a column name to retrieve, or a @<function>@ of one or multiple column names. The functions allows are the same that for @<term>@ and are describe in the "function section":#function. In addition to these generic functions, the @WRITETIME@ (resp. @TTL@) function allows to select the timestamp of when the column was inserted (resp. the time to live (in seconds) for the column (or null if the column has no expiration set)).
 
 The @COUNT@ keyword can be used with parenthesis enclosing @*@. If so, the query will return a single result: the number of rows matching the query. Note that @COUNT(1)@ is supported as an alias.
 
@@ -739,7 +748,7 @@ p. The following table gives additional informations on the native data types, a
 |@int@      |   integers           |32-bit signed int|
 |@text@     |   strings            |UTF8 encoded string|
 |@timestamp@|   integers, strings  |A timestamp. Strings constant are allow to input timestamps as dates, see "Working with dates":#usingdates below for more information.|
-|@timeuuid@ |   uuids              |Type 1 UUID. This is generally used as a "conflict-free" timestamp. See "Working with @timeuuid@":#usingtimeuuid below.|
+|@timeuuid@ |   uuids              |Type 1 UUID. This is generally used as a "conflict-free" timestamp. Also see the "functions on Timeuuid":#timeuuidFun|
 |@uuid@     |   uuids              |Type 1 or type 4 UUID|
 |@varchar@  |   strings            |UTF8 encoded string|
 |@varint@   |   integers           |Arbitrary-precision integer|
@@ -774,30 +783,6 @@ The time of day may also be omitted, if the date is the only piece that matters:
 * @2011-02-03+0000@
 
 In that case, the time of day will default to 00:00:00, in the specified or default time zone.
-
-h3(#usingtimeuuid). Working with @timeuuid@
-
-Values of the @timeuuid@ type are type 1 "UUID":http://en.wikipedia.org/wiki/Universally_unique_identifier, i.e. UUID that include the timestamp of their generation, and they sort accordingly to said timestamp. They thus serve as conflict-free timestamps.
-
-Valid @timeuuid@ values should be inputed using UUID constants described "here":#constants. However, a number of convenience method are provided to interact with @timeuuid@.
-
-First, the method @now@ generates a new unique timeuuid (at the time where the statement using it is executed). Note that this method is useful for insertion but is largely non-sensical in @WHERE@ clauses. For instance, a query of the form
-
-bc(sample). 
-SELECT * FROM myTable WHERE t = now()
-
-will never return any result by design, since the value returned by @now()@ is guaranteed to be unique.
-
-For querying, the method @minTimeuuid@ (resp. @maxTimeuuid@) takes a date @d@ in argument and returns a _fake_ @timeuuid@ corresponding to the _smallest_ (resp. _biggest_) possible @timeuuid@ having for date @d@. So for instance:
-
-bc(sample). 
-SELECT * FROM myTable WHERE t > maxTimeuuid('2013-01-01 00:05+0000') AND t < minTimeuuid('2013-02-02 10:00+0000')
-
-will select all rows where the @timeuuid@ column @t@ is strictly older than '2013-01-01 00:05+0000' but stricly younger than '2013-02-02 10:00+0000'.  Please note that @t >= maxTimeuuid('2013-01-01 00:05+0000')@ would still _not_ select a @timeuuid@ generated exactly at '2013-01-01 00:05+0000' and is essentially equivalent to @t > maxTimeuuid('2013-01-01 00:05+0000')@.
-
-_Warning_: We called the values generated by @minTimeuuid@ and @maxTimeuuid@ _fake_ UUID because they do no respect the Time-Based UUID generation process specified by the "RFC 4122":http://www.ietf.org/rfc/rfc4122.txt. In particular, the value returned by these 2 methods will not be unique. This means you should only use those methods for querying (as in the example above). Inserting the result of those methods is almost certainly _a bad idea_.
-
-Lastly, the @dateOf@ and @unixTimestampOf@ methods can used in @SELECT@ clauses to extract the timestamp of a @timeuuid@ column in a resultset. The difference between the @dateOf@ and @unixTimestampOf@ is that the former return the extract timestamp as a date, while the latter returns it as a raw timestamp (i.e. a 64 bits integer).
 
 
 h3(#counters). Counters
@@ -913,6 +898,61 @@ UPDATE plays SET scores = scores - [ 12, 21 ] WHERE id = '123-afde'; // removes 
 As with "maps":#map, TTLs if used only apply to the newly inserted/updated _values_.
 
 
+h2(#functions). Functions
+
+CQL3 supports a few functions (more to come). Currently, it only support functions on values (functions that transform one or more column values into a new value) and in particular aggregation functions are not supported. The functions supported are described below:
+
+h3(#tokenFun). Token
+
+The @token@ function allows to compute the token for a given partition key. The exact signature of the token function depends on the table concerned and of the partitioner used by the cluster.
+
+The type of the arguments of the @token@ depend on the type of the partition key columns. The return type depend on the partitioner in use:
+* For Murmur3Partitioner, the return type is @bigint@.
+* For RandomPartitioner, the return type is @varint@.
+* For ByteOrderedPartitioner, the return type is @blob@.
+
+For instance, in a cluster using the default Murmur3Partitioner, if a table is defined by
+
+bc(sample). 
+CREATE TABLE users (
+    userid text PRIMARY KEY,
+    username text,
+    ...
+)
+
+then the @token@ function will take a single argument of type @text@ (in that case, the partition key is @userid@ (there is no clustering key so the partition key is the same than the primary key)), and the return type will be @bigint@.
+
+h3(#timeuuidFun). Timeuuid functions
+
+h4. @now@
+
+The @now@ function takes no arguments and generates a new unique timeuuid (at the time where the statement using it is executed). Note that this method is useful for insertion but is largely non-sensical in @WHERE@ clauses. For instance, a query of the form
+
+bc(sample). 
+SELECT * FROM myTable WHERE t = now()
+
+will never return any result by design, since the value returned by @now()@ is guaranteed to be unique.
+
+h4. @minTimeuuid@ and @maxTimeuuid@
+
+The @minTimeuuid@ (resp. @maxTimeuuid@) function takes a @timestamp@ value @t@ (which can be "either a timestamp or a date string":#usingdates) and return a _fake_ @timeuuid@ corresponding to the _smallest_ (resp. _biggest_) possible @timeuuid@ having for timestamp @t@. So for instance:
+ 
+bc(sample). 
+SELECT * FROM myTable WHERE t > maxTimeuuid('2013-01-01 00:05+0000') AND t < minTimeuuid('2013-02-02 10:00+0000')
+ 
+will select all rows where the @timeuuid@ column @t@ is strictly older than '2013-01-01 00:05+0000' but stricly younger than '2013-02-02 10:00+0000'.  Please note that @t >= maxTimeuuid('2013-01-01 00:05+0000')@ would still _not_ select a @timeuuid@ generated exactly at '2013-01-01 00:05+0000' and is essentially equivalent to @t > maxTimeuuid('2013-01-01 00:05+0000')@.
+
+_Warning_: We called the values generated by @minTimeuuid@ and @maxTimeuuid@ _fake_ UUID because they do no respect the Time-Based UUID generation process specified by the "RFC 4122":http://www.ietf.org/rfc/rfc4122.txt. In particular, the value returned by these 2 methods will not be unique. This means you should only use those methods for querying (as in the example above). Inserting the result of those methods is almost certainly _a bad idea_.
+
+h4. @dateOf@ and @unixTimestampOf@
+
+The @dateOf@ and @unixTimestampOf@ functions take a @timeuuid@ argument and extract the embeded timestamp. However, while the @dateof@ function return it with the @timestamp@ type (that most client, including cqlsh, interpret as a date), the @unixTimestampOf@ function returns it as a @bigint@ raw value.
+
+h3(#blobFun). Blob conversion functions
+
+A number of functions are provided to "convert" the native types into binary data (@blob@). For every @<native-type>@ @type@ supported by CQL3 (a notable exceptions is @blob@, for obvious reasons), the function @typeAsBlob@ takes a argument of type @type@ and return it as a @blob@.  Conversely, the function @blobAsType@ takes a 64-bit @blob@ argument and convert it to a @bigint@ value.  And so for instance, @bigintAsBlob(3)@ is @0x0000000000000003@ and @blobAsBigint(0x0000000000000003)@ is @3@.
+
+
 h2(#appendixA). Appendix A: CQL Keywords
 
 CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywords cannot be used as identifier, they are truly reserved for the language (but one can enclose a reserved keyword by double-quotes to use it as an identifier). Non-reserved keywords however only have a specific meaning in certain context but can used as identifer otherwise. The only _raison d'être_ of these non-reserved keywords is convenience: some keyword are non-reserved when it was always easy for the parser to decide whether they were used as keywords or not.
@@ -1007,13 +1047,14 @@ The following describes the addition/changes brought for each version of CQL.
 
 h3. 3.0.2
 
-- Type validation for the "constants":#constants has been fixed. For instance, the implementation used to allow @'2'@ as a valid value for an @int@ column (interpreting it has the equivalent of @2@), or @42@ as a valid @blob@ value (in which case @42@ was interpreted as an hexadecimal representation of the blob). This is no longer the case, type validation of constants is now more strict. See the "data types":#dataTypes section for details on which constant is allowed for which type.
-- The type validation fixed of the previous point has lead to the introduction of "blobs constants":#constants to allow inputing blobs. Do note that while inputing blobs as strings constant is still supported by this version (to allow smoother transition to blob constant), it is now deprecated (in particular the "data types":#dataTypes section does not list strings constants as valid blobs) and will be removed by a future version. If you were using strings as blobs, you should thus update your client code asap to switch blob constants.
+* Type validation for the "constants":#constants has been fixed. For instance, the implementation used to allow @'2'@ as a valid value for an @int@ column (interpreting it has the equivalent of @2@), or @42@ as a valid @blob@ value (in which case @42@ was interpreted as an hexadecimal representation of the blob). This is no longer the case, type validation of constants is now more strict. See the "data types":#types section for details on which constant is allowed for which type.
+* The type validation fixed of the previous point has lead to the introduction of "blobs constants":#constants to allow inputing blobs. Do note that while inputing blobs as strings constant is still supported by this version (to allow smoother transition to blob constant), it is now deprecated (in particular the "data types":#types section does not list strings constants as valid blobs) and will be removed by a future version. If you were using strings as blobs, you should thus update your client code asap to switch blob constants.
+* A number of functions to convert native types to blobs have also been introduced. Furthermore the token function is now also allowed in select clauses. See the "section on functions":#functions for details.
 
 h3. 3.0.1
 
-- "Date strings":#usingdates (and timestamps) are no longer accepted as valid @timeuuid@ values. Doing so was a bug in the sense that date string are not valid @timeuuid@, and it was thus resulting in "confusing behaviors":https://issues.apache.org/jira/browse/CASSANDRA-4936.  However, the following new methods have been added to help working with @timeuuid@: @now@, @minTimeuuid@, @maxTimeuuid@ , @dateOf@ and @unixTimestampOf@. See the "section dedicated to these methods":#usingtimeuuid for more detail.
-- "Float constants"#constants now support the exponent notation. In other words, @4.2E10@ is now a valid floating point value.
+* "Date strings":#usingdates (and timestamps) are no longer accepted as valid @timeuuid@ values. Doing so was a bug in the sense that date string are not valid @timeuuid@, and it was thus resulting in "confusing behaviors":https://issues.apache.org/jira/browse/CASSANDRA-4936.  However, the following new methods have been added to help working with @timeuuid@: @now@, @minTimeuuid@, @maxTimeuuid@ , @dateOf@ and @unixTimestampOf@. See the "section dedicated to these methods":#usingtimeuuid for more detail.
+* "Float constants"#constants now support the exponent notation. In other words, @4.2E10@ is now a valid floating point value.
 
 
 h2. Versioning

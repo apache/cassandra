@@ -18,20 +18,15 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.EnumSet;
-import java.util.Set;
 import java.util.UUID;
 
 import org.apache.cassandra.cql.jdbc.JdbcLexicalUUID;
-import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
 public class LexicalUUIDType extends AbstractType<UUID>
 {
     public static final LexicalUUIDType instance = new LexicalUUIDType();
-
-    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.UUID);
 
     LexicalUUIDType() {} // singleton
 
@@ -92,10 +87,5 @@ public class LexicalUUIDType extends AbstractType<UUID>
         if (bytes.remaining() != 16 && bytes.remaining() != 0)
             throw new MarshalException(String.format("LexicalUUID should be 16 or 0 bytes (%d)", bytes.remaining()));
         // not sure what the version should be for this.
-    }
-
-    public Set<Term.Type> supportedCQL3Constants()
-    {
-        return supportedCQL3Constants;
     }
 }

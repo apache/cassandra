@@ -18,15 +18,12 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.EnumSet;
-import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.cql.jdbc.JdbcTimeUUID;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -35,9 +32,6 @@ public class TimeUUIDType extends AbstractType<UUID>
     public static final TimeUUIDType instance = new TimeUUIDType();
 
     static final Pattern regexPattern = Pattern.compile("[A-Fa-f0-9]{8}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{12}");
-    static final Pattern functionPattern = Pattern.compile("(\\w+)\\((.*)\\)");
-
-    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.UUID);
 
     TimeUUIDType() {} // singleton
 
@@ -171,34 +165,8 @@ public class TimeUUIDType extends AbstractType<UUID>
         }
         else
         {
-            Matcher m = functionPattern.matcher(source);
-            if (!m.matches())
-                throw new MarshalException(String.format("Unable to make a time-based UUID from '%s'", source));
-
-            String fct = m.group(1);
-            String arg = m.group(2);
-
-            if (fct.equalsIgnoreCase("minTimeUUID"))
-            {
-                idBytes = decompose(UUIDGen.minTimeUUID(DateType.dateStringToTimestamp(arg)));
-            }
-            else if (fct.equalsIgnoreCase("maxTimeUUID"))
-            {
-                idBytes = decompose(UUIDGen.maxTimeUUID(DateType.dateStringToTimestamp(arg)));
-            }
-            else if (fct.equalsIgnoreCase("now"))
-            {
-                if (!arg.trim().isEmpty())
-                    throw new MarshalException(String.format("The 'now' timeuuid method takes no argument ('%s' provided)", arg));
-
-                idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
-            }
-            else
-            {
-                throw new MarshalException(String.format("Unknown timeuuid method '%s'", fct));
-            }
+            throw new MarshalException(String.format("Unknown timeuuid representation: %s", source));
         }
-
         return idBytes;
     }
 
@@ -214,11 +182,6 @@ public class TimeUUIDType extends AbstractType<UUID>
             if ((slice.get() & 0xf0) != 0x10)
                 throw new MarshalException("Invalid version for TimeUUID type.");
         }
-    }
-
-    public Set<Term.Type> supportedCQL3Constants()
-    {
-        return supportedCQL3Constants;
     }
 
     public CQL3Type asCQL3Type()

@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Objects;
 import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -293,6 +294,26 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
 
         public final Kind kind;
         public final int position; // only make sense for KEY_ALIAS and COLUMN_ALIAS
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if(!(o instanceof Name))
+                return false;
+            Name that = (Name)o;
+            return Objects.equal(ksName, that.ksName)
+                && Objects.equal(cfName, that.cfName)
+                && Objects.equal(name, that.name)
+                && Objects.equal(type, that.type)
+                && kind == that.kind
+                && position == that.position;
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            return Objects.hashCode(ksName, cfName, name, type, kind, position);
+        }
     }
 
     @Override
@@ -329,14 +350,9 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
             return this;
         }
 
-        public NonCompositeBuilder add(Term t, Relation.Type op, List<ByteBuffer> variables) throws InvalidRequestException
+        public NonCompositeBuilder add(ByteBuffer bb, Relation.Type op)
         {
-            if (columnName != null)
-                throw new IllegalStateException("Column name is already constructed");
-
-            // We don't support the relation type yet, i.e., there is no distinction between x > 3 and x >= 3.
-            columnName = t.getByteBuffer(type, variables);
-            return this;
+            return add(bb);
         }
 
         public int componentCount()

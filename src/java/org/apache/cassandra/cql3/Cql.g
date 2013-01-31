@@ -39,8 +39,9 @@ options {
     import org.apache.cassandra.auth.Permission;
     import org.apache.cassandra.auth.DataResource;
     import org.apache.cassandra.auth.IResource;
-    import org.apache.cassandra.cql3.operations.*;
+    import org.apache.cassandra.cql3.*;
     import org.apache.cassandra.cql3.statements.*;
+    import org.apache.cassandra.cql3.functions.FunctionCall;
     import org.apache.cassandra.db.marshal.CollectionType;
     import org.apache.cassandra.exceptions.ConfigurationException;
     import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -75,31 +76,46 @@ options {
             throw new SyntaxException(recognitionErrors.get((recognitionErrors.size()-1)));
     }
 
-    // used by UPDATE of the counter columns to validate if '-' was supplied by user
-    public void validateMinusSupplied(Object op, final Term value, IntStream stream) throws MissingTokenException
+    public Map<String, String> convertPropertyMap(Maps.Literal map)
     {
-        if (op == null && Long.parseLong(value.getText()) > 0)
-            throw new MissingTokenException(102, stream, value);
-    }
-
-    public Map<String, String> convertMap(Map<Term, Term> terms)
-    {
-        if (terms == null || terms.isEmpty())
+        if (map == null || map.entries == null || map.entries.isEmpty())
             return Collections.<String, String>emptyMap();
 
-        Map<String, String> res = new HashMap<String, String>(terms.size());
+        Map<String, String> res = new HashMap<String, String>(map.entries.size());
 
-        for (Map.Entry<Term, Term> entry : terms.entrySet())
+        for (Pair<Term.Raw, Term.Raw> entry : map.entries)
         {
             // Because the parser tries to be smart and recover on error (to
             // allow displaying more than one error I suppose), we have null
             // entries in there. Just skip those, a proper error will be thrown in the end.
-            if (entry.getKey() == null || entry.getValue() == null)
+            if (entry.left == null || entry.right == null)
                 break;
-            res.put(entry.getKey().getText(), entry.getValue().getText());
+
+            if (!(entry.left instanceof Constants.Literal))
+            {
+                addRecognitionError("Invalid property name: " + entry.left);
+                break;
+            }
+            if (!(entry.right instanceof Constants.Literal))
+            {
+                addRecognitionError("Invalid property value: " + entry.right);
+                break;
+            }
+
+            res.put(((Constants.Literal)entry.left).getRawText(), ((Constants.Literal)entry.right).getRawText());
         }
 
         return res;
+    }
+
+    public void addRawUpdate(List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations, ColumnIdentifier key, Operation.RawUpdate update)
+    {
+        for (Pair<ColumnIdentifier, Operation.RawUpdate> p : operations)
+        {
+            if (p.left.equals(key) && !p.right.isCompatibleWith(update))
+                addRecognitionError("Multiple incompatible setting of column " + key);
+        }
+        operations.add(Pair.create(key, update));
     }
 }
 
@@ -214,22 +230,28 @@ selectStatement returns [SelectStatement.RawStatement expr]
       }
     ;
 
-selectClause returns [List<Selector> expr]
-    : t1=selector { $expr = new ArrayList<Selector>(); $expr.add(t1); } (',' tN=selector { $expr.add(tN); })*
-    | '\*' { $expr = Collections.<Selector>emptyList();}
+selectClause returns [List<RawSelector> expr]
+    : t1=selector { $expr = new ArrayList<RawSelector>(); $expr.add(t1); } (',' tN=selector { $expr.add(tN); })*
+    | '\*' { $expr = Collections.<RawSelector>emptyList();}
     ;
 
-selector returns [Selector s]
-    : c=cident             { $s = c; }
-    | K_WRITETIME        '(' c=cident ')' { $s = new Selector.WithFunction(c, Selector.Function.WRITE_TIME); }
-    | K_TTL              '(' c=cident ')' { $s = new Selector.WithFunction(c, Selector.Function.TTL); }
-    | K_DATE_OF          '(' c=cident ')' { $s = new Selector.WithFunction(c, Selector.Function.DATE_OF); }
-    | K_UNIXTIMESTAMP_OF '(' c=cident ')' { $s = new Selector.WithFunction(c, Selector.Function.UNIXTIMESTAMP_OF); }
+selectionFunctionArgs returns [List<RawSelector> a]
+    : '(' ')' { $a = Collections.emptyList(); }
+    | '(' s1=selector { List<RawSelector> args = new ArrayList<RawSelector>(); args.add(s1); }
+          ( ',' sn=selector { args.add(sn); } )*
+       ')' { $a = args; }
     ;
 
-selectCountClause returns [List<Selector> expr]
-    : '\*'           { $expr = Collections.<Selector>emptyList();}
-    | i=INTEGER      { if (!i.getText().equals("1")) addRecognitionError("Only COUNT(1) is supported, got COUNT(" + i.getText() + ")"); $expr = Collections.<Selector>emptyList();}
+selector returns [RawSelector s]
+    : c=cident                                  { $s = c; }
+    | K_WRITETIME '(' c=cident ')'              { $s = new RawSelector.WritetimeOrTTL(c, true); }
+    | K_TTL       '(' c=cident ')'              { $s = new RawSelector.WritetimeOrTTL(c, false); }
+    | f=functionName args=selectionFunctionArgs { $s = new RawSelector.WithFunction(f, args); }
+    ;
+
+selectCountClause returns [List<RawSelector> expr]
+    : '\*'           { $expr = Collections.<RawSelector>emptyList();}
+    | i=INTEGER      { if (!i.getText().equals("1")) addRecognitionError("Only COUNT(1) is supported, got COUNT(" + i.getText() + ")"); $expr = Collections.<RawSelector>emptyList();}
     ;
 
 whereClause returns [List<Relation> clause]
@@ -255,15 +277,15 @@ insertStatement returns [UpdateStatement expr]
     @init {
         Attributes attrs = new Attributes();
         List<ColumnIdentifier> columnNames  = new ArrayList<ColumnIdentifier>();
-        List<Operation> columnOperations = new ArrayList<Operation>();
+        List<Term.Raw> values = new ArrayList<Term.Raw>();
     }
     : K_INSERT K_INTO cf=columnFamilyName
           '(' c1=cident { columnNames.add(c1); }  ( ',' cn=cident { columnNames.add(cn); } )* ')'
         K_VALUES
-          '(' v1=set_operation { columnOperations.add(v1); } ( ',' vn=set_operation { columnOperations.add(vn); } )* ')'
+          '(' v1=term { values.add(v1); } ( ',' vn=term { values.add(vn); } )* ')'
         ( usingClause[attrs] )?
       {
-          $expr = new UpdateStatement(cf, attrs, columnNames, columnOperations);
+          $expr = new UpdateStatement(cf, attrs, columnNames, values);
       }
     ;
 
@@ -293,14 +315,14 @@ usingClauseObjective[Attributes attrs]
 updateStatement returns [UpdateStatement expr]
     @init {
         Attributes attrs = new Attributes();
-        List<Pair<ColumnIdentifier, Operation>> columns = new ArrayList<Pair<ColumnIdentifier, Operation>>();
+        List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations = new ArrayList<Pair<ColumnIdentifier, Operation.RawUpdate>>();
     }
     : K_UPDATE cf=columnFamilyName
       ( usingClause[attrs] )?
-      K_SET termPairWithOperation[columns] (',' termPairWithOperation[columns])*
+      K_SET columnOperation[operations] (',' columnOperation[operations])*
       K_WHERE wclause=whereClause
       {
-          return new UpdateStatement(cf, columns, wclause, attrs);
+          return new UpdateStatement(cf, operations, wclause, attrs);
       }
     ;
 
@@ -313,24 +335,26 @@ updateStatement returns [UpdateStatement expr]
 deleteStatement returns [DeleteStatement expr]
     @init {
         Attributes attrs = new Attributes();
-        List<Selector> columnsList = Collections.emptyList();
+        List<Operation.RawDeletion> columnDeletions = Collections.emptyList();
     }
-    : K_DELETE ( ids=deleteSelection { columnsList = ids; } )?
+    : K_DELETE ( dels=deleteSelection { columnDeletions = dels; } )?
       K_FROM cf=columnFamilyName
       ( usingClauseDelete[attrs] )?
       K_WHERE wclause=whereClause
       {
-          return new DeleteStatement(cf, columnsList, wclause, attrs);
+          return new DeleteStatement(cf, columnDeletions, wclause, attrs);
       }
     ;
 
-deleteSelection returns [List<Selector> expr]
-    : t1=deleteSelector { $expr = new ArrayList<Selector>(); $expr.add(t1); } (',' tN=deleteSelector { $expr.add(tN); })*
+deleteSelection returns [List<Operation.RawDeletion> operations]
+    : { $operations = new ArrayList<Operation.RawDeletion>(); }
+          t1=deleteOp { $operations.add(t1); }
+          (',' tN=deleteOp { $operations.add(tN); })*
     ;
 
-deleteSelector returns [Selector s]
-    : c=cident                { $s = c; }
-    | c=cident '[' t=term ']' { $s = new Selector.WithKey(c, t); }
+deleteOp returns [Operation.RawDeletion op]
+    : c=cident                { $op = new Operation.ColumnDeletion(c); }
+    | c=cident '[' t=term ']' { $op = new Operation.ElementDeletion(c, t); }
     ;
 
 /**
@@ -638,97 +662,102 @@ cfOrKsName[CFName name, boolean isKs]
     | k=unreserved_keyword { if (isKs) $name.setKeyspace(k, false); else $name.setColumnFamily(k, false); }
     ;
 
-set_operation returns [Operation op]
-    : t=finalTerm    { $op = ColumnOperation.Set(t); }
-    | mk=QMARK       { $op = new PreparedOperation(new Term($mk.text, $mk.type, ++currentBindMarkerIdx), PreparedOperation.Kind.SET); }
-    | m=map_literal  { $op = MapOperation.Set(m);  }
-    | l=list_literal { $op = ListOperation.Set(l); }
-    | s=set_literal  { $op = SetOperation.Set(s);  }
+constant returns [Constants.Literal constant]
+    : t=STRING_LITERAL { $constant = Constants.Literal.string($t.text); }
+    | t=INTEGER        { $constant = Constants.Literal.integer($t.text); }
+    | t=FLOAT          { $constant = Constants.Literal.floatingPoint($t.text); }
+    | t=BOOLEAN        { $constant = Constants.Literal.bool($t.text); }
+    | t=UUID           { $constant = Constants.Literal.uuid($t.text); }
+    | t=HEXNUMBER      { $constant = Constants.Literal.hex($t.text); }
     ;
 
-list_literal returns [List<Term> value]
-    : '[' { List<Term> l = new ArrayList<Term>(); } ( t1=finalTerm { l.add(t1); } ( ',' tn=finalTerm { l.add(tn); } )* )? ']' { $value = l; }
+set_tail[List<Term.Raw> s]
+    : '}'
+    | ',' t=term { s.add(t); } set_tail[s]
     ;
 
-set_literal returns [List<Term> value]
-    : '{' { List<Term> s = new ArrayList<Term>(); } ( t1=finalTerm { s.add(t1); } ( ',' tn=finalTerm { s.add(tn); } )* )? '}'  { $value = s; }
+map_tail[List<Pair<Term.Raw, Term.Raw>> m]
+    : '}'
+    | ',' k=term ':' v=term { m.add(Pair.create(k, v)); } map_tail[m]
     ;
 
-map_literal returns [Map<Term, Term> value]
-    // Note that we have an ambiguity between maps and set for "{}". So we force it to a set, and deal with it later based on the type of the column
-    : '{' { Map<Term, Term> m = new HashMap<Term, Term>(); }
-          k1=finalTerm ':' v1=finalTerm { m.put(k1, v1); } ( ',' kn=finalTerm ':' vn=finalTerm { m.put(kn, vn); } )* '}'
-       { $value = m; }
+map_literal returns [Maps.Literal map]
+    : '{' '}' { $map = new Maps.Literal(Collections.<Pair<Term.Raw, Term.Raw>>emptyList()); }
+    | '{' { List<Pair<Term.Raw, Term.Raw>> m = new ArrayList<Pair<Term.Raw, Term.Raw>>(); }
+          k1=term ':' v1=term { m.add(Pair.create(k1, v1)); } map_tail[m]
+       { $map = new Maps.Literal(m); }
     ;
 
-finalTerm returns [Term term]
-    : t=(STRING_LITERAL | UUID | INTEGER | FLOAT | BOOLEAN | HEXNUMBER ) { $term = new Term($t.text, $t.type); }
-    | f=(K_MIN_TIMEUUID | K_MAX_TIMEUUID | K_NOW) '(' (v=(STRING_LITERAL | INTEGER))? ')' { $term = new Term($f.text + "(" + ($v == null ? "" : $v.text) + ")", Term.Type.UUID, true); }
+set_or_map[Term.Raw t] returns [Term.Raw value]
+    : ':' v=term { List<Pair<Term.Raw, Term.Raw>> m = new ArrayList<Pair<Term.Raw, Term.Raw>>(); m.add(Pair.create(t, v)); } map_tail[m] { $value = new Maps.Literal(m); }
+    | { List<Term.Raw> s = new ArrayList<Term.Raw>(); s.add(t); } set_tail[s] { $value = new Sets.Literal(s); }
     ;
 
-term returns [Term term]
-    : ft=finalTerm { $term = ft; }
-    | t=QMARK      { $term = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
+// This is a bit convoluted but that's because I haven't found a much better to have antl disambiguate between sets and maps
+collection_literal returns [Term.Raw value]
+    : '[' { List<Term.Raw> l = new ArrayList<Term.Raw>(); } ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']' { $value = new Lists.Literal(l); }
+    | '{' t=term v=set_or_map[t] { $value = v; }
+    // Note that we have an ambiguity between maps and set for "{}". So we force it to a set literal, and deal with it later based on the type of the column (SetLiteral.java).
+    | '{' '}' { $value = new Sets.Literal(Collections.<Term.Raw>emptyList()); }
     ;
 
-termPairWithOperation[List<Pair<ColumnIdentifier, Operation>> columns]
-    : key=cident '='
-        ( set_op=set_operation { columns.add(Pair.<ColumnIdentifier, Operation>create(key, set_op)); }
-        | c=cident op=operation
-          {
-              if (!key.equals(c))
-                  addRecognitionError("Only expressions like X = X <op> <value> are supported.");
-              columns.add(Pair.<ColumnIdentifier, Operation>create(key, op));
-          }
-        | ll=list_literal '+' c=cident
-          {
-              if (!key.equals(c))
-                  addRecognitionError("Only expressions like X = <value> + X are supported.");
-              columns.add(Pair.<ColumnIdentifier, Operation>create(key, ListOperation.Prepend(ll)));
-          }
-        | mk=QMARK '+' c=cident
-          {
-              if (!key.equals(c))
-                  addRecognitionError("Only expressions like X = <value> + X are supported.");
-              PreparedOperation pop = new PreparedOperation(new Term($mk.text, $mk.type, ++currentBindMarkerIdx), PreparedOperation.Kind.PREPARED_PLUS);
-              columns.add(Pair.<ColumnIdentifier, Operation>create(key, pop));
-          }
-        )
-    | key=cident '[' t=term ']' '=' vv=term
+value returns [Term.Raw value]
+    : c=constant           { $value = c; }
+    | l=collection_literal { $value = l; }
+    | QMARK                { $value = new AbstractMarker.Raw(++currentBindMarkerIdx); }
+    ;
+
+functionName returns [String s]
+    : f=IDENT                       { $s = $f.text; }
+    | u=unreserved_function_keyword { $s = u; }
+    | K_TOKEN                       { $s = "token"; }
+    ;
+
+functionArgs returns [List<Term.Raw> a]
+    : '(' ')' { $a = Collections.emptyList(); }
+    | '(' t1=term { List<Term.Raw> args = new ArrayList<Term.Raw>(); args.add(t1); }
+          ( ',' tn=term { args.add(tn); } )*
+       ')' { $a = args; }
+    ;
+
+term returns [Term.Raw term]
+    : v=value                          { $term = v; }
+    | f=functionName args=functionArgs { $term = new FunctionCall.Raw(f, args); }
+    | '(' c=comparatorType ')' t=term  { $term = new TypeCast(c, t); }
+    ;
+
+columnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations]
+    : key=cident '=' t=term ('+' c=cident )?
       {
-          // This is ambiguous, this can either set a list by index, or be a map put.
-          // So we always return a list setIndex and we'll check later and
-          // backtrack to a map operation if need be.
-          columns.add(Pair.<ColumnIdentifier, Operation>create(key, ListOperation.SetIndex(Arrays.asList(t, vv))));
+          if (c == null)
+          {
+              addRawUpdate(operations, key, new Operation.SetValue(t));
+          }
+          else
+          {
+              if (!key.equals(c))
+                  addRecognitionError("Only expressions of the form X = <value> + X are supported.");
+              addRawUpdate(operations, key, new Operation.Prepend(t));
+          }
       }
-    ;
-
-intTerm returns [Term integer]
-    : t=INTEGER { $integer = new Term($t.text, $t.type); }
-    | t=QMARK   { $integer = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
-    ;
-
-
-operation returns [Operation op]
-    : '+' i=INTEGER { $op = ColumnOperation.CounterInc(new Term($i.text, $i.type)); }
-    | sign='-'? i=INTEGER
+    | key=cident '=' c=cident sig=('+' | '-') t=term
       {
-          Term t = new Term($i.text, $i.type);
-          validateMinusSupplied(sign, t, input);
-          if (sign == null)
-              t = new Term(-(Long.valueOf(t.getText())), t.getType());
-          $op = ColumnOperation.CounterDec(t);
+          if (!key.equals(c))
+              addRecognitionError("Only expressions of the form X = X " + $sig.text + "<value> are supported.");
+          addRawUpdate(operations, key, $sig.text.equals("+") ? new Operation.Addition(t) : new Operation.Substraction(t));
       }
-    | '+' mk=QMARK { $op = new PreparedOperation(new Term($mk.text, $mk.type, ++currentBindMarkerIdx), PreparedOperation.Kind.PLUS_PREPARED); }
-    | '-' mk=QMARK { $op = new PreparedOperation(new Term($mk.text, $mk.type, ++currentBindMarkerIdx), PreparedOperation.Kind.MINUS_PREPARED); }
-
-    | '+' ll=list_literal { $op = ListOperation.Append(ll); }
-    | '-' ll=list_literal { $op = ListOperation.Discard(ll); }
-
-    | '+' sl=set_literal { $op = SetOperation.Add(sl); }
-    | '-' sl=set_literal { $op = SetOperation.Discard(sl); }
-
-    | '+' ml=map_literal { $op = MapOperation.Put(ml); }
+    | key=cident '=' c=cident i=INTEGER
+      {
+          // Note that this production *is* necessary because X = X - 3 will in fact be lexed as [ X, '=', X, INTEGER].
+          if (!key.equals(c))
+              // We don't yet allow a '+' in front of an integer, but we could in the future really, so let's be future-proof in our error message
+              addRecognitionError("Only expressions of the form X = X " + ($i.text.charAt(0) == '-' ? '-' : '+') + " <value> are supported.");
+          addRawUpdate(operations, key, new Operation.Addition(Constants.Literal.integer($i.text)));
+      }
+    | key=cident '[' k=term ']' '=' t=term
+      {
+          addRawUpdate(operations, key, new Operation.SetElement(k, t));
+      }
     ;
 
 properties[PropertyDefinitions props]
@@ -737,41 +766,32 @@ properties[PropertyDefinitions props]
 
 property[PropertyDefinitions props]
     : k=cident '=' (simple=propertyValue { try { $props.addProperty(k.toString(), simple); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
-                   |   map=map_literal   { try { $props.addProperty(k.toString(), convertMap(map)); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } })
+                   |   map=map_literal   { try { $props.addProperty(k.toString(), convertPropertyMap(map)); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } })
     ;
 
 propertyValue returns [String str]
-    : v=(STRING_LITERAL | IDENT | INTEGER | FLOAT | BOOLEAN | HEXNUMBER) { $str = $v.text; }
-    | u=unreserved_keyword                         { $str = u; }
+    : c=constant           { $str = c.getRawText(); }
+    | u=unreserved_keyword { $str = u; }
     ;
 
-// Either a term or a list of terms
-tokenDefinition returns [Pair<Term, List<Term>> tkdef]
-    : K_TOKEN { List<Term> l = new ArrayList<Term>(); }
-         '(' t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )*  ')' { $tkdef = Pair.<Term, List<Term>>create(null, l); }
-    | t=term  { $tkdef = Pair.<Term, List<Term>>create(t, null); }
+relationType returns [Relation.Type op]
+    : '='  { $op = Relation.Type.EQ; }
+    | '<'  { $op = Relation.Type.LT; }
+    | '<=' { $op = Relation.Type.LTE; }
+    | '>'  { $op = Relation.Type.GT; }
+    | '>=' { $op = Relation.Type.GTE; }
     ;
 
 relation[List<Relation> clauses]
-    : name=cident type=('=' | '<' | '<=' | '>=' | '>') t=term { $clauses.add(new Relation($name.id, $type.text, $t.term)); }
-    | K_TOKEN { List<ColumnIdentifier> l = new ArrayList<ColumnIdentifier>(); }
-       '(' name1=cident { l.add(name1); } ( ',' namen=cident { l.add(namen); })* ')'
-           type=('=' |'<' | '<=' | '>=' | '>') tkd=tokenDefinition
-       {
-           if (tkd.right != null && tkd.right.size() != l.size())
-           {
-               addRecognitionError("The number of arguments to the token() function don't match");
-           }
-           else
-           {
-               Term tokenLitteral = tkd.left;
-               for (int i = 0; i < l.size(); i++)
-               {
-                   Term tt = tokenLitteral == null ? Term.tokenOf(tkd.right.get(i)) : tokenLitteral;
-                   $clauses.add(new Relation(l.get(i), $type.text, tt, true));
-               }
-           }
-       }
+    : name=cident type=relationType t=term { $clauses.add(new Relation(name, type, t)); }
+    | K_TOKEN 
+        { List<ColumnIdentifier> l = new ArrayList<ColumnIdentifier>(); }
+          '(' name1=cident { l.add(name1); } ( ',' namen=cident { l.add(namen); })* ')'
+        type=relationType t=term
+        {
+            for (ColumnIdentifier id : l)
+                $clauses.add(new Relation(id, type, t, true));
+        }
     | name=cident K_IN { Relation rel = Relation.createInRelation($name.id); }
        '(' f1=term { rel.addInValue(f1); } (',' fN=term { rel.addInValue(fN); } )* ')' { $clauses.add(rel); }
     ;
@@ -829,15 +849,17 @@ username
     ;
 
 unreserved_keyword returns [String str]
+    : u=unreserved_function_keyword     { $str = u; }
+    | k=(K_TTL | K_COUNT | K_WRITETIME) { $str = $k.text; }
+    ;
+
+unreserved_function_keyword returns [String str]
     : k=( K_KEY
         | K_CLUSTERING
-        | K_COUNT
-        | K_TTL
         | K_COMPACT
         | K_STORAGE
         | K_TYPE
         | K_VALUES
-        | K_WRITETIME
         | K_MAP
         | K_LIST
         | K_FILTERING
@@ -850,9 +872,6 @@ unreserved_keyword returns [String str]
         | K_SUPERUSER
         | K_NOSUPERUSER
         | K_PASSWORD
-        | K_MIN_TIMEUUID
-        | K_MAX_TIMEUUID
-        | K_NOW
         ) { $str = $k.text; }
     | t=native_type { $str = t.toString(); }
     ;
@@ -944,12 +963,6 @@ K_WRITETIME:   W R I T E T I M E;
 
 K_MAP:         M A P;
 K_LIST:        L I S T;
-
-K_MIN_TIMEUUID:     M I N T I M E U U I D;
-K_MAX_TIMEUUID:     M A X T I M E U U I D;
-K_NOW:              N O W;
-K_DATE_OF:          D A T E O F;
-K_UNIXTIMESTAMP_OF: U N I X T I M E S T A M P O F;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

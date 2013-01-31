@@ -29,32 +29,16 @@ public class Relation
 {
     private final ColumnIdentifier entity;
     private final Type relationType;
-    private final Term value;
-    private final List<Term> inValues;
+    private final Term.Raw value;
+    private final List<Term.Raw> inValues;
     public final boolean onToken;
 
     public static enum Type
     {
         EQ, LT, LTE, GTE, GT, IN;
-
-        public static Type forString(String s)
-        {
-            if (s.equals("="))
-                return EQ;
-            else if (s.equals("<"))
-                return LT;
-            else if (s.equals("<="))
-                return LTE;
-            else if (s.equals(">="))
-                return GTE;
-            else if (s.equals(">"))
-                return GT;
-
-            return null;
-        }
     }
 
-    private Relation(ColumnIdentifier entity, Type type, Term value, List<Term> inValues, boolean onToken)
+    private Relation(ColumnIdentifier entity, Type type, Term.Raw value, List<Term.Raw> inValues, boolean onToken)
     {
         this.entity = entity;
         this.relationType = type;
@@ -70,19 +54,19 @@ public class Relation
      * @param type the type that describes how this entity relates to the value.
      * @param value the value being compared.
      */
-    public Relation(ColumnIdentifier entity, String type, Term value)
+    public Relation(ColumnIdentifier entity, Type type, Term.Raw value)
     {
-        this(entity, Type.forString(type), value, null, false);
+        this(entity, type, value, null, false);
     }
 
-    public Relation(ColumnIdentifier entity, String type, Term value, boolean onToken)
+    public Relation(ColumnIdentifier entity, Type type, Term.Raw value, boolean onToken)
     {
-        this(entity, Type.forString(type), value, null, onToken);
+        this(entity, type, value, null, onToken);
     }
 
     public static Relation createInRelation(ColumnIdentifier entity)
     {
-        return new Relation(entity, Type.IN, null, new ArrayList<Term>(), false);
+        return new Relation(entity, Type.IN, null, new ArrayList<Term.Raw>(), false);
     }
 
     public Type operator()
@@ -95,19 +79,19 @@ public class Relation
         return entity;
     }
 
-    public Term getValue()
+    public Term.Raw getValue()
     {
         assert relationType != Type.IN;
         return value;
     }
 
-    public List<Term> getInValues()
+    public List<Term.Raw> getInValues()
     {
         assert relationType == Type.IN;
         return inValues;
     }
 
-    public void addInValue(Term t)
+    public void addInValue(Term.Raw t)
     {
         inValues.add(t);
     }
