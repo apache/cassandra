@@ -136,18 +136,10 @@ public class CliOptions
             {
                 css.username = cmd.getOptionValue(USERNAME_OPTION);
             }
-            else
-            {
-                css.username = "default";
-            }
 
             if (cmd.hasOption(PASSWORD_OPTION))
             {
                 css.password = cmd.getOptionValue(PASSWORD_OPTION);
-            }
-            else
-            {
-                css.password = "";
             }
 
             // Look for keyspace
