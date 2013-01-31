@@ -141,7 +141,7 @@ public class CliClient
         MEMTABLE_FLUSH_PERIOD_IN_MS,
         CACHING,
         DEFAULT_TIME_TO_LIVE,
-        SPECULATIVE_RETRY
+        SPECULATIVE_RETRY,
         POPULATE_IO_CACHE_ON_FLUSH
     }
 
