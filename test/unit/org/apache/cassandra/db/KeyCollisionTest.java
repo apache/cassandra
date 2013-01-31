@@ -27,6 +27,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.service.StorageService;
@@ -204,6 +206,11 @@ public class KeyCollisionTest extends SchemaLoader
                 allTokens.put(row.getKey(), row.getValue() / total);
 
             return allTokens;
+        }
+
+        public AbstractType<?> getTokenValidator()
+        {
+            return IntegerType.instance;
         }
     }
 }
