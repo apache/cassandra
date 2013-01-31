@@ -24,6 +24,8 @@ import java.util.*;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.service.StorageService;
@@ -207,5 +209,10 @@ public class OrderPreservingPartitioner extends AbstractPartitioner<StringToken>
             allTokens.put(row.getKey(), row.getValue() / total);
 
         return allTokens;
+    }
+
+    public AbstractType<?> getTokenValidator()
+    {
+        return UTF8Type.instance;
     }
 }

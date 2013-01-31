@@ -112,17 +112,20 @@ public class ColumnOperation implements Operation
         cf.addCounter(new QueryPath(cf.metadata().cfName, null, builder.build()), val);
     }
 
-    public void addBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
+    public Operation validateAndAddBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
     {
+        value.validateType(column.name.toString(), column.type);
+
         if (value.isBindMarker())
             boundNames[value.bindIndex] = column;
+
+        return this;
     }
 
     public List<Term> getValues()
     {
         return Collections.singletonList(value);
     }
-
 
     public boolean requiresRead(AbstractType<?> validator)
     {

@@ -18,13 +18,19 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
+import java.util.Set;
 
 import org.apache.cassandra.cql.jdbc.JdbcInt32;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class Int32Type extends AbstractType<Integer>
 {
     public static final Int32Type instance = new Int32Type();
+
+    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.INTEGER);
 
     Int32Type() {} // singleton
 
@@ -95,4 +101,13 @@ public class Int32Type extends AbstractType<Integer>
             throw new MarshalException(String.format("Expected 4 or 0 byte int (%d)", bytes.remaining()));
     }
 
+    public Set<Term.Type> supportedCQL3Constants()
+    {
+        return supportedCQL3Constants;
+    }
+
+    public CQL3Type asCQL3Type()
+    {
+        return CQL3Type.Native.INT;
+    }
 }

@@ -129,21 +129,26 @@ public class MapOperation implements Operation
         cf.addColumn(params.makeTombstone(name));
     }
 
-    public void addBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
+    public Operation validateAndAddBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
     {
         if (!(column.type instanceof MapType))
-            throw new InvalidRequestException(String.format("Invalid operation, %s is not of map type", column.name));
+            throw new InvalidRequestException(String.format("Cannot apply map operation on column %s of type %s", column, column.type));
 
         MapType mt = (MapType)column.type;
         for (Map.Entry<Term, Term> entry : values.entrySet())
         {
             Term key = entry.getKey();
+            key.validateType(column + " key", mt.keys);
+
             Term value = entry.getValue();
+            value.validateType(column + " value", mt.values);
+
             if (key.isBindMarker())
                 boundNames[key.bindIndex] = keySpecOf(column, mt);
             if (value.isBindMarker())
                 boundNames[value.bindIndex] = valueSpecOf(column, mt);
         }
+        return this;
     }
 
     public static ColumnSpecification keySpecOf(ColumnSpecification column, MapType type)

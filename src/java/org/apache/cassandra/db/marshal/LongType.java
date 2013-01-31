@@ -18,13 +18,19 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
+import java.util.Set;
 
 import org.apache.cassandra.cql.jdbc.JdbcLong;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class LongType extends AbstractType<Long>
 {
     public static final LongType instance = new LongType();
+
+    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.INTEGER);
 
     LongType() {} // singleton
 
@@ -93,5 +99,15 @@ public class LongType extends AbstractType<Long>
     {
         if (bytes.remaining() != 8 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 8 or 0 byte long (%d)", bytes.remaining()));
+    }
+
+    public Set<Term.Type> supportedCQL3Constants()
+    {
+        return supportedCQL3Constants;
+    }
+
+    public CQL3Type asCQL3Type()
+    {
+        return CQL3Type.Native.BIGINT;
     }
 }

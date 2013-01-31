@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -102,5 +103,11 @@ public abstract class CollectionType<T> extends AbstractType<T>
             result.put(bb.duplicate());
         }
         return (ByteBuffer)result.flip();
+    }
+
+
+    public CQL3Type asCQL3Type()
+    {
+        return new CQL3Type.Collection(this);
     }
 }

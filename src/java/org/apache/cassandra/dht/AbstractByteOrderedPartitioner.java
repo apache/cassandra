@@ -26,6 +26,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -214,5 +216,10 @@ public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner
             allTokens.put(row.getKey(), row.getValue() / total);
 
         return allTokens;
+    }
+
+    public AbstractType<?> getTokenValidator()
+    {
+        return BytesType.instance;
     }
 }

@@ -41,7 +41,7 @@ public interface Operation
                         UpdateParameters params,
                         List<Pair<ByteBuffer, IColumn>> list) throws InvalidRequestException;
 
-    public void addBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException;
+    public Operation validateAndAddBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException;
 
     public List<Term> getValues();
 

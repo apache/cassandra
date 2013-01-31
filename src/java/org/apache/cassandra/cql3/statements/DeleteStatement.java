@@ -217,15 +217,19 @@ public class DeleteStatement extends ModificationStatement
             if (name.kind != CFDefinition.Name.Kind.COLUMN_METADATA && name.kind != CFDefinition.Name.Kind.VALUE_ALIAS)
                 throw new InvalidRequestException(String.format("Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", column));
 
-            if (column.key() != null)
+            if (column.hasKey())
             {
                 if (name.type instanceof ListType)
                 {
+                    column.key().validateType("list index", Int32Type.instance);
+
                     if (column.key().isBindMarker())
                         boundNames[column.key().bindIndex] = ListOperation.indexSpecOf(name);
                 }
                 else if (name.type instanceof MapType)
                 {
+                    column.key().validateType("map key", ((MapType)name.type).keys);
+
                     if (column.key().isBindMarker())
                         boundNames[column.key().bindIndex] = MapOperation.keySpecOf(name, (MapType)name.type);
                 }

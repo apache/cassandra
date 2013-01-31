@@ -33,6 +33,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -72,25 +73,6 @@ public class SetOperation implements Operation
             default:
                 throw new AssertionError("Unsupported Set operation: " + kind);
         }
-    }
-
-    public Operation maybeConvertToEmptyMapOperation()
-    {
-        // If it's not empty or a DISCARD, it's a proper invalid query, not
-        // just the parser that hasn't been able to distinguish empty set from
-        // empty map. However, we just this as it will be rejected later and
-        // there is no point in duplicating validation
-        if (!values.isEmpty())
-            return this;
-
-        switch (kind)
-        {
-            case SET:
-                return MapOperation.Set(Collections.<Term, Term>emptyMap());
-            case ADD:
-                return MapOperation.Put(Collections.<Term, Term>emptyMap());
-        }
-        return this;
     }
 
     public static void doSetFromPrepared(ColumnFamily cf, ColumnNameBuilder builder, SetType validator, Term values, UpdateParameters params) throws InvalidRequestException
@@ -166,11 +148,38 @@ public class SetOperation implements Operation
         }
     }
 
-    public void addBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
+    public Operation validateAndAddBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
     {
+        // On the parser side, we're unable to differentiate an empty map from an empty set for add and set operations.
+        // Fix it now that we have the actual type.
+        if (column.type instanceof MapType && values.isEmpty())
+            return toEmptyMapOperation().validateAndAddBoundNames(column, boundNames);
+
+        if (!(column.type instanceof SetType))
+            throw new InvalidRequestException(String.format("Cannot apply set operation on column %s of type %s", column, column.type));
+
+        AbstractType<?> valuesType = ((SetType)column.type).elements;
+
         for (Term t : values)
+        {
+            t.validateType(column + " element", valuesType);
+
             if (t.isBindMarker())
                 boundNames[t.bindIndex] = column;
+        }
+        return this;
+    }
+
+    private Operation toEmptyMapOperation()
+    {
+        switch (kind)
+        {
+            case SET:
+                return MapOperation.Set(Collections.<Term, Term>emptyMap());
+            case ADD:
+                return MapOperation.Put(Collections.<Term, Term>emptyMap());
+        }
+        return this;
     }
 
     public List<Term> getValues()

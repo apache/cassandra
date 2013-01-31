@@ -285,8 +285,7 @@ public class UpdateStatement extends ModificationStatement
                 if (name == null)
                     throw new InvalidRequestException(String.format("Unknown identifier %s", columnNames.get(i)));
 
-                Operation operation = columnOperations.get(i);
-                operation.addBoundNames(name, boundNames);
+                Operation operation = columnOperations.get(i).validateAndAddBoundNames(name, boundNames);
 
                 switch (name.kind)
                 {
@@ -303,7 +302,7 @@ public class UpdateStatement extends ModificationStatement
                     case COLUMN_METADATA:
                         if (processedColumns.containsKey(name))
                             throw new InvalidRequestException(String.format("Multiple definitions found for column %s", name));
-                        addNewOperation(name, operation);
+                        processedColumns.put(name, operation);
                         break;
                 }
             }
@@ -317,7 +316,7 @@ public class UpdateStatement extends ModificationStatement
                 if (name == null)
                     throw new InvalidRequestException(String.format("Unknown identifier %s", entry.left));
 
-                Operation operation = entry.right;
+                Operation operation = entry.right.validateAndAddBoundNames(name, boundNames);
 
                 switch (operation.getType())
                 {
@@ -328,9 +327,6 @@ public class UpdateStatement extends ModificationStatement
                     case LIST:
                     case SET:
                     case MAP:
-                        if (!name.type.isCollection())
-                            throw new InvalidRequestException("Cannot apply collection operation on column " + name + " with " + name.type + " type.");
-                    // Fallthrough on purpose
                     case COLUMN:
                         if (type == Type.COUNTER)
                             throw new InvalidRequestException("Invalid non-counter operation on counter table.");
@@ -351,9 +347,7 @@ public class UpdateStatement extends ModificationStatement
                         for (Operation otherOp : processedColumns.get(name))
                             if (otherOp.getType() == Operation.Type.COLUMN)
                                 throw new InvalidRequestException(String.format("Multiple definitions found for column %s", name));
-
-                        operation.addBoundNames(name, boundNames);
-                        addNewOperation(name, operation);
+                        processedColumns.put(name, operation);
                         break;
                 }
             }
@@ -361,16 +355,6 @@ public class UpdateStatement extends ModificationStatement
         }
 
         return new ParsedStatement.Prepared(this, Arrays.<ColumnSpecification>asList(boundNames));
-    }
-
-    private void addNewOperation(CFDefinition.Name name, Operation operation)
-    {
-        // On the parser side, we're unable to differentiate an empty map from an empty set for add and set operations.
-        // Fix it now that we have the actual type.
-        if (operation.getType() == Operation.Type.SET && (name.type instanceof MapType))
-            operation = ((SetOperation)operation).maybeConvertToEmptyMapOperation();
-
-        processedColumns.put(name, operation);
     }
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException
@@ -403,8 +387,11 @@ public class UpdateStatement extends ModificationStatement
                     if (processed.containsKey(name.name))
                         throw new InvalidRequestException(String.format("Multiple definitions found for PRIMARY KEY part %s", name));
                     for (Term value : values)
+                    {
+                        value.validateType(name.toString(), name.type);
                         if (value.isBindMarker())
                             names[value.bindIndex] = name;
+                    }
                     processed.put(name.name, values);
                     break;
                 case VALUE_ALIAS:

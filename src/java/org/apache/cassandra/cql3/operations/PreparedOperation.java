@@ -26,6 +26,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
@@ -79,8 +80,6 @@ public class PreparedOperation implements Operation
                         case SET:
                             SetOperation.doSetFromPrepared(cf, builder, (SetType)validator, preparedValue, params);
                             break;
-                        case PREPARED_PLUS:
-                            throw new InvalidRequestException("Unsupported syntax, cannot add to a prepared set");
                         case PLUS_PREPARED:
                             SetOperation.doAddFromPrepared(cf, builder, (SetType)validator, preparedValue, params);
                             break;
@@ -95,13 +94,9 @@ public class PreparedOperation implements Operation
                         case SET:
                             MapOperation.doSetFromPrepared(cf, builder, (MapType)validator, preparedValue, params);
                             break;
-                        case PREPARED_PLUS:
-                            throw new InvalidRequestException("Unsupported syntax, cannot put to a prepared map");
                         case PLUS_PREPARED:
                             MapOperation.doPutFromPrepared(cf, builder, (MapType)validator, preparedValue, params);
                             break;
-                        case MINUS_PREPARED:
-                            throw new InvalidRequestException("Unsuppoted syntax, discard syntax for map not supported");
                     }
                     break;
             }
@@ -113,8 +108,6 @@ public class PreparedOperation implements Operation
                 case SET:
                     ColumnOperation.Set(preparedValue).execute(cf, builder, validator, params, null);
                     break;
-                case PREPARED_PLUS:
-                    throw new InvalidRequestException("Unsupported syntax for increment, must be of the form X = X + <value>");
                 case PLUS_PREPARED:
                     ColumnOperation.CounterInc(preparedValue).execute(cf, builder, validator, params, null);
                     break;
@@ -125,10 +118,42 @@ public class PreparedOperation implements Operation
         }
     }
 
-    public void addBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
+    public Operation validateAndAddBoundNames(ColumnSpecification column, ColumnSpecification[] boundNames) throws InvalidRequestException
     {
+        if (column.type instanceof CollectionType)
+        {
+            switch (kind)
+            {
+                case PREPARED_PLUS:
+                    if (column.type instanceof MapType)
+                        throw new InvalidRequestException("Unsupported syntax, cannot put to a prepared map");
+                    if (column.type instanceof SetType)
+                        throw new InvalidRequestException("Unsupported syntax, cannot add to a prepared set");
+                    break;
+                case MINUS_PREPARED:
+                    if (column.type instanceof MapType)
+                        throw new InvalidRequestException("Unsuppoted syntax, discard syntax for map not supported");
+                    break;
+            }
+            switch (((CollectionType)column.type).kind)
+            {
+            }
+        }
+        else if (column.type instanceof CounterColumnType)
+        {
+            if (kind == Kind.PREPARED_PLUS)
+                throw new InvalidRequestException("Unsupported syntax for increment, must be of the form X = X + <value>");
+        }
+        else
+        {
+            // Any other operation than a set is invalid
+            if (kind != Kind.SET)
+                throw new InvalidRequestException(String.format("Invalid operation for %s of type %s", column, column.type));
+        }
+
         if (preparedValue.isBindMarker())
             boundNames[preparedValue.bindIndex] = column;
+        return this;
     }
 
     public List<Term> getValues()
@@ -142,7 +167,8 @@ public class PreparedOperation implements Operation
         return (validator instanceof ListType) && kind == Kind.MINUS_PREPARED;
     }
 
-    public boolean isPotentialCounterOperation() {
+    public boolean isPotentialCounterOperation()
+    {
         return kind == Kind.PLUS_PREPARED || kind == Kind.MINUS_PREPARED;
     }
 
