@@ -25,6 +25,7 @@ import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.addMutation;
 
 import java.net.InetAddress;
+import java.sql.Date;
 import java.util.*;
 
 import org.apache.cassandra.SchemaLoader;
@@ -117,6 +118,11 @@ public class StreamingTransferTest extends SchemaLoader
         List<Range<Token>> ranges = new ArrayList<Range<Token>>();
         ranges.add(new Range<Token>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
         ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
+        transfer(table, sstable, ranges);
+    }
+
+    private void transfer(Table table, SSTableReader sstable, List<Range<Token>> ranges) throws Exception
+    {
         StreamOutSession session = StreamOutSession.create(table.getName(), LOCAL, (IStreamCallback)null);
         StreamOut.transferSSTables(session, Arrays.asList(sstable), ranges, OperationType.BOOTSTRAP);
         session.await();
@@ -311,6 +317,42 @@ public class StreamingTransferTest extends SchemaLoader
             assertEquals(rows.toString(), 1, rows.size());
             assertEquals(entry.getKey(), rows.get(0).key);
         }
+    }
+
+    @Test
+    public void testRandomSSTableTransfer() throws Exception
+    {
+        final Table table = Table.open("Keyspace1");
+        final ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
+        Mutator mutator = new Mutator()
+        {
+            public void mutate(String key, String colName, long timestamp) throws Exception
+            {
+                RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key));
+                ColumnFamily cf = ColumnFamily.create(table.getName(), cfs.name);
+                cf.addColumn(column(colName, "value", timestamp));
+                cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(new Date(timestamp).toString()), timestamp));
+                rm.add(cf);
+                logger.debug("Applying row to transfer " + rm);
+                rm.apply();
+            }
+        };
+        // write a lot more data so the data is spread in more than 1 chunk.
+        for (int i = 1; i <= 6000; i++)
+            mutator.mutate("key" + i, "col" + i, System.currentTimeMillis());
+        cfs.forceBlockingFlush();
+        Util.compactAll(cfs).get();
+        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        cfs.clearUnsafe();
+
+        IPartitioner p = StorageService.getPartitioner();
+        List<Range<Token>> ranges = new ArrayList<Range<Token>>();
+        ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key1")), p.getToken(ByteBufferUtil.bytes("key1000"))));
+        ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key5")), p.getToken(ByteBufferUtil.bytes("key500"))));
+        ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key9")), p.getToken(ByteBufferUtil.bytes("key900"))));
+        transfer(table, sstable, ranges);
+        assertEquals(1, cfs.getSSTables().size());
+        assertEquals(7, Util.getRangeSlice(cfs).size());
     }
 
     public interface Mutator

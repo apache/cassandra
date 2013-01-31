@@ -53,6 +53,8 @@ public class Component
         STATS("Statistics.db"),
         // holds sha1 sum of the data file (to be checked by sha1sum)
         DIGEST("Digest.sha1"),
+        // holds the CRC32 for chunks in an a uncompressed file.
+        CRC("CRC.db"),
         // holds SSTable Index Summary and Boundaries
         SUMMARY("Summary.db"),
         // table of contents, stores the list of all components for the sstable
@@ -83,6 +85,7 @@ public class Component
     public final static Component COMPRESSION_INFO = new Component(Type.COMPRESSION_INFO);
     public final static Component STATS = new Component(Type.STATS);
     public final static Component DIGEST = new Component(Type.DIGEST);
+    public final static Component CRC = new Component(Type.CRC);
     public final static Component SUMMARY = new Component(Type.SUMMARY);
     public final static Component TOC = new Component(Type.TOC);
 
@@ -134,7 +137,8 @@ public class Component
             case COMPRESSION_INFO:  component = Component.COMPRESSION_INFO;             break;
             case STATS:             component = Component.STATS;                        break;
             case DIGEST:            component = Component.DIGEST;                       break;
-            case SUMMARY:           component = Component.SUMMARY;          break;
+            case CRC:               component = Component.CRC;                          break;
+            case SUMMARY:           component = Component.SUMMARY;                      break;
             case TOC:               component = Component.TOC;                          break;
             case CUSTOM:            component = new Component(Type.CUSTOM, path.right); break;
             default:

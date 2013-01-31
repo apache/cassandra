@@ -18,9 +18,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.*;
-import java.nio.channels.ClosedChannelException;
 import java.util.*;
-import java.util.regex.Pattern;
 
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -48,6 +46,7 @@ public class SSTableWriter extends SSTable
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
     private final SSTableMetadata.Collector sstableMetadataCollector;
+    private DataIntegrityMetadata.ChecksumWriter integratyWriter;
 
     public SSTableWriter(String filename, long keyCount)
     {
@@ -70,11 +69,16 @@ public class SSTableWriter extends SSTable
             components.add(Component.FILTER);
 
         if (metadata.compressionParameters().sstableCompressor != null)
+        {
             components.add(Component.COMPRESSION_INFO);
+        }
         else
+        {
             // it would feel safer to actually add this component later in maybeWriteDigest(),
             // but the components are unmodifiable after construction
             components.add(Component.DIGEST);
+            components.add(Component.CRC);
+        }
         return components;
     }
 
@@ -104,7 +108,8 @@ public class SSTableWriter extends SSTable
             dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
             dataFile = SequentialWriter.open(new File(getFilename()),
 			                      !DatabaseDescriptor.populateIOCacheOnFlush());
-            dataFile.setComputeDigest();
+            integratyWriter = DataIntegrityMetadata.checksumWriter(descriptor);
+            dataFile.setDataIntegratyWriter(integratyWriter);
         }
 
         this.sstableMetadataCollector = sstableMetadataCollector;
@@ -313,7 +318,6 @@ public class SSTableWriter extends SSTable
         // write sstable statistics
         SSTableMetadata sstableMetadata = sstableMetadataCollector.finalizeMetadata(partitioner.getClass().getCanonicalName());
         writeMetadata(descriptor, sstableMetadata);
-        maybeWriteDigest();
 
         // save the table of components
         SSTable.appendTOC(descriptor, components);
@@ -341,28 +345,6 @@ public class SSTableWriter extends SSTable
         iwriter = null;
         dbuilder = null;
         return sstable;
-    }
-
-    private void maybeWriteDigest()
-    {
-        byte[] digest = dataFile.digest();
-        if (digest == null)
-            return;
-
-        SequentialWriter out = SequentialWriter.open(new File(descriptor.filenameFor(SSTable.COMPONENT_DIGEST)), true);
-        // Writting output compatible with sha1sum
-        Descriptor newdesc = descriptor.asTemporary(false);
-        String[] tmp = newdesc.filenameFor(SSTable.COMPONENT_DATA).split(Pattern.quote(File.separator));
-        String dataFileName = tmp[tmp.length - 1];
-        try
-        {
-            out.write(String.format("%s  %s", Hex.bytesToHex(digest), dataFileName).getBytes());
-        }
-        catch (ClosedChannelException e)
-        {
-            throw new AssertionError(); // can't happen.
-        }
-        out.close();
     }
 
     private static void writeMetadata(Descriptor desc, SSTableMetadata sstableMetadata)

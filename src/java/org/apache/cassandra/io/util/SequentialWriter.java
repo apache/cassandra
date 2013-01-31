@@ -19,8 +19,6 @@ package org.apache.cassandra.io.util;
 
 import java.io.*;
 import java.nio.channels.ClosedChannelException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
@@ -60,7 +58,7 @@ public class SequentialWriter extends OutputStream
     private int bytesSinceTrickleFsync = 0;
 
     public final DataOutputStream stream;
-    private MessageDigest digest;
+    private DataIntegrityMetadata.ChecksumWriter metadata;
 
     public SequentialWriter(File file, int bufferSize, boolean skipIOCache)
     {
@@ -265,8 +263,8 @@ public class SequentialWriter extends OutputStream
             throw new FSWriteError(e, getPath());
         }
 
-        if (digest != null)
-            digest.update(buffer, 0, validBufferBytes);
+        if (metadata != null)
+            metadata.append(buffer, 0, validBufferBytes);
     }
 
     public long getFilePointer()
@@ -392,6 +390,7 @@ public class SequentialWriter extends OutputStream
             throw new FSWriteError(e, getPath());
         }
 
+        FileUtils.closeQuietly(metadata);
         CLibrary.tryCloseFD(directoryFD);
     }
 
@@ -400,34 +399,12 @@ public class SequentialWriter extends OutputStream
      * This can only be called before any data is written to this write,
      * otherwise an IllegalStateException is thrown.
      */
-    public void setComputeDigest()
+    public void setDataIntegratyWriter(DataIntegrityMetadata.ChecksumWriter writer)
     {
         if (current != 0)
             throw new IllegalStateException();
-
-        try
-        {
-            digest = MessageDigest.getInstance("SHA-1");
-        }
-        catch (NoSuchAlgorithmException e)
-        {
-            // SHA-1 is standard in java 6
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Return the digest associated to this file or null if no digest was
-     * created.
-     * This can only be called once the file is fully created, i.e. after
-     * close() has been called. Otherwise an IllegalStateException is thrown.
-     */
-    public byte[] digest()
-    {
-        if (buffer != null)
-            throw new IllegalStateException();
-
-        return digest == null ? null : digest.digest();
+        metadata = writer;
+        metadata.writeChunkSize(buffer.length);
     }
 
     /**

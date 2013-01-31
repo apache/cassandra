@@ -27,6 +27,10 @@ import org.slf4j.LoggerFactory;
 
 import com.ning.compress.lzf.LZFOutputStream;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.DataIntegrityMetadata;
+import org.apache.cassandra.io.util.DataIntegrityMetadata.ChecksumValidator;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.metrics.StreamingMetrics;
@@ -41,7 +45,7 @@ public class FileStreamTask extends WrappedRunnable
 {
     private static final Logger logger = LoggerFactory.getLogger(FileStreamTask.class);
 
-    public static final int CHUNK_SIZE = 64 * 1024;
+    private static final int DEFAULT_CHUNK_SIZE = 64 * 1024;
     public static final int MAX_CONNECT_ATTEMPTS = 4;
 
     protected final StreamHeader header;
@@ -54,7 +58,7 @@ public class FileStreamTask extends WrappedRunnable
     private OutputStream compressedoutput;
     private DataInputStream input;
     // allocate buffer to use for transfers only once
-    private final byte[] transferBuffer = new byte[CHUNK_SIZE];
+    private byte[] transferBuffer;
     // outbound global throughput limiter
     protected final Throttle throttle;
     private final StreamReplyVerbHandler handler = new StreamReplyVerbHandler();
@@ -140,6 +144,11 @@ public class FileStreamTask extends WrappedRunnable
 
         // try to skip kernel page cache if possible
         RandomAccessReader file = RandomAccessReader.open(new File(header.file.getFilename()), true);
+        Descriptor desc = Descriptor.fromFilename(header.file.getFilename());
+        ChecksumValidator metadata = null;
+        if (new File(desc.filenameFor(Component.CRC)).exists())
+            metadata = DataIntegrityMetadata.checksumValidator(desc);
+        transferBuffer = metadata == null ? new byte[DEFAULT_CHUNK_SIZE] : new byte[metadata.chunkSize];
 
         // setting up data compression stream
         compressedoutput = new LZFOutputStream(output);
@@ -151,21 +160,26 @@ public class FileStreamTask extends WrappedRunnable
             // stream each of the required sections of the file
             for (Pair<Long, Long> section : header.file.sections)
             {
+                long start = metadata == null ? section.left : metadata.chunkStart(section.left);
+                int skipBytes = (int) (section.left - start);
                 // seek to the beginning of the section
-                file.seek(section.left);
+                file.seek(start);
+                if (metadata != null)
+                    metadata.seek(start);
 
-                // length of the section to stream
-                long length = section.right - section.left;
+                // length of the section to read
+                long length = section.right - start;
                 // tracks write progress
                 long bytesTransferred = 0;
 
                 while (bytesTransferred < length)
                 {
-                    long lastWrite = write(file, length, bytesTransferred);
+                    long lastWrite = write(file, metadata, skipBytes, length, bytesTransferred);
                     bytesTransferred += lastWrite;
                     totalBytesTransferred += lastWrite;
                     // store streaming progress
                     header.file.progress += lastWrite;
+                    skipBytes = 0;
                 }
 
                 // make sure that current section is send
@@ -203,6 +217,8 @@ public class FileStreamTask extends WrappedRunnable
      * Sequentially read bytes from the file and write them to the output stream
      *
      * @param reader The file reader to read from
+     * @param validator validator to verify data integrity
+     * @param start number of bytes to skip transfer, but include for validation.
      * @param length The full length that should be transferred
      * @param bytesTransferred Number of bytes remaining to transfer
      *
@@ -210,12 +226,16 @@ public class FileStreamTask extends WrappedRunnable
      *
      * @throws IOException on any I/O error
      */
-    protected long write(RandomAccessReader reader, long length, long bytesTransferred) throws IOException
+    protected long write(RandomAccessReader reader, ChecksumValidator validator, int start, long length, long bytesTransferred) throws IOException
     {
-        int toTransfer = (int) Math.min(CHUNK_SIZE, length - bytesTransferred);
+        int toTransfer = (int) Math.min(transferBuffer.length, length - bytesTransferred);
+        int minReadable = (int) Math.min(transferBuffer.length, reader.length() - reader.getFilePointer());
 
-        reader.readFully(transferBuffer, 0, toTransfer);
-        compressedoutput.write(transferBuffer, 0, toTransfer);
+        reader.readFully(transferBuffer, 0, minReadable);
+        if (validator != null)
+            validator.validate(transferBuffer, 0, minReadable);
+
+        compressedoutput.write(transferBuffer, start, (toTransfer - start));
         throttle.throttleDelta(toTransfer);
 
         return toTransfer;
