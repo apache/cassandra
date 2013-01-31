@@ -3,6 +3,7 @@
  * fix bug in compact storage metadata handling (CASSANDRA-5189)
  * Validate login for USE queries (CASSANDRA-5207)
  * cli: remove default username and password (CASSANDRA-5208)
+ * configure populate_io_cache_on_flush per-CF (CASSANDRA-4694)
 
 1.2.1
  * stream undelivered hints on decommission (CASSANDRA-5128)

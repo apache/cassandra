@@ -77,6 +77,7 @@ public final class CFMetaData
     public final static Class<? extends AbstractCompactionStrategy> DEFAULT_COMPACTION_STRATEGY_CLASS = SizeTieredCompactionStrategy.class;
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
     public final static Caching DEFAULT_CACHING_STRATEGY = Caching.KEYS_ONLY;
+    public final static boolean DEFAULT_POPULATE_IO_CACHE_ON_FLUSH = false;
 
     // Note that this is the default only for user created tables
     public final static String DEFAULT_COMPRESSOR = SnappyCompressor.isAvailable() ? SnappyCompressor.class.getCanonicalName() : null;
@@ -129,6 +130,7 @@ public final class CFMetaData
                                                                      + "key_aliases text,"
                                                                      + "bloom_filter_fp_chance double,"
                                                                      + "caching text,"
+                                                                     + "populate_io_cache_on_flush boolean,"
                                                                      + "compaction_strategy_class text,"
                                                                      + "compression_parameters text,"
                                                                      + "value_alias text,"
@@ -266,6 +268,7 @@ public final class CFMetaData
     private volatile ByteBuffer valueAlias = null;
     private volatile Double bloomFilterFpChance = null;
     private volatile Caching caching = DEFAULT_CACHING_STRATEGY;
+    private volatile boolean populateIoCacheOnFlush = DEFAULT_POPULATE_IO_CACHE_ON_FLUSH;
 
     volatile Map<ByteBuffer, ColumnDefinition> column_metadata = new HashMap<ByteBuffer,ColumnDefinition>();
     public volatile Class<? extends AbstractCompactionStrategy> compactionStrategyClass = DEFAULT_COMPACTION_STRATEGY_CLASS;
@@ -296,6 +299,7 @@ public final class CFMetaData
     public CFMetaData compressionParameters(CompressionParameters prop) {compressionParameters = prop; return this;}
     public CFMetaData bloomFilterFpChance(Double prop) {bloomFilterFpChance = prop; return this;}
     public CFMetaData caching(Caching prop) {caching = prop; return this;}
+    public CFMetaData populateIoCacheOnFlush(boolean prop) {populateIoCacheOnFlush = prop; return this;}
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp, AbstractType<?> subcc)
     {
@@ -434,7 +438,8 @@ public final class CFMetaData
                       .compactionStrategyOptions(oldCFMD.compactionStrategyOptions)
                       .compressionParameters(oldCFMD.compressionParameters)
                       .bloomFilterFpChance(oldCFMD.bloomFilterFpChance)
-                      .caching(oldCFMD.caching);
+                      .caching(oldCFMD.caching)
+                      .populateIoCacheOnFlush(oldCFMD.populateIoCacheOnFlush);
     }
 
     /**
@@ -481,6 +486,11 @@ public final class CFMetaData
     public boolean getReplicateOnWrite()
     {
         return replicateOnWrite;
+    }
+
+    public boolean populateIoCacheOnFlush()
+    {
+        return populateIoCacheOnFlush;
     }
 
     public int getGcGraceSeconds()
@@ -597,6 +607,7 @@ public final class CFMetaData
             .append(compressionParameters, rhs.compressionParameters)
             .append(bloomFilterFpChance, rhs.bloomFilterFpChance)
             .append(caching, rhs.caching)
+            .append(populateIoCacheOnFlush, rhs.populateIoCacheOnFlush)
             .isEquals();
     }
 
@@ -627,6 +638,7 @@ public final class CFMetaData
             .append(compressionParameters)
             .append(bloomFilterFpChance)
             .append(caching)
+            .append(populateIoCacheOnFlush)
             .toHashCode();
     }
 
@@ -649,6 +661,8 @@ public final class CFMetaData
             cf_def.setComment("");
         if (!cf_def.isSetReplicate_on_write())
             cf_def.setReplicate_on_write(CFMetaData.DEFAULT_REPLICATE_ON_WRITE);
+        if (!cf_def.isSetPopulate_io_cache_on_flush())
+            cf_def.setPopulate_io_cache_on_flush(CFMetaData.DEFAULT_POPULATE_IO_CACHE_ON_FLUSH);
         if (!cf_def.isSetMin_compaction_threshold())
             cf_def.setMin_compaction_threshold(CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD);
         if (!cf_def.isSetMax_compaction_threshold())
@@ -704,6 +718,8 @@ public final class CFMetaData
                 newCFMD.readRepairChance(cf_def.read_repair_chance);
             if (cf_def.isSetDclocal_read_repair_chance())
                 newCFMD.dcLocalReadRepairChance(cf_def.dclocal_read_repair_chance);
+            if (cf_def.isSetPopulate_io_cache_on_flush())
+                newCFMD.populateIoCacheOnFlush(cf_def.populate_io_cache_on_flush);
 
             CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
 
@@ -786,6 +802,7 @@ public final class CFMetaData
 
         bloomFilterFpChance = cfm.bloomFilterFpChance;
         caching = cfm.caching;
+        populateIoCacheOnFlush = cfm.populateIoCacheOnFlush;
 
         MapDifference<ByteBuffer, ColumnDefinition> columnDiff = Maps.difference(column_metadata, cfm.column_metadata);
         // columns that are no longer needed
@@ -921,6 +938,7 @@ public final class CFMetaData
         def.setRead_repair_chance(readRepairChance);
         def.setDclocal_read_repair_chance(dcLocalReadRepairChance);
         def.setReplicate_on_write(replicateOnWrite);
+        def.setPopulate_io_cache_on_flush(populateIoCacheOnFlush);
         def.setGc_grace_seconds(gcGraceSeconds);
         def.setDefault_validation_class(defaultValidator == null ? null : defaultValidator.toString());
         def.setKey_validation_class(keyValidator.toString());
@@ -1272,6 +1290,7 @@ public final class CFMetaData
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "read_repair_chance"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "local_read_repair_chance"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "replicate_on_write"));
+        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "populate_io_cache_on_flush"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "gc_grace_seconds"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "default_validator"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "key_validator"));
@@ -1322,6 +1341,7 @@ public final class CFMetaData
         cf.addColumn(Column.create(readRepairChance, timestamp, cfName, "read_repair_chance"));
         cf.addColumn(Column.create(dcLocalReadRepairChance, timestamp, cfName, "local_read_repair_chance"));
         cf.addColumn(Column.create(replicateOnWrite, timestamp, cfName, "replicate_on_write"));
+        cf.addColumn(Column.create(populateIoCacheOnFlush, timestamp, cfName, "populate_io_cache_on_flush"));
         cf.addColumn(Column.create(gcGraceSeconds, timestamp, cfName, "gc_grace_seconds"));
         cf.addColumn(Column.create(defaultValidator.toString(), timestamp, cfName, "default_validator"));
         cf.addColumn(Column.create(keyValidator.toString(), timestamp, cfName, "key_validator"));
@@ -1381,6 +1401,8 @@ public final class CFMetaData
             if (result.has("value_alias"))
                 cfm.valueAlias(result.getBytes("value_alias"));
             cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
+            if (result.has("populate_io_cache_on_flush"))
+                cfm.populateIoCacheOnFlush(result.getBoolean("populate_io_cache_on_flush"));
 
             return cfm;
         }
@@ -1544,6 +1566,7 @@ public final class CFMetaData
             .append("compressionOptions", compressionParameters.asThriftOptions())
             .append("bloomFilterFpChance", bloomFilterFpChance)
             .append("caching", caching)
+            .append("populateIoCacheOnFlush", populateIoCacheOnFlush)
             .toString();
     }
 }

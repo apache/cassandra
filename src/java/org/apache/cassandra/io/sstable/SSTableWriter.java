@@ -96,7 +96,7 @@ public class SSTableWriter extends SSTable
             dbuilder = SegmentedFile.getCompressedBuilder();
             dataFile = CompressedSequentialWriter.open(getFilename(),
                                                        descriptor.filenameFor(Component.COMPRESSION_INFO),
-                                                       !DatabaseDescriptor.populateIOCacheOnFlush(),
+                                                       !metadata.populateIoCacheOnFlush(),
                                                        metadata.compressionParameters(),
                                                        sstableMetadataCollector);
         }
@@ -104,7 +104,7 @@ public class SSTableWriter extends SSTable
         {
             dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
             dataFile = SequentialWriter.open(new File(getFilename()),
-			                      !DatabaseDescriptor.populateIOCacheOnFlush());
+			                      !metadata.populateIoCacheOnFlush());
             dataFile.setComputeDigest();
         }
 
@@ -439,7 +439,7 @@ public class SSTableWriter extends SSTable
         IndexWriter(long keyCount)
         {
             indexFile = SequentialWriter.open(new File(descriptor.filenameFor(SSTable.COMPONENT_INDEX)),
-                                              !DatabaseDescriptor.populateIOCacheOnFlush());
+                                              !metadata.populateIoCacheOnFlush());
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
             summary = new IndexSummary(keyCount);
             bf = FilterFactory.getFilter(keyCount, metadata.getBloomFilterFpChance(), true);

@@ -203,8 +203,6 @@ public class DatabaseDescriptor
 
             logger.info("disk_failure_policy is " + conf.disk_failure_policy);
 
-	        logger.debug("page_cache_hinting is " + conf.populate_io_cache_on_flush);
-
             /* Authentication and authorization backend, implementing IAuthenticator and IAuthorizer */
             if (conf.authenticator != null)
                 authenticator = FBUtilities.construct(conf.authenticator, "authenticator");
@@ -1254,11 +1252,6 @@ public class DatabaseDescriptor
     public static int getStreamingSocketTimeout()
     {
         return conf.streaming_socket_timeout_in_ms;
-    }
-
-    public static boolean populateIOCacheOnFlush()
-    {
-        return conf.populate_io_cache_on_flush;
     }
 
     public static String getLocalDataCenter()

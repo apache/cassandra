@@ -48,6 +48,7 @@ public class CFPropDefs {
     public static final String KW_REPLICATEONWRITE = "replicate_on_write";
     public static final String KW_COMPACTION_STRATEGY_CLASS = "compaction_strategy_class";
     public static final String KW_CACHING = "caching";
+    public static final String KW_POPULATE_IO_CACHE_ON_FLUSH = "populate_io_cache_on_flush";
     public static final String KW_BF_FP_CHANCE = "bloom_filter_fp_chance";
 
     // Maps CQL short names to the respective Cassandra comparator/validator class names
@@ -87,6 +88,7 @@ public class CFPropDefs {
         keywords.add(KW_REPLICATEONWRITE);
         keywords.add(KW_COMPACTION_STRATEGY_CLASS);
         keywords.add(KW_CACHING);
+        keywords.add(KW_POPULATE_IO_CACHE_ON_FLUSH);
         keywords.add(KW_BF_FP_CHANCE);
 
         obsoleteKeywords.add("row_cache_size");
