@@ -564,6 +564,7 @@ bc(syntax)..
                   ( WHERE <where-clause> )?
                   ( ORDER BY <order-by> )?
                   ( LIMIT <integer> )?
+                  ( ALLOW FILTERING )?
 
 <select-clause> ::= <column-list>
                   | COUNT '(' ( '*' | '1' ) ')'
@@ -646,9 +647,47 @@ The @ORDER BY@ option allows to select the order of the returned results. It tak
 * if the table has been defined without any specific @CLUSTERING ORDER@, then then allowed orderings are the order induced by the clustering key and the reverse of that one.
 * otherwise, the orderings allowed are the order of the @CLUSTERING ORDER@ option and the reversed one.
 
-h4(#selectOther). Other options
+h4(#selectLimit). @LIMIT@
 
 The @LIMIT@ option to a @SELECT@ statement limits the number of rows returned by a query.
+
+h4(#selectAllowFiltering). @ALLOW FILTERING@
+
+By default, CQL only allows select queries that don't involve "filtering" server side, i.e. queries where we know that all (live) record read will be returned (maybe partly) in the result set. The reasoning is that those "non filtering" queries have predictable performance in the sense that they will execute in a time that is proportional to the amount of data *returned* by the query (which can be controlled through @LIMIT@).
+
+The @ALLOW FILTERING@ option allows to explicitely allow (some) queries that require filtering. Please note that a query using @ALLOW FILTERING@ may thus have unpredictable performance (for the definition above), i.e. even a query that selects a handful of records *may* exhibit performance that depends on the total amount of data stored in the cluster.
+
+For instance, considering the following table holding user profiles with their year of birth (with a secondary index on it) and country of residence:
+
+bc(sample).. 
+CREATE TABLE users (
+    username text PRIMARY KEY,
+    firstname text,
+    lastname text,
+    birth_year int,
+    country text
+)
+
+CREATE INDEX ON users(birth_year);
+p. 
+
+Then the following queries are valid:
+
+bc(sample). 
+SELECT * FROM users;
+SELECT firstname, lastname FROM users WHERE birth_year = 1981;
+
+because in both case, Cassandra guarantees that these queries performance will be proportional to the amount of data returned. In particular, if no users are born in 1981, then the second query performance will not depend of the number of user profile stored in the database (not directly at least: due to 2ndary index implementation consideration, this query may still depend on the number of node in the cluster, which indirectly depends on the amount of data stored.  Nevertheless, the number of nodes will always be multiple number of magnitude lower than the number of user profile stored). Of course, both query may return very large result set in practice, but the amount of data returned can always be controlled by adding a @LIMIT@.
+
+However, the following query will be rejected:
+
+bc(sample). 
+SELECT firstname, lastname FROM users WHERE birth_year = 1981 AND country = 'FR';
+
+because Cassandra cannot guarantee that it won't have to scan large amount of data even if the result to those query is small. Typically, it will scan all the index entries for users born in 1981 even if only a handful are actually from France. However, if you "know what you are doing", you can force the execution of this query by using @ALLOW FILTERING@ and so the following query is valid:
+
+bc(sample). 
+SELECT firstname, lastname FROM users WHERE birth_year = 1981 AND country = 'FR' ALLOW FILTERING;
 
 
 h2(#types). Data Types
