@@ -65,6 +65,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('index_interval', None),
         ('read_repair_chance', None),
         ('replicate_on_write', None),
+        ('populate_io_cache_on_flush', None),
     )
 
     old_columnfamily_layout_options = (
@@ -78,6 +79,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('index_interval', None),
         ('read_repair_chance', None),
         ('replicate_on_write', None),
+        ('populate_io_cache_on_flush', None),
     )
 
     new_columnfamily_layout_options = (
@@ -89,6 +91,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('index_interval', None),
         ('read_repair_chance', None),
         ('replicate_on_write', None),
+        ('populate_io_cache_on_flush', None),
     )
 
     old_columnfamily_layout_map_options = (
@@ -495,7 +498,7 @@ def cf_new_prop_val_completer(ctxt, cass):
     if this_opt in ('read_repair_chance', 'bloom_filter_fp_chance',
                     'dclocal_read_repair_chance'):
         return [Hint('<float_between_0_and_1>')]
-    if this_opt == 'replicate_on_write':
+    if this_opt in ('replicate_on_write', 'populate_io_cache_on_flush'):
         return ["'yes'", "'no'"]
     if this_opt in ('min_compaction_threshold', 'max_compaction_threshold',
                     'gc_grace_seconds', 'index_interval'):
@@ -631,7 +634,7 @@ def cf_old_prop_val_completer(ctxt, cass):
         return simple_cql_types
     if this_opt in ('read_repair_chance', 'bloom_filter_fp_chance'):
         return [Hint('<float_between_0_and_1>')]
-    if this_opt == 'replicate_on_write':
+    if this_opt in ('replicate_on_write', 'populate_io_cache_on_flush'):
         return [Hint('<yes_or_no>')]
     if this_opt in ('min_compaction_threshold', 'max_compaction_threshold', 'gc_grace_seconds'):
         return [Hint('<integer>')]

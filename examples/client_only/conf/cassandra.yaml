@@ -386,6 +386,8 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 #        days). See http://wiki.apache.org/cassandra/DistributedDeletes
 #     - default_validation_class: specifies a validator class to use for
 #        validating all the column values in the CF.
+#     - populate_io_cache_on_flush: populates the page cache on memtable flush
+#        and compaction. Defaults to false.
 #     NOTE:
 #     min_ must be less than max_compaction_threshold!
 #     - min_compaction_threshold: the minimum number of SSTables needed

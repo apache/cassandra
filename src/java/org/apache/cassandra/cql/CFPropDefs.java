@@ -50,6 +50,7 @@ public class CFPropDefs {
     public static final String KW_CACHING = "caching";
     public static final String KW_DEFAULT_TIME_TO_LIVE = "default_time_to_live";
     public static final String KW_SPECULATIVE_RETRY = "speculative_retry";
+    public static final String KW_POPULATE_IO_CACHE_ON_FLUSH = "populate_io_cache_on_flush";
     public static final String KW_BF_FP_CHANCE = "bloom_filter_fp_chance";
     public static final String KW_MEMTABLE_FLUSH_PERIOD = "memtable_flush_period_in_ms";
 
@@ -92,6 +93,7 @@ public class CFPropDefs {
         keywords.add(KW_CACHING);
         keywords.add(KW_DEFAULT_TIME_TO_LIVE);
         keywords.add(KW_SPECULATIVE_RETRY);
+        keywords.add(KW_POPULATE_IO_CACHE_ON_FLUSH);
         keywords.add(KW_BF_FP_CHANCE);
         keywords.add(KW_MEMTABLE_FLUSH_PERIOD);
 

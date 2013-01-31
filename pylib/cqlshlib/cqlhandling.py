@@ -51,6 +51,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         ('replicate_on_write', None),
         ('compaction_strategy_class', 'compaction_strategy'),
         ('default_time_to_live', None),
+        ('populate_io_cache_on_flush', None),
     )
 
     obsolete_cf_options = (
@@ -833,7 +834,7 @@ def create_cf_option_val_completer(ctxt, cass):
         return cqltypes.cql_types
     if this_opt == 'read_repair_chance':
         return [Hint('<float_between_0_and_1>')]
-    if this_opt == 'replicate_on_write':
+    if this_opt in ('replicate_on_write', 'populate_io_cache_on_flush'):
         return [Hint('<yes_or_no>')]
     if this_opt in ('min_compaction_threshold', 'max_compaction_threshold', 'gc_grace_seconds', 'default_time_to_live'):
         return [Hint('<integer>')]

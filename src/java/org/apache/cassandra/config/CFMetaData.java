@@ -83,6 +83,7 @@ public final class CFMetaData
     public final static int DEFAULT_DEFAULT_TIME_TO_LIVE = 0;
     public final static SpeculativeRetry DEFAULT_SPECULATIVE_RETRY = new SpeculativeRetry(SpeculativeRetry.RetryType.NONE, 0);
     public final static int DEFAULT_INDEX_INTERVAL = 128;
+    public final static boolean DEFAULT_POPULATE_IO_CACHE_ON_FLUSH = false;
 
     // Note that this is the default only for user created tables
     public final static String DEFAULT_COMPRESSOR = SnappyCompressor.isAvailable() ? SnappyCompressor.class.getCanonicalName() : null;
@@ -116,6 +117,7 @@ public final class CFMetaData
                                                                   + "strategy_options text"
                                                                   + ") WITH COMPACT STORAGE AND COMMENT='keyspace definitions' AND gc_grace_seconds=8640");
     public static final CFMetaData SchemaColumnFamiliesCf = compile(9, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNFAMILIES_CF + "("
+<<<<<<< HEAD
                                                                        + "keyspace_name text,"
                                                                        + "columnfamily_name text,"
                                                                        + "id int,"
@@ -145,6 +147,7 @@ public final class CFMetaData
                                                                        + "default_read_consistency text,"
                                                                        + "default_write_consistency text,"
                                                                        + "speculative_retry text,"
+                                                                       + "populate_io_cache_on_flush boolean,"
                                                                        + "PRIMARY KEY (keyspace_name, columnfamily_name)"
                                                                        + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
     public static final CFMetaData SchemaColumnsCf = compile(10, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNS_CF + "("
@@ -347,6 +350,7 @@ public final class CFMetaData
     private int memtableFlushPeriod = 0;
     private volatile int defaultTimeToLive = DEFAULT_DEFAULT_TIME_TO_LIVE;
     private volatile SpeculativeRetry speculativeRetry = DEFAULT_SPECULATIVE_RETRY;
+    private volatile boolean populateIoCacheOnFlush = DEFAULT_POPULATE_IO_CACHE_ON_FLUSH;
 
     volatile Map<ByteBuffer, ColumnDefinition> column_metadata = new HashMap<ByteBuffer,ColumnDefinition>();
     public volatile Class<? extends AbstractCompactionStrategy> compactionStrategyClass = DEFAULT_COMPACTION_STRATEGY_CLASS;
@@ -381,6 +385,7 @@ public final class CFMetaData
     public CFMetaData memtableFlushPeriod(int prop) {memtableFlushPeriod = prop; return this;}
     public CFMetaData defaultTimeToLive(int prop) {defaultTimeToLive = prop; return this;}
     public CFMetaData speculativeRetry(SpeculativeRetry prop) {speculativeRetry = prop; return this;}
+    public CFMetaData populateIoCacheOnFlush(boolean prop) {populateIoCacheOnFlush = prop; return this;}
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp, AbstractType<?> subcc)
     {
@@ -531,7 +536,8 @@ public final class CFMetaData
                       .defaultTimeToLive(oldCFMD.defaultTimeToLive)
                       .indexInterval(oldCFMD.indexInterval)
                       .speculativeRetry(oldCFMD.speculativeRetry)
-                      .memtableFlushPeriod(oldCFMD.memtableFlushPeriod);
+                      .memtableFlushPeriod(oldCFMD.memtableFlushPeriod)
+                      .populateIoCacheOnFlush(oldCFMD.populateIoCacheOnFlush);
     }
 
     /**
@@ -583,6 +589,11 @@ public final class CFMetaData
     public boolean getReplicateOnWrite()
     {
         return replicateOnWrite;
+    }
+
+    public boolean populateIoCacheOnFlush()
+    {
+        return populateIoCacheOnFlush;
     }
 
     public int getGcGraceSeconds()
@@ -717,6 +728,7 @@ public final class CFMetaData
             .append(defaultTimeToLive, rhs.defaultTimeToLive)
             .append(indexInterval, rhs.indexInterval)
             .append(speculativeRetry, rhs.speculativeRetry)
+            .append(populateIoCacheOnFlush, rhs.populateIoCacheOnFlush)
             .isEquals();
     }
 
@@ -750,6 +762,7 @@ public final class CFMetaData
             .append(defaultTimeToLive)
             .append(indexInterval)
             .append(speculativeRetry)
+            .append(populateIoCacheOnFlush)
             .toHashCode();
     }
 
@@ -772,6 +785,8 @@ public final class CFMetaData
             cf_def.setComment("");
         if (!cf_def.isSetReplicate_on_write())
             cf_def.setReplicate_on_write(CFMetaData.DEFAULT_REPLICATE_ON_WRITE);
+        if (!cf_def.isSetPopulate_io_cache_on_flush())
+            cf_def.setPopulate_io_cache_on_flush(CFMetaData.DEFAULT_POPULATE_IO_CACHE_ON_FLUSH);
         if (!cf_def.isSetMin_compaction_threshold())
             cf_def.setMin_compaction_threshold(CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD);
         if (!cf_def.isSetMax_compaction_threshold())
@@ -837,6 +852,8 @@ public final class CFMetaData
                 newCFMD.indexInterval(cf_def.index_interval);
             if (cf_def.isSetSpeculative_retry())
                 newCFMD.speculativeRetry(SpeculativeRetry.fromString(cf_def.speculative_retry));
+            if (cf_def.isSetPopulate_io_cache_on_flush())
+                newCFMD.populateIoCacheOnFlush(cf_def.populate_io_cache_on_flush);
 
             CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
 
@@ -921,6 +938,7 @@ public final class CFMetaData
         caching = cfm.caching;
         defaultTimeToLive = cfm.defaultTimeToLive;
         speculativeRetry = cfm.speculativeRetry;
+        populateIoCacheOnFlush = cfm.populateIoCacheOnFlush;
 
         MapDifference<ByteBuffer, ColumnDefinition> columnDiff = Maps.difference(column_metadata, cfm.column_metadata);
         // columns that are no longer needed
@@ -1053,6 +1071,7 @@ public final class CFMetaData
         def.setRead_repair_chance(readRepairChance);
         def.setDclocal_read_repair_chance(dcLocalReadRepairChance);
         def.setReplicate_on_write(replicateOnWrite);
+        def.setPopulate_io_cache_on_flush(populateIoCacheOnFlush);
         def.setGc_grace_seconds(gcGraceSeconds);
         def.setDefault_validation_class(defaultValidator == null ? null : defaultValidator.toString());
         def.setKey_validation_class(keyValidator.toString());
@@ -1393,6 +1412,7 @@ public final class CFMetaData
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "read_repair_chance"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "local_read_repair_chance"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "replicate_on_write"));
+        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "populate_io_cache_on_flush"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "gc_grace_seconds"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "default_validator"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "key_validator"));
@@ -1459,6 +1479,7 @@ public final class CFMetaData
         cf.addColumn(Column.create(readRepairChance, timestamp, cfName, "read_repair_chance"));
         cf.addColumn(Column.create(dcLocalReadRepairChance, timestamp, cfName, "local_read_repair_chance"));
         cf.addColumn(Column.create(replicateOnWrite, timestamp, cfName, "replicate_on_write"));
+        cf.addColumn(Column.create(populateIoCacheOnFlush, timestamp, cfName, "populate_io_cache_on_flush"));
         cf.addColumn(Column.create(gcGraceSeconds, timestamp, cfName, "gc_grace_seconds"));
         cf.addColumn(Column.create(defaultValidator.toString(), timestamp, cfName, "default_validator"));
         cf.addColumn(Column.create(keyValidator.toString(), timestamp, cfName, "key_validator"));
@@ -1530,7 +1551,8 @@ public final class CFMetaData
             cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
             if (result.has("index_interval"))
                 cfm.indexInterval(result.getInt("index_interval"));
-
+            if (result.has("populate_io_cache_on_flush"))
+                cfm.populateIoCacheOnFlush(result.getBoolean("populate_io_cache_on_flush"));
             return cfm;
         }
         catch (SyntaxException e)
@@ -1696,6 +1718,7 @@ public final class CFMetaData
             .append("defaultTimeToLive", defaultTimeToLive)
             .append("speculative_retry", speculativeRetry)
             .append("indexInterval", indexInterval)
+            .append("populateIoCacheOnFlush", populateIoCacheOnFlush)
             .toString();
     }
 }
