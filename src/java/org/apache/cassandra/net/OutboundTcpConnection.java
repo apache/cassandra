@@ -23,6 +23,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
@@ -274,6 +275,17 @@ public class OutboundTcpConnection extends Thread
                 else
                 {
                     socket.setTcpNoDelay(DatabaseDescriptor.getInterDCTcpNoDelay());
+                }
+                if (DatabaseDescriptor.getInternodeSendBufferSize() != null)
+                {
+                    try
+                    {
+                        socket.setSendBufferSize(DatabaseDescriptor.getInternodeSendBufferSize().intValue());
+                    }
+                    catch (SocketException se)
+                    {
+                        logger.warn("Failed to set send buffer size on internode socket.", se);
+                    }
                 }
                 out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 4096));
 

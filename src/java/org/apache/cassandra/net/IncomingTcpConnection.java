@@ -20,6 +20,7 @@ package org.apache.cassandra.net;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.SocketException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +43,17 @@ public class IncomingTcpConnection extends Thread
     {
         assert socket != null;
         this.socket = socket;
+        if (DatabaseDescriptor.getInternodeRecvBufferSize() != null)
+        {
+            try
+            {
+                this.socket.setReceiveBufferSize(DatabaseDescriptor.getInternodeRecvBufferSize().intValue());
+            }
+            catch (SocketException se)
+            {
+                logger.warn("Failed to set receive buffer size on internode socket.", se);
+            }
+        }
     }
 
     /**
