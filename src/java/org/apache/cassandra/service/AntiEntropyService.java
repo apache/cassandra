@@ -663,9 +663,10 @@ public class AntiEntropyService
             {
                 if (!FailureDetector.instance.isAlive(endpoint))
                 {
+                    String message = String.format("Cannot proceed on repair because a neighbor (%s) is dead: session failed", endpoint);
                     differencingDone.signalAll();
-                    logger.info(String.format("[repair #%s] Cannot proceed on repair because a neighbor (%s) is dead: session failed", getName(), endpoint));
-                    return;
+                    logger.error(String.format("[repair #%s] ", getName()) + message);
+                    throw new IOException(message);
                 }
 
                 if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_11 && isSequential)
