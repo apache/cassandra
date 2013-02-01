@@ -982,6 +982,16 @@ public class DatabaseDescriptor
         return conf.rpc_recv_buff_size_in_bytes;
     }
 
+    public static Integer getInternodeSendBufferSize()
+    {
+        return conf.internode_send_buff_size_in_bytes;
+    }
+
+    public static Integer getInternodeRecvBufferSize()
+    {
+        return conf.internode_recv_buff_size_in_bytes;
+    }
+
     public static boolean startNativeTransport()
     {
         return conf.start_native_transport;

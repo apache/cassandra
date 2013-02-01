@@ -370,6 +370,10 @@ rpc_server_type: sync
 # rpc_send_buff_size_in_bytes:
 # rpc_recv_buff_size_in_bytes:
 
+# uncomment to set socket buffer size for internode communication
+# internode_send_buff_size_in_bytes:
+# internode_recv_buff_size_in_bytes:
+
 # Frame size for thrift (maximum field length).
 thrift_framed_transport_size_in_mb: 15
 
