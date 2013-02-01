@@ -21,9 +21,12 @@ import java.io.InputStream;
 import java.util.Properties;
 
 import org.apache.cassandra.io.util.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SnitchProperties
 {
+    private static final Logger logger = LoggerFactory.getLogger(GossipingPropertyFileSnitch.class);
     public static final String RACKDC_PROPERTY_FILENAME = "cassandra-rackdc.properties";
     private static Properties properties = new Properties();
 
@@ -36,7 +39,8 @@ public class SnitchProperties
         }
         catch (Exception e)
         {
-            throw new RuntimeException("Unable to read " + RACKDC_PROPERTY_FILENAME, e);
+            // do not throw exception here, just consider this a incomplete or a empty property file.
+            logger.warn("Unable to read " + RACKDC_PROPERTY_FILENAME);
         }
         finally
         {
