@@ -22,62 +22,41 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
 
-import static org.junit.Assert.assertNull;
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertSame;
-import static junit.framework.Assert.assertTrue;
-import static org.apache.cassandra.Util.column;
-import static org.apache.cassandra.Util.dk;
-import static org.apache.cassandra.Util.getBytes;
-import static org.apache.cassandra.Util.rp;
-import static org.apache.cassandra.db.TableTest.assertColumns;
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-import static org.apache.commons.lang.ArrayUtils.EMPTY_BYTE_ARRAY;
-
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
 import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.ExcludingBounds;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.IncludingExcludingBounds;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.dht.*;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.WrappedRunnable;
+
+import static junit.framework.Assert.*;
+import static org.apache.cassandra.Util.*;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.apache.commons.lang.ArrayUtils.EMPTY_BYTE_ARRAY;
+import static org.junit.Assert.assertNull;
 
 public class ColumnFamilyStoreTest extends SchemaLoader
 {
@@ -1215,6 +1194,60 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     {
         // small values so that cols won't be indexed
         testMultiRangeSlicesBehavior(prepareMultiRangeSlicesTest(10, false));
+    }
+
+    @Test
+    public void testRemoveUnifinishedCompactionLeftovers() throws Throwable
+    {
+        String ks = "Keyspace1";
+        String cf = "Standard3"; // should be empty
+
+        CFMetaData cfmeta = Schema.instance.getCFMetaData(ks, cf);
+        Directories dir = Directories.create(ks, cf);
+        ByteBuffer key = bytes("key");
+
+        // 1st sstable
+        SSTableSimpleWriter writer = new SSTableSimpleWriter(dir.getDirectoryForNewSSTables(100),
+                                                             cfmeta, StorageService.getPartitioner());
+        writer.newRow(key);
+        writer.addColumn(bytes("col"), bytes("val"), 1);
+        writer.close();
+
+        Map<Descriptor, Set<Component>> sstables = dir.sstableLister().list();
+        assert sstables.size() == 1;
+
+        Map.Entry<Descriptor, Set<Component>> sstableToOpen = sstables.entrySet().iterator().next();
+        final SSTableReader sstable1 = SSTableReader.open(sstableToOpen.getKey());
+
+        // simulate incomplete compaction
+        writer = new SSTableSimpleWriter(dir.getDirectoryForNewSSTables(100),
+                                                             cfmeta, StorageService.getPartitioner())
+        {
+            protected SSTableWriter getWriter()
+            {
+                SSTableMetadata.Collector collector = SSTableMetadata.createCollector();
+                collector.addAncestor(sstable1.descriptor.generation); // add ancestor from previously written sstable
+                return new SSTableWriter(makeFilename(directory, metadata.ksName, metadata.cfName),
+                                         0,
+                                         metadata,
+                                         StorageService.getPartitioner(),
+                                         collector);
+            }
+        };
+        writer.newRow(key);
+        writer.addColumn(bytes("col"), bytes("val"), 1);
+        writer.close();
+
+        // should have 2 sstables now
+        sstables = dir.sstableLister().list();
+        assert sstables.size() == 2;
+
+        ColumnFamilyStore.removeUnfinishedCompactionLeftovers(ks, cf, Sets.newHashSet(sstable1.descriptor.generation));
+
+        // 2nd sstable should be removed (only 1st sstable exists in set of size 1)
+        sstables = dir.sstableLister().list();
+        assert sstables.size() == 1;
+        assert sstables.containsKey(sstable1.descriptor);
     }
 
     private ColumnFamilyStore prepareMultiRangeSlicesTest(int valueSize, boolean flush) throws Throwable

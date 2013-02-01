@@ -60,7 +60,7 @@ public abstract class AbstractSSTableSimpleWriter
     }
 
     // find available generation and pick up filename from that
-    private static String makeFilename(File directory, final String keyspace, final String columnFamily)
+    protected static String makeFilename(File directory, final String keyspace, final String columnFamily)
     {
         final Set<Descriptor> existing = new HashSet<Descriptor>();
         directory.list(new FilenameFilter()

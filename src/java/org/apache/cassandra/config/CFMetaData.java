@@ -236,6 +236,13 @@ public final class CFMetaData
                                                              + "super boolean"
                                                              + ") WITH gc_grace_seconds=864000;", Auth.AUTH_KS);
 
+    public static final CFMetaData CompactionLogCF = compile(19, "CREATE TABLE " + SystemTable.COMPACTION_LOG + " ("
+                                                                 + "id uuid PRIMARY KEY,"
+                                                                 + "keyspace_name text,"
+                                                                 + "columnfamily_name text,"
+                                                                 + "inputs set<int>"
+                                                                 + ") WITH COMMENT='unfinished compactions'");
+
     public enum Caching
     {
         ALL, KEYS_ONLY, ROWS_ONLY, NONE;
