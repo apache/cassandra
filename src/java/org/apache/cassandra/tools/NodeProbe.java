@@ -80,6 +80,7 @@ public class NodeProbe
     private FailureDetectorMBean fdProxy;
     private CacheServiceMBean cacheService;
     private StorageProxyMBean spProxy;
+    private boolean failed;
 
     /**
      * Creates a NodeProbe using the specified JMX host, port, username, and password.
@@ -213,7 +214,8 @@ public class NodeProbe
         try
         {
             ssProxy.addNotificationListener(runner, null, null);
-            runner.repairAndWait(ssProxy, isSequential, primaryRange);
+            if (!runner.repairAndWait(ssProxy, isSequential, primaryRange))
+                failed = true;
         }
         catch (Exception e)
         {
@@ -729,6 +731,11 @@ public class NodeProbe
     {
         ssProxy.resetLocalSchema();
     }
+
+    public boolean isFailed()
+    {
+        return failed;
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
@@ -804,6 +811,7 @@ class RepairRunner implements NotificationListener
     private final String keyspace;
     private final String[] columnFamilies;
     private int cmd;
+    private boolean success = true;
 
     RepairRunner(PrintStream out, String keyspace, String... columnFamilies)
     {
@@ -812,7 +820,7 @@ class RepairRunner implements NotificationListener
         this.columnFamilies = columnFamilies;
     }
 
-    public void repairAndWait(StorageServiceMBean ssProxy, boolean isSequential, boolean primaryRangeOnly) throws InterruptedException
+    public boolean repairAndWait(StorageServiceMBean ssProxy, boolean isSequential, boolean primaryRangeOnly) throws InterruptedException
     {
         cmd = ssProxy.forceRepairAsync(keyspace, isSequential, primaryRangeOnly, columnFamilies);
         if (cmd > 0)
@@ -824,6 +832,7 @@ class RepairRunner implements NotificationListener
             String message = String.format("[%s] Nothing to repair for keyspace '%s'", format.format(System.currentTimeMillis()), keyspace);
             out.println(message);
         }
+        return success;
     }
 
     public void handleNotification(Notification notification, Object handback)
@@ -838,7 +847,9 @@ class RepairRunner implements NotificationListener
             {
                 String message = String.format("[%s] %s", format.format(notification.getTimeStamp()), notification.getMessage());
                 out.println(message);
-                if (status[1] == AntiEntropyService.Status.FINISHED.ordinal())
+                if (status[1] == AntiEntropyService.Status.SESSION_FAILED.ordinal())
+                    success = false;
+                else if (status[1] == AntiEntropyService.Status.FINISHED.ordinal())
                     condition.signalAll();
             }
         }
