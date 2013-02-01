@@ -1,6 +1,7 @@
 conf/log4j-server.properties etc/cassandra
 conf/cassandra.yaml etc/cassandra
 conf/cassandra-env.sh etc/cassandra
+conf/cassandra-rackdc.properties etc/cassandra
 debian/cassandra.in.sh usr/share/cassandra
 debian/cassandra.conf etc/security/limits.d
 debian/cassandra-sysctl.conf etc/sysctl.d
