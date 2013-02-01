@@ -1222,7 +1222,7 @@ public class NodeCmd
                 }
             }
         }
-        System.exit(0);
+        System.exit(probe.isFailed() ? 1 : 0);
     }
 
     private static Throwable findInnermostThrowable(Throwable ex)
