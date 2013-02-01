@@ -21,7 +21,8 @@ import java.io.InputStream;
 import java.util.Properties;
 
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SnitchProperties
 {
