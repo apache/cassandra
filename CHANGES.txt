@@ -6,6 +6,7 @@
  * cli: remove default username and password (CASSANDRA-5208)
  * configure populate_io_cache_on_flush per-CF (CASSANDRA-4694)
  * allow configuration of internode socket buffer (CASSANDRA-3378)
+ * Make sstable directory picking blacklist-aware again (CASSANDRA-5193)
 
 1.2.1
  * stream undelivered hints on decommission (CASSANDRA-5128)

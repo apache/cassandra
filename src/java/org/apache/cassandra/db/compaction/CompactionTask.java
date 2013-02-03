@@ -21,22 +21,13 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-import javax.print.attribute.IntegerSyntax;
-
-import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
-import com.google.common.primitives.Longs;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorStatsCollector;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -99,11 +90,11 @@ public class CompactionTask extends AbstractCompactionTask
      * which are properly serialized.
      * Caller is in charge of marking/unmarking the sstables as compacting.
      */
-    protected void runWith(File dataDirectory) throws Exception
+    protected void runWith(File sstableDirectory) throws Exception
     {
         // The collection of sstables passed may be empty (but not null); even if
         // it is not empty, it may compact down to nothing if all rows are deleted.
-        assert sstables != null && dataDirectory != null;
+        assert sstables != null && sstableDirectory != null;
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.columnFamily);
@@ -156,7 +147,7 @@ public class CompactionTask extends AbstractCompactionTask
                 return;
             }
 
-            SSTableWriter writer = cfs.createCompactionWriter(keysPerSSTable, cfs.directories.getLocationForDisk(dataDirectory), toCompact);
+            SSTableWriter writer = cfs.createCompactionWriter(keysPerSSTable, sstableDirectory, toCompact);
             writers.add(writer);
             while (iter.hasNext())
             {
@@ -194,7 +185,7 @@ public class CompactionTask extends AbstractCompactionTask
                 {
                     // tmp = false because later we want to query it with descriptor from SSTableReader
                     cachedKeyMap.put(writer.descriptor.asTemporary(false), cachedKeys);
-                    writer = cfs.createCompactionWriter(keysPerSSTable, cfs.directories.getLocationForDisk(dataDirectory), toCompact);
+                    writer = cfs.createCompactionWriter(keysPerSSTable, sstableDirectory, toCompact);
                     writers.add(writer);
                     cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
                 }

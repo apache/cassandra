@@ -433,22 +433,28 @@ public class Memtable
             return estimatedSize;
         }
 
-        protected void runWith(File dataDirectory) throws Exception
+        protected void runWith(File sstableDirectory) throws Exception
         {
-            assert dataDirectory != null : "Flush task is not bound to any disk";
+            assert sstableDirectory != null : "Flush task is not bound to any disk";
 
-            SSTableReader sstable = writeSortedContents(context, dataDirectory);
+            SSTableReader sstable = writeSortedContents(context, sstableDirectory);
             cfs.replaceFlushed(Memtable.this, sstable);
             latch.countDown();
         }
 
-        private SSTableReader writeSortedContents(Future<ReplayPosition> context, File dataDirectory) throws ExecutionException, InterruptedException
+        protected Directories getDirectories()
+        {
+            return cfs.directories;
+        }
+
+        private SSTableReader writeSortedContents(Future<ReplayPosition> context, File sstableDirectory)
+        throws ExecutionException, InterruptedException
         {
             logger.info("Writing " + Memtable.this.toString());
 
             SSTableReader ssTable;
             // errors when creating the writer that may leave empty temp files.
-            SSTableWriter writer = createFlushWriter(cfs.getTempSSTablePath(cfs.directories.getLocationForDisk(dataDirectory)));
+            SSTableWriter writer = createFlushWriter(cfs.getTempSSTablePath(sstableDirectory));
             try
             {
                 // (we can't clear out the map as-we-go to free up memory,
