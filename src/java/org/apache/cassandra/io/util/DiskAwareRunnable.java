@@ -34,7 +34,7 @@ public abstract class DiskAwareRunnable extends WrappedRunnable
         while (true)
         {
             writeSize = getExpectedWriteSize();
-            directory = Directories.getLocationCapableOfSize(writeSize);
+            directory = getDirectories().getLocationCapableOfSize(writeSize);
             if (directory != null || !reduceScopeForLimitedSpace())
                 break;
         }
@@ -45,7 +45,7 @@ public abstract class DiskAwareRunnable extends WrappedRunnable
         directory.estimatedWorkingSize.addAndGet(writeSize);
         try
         {
-            runWith(directory.location);
+            runWith(getDirectories().getLocationForDisk(directory));
         }
         finally
         {
@@ -55,10 +55,16 @@ public abstract class DiskAwareRunnable extends WrappedRunnable
     }
 
     /**
-     * Executes this task on given {@code dataDirectory}.
-     * @param dataDirectory data directory to work on
+     * Get sstable directories for the CF.
+     * @return Directories instance for the CF.
      */
-    protected abstract void runWith(File dataDirectory) throws Exception;
+    protected abstract Directories getDirectories();
+
+    /**
+     * Executes this task on given {@code sstableDirectory}.
+     * @param sstableDirectory sstable directory to work on
+     */
+    protected abstract void runWith(File sstableDirectory) throws Exception;
 
     /**
      * Get expected write size to determine which disk to use for this task.

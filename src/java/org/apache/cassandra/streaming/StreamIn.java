@@ -80,10 +80,10 @@ public class StreamIn
         // new local sstable
         Table table = Table.open(remotedesc.ksname);
         ColumnFamilyStore cfStore = table.getColumnFamilyStore(remotedesc.cfname);
-        Directories.DataDirectory localDir = Directories.getLocationCapableOfSize(remote.size);
+        Directories.DataDirectory localDir = cfStore.directories.getLocationCapableOfSize(remote.size);
         if (localDir == null)
             throw new RuntimeException("Insufficient disk space to store " + remote.size + " bytes");
-        Descriptor localdesc = Descriptor.fromFilename(cfStore.getTempSSTablePath(cfStore.directories.getLocationForDisk(localDir.location)));
+        Descriptor localdesc = Descriptor.fromFilename(cfStore.getTempSSTablePath(cfStore.directories.getLocationForDisk(localDir)));
 
         return new PendingFile(localdesc, remote);
     }

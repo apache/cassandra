@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.Collection;
 
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorStatsCollector;
@@ -40,6 +41,11 @@ public abstract class AbstractCompactionTask extends DiskAwareRunnable
     }
 
     public abstract int execute(CompactionExecutorStatsCollector collector);
+
+    protected Directories getDirectories()
+    {
+        return cfs.directories;
+    }
 
     public void unmarkSSTables()
     {
