@@ -183,6 +183,11 @@ public final class CFMetaData
                                                          + "rack text"
                                                          + ") WITH COMMENT='known peers in the cluster'");
 
+    public static final CFMetaData PeerEventsCf = compile(12, "CREATE TABLE " + SystemTable.PEER_EVENTS_CF + " ("
+                                                        + "peer inet PRIMARY KEY,"
+                                                        + "hints_dropped map<uuid, int>"
+                                                        + ") WITH COMMENT='cf contains events related to peers'");
+
     public static final CFMetaData LocalCf = compile(13, "CREATE TABLE " + SystemTable.LOCAL_CF + " ("
                                                          + "key text PRIMARY KEY,"
                                                          + "tokens set<varchar>,"

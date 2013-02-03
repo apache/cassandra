@@ -82,6 +82,7 @@ public final class KSMetaData
                                                 CFMetaData.RangeXfersCf,
                                                 CFMetaData.LocalCf,
                                                 CFMetaData.PeersCf,
+                                                CFMetaData.PeerEventsCf,
                                                 CFMetaData.HintsCf,
                                                 CFMetaData.IndexCf,
                                                 CFMetaData.CounterIdCf,
