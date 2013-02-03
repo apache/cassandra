@@ -21,19 +21,27 @@ package org.apache.cassandra.db;
  */
 
 
+import java.net.InetAddress;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import com.google.common.collect.Iterators;
+
 import static junit.framework.Assert.assertEquals;
+import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
 
 public class HintedHandOffTest extends SchemaLoader
 {
@@ -76,5 +84,17 @@ public class HintedHandOffTest extends SchemaLoader
         // single row should not be removed because of gc_grace_seconds
         // is 10 hours and there are no any tombstones in sstable
         assertEquals(1, hintStore.getSSTables().size());
+    }
+
+    @Test
+    public void testHintsMetrics() throws Exception
+    {
+        for (int i = 0; i < 99; i++)
+            HintedHandOffManager.instance.metrics.incrPastWindow(InetAddress.getLocalHost());
+        HintedHandOffManager.instance.metrics.log();
+
+        UntypedResultSet rows = processInternal("SELECT hints_dropped FROM system." + SystemTable.PEER_EVENTS_CF);
+        Map<UUID, Integer> returned = rows.one().getMap("hints_dropped", UUIDType.instance, Int32Type.instance);
+        assertEquals(Iterators.getLast(returned.values().iterator()).intValue(), 99);
     }
 }

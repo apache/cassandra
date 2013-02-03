@@ -1486,11 +1486,17 @@ public class StorageProxy implements StorageProxyMBean
     public static boolean shouldHint(InetAddress ep)
     {
         if (!DatabaseDescriptor.hintedHandoffEnabled())
+        {
+            HintedHandOffManager.instance.metrics.incrPastWindow(ep);
             return false;
+        }
 
         boolean hintWindowExpired = Gossiper.instance.getEndpointDowntime(ep) > DatabaseDescriptor.getMaxHintWindow();
         if (hintWindowExpired)
+        {
+            HintedHandOffManager.instance.metrics.incrPastWindow(ep);
             logger.trace("not hinting {} which has been down {}ms", ep, Gossiper.instance.getEndpointDowntime(ep));
+        }
         return !hintWindowExpired;
     }
 

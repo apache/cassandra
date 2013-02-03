@@ -61,6 +61,7 @@ public class SystemTable
 
     // see CFMetaData for schema definitions
     public static final String PEERS_CF = "peers";
+    public static final String PEER_EVENTS_CF = "peer_events";
     public static final String LOCAL_CF = "local";
     public static final String INDEX_CF = "IndexInfo";
     public static final String COUNTER_ID_CF = "NodeIdInfo";
@@ -328,6 +329,13 @@ public class SystemTable
 
         String req = "INSERT INTO system.%s (peer, %s) VALUES ('%s', %s)";
         processInternal(String.format(req, PEERS_CF, columnName, ep.getHostAddress(), value));
+    }
+
+    public static synchronized void updateHintsDropped(InetAddress ep, UUID timePeriod, int value)
+    {
+        // with 30 day TTL
+        String req = "UPDATE system.%s USING TTL 2592000 SET hints_dropped[ %s ] = %s WHERE peer = '%s'";
+        processInternal(String.format(req, PEER_EVENTS_CF, timePeriod.toString(), value, ep.getHostAddress()));
     }
 
     public static synchronized void updateSchemaVersion(UUID version)
