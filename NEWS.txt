@@ -16,7 +16,10 @@ Upgrading
     - CQL3 type validation for constants has been fixed, which may require
       fixing queries that were relying on the previous loose validation. Please
       refer to the CQL3 documentation (http://cassandra.apache.org/doc/cql3/CQL.html)
-      and in particular the changelog section for more details.
+      and in particular the changelog section for more details. Please note in
+      particular that inputing blobs as strings constants is now deprecated (in
+      favor of blob constants) and its support will be removed in a future
+      version.
 
 
 1.2.1
