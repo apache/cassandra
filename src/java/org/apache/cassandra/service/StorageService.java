@@ -1554,7 +1554,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
         else // now that the gossiper has told us about this nonexistent member, notify the gossiper to remove it
+        {
+            addExpireTimeIfFound(endpoint, extractExpireTime(pieces, MessagingService.instance().getVersion(endpoint)));
             removeEndpoint(endpoint);
+        }
     }
 
     private void excise(Collection<Token> tokens, InetAddress endpoint)
