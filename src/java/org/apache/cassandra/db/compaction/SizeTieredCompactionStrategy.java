@@ -59,7 +59,10 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public synchronized AbstractCompactionTask getNextBackgroundTask(final int gcBefore)
     {
-        if (cfs.isCompactionDisabled())
+        // make local copies so they can't be changed out from under us mid-method
+        int minThreshold = cfs.getMinimumCompactionThreshold();
+        int maxThreshold = cfs.getMaximumCompactionThreshold();
+        if (minThreshold == 0 || maxThreshold == 0)
         {
             logger.debug("Compaction is currently disabled.");
             return null;
@@ -73,7 +76,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         List<List<SSTableReader>> prunedBuckets = new ArrayList<List<SSTableReader>>();
         for (List<SSTableReader> bucket : buckets)
         {
-            if (bucket.size() < cfs.getMinimumCompactionThreshold())
+            if (bucket.size() < minThreshold)
                 continue;
 
             Collections.sort(bucket, new Comparator<SSTableReader>()
@@ -83,7 +86,8 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
                     return o1.descriptor.generation - o2.descriptor.generation;
                 }
             });
-            prunedBuckets.add(bucket.subList(0, Math.min(bucket.size(), cfs.getMaximumCompactionThreshold())));
+            List<SSTableReader> prunedBucket = bucket.subList(0, Math.min(bucket.size(), maxThreshold));
+            prunedBuckets.add(prunedBucket);
         }
 
         if (prunedBuckets.isEmpty())
