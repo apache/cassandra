@@ -1007,7 +1007,8 @@ The following describes the addition/changes brought for each version of CQL.
 
 h3. 3.0.2
 
-- Type validation for the "constants":#constants has been fixed. For instance, the implementation used to allow @'2'@ as a valid value for an @int@ column (interpreting it has the equivalent of @2@), or @42@ as a valid @blob@ value (in which case @42@ was interpreted as an hexadecimal representation of the blob). This is no longer the case, type validation of constants is now more strict. See the "data types":#dataTypes section for details on which constant is allowed for which type, but note that this let to the introduction of "blobs constants":#constants.
+- Type validation for the "constants":#constants has been fixed. For instance, the implementation used to allow @'2'@ as a valid value for an @int@ column (interpreting it has the equivalent of @2@), or @42@ as a valid @blob@ value (in which case @42@ was interpreted as an hexadecimal representation of the blob). This is no longer the case, type validation of constants is now more strict. See the "data types":#dataTypes section for details on which constant is allowed for which type.
+- The type validation fixed of the previous point has lead to the introduction of "blobs constants":#constants to allow inputing blobs. Do note that while inputing blobs as strings constant is still supported by this version (to allow smoother transition to blob constant), it is now deprecated (in particular the "data types":#dataTypes section does not list strings constants as valid blobs) and will be removed by a future version. If you were using strings as blobs, you should thus update your client code asap to switch blob constants.
 
 h3. 3.0.1
 
