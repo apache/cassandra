@@ -22,9 +22,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -33,8 +30,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 /** A term parsed from a CQL statement. */
 public class Term
 {
-    private static final Logger logger = LoggerFactory.getLogger(Term.class);
-
     public enum Type
     {
         STRING, INTEGER, UUID, FLOAT, BOOLEAN, HEX, QMARK;
@@ -64,9 +59,6 @@ public class Term
     private final Type type;
     public final int bindIndex;
     public final boolean isToken;
-
-    // For transition post-5198, see below
-    private static volatile boolean stringAsBlobWarningLogged = false;
 
     // This is a hack for the timeuuid functions (minTimeuuid, maxTimeuuid, now) because instead of handling them as
     // true function we let the TimeUUID.fromString() method handle it. We should probably clean that up someday
@@ -176,20 +168,6 @@ public class Term
 
         if (!supported.contains(type))
         {
-            // Blobs should now be inputed as hexadecimal constants. However, to allow people to upgrade, we still allow
-            // blob-as-strings, even though it is deprecated (see #5198).
-            if (type == Type.STRING && validator instanceof BytesType)
-            {
-                if (!stringAsBlobWarningLogged)
-                {
-                    stringAsBlobWarningLogged = true;
-                    logger.warn("Inputing CLQ3 blobs as strings (like %s = '%s') is now deprecated and will be removed in a future version. "
-                              + "You should convert client code to use a blob constant (%s = %s) instead (see http://cassandra.apache.org/doc/cql3/CQL.html changelog section for more info).",
-                              identifier, text, identifier, "0x" + text);
-                }
-                return;
-            }
-
             // TODO: Ideallly we'd keep the declared CQL3 type of columns and use that in the following message, instead of the AbstracType class name.
             throw new InvalidRequestException(String.format("Invalid %s constant for %s of type %s", type, identifier, validator.asCQL3Type()));
         }
