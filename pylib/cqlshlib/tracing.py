@@ -40,13 +40,13 @@ def print_trace_session(shell, cursor, session_id):
 def fetch_trace_session(cursor, session_id):
     cursor.execute("SELECT request, coordinator, started_at, duration "
                    "FROM %s.%s "
-                   "WHERE session_id = '%s'" % (TRACING_KS, SESSIONS_CF, session_id),
+                   "WHERE session_id = %s" % (TRACING_KS, SESSIONS_CF, session_id),
                    consistency_level='ONE')
     (request, coordinator, started_at, duration) = cursor.fetchone()
 
     cursor.execute("SELECT activity, event_id, source, source_elapsed "
                    "FROM %s.%s "
-                   "WHERE session_id = '%s'" % (TRACING_KS, EVENTS_CF, session_id),
+                   "WHERE session_id = %s" % (TRACING_KS, EVENTS_CF, session_id),
                    consistency_level='ONE')
     events = cursor.fetchall()
 
