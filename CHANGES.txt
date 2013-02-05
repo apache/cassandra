@@ -1,4 +1,5 @@
 1.2.2
+ * avoid no-op caching of byte[] on commitlog append (CASSANDRA-5199)
  * more robust solution to incomplete compactions + counters (CASSANDRA-5151)
  * fix symlinks under data dir not working (CASSANDRA-5185)
  * fix bug in compact storage metadata handling (CASSANDRA-5189)
