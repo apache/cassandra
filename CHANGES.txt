@@ -18,6 +18,7 @@
  * Make sstable directory picking blacklist-aware again (CASSANDRA-5193)
  * Correctly expire gossip states for edge cases (CASSANDRA-5216)
 
+
 1.2.1
  * stream undelivered hints on decommission (CASSANDRA-5128)
  * GossipingPropertyFileSnitch loads saved dc/rack info if needed (CASSANDRA-5133)
