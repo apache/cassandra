@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -31,7 +30,6 @@ import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
@@ -50,8 +48,6 @@ public class RowMutation implements IMutation
     private final ByteBuffer key;
     // map of column family id to mutations for that column family.
     protected Map<UUID, ColumnFamily> modifications = new HashMap<UUID, ColumnFamily>();
-
-    private final Map<Integer, byte[]> preserializedBuffers = new HashMap<Integer, byte[]>();
 
     public RowMutation(String table, ByteBuffer key)
     {
@@ -114,7 +110,7 @@ public class RowMutation implements IMutation
 
         // serialize the hint with id and version as a composite column name
         ByteBuffer name = HintedHandOffManager.comparator.decompose(hintId, MessagingService.current_version);
-        ByteBuffer value = ByteBuffer.wrap(mutation.getSerializedBuffer(MessagingService.current_version));
+        ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, serializer, MessagingService.current_version));
         rm.add(SystemTable.HINTS_CF, name, value, System.currentTimeMillis(), ttl);
 
         return rm;
@@ -232,17 +228,6 @@ public class RowMutation implements IMutation
         return new MessageOut<RowMutation>(verb, this, serializer);
     }
 
-    public synchronized byte[] getSerializedBuffer(int version) throws IOException
-    {
-        byte[] bytes = preserializedBuffers.get(version);
-        if (bytes == null)
-        {
-            bytes = FBUtilities.serialize(this, serializer, version);
-            preserializedBuffers.put(version, bytes);
-        }
-        return bytes;
-    }
-
     public String toString()
     {
         return toString(false);
@@ -269,25 +254,6 @@ public class RowMutation implements IMutation
         return buff.append("])").toString();
     }
 
-
-    public static RowMutation fromBytes(byte[] raw, int version) throws IOException
-    {
-        RowMutation rm = serializer.deserialize(new DataInputStream(new FastByteArrayInputStream(raw)), version);
-        boolean hasCounters = false;
-        for (Map.Entry<UUID, ColumnFamily> entry : rm.modifications.entrySet())
-        {
-            if (entry.getValue().metadata().getDefaultValidator().isCommutative())
-            {
-                hasCounters = true;
-                break;
-            }
-        }
-
-        // We need to deserialize at least once for counters to cleanup the delta
-        if (!hasCounters && version == MessagingService.current_version)
-            rm.preserializedBuffers.put(version, raw);
-        return rm;
-    }
 
     public static class RowMutationSerializer implements IVersionedSerializer<RowMutation>
     {

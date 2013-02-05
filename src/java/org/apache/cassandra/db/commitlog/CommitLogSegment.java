@@ -40,6 +40,7 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.PureJavaCrc32;
 
 /*
@@ -213,7 +214,7 @@ public class CommitLogSegment
         markDirty(rowMutation, repPos);
 
         Checksum checksum = new PureJavaCrc32();
-        byte[] serializedRow = rowMutation.getSerializedBuffer(MessagingService.current_version);
+        byte[] serializedRow = FBUtilities.serialize(rowMutation, RowMutation.serializer, MessagingService.current_version);
 
         checksum.update(serializedRow.length);
         buffer.putInt(serializedRow.length);
