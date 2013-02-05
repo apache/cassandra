@@ -230,6 +230,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         double maxLatency = 1;
         long maxPenalty = 1;
         HashMap<InetAddress, Long> penalties = new HashMap<InetAddress, Long>();
+        // We're going to weight the latency and time since last reply for each host against the worst one we see, to arrive at sort of a 'badness percentage' for both of them.
+        // first, find the worst for each.
         for (Map.Entry<InetAddress, ExponentiallyDecayingSample> entry : samples.entrySet())
         {
             double mean = entry.getValue().getSnapshot().getMedian();
@@ -238,18 +240,23 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             long timePenalty = lastReceived.containsKey(entry.getKey()) ? lastReceived.get(entry.getKey()) : System.currentTimeMillis();
             timePenalty = System.currentTimeMillis() - timePenalty;
             timePenalty = timePenalty > UPDATE_INTERVAL_IN_MS ? UPDATE_INTERVAL_IN_MS : timePenalty;
+            // a convenient place to remember this since we've already calculated it and need it later
             penalties.put(entry.getKey(), timePenalty);
             if (timePenalty > maxPenalty)
                 maxPenalty = timePenalty;
         }
+        // now make another pass to do the weighting based on the maximums we found before
         for (Map.Entry<InetAddress, ExponentiallyDecayingSample> entry: samples.entrySet())
         {
             double score = entry.getValue().getSnapshot().getMedian() / maxLatency;
             if (penalties.containsKey(entry.getKey()))
                 score += penalties.get(entry.getKey()) / ((double) maxPenalty);
             else
+                // there's a chance a host was added to the samples after our previous loop to get the time penalties.  Add 1.0 to it, or '100% bad' for the time penalty.
                 score += 1; // maxPenalty / maxPenalty
+            // finally, add the severity without any weighting, since hosts scale this relative to their own load and the size of the task causing the severity
             score += StorageService.instance.getSeverity(entry.getKey());
+            // lowest score (least amount of badness) wins.
             scores.put(entry.getKey(), score);            
         }
     }
