@@ -34,6 +34,7 @@ import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.AlwaysPresentFilter;
 import org.apache.cassandra.utils.Throttle;
 
 /**
@@ -114,8 +115,15 @@ public class CompactionController
         List<SSTableReader> filteredSSTables = overlappingTree.search(key);
         for (SSTableReader sstable : filteredSSTables)
         {
-            if (sstable.getBloomFilter().isPresent(key.key) && sstable.getMinTimestamp() <= maxDeletionTimestamp)
-                return false;
+            if (sstable.getMinTimestamp() <= maxDeletionTimestamp)
+            {
+                // if we don't have bloom filter(bf_fp_chance=1.0 or filter file is missing),
+                // we check index file instead.
+                if (sstable.getBloomFilter() instanceof AlwaysPresentFilter && sstable.getPosition(key, SSTableReader.Operator.EQ) != null)
+                    return false;
+                else if (sstable.getBloomFilter().isPresent(key.key))
+                    return false;
+            }
         }
         return true;
     }
