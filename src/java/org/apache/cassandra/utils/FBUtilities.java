@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.zip.Checksum;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.AbstractIterator;
@@ -607,6 +608,14 @@ public class FBUtilities
         {
             throw new AssertionError();
         }
+    }
+
+    public static void updateChecksumInt(Checksum checksum, int v)
+    {
+        checksum.update((v >>> 24) & 0xFF);
+        checksum.update((v >>> 16) & 0xFF);
+        checksum.update((v >>> 8) & 0xFF);
+        checksum.update((v >>> 0) & 0xFF);
     }
 
     private static final class WrappedCloseableIterator<T>

@@ -167,9 +167,14 @@ public class CommitLogReplayer
                     // This prevents CRC by being fooled by special-case garbage in the file; see CASSANDRA-2128
                     if (serializedSize < 10)
                         break;
+
                     long claimedSizeChecksum = reader.readLong();
                     checksum.reset();
-                    checksum.update(serializedSize);
+                    if (CommitLogDescriptor.current_version < CommitLogDescriptor.VERSION_20)
+                        checksum.update(serializedSize);
+                    else
+                        FBUtilities.updateChecksumInt(checksum, serializedSize);
+
                     if (checksum.getValue() != claimedSizeChecksum)
                         break; // entry wasn't synced correctly/fully. that's
                                // ok.
