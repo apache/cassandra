@@ -110,6 +110,7 @@ public class Directories
                 catch (FSError e) 
                 {
                     // don't just let the default exception handler do this, we need the create loop to continue
+                    logger.error("Failed to create {} directory", dir);
                     FileUtils.handleFSError(e);
                 }
             }

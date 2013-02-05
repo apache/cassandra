@@ -370,9 +370,23 @@ public class FileUtils
         switch (DatabaseDescriptor.getDiskFailurePolicy())
         {
             case stop:
-                logger.error("Stopping the gossiper and the RPC server");
-                StorageService.instance.stopGossiping();
-                StorageService.instance.stopRPCServer();
+                if (StorageService.instance.isInitialized())
+                {
+                    logger.error("Stopping gossiper");
+                    StorageService.instance.stopGossiping();
+                }
+
+                if (StorageService.instance.isRPCServerRunning())
+                {
+                    logger.error("Stopping RPC server");
+                    StorageService.instance.stopRPCServer();
+                }
+
+                if (StorageService.instance.isNativeTransportRunning())
+                {
+                    logger.error("Stopping native transport");
+                    StorageService.instance.stopNativeTransport();
+                }
                 break;
             case best_effort:
                 // for both read and write errors mark the path as unwritable.
