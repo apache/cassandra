@@ -25,7 +25,7 @@ import org.apache.cassandra.hadoop.ColumnFamilyOutputFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.hadoop.ColumnFamilyInputFormat;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -70,7 +70,7 @@ public class WordCount extends Configured implements Tool
         System.exit(0);
     }
 
-    public static class TokenizerMapper extends Mapper<ByteBuffer, SortedMap<ByteBuffer, IColumn>, Text, IntWritable>
+    public static class TokenizerMapper extends Mapper<ByteBuffer, SortedMap<ByteBuffer, Column>, Text, IntWritable>
     {
         private final static IntWritable one = new IntWritable(1);
         private Text word = new Text();
@@ -81,9 +81,9 @@ public class WordCount extends Configured implements Tool
         {
         }
 
-        public void map(ByteBuffer key, SortedMap<ByteBuffer, IColumn> columns, Context context) throws IOException, InterruptedException
+        public void map(ByteBuffer key, SortedMap<ByteBuffer, Column> columns, Context context) throws IOException, InterruptedException
         {
-            for (IColumn column : columns.values())
+            for (Column column : columns.values())
             {
                 String name  = ByteBufferUtil.string(column.name());
                 String value = null;
@@ -137,7 +137,7 @@ public class WordCount extends Configured implements Tool
 
         private static Mutation getMutation(Text word, int sum)
         {
-            Column c = new Column();
+            org.apache.cassandra.thrift.Column c = new org.apache.cassandra.thrift.Column();
             c.setName(Arrays.copyOf(word.getBytes(), word.getLength()));
             c.setValue(ByteBufferUtil.bytes(sum));
             c.setTimestamp(System.currentTimeMillis());
