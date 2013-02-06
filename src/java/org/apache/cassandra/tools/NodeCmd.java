@@ -748,7 +748,12 @@ public class NodeCmd
             // print out column family statistics for this table
             for (ColumnFamilyStoreMBean cfstore : columnFamilies)
             {
-                outs.println("\t\tColumn Family: " + cfstore.getColumnFamilyName());
+                String cfName = cfstore.getColumnFamilyName();
+                if(cfName.contains("."))
+                    outs.println("\t\tColumn Family (index): " + cfName);
+                else
+                    outs.println("\t\tColumn Family: " + cfName);
+
                 outs.println("\t\tSSTable count: " + cfstore.getLiveSSTableCount());
                 int[] leveledSStables = cfstore.getSSTableCountPerLevel();
                 if (leveledSStables != null)

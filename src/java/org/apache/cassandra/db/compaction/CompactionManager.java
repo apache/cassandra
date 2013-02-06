@@ -278,7 +278,6 @@ public class CompactionManager implements CompactionManagerMBean
         {
             public void perform(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
             {
-                assert !cfs.isIndex();
                 for (final SSTableReader sstable : sstables)
                 {
                     // SSTables are marked by the caller
