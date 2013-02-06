@@ -581,7 +581,10 @@ public class NodeProbe
         ColumnFamilyStoreMBean cfsProxy = null;
         try
         {
-            Set<ObjectName> beans = mbeanServerConn.queryNames(new ObjectName("org.apache.cassandra.db:type=*ColumnFamilies,keyspace=" + ks + ",columnfamily=" + cf), null);
+            String type = cf.contains(".") ? "IndexColumnFamilies" : "ColumnFamilies";
+            Set<ObjectName> beans = mbeanServerConn.queryNames(
+                    new ObjectName("org.apache.cassandra.db:type=*" + type +",keyspace=" + ks + ",columnfamily=" + cf), null);
+
             if (beans.isEmpty())
                 throw new MalformedObjectNameException("couldn't find that bean");
             assert beans.size() == 1;
@@ -792,28 +795,74 @@ public class NodeProbe
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
 {
-    private Iterator<ObjectName> resIter;
     private MBeanServerConnection mbeanServerConn;
+    Iterator<Entry<String, ColumnFamilyStoreMBean>> mbeans;
 
     public ColumnFamilyStoreMBeanIterator(MBeanServerConnection mbeanServerConn)
-    throws MalformedObjectNameException, NullPointerException, IOException
+        throws MalformedObjectNameException, NullPointerException, IOException
     {
-        ObjectName query = new ObjectName("org.apache.cassandra.db:type=ColumnFamilies,*");
-        resIter = mbeanServerConn.queryNames(query, null).iterator();
         this.mbeanServerConn = mbeanServerConn;
+        List<Entry<String, ColumnFamilyStoreMBean>> cfMbeans = getCFSMBeans(mbeanServerConn, "ColumnFamilies");
+        cfMbeans.addAll(getCFSMBeans(mbeanServerConn, "IndexColumnFamilies"));
+        Collections.sort(cfMbeans, new Comparator<Entry<String, ColumnFamilyStoreMBean>>()
+        {
+            public int compare(Entry<String, ColumnFamilyStoreMBean> e1, Entry<String, ColumnFamilyStoreMBean> e2)
+            {
+                //compare keyspace, then CF name, then normal vs. index
+                int tableCmp = e1.getKey().compareTo(e2.getKey());
+                if(tableCmp != 0)
+                    return tableCmp;
+
+                // get CF name and split it for index name
+                String q = e1.getValue().getColumnFamilyName();
+                String h = e2.getValue().getColumnFamilyName();
+                String e1CF[] = e1.getValue().getColumnFamilyName().split("\\.");
+                String e2CF[] = e1.getValue().getColumnFamilyName().split("\\.");
+                assert e1CF.length <= 2 && e2CF.length <= 2 : "unexpected split count for column family name";
+
+                //if neither are indexes, just compare CF names
+                if(e1CF.length == 1 && e2CF.length == 1)
+                    return e1CF[0].compareTo(e2CF[0]);
+
+                //check if it's the same CF
+                int cfNameCmp = e1CF[0].compareTo(e2CF[0]);
+                if(cfNameCmp != 0)
+                    return cfNameCmp;
+
+                // if both are indexes (for the same CF), compare them
+                if(e1CF.length == 2 && e2CF.length == 2)
+                    return e1CF[1].compareTo(e2CF[1]);
+
+                //if length of e1CF is 1, it's not an index, so sort it higher
+                return e1CF.length == 1 ? 1 : -1;
+            }
+        });
+        mbeans = cfMbeans.iterator();
+    }
+
+    private List<Entry<String, ColumnFamilyStoreMBean>> getCFSMBeans(MBeanServerConnection mbeanServerConn, String type)
+            throws MalformedObjectNameException, IOException
+    {
+        ObjectName query = new ObjectName("org.apache.cassandra.db:type=" + type +",*");
+        Set<ObjectName> cfObjects = mbeanServerConn.queryNames(query, null);
+        List<Entry<String, ColumnFamilyStoreMBean>> mbeans = new ArrayList<Entry<String, ColumnFamilyStoreMBean>>(cfObjects.size());
+        for(ObjectName n : cfObjects)
+        {
+            String tableName = n.getKeyProperty("keyspace");
+            ColumnFamilyStoreMBean cfsProxy = JMX.newMBeanProxy(mbeanServerConn, n, ColumnFamilyStoreMBean.class);
+            mbeans.add(new AbstractMap.SimpleImmutableEntry<String, ColumnFamilyStoreMBean>(tableName, cfsProxy));
+        }
+        return mbeans;
     }
 
     public boolean hasNext()
     {
-        return resIter.hasNext();
+        return mbeans.hasNext();
     }
 
     public Entry<String, ColumnFamilyStoreMBean> next()
     {
-        ObjectName objectName = resIter.next();
-        String tableName = objectName.getKeyProperty("keyspace");
-        ColumnFamilyStoreMBean cfsProxy = JMX.newMBeanProxy(mbeanServerConn, objectName, ColumnFamilyStoreMBean.class);
-        return new AbstractMap.SimpleImmutableEntry<String, ColumnFamilyStoreMBean>(tableName, cfsProxy);
+        return mbeans.next();
     }
 
     public void remove()

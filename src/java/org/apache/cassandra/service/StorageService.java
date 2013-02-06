@@ -35,6 +35,8 @@ import javax.management.NotificationBroadcasterSupport;
 import javax.management.ObjectName;
 
 import com.google.common.collect.*;
+
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -2084,7 +2086,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
 
         CounterId.OneShotRenewer counterIdRenewer = new CounterId.OneShotRenewer();
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, tableName, columnFamilies))
         {
             cfStore.forceCleanup(counterIdRenewer);
         }
@@ -2092,19 +2094,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void scrub(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, tableName, columnFamilies))
             cfStore.scrub();
     }
 
     public void upgradeSSTables(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, true, tableName, columnFamilies))
             cfStore.sstablesRewrite();
     }
 
     public void forceTableCompaction(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, tableName, columnFamilies))
         {
             cfStore.forceMajorCompaction();
         }
@@ -2157,7 +2159,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new IOException("You must supply a table name");
 
         if (columnFamilyName == null)
-            throw new IOException("You mus supply a column family name");
+            throw new IOException("You must supply a column family name");
+        if (columnFamilyName.contains("."))
+            throw new IllegalArgumentException("Cannot take a snapshot of a secondary index by itself. Run snapshot on the column family that owns the index.");
 
         if (tag == null || tag.equals(""))
             throw new IOException("You must supply a snapshot name.");
@@ -2207,7 +2211,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.debug("Cleared out snapshot directories");
     }
 
-    public Iterable<ColumnFamilyStore> getValidColumnFamilies(String tableName, String... cfNames) throws IOException
+    /**
+     * @param allowIndexes Allow index CF names to be passed in
+     * @param autoAddIndexes Automatically add secondary indexes if a CF has them
+     * @param tableName keyspace
+     * @param cfNames CFs
+     */
+    public Iterable<ColumnFamilyStore> getValidColumnFamilies(boolean allowIndexes, boolean autoAddIndexes, String tableName, String... cfNames) throws IOException
     {
         Table table = getValidTable(tableName);
 
@@ -2219,14 +2229,49 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Set<ColumnFamilyStore> valid = new HashSet<ColumnFamilyStore>();
         for (String cfName : cfNames)
         {
-            ColumnFamilyStore cfStore = table.getColumnFamilyStore(cfName);
+            //if the CF name is an index, just flush the CF that owns the index
+            String baseCfName = cfName;
+            String idxName = null;
+            if (cfName.contains(".")) // secondary index
+            {
+                if(!allowIndexes)
+                {
+                   logger.warn("Operation not allowed on secondary Index column family ({})", cfName);
+                    continue;
+                }
+
+                String[] parts = cfName.split("\\.", 2);
+                baseCfName = parts[0];
+                idxName = parts[1];
+            }
+
+            ColumnFamilyStore cfStore = table.getColumnFamilyStore(baseCfName);
             if (cfStore == null)
             {
                 // this means there was a cf passed in that is not recognized in the keyspace. report it and continue.
-                logger.warn(String.format("Invalid column family specified: %s. Proceeding with others.", cfName));
+                logger.warn(String.format("Invalid column family specified: %s. Proceeding with others.", baseCfName));
                 continue;
             }
-            valid.add(cfStore);
+            if (idxName != null)
+            {
+                Collection< SecondaryIndex > indexes = cfStore.indexManager.getIndexesByNames(new HashSet<String>(Arrays.asList(cfName)));
+                if (indexes.isEmpty())
+                    logger.warn(String.format("Invalid column family index specified: %s/%s. Proceeding with others.", baseCfName, idxName));
+                else
+                    valid.add(Iterables.get(indexes, 0).getIndexCfs());
+            }
+            else
+            {
+                valid.add(cfStore);
+                if(autoAddIndexes)
+                {
+                    for(SecondaryIndex si : cfStore.indexManager.getIndexes())
+                    {
+                        logger.info("adding secondary index {} to operation", si.getIndexName());
+                        valid.add(si.getIndexCfs());
+                    }
+                }
+            }
         }
         return valid;
     }
@@ -2240,7 +2285,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void forceTableFlush(final String tableName, final String... columnFamilies)
                 throws IOException, ExecutionException, InterruptedException
     {
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, tableName, columnFamilies))
         {
             logger.debug("Forcing flush on keyspace " + tableName + ", CF " + cfStore.name);
             cfStore.forceBlockingFlush();
@@ -2367,7 +2412,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public AntiEntropyService.RepairFuture forceTableRepair(final Range<Token> range, final String tableName, boolean isSequential, boolean  isLocal, final String... columnFamilies) throws IOException
     {
         ArrayList<String> names = new ArrayList<String>();
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, tableName, columnFamilies))
         {
             names.add(cfStore.name);
         }

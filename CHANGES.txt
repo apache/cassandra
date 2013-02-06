@@ -18,6 +18,7 @@
  * Make sstable directory picking blacklist-aware again (CASSANDRA-5193)
  * Correctly expire gossip states for edge cases (CASSANDRA-5216)
  * Improve handling of directory creation failures (CASSANDRA-5196)
+ * Expose secondary indicies to the rest of nodetool (CASSANDRA-4464)
 
 
 1.2.1
