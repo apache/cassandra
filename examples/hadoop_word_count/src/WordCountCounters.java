@@ -34,7 +34,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.hadoop.ColumnFamilyInputFormat;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.thrift.*;
@@ -60,12 +60,12 @@ public class WordCountCounters extends Configured implements Tool
         System.exit(0);
     }
 
-    public static class SumMapper extends Mapper<ByteBuffer, SortedMap<ByteBuffer, IColumn>, Text, LongWritable>
+    public static class SumMapper extends Mapper<ByteBuffer, SortedMap<ByteBuffer, Column>, Text, LongWritable>
     {
-        public void map(ByteBuffer key, SortedMap<ByteBuffer, IColumn> columns, Context context) throws IOException, InterruptedException
+        public void map(ByteBuffer key, SortedMap<ByteBuffer, Column> columns, Context context) throws IOException, InterruptedException
         {
             long sum = 0;
-            for (IColumn column : columns.values())
+            for (Column column : columns.values())
             {
                 logger.debug("read " + key + ":" + column.name() + " from " + context.getInputSplit());
                 sum += ByteBufferUtil.toLong(column.value());
