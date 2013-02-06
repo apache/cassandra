@@ -284,10 +284,8 @@ public class CompactionsTest extends SchemaLoader
     public void testCompactionLog() throws Exception
     {
         SystemTable.discardCompactionsInProgress();
-        SetMultimap<Pair<String, String>, Integer> compactionLogs = SystemTable.getUnfinishedCompactions();
-        assert compactionLogs.isEmpty();
 
-        String cf = "Standard1";
+        String cf = "Standard4";
         ColumnFamilyStore cfs = Table.open(TABLE1).getColumnFamilyStore(cf);
         insertData(TABLE1, cf, 0, 1);
         cfs.forceBlockingFlush();
@@ -302,13 +300,13 @@ public class CompactionsTest extends SchemaLoader
             }
         }));
         UUID taskId = SystemTable.startCompaction(cfs, sstables);
-        compactionLogs = SystemTable.getUnfinishedCompactions();
+        SetMultimap<Pair<String, String>, Integer> compactionLogs = SystemTable.getUnfinishedCompactions();
         Set<Integer> unfinishedCompactions = compactionLogs.get(Pair.create(TABLE1, cf));
         assert unfinishedCompactions.containsAll(generations);
 
         SystemTable.finishCompaction(taskId);
         compactionLogs = SystemTable.getUnfinishedCompactions();
-        assert compactionLogs.isEmpty();
+        assert !compactionLogs.containsKey(Pair.create(TABLE1, cf));
     }
 
     private void testDontPurgeAccidentaly(String k, String cfname, boolean forceDeserialize) throws IOException, ExecutionException, InterruptedException
