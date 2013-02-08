@@ -262,6 +262,17 @@ public class Server implements CassandraDaemon.Server
     private static class EventNotifier implements IEndpointLifecycleSubscriber, IMigrationListener
     {
         private final Server server;
+        private static final InetAddress bindAll;
+        static {
+            try
+            {
+                bindAll = InetAddress.getByAddress(new byte[4]);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new AssertionError(e);
+            }
+        }
 
         private EventNotifier(Server server)
         {
@@ -272,7 +283,10 @@ public class Server implements CassandraDaemon.Server
         {
             try
             {
-                return InetAddress.getByName(StorageService.instance.getRpcaddress(endpoint));
+                InetAddress rpcAddress = InetAddress.getByName(StorageService.instance.getRpcaddress(endpoint));
+                // If rpcAddress == 0.0.0.0 (i.e. bound on all addresses), returning that is not very helpful,
+                // so return the internal address (which is ok since "we're bound on all addresses").
+                return rpcAddress.equals(bindAll) ? endpoint : rpcAddress;
             }
             catch (UnknownHostException e)
             {

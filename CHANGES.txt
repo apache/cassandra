@@ -19,6 +19,8 @@
  * Correctly expire gossip states for edge cases (CASSANDRA-5216)
  * Improve handling of directory creation failures (CASSANDRA-5196)
  * Expose secondary indicies to the rest of nodetool (CASSANDRA-4464)
+ * Binary protocol: avoid sending notification for 0.0.0.0 (CASSANDRA-5227)
+ * add UseCondCardMark XX jvm settings on jdk 1.7 (CASSANDRA-4366)
 
 
 1.2.1
@@ -278,7 +280,6 @@ Merged from 1.1:
  * remove redundant "name" column from schema_keyspaces (CASSANDRA-4433)
  * improve "nodetool ring" handling of multi-dc clusters (CASSANDRA-3047)
  * update NTS calculateNaturalEndpoints to be O(N log N) (CASSANDRA-3881)
- * add UseCondCardMark XX jvm settings on jdk 1.7 (CASSANDRA-4366)
  * split up rpc timeout by operation type (CASSANDRA-2819)
  * rewrite key cache save/load to use only sequential i/o (CASSANDRA-3762)
  * update MS protocol with a version handshake + broadcast address id
