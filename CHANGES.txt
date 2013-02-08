@@ -14,6 +14,7 @@
  * Binary protocol: avoid sending notification for 0.0.0.0 (CASSANDRA-5227)
  * add UseCondCardMark XX jvm settings on jdk 1.7 (CASSANDRA-4366)
  * CQL3 refactor to allow conversion function (CASSANDRA-5226)
+ * Fix drop of sstables in some circumstance (CASSANDRA-5232)
 
 
 1.2.1
