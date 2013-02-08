@@ -593,13 +593,13 @@ class Shell(cmd.Cmd):
             self.conn = use_conn
         else:
             self.conn = cql.connect(hostname, port, user=username, password=password)
-            self.set_expanded_cql_version(cqlver)
-            # we could set the keyspace through cql.connect(), but as of 1.0.10,
-            # it doesn't quote the keyspace for USE :(
-            if keyspace is not None:
-                tempcurs = self.conn.cursor()
-                tempcurs.execute('USE %s;' % self.cql_protect_name(keyspace))
-                tempcurs.close()
+        self.set_expanded_cql_version(cqlver)
+        # we could set the keyspace through cql.connect(), but as of 1.0.10,
+        # it doesn't quote the keyspace for USE :(
+        if keyspace is not None:
+            tempcurs = self.conn.cursor()
+            tempcurs.execute('USE %s;' % self.cql_protect_name(keyspace))
+            tempcurs.close()
         self.cursor = self.conn.cursor()
 
         self.current_keyspace = keyspace
