@@ -18,18 +18,13 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.EnumSet;
-import java.util.Set;
 
 import org.apache.cassandra.cql.jdbc.JdbcAscii;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Term;
 
 public class AsciiType extends AbstractType<String>
 {
     public static final AsciiType instance = new AsciiType();
-
-    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.STRING);
 
     AsciiType() {} // singleton
 
@@ -74,11 +69,6 @@ public class AsciiType extends AbstractType<String>
             if (b < 0 || b > 127)
                 throw new MarshalException("Invalid byte for ascii: " + Byte.toString(b));
         }
-    }
-
-    public Set<Term.Type> supportedCQL3Constants()
-    {
-        return supportedCQL3Constants;
     }
 
     public CQL3Type asCQL3Type()

@@ -18,18 +18,14 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.EnumSet;
-import java.util.Set;
 
 import org.apache.cassandra.cql.jdbc.JdbcUTF8;
+import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Term;
 
 public class UTF8Type extends AbstractType<String>
 {
     public static final UTF8Type instance = new UTF8Type();
-
-    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.STRING);
 
     UTF8Type() {} // singleton
 
@@ -195,11 +191,6 @@ public class UTF8Type extends AbstractType<String>
         // Anything that is ascii is also utf8, and they both use bytes
         // comparison
         return this == previous || previous == AsciiType.instance;
-    }
-
-    public Set<Term.Type> supportedCQL3Constants()
-    {
-        return supportedCQL3Constants;
     }
 
     public CQL3Type asCQL3Type()

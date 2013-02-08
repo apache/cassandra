@@ -18,18 +18,14 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.EnumSet;
-import java.util.Set;
 
 import org.apache.cassandra.cql.jdbc.JdbcBoolean;
+import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Term;
 
 public class BooleanType extends AbstractType<Boolean>
 {
   public static final BooleanType instance = new BooleanType();
-
-  public final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.BOOLEAN);
 
   BooleanType() {} // singleton
 
@@ -82,11 +78,6 @@ public class BooleanType extends AbstractType<Boolean>
   {
       if (bytes.remaining() != 1 && bytes.remaining() != 0)
           throw new MarshalException(String.format("Expected 1 or 0 byte value (%d)", bytes.remaining()));
-  }
-
-  public Set<Term.Type> supportedCQL3Constants()
-  {
-      return supportedCQL3Constants;
   }
 
   public CQL3Type asCQL3Type()

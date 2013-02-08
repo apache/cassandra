@@ -93,7 +93,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
     }
 
     // Utilitary method
-    protected ByteBuffer pack(List<ByteBuffer> buffers, int elements, int size)
+    protected static ByteBuffer pack(List<ByteBuffer> buffers, int elements, int size)
     {
         ByteBuffer result = ByteBuffer.allocate(2 + size);
         result.putShort((short)elements);
@@ -105,6 +105,13 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return (ByteBuffer)result.flip();
     }
 
+    public static ByteBuffer pack(List<ByteBuffer> buffers, int elements)
+    {
+        int size = 0;
+        for (ByteBuffer bb : buffers)
+            size += 2 + bb.remaining();
+        return pack(buffers, elements, size);
+    }
 
     public CQL3Type asCQL3Type()
     {

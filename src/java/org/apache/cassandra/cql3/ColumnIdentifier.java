@@ -23,12 +23,12 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import org.apache.cassandra.cql3.statements.Selector;
+import org.apache.cassandra.cql3.statements.RawSelector;
 
 /**
  * Represents an identifer for a CQL column definition.
  */
-public class ColumnIdentifier extends Selector implements Comparable<ColumnIdentifier>
+public class ColumnIdentifier implements RawSelector, Comparable<ColumnIdentifier>
 {
     public final ByteBuffer key;
     private final String text;
@@ -69,10 +69,5 @@ public class ColumnIdentifier extends Selector implements Comparable<ColumnIdent
     public int compareTo(ColumnIdentifier other)
     {
         return key.compareTo(other.key);
-    }
-
-    public ColumnIdentifier id()
-    {
-        return this;
     }
 }

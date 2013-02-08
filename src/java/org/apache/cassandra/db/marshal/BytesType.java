@@ -18,20 +18,15 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.EnumSet;
-import java.util.Set;
 
 import org.apache.cassandra.cql.jdbc.JdbcBytes;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Hex;
 
 public class BytesType extends AbstractType<ByteBuffer>
 {
     public static final BytesType instance = new BytesType();
-
-    private final Set<Term.Type> supportedCQL3Constants = EnumSet.of(Term.Type.HEX);
 
     BytesType() {} // singleton
 
@@ -86,11 +81,6 @@ public class BytesType extends AbstractType<ByteBuffer>
         // Both asciiType and utf8Type really use bytes comparison and
         // bytesType validate everything, so it is compatible with the former.
         return this == previous || previous == AsciiType.instance || previous == UTF8Type.instance;
-    }
-
-    public Set<Term.Type> supportedCQL3Constants()
-    {
-        return supportedCQL3Constants;
     }
 
     public CQL3Type asCQL3Type()

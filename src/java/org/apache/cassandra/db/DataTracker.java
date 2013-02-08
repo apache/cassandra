@@ -506,7 +506,7 @@ public class DataTracker
         {
             Set<Memtable> newPending = ImmutableSet.copyOf(Sets.difference(memtablesPendingFlush, Collections.singleton(flushedMemtable)));
             Set<SSTableReader> newSSTables = newSSTable == null
-                                            ? Collections.<SSTableReader>emptySet()
+                                            ? sstables
                                             : newSSTables(newSSTable);
             SSTableIntervalTree intervalTree = buildIntervalTree(newSSTables);
             return new View(memtable, newPending, newSSTables, compacting, intervalTree);
