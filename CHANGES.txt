@@ -5,6 +5,7 @@
  * fix start key/end token validation for wide row iteration (CASSANDRA-5168)
  * add ConfigHelper support for Thrift frame and max message sizes (CASSANDRA-5188)
  * fix nodetool repair not fail on node down (CASSANDRA-5203)
+ * always collect tombstone hints (CASSANDRA-5068)
 
 
 1.1.9
