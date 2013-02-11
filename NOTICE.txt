@@ -44,3 +44,8 @@ Written by Nathan G. Bronson et al.
 CQL Native transport uses Netty
 (https://netty.io/)
 Copyright (C) 2011 The Netty Project
+
+LZ4 compression support provided by lz4-java (http://github.com/jpountz/lz4-java)
+Written by Adrien Grand.
+Contains bindings to the C LZ4 implementation (http://code.google.com/p/lz4/)
+Copyright (C) 2011-2012, Yann Collet.

@@ -23,6 +23,7 @@
  * add UseCondCardMark XX jvm settings on jdk 1.7 (CASSANDRA-4366)
  * CQL3 refactor to allow conversion function (CASSANDRA-5226)
  * Fix drop of sstables in some circumstance (CASSANDRA-5232)
+ * Add support for LZ4 compression (CASSANDRA-5038)
 
 
 1.2.1
