@@ -20,11 +20,11 @@ package org.apache.cassandra.service;
 public interface IMigrationListener
 {
     public void onCreateKeyspace(String ksName);
-    public void onCreateColumnFamly(String ksName, String cfName);
+    public void onCreateColumnFamily(String ksName, String cfName);
 
     public void onUpdateKeyspace(String ksName);
-    public void onUpdateColumnFamly(String ksName, String cfName);
+    public void onUpdateColumnFamily(String ksName, String cfName);
 
     public void onDropKeyspace(String ksName);
-    public void onDropColumnFamly(String ksName, String cfName);
+    public void onDropColumnFamily(String ksName, String cfName);
 }

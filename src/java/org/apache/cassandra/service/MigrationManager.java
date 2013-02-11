@@ -168,7 +168,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public void notifyCreateColumnFamily(CFMetaData cfm)
     {
         for (IMigrationListener listener : listeners)
-            listener.onCreateColumnFamly(cfm.ksName, cfm.cfName);
+            listener.onCreateColumnFamily(cfm.ksName, cfm.cfName);
     }
 
     public void notifyUpdateKeyspace(KSMetaData ksm)
@@ -180,7 +180,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public void notifyUpdateColumnFamily(CFMetaData cfm)
     {
         for (IMigrationListener listener : listeners)
-            listener.onUpdateColumnFamly(cfm.ksName, cfm.cfName);
+            listener.onUpdateColumnFamily(cfm.ksName, cfm.cfName);
     }
 
     public void notifyDropKeyspace(KSMetaData ksm)
@@ -192,7 +192,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public void notifyDropColumnFamily(CFMetaData cfm)
     {
         for (IMigrationListener listener : listeners)
-            listener.onDropColumnFamly(cfm.ksName, cfm.cfName);
+            listener.onDropColumnFamily(cfm.ksName, cfm.cfName);
     }
 
     public static void announceNewKeyspace(KSMetaData ksm) throws ConfigurationException

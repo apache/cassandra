@@ -30,7 +30,7 @@ public class MigrationListener implements IMigrationListener
         DatabaseDescriptor.getAuthorizer().revokeAll(DataResource.keyspace(ksName));
     }
 
-    public void onDropColumnFamly(String ksName, String cfName)
+    public void onDropColumnFamily(String ksName, String cfName)
     {
         DatabaseDescriptor.getAuthorizer().revokeAll(DataResource.columnFamily(ksName, cfName));
     }
@@ -39,7 +39,7 @@ public class MigrationListener implements IMigrationListener
     {
     }
 
-    public void onCreateColumnFamly(String ksName, String cfName)
+    public void onCreateColumnFamily(String ksName, String cfName)
     {
     }
 
@@ -47,7 +47,7 @@ public class MigrationListener implements IMigrationListener
     {
     }
 
-    public void onUpdateColumnFamly(String ksName, String cfName)
+    public void onUpdateColumnFamily(String ksName, String cfName)
     {
     }
 }
