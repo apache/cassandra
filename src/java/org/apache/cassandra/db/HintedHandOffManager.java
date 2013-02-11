@@ -397,16 +397,13 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             }
         }
 
-        if (rowsReplayed.get() > 0)
+        try
         {
-            try
-            {
-                compact().get();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
+            compact().get();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
         }
 
         logger.info(String.format("Finished hinted handoff of %s rows to endpoint %s", rowsReplayed, endpoint));
