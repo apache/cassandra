@@ -60,6 +60,11 @@ authenticator: org.apache.cassandra.auth.AllowAllAuthenticator
 # authorization backend, implementing IAuthorizer; used to limit access/provide permissions
 authorizer: org.apache.cassandra.auth.AllowAllAuthorizer
 
+# Validity period for permissions cache (fetching permissions can be an
+# expensive operation depending on the authorizer). Defaults to 2000,
+# set to 0 to disable. Will be disabled automatically for AllowAllAuthorizer.
+permissions_validity_in_ms: 2000
+
 # The partitioner is responsible for distributing rows (by key) across
 # nodes in the cluster.  Any IPartitioner may be used, including your
 # own as long as it is on the classpath.  Out of the box, Cassandra
