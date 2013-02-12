@@ -466,7 +466,7 @@ public class SystemTable
         for (UntypedResultSet.Row row : processInternal("SELECT peer, data_center, rack from system." + PEERS_CF))
         {
             InetAddress peer = row.getInetAddress("peer");
-            if (row.has("data_center"))
+            if (row.has("data_center") && row.has("rack"))
             {
                 Map<String, String> dcRack = new HashMap<String, String>();
                 dcRack.put("data_center", row.getString("data_center"));
