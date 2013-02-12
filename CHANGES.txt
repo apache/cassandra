@@ -70,6 +70,9 @@ Merged from 1.1:
  * add ConfigHelper support for Thrift frame and max message sizes (CASSANDRA-5188)
  * fix nodetool repair not fail on node down (CASSANDRA-5203)
  * always collect tombstone hints (CASSANDRA-5068)
+ * Fix thread growth on node removal (CASSANDRA-5175)
+ * Fix error when sourcing file in cqlsh (CASSANDRA-5235)
+ * Make Ec2Region's datacenter name configurable (CASSANDRA-5155)
 
 
 1.1.9
