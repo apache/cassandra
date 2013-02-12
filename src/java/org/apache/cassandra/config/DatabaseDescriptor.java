@@ -607,6 +607,11 @@ public class DatabaseDescriptor
         return authorizer;
     }
 
+    public static int getPermissionsValidity()
+    {
+        return conf.permissions_validity_in_ms;
+    }
+
     public static int getThriftMaxMessageLength()
     {
         return conf.thrift_max_message_length_in_mb * 1024 * 1024;

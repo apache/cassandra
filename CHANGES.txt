@@ -24,6 +24,7 @@
  * CQL3 refactor to allow conversion function (CASSANDRA-5226)
  * Fix drop of sstables in some circumstance (CASSANDRA-5232)
  * Add support for LZ4 compression (CASSANDRA-5038)
+ * Implement caching of authorization results (CASSANDRA-4295)
 
 
 1.2.1

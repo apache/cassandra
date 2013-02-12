@@ -728,7 +728,6 @@ public class CassandraServer implements Cassandra.Iface
                                                boolean allowCounterMutations)
     throws RequestValidationException
     {
-        List<String> cfamsSeen = new ArrayList<String>();
         List<IMutation> rowMutations = new ArrayList<IMutation>();
         ThriftClientState cState = state();
         String keyspace = cState.getKeyspace();
@@ -747,12 +746,7 @@ public class CassandraServer implements Cassandra.Iface
             {
                 String cfName = columnFamilyMutations.getKey();
 
-                // Avoid unneeded authorizations
-                if (!(cfamsSeen.contains(cfName)))
-                {
-                    cState.hasColumnFamilyAccess(keyspace, cfName, Permission.MODIFY);
-                    cfamsSeen.add(cfName);
-                }
+                cState.hasColumnFamilyAccess(keyspace, cfName, Permission.MODIFY);
 
                 CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, cfName);
                 ThriftValidation.validateKey(metadata, key);

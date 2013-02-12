@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.auth;
 
+import com.google.common.base.Objects;
+
 /**
  * Returned from IAuthenticator#authenticate(), represents an authenticated user everywhere internally.
  */
@@ -60,5 +62,25 @@ public class AuthenticatedUser
     public String toString()
     {
         return String.format("#<User %s>", name);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof AuthenticatedUser))
+            return false;
+
+        AuthenticatedUser u = (AuthenticatedUser) o;
+
+        return Objects.equal(this.name, u.name);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(name);
     }
 }

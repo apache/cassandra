@@ -36,6 +36,7 @@ public class Config
     public String authenticator;
     public String authority; // for backwards compatibility - will log a warning.
     public String authorizer;
+    public int permissions_validity_in_ms = 2000;
 
     /* Hashing strategy Random or OPHF */
     public String partitioner;
