@@ -6,6 +6,7 @@
  * replace supercolumns internally by composites (CASSANDRA-3237, 5123)
  * upgrade thrift to 0.9.0 (CASSANDRA-3719)
 
+
 1.2.2
  * avoid no-op caching of byte[] on commitlog append (CASSANDRA-5199)
  * more robust solution to incomplete compactions + counters (CASSANDRA-5151)
@@ -23,7 +24,6 @@
  * add UseCondCardMark XX jvm settings on jdk 1.7 (CASSANDRA-4366)
  * CQL3 refactor to allow conversion function (CASSANDRA-5226)
  * Fix drop of sstables in some circumstance (CASSANDRA-5232)
- * Add support for LZ4 compression (CASSANDRA-5038)
  * Implement caching of authorization results (CASSANDRA-4295)
  * Add support for LZ4 compression (CASSANDRA-5038)
 
