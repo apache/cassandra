@@ -89,6 +89,8 @@ public class StressAction extends Thread
         int interval = client.getProgressInterval();
         int epochIntervals = client.getProgressInterval() * 10;
         long testStartTime = System.currentTimeMillis();
+        
+        StressStatistics stats = new StressStatistics(client, output);
 
         while (!terminate)
         {
@@ -142,6 +144,14 @@ public class StressAction extends Thread
                                              keyDelta / interval,
                                              latency.getMedian(), latency.get95thPercentile(), latency.get999thPercentile(),
                                              currentTimeInSeconds));
+
+                if (client.outputStatistics()) {
+                    stats.addIntervalStats(total, 
+                                           opDelta / interval, 
+                                           keyDelta / interval, 
+                                           latency, 
+                                           currentTimeInSeconds);
+                        }
             }
         }
 
@@ -156,11 +166,14 @@ public class StressAction extends Thread
             if (consumer.getReturnCode() == FAILURE)
                 returnCode = FAILURE;
 
-        if (returnCode == SUCCESS)
+        if (returnCode == SUCCESS) {            
+            if (client.outputStatistics())
+                stats.printStats();
             // marking an end of the output to the client
-            output.println("END");
-        else
+            output.println("END");            
+        } else {
             output.println("FAILURE");
+        }
 
     }
 

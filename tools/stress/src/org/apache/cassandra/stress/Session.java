@@ -108,6 +108,7 @@ public class Session implements Serializable
         availableOptions.addOption("Z",  "compaction-strategy",  true,   "CompactionStrategy to use.");
         availableOptions.addOption("U",  "comparator",           true,   "Column Comparator to use. Currently supported types are: TimeUUIDType, AsciiType, UTF8Type.");
         availableOptions.addOption("tf", "transport-factory",    true,   "Fully-qualified TTransportFactory class name for creating a connection. Note: For Thrift over SSL, use org.apache.cassandra.stress.SSLTransportFactory.");
+        availableOptions.addOption("ns", "no-statistics",        false,  "Turn off the aggegate statistics that is normally output after completion.");
         availableOptions.addOption("ts", SSL_TRUSTSTORE,         true, "SSL: full path to truststore");
         availableOptions.addOption("tspw", SSL_TRUSTSTORE_PW,    true, "SSL: full path to truststore");
         availableOptions.addOption("prtcl", SSL_PROTOCOL,        true, "SSL: connections protocol to use (default: TLS)");
@@ -138,6 +139,7 @@ public class Session implements Serializable
     private boolean enable_cql    = false;
     private boolean use_prepared  = false;
     private boolean trace         = false;
+    private boolean captureStatistics = true;
 
     private final String outFileName;
 
@@ -405,6 +407,11 @@ public class Session implements Serializable
                 timeUUIDComparator = false;
             }
 
+            if (cmd.hasOption("ns"))
+            {
+                captureStatistics = false;
+            }
+
             if(cmd.hasOption(SSL_TRUSTSTORE))
                 encOptions.truststore = cmd.getOptionValue(SSL_TRUSTSTORE);
 
@@ -580,6 +587,11 @@ public class Session implements Serializable
     public boolean usePreparedStatements()
     {
         return use_prepared;
+    }
+
+    public boolean outputStatistics()
+    {
+        return captureStatistics;
     }
 
     /**
