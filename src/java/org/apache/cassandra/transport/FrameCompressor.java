@@ -21,6 +21,7 @@ import java.io.IOException;
 
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.xerial.snappy.Snappy;
+import org.xerial.snappy.SnappyError;
 
 public interface FrameCompressor
 {
@@ -41,7 +42,19 @@ public interface FrameCompressor
             {
                 i = new SnappyCompressor();
             }
+            catch (Exception e)
+            {
+                i = null;
+            }
             catch (NoClassDefFoundError e)
+            {
+                i = null;
+            }
+            catch (SnappyError e)
+            {
+                i = null;
+            }
+            catch (UnsatisfiedLinkError e)
             {
                 i = null;
             }
