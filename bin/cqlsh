@@ -173,7 +173,7 @@ else:
 
 debug_completion = bool(os.environ.get('CQLSH_DEBUG_COMPLETION', '') == 'YES')
 
-SYSTEM_KEYSPACES = ('system', 'system_traces', 'system_auth')
+SYSTEM_KEYSPACES = ('system', 'system_traces')
 
 # we want the cql parser to understand our cqlsh-specific commands too
 my_commands_ending_with_newline = (

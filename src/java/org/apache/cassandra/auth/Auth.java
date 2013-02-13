@@ -17,15 +17,24 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.concurrent.TimeUnit;
+
+import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.service.IMigrationListener;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.service.StorageService;
 
 public class Auth
 {
@@ -33,8 +42,19 @@ public class Auth
 
     public static final String DEFAULT_SUPERUSER_NAME = "cassandra";
 
+    private static final long SUPERUSER_SETUP_DELAY = 10; // seconds.
+
     public static final String AUTH_KS = "system_auth";
     public static final String USERS_CF = "users";
+
+    private static final String USERS_CF_SCHEMA = String.format("CREATE TABLE %s.%s ("
+                                                                + "name text,"
+                                                                + "super boolean,"
+                                                                + "PRIMARY KEY(name)"
+                                                                + ") WITH gc_grace_seconds=%d",
+                                                                AUTH_KS,
+                                                                USERS_CF,
+                                                                90 * 24 * 60 * 60); // 3 months.
 
     /**
      * Checks if the username is stored in AUTH_KS.USERS_CF.
@@ -47,7 +67,7 @@ public class Auth
         String query = String.format("SELECT * FROM %s.%s WHERE name = '%s'", AUTH_KS, USERS_CF, escape(username));
         try
         {
-            return !QueryProcessor.process(query).isEmpty();
+            return !QueryProcessor.process(query, ConsistencyLevel.QUORUM).isEmpty();
         }
         catch (RequestExecutionException e)
         {
@@ -66,7 +86,7 @@ public class Auth
         String query = String.format("SELECT super FROM %s.%s WHERE name = '%s'", AUTH_KS, USERS_CF, escape(username));
         try
         {
-            UntypedResultSet result = QueryProcessor.process(query);
+            UntypedResultSet result = QueryProcessor.process(query, ConsistencyLevel.QUORUM);
             return !result.isEmpty() && result.one().getBoolean("super");
         }
         catch (RequestExecutionException e)
@@ -87,7 +107,8 @@ public class Auth
                                              AUTH_KS,
                                              USERS_CF,
                                              escape(username),
-                                             isSuper));
+                                             isSuper),
+                               ConsistencyLevel.QUORUM);
     }
 
     /**
@@ -100,7 +121,8 @@ public class Auth
         QueryProcessor.process(String.format("DELETE FROM %s.%s WHERE name = '%s'",
                                              AUTH_KS,
                                              USERS_CF,
-                                             escape(username)));
+                                             escape(username)),
+                               ConsistencyLevel.QUORUM);
     }
 
     /**
@@ -108,23 +130,75 @@ public class Auth
      */
     public static void setup()
     {
-        authenticator().setup();
-        authorizer().setup();
+        setupAuthKeyspace();
+        setupUsersTable();
+
+        DatabaseDescriptor.getAuthenticator().setup();
+        DatabaseDescriptor.getAuthorizer().setup();
 
         // register a custom MigrationListener for permissions cleanup after dropped keyspaces/cfs.
         MigrationManager.instance.register(new MigrationListener());
+
+        // the delay is here to give the node some time to see its peers - to reduce
+        // "Skipping default superuser setup: some nodes are not ready" log spam.
+        // It's the only reason for the delay.
+        StorageService.tasks.schedule(new Runnable()
+                                      {
+                                          public void run()
+                                          {
+                                              setupDefaultSuperuser();
+                                          }
+                                      },
+                                      SUPERUSER_SETUP_DELAY,
+                                      TimeUnit.SECONDS);
     }
 
-    /**
-     * Sets up default superuser.
-     */
-    public static void setupSuperuser()
+    private static void setupAuthKeyspace()
+    {
+        if (Schema.instance.getKSMetaData(AUTH_KS) == null)
+        {
+            try
+            {
+                KSMetaData ksm = KSMetaData.newKeyspace(AUTH_KS, SimpleStrategy.class.getName(), ImmutableMap.of("replication_factor", "1"), true);
+                MigrationManager.announceNewKeyspace(ksm, 0);
+            }
+            catch (Exception e)
+            {
+                throw new AssertionError(e); // shouldn't ever happen.
+            }
+        }
+    }
+
+    private static void setupUsersTable()
+    {
+        if (Schema.instance.getCFMetaData(AUTH_KS, USERS_CF) == null)
+        {
+            try
+            {
+                QueryProcessor.process(USERS_CF_SCHEMA, ConsistencyLevel.ONE);
+            }
+            catch (RequestExecutionException e)
+            {
+                throw new AssertionError(e);
+            }
+        }
+    }
+
+    private static void setupDefaultSuperuser()
     {
         try
         {
             // insert a default superuser if AUTH_KS.USERS_CF is empty.
-            if (QueryProcessor.process(String.format("SELECT * FROM %s.%s", AUTH_KS, USERS_CF)).isEmpty())
-                insertUser(DEFAULT_SUPERUSER_NAME, true);
+            if (QueryProcessor.process(String.format("SELECT * FROM %s.%s", AUTH_KS, USERS_CF), ConsistencyLevel.QUORUM).isEmpty())
+            {
+                logger.info("Creating default superuser '{}'", DEFAULT_SUPERUSER_NAME);
+                QueryProcessor.process(String.format("INSERT INTO %s.%s (name, super) VALUES ('%s', %s) USING TIMESTAMP 0",
+                                                     AUTH_KS,
+                                                     USERS_CF,
+                                                     DEFAULT_SUPERUSER_NAME,
+                                                     true),
+                                       ConsistencyLevel.QUORUM);
+            }
         }
         catch (RequestExecutionException e)
         {
@@ -138,13 +212,35 @@ public class Auth
         return StringUtils.replace(name, "'", "''");
     }
 
-    private static IAuthenticator authenticator()
+    /**
+     * IMigrationListener implementation that cleans up permissions on dropped resources.
+     */
+    public static class MigrationListener implements IMigrationListener
     {
-        return DatabaseDescriptor.getAuthenticator();
-    }
+        public void onDropKeyspace(String ksName)
+        {
+            DatabaseDescriptor.getAuthorizer().revokeAll(DataResource.keyspace(ksName));
+        }
 
-    private static IAuthorizer authorizer()
-    {
-        return DatabaseDescriptor.getAuthorizer();
+        public void onDropColumnFamily(String ksName, String cfName)
+        {
+            DatabaseDescriptor.getAuthorizer().revokeAll(DataResource.columnFamily(ksName, cfName));
+        }
+
+        public void onCreateKeyspace(String ksName)
+        {
+        }
+
+        public void onCreateColumnFamily(String ksName, String cfName)
+        {
+        }
+
+        public void onUpdateKeyspace(String ksName)
+        {
+        }
+
+        public void onUpdateColumnFamily(String ksName, String cfName)
+        {
+        }
     }
 }

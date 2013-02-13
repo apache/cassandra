@@ -197,13 +197,18 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     public static void announceNewKeyspace(KSMetaData ksm) throws ConfigurationException
     {
+        announceNewKeyspace(ksm, FBUtilities.timestampMicros());
+    }
+
+    public static void announceNewKeyspace(KSMetaData ksm, long timestamp) throws ConfigurationException
+    {
         ksm.validate();
 
         if (Schema.instance.getKSMetaData(ksm.name) != null)
             throw new AlreadyExistsException(ksm.name);
 
         logger.info(String.format("Create new Keyspace: %s", ksm));
-        announce(ksm.toSchema(FBUtilities.timestampMicros()));
+        announce(ksm.toSchema(timestamp));
     }
 
     public static void announceNewColumnFamily(CFMetaData cfm) throws ConfigurationException

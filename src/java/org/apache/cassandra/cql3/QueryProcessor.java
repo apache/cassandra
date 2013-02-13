@@ -142,12 +142,12 @@ public class QueryProcessor
         return processStatement(prepared, cl, queryState, Collections.<ByteBuffer>emptyList());
     }
 
-    public static UntypedResultSet process(String query) throws RequestExecutionException
+    public static UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
     {
         try
         {
             QueryState state = new QueryState(new ClientState(true));
-            ResultMessage result = process(query, ConsistencyLevel.ONE, state);
+            ResultMessage result = process(query, cl, state);
             if (result instanceof ResultMessage.Rows)
                 return new UntypedResultSet(((ResultMessage.Rows)result).result);
             else

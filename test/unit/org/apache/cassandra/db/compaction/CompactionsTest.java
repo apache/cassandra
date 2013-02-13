@@ -340,6 +340,9 @@ public class CompactionsTest extends SchemaLoader
         ColumnFamily cf = cfs.getColumnFamily(filter);
         assert cf == null || cf.isEmpty() : "should be empty: " + cf;
 
+        // Sleep one second so that the removal is indeed purgeable even with gcgrace == 0
+        Thread.sleep(1000);
+
         cfs.forceBlockingFlush();
 
         Collection<SSTableReader> sstablesAfter = cfs.getSSTables();

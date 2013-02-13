@@ -36,7 +36,6 @@ import org.apache.commons.lang.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.Auth;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -237,12 +236,7 @@ public final class CFMetaData
                                                               + "requested_at timestamp"
                                                               + ") WITH COMMENT='ranges requested for transfer here'");
 
-    public static final CFMetaData AuthUsersCf = compile(18, "CREATE TABLE " + Auth.USERS_CF + " ("
-                                                             + "name text PRIMARY KEY,"
-                                                             + "super boolean"
-                                                             + ") WITH gc_grace_seconds=864000;", Auth.AUTH_KS);
-
-    public static final CFMetaData CompactionLogCF = compile(19, "CREATE TABLE " + SystemTable.COMPACTION_LOG + " ("
+    public static final CFMetaData CompactionLogCF = compile(18, "CREATE TABLE " + SystemTable.COMPACTION_LOG + " ("
                                                                  + "id uuid PRIMARY KEY,"
                                                                  + "keyspace_name text,"
                                                                  + "columnfamily_name text,"

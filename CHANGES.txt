@@ -27,6 +27,7 @@
  * Implement caching of authorization results (CASSANDRA-4295)
  * Add support for LZ4 compression (CASSANDRA-5038)
  * Fix missing columns in wide rows queries (CASSANDRA-5225)
+ * Simplify auth setup and make system_auth ks alterable (CASSANDRA-5112)
 
 
 1.2.1
