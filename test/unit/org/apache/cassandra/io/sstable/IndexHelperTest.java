@@ -47,8 +47,8 @@ public class IndexHelperTest
         assertEquals(1, IndexHelper.indexFor(bytes(12L), indexes, comp, false, -1));
         assertEquals(2, IndexHelper.indexFor(bytes(17L), indexes, comp, false, -1));
         assertEquals(3, IndexHelper.indexFor(bytes(100L), indexes, comp, false, -1));
-        assertEquals(1, IndexHelper.indexFor(bytes(100L), indexes, comp, false, 0));
-        assertEquals(2, IndexHelper.indexFor(bytes(100L), indexes, comp, false, 1));
+        assertEquals(3, IndexHelper.indexFor(bytes(100L), indexes, comp, false, 0));
+        assertEquals(3, IndexHelper.indexFor(bytes(100L), indexes, comp, false, 1));
         assertEquals(3, IndexHelper.indexFor(bytes(100L), indexes, comp, false, 2));
         assertEquals(-1, IndexHelper.indexFor(bytes(100L), indexes, comp, false, 3));
 
@@ -56,9 +56,9 @@ public class IndexHelperTest
         assertEquals(0, IndexHelper.indexFor(bytes(5L), indexes, comp, true, -1));
         assertEquals(1, IndexHelper.indexFor(bytes(17L), indexes, comp, true, -1));
         assertEquals(2, IndexHelper.indexFor(bytes(100L), indexes, comp, true, -1));
-        assertEquals(2, IndexHelper.indexFor(bytes(100L), indexes, comp, true, 0));
+        assertEquals(0, IndexHelper.indexFor(bytes(100L), indexes, comp, true, 0));
         assertEquals(1, IndexHelper.indexFor(bytes(12L), indexes, comp, true, -1));
-        assertEquals(2, IndexHelper.indexFor(bytes(100L), indexes, comp, true, 1));
+        assertEquals(1, IndexHelper.indexFor(bytes(100L), indexes, comp, true, 1));
         assertEquals(2, IndexHelper.indexFor(bytes(100L), indexes, comp, true, 2));
         assertEquals(-1, IndexHelper.indexFor(bytes(100L), indexes, comp, true, 4));
     }

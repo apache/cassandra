@@ -178,12 +178,12 @@ public class IndexHelper
         {
             if (reversed)
             {
-                startIdx = lastIndex;
-                toSearch = indexList.subList(lastIndex, indexList.size());
+                toSearch = indexList.subList(0, lastIndex + 1);
             }
             else
             {
-                toSearch = indexList.subList(0, lastIndex + 1);
+                startIdx = lastIndex;
+                toSearch = indexList.subList(lastIndex, indexList.size());
             }
         }
         int index = Collections.binarySearch(toSearch, target, getComparator(comparator, reversed));
