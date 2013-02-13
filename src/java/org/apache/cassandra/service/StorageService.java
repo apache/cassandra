@@ -450,7 +450,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 else
                 {
                     tokenMetadata.updateNormalTokens(loadedTokens.get(ep), ep);
-                    tokenMetadata.updateHostId(loadedHostIds.get(ep), ep);
+                    if (loadedHostIds.containsKey(ep))
+                        tokenMetadata.updateHostId(loadedHostIds.get(ep), ep);
                     Gossiper.instance.addSavedEndpoint(ep);
                 }
             }
