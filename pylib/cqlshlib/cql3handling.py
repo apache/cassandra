@@ -39,6 +39,7 @@ class UnexpectedTableStructure(UserWarning):
         return 'Unexpected table structure; may not translate correctly to CQL. ' + self.msg
 
 SYSTEM_KEYSPACES = ('system', 'system_traces', 'system_auth')
+NONALTERBALE_KEYSPACES = ('system', 'system_traces')
 
 class Cql3ParsingRuleSet(CqlParsingRuleSet):
     keywords = set((
@@ -305,6 +306,8 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <keyspaceName> ::= ksname=<cfOrKsName> ;
 
 <nonSystemKeyspaceName> ::= ksname=<cfOrKsName> ;
+
+<alterableKeyspaceName> ::= ksname=<cfOrKsName> ;
 
 <cfOrKsName> ::= <identifier>
                | <quotedName>
@@ -684,6 +687,11 @@ def ks_name_completer(ctxt, cass):
 @completer_for('nonSystemKeyspaceName', 'ksname')
 def ks_name_completer(ctxt, cass):
     ksnames = [n for n in cass.get_keyspace_names() if n not in SYSTEM_KEYSPACES]
+    return map(maybe_escape_name, ksnames)
+
+@completer_for('alterableKeyspaceName', 'ksname')
+def ks_name_completer(ctxt, cass):
+    ksnames = [n for n in cass.get_keyspace_names() if n not in NONALTERBALE_KEYSPACES]
     return map(maybe_escape_name, ksnames)
 
 @completer_for('columnFamilyName', 'ksname')
@@ -1242,7 +1250,7 @@ def alter_table_col_completer(ctxt, cass):
 explain_completion('alterInstructions', 'newcol', '<new_column_name>')
 
 syntax_rules += r'''
-<alterKeyspaceStatement> ::= "ALTER" ( "KEYSPACE" | "SCHEMA" ) ks=<nonSystemKeyspaceName>
+<alterKeyspaceStatement> ::= "ALTER" ( "KEYSPACE" | "SCHEMA" ) ks=<alterableKeyspaceName>
                                  "WITH" <newPropSpec> ( "AND" <newPropSpec> )*
                            ;
 '''
@@ -1295,7 +1303,7 @@ syntax_rules += r'''
              ;
 
 <dataResource> ::= ( "ALL" "KEYSPACES" )
-                 | ( "KEYSPACE" <nonSystemKeyspaceName> )
+                 | ( "KEYSPACE" <keyspaceName> )
                  | ( "TABLE"? <columnFamilyName> )
                  ;
 '''

@@ -746,8 +746,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Startup completed! Now serving reads.");
             assert tokenMetadata.sortedTokens().size() > 0;
 
-            // setup default superuser (if needed).
-            Auth.setupSuperuser();
+            Auth.setup();
         }
         else
         {
@@ -786,8 +785,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Leaving write survey mode and joining ring at operator request");
             assert tokenMetadata.sortedTokens().size() > 0;
 
-            // setup default superuser (if needed).
-            Auth.setupSuperuser();
+            Auth.setup();
         }
     }
 
@@ -2308,7 +2306,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int forceRepairAsync(final String keyspace, final boolean isSequential, final boolean isLocal, final boolean primaryRange, final String... columnFamilies)
     {
-        if (Table.SYSTEM_KS.equals(keyspace) || Tracing.TRACE_KS.equals(keyspace) || Auth.AUTH_KS.equals(keyspace))
+        if (Table.SYSTEM_KS.equals(keyspace) || Tracing.TRACE_KS.equals(keyspace))
             return 0;
 
         final int cmd = nextRepairCommand.incrementAndGet();
@@ -2348,7 +2346,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void forceTableRepairRange(final String tableName, final Collection<Range<Token>> ranges, boolean isSequential, boolean  isLocal, final String... columnFamilies) throws IOException
     {
-        if (Table.SYSTEM_KS.equals(tableName) || Tracing.TRACE_KS.equals(tableName) || Auth.AUTH_KS.equals(tableName))
+        if (Table.SYSTEM_KS.equals(tableName) || Tracing.TRACE_KS.equals(tableName))
             return;
         createRepairTask(nextRepairCommand.incrementAndGet(), tableName, ranges, isSequential, isLocal, columnFamilies).run();
     }

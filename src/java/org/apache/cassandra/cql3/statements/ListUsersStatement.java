@@ -42,7 +42,7 @@ public class ListUsersStatement extends AuthenticationStatement
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         return QueryProcessor.process(String.format("SELECT * FROM %s.%s", Auth.AUTH_KS, Auth.USERS_CF),
-                                      ConsistencyLevel.ONE,
+                                      ConsistencyLevel.QUORUM,
                                       new QueryState(new ClientState(true)));
     }
 }
