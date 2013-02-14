@@ -22,7 +22,8 @@ import java.util.Set;
 
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 
 public interface IAuthenticator
 {
@@ -72,9 +73,10 @@ public interface IAuthenticator
      *
      * @param username Username of the user to create.
      * @param options Options the user will be created with.
-     * @throws InvalidRequestException
+     * @throws RequestValidationException
+     * @throws RequestExecutionException
      */
-    void create(String username, Map<Option, Object> options) throws InvalidRequestException;
+    void create(String username, Map<Option, Object> options) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Called during execution of ALTER USER query.
@@ -84,23 +86,25 @@ public interface IAuthenticator
      *
      * @param username Username of the user that will be altered.
      * @param options Options to alter.
-     * @throws InvalidRequestException
+     * @throws RequestValidationException
+     * @throws RequestExecutionException
      */
-    void alter(String username, Map<Option, Object> options) throws InvalidRequestException;
+    void alter(String username, Map<Option, Object> options) throws RequestValidationException, RequestExecutionException;
 
 
     /**
      * Called during execution of DROP USER query.
      *
      * @param username Username of the user that will be dropped.
-     * @throws InvalidRequestException
+     * @throws RequestValidationException
+     * @throws RequestExecutionException
      */
-    void drop(String username) throws InvalidRequestException;
+    void drop(String username) throws RequestValidationException, RequestExecutionException;
 
      /**
      * Set of resources that should be made inaccessible to users and only accessible internally.
      *
-     * @return Keyspaces, column families that will be unreadable and unmodifiable by users; other resources.
+     * @return Keyspaces, column families that will be unmodifiable by users; other resources.
      */
     Set<? extends IResource> protectedResources();
 

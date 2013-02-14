@@ -35,8 +35,8 @@ public class CliSessionState
     public String  hostName;      // cassandra server name
     public int     thriftPort;    // cassandra server's thrift port
     public boolean debug = false; // print stack traces when errors occur in the CLI
-    public String  username;      // cassandra login name (if SimpleAuthenticator is used)
-    public String  password;      // cassandra login password (if SimpleAuthenticator is used)
+    public String  username;      // cassandra login name (if password-based authenticator is used)
+    public String  password;      // cassandra login password (if password-based authenticator is used)
     public String  keyspace;      // cassandra keyspace user is authenticating
     public boolean batch = false; // enable/disable batch processing mode
     public String  filename = ""; // file to read commands from

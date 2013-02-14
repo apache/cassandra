@@ -20,6 +20,8 @@
  * Simplify auth setup and make system_auth ks alterable (CASSANDRA-5112)
  * Stop compactions from hanging during bootstrap (CASSANDRA-5244)
  * fix compressed streaming sending extra chunk (CASSANDRA-5105)
+ * Add CQL3-based implementations of IAuthenticator and IAuthorizer
+   (CASSANDRA-4898)
 
 
 1.2.1

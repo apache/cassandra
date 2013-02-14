@@ -24,6 +24,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UserOptions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -41,12 +42,15 @@ public class AlterUserStatement extends AuthenticationStatement
         this.superuser = superuser;
     }
 
-    public void validate(ClientState state) throws InvalidRequestException
+    public void validate(ClientState state) throws RequestValidationException
     {
         opts.validate();
 
         if (superuser == null && opts.isEmpty())
             throw new InvalidRequestException("ALTER USER can't be empty");
+
+        // validate login here before checkAccess to avoid leaking user existence to anonymous users.
+        state.ensureNotAnonymous();
 
         if (!Auth.isExistingUser(username))
             throw new InvalidRequestException(String.format("User %s doesn't exist", username));
@@ -54,19 +58,20 @@ public class AlterUserStatement extends AuthenticationStatement
 
     public void checkAccess(ClientState state) throws UnauthorizedException
     {
-        state.validateLogin();
         AuthenticatedUser user = state.getUser();
+
+        boolean isSuper = user.isSuper();
 
         if (superuser != null && user.getName().equals(username))
             throw new UnauthorizedException("You aren't allowed to alter your own superuser status");
 
-        if (superuser != null && !user.isSuper())
+        if (superuser != null && !isSuper)
             throw new UnauthorizedException("Only superusers are allowed to alter superuser status");
 
         if (!user.isSuper() && !user.getName().equals(username))
             throw new UnauthorizedException("You aren't allowed to alter this user");
 
-        if (!user.isSuper())
+        if (!isSuper)
         {
             for (IAuthenticator.Option option : opts.getOptions().keySet())
             {
@@ -76,7 +81,7 @@ public class AlterUserStatement extends AuthenticationStatement
         }
     }
 
-    public ResultMessage execute(ClientState state) throws InvalidRequestException, RequestExecutionException
+    public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         if (!opts.isEmpty())
             DatabaseDescriptor.getAuthenticator().alter(username, opts.getOptions());

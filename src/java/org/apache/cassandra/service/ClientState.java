@@ -156,7 +156,8 @@ public class ClientState
         if (perm.equals(Permission.SELECT) && READABLE_SYSTEM_RESOURCES.contains(resource))
             return;
         if (PROTECTED_AUTH_RESOURCES.contains(resource))
-            throw new UnauthorizedException(String.format("Resource %s is inaccessible", resource));
+            if (perm.equals(Permission.CREATE) || perm.equals(Permission.ALTER) || perm.equals(Permission.DROP))
+                throw new UnauthorizedException(String.format("%s schema is protected", resource));
         ensureHasPermission(perm, resource);
     }
 
@@ -197,7 +198,7 @@ public class ClientState
     {
         validateLogin();
         if (user.isAnonymous())
-            throw new UnauthorizedException("You have to be logged in to perform this query");
+            throw new UnauthorizedException("You have to be logged in and not anonymous to perform this request");
     }
 
     private static void validateKeyspace(String keyspace) throws InvalidRequestException

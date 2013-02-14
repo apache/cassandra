@@ -21,6 +21,23 @@ Upgrading
       favor of blob constants) and its support will be removed in a future
       version.
 
+Features
+--------
+    - Built-in CQL3-based implementations of IAuthenticator (PasswordAuthenticator)
+      and IAuthorizer (CassandraAuthorizer) have been added. PasswordAuthenticator
+      stores usernames and hashed passwords in system_auth.credentials table;
+      CassandraAuthorizer stores permissions in system_auth.permissions table.
+    - system_auth keyspace is now alterable via ALTER KEYSPACE queries.
+      The default is SimpleStrategy with replication_factor of 1, but it's
+      advised to raise RF to at least 3 or 5, since CL.QUORUM is used for all
+      auth-related queries. It's also possible to change the strategy to NTS.
+    - Permissions caching with time-based expiration policy has been added to reduce
+      performance impact of authorization. Permission validity can be configured
+      using 'permissions_validity_in_ms' setting in cassandra.yaml. The default
+      is 2000 (2 seconds).
+    - SimpleAuthenticator and SimpleAuthorizer examples have been removed. Please
+      look at CassandraAuthorizer/PasswordAuthenticator instead.
+
 
 1.2.1
 =====
