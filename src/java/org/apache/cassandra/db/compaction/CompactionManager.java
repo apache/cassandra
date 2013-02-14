@@ -29,9 +29,7 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
-import com.google.common.collect.ConcurrentHashMultiset;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Multiset;
+import com.google.common.collect.*;
 import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +42,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.CompactionInfo.Holder;
 import org.apache.cassandra.db.index.SecondaryIndex;
@@ -361,42 +360,32 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.submit(runnable);
     }
 
-    public void forceUserDefinedCompaction(String ksname, String dataFiles)
+    public void forceUserDefinedCompaction(String dataFiles)
     {
-        if (!Schema.instance.getTables().contains(ksname))
-            throw new IllegalArgumentException("Unknown keyspace " + ksname);
-
         String[] filenames = dataFiles.split(",");
-        Collection<Descriptor> descriptors = new ArrayList<Descriptor>(filenames.length);
+        Multimap<Pair<String, String>, Descriptor> descriptors = ArrayListMultimap.create();
 
-        String cfname = null;
         for (String filename : filenames)
         {
             // extract keyspace and columnfamily name from filename
             Descriptor desc = Descriptor.fromFilename(filename.trim());
-            if (!desc.ksname.equals(ksname))
+            if (Schema.instance.getCFMetaData(desc) == null)
             {
-                throw new IllegalArgumentException("Given keyspace " + ksname + " does not match with file " + filename);
+                logger.warn("Schema does not exist for file {}. Skipping.", filename);
+                continue;
             }
-            if (cfname == null)
-            {
-                cfname = desc.cfname;
-            }
-            else if (!cfname.equals(desc.cfname))
-            {
-                throw new IllegalArgumentException("All provided sstables should be for the same column family");
-            }
-            File directory = new File(ksname + File.separator + cfname);
+            File directory = new File(desc.ksname + File.separator + desc.cfname);
+            // group by keyspace/columnfamily
             Pair<Descriptor, String> p = Descriptor.fromFilename(directory, filename.trim());
-            if (!p.right.equals(Component.DATA.name()))
-            {
-                throw new IllegalArgumentException(filename + " does not appear to be a data file");
-            }
-            descriptors.add(p.left);
+            Pair<String, String> key = Pair.create(p.left.ksname, p.left.cfname);
+            descriptors.put(key, p.left);
         }
 
-        ColumnFamilyStore cfs = Table.open(ksname).getColumnFamilyStore(cfname);
-        submitUserDefined(cfs, descriptors, getDefaultGcBefore(cfs));
+        for (Pair<String, String> key : descriptors.keySet())
+        {
+            ColumnFamilyStore cfs = Table.open(key.left).getColumnFamilyStore(key.right);
+            submitUserDefined(cfs, descriptors.get(key), getDefaultGcBefore(cfs));
+        }
     }
 
     public Future<?> submitUserDefined(final ColumnFamilyStore cfs, final Collection<Descriptor> dataFiles, final int gcBefore)

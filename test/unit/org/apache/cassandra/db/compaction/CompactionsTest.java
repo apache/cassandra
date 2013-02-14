@@ -268,7 +268,7 @@ public class CompactionsTest extends SchemaLoader
         int prevGeneration = sstable.descriptor.generation;
         String file = new File(sstable.descriptor.filenameFor(Component.DATA)).getName();
         // submit user defined compaction on flushed sstable
-        CompactionManager.instance.forceUserDefinedCompaction(TABLE1, file);
+        CompactionManager.instance.forceUserDefinedCompaction(file);
         // wait until user defined compaction finishes
         do
         {

@@ -58,11 +58,13 @@ public interface CompactionManagerMBean
 
     /**
      * Triggers the compaction of user specified sstables.
+     * You can specify files from various keyspaces and columnfamilies.
+     * If you do so, user defined compaction is performed several times to the groups of files
+     * in the same keyspace/columnfamily.
      *
-     * @param ksname the keyspace for the sstables to compact
      * @param dataFiles a comma separated list of sstable filename to compact
      */
-    public void forceUserDefinedCompaction(String ksname, String dataFiles);
+    public void forceUserDefinedCompaction(String dataFiles);
 
     /**
      * Stop all running compaction-like tasks having the provided {@code type}.
