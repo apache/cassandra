@@ -116,7 +116,7 @@ public abstract class Functions
             throw new InvalidRequestException(String.format("Type error: cannot assign result of function %s (type %s) to %s (type %s)", fun.name(), fun.returnType().asCQL3Type(), receiver, receiver.type.asCQL3Type()));
 
         if (providedArgs.size() != fun.argsType().size())
-            throw new InvalidRequestException(String.format("Invalid number of arguments in call to function %s: %d required but % provided", fun.name(), fun.argsType().size(), providedArgs.size()));
+            throw new InvalidRequestException(String.format("Invalid number of arguments in call to function %s: %d required but %d provided", fun.name(), fun.argsType().size(), providedArgs.size()));
 
         for (int i = 0; i < providedArgs.size(); i++)
         {
