@@ -17,11 +17,14 @@
  */
 package org.apache.cassandra.auth;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 
 /**
  * Provides a transitional IAuthenticator implementation for old-style (pre-1.2) authenticators.
@@ -64,18 +67,17 @@ public abstract class LegacyAuthenticator implements IAuthenticator
     }
 
     @Override
-    public void create(String username, Map<Option, Object> options) throws InvalidRequestException
+    public void create(String username, Map<Option, Object> options) throws RequestValidationException, RequestExecutionException
     {
     }
 
     @Override
-    public void alter(String username, Map<Option, Object> options) throws InvalidRequestException
+    public void alter(String username, Map<Option, Object> options) throws RequestValidationException, RequestExecutionException
     {
-        throw new InvalidRequestException("ALTER USER operation is not supported by LegacyAuthenticator");
     }
 
     @Override
-    public void drop(String username) throws InvalidRequestException
+    public void drop(String username) throws RequestValidationException, RequestExecutionException
     {
     }
 

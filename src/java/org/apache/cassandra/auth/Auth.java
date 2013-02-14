@@ -100,6 +100,7 @@ public class Auth
      *
      * @param username Username to insert.
      * @param isSuper User's new status.
+     * @throws RequestExecutionException
      */
     public static void insertUser(String username, boolean isSuper) throws RequestExecutionException
     {
@@ -115,6 +116,7 @@ public class Auth
      * Deletes the user from AUTH_KS.USERS_CF.
      *
      * @param username Username to delete.
+     * @throws RequestExecutionException
      */
     public static void deleteUser(String username) throws RequestExecutionException
     {
@@ -140,7 +142,7 @@ public class Auth
         MigrationManager.instance.register(new MigrationListener());
 
         // the delay is here to give the node some time to see its peers - to reduce
-        // "Skipping default superuser setup: some nodes are not ready" log spam.
+        // "Skipped default superuser setup: some nodes were not ready" log spam.
         // It's the only reason for the delay.
         StorageService.tasks.schedule(new Runnable()
                                       {
@@ -191,18 +193,18 @@ public class Auth
             // insert a default superuser if AUTH_KS.USERS_CF is empty.
             if (QueryProcessor.process(String.format("SELECT * FROM %s.%s", AUTH_KS, USERS_CF), ConsistencyLevel.QUORUM).isEmpty())
             {
-                logger.info("Creating default superuser '{}'", DEFAULT_SUPERUSER_NAME);
                 QueryProcessor.process(String.format("INSERT INTO %s.%s (name, super) VALUES ('%s', %s) USING TIMESTAMP 0",
                                                      AUTH_KS,
                                                      USERS_CF,
                                                      DEFAULT_SUPERUSER_NAME,
                                                      true),
                                        ConsistencyLevel.QUORUM);
+                logger.info("Created default superuser '{}'", DEFAULT_SUPERUSER_NAME);
             }
         }
         catch (RequestExecutionException e)
         {
-            logger.warn("Skipping default superuser setup: some nodes are not ready");
+            logger.warn("Skipped default superuser setup: some nodes were not ready");
         }
     }
 

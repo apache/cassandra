@@ -381,6 +381,7 @@
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift" version="${version}" />
           <dependency groupId="com.yammer.metrics" artifactId="metrics-core" version="2.0.3" />
           <dependency groupId="edu.stanford.ppl" artifactId="snaptree" version="0.1" />
+          <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="antelder" name="Anthony Elder"/>
@@ -463,6 +464,7 @@
         <dependency groupId="com.github.stephenc.high-scale-lib" artifactId="high-scale-lib"/>
         <dependency groupId="org.yaml" artifactId="snakeyaml"/>
         <dependency groupId="edu.stanford.ppl" artifactId="snaptree"/>
+        <dependency groupId="org.mindrot" artifactId="jbcrypt"/>
         <dependency groupId="com.yammer.metrics" artifactId="metrics-core"/>
         
         <dependency groupId="log4j" artifactId="log4j"/>
@@ -1063,7 +1065,6 @@
         <formatter type="xml" usefile="true"/>
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
-        <jvmarg value="-Daccess.properties=${test.conf}/access.properties"/>
         <jvmarg value="-Dlog4j.configuration=log4j-junit.properties" />
         <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.5.jar" />
         <jvmarg value="-ea"/>

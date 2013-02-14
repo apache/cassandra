@@ -22,6 +22,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UserOptions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -39,24 +40,27 @@ public class CreateUserStatement extends AuthenticationStatement
         this.superuser = superuser;
     }
 
-    public void validate(ClientState state) throws InvalidRequestException
+    public void validate(ClientState state) throws RequestValidationException
     {
         if (username.isEmpty())
             throw new InvalidRequestException("Username can't be an empty string");
+
         opts.validate();
+
+        // validate login here before checkAccess to avoid leaking user existence to anonymous users.
+        state.ensureNotAnonymous();
+
         if (Auth.isExistingUser(username))
             throw new InvalidRequestException(String.format("User %s already exists", username));
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException
     {
-        state.validateLogin();
-
         if (!state.getUser().isSuper())
             throw new UnauthorizedException("Only superusers are allowed to perfrom CREATE USER queries");
     }
 
-    public ResultMessage execute(ClientState state) throws InvalidRequestException, RequestExecutionException
+    public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         DatabaseDescriptor.getAuthenticator().create(username, opts.getOptions());
         Auth.insertUser(username, superuser);

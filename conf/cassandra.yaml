@@ -54,15 +54,29 @@ max_hints_delivery_threads: 2
 # Defaults to: false
 # populate_io_cache_on_flush: false
 
-# authentication backend, implementing IAuthenticator; used to identify users
+# Authentication backend, implementing IAuthenticator; used to identify users
+# Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthenticator,
+# PasswordAuthenticator}.
+#
+# - AllowAllAuthenticator performs no checks - set it to disable authentication.
+# - PasswordAuthenticator relies on username/password pairs to authenticate
+#   users. It keeps usernames and hashed passwords in system_auth.credentials table.
+#   Please increase system_auth keyspace replication factor if you use this authenticator.
 authenticator: org.apache.cassandra.auth.AllowAllAuthenticator
 
-# authorization backend, implementing IAuthorizer; used to limit access/provide permissions
+# Authorization backend, implementing IAuthorizer; used to limit access/provide permissions
+# Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthorizer,
+# CassandraAuthorizer}.
+#
+# - AllowAllAuthorizer allows any action to any user - set it to disable authorization.
+# - CassandraAuthorizer stores permissions in system_auth.permissions table. Please
+#   increase system_auth keyspace replication factor if you use this authorizer.
 authorizer: org.apache.cassandra.auth.AllowAllAuthorizer
 
 # Validity period for permissions cache (fetching permissions can be an
-# expensive operation depending on the authorizer). Defaults to 2000,
-# set to 0 to disable. Will be disabled automatically for AllowAllAuthorizer.
+# expensive operation depending on the authorizer, CassandraAuthorizer is
+# one example). Defaults to 2000, set to 0 to disable.
+# Will be disabled automatically for AllowAllAuthorizer.
 permissions_validity_in_ms: 2000
 
 # The partitioner is responsible for distributing rows (by key) across

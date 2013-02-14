@@ -22,6 +22,7 @@ import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -35,8 +36,11 @@ public class DropUserStatement extends AuthenticationStatement
         this.username = username;
     }
 
-    public void validate(ClientState state) throws InvalidRequestException
+    public void validate(ClientState state) throws RequestValidationException
     {
+        // validate login here before checkAccess to avoid leaking user existence to anonymous users.
+        state.ensureNotAnonymous();
+
         if (!Auth.isExistingUser(username))
             throw new InvalidRequestException(String.format("User %s doesn't exists", username));
 
@@ -47,12 +51,11 @@ public class DropUserStatement extends AuthenticationStatement
 
     public void checkAccess(ClientState state) throws UnauthorizedException
     {
-        state.validateLogin();
         if (!state.getUser().isSuper())
             throw new UnauthorizedException("Only superusers are allowed to perfrom DROP USER queries");
     }
 
-    public ResultMessage execute(ClientState state) throws InvalidRequestException, RequestExecutionException
+    public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         // clean up permissions after the dropped user.
         DatabaseDescriptor.getAuthorizer().revokeAll(username);

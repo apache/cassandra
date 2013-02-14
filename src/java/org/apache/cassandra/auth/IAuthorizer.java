@@ -20,8 +20,8 @@ package org.apache.cassandra.auth;
 import java.util.Set;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 
 /**
  * Primary Cassandra authorization interface.
@@ -46,11 +46,11 @@ public interface IAuthorizer
      * @param to Grantee of the permissions.
      * @param resource Resource on which to grant the permissions.
      *
-     * @throws UnauthorizedException if the granting user isn't allowed to grant (and revoke) the permissions on the resource.
-     * @throws InvalidRequestException upon parameter misconfiguration or internal error.
+     * @throws RequestValidationException
+     * @throws RequestExecutionException
      */
     void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String to)
-    throws UnauthorizedException, InvalidRequestException;
+    throws RequestValidationException, RequestExecutionException;
 
     /**
      * Revokes a set of permissions on a resource from a user.
@@ -61,11 +61,11 @@ public interface IAuthorizer
      * @param from Revokee of the permissions.
      * @param resource Resource on which to revoke the permissions.
      *
-     * @throws UnauthorizedException if the revoking user isn't allowed to revoke the permissions on the resource.
-     * @throws InvalidRequestException upon parameter misconfiguration or internal error.
+     * @throws RequestValidationException
+     * @throws RequestExecutionException
      */
     void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String from)
-    throws UnauthorizedException, InvalidRequestException;
+    throws RequestValidationException, RequestExecutionException;
 
     /**
      * Returns a list of permissions on a resource of a user.
@@ -78,11 +78,11 @@ public interface IAuthorizer
      *
      * @return All of the matching permission that the requesting user is authorized to know about.
      *
-     * @throws UnauthorizedException if the user isn't allowed to view the requested permissions.
-     * @throws InvalidRequestException upon parameter misconfiguration or internal error.
+     * @throws RequestValidationException
+     * @throws RequestExecutionException
      */
     Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String of)
-    throws UnauthorizedException, InvalidRequestException;
+    throws RequestValidationException, RequestExecutionException;
 
     /**
      * This method is called before deleting a user with DROP USER query so that a new user with the same
@@ -102,7 +102,7 @@ public interface IAuthorizer
     /**
      * Set of resources that should be made inaccessible to users and only accessible internally.
      *
-     * @return Keyspaces, column families that will be unreadable and unmodifiable by users; other resources.
+     * @return Keyspaces, column families that will be unmodifiable by users; other resources.
      */
     Set<? extends IResource> protectedResources();
 

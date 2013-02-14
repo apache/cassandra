@@ -26,7 +26,8 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -59,9 +60,11 @@ public class ListPermissionsStatement extends AuthorizationStatement
         this.recursive = recursive;
     }
 
-    public void validate(ClientState state) throws InvalidRequestException
+    public void validate(ClientState state) throws RequestValidationException
     {
         // a check to ensure the existence of the user isn't being leaked by user existence check.
+        state.ensureNotAnonymous();
+
         if (username != null && !Auth.isExistingUser(username))
             throw new InvalidRequestException(String.format("User %s doesn't exist", username));
 
@@ -73,13 +76,13 @@ public class ListPermissionsStatement extends AuthorizationStatement
         }
     }
 
-    public void checkAccess(ClientState state) throws UnauthorizedException
+    public void checkAccess(ClientState state)
     {
-        state.ensureNotAnonymous();
+        // checked in validate
     }
 
     // TODO: Create a new ResultMessage type (?). Rows will do for now.
-    public ResultMessage execute(ClientState state) throws UnauthorizedException, InvalidRequestException
+    public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         List<PermissionDetails> details = new ArrayList<PermissionDetails>();
 
@@ -112,7 +115,8 @@ public class ListPermissionsStatement extends AuthorizationStatement
         return new ResultMessage.Rows(result);
     }
 
-    private Set<PermissionDetails> list(ClientState state, IResource resource) throws UnauthorizedException, InvalidRequestException
+    private Set<PermissionDetails> list(ClientState state, IResource resource)
+    throws RequestValidationException, RequestExecutionException
     {
         return DatabaseDescriptor.getAuthorizer().list(state.getUser(), permissions, resource, username);
     }
