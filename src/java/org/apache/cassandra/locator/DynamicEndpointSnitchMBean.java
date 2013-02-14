@@ -30,7 +30,7 @@ public interface DynamicEndpointSnitchMBean {
     public String getSubsnitchClassName();
     public List<Double> dumpTimings(String hostname) throws UnknownHostException;
     /**
-     * Use this if you want to specify a severity it can be -ve
+     * Use this if you want to specify a severity; it can be negative
      * Example: Page cache is cold and you want data to be sent 
      *          though it is not preferred one.
      */
