@@ -199,6 +199,7 @@ public class CompressionMetadata
         {
             int startIndex = (int) (section.left / parameters.chunkLength());
             int endIndex = (int) (section.right / parameters.chunkLength());
+            endIndex = section.right % parameters.chunkLength() == 0 ? endIndex - 1 : endIndex;
             for (int i = startIndex; i <= endIndex; i++)
             {
                 long offset = i * 8;
