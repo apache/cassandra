@@ -254,7 +254,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             else
                 // there's a chance a host was added to the samples after our previous loop to get the time penalties.  Add 1.0 to it, or '100% bad' for the time penalty.
                 score += 1; // maxPenalty / maxPenalty
-            // finally, add the severity without any weighting, since hosts scale this relative to their own load and the size of the task causing the severity
+            // finally, add the severity without any weighting, since hosts scale this relative to their own load and the size of the task causing the severity.
+            // "Severity" is basically a measure of compaction activity (CASSANDRA-3722).
             score += StorageService.instance.getSeverity(entry.getKey());
             // lowest score (least amount of badness) wins.
             scores.put(entry.getKey(), score);            
