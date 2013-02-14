@@ -73,7 +73,6 @@ public class SystemTable
     public static final String SCHEMA_KEYSPACES_CF = "schema_keyspaces";
     public static final String SCHEMA_COLUMNFAMILIES_CF = "schema_columnfamilies";
     public static final String SCHEMA_COLUMNS_CF = "schema_columns";
-    public static final String COMPACTION_LOG = "compactions_in_progress";
 
     @Deprecated
     public static final String OLD_STATUS_CF = "LocationInfo";
@@ -181,74 +180,6 @@ public class SystemTable
         {
             logger.info("Possible old-format hints found. Truncating");
             oldHintsCfs.truncate();
-        }
-    }
-
-    /**
-     * Write compaction log, except columfamilies under system keyspace.
-     *
-     * @param cfs
-     * @param toCompact sstables to compact
-     * @return compaction task id or null if cfs is under system keyspace
-     */
-    public static UUID startCompaction(ColumnFamilyStore cfs, Iterable<SSTableReader> toCompact)
-    {
-        if (Table.SYSTEM_KS.equals(cfs.table.name))
-            return null;
-
-        UUID compactionId = UUIDGen.getTimeUUID();
-        String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, inputs) VALUES (%s, '%s', '%s', {%s})";
-        Iterable<Integer> generations = Iterables.transform(toCompact, new Function<SSTableReader, Integer>()
-        {
-            public Integer apply(SSTableReader sstable)
-            {
-                return sstable.descriptor.generation;
-            }
-        });
-        processInternal(String.format(req, COMPACTION_LOG, compactionId, cfs.table.name, cfs.columnFamily, StringUtils.join(Sets.newHashSet(generations), ',')));
-        forceBlockingFlush(COMPACTION_LOG);
-        return compactionId;
-    }
-
-    public static void finishCompaction(UUID taskId)
-    {
-        assert taskId != null;
-
-        String req = "DELETE FROM system.%s WHERE id = %s";
-        processInternal(String.format(req, COMPACTION_LOG, taskId));
-        forceBlockingFlush(COMPACTION_LOG);
-    }
-
-    /**
-     * @return unfinished compactions, grouped by keyspace/columnfamily pair.
-     */
-    public static SetMultimap<Pair<String, String>, Integer> getUnfinishedCompactions()
-    {
-        String req = "SELECT * FROM system.%s";
-        UntypedResultSet resultSet = processInternal(String.format(req, COMPACTION_LOG));
-
-        SetMultimap<Pair<String, String>, Integer> unfinishedCompactions = HashMultimap.create();
-        for (UntypedResultSet.Row row : resultSet)
-        {
-            String keyspace = row.getString("keyspace_name");
-            String columnfamily = row.getString("columnfamily_name");
-            Set<Integer> inputs = row.getSet("inputs", Int32Type.instance);
-
-            unfinishedCompactions.putAll(Pair.create(keyspace, columnfamily), inputs);
-        }
-        return unfinishedCompactions;
-    }
-
-    public static void discardCompactionsInProgress()
-    {
-        ColumnFamilyStore compactionLog = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(COMPACTION_LOG);
-        try
-        {
-            compactionLog.truncate().get();
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
         }
     }
 

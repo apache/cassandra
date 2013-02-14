@@ -103,8 +103,6 @@ public class CompactionTask extends AbstractCompactionTask
         for (SSTableReader sstable : toCompact)
             assert sstable.descriptor.cfname.equals(cfs.columnFamily);
 
-        UUID taskId = SystemTable.startCompaction(cfs, toCompact);
-
         CompactionController controller = new CompactionController(cfs, toCompact, gcBefore);
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,
         // so in our single-threaded compaction world this is a valid way of determining if we're compacting
@@ -229,11 +227,6 @@ public class CompactionTask extends AbstractCompactionTask
             {
                 throw new RuntimeException(e);
             }
-
-            // point of no return -- the new sstables are live on disk; next we'll start deleting the old ones
-            // (in replaceCompactedSSTables)
-            if (taskId != null)
-                SystemTable.finishCompaction(taskId);
 
             if (collector != null)
                 collector.finishCompaction(ci);

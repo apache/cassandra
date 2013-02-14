@@ -226,13 +226,6 @@ public final class CFMetaData
                                                               + "requested_at timestamp"
                                                               + ") WITH COMMENT='ranges requested for transfer here'");
 
-    public static final CFMetaData CompactionLogCF = compile(18, "CREATE TABLE " + SystemTable.COMPACTION_LOG + " ("
-                                                                 + "id uuid PRIMARY KEY,"
-                                                                 + "keyspace_name text,"
-                                                                 + "columnfamily_name text,"
-                                                                 + "inputs set<int>"
-                                                                 + ") WITH COMMENT='unfinished compactions'");
-
     public enum Caching
     {
         ALL, KEYS_ONLY, ROWS_ONLY, NONE;

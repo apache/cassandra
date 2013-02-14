@@ -66,7 +66,6 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public class ColumnFamilyStoreTest extends SchemaLoader
@@ -1239,60 +1238,6 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     {
         // small values so that cols won't be indexed
         testMultiRangeSlicesBehavior(prepareMultiRangeSlicesTest(10, false));
-    }
-
-    @Test
-    public void testRemoveUnifinishedCompactionLeftovers() throws Throwable
-    {
-        String ks = "Keyspace1";
-        String cf = "Standard3"; // should be empty
-
-        CFMetaData cfmeta = Schema.instance.getCFMetaData(ks, cf);
-        Directories dir = Directories.create(ks, cf);
-        ByteBuffer key = bytes("key");
-
-        // 1st sstable
-        SSTableSimpleWriter writer = new SSTableSimpleWriter(dir.getDirectoryForNewSSTables(100),
-                                                             cfmeta, StorageService.getPartitioner());
-        writer.newRow(key);
-        writer.addColumn(bytes("col"), bytes("val"), 1);
-        writer.close();
-
-        Map<Descriptor, Set<Component>> sstables = dir.sstableLister().list();
-        assert sstables.size() == 1;
-
-        Map.Entry<Descriptor, Set<Component>> sstableToOpen = sstables.entrySet().iterator().next();
-        final SSTableReader sstable1 = SSTableReader.open(sstableToOpen.getKey());
-
-        // simulate incomplete compaction
-        writer = new SSTableSimpleWriter(dir.getDirectoryForNewSSTables(100),
-                                                             cfmeta, StorageService.getPartitioner())
-        {
-            protected SSTableWriter getWriter()
-            {
-                SSTableMetadata.Collector collector = SSTableMetadata.createCollector();
-                collector.addAncestor(sstable1.descriptor.generation); // add ancestor from previously written sstable
-                return new SSTableWriter(makeFilename(directory, metadata.ksName, metadata.cfName),
-                                         0,
-                                         metadata,
-                                         StorageService.getPartitioner(),
-                                         collector);
-            }
-        };
-        writer.newRow(key);
-        writer.addColumn(bytes("col"), bytes("val"), 1);
-        writer.close();
-
-        // should have 2 sstables now
-        sstables = dir.sstableLister().list();
-        assert sstables.size() == 2;
-
-        ColumnFamilyStore.removeUnfinishedCompactionLeftovers(ks, cf, Sets.newHashSet(sstable1.descriptor.generation));
-
-        // 2nd sstable should be removed (only 1st sstable exists in set of size 1)
-        sstables = dir.sstableLister().list();
-        assert sstables.size() == 1;
-        assert sstables.containsKey(sstable1.descriptor);
     }
 
     private ColumnFamilyStore prepareMultiRangeSlicesTest(int valueSize, boolean flush) throws Throwable
