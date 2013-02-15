@@ -248,7 +248,7 @@ public abstract class Operation
             if (!(receiver.type instanceof CollectionType))
             {
                 if (!(receiver.type instanceof CounterColumnType))
-                    throw new InvalidRequestException(String.format("Invalid operation for non counter column %s", toString(receiver), receiver));
+                    throw new InvalidRequestException(String.format("Invalid operation (%s) for non counter column %s", toString(receiver), receiver));
                 return new Constants.Adder(receiver.kind == CFDefinition.Name.Kind.VALUE_ALIAS ? null : receiver.name, v);
             }
 
