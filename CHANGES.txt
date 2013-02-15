@@ -34,8 +34,8 @@
  * Add CQL3-based implementations of IAuthenticator and IAuthorizer
    (CASSANDRA-4898)
  * Fix timestamp-based tomstone removal logic (CASSANDRA-5248)
-Merged from 1.1:
  * cli: Add JMX authentication support (CASSANDRA-5080)
+ * Fix forceFlush behavior (CASSANDRA-5241)
 
 
 1.2.1
