@@ -215,21 +215,24 @@ public class CompactionTask extends AbstractCompactionTask
                sstable.cacheKey(entry.getKey(), entry.getValue());
         }
 
-        long dTime = System.currentTimeMillis() - startTime;
-        long startsize = SSTable.getTotalBytes(toCompact);
-        long endsize = SSTable.getTotalBytes(sstables);
-        double ratio = (double)endsize / (double)startsize;
+        if (logger.isInfoEnabled())
+        {
+            long dTime = System.currentTimeMillis() - startTime;
+            long startsize = SSTable.getTotalBytes(toCompact);
+            long endsize = SSTable.getTotalBytes(sstables);
+            double ratio = (double)endsize / (double)startsize;
 
-        StringBuilder builder = new StringBuilder();
-        builder.append("[");
-        for (SSTableReader reader : sstables)
-            builder.append(reader.getFilename()).append(",");
-        builder.append("]");
+            StringBuilder builder = new StringBuilder();
+            builder.append("[");
+            for (SSTableReader reader : sstables)
+                builder.append(reader.getFilename()).append(",");
+            builder.append("]");
 
-        double mbps = dTime > 0 ? (double)endsize/(1024*1024)/((double)dTime/1000) : 0;
-        logger.info(String.format("Compacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys at %fMB/s.  Time: %,dms.",
-                                  builder.toString(), startsize, endsize, (int) (ratio * 100), totalkeysWritten, mbps, dTime));
-        logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
+            double mbps = dTime > 0 ? (double)endsize/(1024*1024)/((double)dTime/1000) : 0;
+            logger.info(String.format("Compacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys at %fMB/s.  Time: %,dms.",
+                                      builder.toString(), startsize, endsize, (int) (ratio * 100), totalkeysWritten, mbps, dTime));
+            logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
+        }
         return toCompact.size();
     }
 
