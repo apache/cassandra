@@ -58,6 +58,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         cfs.setCompactionThresholds(cfs.metadata.getMinCompactionThreshold(), cfs.metadata.getMaxCompactionThreshold());
     }
 
+    // synchronized so that multiple callers as in CompactionManager.submitBackground will compute different candidates
     public synchronized AbstractCompactionTask getNextBackgroundTask(final int gcBefore)
     {
         // make local copies so they can't be changed out from under us mid-method
