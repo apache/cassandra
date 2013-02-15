@@ -39,6 +39,8 @@ public class CliSessionState
     public boolean batch = false; // enable/disable batch processing mode
     public String  filename = ""; // file to read commands from
     public int     jmxPort = 7199;// JMX service port
+    public String  jmxUsername;   // JMX service username
+    public String  jmxPassword;   // JMX service password
     public boolean verbose = false; // verbose output
     public int     schema_mwt = 10 * 1000;    // Schema migration wait time (secs.)
     /*
@@ -74,11 +76,13 @@ public class CliSessionState
     {
         try
         {
-            return new NodeProbe(hostName, jmxPort);
+            return jmxUsername != null && jmxPassword != null
+                   ? new NodeProbe(hostName, jmxPort, jmxUsername, jmxPassword)
+                   : new NodeProbe(hostName, jmxPort);
         }
         catch (Exception e)
         {
-            err.printf("WARNING: Could not connect to the JMX on %s:%d, information won't be shown.%n%n", hostName, jmxPort);
+            err.printf("WARNING: Could not connect to the JMX on %s:%d - some information won't be shown.%n%n", hostName, jmxPort);
         }
 
         return null;
