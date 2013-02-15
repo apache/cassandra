@@ -139,15 +139,15 @@ public class CompactionsPurgeTest extends SchemaLoader
         cfs.forceBlockingFlush();
         cfs.getCompactionStrategy().getUserDefinedTask(sstablesIncomplete, Integer.MAX_VALUE).execute(null);
 
-        // verify that minor compaction does not GC when key is present
-        // in a non-compacted sstable
-        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key1, new QueryPath(cfName)));
-        Assert.assertEquals(10, cf.getColumnCount());
-
         // verify that minor compaction does GC when key is provably not
         // present in a non-compacted sstable
-        cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key2, new QueryPath(cfName)));
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key2, new QueryPath(cfName)));
         assert cf == null;
+
+        // verify that minor compaction still GC when key is present
+        // in a non-compacted sstable but the timestamp ensures we won't miss anything
+        cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key1, new QueryPath(cfName)));
+        Assert.assertEquals(1, cf.getColumnCount());
     }
 
     @Test
@@ -182,7 +182,7 @@ public class CompactionsPurgeTest extends SchemaLoader
 
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key3, new QueryPath(cfName)));
         Assert.assertTrue(!cf.getColumn(ByteBufferUtil.bytes("c2")).isLive());
-        Assert.assertEquals(1, cf.getColumnCount());
+        Assert.assertEquals(2, cf.getColumnCount());
     }
 
     @Test
