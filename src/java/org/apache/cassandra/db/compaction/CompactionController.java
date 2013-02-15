@@ -114,7 +114,7 @@ public class CompactionController
         List<SSTableReader> filteredSSTables = overlappingTree.search(key);
         for (SSTableReader sstable : filteredSSTables)
         {
-            if (sstable.getBloomFilter().isPresent(key.key) && sstable.getMinTimestamp() >= maxDeletionTimestamp)
+            if (sstable.getBloomFilter().isPresent(key.key) && sstable.getMinTimestamp() <= maxDeletionTimestamp)
                 return false;
         }
         return true;
