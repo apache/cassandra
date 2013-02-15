@@ -689,8 +689,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (clean)
         {
-            logger.debug("forceFlush requested but everything is clean in {}", columnFamily);
-            return Futures.immediateCheckedFuture(null);
+            // We could have a memtable for this column family that is being
+            // flushed. Make sure the future returned wait for that so callers can
+            // assume that any data inserted prior to the call are fully flushed
+            // when the future returns (see #5241).
+            return postFlushExecutor.submit(new Runnable()
+            {
+                public void run()
+                {
+                    logger.debug("forceFlush requested but everything is clean in {}", columnFamily);
+                }
+            });
         }
 
         return switchMemtable(true, false);
