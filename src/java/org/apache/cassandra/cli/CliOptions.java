@@ -44,6 +44,8 @@ public class CliOptions
     private static final String HELP_OPTION = "help";
     private static final String FILE_OPTION = "file";
     private static final String JMX_PORT_OPTION = "jmxport";
+    private static final String JMX_USERNAME_OPTION = "jmxusername";
+    private static final String JMX_PASSWORD_OPTION = "jmxpassword";
     private static final String VERBOSE_OPTION  = "verbose";
     private static final String SCHEMA_MIGRATION_WAIT_TIME = "schema-mwt";
 
@@ -71,6 +73,8 @@ public class CliOptions
         options.addOption("k",  KEYSPACE_OPTION, "KEYSPACE", "cassandra keyspace user is authenticated against");
         options.addOption("f",  FILE_OPTION,     "FILENAME", "load statements from the specific file");
         options.addOption(null, JMX_PORT_OPTION, "JMX-PORT", "JMX service port");
+        options.addOption(null, JMX_USERNAME_OPTION, "JMX-USERNAME", "JMX service username");
+        options.addOption(null, JMX_PASSWORD_OPTION, "JMX-PASSWORD", "JMX service password");
         options.addOption(null, SCHEMA_MIGRATION_WAIT_TIME,  "TIME", "Schema migration wait time (secs.), default is 10 secs");
         options.addOption("tf", TRANSPORT_FACTORY, "TRANSPORT-FACTORY", "Fully-qualified TTransportFactory class name for creating a connection to cassandra");
 
@@ -161,6 +165,16 @@ public class CliOptions
             if (cmd.hasOption(JMX_PORT_OPTION))
             {
                 css.jmxPort = Integer.parseInt(cmd.getOptionValue(JMX_PORT_OPTION));
+            }
+
+            if (cmd.hasOption(JMX_USERNAME_OPTION))
+            {
+                css.jmxUsername = cmd.getOptionValue(JMX_USERNAME_OPTION);
+            }
+
+            if (cmd.hasOption(JMX_PASSWORD_OPTION))
+            {
+                css.jmxPassword = cmd.getOptionValue(JMX_PASSWORD_OPTION);
             }
 
             if (cmd.hasOption(HELP_OPTION))
