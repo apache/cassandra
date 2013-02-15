@@ -22,6 +22,7 @@
  * fix compressed streaming sending extra chunk (CASSANDRA-5105)
  * Add CQL3-based implementations of IAuthenticator and IAuthorizer
    (CASSANDRA-4898)
+ * Fix timestamp-based tomstone removal logic (CASSANDRA-5248)
 
 
 1.2.1
