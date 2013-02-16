@@ -814,8 +814,6 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
                     return tableCmp;
 
                 // get CF name and split it for index name
-                String q = e1.getValue().getColumnFamilyName();
-                String h = e2.getValue().getColumnFamilyName();
                 String e1CF[] = e1.getValue().getColumnFamilyName().split("\\.");
                 String e2CF[] = e1.getValue().getColumnFamilyName().split("\\.");
                 assert e1CF.length <= 2 && e2CF.length <= 2 : "unexpected split count for column family name";
