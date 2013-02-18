@@ -57,6 +57,7 @@ public class SSTableMetadata
     public final String partitioner;
     public final Set<Integer> ancestors;
     public final StreamingHistogram estimatedTombstoneDropTime;
+    public final int sstableLevel;
 
     private SSTableMetadata()
     {
@@ -68,11 +69,12 @@ public class SSTableMetadata
              NO_COMPRESSION_RATIO,
              null,
              Collections.<Integer>emptySet(),
-             defaultTombstoneDropTimeHistogram());
+             defaultTombstoneDropTimeHistogram(),
+             0);
     }
 
     private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long minTimestamp,
-            long maxTimestamp, double cr, String partitioner, Set<Integer> ancestors, StreamingHistogram estimatedTombstoneDropTime)
+            long maxTimestamp, double cr, String partitioner, Set<Integer> ancestors, StreamingHistogram estimatedTombstoneDropTime, int sstableLevel)
     {
         this.estimatedRowSize = rowSizes;
         this.estimatedColumnCount = columnCounts;
@@ -83,6 +85,7 @@ public class SSTableMetadata
         this.partitioner = partitioner;
         this.ancestors = ancestors;
         this.estimatedTombstoneDropTime = estimatedTombstoneDropTime;
+        this.sstableLevel = sstableLevel;
     }
 
     public static SSTableMetadata createDefaultInstance()
@@ -93,6 +96,28 @@ public class SSTableMetadata
     public static Collector createCollector()
     {
         return new Collector();
+    }
+
+    /**
+     * Used when updating sstablemetadata files with an sstable level
+     * @param metadata
+     * @param sstableLevel
+     * @return
+     */
+    @Deprecated
+    public static SSTableMetadata copyWithNewSSTableLevel(SSTableMetadata metadata, int sstableLevel)
+    {
+        return new SSTableMetadata(metadata.estimatedRowSize,
+                                   metadata.estimatedColumnCount,
+                                   metadata.replayPosition,
+                                   metadata.minTimestamp,
+                                   metadata.maxTimestamp,
+                                   metadata.compressionRatio,
+                                   metadata.partitioner,
+                                   metadata.ancestors,
+                                   metadata.estimatedTombstoneDropTime,
+                                   sstableLevel);
+
     }
 
     static EstimatedHistogram defaultColumnCountHistogram()
@@ -147,6 +172,7 @@ public class SSTableMetadata
         protected double compressionRatio = NO_COMPRESSION_RATIO;
         protected Set<Integer> ancestors = new HashSet<Integer>();
         protected StreamingHistogram estimatedTombstoneDropTime = defaultTombstoneDropTimeHistogram();
+        protected int sstableLevel;
 
         public void addRowSize(long rowSize)
         {
@@ -192,7 +218,8 @@ public class SSTableMetadata
                                        compressionRatio,
                                        partitioner,
                                        ancestors,
-                                       estimatedTombstoneDropTime);
+                                       estimatedTombstoneDropTime,
+                                       sstableLevel);
         }
 
         public Collector estimatedRowSize(EstimatedHistogram estimatedRowSize)
@@ -234,6 +261,13 @@ public class SSTableMetadata
             addColumnCount(stats.columnCount);
             mergeTombstoneHistogram(stats.tombstoneHistogram);
         }
+
+        public Collector sstableLevel(int sstableLevel)
+        {
+            this.sstableLevel = sstableLevel;
+            return this;
+        }
+
     }
 
     public static class SSTableMetadataSerializer
@@ -255,9 +289,53 @@ public class SSTableMetadata
             for (Integer g : sstableStats.ancestors)
                 dos.writeInt(g);
             StreamingHistogram.serializer.serialize(sstableStats.estimatedTombstoneDropTime, dos);
+            dos.writeInt(sstableStats.sstableLevel);
+        }
+
+        /**
+         * Used to serialize to an old version - needed to be able to update sstable level without a full compaction.
+         *
+         * @deprecated will be removed when it is assumed that the minimum upgrade-from-version is the version that this
+         * patch made it into
+         *
+         * @param sstableStats
+         * @param legacyDesc
+         * @param dos
+         * @throws IOException
+         */
+        @Deprecated
+        public void legacySerialize(SSTableMetadata sstableStats, Descriptor legacyDesc, DataOutput dos) throws IOException
+        {
+            EstimatedHistogram.serializer.serialize(sstableStats.estimatedRowSize, dos);
+            EstimatedHistogram.serializer.serialize(sstableStats.estimatedColumnCount, dos);
+            if (legacyDesc.version.metadataIncludesReplayPosition)
+                ReplayPosition.serializer.serialize(sstableStats.replayPosition, dos);
+            if (legacyDesc.version.tracksMinTimestamp)
+                dos.writeLong(sstableStats.minTimestamp);
+            if (legacyDesc.version.tracksMaxTimestamp)
+                dos.writeLong(sstableStats.maxTimestamp);
+            if (legacyDesc.version.hasCompressionRatio)
+                dos.writeDouble(sstableStats.compressionRatio);
+            if (legacyDesc.version.hasPartitioner)
+                dos.writeUTF(sstableStats.partitioner);
+            if (legacyDesc.version.hasAncestors)
+            {
+                dos.writeInt(sstableStats.ancestors.size());
+                for (Integer g : sstableStats.ancestors)
+                    dos.writeInt(g);
+            }
+            if (legacyDesc.version.tracksTombstones)
+                StreamingHistogram.serializer.serialize(sstableStats.estimatedTombstoneDropTime, dos);
+
+            dos.writeInt(sstableStats.sstableLevel);
         }
 
         public SSTableMetadata deserialize(Descriptor descriptor) throws IOException
+        {
+            return deserialize(descriptor, true);
+        }
+
+        public SSTableMetadata deserialize(Descriptor descriptor, boolean loadSSTableLevel) throws IOException
         {
             logger.debug("Load metadata for {}", descriptor);
             File statsFile = new File(descriptor.filenameFor(SSTable.COMPONENT_STATS));
@@ -270,15 +348,19 @@ public class SSTableMetadata
             DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(statsFile)));
             try
             {
-                return deserialize(dis, descriptor);
+                return deserialize(dis, descriptor, loadSSTableLevel);
             }
             finally
             {
                 FileUtils.closeQuietly(dis);
             }
         }
-
         public SSTableMetadata deserialize(DataInputStream dis, Descriptor desc) throws IOException
+        {
+            return deserialize(dis, desc, true);
+        }
+
+        public SSTableMetadata deserialize(DataInputStream dis, Descriptor desc, boolean loadSSTableLevel) throws IOException
         {
             EstimatedHistogram rowSizes = EstimatedHistogram.serializer.deserialize(dis);
             EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(dis);
@@ -308,7 +390,12 @@ public class SSTableMetadata
             StreamingHistogram tombstoneHistogram = desc.version.tracksTombstones
                                                    ? StreamingHistogram.serializer.deserialize(dis)
                                                    : defaultTombstoneDropTimeHistogram();
-            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, minTimestamp, maxTimestamp, compressionRatio, partitioner, ancestors, tombstoneHistogram);
+            int sstableLevel = 0;
+
+            if (loadSSTableLevel && dis.available() > 0)
+                sstableLevel = dis.readInt();
+
+            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, minTimestamp, maxTimestamp, compressionRatio, partitioner, ancestors, tombstoneHistogram, sstableLevel);
         }
     }
 }

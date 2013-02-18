@@ -1,4 +1,6 @@
 1.3
+ * Move sstable level information into the Stats component, removing the
+   need for a separate Manifest file (CASSANDRA-4872)
  * avoid serializing to byte[] on commitlog append (CASSANDRA-5199)
  * make index_interval configurable per columnfamily (CASSANDRA-3961)
  * add default_tim_to_live (CASSANDRA-3974)

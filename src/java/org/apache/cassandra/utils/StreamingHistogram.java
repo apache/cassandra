@@ -24,6 +24,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.*;
+import com.google.common.base.Objects;
 
 /**
  * Histogram that can be constructed from streaming of data.
@@ -198,4 +199,24 @@ public class StreamingHistogram
             throw new UnsupportedOperationException();
         }
     }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof StreamingHistogram))
+            return false;
+
+        StreamingHistogram that = (StreamingHistogram) o;
+        return maxBinSize == that.maxBinSize && bin.equals(that.bin);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(bin.hashCode(), maxBinSize);
+    }
+
 }

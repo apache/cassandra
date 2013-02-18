@@ -398,6 +398,7 @@ public class Directories
         }
     }
 
+    @Deprecated
     public File tryGetLeveledManifest()
     {
         for (File dir : sstableDirectories)
@@ -413,14 +414,7 @@ public class Directories
         return null;
     }
 
-    public File getOrCreateLeveledManifest()
-    {
-        File manifestFile = tryGetLeveledManifest();
-        if (manifestFile == null)
-            manifestFile = new File(sstableDirectories[0], cfname + LeveledManifest.EXTENSION);
-        return manifestFile;
-    }
-
+    @Deprecated
     public void snapshotLeveledManifest(String snapshotName)
     {
         File manifest = tryGetLeveledManifest();

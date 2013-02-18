@@ -143,19 +143,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         else if (notification instanceof SSTableListChangedNotification)
         {
             SSTableListChangedNotification listChangedNotification = (SSTableListChangedNotification) notification;
-            switch (listChangedNotification.compactionType)
-            {
-                // Cleanup, scrub and updateSSTable shouldn't promote (see #3989)
-                case CLEANUP:
-                case SCRUB:
-                case UPGRADE_SSTABLES:
-                case TOMBSTONE_COMPACTION: // Also when performing tombstone removal.
-                    manifest.replace(listChangedNotification.removed, listChangedNotification.added);
-                    break;
-                default:
-                    manifest.promote(listChangedNotification.removed, listChangedNotification.added);
-                    break;
-            }
+            manifest.replace(listChangedNotification.removed, listChangedNotification.added);
         }
     }
 
@@ -168,7 +156,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     {
         Multimap<Integer, SSTableReader> byLevel = ArrayListMultimap.create();
         for (SSTableReader sstable : sstables)
-            byLevel.get(manifest.levelOf(sstable)).add(sstable);
+            byLevel.get(sstable.getSSTableLevel()).add(sstable);
 
         List<ICompactionScanner> scanners = new ArrayList<ICompactionScanner>(sstables.size());
         for (Integer level : byLevel.keySet())
@@ -321,5 +309,10 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         uncheckedOptions.remove(SSTABLE_SIZE_OPTION);
 
         return uncheckedOptions;
+    }
+
+    public int getNextLevel(Collection<SSTableReader> sstables, OperationType operationType)
+    {
+        return manifest.getNextLevel(sstables, operationType);
     }
 }

@@ -33,6 +33,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
+
+import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -589,6 +591,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 throw new RuntimeException(String.format("Can't open incompatible SSTable! Current version %s, found file: %s",
                                                          Descriptor.Version.CURRENT,
                                                          descriptor));
+
+            // force foreign sstables to level 0
+            try
+            {
+                if (new File(descriptor.filenameFor(Component.STATS)).exists())
+                {
+                    SSTableMetadata oldMetadata = SSTableMetadata.serializer.deserialize(descriptor);
+                    LeveledManifest.mutateLevel(oldMetadata, descriptor, descriptor.filenameFor(Component.STATS), 0);
+                }
+            }
+            catch (IOException e)
+            {
+                SSTableReader.logOpenException(entry.getKey(), e);
+                continue;
+            }
 
             Descriptor newDescriptor = new Descriptor(descriptor.version,
                                                       descriptor.directory,
@@ -1969,10 +1986,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return intern(name);
     }
 
-    public SSTableWriter createCompactionWriter(long estimatedRows, File location, Collection<SSTableReader> sstables)
+    public SSTableWriter createCompactionWriter(OperationType operationType, long estimatedRows, File location, Collection<SSTableReader> sstables)
     {
         ReplayPosition rp = ReplayPosition.getReplayPosition(sstables);
         SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector().replayPosition(rp);
+        sstableMetadataCollector.sstableLevel(compactionStrategy.getNextLevel(sstables, operationType));
 
         // Get the max timestamp of the precompacted sstables
         // and adds generation of live ancestors
@@ -1980,6 +1998,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             sstableMetadataCollector.updateMinTimestamp(sstable.getMinTimestamp());
             sstableMetadataCollector.updateMaxTimestamp(sstable.getMaxTimestamp());
+
             sstableMetadataCollector.addAncestor(sstable.descriptor.generation);
             for (Integer i : sstable.getAncestors())
             {

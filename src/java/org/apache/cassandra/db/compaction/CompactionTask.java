@@ -147,7 +147,7 @@ public class CompactionTask extends AbstractCompactionTask
                 return;
             }
 
-            SSTableWriter writer = cfs.createCompactionWriter(keysPerSSTable, sstableDirectory, toCompact);
+            SSTableWriter writer = cfs.createCompactionWriter(compactionType, keysPerSSTable, sstableDirectory, toCompact);
             writers.add(writer);
             while (iter.hasNext())
             {
@@ -185,7 +185,7 @@ public class CompactionTask extends AbstractCompactionTask
                 {
                     // tmp = false because later we want to query it with descriptor from SSTableReader
                     cachedKeyMap.put(writer.descriptor.asTemporary(false), cachedKeys);
-                    writer = cfs.createCompactionWriter(keysPerSSTable, sstableDirectory, toCompact);
+                    writer = cfs.createCompactionWriter(compactionType, keysPerSSTable, sstableDirectory, toCompact);
                     writers.add(writer);
                     cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
                 }
