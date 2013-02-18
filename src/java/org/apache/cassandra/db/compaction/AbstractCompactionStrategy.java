@@ -85,23 +85,31 @@ public abstract class AbstractCompactionStrategy
 
     /**
      * @param gcBefore throw away tombstones older than this
+     *
      * @return the next background/minor compaction task to run; null if nothing to do.
+     *
      * Is responsible for marking its sstables as compaction-pending.
      */
     public abstract AbstractCompactionTask getNextBackgroundTask(final int gcBefore);
 
     /**
      * @param gcBefore throw away tombstones older than this
+     *
      * @return a compaction task that should be run to compact this columnfamilystore
      * as much as possible.  Null if nothing to do.
+     *
+     * Is responsible for marking its sstables as compaction-pending.
      */
     public abstract AbstractCompactionTask getMaximalTask(final int gcBefore);
 
     /**
      * @param sstables SSTables to compact. Must be marked as compacting.
      * @param gcBefore throw away tombstones older than this
+     *
      * @return a compaction task corresponding to the requested sstables.
      * Will not be null. (Will throw if user requests an invalid compaction.)
+     *
+     * Is responsible for marking its sstables as compaction-pending.
      */
     public abstract AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore);
 

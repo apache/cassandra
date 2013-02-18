@@ -58,8 +58,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         cfs.setCompactionThresholds(cfs.metadata.getMinCompactionThreshold(), cfs.metadata.getMaxCompactionThreshold());
     }
 
-    // synchronized so that multiple callers as in CompactionManager.submitBackground will compute different candidates
-    public synchronized AbstractCompactionTask getNextBackgroundTask(final int gcBefore)
+    private List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
     {
         // make local copies so they can't be changed out from under us mid-method
         int minThreshold = cfs.getMinimumCompactionThreshold();
@@ -67,7 +66,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         if (minThreshold == 0 || maxThreshold == 0)
         {
             logger.debug("Compaction is currently disabled.");
-            return null;
+            return Collections.emptyList();
         }
 
         Set<SSTableReader> candidates = cfs.getUncompactingSSTables();
@@ -106,10 +105,10 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             }
 
             if (prunedBuckets.isEmpty())
-                return null;
+                return Collections.emptyList();
         }
 
-        List<SSTableReader> smallestBucket = Collections.min(prunedBuckets, new Comparator<List<SSTableReader>>()
+        return Collections.min(prunedBuckets, new Comparator<List<SSTableReader>>()
         {
             public int compare(List<SSTableReader> o1, List<SSTableReader> o2)
             {
@@ -129,23 +128,44 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
                 return n / sstables.size();
             }
         });
+    }
 
-        if (!cfs.getDataTracker().markCompacting(smallestBucket))
+    public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    {
+        while (true)
         {
-            logger.debug("Unable to mark {} for compaction; probably a user-defined compaction got in the way", smallestBucket);
-            return null;
-        }
+            List<SSTableReader> smallestBucket = getNextBackgroundSSTables(gcBefore);
 
-        return new CompactionTask(cfs, smallestBucket, gcBefore);
+            if (smallestBucket.isEmpty())
+                return null;
+
+            if (cfs.getDataTracker().markCompacting(smallestBucket))
+                return new CompactionTask(cfs, smallestBucket, gcBefore);
+        }
     }
 
     public AbstractCompactionTask getMaximalTask(final int gcBefore)
     {
-        return cfs.getSSTables().isEmpty() ? null : new CompactionTask(cfs, filterSuspectSSTables(cfs.getSSTables()), gcBefore);
+        while (true)
+        {
+            List<SSTableReader> sstables = filterSuspectSSTables(cfs.getUncompactingSSTables());
+            if (sstables.isEmpty())
+                return null;
+            if (cfs.getDataTracker().markCompacting(sstables))
+                return new CompactionTask(cfs, sstables, gcBefore);
+        }
     }
 
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore)
     {
+        assert !sstables.isEmpty(); // checked for by CM.submitUserDefined
+
+        if (!cfs.getDataTracker().markCompacting(sstables))
+        {
+            logger.debug("Unable to mark {} for compaction; probably a background compaction got to it first.  You can disable background compactions temporarily if this is a problem", sstables);
+            return null;
+        }
+
         return new CompactionTask(cfs, sstables, gcBefore).setUserDefined(true);
     }
 

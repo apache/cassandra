@@ -85,14 +85,7 @@ public class LongLeveledCompactionStrategyTest extends SchemaLoader
                 {
                     public void run()
                     {
-                        try
-                        {
-                            t.execute(null);
-                        }
-                        finally
-                        {
-                            t.unmarkSSTables();
-                        }
+                        t.execute(null);
                     }
                 });
             }
