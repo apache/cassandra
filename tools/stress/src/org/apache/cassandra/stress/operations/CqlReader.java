@@ -80,10 +80,10 @@ public class CqlReader extends Operation
         List<String> queryParams = new ArrayList<String>();
         if (session.columnNames != null)
             for (int i = 0; i < session.columnNames.size(); i++)
-                queryParams.add(getUnQuotedCqlBlob(session.columnNames.get(i).array()));
+                queryParams.add(getUnQuotedCqlBlob(session.columnNames.get(i).array(), session.cqlVersion.startsWith("3")));
 
         byte[] key = generateKey();
-        queryParams.add(getUnQuotedCqlBlob(key));
+        queryParams.add(getUnQuotedCqlBlob(key, session.cqlVersion.startsWith("3")));
 
         String formattedQuery = null;
 

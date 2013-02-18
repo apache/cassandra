@@ -89,11 +89,11 @@ public class CqlInserter extends Operation
         for (int i = 0; i < session.getColumnsPerKey(); i++)
         {
             // Column value
-            queryParms.add(getUnQuotedCqlBlob(values.get(i % values.size()).array()));
+            queryParms.add(getUnQuotedCqlBlob(values.get(i % values.size()).array(), session.cqlVersion.startsWith("3")));
         }
 
         String key = String.format("%0" + session.getTotalKeysLength() + "d", index);
-        queryParms.add(getUnQuotedCqlBlob(key));
+        queryParms.add(getUnQuotedCqlBlob(key, session.cqlVersion.startsWith("3")));
 
         String formattedQuery = null;
 

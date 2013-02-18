@@ -89,14 +89,14 @@ public class CqlCounterGetter extends Operation
                 {
                     Integer stmntId = getPreparedStatement(client, cqlQuery);
                     if (session.cqlVersion.startsWith("3"))
-                        result = client.execute_prepared_cql3_query(stmntId, Collections.singletonList(ByteBufferUtil.bytes(getUnQuotedCqlBlob(key))), session.getConsistencyLevel());
+                        result = client.execute_prepared_cql3_query(stmntId, Collections.singletonList(ByteBuffer.wrap(key)), session.getConsistencyLevel());
                     else
-                        result = client.execute_prepared_cql_query(stmntId, Collections.singletonList(ByteBufferUtil.bytes(getUnQuotedCqlBlob(key))));
+                        result = client.execute_prepared_cql_query(stmntId, Collections.singletonList(ByteBuffer.wrap(key)));
                 }
                 else
                 {
                     if (formattedQuery == null)
-                        formattedQuery = formatCqlQuery(cqlQuery, Collections.singletonList(getUnQuotedCqlBlob(key)));
+                        formattedQuery = formatCqlQuery(cqlQuery, Collections.singletonList(getUnQuotedCqlBlob(key, session.cqlVersion.startsWith("3"))));
 
                     if (session.cqlVersion.startsWith("3"))
                         result = client.execute_cql3_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE, session.getConsistencyLevel());
