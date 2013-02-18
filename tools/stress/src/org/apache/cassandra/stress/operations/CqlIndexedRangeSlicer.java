@@ -62,7 +62,7 @@ public class CqlIndexedRangeSlicer extends Operation
             if (session.cqlVersion.startsWith("2"))
                 query.append(" USING CONSISTENCY ").append(session.getConsistencyLevel());
 
-            query.append(" WHERE C1=").append(getUnQuotedCqlBlob(values.get(1).array()))
+            query.append(" WHERE C1=").append(getUnQuotedCqlBlob(values.get(1).array(), session.cqlVersion.startsWith("3")))
                  .append(" AND KEY > ? LIMIT ").append(session.getKeysPerCall());
 
             cqlQuery = query.toString();
@@ -81,7 +81,7 @@ public class CqlIndexedRangeSlicer extends Operation
             String exceptionMessage = null;
             CqlResult results = null;
             String formattedQuery = null;
-            List<String> queryParms = Collections.singletonList(getUnQuotedCqlBlob(startOffset));
+            List<String> queryParms = Collections.singletonList(getUnQuotedCqlBlob(startOffset, session.cqlVersion.startsWith("3")));
 
             for (int t = 0; t < session.getRetryTimes(); t++)
             {
