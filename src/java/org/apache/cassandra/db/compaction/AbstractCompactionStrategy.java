@@ -243,9 +243,4 @@ public abstract class AbstractCompactionStrategy
         uncheckedOptions.remove(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
         return uncheckedOptions;
     }
-
-    public int getNextLevel(Collection<SSTableReader> sstables, OperationType operationType)
-    {
-        return 0;
-    }
 }

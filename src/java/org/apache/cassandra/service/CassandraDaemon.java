@@ -28,9 +28,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
-
-import org.apache.cassandra.db.compaction.LegacyLeveledManifest;
-import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -202,19 +199,6 @@ public class CassandraDaemon
         {
             for (CFMetaData cfm : Schema.instance.getTableMetaData(table).values())
             {
-                if (LegacyLeveledManifest.manifestNeedsMigration(table,cfm.cfName))
-                {
-                    try
-                    {
-                        LegacyLeveledManifest.migrateManifests(table, cfm.cfName);
-                    }
-                    catch (IOException e)
-                    {
-                        logger.error("Could not migrate old leveled manifest. Move away the .json file in the data directory", e);
-                        System.exit(100);
-                    }
-                }
-
                 ColumnFamilyStore.scrubDataDirectories(table, cfm.cfName);
             }
         }
