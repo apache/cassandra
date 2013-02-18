@@ -53,6 +53,18 @@ public abstract class AbstractCompactionStrategy
     protected float tombstoneThreshold;
     protected long tombstoneCompactionInterval;
 
+    /**
+     * pause/resume/getNextBackgroundTask must synchronize.  This guarantees that after pause completes,
+     * no new tasks will be generated; or put another way, pause can't run until in-progress tasks are
+     * done being created.
+     *
+     * This allows runWithCompactionsDisabled to be confident that after pausing, once in-progress
+     * tasks abort, it's safe to proceed with truncate/cleanup/etc.
+     *
+     * See CASSANDRA-3430
+     */
+    protected boolean isActive = true;
+
     protected AbstractCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
         assert cfs != null;
@@ -78,10 +90,30 @@ public abstract class AbstractCompactionStrategy
     }
 
     /**
-     * Releases any resources if this strategy is shutdown (when the CFS is reloaded after a schema change).
-     * Default is to do nothing.
+     * For internal, temporary suspension of background compactions so that we can do exceptional
+     * things like truncate or major compaction
      */
-    public void shutdown() { }
+    public synchronized void pause()
+    {
+        isActive = false;
+    }
+
+    /**
+     * For internal, temporary suspension of background compactions so that we can do exceptional
+     * things like truncate or major compaction
+     */
+    public synchronized void resume()
+    {
+        isActive = true;
+    }
+
+    /**
+     * Releases any resources if this strategy is shutdown (when the CFS is reloaded after a schema change).
+     */
+    public void shutdown()
+    {
+        isActive = false;
+    }
 
     /**
      * @param gcBefore throw away tombstones older than this

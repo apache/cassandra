@@ -132,18 +132,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
     public void forceBlockingFlush()
     {
-        try
-        {
-            indexCfs.forceBlockingFlush();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        indexCfs.forceBlockingFlush();
     }
 
     public void invalidate()
@@ -151,7 +140,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         indexCfs.invalidate();
     }
 
-    public void truncate(long truncatedAt)
+    public void truncateBlocking(long truncatedAt)
     {
         indexCfs.discardSSTables(truncatedAt);
     }

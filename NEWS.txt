@@ -23,6 +23,11 @@ Upgrading
     - authority option in cassandra.yaml has been deprecated since 1.2.0,
       but it has been completely removed in 2.0. Please use 'authorizer' option.
 
+Operations
+----------
+    - Major compactions, cleanup, scrub, and upgradesstables will interrupt 
+      any in-progress compactions (but not repair validations) when invoked.
+
 
 1.2.3
 =====

@@ -28,13 +28,15 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import javax.management.*;
 
+import com.google.common.base.Function;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
 
-import org.apache.cassandra.db.compaction.LeveledManifest;
+import org.apache.cassandra.db.compaction.*;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,10 +53,6 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -146,16 +144,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (metadata.compactionStrategyClass.equals(compactionStrategy.getClass()) && metadata.compactionStrategyOptions.equals(compactionStrategy.options))
             return;
 
-        // TODO is there a way to avoid locking here?
-        CompactionManager.instance.getCompactionLock().lock();
-        try
+        // synchronize vs runWithCompactionsDisabled calling pause/resume.  otherwise, letting old compactions
+        // finish should be harmless and possibly useful.
+        synchronized (this)
         {
             compactionStrategy.shutdown();
             compactionStrategy = metadata.createCompactionStrategyInstance(this);
-        }
-        finally
-        {
-            CompactionManager.instance.getCompactionLock().unlock();
         }
     }
 
@@ -802,9 +796,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return switchMemtable(true, false);
     }
 
-    public void forceBlockingFlush() throws ExecutionException, InterruptedException
+    public void forceBlockingFlush()
     {
-        forceFlush().get();
+        try
+        {
+            forceFlush().get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public void maybeUpdateRowCache(DecoratedKey key, ColumnFamily columnFamily)
@@ -1611,19 +1616,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void snapshot(String snapshotName)
     {
-        try
-        {
-            forceBlockingFlush();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-
+        forceBlockingFlush();
         snapshotWithoutFlush(snapshotName);
     }
 
@@ -1752,7 +1745,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return a Future to the delete operation. Call the future's get() to make
      * sure the column family has been deleted
      */
-    public Future<?> truncate() throws ExecutionException, InterruptedException
+    public void truncateBlocking()
     {
         // We have two goals here:
         // - truncate should delete everything written before truncate was invoked
@@ -1763,9 +1756,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         //
         // Bonus complication: since we store replay position in sstable metadata,
         // truncating those sstables means we will replay any CL segments from the
-        // beginning if we restart before they are discarded for normal reasons
-        // post-truncate.  So we need to create a "dummy" sstable containing
-        // only the replay position.  This is done by CompactionManager.submitTruncate.
+        // beginning if we restart before they [the CL segments] are discarded for
+        // normal reasons post-truncate.  To prevent this, we store truncation
+        // position in the System keyspace.
         logger.debug("truncating {}", name);
 
         if (DatabaseDescriptor.isAutoSnapshot())
@@ -1809,11 +1802,115 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
 
-        long truncatedAt = System.currentTimeMillis();
-        if (DatabaseDescriptor.isAutoSnapshot())
-            snapshot(Table.getTimestampedSnapshotName(name));
+        Runnable truncateRunnable = new Runnable()
+        {
+            public void run()
+            {
+                logger.debug("Discarding sstable data for truncated CF + indexes");
 
-        return CompactionManager.instance.submitTruncate(this, truncatedAt);
+                final long truncatedAt = System.currentTimeMillis();
+                if (DatabaseDescriptor.isAutoSnapshot())
+                    snapshot(Table.getTimestampedSnapshotName(name));
+
+                ReplayPosition replayAfter = discardSSTables(truncatedAt);
+
+                for (SecondaryIndex index : indexManager.getIndexes())
+                    index.truncateBlocking(truncatedAt);
+
+                SystemTable.saveTruncationPosition(ColumnFamilyStore.this, replayAfter);
+
+                logger.debug("cleaning out row cache");
+                for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
+                {
+                    if (key.cfId == metadata.cfId)
+                        CacheService.instance.rowCache.remove(key);
+                }
+            }
+        };
+
+        runWithCompactionsDisabled(Executors.callable(truncateRunnable), true);
+        logger.debug("truncate complete");
+    }
+
+    public <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation)
+    {
+        // synchronize so that concurrent invocations don't re-enable compactions partway through unexpectedly,
+        // and so we only run one major compaction at a time
+        synchronized (this)
+        {
+            logger.debug("Cancelling in-progress compactions for {}", metadata.cfName);
+
+            Iterable<ColumnFamilyStore> selfWithIndexes = concatWithIndexes();
+            for (ColumnFamilyStore cfs : selfWithIndexes)
+                cfs.getCompactionStrategy().pause();
+            try
+            {
+                // interrupt in-progress compactions
+                Function<ColumnFamilyStore, CFMetaData> f = new Function<ColumnFamilyStore, CFMetaData>()
+                {
+                    public CFMetaData apply(ColumnFamilyStore cfs)
+                    {
+                        return cfs.metadata;
+                    }
+                };
+                Iterable<CFMetaData> allMetadata = Iterables.transform(selfWithIndexes, f);
+                CompactionManager.instance.interruptCompactionFor(allMetadata, interruptValidation);
+
+                // wait for the interruption to be recognized
+                long start = System.currentTimeMillis();
+                while (System.currentTimeMillis() < start + 60000)
+                {
+                    if (CompactionManager.instance.isCompacting(selfWithIndexes))
+                        FBUtilities.sleep(100);
+                    else
+                        break;
+                }
+
+                // doublecheck that we finished, instead of timing out
+                for (ColumnFamilyStore cfs : selfWithIndexes)
+                {
+                    if (!cfs.getDataTracker().getCompacting().isEmpty())
+                    {
+                        logger.warn("Unable to cancel in-progress compactios for {}.  Probably there is an unusually large row in progress somewhere.  It is also possible that buggy code left some sstables compacting after it was done with them", metadata.cfName);
+                    }
+                }
+                logger.debug("Compactions successfully cancelled");
+
+                // run our task
+                try
+                {
+                    return callable.call();
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+            finally
+            {
+                for (ColumnFamilyStore cfs : selfWithIndexes)
+                    cfs.getCompactionStrategy().resume();
+            }
+        }
+    }
+
+    public Collection<SSTableReader> markAllCompacting()
+    {
+        Callable<Collection<SSTableReader>> callable = new Callable<Collection<SSTableReader>>()
+        {
+            public Collection<SSTableReader> call() throws Exception
+            {
+                assert data.getCompacting().isEmpty() : data.getCompacting();
+                Collection<SSTableReader> sstables = AbstractCompactionStrategy.filterSuspectSSTables(getSSTables());
+                if (sstables.isEmpty())
+                    return null;
+                boolean success = data.markCompacting(sstables);
+                assert success : "something marked things compacting while compactions are disabled";
+                return sstables;
+            }
+        };
+
+        return runWithCompactionsDisabled(callable, false);
     }
 
     public long getBloomFilterFalsePositives()
@@ -1852,6 +1949,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void disableAutoCompaction()
     {
+        // we don't use CompactionStrategy.pause since we don't want users flipping that on and off
+        // during runWithCompactionsDisabled
         minCompactionThreshold.set(0);
         maxCompactionThreshold.set(0);
     }
@@ -2070,7 +2169,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
-     * Discard all SSTables that were created before given timestamp. Caller is responsible to obtain compactionLock.
+     * Discard all SSTables that were created before given timestamp.
+     *
+     * Caller should first ensure that comapctions have quiesced.
      *
      * @param truncatedAt The timestamp of the truncation
      *                    (all SSTables before that timestamp are going be marked as compacted)
@@ -2079,6 +2180,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ReplayPosition discardSSTables(long truncatedAt)
     {
+        assert data.getCompacting().isEmpty() : data.getCompacting();
+
         List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
 
         for (SSTableReader sstable : getSSTables())

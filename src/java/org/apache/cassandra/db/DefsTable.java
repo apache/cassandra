@@ -20,8 +20,6 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -210,21 +208,9 @@ public class DefsTable
 
         logger.info("Fixing timestamps of schema ColumnFamily " + columnFamily + "...");
 
-        try
-        {
-            cfs.truncate().get();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        cfs.truncateBlocking();
 
         long microTimestamp = now.getTime() * 1000;
-
         for (Row row : rows)
         {
             if (Schema.invalidSchemaRow(row))
@@ -241,18 +227,7 @@ public class DefsTable
             mutation.apply();
         }
         // flush immediately because we read schema before replaying the commitlog
-        try
-        {
-            cfs.forceBlockingFlush();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException("Could not flush after fixing schema timestamps", e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        cfs.forceBlockingFlush();
     }
 
     public static ByteBuffer searchComposite(String name, boolean start)
@@ -557,7 +532,7 @@ public class DefsTable
         KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
         String snapshotName = Table.getTimestampedSnapshotName(ksName);
 
-        CompactionManager.instance.stopCompactionFor(ksm.cfMetaData().values());
+        CompactionManager.instance.interruptCompactionFor(ksm.cfMetaData().values(), true);
 
         // remove all cfs from the table instance.
         for (CFMetaData cfm : ksm.cfMetaData().values())
@@ -596,7 +571,7 @@ public class DefsTable
         Schema.instance.purge(cfm);
         Schema.instance.setTableDefinition(makeNewKeyspaceDefinition(ksm, cfm));
 
-        CompactionManager.instance.stopCompactionFor(Arrays.asList(cfm));
+        CompactionManager.instance.interruptCompactionFor(Arrays.asList(cfm), true);
 
         if (!StorageService.instance.isClientMode())
         {

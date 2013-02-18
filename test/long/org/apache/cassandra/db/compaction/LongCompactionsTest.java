@@ -19,12 +19,10 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
@@ -148,7 +146,7 @@ public class LongCompactionsTest extends SchemaLoader
 
         // make sure max timestamp of compacted sstables is recorded properly after compaction.
         CompactionsTest.assertMaxTimestamp(cfs, maxTimestampExpected);
-        cfs.truncate();
+        cfs.truncateBlocking();
     }
 
     private void forceCompactions(ColumnFamilyStore cfs) throws ExecutionException, InterruptedException

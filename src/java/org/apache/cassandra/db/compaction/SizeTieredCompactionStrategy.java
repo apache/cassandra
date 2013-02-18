@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.Callable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,7 @@ import org.apache.cassandra.cql3.CFPropDefs;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
@@ -129,8 +131,11 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         });
     }
 
-    public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    public synchronized AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
+        if (!isActive)
+            return null;
+
         while (true)
         {
             List<SSTableReader> smallestBucket = getNextBackgroundSSTables(gcBefore);
@@ -145,14 +150,8 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public AbstractCompactionTask getMaximalTask(final int gcBefore)
     {
-        while (true)
-        {
-            List<SSTableReader> sstables = filterSuspectSSTables(cfs.getUncompactingSSTables());
-            if (sstables.isEmpty())
-                return null;
-            if (cfs.getDataTracker().markCompacting(sstables))
-                return new CompactionTask(cfs, sstables, gcBefore);
-        }
+        Collection<SSTableReader> sstables = cfs.markAllCompacting();
+        return new CompactionTask(cfs, sstables, gcBefore);
     }
 
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore)

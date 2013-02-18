@@ -172,14 +172,14 @@ public class SystemTable
             String req = "INSERT INTO system.%s (key, cluster_name, tokens, bootstrapped) VALUES ('%s', '%s', %s, '%s')";
             processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, clusterName, tokenBytes, BootstrapState.COMPLETED.name()));
 
-            oldStatusCfs.truncate();
+            oldStatusCfs.truncateBlocking();
         }
 
         ColumnFamilyStore oldHintsCfs = table.getColumnFamilyStore(OLD_HINTS_CF);
         if (oldHintsCfs.getSSTables().size() > 0)
         {
             logger.info("Possible old-format hints found. Truncating");
-            oldHintsCfs.truncate();
+            oldHintsCfs.truncateBlocking();
         }
     }
 
@@ -241,14 +241,7 @@ public class SystemTable
     public static void discardCompactionsInProgress()
     {
         ColumnFamilyStore compactionLog = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(COMPACTION_LOG);
-        try
-        {
-            compactionLog.truncate().get();
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        compactionLog.truncateBlocking();
     }
 
     public static void saveTruncationPosition(ColumnFamilyStore cfs, ReplayPosition position)
@@ -408,18 +401,7 @@ public class SystemTable
 
     private static void forceBlockingFlush(String cfname)
     {
-        try
-        {
-            Table.open(Table.SYSTEM_KS).getColumnFamilyStore(cfname).forceBlockingFlush();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        Table.open(Table.SYSTEM_KS).getColumnFamilyStore(cfname).forceBlockingFlush();
     }
 
     /**

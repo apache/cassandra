@@ -80,7 +80,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     {
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
-        cfs.truncate().get();
+        cfs.truncateBlocking();
 
         RowMutation rm;
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
@@ -103,7 +103,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     {
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
-        cfs.truncate().get();
+        cfs.truncateBlocking();
 
         List<IMutation> rms = new LinkedList<IMutation>();
         RowMutation rm;
@@ -417,7 +417,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         Table table = Table.open(keySpace);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
-        cfs.truncate().get();
+        cfs.truncateBlocking();
 
         ByteBuffer rowKey = ByteBufferUtil.bytes("k1");
         ByteBuffer colName = ByteBufferUtil.bytes("birthdate"); 
@@ -480,7 +480,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         Table table = Table.open(keySpace);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
-        cfs.truncate().get();
+        cfs.truncateBlocking();
 
         ByteBuffer rowKey = ByteBufferUtil.bytes("k1");
         ByteBuffer clusterKey = ByteBufferUtil.bytes("ck1");
@@ -1088,7 +1088,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Indexed1");
 
-        store.truncate();
+        store.truncateBlocking();
 
         for (int i = 0; i < 10; i++)
         {

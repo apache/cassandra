@@ -299,18 +299,7 @@ public class Table
     // disassociate a cfs from this table instance.
     private void unloadCf(ColumnFamilyStore cfs) throws IOException
     {
-        try
-        {
-            cfs.forceBlockingFlush();
-        }
-        catch (ExecutionException e)
-        {
-            throw new IOException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new IOException(e);
-        }
+        cfs.forceBlockingFlush();
         cfs.invalidate();
     }
 

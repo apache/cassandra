@@ -119,7 +119,7 @@ public class SecondaryIndexColumnSizeTest
         }
 
         @Override
-        public void truncate(long truncatedAt)
+        public void truncateBlocking(long truncatedAt)
         {
         }
 
@@ -194,7 +194,7 @@ public class SecondaryIndexColumnSizeTest
         }
 
         @Override
-        public void truncate(long truncatedAt)
+        public void truncateBlocking(long truncatedAt)
         {
         }
 

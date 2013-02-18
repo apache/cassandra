@@ -164,7 +164,7 @@ public abstract class SecondaryIndex
      *
      * @param truncatedAt The truncation timestamp, all data before that timestamp should be rejected.
      */
-    public abstract void truncate(long truncatedAt);
+    public abstract void truncateBlocking(long truncatedAt);
 
     /**
      * Builds the index using the data in the underlying CFS
@@ -231,19 +231,8 @@ public abstract class SecondaryIndex
         {
             public void run()
             {
-                try
-                {
-                    baseCfs.forceBlockingFlush();
-                    buildIndexBlocking();
-                }
-                catch (ExecutionException e)
-                {
-                    throw new RuntimeException(e);
-                }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
+                baseCfs.forceBlockingFlush();
+                buildIndexBlocking();
             }
         };
         FutureTask<?> f = new FutureTask<Object>(runnable, null);

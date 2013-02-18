@@ -2283,8 +2283,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param columnFamilies
      * @throws IOException
      */
-    public void forceTableFlush(final String tableName, final String... columnFamilies)
-                throws IOException, ExecutionException, InterruptedException
+    public void forceTableFlush(final String tableName, final String... columnFamilies) throws IOException
     {
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, tableName, columnFamilies))
         {

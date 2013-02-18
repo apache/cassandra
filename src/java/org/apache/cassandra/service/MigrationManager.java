@@ -335,53 +335,39 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     {
         logger.info("Starting local schema reset...");
 
-        try
+        if (logger.isDebugEnabled())
+            logger.debug("Truncating schema tables...");
+
+        // truncate schema tables
+        SystemTable.schemaCFS(SystemTable.SCHEMA_KEYSPACES_CF).truncateBlocking();
+        SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNFAMILIES_CF).truncateBlocking();
+        SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNS_CF).truncateBlocking();
+
+        if (logger.isDebugEnabled())
+            logger.debug("Clearing local schema keyspace definitions...");
+
+        Schema.instance.clear();
+
+        Set<InetAddress> liveEndpoints = Gossiper.instance.getLiveMembers();
+        liveEndpoints.remove(FBUtilities.getBroadcastAddress());
+
+        // force migration is there are nodes around, first of all
+        // check if there are nodes with versions >= 1.1.7 to request migrations from,
+        // because migration format of the nodes with versions < 1.1 is incompatible with older versions
+        // and due to broken timestamps in versions prior to 1.1.7
+        for (InetAddress node : liveEndpoints)
         {
-            if (logger.isDebugEnabled())
-                logger.debug("Truncating schema tables...");
-
-            // truncate schema tables
-            FBUtilities.waitOnFutures(new ArrayList<Future<?>>(3)
-            {{
-                SystemTable.schemaCFS(SystemTable.SCHEMA_KEYSPACES_CF).truncate();
-                SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNFAMILIES_CF).truncate();
-                SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNS_CF).truncate();
-            }});
-
-            if (logger.isDebugEnabled())
-                logger.debug("Clearing local schema keyspace definitions...");
-
-            Schema.instance.clear();
-
-            Set<InetAddress> liveEndpoints = Gossiper.instance.getLiveMembers();
-            liveEndpoints.remove(FBUtilities.getBroadcastAddress());
-
-            // force migration is there are nodes around, first of all
-            // check if there are nodes with versions >= 1.1.7 to request migrations from,
-            // because migration format of the nodes with versions < 1.1 is incompatible with older versions
-            // and due to broken timestamps in versions prior to 1.1.7
-            for (InetAddress node : liveEndpoints)
+            if (MessagingService.instance().getVersion(node) >= MessagingService.VERSION_117)
             {
-                if (MessagingService.instance().getVersion(node) >= MessagingService.VERSION_117)
-                {
-                    if (logger.isDebugEnabled())
-                        logger.debug("Requesting schema from " + node);
+                if (logger.isDebugEnabled())
+                    logger.debug("Requesting schema from " + node);
 
-                    FBUtilities.waitOnFuture(StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(node)));
-                    break;
-                }
+                FBUtilities.waitOnFuture(StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(node)));
+                break;
             }
+        }
 
-            logger.info("Local schema reset is complete.");
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        logger.info("Local schema reset is complete.");
     }
 
     /**

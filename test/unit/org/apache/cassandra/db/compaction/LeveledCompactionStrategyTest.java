@@ -40,6 +40,8 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -167,7 +169,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
             Thread.sleep(200);
         }
 
-        for(SSTableReader s : table.getColumnFamilyStore(cfname).getSSTables())
+        for (SSTableReader s : table.getColumnFamilyStore(cfname).getSSTables())
         {
             assertTrue(s.getSSTableLevel() != 6);
             strat.manifest.remove(s);
@@ -178,17 +180,17 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
 
         for(SSTableReader s : table.getColumnFamilyStore(cfname).getSSTables())
         {
-            assertTrue(s.getSSTableLevel() == 6);
+            assertEquals(6, s.getSSTableLevel());
         }
 
         int [] levels = strat.manifest.getAllLevelSize();
 
         for (int i =0; i < levels.length; i++)
         {
-            if (i!=6)
-                assertTrue(levels[i] == 0);
+            if (i == 6)
+                assertEquals(table.getColumnFamilyStore(cfname).getSSTables().size(), levels[i]);
             else
-                assertTrue(levels[i] == table.getColumnFamilyStore(cfname).getSSTables().size());
+                assertEquals(0, levels[i]);
         }
 
     }

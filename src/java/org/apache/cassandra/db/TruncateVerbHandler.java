@@ -37,7 +37,7 @@ public class TruncateVerbHandler implements IVerbHandler<Truncation>
         try
         {
             ColumnFamilyStore cfs = Table.open(t.keyspace).getColumnFamilyStore(t.columnFamily);
-            cfs.truncate().get();
+            cfs.truncateBlocking();
         }
         catch (Exception e)
         {

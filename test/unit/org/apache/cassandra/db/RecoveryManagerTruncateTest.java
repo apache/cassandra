@@ -56,7 +56,7 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 		assertNotNull(getFromTable(table, "Standard1", "keymulti", "col1"));
 
 		// and now truncate it
-		cfs.truncate().get();
+		cfs.truncateBlocking();
         CommitLog.instance.resetUnsafe();
 		CommitLog.instance.recover();
 
