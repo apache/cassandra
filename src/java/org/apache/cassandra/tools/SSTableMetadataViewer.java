@@ -51,6 +51,7 @@ public class SSTableMetadataViewer
             out.printf("Maximum timestamp: %s%n", metadata.maxTimestamp);
             out.printf("Compression ratio: %s%n", metadata.compressionRatio);
             out.printf("Estimated droppable tombstones: %s%n", metadata.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000)));
+            out.printf("SSTable Level: %d%n", metadata.sstableLevel);
             out.println(metadata.replayPosition);
             printHistograms(metadata, out);
         }

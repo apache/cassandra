@@ -124,5 +124,9 @@ public class LongLeveledCompactionStrategyTest extends SchemaLoader
                }
             }
         }
+        for (SSTableReader sstable : store.getSSTables())
+        {
+            assert sstable.getSSTableLevel() == sstable.getSSTableLevel();
+        }
     }
 }

@@ -612,7 +612,7 @@ public class CompactionManager implements CompactionManagerMBean
                         AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
                         if (compactedRow.isEmpty())
                             continue;
-                        writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, writer, Collections.singletonList(sstable));
+                        writer = maybeCreateWriter(cfs, OperationType.CLEANUP, compactionFileLocation, expectedBloomFilterSize, writer, Collections.singletonList(sstable));
                         writer.append(compactedRow);
                         totalkeysWritten++;
                     }
@@ -694,6 +694,7 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     public static SSTableWriter maybeCreateWriter(ColumnFamilyStore cfs,
+                                                  OperationType compactionType,
                                                   File compactionFileLocation,
                                                   int expectedBloomFilterSize,
                                                   SSTableWriter writer,
@@ -702,7 +703,7 @@ public class CompactionManager implements CompactionManagerMBean
         if (writer == null)
         {
             FileUtils.createDirectory(compactionFileLocation);
-            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation, sstables);
+            writer = cfs.createCompactionWriter(compactionType, expectedBloomFilterSize, compactionFileLocation, sstables);
         }
         return writer;
     }

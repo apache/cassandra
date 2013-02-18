@@ -95,8 +95,8 @@ public class SSTableReader extends SSTable
     private final AtomicBoolean isCompacted = new AtomicBoolean(false);
     private final AtomicBoolean isSuspect = new AtomicBoolean(false);
     private final SSTableDeletingTask deletingTask;
-
-    private final SSTableMetadata sstableMetadata;
+    // not final since we need to be able to change level on a file.
+    private volatile SSTableMetadata sstableMetadata;
 
     public static long getApproximateKeyCount(Iterable<SSTableReader> sstables, CFMetaData metadata)
     {
@@ -1120,6 +1120,32 @@ public class SSTableReader extends SSTable
     public Set<Integer> getAncestors()
     {
         return sstableMetadata.ancestors;
+    }
+
+    public int getSSTableLevel()
+    {
+        return sstableMetadata.sstableLevel;
+    }
+
+    /**
+     * Reloads the sstable metadata from disk.
+     *
+     * Called after level is changed on sstable, for example if the sstable is dropped to L0
+     *
+     * Might be possible to remove in future versions
+     *
+     * @throws IOException
+     */
+    public void reloadSSTableMetadata() throws IOException
+    {
+        this.sstableMetadata = components.contains(Component.STATS)
+                             ? SSTableMetadata.serializer.deserialize(descriptor)
+                             : SSTableMetadata.createDefaultInstance();
+    }
+
+    public SSTableMetadata getSSTableMetadata()
+    {
+        return sstableMetadata;
     }
 
     public RandomAccessReader openDataReader(boolean skipIOCache)
