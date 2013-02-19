@@ -1259,7 +1259,7 @@ syntax_rules += r'''
 '''
 
 syntax_rules += r'''
-<username> ::= user=( <identifier> | <stringLiteral> )
+<username> ::= name=( <identifier> | <stringLiteral> )
              ;
 
 <createUserStatement> ::= "CREATE" "USER" <username>
@@ -1311,13 +1311,20 @@ syntax_rules += r'''
                  ;
 '''
 
+@completer_for('username', 'name')
+def username_name_completer(ctxt, cass):
+    def maybe_quote(name):
+        if CqlRuleSet.is_valid_cql3_name(name):
+            return name
+        return "'%s'" % name
 
-@completer_for('username', 'user')
-def username_user_completer(ctxt, cass):
-    # TODO: implement user autocompletion for grant/revoke/list/drop user/alter user
-    # with I could see a way to do this usefully, but I don't. I don't know
-    # how any Authorities other than AllowAllAuthorizer work :/
-    return [Hint('<username>')]
+    # disable completion for CREATE USER.
+    if ctxt.matched[0][0] == 'K_CREATE':
+        return [Hint('<username>')]
+
+    cursor = cass.conn.cursor()
+    cursor.execute("LIST USERS")
+    return [maybe_quote(row[0].replace("'", "''")) for row in cursor.fetchall()]
 
 # END SYNTAX/COMPLETION RULE DEFINITIONS
 
