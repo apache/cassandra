@@ -41,6 +41,8 @@
  * cli: Add JMX authentication support (CASSANDRA-5080)
  * Fix forceFlush behavior (CASSANDRA-5241)
  * cqlsh: Add username autocompletion (CASSANDRA-5231)
+ * Fix CQL3 composite partition key error (CASSANDRA-5240)
+ * Allow IN clause on last clustering key (CASSANDRA-5230)
 
 
 1.2.1

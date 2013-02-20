@@ -340,7 +340,7 @@ public class SelectStatement implements CQLStatement
 
     private ByteBuffer getKeyBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
     {
-        return buildBound(b, cfDef.keys.values(), keyRestrictions, isReversed, cfDef.getKeyNameBuilder(), variables);
+        return buildBound(b, cfDef.keys.values(), keyRestrictions, false, cfDef.getKeyNameBuilder(), variables);
     }
 
     private Token getTokenBound(Bound b, List<ByteBuffer> variables, IPartitioner<?> p) throws InvalidRequestException
@@ -402,16 +402,20 @@ public class SelectStatement implements CQLStatement
             assert r != null && r.isEquality();
             if (r.eqValues.size() > 1)
             {
-                assert cfDef.isCompact;
-                // We have a IN. We only support this for the last column, so just create all columns and return.
+                // We have a IN, which we only support for the last column.
+                // If compact, just add all values and we're done. Otherwise,
+                // for each value of the IN, creates all the columns corresponding to the selection.
                 SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfDef.cfm.comparator);
                 Iterator<Term> iter = r.eqValues.iterator();
                 while (iter.hasNext())
                 {
                     Term v = iter.next();
                     ColumnNameBuilder b = iter.hasNext() ? builder.copy() : builder;
-                    ByteBuffer cname = b.add(v.bindAndGet(variables)).build();
-                    columns.add(cname);
+                    b.add(v.bindAndGet(variables));
+                    if (cfDef.isCompact)
+                        columns.add(b.build());
+                    else
+                        columns.addAll(addSelectedColumns(b));
                 }
                 return columns;
             }
@@ -421,6 +425,11 @@ public class SelectStatement implements CQLStatement
             }
         }
 
+        return addSelectedColumns(builder);
+    }
+
+    private SortedSet<ByteBuffer> addSelectedColumns(ColumnNameBuilder builder)
+    {
         if (cfDef.isCompact)
         {
             return FBUtilities.singleton(builder.build());
@@ -504,7 +513,12 @@ public class SelectStatement implements CQLStatement
             }
         }
         // Means no relation at all or everything was an equal
-        return (bound == Bound.END) ? builder.buildAsEndOfRange() : builder.build();
+        // Note: if the builder is "full", there is no need to use the end-of-component bit. For columns selection,
+        // it would be harmless to do it. However, we use this method got the partition key too. And when a query
+        // with 2ndary index is done, and with the the partition provided with an EQ, we'll end up here, and in that
+        // case using the eoc would be bad, since for the random partitioner we have no guarantee that
+        // builder.buildAsEndOfRange() will sort after builder.build() (see #5240).
+        return (bound == Bound.END && builder.remainingCount() > 0) ? builder.buildAsEndOfRange() : builder.build();
     }
 
     private ByteBuffer getRequestedBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
@@ -925,9 +939,9 @@ public class SelectStatement implements CQLStatement
                     if (!cfDef.isComposite && (!restriction.isInclusive(Bound.START) || !restriction.isInclusive(Bound.END)))
                         stmt.sliceRestriction = restriction;
                 }
-                // We only support IN for the last name and for compact storage so far
-                // TODO: #3885 allows us to extend to non compact as well, but that remains to be done
-                else if (restriction.eqValues.size() > 1 && (!cfDef.isCompact || i != stmt.columnRestrictions.length - 1))
+                // We only support IN for the last name so far
+                // TODO: #3885 allows us to extend to other parts (cf. #4762)
+                else if (restriction.eqValues.size() > 1 && i != stmt.columnRestrictions.length - 1)
                 {
                     throw new InvalidRequestException(String.format("PRIMARY KEY part %s cannot be restricted by IN relation", cname));
                 }
