@@ -1342,6 +1342,7 @@ public class CliClient
                 break;
             case SPECULATIVE_RETRY:
                 cfDef.setSpeculative_retry(CliUtils.unescapeSQLString(mValue));
+                break;
             case POPULATE_IO_CACHE_ON_FLUSH:
                 cfDef.setPopulate_io_cache_on_flush(Boolean.parseBoolean(mValue));
                 break;
