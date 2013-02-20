@@ -18,6 +18,9 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.Collection;
+import java.util.Set;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -32,24 +35,43 @@ public abstract class AbstractCompactionTask extends DiskAwareRunnable
     protected boolean isUserDefined;
     protected OperationType compactionType;
 
+    /**
+     * @param cfs
+     * @param sstables must be marked compacting
+     */
     public AbstractCompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
     {
         this.cfs = cfs;
         this.sstables = sstables;
         this.isUserDefined = false;
         this.compactionType = OperationType.COMPACTION;
+
+        // enforce contract that caller should mark sstables compacting
+        Set<SSTableReader> compacting = cfs.getDataTracker().getCompacting();
+        for (SSTableReader sstable : sstables)
+            assert compacting.contains(sstable) : sstable.getFilename() + " is not correctly marked compacting";
     }
 
-    public abstract int execute(CompactionExecutorStatsCollector collector);
+    /**
+     * executes the task and unmarks sstables compacting
+     */
+    public int execute(CompactionExecutorStatsCollector collector)
+    {
+        try
+        {
+            return executeInternal(collector);
+        }
+        finally
+        {
+            cfs.getDataTracker().unmarkCompacting(sstables);
+        }
+    }
+
+    protected abstract int executeInternal(CompactionExecutorStatsCollector collector);
 
     protected Directories getDirectories()
     {
         return cfs.directories;
-    }
-
-    public void unmarkSSTables()
-    {
-        cfs.getDataTracker().unmarkCompacting(sstables);
     }
 
     public AbstractCompactionTask setUserDefined(boolean isUserDefined)

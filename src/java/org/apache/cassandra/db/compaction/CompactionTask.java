@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -52,12 +53,7 @@ public class CompactionTask extends AbstractCompactionTask
         return totalBytesCompacted += bytesCompacted;
     }
 
-    /**
-     * For internal use and testing only.  The rest of the system should go through the submit* methods,
-     * which are properly serialized.
-     * Caller is in charge of marking/unmarking the sstables as compacting.
-     */
-    public int execute(CompactionExecutorStatsCollector collector)
+    protected int executeInternal(CompactionExecutorStatsCollector collector)
     {
         this.collector = collector;
         run();

@@ -187,14 +187,7 @@ public class CompactionManager implements CompactionManagerMBean
                     logger.debug("No tasks available");
                     return;
                 }
-                try
-                {
-                    task.execute(metrics);
-                }
-                finally
-                {
-                    task.unmarkSSTables();
-                }
+                task.execute(metrics);
             }
             finally
             {
@@ -330,23 +323,16 @@ public class CompactionManager implements CompactionManagerMBean
                     AbstractCompactionTask task = cfStore.getCompactionStrategy().getMaximalTask(gcBefore);
                     if (task == null)
                         return;
+                    // downgrade the lock acquisition
+                    compactionLock.readLock().lock();
+                    compactionLock.writeLock().unlock();
                     try
                     {
-                        // downgrade the lock acquisition
-                        compactionLock.readLock().lock();
-                        compactionLock.writeLock().unlock();
-                        try
-                        {
-                            task.execute(metrics);
-                        }
-                        finally
-                        {
-                            compactionLock.readLock().unlock();
-                        }
+                        task.execute(metrics);
                     }
                     finally
                     {
-                        task.unmarkSSTables();
+                        compactionLock.readLock().unlock();
                     }
                 }
                 finally
@@ -414,35 +400,15 @@ public class CompactionManager implements CompactionManagerMBean
                         }
                     }
 
-                    try
+                    if (sstables.isEmpty())
                     {
-                        if (sstables.isEmpty())
-                        {
-                            logger.info("No file to compact for user defined compaction");
-                        }
-                        // attempt to schedule the set
-                        else if (cfs.getDataTracker().markCompacting(sstables))
-                        {
-                            // success: perform the compaction
-                            try
-                            {
-                                AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
-                                AbstractCompactionTask task = strategy.getUserDefinedTask(sstables, gcBefore);
-                                task.execute(metrics);
-                            }
-                            finally
-                            {
-                                cfs.getDataTracker().unmarkCompacting(sstables);
-                            }
-                        }
-                        else
-                        {
-                            logger.info("SSTables for user defined compaction are already being compacted.");
-                        }
+                        logger.info("No files to compact for user defined compaction");
                     }
-                    finally
+                    else
                     {
-                        SSTableReader.releaseReferences(sstables);
+                        AbstractCompactionTask task = cfs.getCompactionStrategy().getUserDefinedTask(sstables, gcBefore);
+                        if (task != null)
+                            task.execute(metrics);
                     }
                 }
                 finally
@@ -458,19 +424,16 @@ public class CompactionManager implements CompactionManagerMBean
     // This is not efficent, do not use in any critical path
     private SSTableReader lookupSSTable(final ColumnFamilyStore cfs, Descriptor descriptor)
     {
-        SSTableReader found = null;
-        for (SSTableReader sstable : cfs.markCurrentSSTablesReferenced())
+        for (SSTableReader sstable : cfs.getSSTables())
         {
             // .equals() with no other changes won't work because in sstable.descriptor, the directory is an absolute path.
             // We could construct descriptor with an absolute path too but I haven't found any satisfying way to do that
             // (DB.getDataFileLocationForTable() may not return the right path if you have multiple volumes). Hence the
             // endsWith.
             if (sstable.descriptor.toString().endsWith(descriptor.toString()))
-                found = sstable;
-            else
-                sstable.releaseReference();
+                return sstable;
         }
-        return found;
+        return null;
     }
 
     /**

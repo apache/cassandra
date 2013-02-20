@@ -95,32 +95,32 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         return getMaximalTask(gcBefore);
     }
 
-    public synchronized AbstractCompactionTask getMaximalTask(int gcBefore)
+    public AbstractCompactionTask getMaximalTask(int gcBefore)
     {
-        Collection<SSTableReader> sstables = manifest.getCompactionCandidates();
-        OperationType op = OperationType.COMPACTION;
-        if (sstables.isEmpty())
+        while (true)
         {
-            // if there is no sstable to compact in standard way, try compacting based on droppable tombstone ratio
-            SSTableReader sstable = findDroppableSSTable(gcBefore);
-            if (sstable == null)
+            Collection<SSTableReader> sstables = manifest.getCompactionCandidates();
+            OperationType op = OperationType.COMPACTION;
+            if (sstables.isEmpty())
             {
-                logger.debug("No compaction necessary for {}", this);
-                return null;
+                // if there is no sstable to compact in standard way, try compacting based on droppable tombstone ratio
+                SSTableReader sstable = findDroppableSSTable(gcBefore);
+                if (sstable == null)
+                {
+                    logger.debug("No compaction necessary for {}", this);
+                    return null;
+                }
+                sstables = Collections.singleton(sstable);
+                op = OperationType.TOMBSTONE_COMPACTION;
             }
-            sstables = Collections.singleton(sstable);
-            op = OperationType.TOMBSTONE_COMPACTION;
-        }
 
-        if (!cfs.getDataTracker().markCompacting(sstables))
-        {
-            logger.debug("Unable to mark {} for compaction; probably a user-defined compaction got in the way", sstables);
-            return null;
+            if (cfs.getDataTracker().markCompacting(sstables))
+            {
+                LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, sstables, gcBefore, maxSSTableSizeInMB);
+                newTask.setCompactionType(op);
+                return newTask;
+            }
         }
-
-        LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, sstables, gcBefore, maxSSTableSizeInMB);
-        newTask.setCompactionType(op);
-        return newTask;
     }
 
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
@@ -277,11 +277,12 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
             if (sstables.isEmpty())
                 continue;
 
+            Set<SSTableReader> compacting = cfs.getDataTracker().getCompacting();
             for (SSTableReader sstable : sstables)
             {
                 if (sstable.getEstimatedDroppableTombstoneRatio(gcBefore) <= tombstoneThreshold)
                     continue level;
-                else if (!sstable.isMarkedSuspect() && worthDroppingTombstones(sstable, gcBefore))
+                else if (!compacting.contains(sstable) && !sstable.isMarkedSuspect() && worthDroppingTombstones(sstable, gcBefore))
                     return sstable;
             }
         }

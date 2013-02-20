@@ -135,7 +135,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
         rm.apply();
         cfs.forceBlockingFlush();
-        new CompactionTask(cfs, sstablesIncomplete, Integer.MAX_VALUE).execute(null);
+        cfs.getCompactionStrategy().getUserDefinedTask(sstablesIncomplete, Integer.MAX_VALUE).execute(null);
 
         // verify that minor compaction does GC when key is provably not
         // present in a non-compacted sstable
@@ -176,7 +176,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm.delete(cfName, ByteBufferUtil.bytes("c2"), 9);
         rm.apply();
         cfs.forceBlockingFlush();
-        new CompactionTask(cfs, sstablesIncomplete, Integer.MAX_VALUE).execute(null);
+        cfs.getCompactionStrategy().getUserDefinedTask(sstablesIncomplete, Integer.MAX_VALUE).execute(null);
 
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key3, cfName));
         Assert.assertTrue(!cf.getColumn(ByteBufferUtil.bytes("c2")).isLive());
