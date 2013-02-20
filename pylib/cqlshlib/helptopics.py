@@ -897,3 +897,129 @@ class CQL3HelpTopics(CQLHelpTopics):
 
         Currently, COUNT is the only function supported by CQL.
         """
+
+    def help_create(self):
+        super(CQL3HelpTopics, self).help_create()
+        print "          HELP CREATE_USER;"
+
+    def help_alter(self):
+        super(CQL3HelpTopics, self).help_alter()
+        print "          HELP ALTER_USER;"
+
+    def help_drop(self):
+        super(CQL3HelpTopics, self).help_drop()
+        print "          HELP DROP_USER;"
+
+    def help_list(self):
+        print """
+        There are different variants of LIST. For more information, see
+        one of the following:
+
+          HELP LIST_USERS;
+          HELP LIST_PERMISSIONS;
+        """
+
+    def help_create_user(self):
+        print """
+        CREATE USER <username> [WITH PASSWORD 'password'] [NOSUPERUSER | SUPERUSER];
+
+        CREATE USER creates a new Cassandra user account.
+        Only superusers can issue CREATE USER requests.
+        To create a superuser account use SUPERUSER option (NOSUPERUSER is the default).
+
+        WITH PASSWORD clause should only be used with password-based authenticators,
+        e.g. PasswordAuthenticator, SimpleAuthenticator.
+        """
+
+    def help_alter_user(self):
+        print """
+        ALTER USER <username> [WITH PASSWORD 'password'] [NOSUPERUSER | SUPERUSER];
+
+        Use ALTER USER to change a user's superuser status and/or password (only
+        with password-based authenticators).
+        Superusers can change a user's password or superuser status (except their own).
+        Users cannot change their own superuser status. Ordinary users can only change their
+        password (if the configured authenticator is password-based).
+        """
+
+    def help_drop_user(self):
+        print """
+        DROP USER <username>;
+
+        DROP USER removes an existing user. You have to be logged in as a superuser
+        to issue a DROP USER statement. A user cannot drop themselves.
+        """
+
+    def help_list_users(self):
+        print """
+        LIST USERS;
+
+        List existing users and their superuser status.
+        """
+
+    def help_grant(self):
+        print """
+        GRANT (<permission> [PERMISSION] | ALL [PERMISSIONS])
+                  ON ALL KEYSPACES
+                   | KEYSPACE <keyspace>
+                   | [TABLE] [<keyspace>.]<table>
+                  TO <username>
+
+        Grant the specified permission (or all permissions) on a resource
+        to a user.
+
+        To be able to grant a permission on some resource you have to
+        have that permission yourself and also AUTHORIZE permission on it,
+        or on one of its parent resources.
+
+        See HELP PERMISSIONS for more info on the available permissions.
+        """
+
+    def help_revoke(self):
+        print """
+        REVOKE (<permission> [PERMISSION] | ALL [PERMISSIONS])
+                  ON ALL KEYSPACES
+                   | KEYSPACE <keyspace>
+                   | [TABLE] [<keyspace>.]<table>
+                  FROM <username>
+
+        Revokes the specified permission (or all permissions) on a resource
+        from a user.
+
+        To be able to revoke a permission on some resource you have to
+        have that permission yourself and also AUTHORIZE permission on it,
+        or on one of its parent resources.
+
+        See HELP PERMISSIONS for more info on the available permissions.
+        """
+
+    def help_list_permissions(self):
+        print """
+        LIST (<permission> [PERMISSION] | ALL [PERMISSIONS])
+                  [ON ALL KEYSPACES
+                    | KEYSPACE <keyspace>
+                    | [TABLE] [<keyspace>.]<table>]
+                  [OF <username>]
+                  [NORECURSIVE]
+
+        Omitting ON <resource> part will list permissions on ALL KEYSPACES,
+        every keyspace and table.
+        Omitting OF <username> part will list permissions of all users.
+        Omitting NORECURSIVE specifier will list permissions of the resource
+        and all its parents (table, table's keyspace and ALL KEYSPACES).
+
+        See HELP PERMISSIONS for more info on the available permissions.
+        """
+
+    def help_permissions(self):
+        print """
+        PERMISSIONS
+
+        Cassandra has 6 permissions:
+          ALTER: required for ALTER KEYSPCE, ALTER TABLE, CREATE INDEX, DROP INDEX
+          AUTHORIZE: required for GRANT, REVOKE
+          CREATE: required for CREATE KEYSPACE, CREATE TABLE
+          DROP: required for DROP KEYSPACE, DROP TABLE
+          MODIFY: required for INSERT, DELETE, UPDATE, TRUNCATE
+          SELECT: required for SELECT
+        """
