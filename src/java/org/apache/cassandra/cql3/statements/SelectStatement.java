@@ -357,7 +357,7 @@ public class SelectStatement implements CQLStatement
 
     private ByteBuffer getKeyBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
     {
-        return buildBound(b, cfDef.keys.values(), keyRestrictions, isReversed, cfDef.getKeyNameBuilder(), variables);
+        return buildBound(b, cfDef.keys.values(), keyRestrictions, false, cfDef.getKeyNameBuilder(), variables);
     }
 
     private Token getTokenBound(Bound b, List<ByteBuffer> variables, IPartitioner<?> p) throws InvalidRequestException
@@ -521,7 +521,12 @@ public class SelectStatement implements CQLStatement
             }
         }
         // Means no relation at all or everything was an equal
-        return (bound == Bound.END) ? builder.buildAsEndOfRange() : builder.build();
+        // Note: if the builder is "full", there is no need to use the end-of-component bit. For columns selection,
+        // it would be harmless to do it. However, we use this method got the partition key too. And when a query
+        // with 2ndary index is done, and with the the partition provided with an EQ, we'll end up here, and in that
+        // case using the eoc would be bad, since for the random partitioner we have no guarantee that
+        // builder.buildAsEndOfRange() will sort after builder.build() (see #5240).
+        return (bound == Bound.END && builder.remainingCount() > 0) ? builder.buildAsEndOfRange() : builder.build();
     }
 
     private ByteBuffer getRequestedBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
