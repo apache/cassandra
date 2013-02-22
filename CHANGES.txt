@@ -9,6 +9,7 @@
  * upgrade thrift to 0.9.0 (CASSANDRA-3719)
  * drop unnecessary keyspace from user-defined compaction API (CASSANDRA-5139)
  * more robust solution to incomplete compactions + counters (CASSANDRA-5151)
+ * Change order of directory searching for c*.in.sh (CASSANDRA-3983)
 
 
 1.2.2

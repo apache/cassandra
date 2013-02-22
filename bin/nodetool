@@ -22,10 +22,11 @@ if [ `basename $0` = 'nodeprobe' ]; then
 fi
 
 if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
-    for include in /usr/share/cassandra/cassandra.in.sh \
+    for include in "`dirname $0`/cassandra.in.sh" \
+                   "$HOME/.cassandra.in.sh" \
+                   /usr/share/cassandra/cassandra.in.sh \
                    /usr/local/share/cassandra/cassandra.in.sh \
-                   /opt/cassandra/cassandra.in.sh \
-                   `dirname $0`/cassandra.in.sh; do
+                   /opt/cassandra/cassandra.in.sh; do
         if [ -r $include ]; then
             . $include
             break
