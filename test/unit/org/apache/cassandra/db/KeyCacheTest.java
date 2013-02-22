@@ -96,8 +96,7 @@ public class KeyCacheTest extends SchemaLoader
         CacheService.instance.invalidateKeyCache();
 
         // KeyCache should start at size 0 if we're caching X% of zero data.
-        int keyCacheSize = CacheService.instance.keyCache.size();
-        assert keyCacheSize == 0 : keyCacheSize;
+        assertEquals(0, CacheService.instance.keyCache.size());
 
         DecoratedKey key1 = Util.dk("key1");
         DecoratedKey key2 = Util.dk("key2");
@@ -132,10 +131,9 @@ public class KeyCacheTest extends SchemaLoader
         assert CacheService.instance.keyCache.size() == 2;
 
         Util.compactAll(cfs).get();
-        keyCacheSize = CacheService.instance.keyCache.size();
         // after compaction cache should have entries for
         // new SSTables, if we had 2 keys in cache previously it should become 4
-        assert keyCacheSize == 4 : keyCacheSize;
+        assertEquals(4, CacheService.instance.keyCache.size());
 
         // re-read same keys to verify that key cache didn't grow further
         cfs.getColumnFamily(QueryFilter.getSliceFilter(key1,
