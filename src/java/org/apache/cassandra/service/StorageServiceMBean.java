@@ -266,6 +266,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, String... columnFamilies);
 
     /**
+     * Same as forceRepairAsync, but handles a specified range
+     */
+    public int forceRepairRangeAsync(String beginToken, String endToken, final String tableName, boolean isSequential, boolean isLocal, final String... columnFamilies);
+
+    /**
      * Triggers proactive repair for given column families, or all columnfamilies for the given table
      * if none are explicitly listed.
      * @param tableName
