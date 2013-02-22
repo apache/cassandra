@@ -231,6 +231,29 @@ public class NodeProbe
         }
     }
 
+    public void forceRepairRangeAsync(final PrintStream out, final String tableName, boolean isSequential, final String startToken, final String endToken, String... columnFamilies) throws IOException
+    {
+        RepairRunner runner = new RepairRunner(out, tableName, columnFamilies);
+        try
+        {
+            ssProxy.addNotificationListener(runner, null, null);
+            if (!runner.repairRangeAndWait(ssProxy,  isSequential, startToken, endToken))
+                failed = true;
+        }
+        catch (Exception e)
+        {
+            throw new IOException(e) ;
+        }
+        finally
+        {
+            try
+            {
+                ssProxy.removeNotificationListener(runner);
+            }
+            catch (ListenerNotFoundException ignored) {}
+        }
+    }
+
     public void forceTableRepairPrimaryRange(String tableName, boolean isSequential, String... columnFamilies) throws IOException
     {
         ssProxy.forceTableRepairPrimaryRange(tableName, isSequential, columnFamilies);
@@ -823,6 +846,21 @@ class RepairRunner implements NotificationListener
     public boolean repairAndWait(StorageServiceMBean ssProxy, boolean isSequential, boolean primaryRangeOnly) throws InterruptedException
     {
         cmd = ssProxy.forceRepairAsync(keyspace, isSequential, primaryRangeOnly, columnFamilies);
+        if (cmd > 0)
+        {
+            condition.await();
+        }
+        else
+        {
+            String message = String.format("[%s] Nothing to repair for keyspace '%s'", format.format(System.currentTimeMillis()), keyspace);
+            out.println(message);
+        }
+        return success;
+    }
+
+    public boolean repairRangeAndWait(StorageServiceMBean ssProxy, boolean isSequential, String startToken, String endToken) throws InterruptedException
+    {
+        cmd = ssProxy.forceRepairRangeAsync(startToken, endToken, keyspace, isSequential, columnFamilies);
         if (cmd > 0)
         {
             condition.await();

@@ -169,7 +169,7 @@ public class AntiEntropyService
                 throw new IllegalArgumentException("Requested range intersects a local range but is not fully contained in one; this would lead to imprecise repair");
             }
         }
-        if (rangeSuperSet == null || !replicaSets.containsKey(toRepair))
+        if (rangeSuperSet == null || !replicaSets.containsKey(rangeSuperSet))
             return Collections.emptySet();
 
         Set<InetAddress> neighbors = new HashSet<InetAddress>(replicaSets.get(rangeSuperSet));

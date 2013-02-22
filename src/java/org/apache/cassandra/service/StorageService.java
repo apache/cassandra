@@ -1854,11 +1854,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int forceRepairAsync(final String tableName, final boolean isSequential, final boolean primaryRange, final String... columnFamilies)
     {
+        final Collection<Range<Token>> ranges = primaryRange ? Collections.singletonList(getLocalPrimaryRange()) : getLocalRanges(tableName);
+        return forceRepairAsync(tableName, isSequential, ranges, columnFamilies);
+    }
+
+    public int forceRepairAsync(final String tableName, final boolean isSequential, final Collection<Range<Token>> ranges, final String... columnFamilies)
+    {
         if (Table.SYSTEM_TABLE.equals(tableName))
             return 0;
 
         final int cmd = nextRepairCommand.incrementAndGet();
-        final Collection<Range<Token>> ranges = primaryRange ? Collections.singletonList(getLocalPrimaryRange()) : getLocalRanges(tableName);
         if (ranges.size() > 0)
         {
             new Thread(new WrappedRunnable()
@@ -1872,7 +1877,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     List<AntiEntropyService.RepairFuture> futures = new ArrayList<AntiEntropyService.RepairFuture>(ranges.size());
                     for (Range<Token> range : ranges)
                     {
-                        AntiEntropyService.RepairFuture future = forceTableRepair(range, tableName, isSequential, columnFamilies);
+                        AntiEntropyService.RepairFuture future;
+                        try
+                        {
+                            future = forceTableRepair(range, tableName, isSequential, columnFamilies);
+                        }
+                        catch (IllegalArgumentException e)
+                        {
+                            message = String.format("Repair session failed with error: %s", e);
+                            sendNotification("repair", message, new int[]{cmd, AntiEntropyService.Status.SESSION_FAILED.ordinal()});
+                            continue;
+                        }
                         if (future == null)
                             continue;
                         futures.add(future);
@@ -1913,6 +1928,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         return cmd;
     }
+
+    public int forceRepairRangeAsync(String beginToken, String endToken, final String tableName, boolean isSequential, final String... columnFamilies)
+    {
+        Token parsedBeginToken = getPartitioner().getTokenFactory().fromString(beginToken);
+        Token parsedEndToken = getPartitioner().getTokenFactory().fromString(endToken);
+
+        logger_.info("starting user-requested repair of range ({}, {}] for keyspace {} and column families {}",
+                new Object[] {parsedBeginToken, parsedEndToken, tableName, columnFamilies});
+        return forceRepairAsync(tableName, isSequential, Collections.singleton(new Range<Token>(parsedBeginToken, parsedEndToken)), columnFamilies);
+    }
+
 
     /**
      * Trigger proactive repair for a table and column families.

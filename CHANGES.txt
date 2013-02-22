@@ -1,5 +1,6 @@
 1.1.11
  * cli: Add JMX authentication support (CASSANDRA-5080)
+ * nodetool: ability to repair specific range (CASSANDRA-5280)
 
 
 1.1.10
