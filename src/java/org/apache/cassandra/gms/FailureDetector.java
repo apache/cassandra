@@ -168,7 +168,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             logger.trace("reporting {}", ep);
         long now = System.currentTimeMillis();
         ArrivalWindow heartbeatWindow = arrivalSamples.get(ep);
-        if ( heartbeatWindow == null )
+        if (heartbeatWindow == null)
         {
             heartbeatWindow = new ArrivalWindow(SAMPLE_SIZE);
             arrivalSamples.put(ep, heartbeatWindow);
@@ -179,7 +179,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public void interpret(InetAddress ep)
     {
         ArrivalWindow hbWnd = arrivalSamples.get(ep);
-        if ( hbWnd == null )
+        if (hbWnd == null)
         {
             return;
         }
@@ -192,7 +192,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         {
             logger.trace("notifying listeners that {} is down", ep);
             logger.trace("intervals: {} mean: {}", hbWnd, hbWnd.mean());
-            for ( IFailureDetectionEventListener listener : fdEvntListeners )
+            for (IFailureDetectionEventListener listener : fdEvntListeners)
             {
                 listener.convict(ep, phi);
             }
@@ -229,12 +229,12 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         Set<InetAddress> eps = arrivalSamples.keySet();
 
         sb.append("-----------------------------------------------------------------------");
-        for ( InetAddress ep : eps )
+        for (InetAddress ep : eps)
         {
             ArrivalWindow hWnd = arrivalSamples.get(ep);
             sb.append(ep + " : ");
             sb.append(hWnd.toString());
-            sb.append( System.getProperty("line.separator") );
+            sb.append(System.getProperty("line.separator"));
         }
         sb.append("-----------------------------------------------------------------------");
         return sb.toString();
@@ -270,7 +270,7 @@ class ArrivalWindow
     synchronized void add(double value)
     {
         double interArrivalTime;
-        if ( tLast > 0L )
+        if (tLast > 0L)
         {
             interArrivalTime = (value - tLast);
         }

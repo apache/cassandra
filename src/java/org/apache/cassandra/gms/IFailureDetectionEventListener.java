@@ -29,7 +29,8 @@ public interface IFailureDetectionEventListener
 {
     /**
      * Convict the specified endpoint.
-     * @param ep endpoint to be convicted
+     *
+     * @param ep  endpoint to be convicted
      * @param phi the value of phi with with ep was convicted
      */
     public void convict(InetAddress ep, double phi);

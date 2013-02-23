@@ -67,7 +67,7 @@ class GossipDigestSerializationHelper
             gDigests.add(GossipDigest.serializer.deserialize(dis, version));
         return gDigests;
     }
-    
+
     static int serializedSize(List<GossipDigest> digests, int version)
     {
         int size = TypeSizes.NATIVE.sizeof(digests.size());

@@ -60,8 +60,8 @@ public class GossipDigest implements Comparable<GossipDigest>
 
     public int compareTo(GossipDigest gDigest)
     {
-        if ( generation != gDigest.generation )
-            return ( generation - gDigest.generation );
+        if (generation != gDigest.generation)
+            return (generation - gDigest.generation);
         return (maxVersion - gDigest.maxVersion);
     }
 

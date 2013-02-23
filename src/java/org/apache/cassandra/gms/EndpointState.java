@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
@@ -135,7 +136,7 @@ class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
         EndpointState epState = new EndpointState(hbState);
 
         int appStateSize = dis.readInt();
-        for ( int i = 0; i < appStateSize; ++i )
+        for (int i = 0; i < appStateSize; ++i)
         {
             int key = dis.readInt();
             VersionedValue value = VersionedValue.serializer.deserialize(dis, version);

@@ -34,7 +34,7 @@ public interface IEndpointStateChangeSubscriber
      * for specified endpoint
      *
      * @param endpoint endpoint for which the state change occurred.
-     * @param epState state that actually changed for the above endpoint.
+     * @param epState  state that actually changed for the above endpoint.
      */
     public void onJoin(InetAddress endpoint, EndpointState epState);
 
