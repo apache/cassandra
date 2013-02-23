@@ -1052,24 +1052,24 @@ public class NodeCmd
                     break;
                 case FLUSH   :
                     try { probe.forceTableFlush(keyspace, columnFamilies); }
-                    catch (ExecutionException ee) { err(ee, "Error occured during flushing"); }
+                    catch (ExecutionException ee) { err(ee, "Error occurred during flushing"); }
                     break;
                 case COMPACT :
                     try { probe.forceTableCompaction(keyspace, columnFamilies); }
-                    catch (ExecutionException ee) { err(ee, "Error occured during compaction"); }
+                    catch (ExecutionException ee) { err(ee, "Error occurred during compaction"); }
                     break;
                 case CLEANUP :
                     if (keyspace.equals("system")) { break; } // Skip cleanup on system cfs.
                     try { probe.forceTableCleanup(keyspace, columnFamilies); }
-                    catch (ExecutionException ee) { err(ee, "Error occured during cleanup"); }
+                    catch (ExecutionException ee) { err(ee, "Error occurred during cleanup"); }
                     break;
                 case SCRUB :
                     try { probe.scrub(keyspace, columnFamilies); }
-                    catch (ExecutionException ee) { err(ee, "Error occured while scrubbing keyspace " + keyspace); }
+                    catch (ExecutionException ee) { err(ee, "Error occurred while scrubbing keyspace " + keyspace); }
                     break;
                 case UPGRADESSTABLES :
                     try { probe.upgradeSSTables(keyspace, columnFamilies); }
-                    catch (ExecutionException ee) { err(ee, "Error occured while upgrading the sstables for keyspace " + keyspace); }
+                    catch (ExecutionException ee) { err(ee, "Error occurred while upgrading the sstables for keyspace " + keyspace); }
                     break;
                 default:
                     throw new RuntimeException("Unreachable code.");
