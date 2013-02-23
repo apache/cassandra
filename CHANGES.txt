@@ -13,7 +13,6 @@
 
 1.2.3
 Merged from 1.1:
-=======
  * nodetool: ability to repair specific range (CASSANDRA-5280)
 
 1.2.2
