@@ -35,7 +35,9 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -960,11 +962,15 @@ public class SSTableReader extends SSTable
     * @param range the range of keys to cover
     * @return A Scanner for seeking over the rows of the SSTable.
     */
-    public SSTableScanner getDirectScanner(Range<Token> range)
+    public ICompactionScanner getDirectScanner(Range<Token> range)
     {
         if (range == null)
             return getDirectScanner();
-        return new SSTableBoundedScanner(this, true, range);
+
+        Iterator<Pair<Long, Long>> rangeIterator = getPositionsForRanges(Collections.singletonList(range)).iterator();
+        return rangeIterator.hasNext()
+               ? new SSTableBoundedScanner(this, true, rangeIterator)
+               : new EmptyCompactionScanner(getFilename());
     }
 
     public FileDataInput getFileDataInput(long position)
@@ -1170,6 +1176,50 @@ public class SSTableReader extends SSTable
         for (SSTableReader sstable : sstables)
         {
             sstable.releaseReference();
+        }
+    }
+
+    private static class EmptyCompactionScanner implements ICompactionScanner
+    {
+        private final String filename;
+
+        private EmptyCompactionScanner(String filename)
+        {
+            this.filename = filename;
+        }
+
+        public long getLengthInBytes()
+        {
+            return 0;
+        }
+
+        public long getCurrentPosition()
+        {
+            return 0;
+        }
+
+        public String getBackingFiles()
+        {
+            return filename;
+        }
+
+        public void close()
+        {
+        }
+
+        public boolean hasNext()
+        {
+            return false;
+        }
+
+        public OnDiskAtomIterator next()
+        {
+            throw new IndexOutOfBoundsException();
+        }
+
+        public void remove()
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }
