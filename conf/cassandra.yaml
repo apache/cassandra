@@ -400,7 +400,15 @@ rpc_server_type: sync
 # rpc_send_buff_size_in_bytes:
 # rpc_recv_buff_size_in_bytes:
 
-# uncomment to set socket buffer size for internode communication
+# Uncomment to set socket buffer size for internode communication
+# Note that when setting this, the buffer size is limited by net.core.wmem_max
+# and when not setting it it is defined by net.ipv4.tcp_wmem
+# See:
+# /proc/sys/net/core/wmem_max
+# /proc/sys/net/core/rmem_max
+# /proc/sys/net/ipv4/tcp_wmem
+# /proc/sys/net/ipv4/tcp_wmem
+# and: man tcp
 # internode_send_buff_size_in_bytes:
 # internode_recv_buff_size_in_bytes:
 
