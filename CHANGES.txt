@@ -14,6 +14,7 @@
 1.2.3
 Merged from 1.1:
  * nodetool: ability to repair specific range (CASSANDRA-5280)
+ * Fix possible assertion triggered in SliceFromReadCommand (CASSANDRA-5284)
 
 1.2.2
  * fix potential for multiple concurrent compactions of the same sstables
@@ -94,10 +95,6 @@ Merged from 1.1:
  * Adds E notation for floating point numbers (CASSANDRA-4927)
  * Detect (and warn) unintentional use of the cql2 thrift methods when cql3 was
    intended (CASSANDRA-5172)
-
-
-1.1.11
- * nodetool: ability to repair specific range (CASSANDRA-5280)
 
 
 1.1.10
