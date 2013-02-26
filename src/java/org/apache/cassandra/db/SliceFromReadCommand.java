@@ -75,10 +75,9 @@ public class SliceFromReadCommand extends ReadCommand
         int maxLiveColumns = handler.getMaxLiveColumns();
         int liveColumnsInRow = row != null ? row.getLiveColumnCount() : 0;
 
-        assert maxLiveColumns <= count;
         // We generate a retry if at least one node reply with count live columns but after merge we have less
         // than the total number of column we are interested in (which may be < count on a retry)
-        if ((maxLiveColumns == count) && (liveColumnsInRow < getOriginalRequestedCount()))
+        if ((maxLiveColumns >= count) && (liveColumnsInRow < getOriginalRequestedCount()))
         {
             // We asked t (= count) live columns and got l (=liveColumnsInRow) ones.
             // From that, we can estimate that on this row, for x requested
