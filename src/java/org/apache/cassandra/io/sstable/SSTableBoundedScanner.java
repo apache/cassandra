@@ -35,19 +35,13 @@ public class SSTableBoundedScanner extends SSTableScanner
     private final Iterator<Pair<Long, Long>> rangeIterator;
     private Pair<Long, Long> currentRange;
 
-    SSTableBoundedScanner(SSTableReader sstable, boolean skipCache, Range<Token> range)
+    SSTableBoundedScanner(SSTableReader sstable, boolean skipCache, Iterator<Pair<Long, Long>> rangeIterator)
     {
         super(sstable, skipCache);
-        this.rangeIterator = sstable.getPositionsForRanges(Collections.singletonList(range)).iterator();
-        if (rangeIterator.hasNext())
-        {
-            currentRange = rangeIterator.next();
-            dfile.seek(currentRange.left);
-        }
-        else
-        {
-            exhausted = true;
-        }
+        this.rangeIterator = rangeIterator;
+        assert rangeIterator.hasNext(); // use EmptyCompactionScanner otherwise
+        currentRange = rangeIterator.next();
+        dfile.seek(currentRange.left);
     }
 
     /*
