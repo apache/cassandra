@@ -20,6 +20,7 @@ Merged from 1.1:
  * nodetool: ability to repair specific range (CASSANDRA-5280)
  * Fix possible assertion triggered in SliceFromReadCommand (CASSANDRA-5284)
 
+
 1.2.2
  * fix potential for multiple concurrent compactions of the same sstables
    (CASSANDRA-5256)
