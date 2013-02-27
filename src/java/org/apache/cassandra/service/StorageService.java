@@ -2364,7 +2364,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void forceTableRepairRange(final String tableName, final Collection<Range<Token>> ranges, boolean isSequential, boolean  isLocal, final String... columnFamilies) throws IOException
     {
-        if (Table.SYSTEM_KS.equals(tableName) || Tracing.TRACE_KS.equals(tableName))
+        if (Schema.systemKeyspaceNames.contains(tableName))
             return;
         createRepairTask(nextRepairCommand.incrementAndGet(), tableName, ranges, isSequential, isLocal, columnFamilies).run();
     }
