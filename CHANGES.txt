@@ -11,6 +11,7 @@
  * more robust solution to incomplete compactions + counters (CASSANDRA-5151)
  * Change order of directory searching for c*.in.sh (CASSANDRA-3983)
 
+
 1.2.3
  * Avoid allocating SSTableBoundedScanner during repair when the range does 
    not intersect the sstable (CASSANDRA-5249)
