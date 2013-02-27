@@ -8,6 +8,24 @@ upgrade, just in case you need to roll back to the previous version.
 (Cassandra version X + 1 will always be able to read data files created
 by version X, but the inverse is not necessarily the case.)
 
+1.2.3
+=====
+
+Upgrading
+---------
+    - CQL3 uses to be case-insensitive for property map key in ALTER and CREATE
+      statements. In other words:
+        CREATE KEYSPACE test WITH replication = { 'CLASS' : 'SimpleStrategy',
+                                                  'REPLICATION_FACTOR' : '1' }
+      was allowed. However, this was not consistent with the fact that string
+      literal are case sensitive in every other places and more importantly this
+      break NetworkTopologyStrategy for which DC names are case sensitive. Those
+      property map key are now case sensitive. So the statement above should be
+      changed to:
+        CREATE KEYSPACE test WITH replication = { 'class' : 'SimpleStrategy',
+                                                  'replication_factor' : '1' }
+
+
 1.2.2
 =====
 
