@@ -321,7 +321,6 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
      */
     public static void passiveAnnounce(UUID version)
     {
-        assert Gossiper.instance.isEnabled();
         Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(version));
         logger.debug("Gossiping my schema version " + version);
     }

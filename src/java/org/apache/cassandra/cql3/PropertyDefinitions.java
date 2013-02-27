@@ -38,12 +38,7 @@ public class PropertyDefinitions
 
     public void addProperty(String name, Map<String, String> value) throws SyntaxException
     {
-        // Lowercase the map keys to be nice to users
-        Map<String, String> lowerCased = new HashMap<String, String>(value.size());
-        for (Map.Entry<String, String> entry : value.entrySet())
-            lowerCased.put(entry.getKey().toLowerCase(), entry.getValue());
-
-        if (properties.put(name, lowerCased) != null)
+        if (properties.put(name, value) != null)
             throw new SyntaxException(String.format("Multiple definition for property '%s'", name));
     }
 
