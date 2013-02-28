@@ -677,14 +677,16 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateColumnNames(metadata, column_parent, Arrays.asList(column.name));
         ThriftValidation.validateColumnData(metadata, column, column_parent.super_column != null);
 
-        RowMutation rm = new RowMutation(cState.getKeyspace(), key);
+        RowMutation rm;
         try
         {
             ByteBuffer name = column.name;
             if (metadata.isSuper())
                 name = CompositeType.build(column_parent.super_column, name);
 
-            rm.add(column_parent.column_family, name, column.value, column.timestamp, column.ttl);
+            ColumnFamily cf = ColumnFamily.create(Schema.instance.getId(cState.getKeyspace(), column_parent.column_family));
+            cf.addColumn(name, column.value, column.timestamp, column.ttl);
+            rm = new RowMutation(cState.getKeyspace(), key, cf);
         }
         catch (MarshalException e)
         {
