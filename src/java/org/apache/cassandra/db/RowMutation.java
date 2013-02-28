@@ -38,6 +38,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
+// TODO convert this to a Builder pattern instead of encouraging RM.add directly,
+// which is less-efficient since we have to keep a mutable HashMap around
 public class RowMutation implements IMutation
 {
     public static final RowMutationSerializer serializer = new RowMutationSerializer();
