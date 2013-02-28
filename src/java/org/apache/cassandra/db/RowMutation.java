@@ -47,7 +47,7 @@ public class RowMutation implements IMutation
     private final String table;
     private final ByteBuffer key;
     // map of column family id to mutations for that column family.
-    protected Map<UUID, ColumnFamily> modifications = new HashMap<UUID, ColumnFamily>();
+    private final Map<UUID, ColumnFamily> modifications;
 
     public RowMutation(String table, ByteBuffer key)
     {
