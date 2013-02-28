@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
@@ -203,8 +204,7 @@ public class UpdateStatement extends ModificationStatement
         validateKey(key);
 
         QueryProcessor.validateKey(key);
-        RowMutation rm = new RowMutation(cfDef.cfm.ksName, key);
-        ColumnFamily cf = rm.addOrGet(cfDef.cfm.cfName);
+        ColumnFamily cf = ColumnFamily.create(Schema.instance.getCFMetaData(cfDef.cfm.ksName, cfDef.cfm.cfName));
 
         // Inserting the CQL row marker (see #4361)
         // We always need to insert a marker, because of the following situation:
@@ -252,6 +252,7 @@ public class UpdateStatement extends ModificationStatement
                 op.execute(key, cf, builder.copy(), params);
         }
 
+        RowMutation rm = new RowMutation(cfDef.cfm.ksName, key, cf);
         return type == Type.COUNTER ? new CounterMutation(rm, cl) : rm;
     }
 

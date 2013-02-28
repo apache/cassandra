@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -102,8 +103,7 @@ public class DeleteStatement extends ModificationStatement
     throws InvalidRequestException
     {
         QueryProcessor.validateKey(key);
-        RowMutation rm = new RowMutation(cfDef.cfm.ksName, key);
-        ColumnFamily cf = rm.addOrGet(columnFamily());
+        ColumnFamily cf = ColumnFamily.create(Schema.instance.getCFMetaData(cfDef.cfm.ksName, columnFamily()));
 
         if (toRemove.isEmpty() && builder.componentCount() == 0)
         {
@@ -135,7 +135,7 @@ public class DeleteStatement extends ModificationStatement
             }
         }
 
-        return rm;
+        return new RowMutation(cfDef.cfm.ksName, key, cf);
     }
 
     public ParsedStatement.Prepared prepare(ColumnSpecification[] boundNames) throws InvalidRequestException
