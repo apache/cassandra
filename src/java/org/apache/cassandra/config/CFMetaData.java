@@ -977,7 +977,7 @@ public final class CFMetaData
      */
     public ColumnDefinition getColumnDefinitionFromColumnName(ByteBuffer columnName)
     {
-        if (comparator instanceof CompositeType)
+        if (cfType == ColumnFamilyType.Standard && comparator instanceof CompositeType)
         {
             CompositeType composite = (CompositeType)comparator;
             ByteBuffer[] components = composite.split(columnName);
