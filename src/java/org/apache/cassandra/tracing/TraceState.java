@@ -99,8 +99,7 @@ public class TraceState
                 Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("thread")), threadName);
                 Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("source_elapsed")), elapsed);
                 Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("activity")), message);
-                RowMutation mutation = new RowMutation(Tracing.TRACE_KS, sessionIdBytes);
-                mutation.add(cf);
+                RowMutation mutation = new RowMutation(Tracing.TRACE_KS, sessionIdBytes, cf);
                 StorageProxy.mutate(Arrays.asList(mutation), ConsistencyLevel.ANY);
             }
         });

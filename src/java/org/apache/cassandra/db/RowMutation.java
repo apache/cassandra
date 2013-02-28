@@ -54,10 +54,14 @@ public class RowMutation implements IMutation
         this(table, key, new HashMap<UUID, ColumnFamily>());
     }
 
+    public RowMutation(String table, ByteBuffer key, ColumnFamily cf)
+    {
+        this(table, key, Collections.singletonMap(cf.id(), cf));
+    }
+
     public RowMutation(String table, Row row)
     {
-        this(table, row.key.key);
-        add(row.cf);
+        this(table, row.key.key, row.cf);
     }
 
     protected RowMutation(String table, ByteBuffer key, Map<UUID, ColumnFamily> modifications)
@@ -98,7 +102,6 @@ public class RowMutation implements IMutation
      */
     public static RowMutation hintFor(RowMutation mutation, UUID targetId) throws IOException
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(targetId));
         UUID hintId = UUIDGen.getTimeUUID();
 
         // determine the TTL for the RowMutation
@@ -111,6 +114,7 @@ public class RowMutation implements IMutation
         // serialize the hint with id and version as a composite column name
         ByteBuffer name = HintedHandOffManager.comparator.decompose(hintId, MessagingService.current_version);
         ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, serializer, MessagingService.current_version));
+        RowMutation rm = new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(targetId));
         rm.add(SystemTable.HINTS_CF, name, value, System.currentTimeMillis(), ttl);
 
         return rm;
