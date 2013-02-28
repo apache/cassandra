@@ -278,19 +278,36 @@ public class RowMutation implements IMutation
         {
             String table = dis.readUTF();
             ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
-            Map<UUID, ColumnFamily> modifications = new HashMap<UUID, ColumnFamily>();
             int size = dis.readInt();
-            for (int i = 0; i < size; ++i)
+
+            Map<UUID, ColumnFamily> modifications;
+            if (size == 1)
             {
-                // We used to uselessly write the cf id here
-                if (version < MessagingService.VERSION_12)
-                    ColumnFamily.serializer.deserializeCfId(dis, version);
-                ColumnFamily cf = ColumnFamily.serializer.deserialize(dis, flag, TreeMapBackedSortedColumns.factory(), version);
-                // We don't allow RowMutation with null column family, so we should never get null back.
-                assert cf != null;
-                modifications.put(cf.id(), cf);
+                ColumnFamily cf = deserializeOneCf(dis, version, flag);
+                modifications = Collections.singletonMap(cf.id(), cf);
             }
+            else
+            {
+                modifications = new HashMap<UUID, ColumnFamily>();
+                for (int i = 0; i < size; ++i)
+                {
+                    ColumnFamily cf = deserializeOneCf(dis, version, flag);
+                    modifications.put(cf.id(), cf);
+                }
+            }
+
             return new RowMutation(table, key, modifications);
+        }
+
+        private ColumnFamily deserializeOneCf(DataInput dis, int version, ColumnSerializer.Flag flag) throws IOException
+        {
+            // We used to uselessly write the cf id here
+            if (version < MessagingService.VERSION_12)
+                ColumnFamily.serializer.deserializeCfId(dis, version);
+            ColumnFamily cf = ColumnFamily.serializer.deserialize(dis, flag, TreeMapBackedSortedColumns.factory(), version);
+            // We don't allow RowMutation with null column family, so we should never get null back.
+            assert cf != null;
+            return cf;
         }
 
         public RowMutation deserialize(DataInput dis, int version) throws IOException
