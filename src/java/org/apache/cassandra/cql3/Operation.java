@@ -159,6 +159,9 @@ public abstract class Operation
         {
             Term v = value.prepare(receiver);
 
+            if (receiver.type instanceof CounterColumnType)
+                throw new InvalidRequestException(String.format("Cannot set the value of counter column %s (counters can only be incremented/decremented, not set)", receiver));
+
             if (!(receiver.type instanceof CollectionType))
                 return new Constants.Setter(receiver.kind == CFDefinition.Name.Kind.VALUE_ALIAS ? null : receiver.name, v);
 

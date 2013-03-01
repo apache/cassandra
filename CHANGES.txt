@@ -17,6 +17,8 @@
    not intersect the sstable (CASSANDRA-5249)
  * Don't lowercase property map keys (this breaks NTS) (CASSANDRA-5292)
  * Fix composite comparator with super columns (CASSANDRA-5287)
+ * Fix insufficient validation of UPDATE queries against counter cfs
+   (CASSANDRA-5300)
 Merged from 1.1:
  * nodetool: ability to repair specific range (CASSANDRA-5280)
  * Fix possible assertion triggered in SliceFromReadCommand (CASSANDRA-5284)
