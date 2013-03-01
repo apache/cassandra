@@ -107,7 +107,7 @@ def formatter_for(typname):
 
 @formatter_for('blob')
 def format_value_blob(val, colormap, **_):
-    bval = ''.join('%02x' % ord(c) for c in val)
+    bval = '0x' + ''.join('%02x' % ord(c) for c in val)
     return colorme(bval, colormap, 'hex')
 
 def format_python_formatted_type(val, colormap, color):
