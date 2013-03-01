@@ -181,8 +181,8 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
                 reloadedMap.put(host, token);
             }
         }
-        if (!reloadedMap.containsKey(FBUtilities.getBroadcastAddress()))
-            throw new ConfigurationException(String.format("Snitch definitions at %s do not define a location for this node's broadcast address %s",
+        if (defaultDCRack == null && !reloadedMap.containsKey(FBUtilities.getBroadcastAddress()))
+            throw new ConfigurationException(String.format("Snitch definitions at %s do not define a location for this node's broadcast address %s, nor does it provides a default",
                                                            SNITCH_PROPERTIES_FILENAME, FBUtilities.getBroadcastAddress()));
 
         logger.debug("loaded network topology {}", FBUtilities.toString(reloadedMap));
