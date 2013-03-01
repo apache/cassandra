@@ -73,7 +73,7 @@ public class OutboundTcpConnection extends Thread
     private static boolean isLocalDC(InetAddress targetHost)
     {
         String remoteDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(targetHost);
-        String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(DatabaseDescriptor.getRpcAddress());
+        String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
         return remoteDC.equals(localDC);
     }
 
