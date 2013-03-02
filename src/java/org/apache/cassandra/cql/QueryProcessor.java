@@ -366,7 +366,7 @@ public class QueryProcessor
         String keyspace = null;
 
         // Some statements won't have (or don't need) a keyspace (think USE, or CREATE).
-        if (statement.type != StatementType.SELECT && StatementType.requiresKeyspace.contains(statement.type))
+        if (statement.type != StatementType.SELECT && StatementType.REQUIRES_KEYSPACE.contains(statement.type))
             keyspace = clientState.getKeyspace();
 
         CqlResult result = new CqlResult();
