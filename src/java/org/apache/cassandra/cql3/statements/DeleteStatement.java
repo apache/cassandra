@@ -150,7 +150,7 @@ public class DeleteStatement extends ModificationStatement
         {
             CFDefinition.Name name = cfDef.get(deletion.affectedColumn());
             if (name == null)
-                throw new InvalidRequestException(String.format("Unknown identifier %s", name));
+                throw new InvalidRequestException(String.format("Unknown identifier %s", deletion.affectedColumn()));
 
             // For compact, we only have one value except the key, so the only form of DELETE that make sense is without a column
             // list. However, we support having the value name for coherence with the static/sparse case
