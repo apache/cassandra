@@ -10,6 +10,7 @@
  * drop unnecessary keyspace from user-defined compaction API (CASSANDRA-5139)
  * more robust solution to incomplete compactions + counters (CASSANDRA-5151)
  * Change order of directory searching for c*.in.sh (CASSANDRA-3983)
+ * Add tool to reset SSTable level (CASSANDRA-5271)
 
 
 1.2.3

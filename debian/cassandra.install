@@ -17,6 +17,8 @@ bin/sstablescrub usr/bin
 bin/cassandra-shuffle usr/bin
 tools/bin/cassandra-stress usr/bin
 tools/bin/token-generator usr/bin
+tools/bin/sstablelevelreset usr/bin
+tools/bin/sstablemetadata usr/bin
 lib/*.jar usr/share/cassandra/lib
 lib/*.zip usr/share/cassandra/lib
 lib/licenses usr/share/doc/cassandra
