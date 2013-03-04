@@ -34,7 +34,7 @@ public class ReadVerbHandler implements IVerbHandler<ReadCommand>
 {
     private static final Logger logger = LoggerFactory.getLogger( ReadVerbHandler.class );
 
-    public void doVerb(MessageIn<ReadCommand> message, String id)
+    public void doVerb(MessageIn<ReadCommand> message, int id)
     {
         if (StorageService.instance.isBootstrapMode())
         {

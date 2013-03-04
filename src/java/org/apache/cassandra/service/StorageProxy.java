@@ -623,7 +623,8 @@ public class StorageProxy implements StorageProxyMBean
         InetAddress target = iter.next();
 
         // direct writes to local DC or old Cassandra versions
-        if (localDC || MessagingService.instance().getVersion(target) < MessagingService.VERSION_11)
+        // (1.1 knows how to forward old-style String message IDs; updated to int in 2.0)
+        if (localDC || MessagingService.instance().getVersion(target) < MessagingService.VERSION_20)
         {
             // yes, the loop and non-loop code here are the same; this is clunky but we want to avoid
             // creating a second iterator since we already have a perfectly good one
@@ -644,13 +645,13 @@ public class StorageProxy implements StorageProxyMBean
         {
             InetAddress destination = iter.next();
             CompactEndpointSerializationHelper.serialize(destination, dos);
-            String id = MessagingService.instance().addCallback(handler, message, destination, message.getTimeout());
-            dos.writeUTF(id);
+            int id = MessagingService.instance().addCallback(handler, message, destination, message.getTimeout());
+            dos.writeInt(id);
             logger.trace("Adding FWD message to {}@{}", id, destination);
         }
         message = message.withParameter(RowMutation.FORWARD_TO, bos.toByteArray());
         // send the combined message + forward headers
-        String id = MessagingService.instance().sendRR(message, target, handler);
+        int id = MessagingService.instance().sendRR(message, target, handler);
         logger.trace("Sending message to {}@{}", id, target);
     }
 

@@ -34,7 +34,7 @@ public class IndexScanVerbHandler implements IVerbHandler<IndexScanCommand>
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexScanVerbHandler.class);
 
-    public void doVerb(MessageIn<IndexScanCommand> message, String id)
+    public void doVerb(MessageIn<IndexScanCommand> message, int id)
     {
         try
         {

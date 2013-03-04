@@ -457,7 +457,7 @@ public class AntiEntropyService
         /**
          * Trigger a validation compaction which will return the tree upon completion.
          */
-        public void doVerb(MessageIn<TreeRequest> message, String id)
+        public void doVerb(MessageIn<TreeRequest> message, int id)
         {
             TreeRequest remotereq = message.payload;
             TreeRequest request = new TreeRequest(remotereq.sessionid, message.from, remotereq.range, remotereq.cf);
@@ -476,7 +476,7 @@ public class AntiEntropyService
      */
     public static class TreeResponseVerbHandler implements IVerbHandler<Validator>
     {
-        public void doVerb(MessageIn<Validator> message, String id)
+        public void doVerb(MessageIn<Validator> message, int id)
         {
             // deserialize the remote tree, and register it
             Validator response = message.payload;

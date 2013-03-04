@@ -30,7 +30,7 @@ public class GossipDigestAck2VerbHandler implements IVerbHandler<GossipDigestAck
 {
     private static final Logger logger = LoggerFactory.getLogger(GossipDigestAck2VerbHandler.class);
 
-    public void doVerb(MessageIn<GossipDigestAck2> message, String id)
+    public void doVerb(MessageIn<GossipDigestAck2> message, int id)
     {
         if (logger.isTraceEnabled())
         {

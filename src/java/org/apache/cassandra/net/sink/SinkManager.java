@@ -38,7 +38,7 @@ public class SinkManager
         sinks.clear();
     }
 
-    public static MessageOut processOutboundMessage(MessageOut message, String id, InetAddress to)
+    public static MessageOut processOutboundMessage(MessageOut message, int id, InetAddress to)
     {
         if (sinks.isEmpty())
             return message;
@@ -52,7 +52,7 @@ public class SinkManager
         return message;
     }
 
-    public static MessageIn processInboundMessage(MessageIn message, String id)
+    public static MessageIn processInboundMessage(MessageIn message, int id)
     {
         if (sinks.isEmpty())
             return message;

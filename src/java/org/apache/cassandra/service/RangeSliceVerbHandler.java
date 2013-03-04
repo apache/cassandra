@@ -46,7 +46,7 @@ public class RangeSliceVerbHandler implements IVerbHandler<RangeSliceCommand>
             return cfs.getRangeSlice(command.range, command.maxResults, command.predicate, command.row_filter, command.countCQL3Rows, command.isPaging);
     }
 
-    public void doVerb(MessageIn<RangeSliceCommand> message, String id)
+    public void doVerb(MessageIn<RangeSliceCommand> message, int id)
     {
         try
         {

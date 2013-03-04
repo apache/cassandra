@@ -61,7 +61,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         DataInputStream in = getInput("service.TreeRequest.bin");
         assert AntiEntropyService.TreeRequest.serializer.deserialize(in, getVersion()) != null;
-        assert MessageIn.read(in, getVersion(), "id") != null;
+        assert MessageIn.read(in, getVersion(), -1) != null;
         in.close();
     }
 
@@ -98,8 +98,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         DataInputStream in = getInput("service.TreeResponse.bin");
         assert AntiEntropyService.Validator.serializer.deserialize(in, getVersion()) != null;
         assert AntiEntropyService.Validator.serializer.deserialize(in, getVersion()) != null;
-        assert MessageIn.read(in, getVersion(), "id") != null;
-        assert MessageIn.read(in, getVersion(), "id") != null;
+        assert MessageIn.read(in, getVersion(), -1) != null;
+        assert MessageIn.read(in, getVersion(), -1) != null;
         in.close();
     }
 

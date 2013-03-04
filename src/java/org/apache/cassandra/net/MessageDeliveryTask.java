@@ -26,9 +26,9 @@ public class MessageDeliveryTask implements Runnable
 
     private final MessageIn message;
     private final long constructionTime;
-    private final String id;
+    private final int id;
 
-    public MessageDeliveryTask(MessageIn message, String id, long timestamp)
+    public MessageDeliveryTask(MessageIn message, int id, long timestamp)
     {
         assert message != null;
         this.message = message;

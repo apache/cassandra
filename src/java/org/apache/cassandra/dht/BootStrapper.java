@@ -205,7 +205,7 @@ public class BootStrapper
     @Deprecated
     public static class BootstrapTokenVerbHandler implements IVerbHandler
     {
-        public void doVerb(MessageIn message, String id)
+        public void doVerb(MessageIn message, int id)
         {
             StorageService ss = StorageService.instance;
             String tokenString = StorageService.getPartitioner().getTokenFactory().toString(ss.getBootstrapToken());

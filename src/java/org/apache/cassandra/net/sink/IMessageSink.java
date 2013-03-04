@@ -24,7 +24,7 @@ import org.apache.cassandra.net.MessageOut;
 
 public interface IMessageSink
 {
-    public MessageOut handleMessage(MessageOut message, String id, InetAddress to);
+    public MessageOut handleMessage(MessageOut message, int id, InetAddress to);
 
-    public MessageIn handleMessage(MessageIn message, String id, InetAddress to);
+    public MessageIn handleMessage(MessageIn message, int id, InetAddress to);
 }

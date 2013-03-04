@@ -34,7 +34,7 @@ public class GossipDigestAckVerbHandler implements IVerbHandler<GossipDigestAck>
 {
     private static final Logger logger = LoggerFactory.getLogger(GossipDigestAckVerbHandler.class);
 
-    public void doVerb(MessageIn<GossipDigestAck> message, String id)
+    public void doVerb(MessageIn<GossipDigestAck> message, int id)
     {
         InetAddress from = message.from;
         if (logger.isTraceEnabled())

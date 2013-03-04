@@ -185,11 +185,11 @@ public class PBSPredictor implements PBSPredictorMBean
     }
 
     // used for LRU replacement
-    private final Queue<String> writeMessageIds = new LinkedBlockingQueue<String>();
-    private final Queue<String> readMessageIds = new LinkedBlockingQueue<String>();
+    private final Queue<Integer> writeMessageIds = new LinkedBlockingQueue<Integer>();
+    private final Queue<Integer> readMessageIds = new LinkedBlockingQueue<Integer>();
 
-    private final Map<String, MessageLatencyCollection> messageIdToWriteLats = new ConcurrentHashMap<String, MessageLatencyCollection>();
-    private final Map<String, MessageLatencyCollection> messageIdToReadLats = new ConcurrentHashMap<String, MessageLatencyCollection>();
+    private final Map<Integer, MessageLatencyCollection> messageIdToWriteLats = new ConcurrentHashMap<Integer, MessageLatencyCollection>();
+    private final Map<Integer, MessageLatencyCollection> messageIdToReadLats = new ConcurrentHashMap<Integer, MessageLatencyCollection>();
 
     private Random random;
     private boolean initialized = false;
@@ -455,7 +455,7 @@ public class PBSPredictor implements PBSPredictorMBean
                                        percentileLatency);
     }
 
-    public void startWriteOperation(String id)
+    public void startWriteOperation(int id)
     {
         if (!logLatencies)
             return;
@@ -463,7 +463,7 @@ public class PBSPredictor implements PBSPredictorMBean
         startWriteOperation(id, System.currentTimeMillis());
     }
 
-    public void startWriteOperation(String id, long startTime)
+    public void startWriteOperation(int id, long startTime)
     {
         if (!logLatencies)
             return;
@@ -476,14 +476,14 @@ public class PBSPredictor implements PBSPredictorMBean
         // the maximum number of entries is sloppy, but that's acceptable for our purposes
         if (writeMessageIds.size() > maxLoggedLatencies)
         {
-            String toEvict = writeMessageIds.remove();
+            Integer toEvict = writeMessageIds.remove();
             messageIdToWriteLats.remove(toEvict);
         }
 
         messageIdToWriteLats.put(id, new MessageLatencyCollection(startTime));
     }
 
-    public void startReadOperation(String id)
+    public void startReadOperation(int id)
     {
         if (!logLatencies)
             return;
@@ -491,7 +491,7 @@ public class PBSPredictor implements PBSPredictorMBean
         startReadOperation(id, System.currentTimeMillis());
     }
 
-    public void startReadOperation(String id, long startTime)
+    public void startReadOperation(int id, long startTime)
     {
         if (!logLatencies)
             return;
@@ -503,14 +503,14 @@ public class PBSPredictor implements PBSPredictorMBean
         // the maximum number of entries is sloppy, but that's acceptable for our purposes
         if (readMessageIds.size() > maxLoggedLatencies)
         {
-            String toEvict = readMessageIds.remove();
+            Integer toEvict = readMessageIds.remove();
             messageIdToReadLats.remove(toEvict);
         }
 
         messageIdToReadLats.put(id, new MessageLatencyCollection(startTime));
     }
 
-    public void logWriteResponse(String id, long constructionTime)
+    public void logWriteResponse(int id, long constructionTime)
     {
         if (!logLatencies)
             return;
@@ -518,7 +518,7 @@ public class PBSPredictor implements PBSPredictorMBean
         logWriteResponse(id, constructionTime, System.currentTimeMillis());
     }
 
-    public void logWriteResponse(String id, long responseCreationTime, long receivedTime)
+    public void logWriteResponse(int id, long responseCreationTime, long receivedTime)
     {
         if (!logLatencies)
             return;
@@ -534,7 +534,7 @@ public class PBSPredictor implements PBSPredictorMBean
         writeLatsCollection.addReplyLat(Math.max(0, receivedTime - responseCreationTime));
     }
 
-    public void logReadResponse(String id, long constructionTime)
+    public void logReadResponse(int id, long constructionTime)
     {
         if (!logLatencies)
             return;
@@ -542,7 +542,7 @@ public class PBSPredictor implements PBSPredictorMBean
         logReadResponse(id, constructionTime, System.currentTimeMillis());
     }
 
-    public void logReadResponse(String id, long responseCreationTime, long receivedTime)
+    public void logReadResponse(int id, long responseCreationTime, long receivedTime)
     {
         if (!logLatencies)
             return;

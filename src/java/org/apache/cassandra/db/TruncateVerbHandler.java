@@ -30,7 +30,7 @@ public class TruncateVerbHandler implements IVerbHandler<Truncation>
 {
     private static final Logger logger = LoggerFactory.getLogger(TruncateVerbHandler.class);
 
-    public void doVerb(MessageIn<Truncation> message, String id)
+    public void doVerb(MessageIn<Truncation> message, int id)
     {
         Truncation t = message.payload;
         Tracing.trace("Applying truncation of {}.{}", t.keyspace, t.columnFamily);

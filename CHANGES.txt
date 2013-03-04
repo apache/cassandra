@@ -1,4 +1,5 @@
 2.0
+ * Change Message IDs to ints (CASSANDRA-5307)
  * Move sstable level information into the Stats component, removing the
    need for a separate Manifest file (CASSANDRA-4872)
  * avoid serializing to byte[] on commitlog append (CASSANDRA-5199)

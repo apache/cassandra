@@ -23,7 +23,7 @@ import org.apache.cassandra.net.MessagingService;
 
 public class ReadRepairVerbHandler implements IVerbHandler<RowMutation>
 {
-    public void doVerb(MessageIn<RowMutation> message, String id)
+    public void doVerb(MessageIn<RowMutation> message, int id)
     {
         RowMutation rm = message.payload;
         rm.apply();

@@ -36,7 +36,7 @@ public class MigrationRequestVerbHandler implements IVerbHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationRequestVerbHandler.class);
 
-    public void doVerb(MessageIn message, String id)
+    public void doVerb(MessageIn message, int id)
     {
         logger.debug("Received migration request from {}.", message.from);
         MessageOut<Collection<RowMutation>> response = new MessageOut<Collection<RowMutation>>(MessagingService.Verb.INTERNAL_RESPONSE,

@@ -38,8 +38,6 @@ import org.apache.cassandra.db.compaction.PrecompactedRow;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.StreamingMetrics;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.OutboundTcpConnection;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.compress.CompressedInputStream;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -67,11 +65,7 @@ public class IncomingStreamReader
             if (!StreamInSession.hasSession(header.sessionId))
             {
                 StreamReply reply = new StreamReply("", header.sessionId, StreamReply.Status.SESSION_FAILURE);
-                OutboundTcpConnection.write(reply.createMessage(),
-                                            header.sessionId.toString(),
-                                            System.currentTimeMillis(),
-                                            new DataOutputStream(socket.getOutputStream()),
-                                            MessagingService.instance().getVersion(host));
+                FileStreamTask.sendReply(reply.createMessage(), new DataOutputStream(socket.getOutputStream()));
                 throw new IOException("Session " + header.sessionId + " already closed.");
             }
         }

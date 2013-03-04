@@ -32,7 +32,7 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
 {
     private static final Logger logger = LoggerFactory.getLogger(RowMutationVerbHandler.class);
 
-    public void doVerb(MessageIn<RowMutation> message, String id)
+    public void doVerb(MessageIn<RowMutation> message, int id)
     {
         try
         {
@@ -79,7 +79,7 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
         {
             // Send a message to each of the addresses on our Forward List
             InetAddress address = CompactEndpointSerializationHelper.deserialize(dis);
-            String id = dis.readUTF();
+            int id = dis.readInt();
             logger.debug("Forwarding message to {}@{}", id, address);
             // Let the response go back to the coordinator
             MessagingService.instance().sendOneWay(message, id, address);

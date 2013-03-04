@@ -165,7 +165,7 @@ public class RemoveTest
      */
     class ReplicationSink implements IMessageSink
     {
-        public MessageIn handleMessage(MessageIn msg, String id, InetAddress to)
+        public MessageIn handleMessage(MessageIn msg, int id, InetAddress to)
         {
             if (!msg.verb.equals(MessagingService.Verb.STREAM_REQUEST))
                 return msg;
@@ -175,7 +175,7 @@ public class RemoveTest
             return null;
         }
 
-        public MessageOut handleMessage(MessageOut msg, String id, InetAddress to)
+        public MessageOut handleMessage(MessageOut msg, int id, InetAddress to)
         {
             return msg;
         }

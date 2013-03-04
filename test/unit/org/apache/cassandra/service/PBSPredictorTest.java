@@ -25,13 +25,13 @@ public class PBSPredictorTest
 {
     private static PBSPredictor predictor = PBSPredictor.instance();
 
-    private void createWriteResponse(long W, long A, String id)
+    private void createWriteResponse(long W, long A, int id)
     {
         predictor.startWriteOperation(id, 0);
         predictor.logWriteResponse(id, W, W+A);
     }
 
-    private void createReadResponse(long R, long S, String id)
+    private void createReadResponse(long R, long S, int id)
     {
         predictor.startReadOperation(id, 0);
         predictor.logReadResponse(id, R, R+S);
@@ -51,13 +51,13 @@ public class PBSPredictorTest
 
             for (int i = 0; i < 10; ++i)
             {
-                createWriteResponse(10, 0, String.format("W%d", i));
-                createReadResponse(0, 0, String.format("R%d", i));
+                createWriteResponse(10, 0, 10 * i);
+                createReadResponse(0, 0, 10 * i + 1);
             }
 
             for (int i = 0; i < 10; ++i)
             {
-                createWriteResponse(0, 0, String.format("WS%d", i));
+                createWriteResponse(0, 0, 10 * i + 2);
             }
 
             // 10ms after write
@@ -78,7 +78,7 @@ public class PBSPredictorTest
 
             for (int i = 0; i < 10; ++i)
             {
-                createWriteResponse(20, 0, String.format("WL%d", i));
+                createWriteResponse(20, 0, 10 * i + 3);
             }
 
             // 5ms after write
@@ -94,8 +94,8 @@ public class PBSPredictorTest
 
             for (int i = 0; i < 10; ++i)
             {
-                createWriteResponse(100, 100, String.format("WVL%d", i));
-                createReadResponse(100, 100, String.format("RL%d", i));
+                createWriteResponse(100, 100, 10 * i + 4);
+                createReadResponse(100, 100, 10 * i + 5);
             }
 
             result = predictor.doPrediction(2,1,1,0f,1, 0.99f);

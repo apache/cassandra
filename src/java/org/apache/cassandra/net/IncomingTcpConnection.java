@@ -47,7 +47,7 @@ public class IncomingTcpConnection extends Thread
         {
             try
             {
-                this.socket.setReceiveBufferSize(DatabaseDescriptor.getInternodeRecvBufferSize().intValue());
+                this.socket.setReceiveBufferSize(DatabaseDescriptor.getInternodeRecvBufferSize());
             }
             catch (SocketException se)
             {
@@ -190,8 +190,13 @@ public class IncomingTcpConnection extends Thread
         if (version < MessagingService.VERSION_12)
             input.readInt(); // size of entire message. in 1.0+ this is just a placeholder
 
-        String id = input.readUTF();
-        long timestamp = System.currentTimeMillis();;
+        int id;
+        if (version < MessagingService.VERSION_20)
+            id = Integer.valueOf(input.readUTF());
+        else
+            id = input.readInt();
+
+        long timestamp = System.currentTimeMillis();
         if (version >= MessagingService.VERSION_12)
         {
             // make sure to readInt, even if cross_node_to is not enabled

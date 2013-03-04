@@ -32,7 +32,7 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
 {
     private static final Logger logger = LoggerFactory.getLogger(SnapshotVerbHandler.class);
 
-    public void doVerb(MessageIn<SnapshotCommand> message, String id)
+    public void doVerb(MessageIn<SnapshotCommand> message, int id)
     {
         SnapshotCommand command = message.payload;
         if (command.clear_snapshot)

@@ -33,7 +33,7 @@ public class GossipDigestSynVerbHandler implements IVerbHandler<GossipDigestSyn>
 {
     private static final Logger logger = LoggerFactory.getLogger(GossipDigestSynVerbHandler.class);
 
-    public void doVerb(MessageIn<GossipDigestSyn> message, String id)
+    public void doVerb(MessageIn<GossipDigestSyn> message, int id)
     {
         InetAddress from = message.from;
         if (logger.isTraceEnabled())

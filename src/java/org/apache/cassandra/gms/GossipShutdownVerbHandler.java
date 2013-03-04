@@ -27,7 +27,7 @@ public class GossipShutdownVerbHandler implements IVerbHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(GossipShutdownVerbHandler.class);
 
-    public void doVerb(MessageIn message, String id)
+    public void doVerb(MessageIn message, int id)
     {
         if (!Gossiper.instance.isEnabled())
         {

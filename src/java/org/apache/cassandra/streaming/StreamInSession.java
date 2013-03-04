@@ -36,7 +36,6 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.OutboundTcpConnection;
 import org.apache.cassandra.utils.UUIDGen;
 
 /** each context gets its own StreamInSession. So there may be >1 Session per host */
@@ -148,11 +147,8 @@ public class StreamInSession extends AbstractStreamSession
     public void sendMessage(MessageOut<StreamReply> message) throws IOException
     {
         DataOutputStream out = new DataOutputStream(socket.getOutputStream());
-        OutboundTcpConnection.write(message,
-                                    String.valueOf(getSessionId()),
-                                    System.currentTimeMillis(),
-                                    out,
-                                    MessagingService.instance().getVersion(getHost()));
+        FileStreamTask.sendReply(message,
+                                 out);
         out.flush();
     }
 
@@ -200,11 +196,8 @@ public class StreamInSession extends AbstractStreamSession
             try
             {
                 if (socket != null)
-                    OutboundTcpConnection.write(reply.createMessage(),
-                                                sessionId.toString(),
-                                                System.currentTimeMillis(),
-                                                new DataOutputStream(socket.getOutputStream()),
-                                                MessagingService.instance().getVersion(getHost()));
+                    FileStreamTask.sendReply(reply.createMessage(),
+                                             new DataOutputStream(socket.getOutputStream()));
                 else
                     logger.debug("No socket to reply to {} with!", getHost());
             }

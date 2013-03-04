@@ -21,6 +21,7 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +36,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -202,15 +204,19 @@ public class FileStreamTask extends WrappedRunnable
         }
     }
 
+    public static void sendReply(MessageOut message, DataOutputStream out) throws IOException
+    {
+        out.writeInt(MessagingService.PROTOCOL_MAGIC);
+        message.serialize(out, MessagingService.current_version);
+    }
+
     protected void receiveReply() throws IOException
     {
         MessagingService.validateMagic(input.readInt());
-        String id = input.readUTF();
-        input.readInt(); // skip timestamp
         // since we reject streaming with different version, using current_version here is fine
-        MessageIn message = MessageIn.read(input, MessagingService.current_version, id);
+        MessageIn message = MessageIn.read(input, MessagingService.current_version, -1);
         assert message.verb == MessagingService.Verb.STREAM_REPLY : "Non-reply message received on stream socket";
-        handler.doVerb(message, id);
+        handler.doVerb(message, -1);
     }
 
     /**

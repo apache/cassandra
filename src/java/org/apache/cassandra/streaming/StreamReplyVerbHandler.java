@@ -27,7 +27,7 @@ public class StreamReplyVerbHandler implements IVerbHandler<StreamReply>
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamReplyVerbHandler.class);
 
-    public void doVerb(MessageIn<StreamReply> message, String id)
+    public void doVerb(MessageIn<StreamReply> message, int id)
     {
         StreamReply reply = message.payload;
         logger.debug("Received StreamReply {}", reply);

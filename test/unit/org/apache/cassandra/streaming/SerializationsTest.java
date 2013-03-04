@@ -143,7 +143,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         DataInputStream in = getInput("streaming.StreamReply.bin");
         assert StreamReply.serializer.deserialize(in, getVersion()) != null;
-        assert MessageIn.read(in, getVersion(), "id") != null;
+        assert MessageIn.read(in, getVersion(), -1) != null;
         in.close();
     }
 
@@ -192,9 +192,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         assert StreamRequest.serializer.deserialize(in, getVersion()) != null;
         assert StreamRequest.serializer.deserialize(in, getVersion()) != null;
         assert StreamRequest.serializer.deserialize(in, getVersion()) != null;
-        assert MessageIn.read(in, getVersion(), "id") != null;
-        assert MessageIn.read(in, getVersion(), "id") != null;
-        assert MessageIn.read(in, getVersion(), "id") != null;
+        assert MessageIn.read(in, getVersion(), -1) != null;
+        assert MessageIn.read(in, getVersion(), -1) != null;
+        assert MessageIn.read(in, getVersion(), -1) != null;
         in.close();
     }
 

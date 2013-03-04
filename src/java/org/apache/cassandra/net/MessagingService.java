@@ -79,7 +79,7 @@ public final class MessagingService implements MessagingServiceMBean
     /**
      * we preface every message with this number so the recipient can validate the sender is sane
      */
-    static final int PROTOCOL_MAGIC = 0xCA552DFA;
+    public static final int PROTOCOL_MAGIC = 0xCA552DFA;
 
     /* All verb handler identifiers */
     public enum Verb
@@ -122,8 +122,6 @@ public final class MessagingService implements MessagingServiceMBean
         ;
         // remember to add new verbs at the end, since we serialize by ordinal
     }
-
-    public static final Verb[] VERBS = Verb.values();
 
     public static final EnumMap<MessagingService.Verb, Stage> verbStages = new EnumMap<MessagingService.Verb, Stage>(MessagingService.Verb.class)
     {{
@@ -213,7 +211,7 @@ public final class MessagingService implements MessagingServiceMBean
     }};
 
     /* This records all the results mapped by message Id */
-    private final ExpiringMap<String, CallbackInfo> callbacks;
+    private final ExpiringMap<Integer, CallbackInfo> callbacks;
 
     /**
      * a placeholder class that means "deserialize using the callback." We can't implement this without
@@ -316,9 +314,9 @@ public final class MessagingService implements MessagingServiceMBean
         };
         StorageService.scheduledTasks.scheduleWithFixedDelay(logDropped, LOG_DROPPED_INTERVAL_IN_MS, LOG_DROPPED_INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
 
-        Function<Pair<String, ExpiringMap.CacheableObject<CallbackInfo>>, ?> timeoutReporter = new Function<Pair<String, ExpiringMap.CacheableObject<CallbackInfo>>, Object>()
+        Function<Pair<Integer, ExpiringMap.CacheableObject<CallbackInfo>>, ?> timeoutReporter = new Function<Pair<Integer, ExpiringMap.CacheableObject<CallbackInfo>>, Object>()
         {
-            public Object apply(Pair<String, ExpiringMap.CacheableObject<CallbackInfo>> pair)
+            public Object apply(Pair<Integer, ExpiringMap.CacheableObject<CallbackInfo>> pair)
             {
                 CallbackInfo expiredCallbackInfo = pair.right.value;
                 maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, pair.right.timeout);
@@ -336,7 +334,7 @@ public final class MessagingService implements MessagingServiceMBean
             }
         };
 
-        callbacks = new ExpiringMap<String, CallbackInfo>(DatabaseDescriptor.getMinRpcTimeout(), timeoutReporter);
+        callbacks = new ExpiringMap<Integer, CallbackInfo>(DatabaseDescriptor.getMinRpcTimeout(), timeoutReporter);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
@@ -411,7 +409,7 @@ public final class MessagingService implements MessagingServiceMBean
             logger.info("Starting Encrypted Messaging Service on SSL port {}", DatabaseDescriptor.getSSLStoragePort());
         }
 
-        ServerSocketChannel serverChannel = null;
+        ServerSocketChannel serverChannel;
         try
         {
             serverChannel = ServerSocketChannel.open();
@@ -515,9 +513,9 @@ public final class MessagingService implements MessagingServiceMBean
         return verbHandlers.get(type);
     }
 
-    public String addCallback(IMessageCallback cb, MessageOut message, InetAddress to, long timeout)
+    public int addCallback(IMessageCallback cb, MessageOut message, InetAddress to, long timeout)
     {
-        String messageId = nextId();
+        int messageId = nextId();
         CallbackInfo previous;
 
         // If HH is enabled and this is a mutation message => store the message to track for potential hints.
@@ -532,16 +530,15 @@ public final class MessagingService implements MessagingServiceMBean
 
     private static final AtomicInteger idGen = new AtomicInteger(0);
 
-    // TODO make these integers to avoid unnecessary int -> string -> int conversions
-    private static String nextId()
+    private static int nextId()
     {
-        return Integer.toString(idGen.incrementAndGet());
+        return idGen.incrementAndGet();
     }
 
     /*
      * @see #sendRR(Message message, InetAddress to, IMessageCallback cb, long timeout)
      */
-    public String sendRR(MessageOut message, InetAddress to, IMessageCallback cb)
+    public int sendRR(MessageOut message, InetAddress to, IMessageCallback cb)
     {
         return sendRR(message, to, cb, message.getTimeout());
     }
@@ -552,6 +549,7 @@ public final class MessagingService implements MessagingServiceMBean
      * Also holds the message (only mutation messages) to determine if it
      * needs to trigger a hint (uses StorageProxy for that).
      *
+     *
      * @param message message to be sent.
      * @param to      endpoint to which the message needs to be sent
      * @param cb      callback interface which is used to pass the responses or
@@ -560,9 +558,9 @@ public final class MessagingService implements MessagingServiceMBean
      * @param timeout the timeout used for expiration
      * @return an reference to message id used to match with the result
      */
-    public String sendRR(MessageOut message, InetAddress to, IMessageCallback cb, long timeout)
+    public int sendRR(MessageOut message, InetAddress to, IMessageCallback cb, long timeout)
     {
-        String id = addCallback(cb, message, to, timeout);
+        int id = addCallback(cb, message, to, timeout);
 
         if (cb instanceof AbstractWriteResponseHandler)
         {
@@ -582,7 +580,7 @@ public final class MessagingService implements MessagingServiceMBean
         sendOneWay(message, nextId(), to);
     }
 
-    public void sendReply(MessageOut message, String id, InetAddress to)
+    public void sendReply(MessageOut message, int id, InetAddress to)
     {
         sendOneWay(message, id, to);
     }
@@ -594,7 +592,7 @@ public final class MessagingService implements MessagingServiceMBean
      * @param message messages to be sent.
      * @param to      endpoint to which the message needs to be sent
      */
-    public void sendOneWay(MessageOut message, String id, InetAddress to)
+    public void sendOneWay(MessageOut message, int id, InetAddress to)
     {
         if (logger.isTraceEnabled())
             logger.trace(FBUtilities.getBroadcastAddress() + " sending " + message.verb + " to " + id + "@" + to);
@@ -618,7 +616,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public <T> IAsyncResult<T> sendRR(MessageOut message, InetAddress to)
     {
-        IAsyncResult<T> iar = new AsyncResult();
+        IAsyncResult<T> iar = new AsyncResult<T>();
         sendRR(message, to, iar);
         return iar;
     }
@@ -699,7 +697,7 @@ public final class MessagingService implements MessagingServiceMBean
         }
     }
 
-    public void receive(MessageIn message, String id, long timestamp)
+    public void receive(MessageIn message, int id, long timestamp)
     {
         Tracing.instance().initializeFromMessage(message);
         Tracing.trace("Message received from {}", message.from);
@@ -729,22 +727,22 @@ public final class MessagingService implements MessagingServiceMBean
         stage.execute(runnable);
     }
 
-    public void setCallbackForTests(String messageId, CallbackInfo callback)
+    public void setCallbackForTests(int messageId, CallbackInfo callback)
     {
         callbacks.put(messageId, callback);
     }
 
-    public CallbackInfo getRegisteredCallback(String messageId)
+    public CallbackInfo getRegisteredCallback(int messageId)
     {
         return callbacks.get(messageId);
     }
 
-    public CallbackInfo removeRegisteredCallback(String messageId)
+    public CallbackInfo removeRegisteredCallback(int messageId)
     {
         return callbacks.remove(messageId);
     }
 
-    public long getRegisteredCallbackAge(String messageId)
+    public long getRegisteredCallbackAge(int messageId)
     {
         return callbacks.getAge(messageId);
     }

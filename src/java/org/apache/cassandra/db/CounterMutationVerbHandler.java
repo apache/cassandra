@@ -34,7 +34,7 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
 {
     private static final Logger logger = LoggerFactory.getLogger(CounterMutationVerbHandler.class);
 
-    public void doVerb(final MessageIn<CounterMutation> message, final String id)
+    public void doVerb(final MessageIn<CounterMutation> message, final int id)
     {
         try
         {

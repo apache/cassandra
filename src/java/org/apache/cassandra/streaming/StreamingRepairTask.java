@@ -193,7 +193,7 @@ public class StreamingRepairTask implements Runnable
 
     public static class StreamingRepairRequest implements IVerbHandler<StreamingRepairTask>
     {
-        public void doVerb(MessageIn<StreamingRepairTask> message, String id)
+        public void doVerb(MessageIn<StreamingRepairTask> message, int id)
         {
             StreamingRepairTask task = message.payload;
             assert task.src.equals(FBUtilities.getBroadcastAddress());
@@ -208,7 +208,7 @@ public class StreamingRepairTask implements Runnable
 
     public static class StreamingRepairResponse implements IVerbHandler<UUID>
     {
-        public void doVerb(MessageIn<UUID> message, String id)
+        public void doVerb(MessageIn<UUID> message, int id)
         {
             UUID taskid = message.payload;
             StreamingRepairTask task = tasks.get(taskid);

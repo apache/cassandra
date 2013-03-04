@@ -39,7 +39,7 @@ public class DefinitionsUpdateVerbHandler implements IVerbHandler<Collection<Row
 {
     private static final Logger logger = LoggerFactory.getLogger(DefinitionsUpdateVerbHandler.class);
 
-    public void doVerb(final MessageIn<Collection<RowMutation>> message, String id)
+    public void doVerb(final MessageIn<Collection<RowMutation>> message, int id)
     {
         logger.debug("Received schema mutation push from " + message.from);
 
