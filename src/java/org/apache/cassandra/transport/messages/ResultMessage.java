@@ -294,7 +294,7 @@ public abstract class ResultMessage extends Message.Response
             for (ColumnSpecification name : metadata.names)
             {
                 namesString.add(name.toString());
-                typesString.add(TypeParser.getShortName(name.type));
+                typesString.add(name.type.toString());
             }
             return new CqlPreparedResult(thriftStatementId, metadata.names.size()).setVariable_types(typesString).setVariable_names(namesString);
         }
