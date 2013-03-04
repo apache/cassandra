@@ -156,7 +156,10 @@ public class UpdateStatement extends ModificationStatement
             else
             {
                 assert values.size() == 1; // We only allow IN for row keys so far
-                builder.add(values.get(0).bindAndGet(variables));
+                ByteBuffer val = values.get(0).bindAndGet(variables);
+                if (val == null)
+                    throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", name));
+                builder.add(val);
             }
         }
         return firstEmpty;
@@ -177,14 +180,20 @@ public class UpdateStatement extends ModificationStatement
             {
                 for (Term t : values)
                 {
-                    keys.add(keyBuilder.copy().add(t.bindAndGet(variables)).build());
+                    ByteBuffer val = values.get(0).bindAndGet(variables);
+                    if (val == null)
+                        throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", name));
+                    keys.add(keyBuilder.copy().add(val).build());
                 }
             }
             else
             {
                 if (values.size() > 1)
                     throw new InvalidRequestException("IN is only supported on the last column of the partition key");
-                keyBuilder.add(values.get(0).bindAndGet(variables));
+                ByteBuffer val = values.get(0).bindAndGet(variables);
+                if (val == null)
+                    throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", name));
+                keyBuilder.add(val);
             }
         }
         return keys;

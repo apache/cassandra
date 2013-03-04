@@ -178,7 +178,7 @@ public abstract class Maps
         public Value bind(List<ByteBuffer> values) throws InvalidRequestException
         {
             ByteBuffer value = values.get(bindIndex);
-            return Value.fromSerialized(value, (MapType)receiver.type);
+            return value == null ? null : Value.fromSerialized(value, (MapType)receiver.type);
         }
     }
 
@@ -219,10 +219,15 @@ public abstract class Maps
         {
             Term.Terminal key = k.bind(params.variables);
             Term.Terminal value = t.bind(params.variables);
-            assert key instanceof Constants.Value && value instanceof Constants.Value;
+            if (key == null)
+                throw new InvalidRequestException("Invalid null map key");
+            assert key instanceof Constants.Value;
+            assert value == null || value instanceof Constants.Value;
 
             ByteBuffer cellName = prefix.add(columnName.key).add(((Constants.Value)key).bytes).build();
-            cf.addColumn(params.makeColumn(cellName, ((Constants.Value)value).bytes));
+            cf.addColumn(value == null
+                       ? params.makeTombstone(cellName)
+                       : params.makeColumn(cellName, ((Constants.Value)value).bytes));
         }
     }
 
@@ -241,6 +246,8 @@ public abstract class Maps
         static void doPut(Term t, ColumnFamily cf, ColumnNameBuilder columnName, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.variables);
+            if (value == null)
+                return;
             assert value instanceof Maps.Value;
 
             Map<ByteBuffer, ByteBuffer> toAdd = ((Maps.Value)value).map;
@@ -262,6 +269,8 @@ public abstract class Maps
         public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal key = t.bind(params.variables);
+            if (key == null)
+                throw new InvalidRequestException("Invalid null map key");
             assert key instanceof Constants.Value;
 
             ByteBuffer cellName = prefix.add(columnName.key).add(((Constants.Value)key).bytes).build();

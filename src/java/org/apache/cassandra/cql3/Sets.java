@@ -169,7 +169,7 @@ public abstract class Sets
         public Value bind(List<ByteBuffer> values) throws InvalidRequestException
         {
             ByteBuffer value = values.get(bindIndex);
-            return Value.fromSerialized(value, (SetType)receiver.type);
+            return value == null ? null : Value.fromSerialized(value, (SetType)receiver.type);
         }
     }
 
@@ -204,6 +204,9 @@ public abstract class Sets
         static void doAdd(Term t, ColumnFamily cf, ColumnNameBuilder columnName, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.variables);
+            if (value == null)
+                return;
+
             assert value instanceof Sets.Value;
 
             Set<ByteBuffer> toAdd = ((Sets.Value)value).elements;
@@ -225,6 +228,8 @@ public abstract class Sets
         public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.variables);
+            if (value == null)
+                return;
 
             // This can be either a set or a single element
             Set<ByteBuffer> toDiscard = value instanceof Constants.Value
