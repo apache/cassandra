@@ -63,7 +63,9 @@ public class ConnectionMetrics
      */
     public ConnectionMetrics(InetAddress ip, final OutboundTcpConnectionPool connectionPool)
     {
-        address = ip.getHostAddress();
+        // ipv6 addresses will contain colons, which are invalid in a JMX ObjectName
+        address = ip.getHostAddress().replaceAll(":", ".");
+
         commandPendingTasks = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "CommandPendingTasks", address), new Gauge<Integer>()
         {
             public Integer value()

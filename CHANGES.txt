@@ -1,4 +1,5 @@
 1.2.3
+ * replace ipv6 colons in jmx object names (CASSANDRA-5298)
  * Avoid allocating SSTableBoundedScanner during repair when the range does 
    not intersect the sstable (CASSANDRA-5249)
  * Don't lowercase property map keys (this breaks NTS) (CASSANDRA-5292)
