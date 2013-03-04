@@ -326,13 +326,21 @@ public class SelectStatement implements CQLStatement
             if (builder.remainingCount() == 1)
             {
                 for (Term t : r.eqValues)
-                    keys.add(builder.copy().add(t.bindAndGet(variables)).build());
+                {
+                    ByteBuffer val = t.bindAndGet(variables);
+                    if (val == null)
+                        throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", name));
+                    keys.add(builder.copy().add(val).build());
+                }
             }
             else
             {
                 if (r.eqValues.size() > 1)
                     throw new InvalidRequestException("IN is only supported on the last column of the partition key");
-                builder.add(r.eqValues.get(0).bindAndGet(variables));
+                ByteBuffer val = r.eqValues.get(0).bindAndGet(variables);
+                if (val == null)
+                    throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", name));
+                builder.add(val);
             }
         }
         return keys;
@@ -356,6 +364,8 @@ public class SelectStatement implements CQLStatement
             return p.getMinimumToken();
 
         ByteBuffer value = t.bindAndGet(variables);
+        if (value == null)
+            throw new InvalidRequestException("Invalid null token value");
         return p.getTokenFactory().fromByteArray(value);
     }
 
@@ -397,8 +407,10 @@ public class SelectStatement implements CQLStatement
         assert !isColumnRange();
 
         ColumnNameBuilder builder = cfDef.getColumnNameBuilder();
+        Iterator<ColumnIdentifier> idIter = cfDef.columns.keySet().iterator();
         for (Restriction r : columnRestrictions)
         {
+            ColumnIdentifier id = idIter.next();
             assert r != null && r.isEquality();
             if (r.eqValues.size() > 1)
             {
@@ -411,7 +423,10 @@ public class SelectStatement implements CQLStatement
                 {
                     Term v = iter.next();
                     ColumnNameBuilder b = iter.hasNext() ? builder.copy() : builder;
-                    b.add(v.bindAndGet(variables));
+                    ByteBuffer val = v.bindAndGet(variables);
+                    if (val == null)
+                        throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", id));
+                    b.add(val);
                     if (cfDef.isCompact)
                         columns.add(b.build());
                     else
@@ -421,7 +436,10 @@ public class SelectStatement implements CQLStatement
             }
             else
             {
-                builder.add(r.eqValues.get(0).bindAndGet(variables));
+                ByteBuffer val = r.eqValues.get(0).bindAndGet(variables);
+                if (val == null)
+                    throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", id));
+                builder.add(val);
             }
         }
 
@@ -503,13 +521,19 @@ public class SelectStatement implements CQLStatement
             if (r.isEquality())
             {
                 assert r.eqValues.size() == 1;
-                builder.add(r.eqValues.get(0).bindAndGet(variables));
+                ByteBuffer val = r.eqValues.get(0).bindAndGet(variables);
+                if (val == null)
+                    throw new InvalidRequestException(String.format("Invalid null clustering key part %s", name));
+                builder.add(val);
             }
             else
             {
                 Term t = r.bound(b);
                 assert t != null;
-                return builder.add(t.bindAndGet(variables), r.getRelation(eocBound, b)).build();
+                ByteBuffer val = t.bindAndGet(variables);
+                if (val == null)
+                    throw new InvalidRequestException(String.format("Invalid null clustering key part %s", name));
+                return builder.add(val, r.getRelation(eocBound, b)).build();
             }
         }
         // Means no relation at all or everything was an equal
@@ -542,6 +566,8 @@ public class SelectStatement implements CQLStatement
                 for (Term t : restriction.eqValues)
                 {
                     ByteBuffer value = t.bindAndGet(variables);
+                    if (value == null)
+                        throw new InvalidRequestException(String.format("Unsupported null value for indexed column %s", name));
                     if (value.remaining() > 0xFFFF)
                         throw new InvalidRequestException("Index expression values may not be larger than 64K");
                     expressions.add(new IndexExpression(name.name.key, IndexOperator.EQ, value));
@@ -554,6 +580,8 @@ public class SelectStatement implements CQLStatement
                     if (restriction.bound(b) != null)
                     {
                         ByteBuffer value = restriction.bound(b).bindAndGet(variables);
+                        if (value == null)
+                            throw new InvalidRequestException(String.format("Unsupported null value for indexed column %s", name));
                         if (value.remaining() > 0xFFFF)
                             throw new InvalidRequestException("Index expression values may not be larger than 64K");
                         expressions.add(new IndexExpression(name.name.key, restriction.getIndexOperator(b), value));

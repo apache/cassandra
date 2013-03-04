@@ -61,7 +61,14 @@ public class FunctionCall extends Term.NonTerminal
     {
         List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(terms.size());
         for (Term t : terms)
-            buffers.add(t.bindAndGet(values));
+        {
+            // For now, we don't allow nulls as argument as no existing function needs it and it
+            // simplify things.
+            ByteBuffer val = t.bindAndGet(values);
+            if (val == null)
+                throw new InvalidRequestException(String.format("Invalid null value for argument to %s", fun));
+            buffers.add(val);
+        }
 
         return fun.execute(buffers);
     }

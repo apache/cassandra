@@ -161,7 +161,7 @@ public abstract class Lists
         public Value bind(List<ByteBuffer> values) throws InvalidRequestException
         {
             ByteBuffer value = values.get(bindIndex);
-            return Value.fromSerialized(value, (ListType)receiver.type);
+            return value == null ? null : Value.fromSerialized(value, (ListType)receiver.type);
 
         }
     }
@@ -276,8 +276,12 @@ public abstract class Lists
         static void doAppend(Term t, ColumnFamily cf, ColumnNameBuilder columnName, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.variables);
-            assert value instanceof Lists.Value;
+            // If we append null, do nothing. Note that for Setter, we've
+            // already removed the previous value so we're good here too
+            if (value == null)
+                return;
 
+            assert value instanceof Lists.Value;
             List<ByteBuffer> toAdd = ((Lists.Value)value).elements;
             for (int i = 0; i < toAdd.size(); i++)
             {
@@ -299,8 +303,10 @@ public abstract class Lists
         public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.variables);
-            assert value instanceof Lists.Value;
+            if (value == null)
+                return;
 
+            assert value instanceof Lists.Value;
             long time = PrecisionTime.REFERENCE_TIME - (System.currentTimeMillis() - PrecisionTime.REFERENCE_TIME);
 
             List<ByteBuffer> toAdd = ((Lists.Value)value).elements;
@@ -336,6 +342,9 @@ public abstract class Lists
                 return;
 
             Term.Terminal value = t.bind(params.variables);
+            if (value == null)
+                return;
+
             assert value instanceof Lists.Value;
 
             // Note: below, we will call 'contains' on this toDiscard list for each element of existingList.
@@ -368,6 +377,9 @@ public abstract class Lists
         public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal index = t.bind(params.variables);
+            if (index == null)
+                throw new InvalidRequestException("Invalid null value for list index");
+
             assert index instanceof Constants.Value;
 
             List<Pair<ByteBuffer, Column>> existingList = params.getPrefetchedList(rowKey, columnName.key);
