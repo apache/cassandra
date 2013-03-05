@@ -199,6 +199,12 @@ public class CliClient
         sessionState.out.println(getHelp().banner);
     }
 
+    private void printCQL3TablesWarning(String cmd)
+    {
+        sessionState.out.println("\nWARNING: CQL3 tables are intentionally omitted from '" + cmd + "' output.");
+        sessionState.out.println("See https://issues.apache.org/jira/browse/CASSANDRA-4377 for details.\n");
+    }
+
     // Execute a CLI Statement
     public void executeCLIStatement(String statement) throws CharacterCodingException, TException, TimedOutException, NotFoundException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException, ClassNotFoundException
     {
@@ -1691,6 +1697,8 @@ public class CliClient
         if (!CliMain.isConnected())
             return;
 
+        printCQL3TablesWarning("show keyspaces");
+
         List<KsDef> keySpaces = thriftClient.describe_keyspaces();
 
         Collections.sort(keySpaces, new KsDefNamesComparator());
@@ -1705,6 +1713,8 @@ public class CliClient
     {
         if (!CliMain.isConnected())
             return;
+
+        printCQL3TablesWarning("show schema");
 
         final List<KsDef> keyspaces = thriftClient.describe_keyspaces();
         Collections.sort(keyspaces, new KsDefNamesComparator());
@@ -2242,6 +2252,8 @@ public class CliClient
     {
         if (!CliMain.isConnected())
             return;
+
+        printCQL3TablesWarning("describe");
 
         int argCount = statement.getChildCount();
 
