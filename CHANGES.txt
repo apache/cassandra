@@ -11,6 +11,7 @@
  * Add netty to pom dependencies (CASSANDRA-5181)
  * Include type arguments in Thrift CQLPreparedResult (CASSANDRA-5311)
  * Fix compaction not removing columns when bf_fp_ratio is 1 (CASSANDRA-5182)
+ * cli: Warn about missing CQL3 tables in schema descriptions (CASSANDRA-5309)
 Merged from 1.1:
  * nodetool: ability to repair specific range (CASSANDRA-5280)
  * Fix possible assertion triggered in SliceFromReadCommand (CASSANDRA-5284)
