@@ -346,7 +346,8 @@ public class CounterColumn extends Column
 
     private static void sendToOtherReplica(DecoratedKey key, ColumnFamily cf) throws RequestExecutionException, IOException
     {
-        RowMutation rm = new RowMutation(cf.metadata().ksName, key.key, cf);
+        RowMutation rm = new RowMutation(cf.metadata().ksName, key.key);
+        rm.add(cf);
 
         final InetAddress local = FBUtilities.getBroadcastAddress();
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(local);

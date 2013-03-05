@@ -63,9 +63,10 @@ public class TableTest extends SchemaLoader
         final Table table = Table.open("Keyspace2");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard3");
 
+        RowMutation rm = new RowMutation("Keyspace2", TEST_KEY.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace2", "Standard3");
         cf.addColumn(column("col1","val1", 1L));
-        RowMutation rm = new RowMutation("Keyspace2", TEST_KEY.key, cf);
+        rm.add(cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -93,11 +94,12 @@ public class TableTest extends SchemaLoader
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
 
+        RowMutation rm = new RowMutation("Keyspace1", TEST_KEY.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1","val1", 1L));
         cf.addColumn(column("col2","val2", 1L));
         cf.addColumn(column("col3","val3", 1L));
-        RowMutation rm = new RowMutation("Keyspace1", TEST_KEY.key, cf);
+        rm.add(cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -122,12 +124,13 @@ public class TableTest extends SchemaLoader
     	DecoratedKey key = TEST_SLICE_KEY;
     	Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+    	RowMutation rm = new RowMutation("Keyspace1", key.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         // First write "a", "b", "c"
         cf.addColumn(column("a", "val1", 1L));
         cf.addColumn(column("b", "val2", 1L));
         cf.addColumn(column("c", "val3", 1L));
-        RowMutation rm = new RowMutation("Keyspace1", key.key, cf);
+        rm.add(cf);
         rm.apply();
 
         cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("b"), ByteBufferUtil.bytes("c"), false, 100);
@@ -144,9 +147,10 @@ public class TableTest extends SchemaLoader
     public void testGetSliceNoMatch() throws Throwable
     {
         Table table = Table.open("Keyspace1");
+        RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("row1000"));
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard2");
         cf.addColumn(column("col1", "val1", 1));
-        RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("row1000"), cf);
+        rm.add(cf);
         rm.apply();
 
         validateGetSliceNoMatch(table);
@@ -168,12 +172,13 @@ public class TableTest extends SchemaLoader
         final DecoratedKey ROW = Util.dk("row4");
         final NumberFormat fmt = new DecimalFormat("000");
 
+        RowMutation rm = new RowMutation("Keyspace1", ROW.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         // at this rate, we're getting 78-79 cos/block, assuming the blocks are set to be about 4k.
         // so if we go to 300, we'll get at least 4 blocks, which is plenty for testing.
         for (int i = 0; i < 300; i++)
             cf.addColumn(column("col" + fmt.format(i), "omg!thisisthevalue!"+i, 1L));
-        RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
+        rm.add(cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -226,9 +231,10 @@ public class TableTest extends SchemaLoader
 
         for (int i = 0; i < 10; i++)
         {
+            RowMutation rm = new RowMutation("Keyspace1", ROW.key);
             ColumnFamily cf = ColumnFamily.create("Keyspace1", "StandardLong1");
             cf.addColumn(new Column(ByteBufferUtil.bytes((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
-            RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
+            rm.add(cf);
             rm.apply();
         }
 
@@ -236,9 +242,10 @@ public class TableTest extends SchemaLoader
 
         for (int i = 10; i < 20; i++)
         {
+            RowMutation rm = new RowMutation("Keyspace1", ROW.key);
             ColumnFamily cf = ColumnFamily.create("Keyspace1", "StandardLong1");
             cf.addColumn(new Column(ByteBufferUtil.bytes((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
-            RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
+            rm.add(cf);
             rm.apply();
 
             cf = cfs.getColumnFamily(ROW, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 1);
@@ -269,6 +276,7 @@ public class TableTest extends SchemaLoader
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
         final DecoratedKey ROW = Util.dk("row1");
 
+        RowMutation rm = new RowMutation("Keyspace1", ROW.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
         cf.addColumn(column("col3", "val3", 1L));
@@ -276,7 +284,7 @@ public class TableTest extends SchemaLoader
         cf.addColumn(column("col5", "val5", 1L));
         cf.addColumn(column("col7", "val7", 1L));
         cf.addColumn(column("col9", "val9", 1L));
-        RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
+        rm.add(cf);
         rm.apply();
 
         rm = new RowMutation("Keyspace1", ROW.key);
@@ -324,11 +332,13 @@ public class TableTest extends SchemaLoader
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
         final DecoratedKey ROW = Util.dk("row5");
 
+        RowMutation rm = new RowMutation("Keyspace1", ROW.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
         cf.addColumn(expiringColumn("col2", "val2", 1L, 60)); // long enough not to be tombstoned
         cf.addColumn(column("col3", "val3", 1L));
-        RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
+
+        rm.add(cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -358,6 +368,7 @@ public class TableTest extends SchemaLoader
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
         final DecoratedKey ROW = Util.dk("row2");
 
+        RowMutation rm = new RowMutation("Keyspace1", ROW.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
         cf.addColumn(column("col2", "val2", 1L));
@@ -365,15 +376,16 @@ public class TableTest extends SchemaLoader
         cf.addColumn(column("col4", "val4", 1L));
         cf.addColumn(column("col5", "val5", 1L));
         cf.addColumn(column("col6", "val6", 1L));
-        RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
+        rm.add(cf);
         rm.apply();
         cfStore.forceBlockingFlush();
 
+        rm = new RowMutation("Keyspace1", ROW.key);
         cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "valx", 2L));
         cf.addColumn(column("col2", "valx", 2L));
         cf.addColumn(column("col3", "valx", 2L));
-        rm = new RowMutation("Keyspace1", ROW.key, cf);
+        rm.add(cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -406,10 +418,11 @@ public class TableTest extends SchemaLoader
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
         DecoratedKey key = Util.dk("row3");
+        RowMutation rm = new RowMutation("Keyspace1", key.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         for (int i = 1000; i < 2000; i++)
             cf.addColumn(column("col" + i, ("v" + i), 1L));
-        RowMutation rm = new RowMutation("Keyspace1", key.key, cf);
+        rm.add(cf);
         rm.apply();
         cfStore.forceBlockingFlush();
 

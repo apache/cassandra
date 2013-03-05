@@ -119,7 +119,8 @@ public class RowDataResolver extends AbstractRowResolver
                 continue;
 
             // create and send the row mutation message based on the diff
-            RowMutation rowMutation = new RowMutation(table, key.key, diffCf);
+            RowMutation rowMutation = new RowMutation(table, key.key);
+            rowMutation.add(diffCf);
             MessageOut repairMessage;
             // use a separate verb here because we don't want these to be get the white glove hint-
             // on-timeout behavior that a "real" mutation gets

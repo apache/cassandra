@@ -47,9 +47,10 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 		ColumnFamily cf;
 
 		// add a single cell
+		rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("keymulti"));
 		cf = ColumnFamily.create("Keyspace1", "Standard1");
 		cf.addColumn(column("col1", "val1", 1L));
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("keymulti"), cf);
+		rm.add(cf);
 		rm.apply();
 
 		// Make sure data was written

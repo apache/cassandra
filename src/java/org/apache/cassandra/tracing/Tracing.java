@@ -178,7 +178,8 @@ public class Tracing
                     CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
                     ColumnFamily cf = ColumnFamily.create(cfMeta);
                     addColumn(cf, buildName(cfMeta, bytes("duration")), elapsed);
-                    RowMutation mutation = new RowMutation(TRACE_KS, sessionIdBytes, cf);
+                    RowMutation mutation = new RowMutation(TRACE_KS, sessionIdBytes);
+                    mutation.add(cf);
                     StorageProxy.mutate(Arrays.asList(mutation), ConsistencyLevel.ANY);
                 }
             });
@@ -220,7 +221,8 @@ public class Tracing
                 addColumn(cf, buildName(cfMeta, bytes("request")), request);
                 addColumn(cf, buildName(cfMeta, bytes("started_at")), started_at);
                 addParameterColumns(cf, parameters);
-                RowMutation mutation = new RowMutation(TRACE_KS, sessionIdBytes, cf);
+                RowMutation mutation = new RowMutation(TRACE_KS, sessionIdBytes);
+                mutation.add(cf);
                 StorageProxy.mutate(Arrays.asList(mutation), ConsistencyLevel.ANY);
             }
         });

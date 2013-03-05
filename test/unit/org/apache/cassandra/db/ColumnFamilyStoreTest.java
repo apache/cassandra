@@ -723,19 +723,21 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
     private static void putColsSuper(ColumnFamilyStore cfs, DecoratedKey key, ByteBuffer scfName, Column... cols) throws Throwable
     {
+        RowMutation rm = new RowMutation(cfs.table.getName(), key.key);
         ColumnFamily cf = ColumnFamily.create(cfs.table.getName(), cfs.name);
         for (Column col : cols)
             cf.addColumn(col.withUpdatedName(CompositeType.build(scfName, col.name())));
-        RowMutation rm = new RowMutation(cfs.table.getName(), key.key, cf);
+        rm.add(cf);
         rm.apply();
     }
 
     private static void putColsStandard(ColumnFamilyStore cfs, DecoratedKey key, Column... cols) throws Throwable
     {
+        RowMutation rm = new RowMutation(cfs.table.getName(), key.key);
         ColumnFamily cf = ColumnFamily.create(cfs.table.getName(), cfs.name);
         for (Column col : cols)
             cf.addColumn(col);
-        RowMutation rm = new RowMutation(cfs.table.getName(), key.key, cf);
+        rm.add(cf);
         rm.apply();
     }
 

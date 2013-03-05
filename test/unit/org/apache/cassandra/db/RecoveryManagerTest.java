@@ -48,14 +48,16 @@ public class RecoveryManagerTest extends SchemaLoader
         DecoratedKey dk = Util.dk("keymulti");
         ColumnFamily cf;
 
+        rm = new RowMutation("Keyspace1", dk.key);
         cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
-        rm = new RowMutation("Keyspace1", dk.key, cf);
+        rm.add(cf);
         rm.apply();
 
+        rm = new RowMutation("Keyspace2", dk.key);
         cf = ColumnFamily.create("Keyspace2", "Standard3");
         cf.addColumn(column("col2", "val2", 1L));
-        rm = new RowMutation("Keyspace2", dk.key, cf);
+        rm.add(cf);
         rm.apply();
 
         table1.getColumnFamilyStore("Standard1").clearUnsafe();
@@ -79,9 +81,10 @@ public class RecoveryManagerTest extends SchemaLoader
 
         for (int i = 0; i < 10; ++i)
         {
+            rm = new RowMutation("Keyspace1", dk.key);
             cf = ColumnFamily.create("Keyspace1", "Counter1");
             cf.addColumn(new CounterColumn(ByteBufferUtil.bytes("col"), 1L, 1L));
-            rm = new RowMutation("Keyspace1", dk.key, cf);
+            rm.add(cf);
             rm.apply();
         }
 

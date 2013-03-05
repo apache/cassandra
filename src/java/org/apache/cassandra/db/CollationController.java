@@ -186,7 +186,7 @@ public class CollationController
                 && cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
             {
                 Tracing.trace("Defragmenting requested data");
-                RowMutation rm = new RowMutation(cfs.table.getName(), filter.key.key, returnCF.cloneMe());
+                RowMutation rm = new RowMutation(cfs.table.getName(), new Row(filter.key, returnCF.cloneMe()));
                 // skipping commitlog and index updates is fine since we're just de-fragmenting existing data
                 Table.open(rm.getTable()).apply(rm, false, false);
             }

@@ -71,9 +71,10 @@ public class RecoveryManager2Test extends SchemaLoader
 
     private void insertRow(String cfname, String key) throws IOException
     {
+        RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key));
         ColumnFamily cf = ColumnFamily.create("Keyspace1", cfname);
         cf.addColumn(column("col1", "val1", 1L));
-        RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
+        rm.add(cf);
         rm.apply();
     }
 }

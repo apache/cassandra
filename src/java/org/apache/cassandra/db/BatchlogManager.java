@@ -137,8 +137,10 @@ public class BatchlogManager implements BatchlogManagerMBean
         ColumnFamily cf = ColumnFamily.create(CFMetaData.BatchlogCF);
         cf.addColumn(new Column(WRITTEN_AT, writtenAt, timestamp));
         cf.addColumn(new Column(DATA, data, timestamp));
+        RowMutation rm = new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(uuid));
+        rm.add(cf);
 
-        return new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(uuid), cf);
+        return rm;
     }
 
     private static ByteBuffer serializeRowMutations(Collection<RowMutation> mutations)

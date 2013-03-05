@@ -139,10 +139,11 @@ public class StreamingTransferTest extends SchemaLoader
             public void mutate(String key, String col, long timestamp) throws Exception
             {
                 long val = key.hashCode();
+                RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key));
                 ColumnFamily cf = ColumnFamily.create(table.getName(), cfs.name);
                 cf.addColumn(column(col, "v", timestamp));
                 cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(val), timestamp));
-                RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
+                rm.add(cf);
                 logger.debug("Applying row to transfer " + rm);
                 rm.apply();
             }
@@ -327,10 +328,11 @@ public class StreamingTransferTest extends SchemaLoader
         {
             public void mutate(String key, String colName, long timestamp) throws Exception
             {
+                RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key));
                 ColumnFamily cf = ColumnFamily.create(table.getName(), cfs.name);
                 cf.addColumn(column(colName, "value", timestamp));
                 cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(new Date(timestamp).toString()), timestamp));
-                RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
+                rm.add(cf);
                 logger.debug("Applying row to transfer " + rm);
                 rm.apply();
             }
