@@ -214,10 +214,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         RowMutation emptyRm = new RowMutation(statics.KS, statics.Key);
         RowMutation standardRowRm = new RowMutation(statics.KS, statics.StandardRow);
         RowMutation superRowRm = new RowMutation(statics.KS, statics.SuperRow);
-        RowMutation standardRm = new RowMutation(statics.KS, statics.Key);
-        standardRm.add(statics.StandardCf);
-        RowMutation superRm = new RowMutation(statics.KS, statics.Key);
-        superRm.add(statics.SuperCf);
+        RowMutation standardRm = new RowMutation(statics.KS, statics.Key, statics.StandardCf);
+        RowMutation superRm = new RowMutation(statics.KS, statics.Key, statics.SuperCf);
         Map<UUID, ColumnFamily> mods = new HashMap<UUID, ColumnFamily>();
         mods.put(statics.StandardCf.metadata().cfId, statics.StandardCf);
         mods.put(statics.SuperCf.metadata().cfId, statics.SuperCf);
