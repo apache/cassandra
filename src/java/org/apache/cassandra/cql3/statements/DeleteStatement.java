@@ -61,7 +61,7 @@ public class DeleteStatement extends ModificationStatement
             cl.validateForWrite(cfDef.cfm.ksName);
     }
 
-    public Collection<RowMutation> getMutations(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
+    public Collection<RowMutation> getMutationsInternal(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now, boolean isBatch)
     throws RequestExecutionException, RequestValidationException
     {
         // keys
@@ -94,12 +94,12 @@ public class DeleteStatement extends ModificationStatement
         UpdateParameters params = new UpdateParameters(cfDef.cfm, variables, getTimestamp(now), -1, rows);
 
         for (ByteBuffer key : keys)
-            rowMutations.add(mutationForKey(cfDef, key, builder, isRange, params));
+            rowMutations.add(mutationForKey(cfDef, key, builder, isRange, params, isBatch));
 
         return rowMutations;
     }
 
-    public RowMutation mutationForKey(CFDefinition cfDef, ByteBuffer key, ColumnNameBuilder builder, boolean isRange, UpdateParameters params)
+    public RowMutation mutationForKey(CFDefinition cfDef, ByteBuffer key, ColumnNameBuilder builder, boolean isRange, UpdateParameters params, boolean isBatch)
     throws InvalidRequestException
     {
         QueryProcessor.validateKey(key);
@@ -135,7 +135,18 @@ public class DeleteStatement extends ModificationStatement
             }
         }
 
-        return new RowMutation(cfDef.cfm.ksName, key, cf);
+        RowMutation rm;
+        if (isBatch)
+        {
+            // we might group other mutations together with this one later, so make it mutable
+            rm = new RowMutation(cfDef.cfm.ksName, key);
+            rm.add(cf);
+        }
+        else
+        {
+            rm = new RowMutation(cfDef.cfm.ksName, key, cf);
+        }
+        return rm;
     }
 
     public ParsedStatement.Prepared prepare(ColumnSpecification[] boundNames) throws InvalidRequestException

@@ -104,8 +104,7 @@ public class UpdateStatement extends ModificationStatement
             cl.validateForWrite(cfDef.cfm.ksName);
     }
 
-    /** {@inheritDoc} */
-    public Collection<IMutation> getMutations(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
+    public Collection<IMutation> getMutationsInternal(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now, boolean isBatch)
     throws RequestExecutionException, RequestValidationException
     {
         List<ByteBuffer> keys = buildKeyNames(cfDef, processedKeys, variables);
@@ -131,7 +130,7 @@ public class UpdateStatement extends ModificationStatement
         UpdateParameters params = new UpdateParameters(cfDef.cfm, variables, getTimestamp(now), getTimeToLive(), rows);
 
         for (ByteBuffer key: keys)
-            mutations.add(mutationForKey(cfDef, key, builder, params, cl));
+            mutations.add(mutationForKey(cfDef, key, builder, params, cl, isBatch));
 
         return mutations;
     }
@@ -207,7 +206,7 @@ public class UpdateStatement extends ModificationStatement
      *
      * @throws InvalidRequestException on the wrong request
      */
-    private IMutation mutationForKey(CFDefinition cfDef, ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params, ConsistencyLevel cl)
+    private IMutation mutationForKey(CFDefinition cfDef, ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params, ConsistencyLevel cl, boolean isBatch)
     throws InvalidRequestException
     {
         validateKey(key);
@@ -261,7 +260,17 @@ public class UpdateStatement extends ModificationStatement
                 op.execute(key, cf, builder.copy(), params);
         }
 
-        RowMutation rm = new RowMutation(cfDef.cfm.ksName, key, cf);
+        RowMutation rm;
+        if (isBatch)
+        {
+            // we might group other mutations together with this one later, so make it mutable
+            rm = new RowMutation(cfDef.cfm.ksName, key);
+            rm.add(cf);
+        }
+        else
+        {
+            rm = new RowMutation(cfDef.cfm.ksName, key, cf);
+        }
         return type == Type.COUNTER ? new CounterMutation(rm, cl) : rm;
     }
 

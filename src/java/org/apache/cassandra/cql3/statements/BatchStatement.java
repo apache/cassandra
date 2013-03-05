@@ -89,6 +89,7 @@ public class BatchStatement extends ModificationStatement
             statement.validateConsistency(cl);
     }
 
+    @Override
     public Collection<? extends IMutation> getMutations(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
     throws RequestExecutionException, RequestValidationException
     {
@@ -99,7 +100,7 @@ public class BatchStatement extends ModificationStatement
                 statement.setTimestamp(getTimestamp(now));
 
             // Group mutation together, otherwise they won't get applied atomically
-            for (IMutation m : statement.getMutations(variables, local, cl, now))
+            for (IMutation m : statement.getMutationsInternal(variables, local, cl, now, true))
             {
                 if (m instanceof CounterMutation && type != Type.COUNTER)
                     throw new InvalidRequestException("Counter mutations are only allowed in COUNTER batches");
@@ -111,13 +112,24 @@ public class BatchStatement extends ModificationStatement
                 IMutation existing = mutations.get(key);
 
                 if (existing == null)
+                {
                     mutations.put(key, m);
+                }
                 else
+                {
+
                     existing.addAll(m);
+                }
             }
         }
 
         return mutations.values();
+    }
+
+    protected Collection<? extends IMutation> getMutationsInternal(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now, boolean isBatch) throws RequestExecutionException, RequestValidationException
+    {
+        // batch statements should not contain other batches
+        throw new UnsupportedOperationException();
     }
 
     public ParsedStatement.Prepared prepare(ColumnSpecification[] boundNames) throws InvalidRequestException
