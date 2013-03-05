@@ -763,11 +763,10 @@ public class SystemTable
                 continue;
 
             RowMutation mutation = mutationMap.get(schemaRow.key);
-
             if (mutation == null)
             {
-                mutationMap.put(schemaRow.key, new RowMutation(Table.SYSTEM_KS, schemaRow));
-                continue;
+                mutation = new RowMutation(Table.SYSTEM_KS, schemaRow.key.key);
+                mutationMap.put(schemaRow.key, mutation);
             }
 
             mutation.add(schemaRow.cf);
