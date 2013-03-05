@@ -87,12 +87,14 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
         if (attrs.getReplicationStrategyClass() == null)
             throw new ConfigurationException("Missing mandatory replication strategy class");
 
-        // trial run to let ARS validate class + per-class options
-        AbstractReplicationStrategy.createReplicationStrategy(name,
-                                                              AbstractReplicationStrategy.getClass(attrs.getReplicationStrategyClass()),
-                                                              StorageService.instance.getTokenMetadata(),
-                                                              DatabaseDescriptor.getEndpointSnitch(),
-                                                              attrs.getReplicationOptions());
+        // The strategy is validated through KSMetaData.validate() in announceNewKeyspace below.
+        // However, for backward compatibility with thrift, this doesn't validate unexpected options yet,
+        // so doing proper validation here.
+        AbstractReplicationStrategy.validateReplicationStrategy(name,
+                                                                attrs.getReplicationStrategyClass(),
+                                                                StorageService.instance.getTokenMetadata(),
+                                                                DatabaseDescriptor.getEndpointSnitch(),
+                                                                attrs.getReplicationOptions());
     }
 
     public void announceMigration() throws RequestValidationException

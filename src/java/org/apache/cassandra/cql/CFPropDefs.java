@@ -174,7 +174,7 @@ public class CFPropDefs {
                         CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD));
         }
 
-        CFMetaData.validateCompactionOptions(compactionStrategyClass, compactionStrategyOptions);
+        CFMetaData.validateCompactionOptions(compactionStrategyClass, compactionStrategyOptions, false);
     }
 
     /** Map a keyword to the corresponding value */

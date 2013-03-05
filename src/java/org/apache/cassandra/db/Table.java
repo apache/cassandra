@@ -261,14 +261,7 @@ public class Table
         name = table;
         KSMetaData ksm = Schema.instance.getKSMetaData(table);
         assert ksm != null : "Unknown keyspace " + table;
-        try
-        {
-            createReplicationStrategy(ksm);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
+        createReplicationStrategy(ksm);
 
         indexLocks = new Object[DatabaseDescriptor.getConcurrentWriters() * 128];
         for (int i = 0; i < indexLocks.length; i++)
@@ -281,7 +274,7 @@ public class Table
         }
     }
 
-    public void createReplicationStrategy(KSMetaData ksm) throws ConfigurationException
+    public void createReplicationStrategy(KSMetaData ksm)
     {
         if (replicationStrategy != null)
             StorageService.instance.getTokenMetadata().unregister(replicationStrategy);

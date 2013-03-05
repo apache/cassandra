@@ -20,6 +20,7 @@ package org.apache.cassandra.locator;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -61,7 +62,11 @@ public class LocalStrategy extends AbstractReplicationStrategy
 
     public void validateOptions() throws ConfigurationException
     {
+    }
+
+    public Collection<String> recognizedOptions()
+    {
         // LocalStrategy doesn't expect any options.
-        validateExpectedOptions(Collections.<String>emptySet());
+        return Collections.<String>emptySet();
     }
 }

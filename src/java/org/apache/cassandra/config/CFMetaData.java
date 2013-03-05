@@ -855,7 +855,7 @@ public final class CFMetaData
             throw new ConfigurationException("subcolumncomparators do not match or are note compatible.");
     }
 
-    public static void validateCompactionOptions(Class<? extends AbstractCompactionStrategy> strategyClass, Map<String, String> options) throws ConfigurationException
+    public static void validateCompactionOptions(Class<? extends AbstractCompactionStrategy> strategyClass, Map<String, String> options, boolean checkUnexpected) throws ConfigurationException
     {
         try
         {
@@ -864,7 +864,7 @@ public final class CFMetaData
 
             Method validateMethod = strategyClass.getMethod("validateOptions", Map.class);
             Map<String, String> unknownOptions = (Map<String, String>) validateMethod.invoke(null, options);
-            if (!unknownOptions.isEmpty())
+            if (checkUnexpected && !unknownOptions.isEmpty())
                 throw new ConfigurationException(String.format("Properties specified %s are not understood by %s", unknownOptions.keySet(), strategyClass.getSimpleName()));
         }
         catch (NoSuchMethodException e)

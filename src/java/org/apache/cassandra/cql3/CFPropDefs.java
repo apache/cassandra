@@ -88,7 +88,7 @@ public class CFPropDefs extends PropertyDefinitions
             compactionStrategyClass = CFMetaData.createCompactionStrategy(strategy);
             compactionOptions.remove(COMPACTION_STRATEGY_CLASS_KEY);
 
-            CFMetaData.validateCompactionOptions(compactionStrategyClass, compactionOptions);
+            CFMetaData.validateCompactionOptions(compactionStrategyClass, compactionOptions, true);
         }
     }
 
