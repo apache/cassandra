@@ -197,8 +197,8 @@ public class CliClient
 
     private void printCQL3TablesWarning(String cmd)
     {
-        sessionState.out.println("\nWARNING: CQL3 tables are intentionally omitted from '" + cmd + "' output.");
-        sessionState.out.println("See https://issues.apache.org/jira/browse/CASSANDRA-4377 for details.\n");
+        sessionState.err.println("\nWARNING: CQL3 tables are intentionally omitted from '" + cmd + "' output.");
+        sessionState.err.println("See https://issues.apache.org/jira/browse/CASSANDRA-4377 for details.\n");
     }
 
     // Execute a CLI Statement
