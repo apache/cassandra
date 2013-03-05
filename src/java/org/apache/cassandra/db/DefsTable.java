@@ -531,18 +531,10 @@ public class DefsTable
 
         Schema.instance.setTableDefinition(newKsm);
 
-        try
+        if (!StorageService.instance.isClientMode())
         {
-            if (!StorageService.instance.isClientMode())
-            {
-                Table.open(newState.name).createReplicationStrategy(newKsm);
-                MigrationManager.instance.notifyUpdateKeyspace(newKsm);
-            }
-        }
-        catch (ConfigurationException e)
-        {
-            // It's too late to throw a configuration exception, we should have catch those previously
-            throw new RuntimeException(e);
+            Table.open(newState.name).createReplicationStrategy(newKsm);
+            MigrationManager.instance.notifyUpdateKeyspace(newKsm);
         }
     }
 

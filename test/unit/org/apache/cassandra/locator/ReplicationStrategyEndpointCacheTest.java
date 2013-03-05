@@ -165,7 +165,7 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
     {
         return AbstractReplicationStrategy.createReplicationStrategy(
                 strategy.tableName,
-                strategy.getClass().getName(),
+                AbstractReplicationStrategy.getClass(strategy.getClass().getName()),
                 newTmd,
                 strategy.snitch,
                 strategy.configOptions);
