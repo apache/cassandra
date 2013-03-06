@@ -20,6 +20,7 @@ package org.apache.cassandra.streaming;
 */
 
 import static junit.framework.Assert.assertEquals;
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.Util;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.addMutation;
@@ -47,11 +48,13 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class StreamingTransferTest extends SchemaLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingTransferTest.class);

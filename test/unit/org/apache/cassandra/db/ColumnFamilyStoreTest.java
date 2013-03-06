@@ -32,7 +32,9 @@ import com.google.common.collect.Sets;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
@@ -58,6 +60,7 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.apache.commons.lang.ArrayUtils.EMPTY_BYTE_ARRAY;
 import static org.junit.Assert.assertNull;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class ColumnFamilyStoreTest extends SchemaLoader
 {
     static byte[] bytes1, bytes2;
