@@ -27,6 +27,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ConfigurationException;
@@ -46,7 +47,9 @@ import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NodeId;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class CleanupTest extends SchemaLoader
 {
     public static final int LOOPS = 200;

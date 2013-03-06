@@ -22,8 +22,11 @@ import java.util.*;
 import java.util.concurrent.Future;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+
 import static org.junit.Assert.*;
 
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
@@ -37,6 +40,7 @@ import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class LeveledCompactionStrategyTest extends SchemaLoader
 {
     /*

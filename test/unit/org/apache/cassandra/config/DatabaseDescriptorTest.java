@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.config;
 
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.SimpleStrategy;
@@ -25,9 +26,11 @@ import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class DatabaseDescriptorTest
 {
     @Test

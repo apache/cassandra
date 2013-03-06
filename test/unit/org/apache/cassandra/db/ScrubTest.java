@@ -27,7 +27,9 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -46,6 +48,7 @@ import static org.junit.Assert.fail;
 
 import java.util.*;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class ScrubTest extends SchemaLoader
 {
     public String TABLE = "Keyspace1";

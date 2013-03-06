@@ -26,6 +26,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -56,7 +57,9 @@ import static org.apache.cassandra.db.TableTest.assertColumns;
 import static org.junit.Assert.assertNull;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class ColumnFamilyStoreTest extends SchemaLoader
 {
     static byte[] bytes1, bytes2;
