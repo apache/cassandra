@@ -1077,7 +1077,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         logger.info("Announcing shutdown");
         try
         {
-            Thread.sleep(intervalInMillis);
+            Thread.sleep(intervalInMillis * 2);
         }
         catch (InterruptedException e)
         {
