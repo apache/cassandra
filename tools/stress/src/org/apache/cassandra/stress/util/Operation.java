@@ -26,6 +26,8 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.Map;
+import java.util.HashMap;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
@@ -33,6 +35,7 @@ import com.google.common.collect.Lists;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.Stress;
+import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.thrift.CqlPreparedResult;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -66,6 +69,8 @@ public abstract class Operation
      * @throws IOException on any I/O error.
      */
     public abstract void run(CassandraClient client) throws IOException;
+
+    public void run(SimpleClient client) throws IOException {}
 
     // Utility methods
 
@@ -287,16 +292,31 @@ public abstract class Operation
         return result.toString();
     }
 
-    protected static Integer getPreparedStatement(CassandraClient client, String cqlQuery) throws Exception
+    protected Integer getPreparedStatement(CassandraClient client, String cqlQuery) throws Exception
     {
         Integer statementId = client.preparedStatements.get(cqlQuery.hashCode());
         if (statementId == null)
         {
-            CqlPreparedResult response = client.prepare_cql_query(ByteBufferUtil.bytes(cqlQuery), Compression.NONE);
+            CqlPreparedResult response = session.cqlVersion.startsWith("3")
+                                       ? client.prepare_cql3_query(ByteBufferUtil.bytes(cqlQuery), Compression.NONE)
+                                       : client.prepare_cql_query(ByteBufferUtil.bytes(cqlQuery), Compression.NONE);
             statementId = response.itemId;
             client.preparedStatements.put(cqlQuery.hashCode(), statementId);
         }
 
+        return statementId;
+    }
+
+    private static final Map<Integer, byte[]> preparedStatementsNative = new HashMap<Integer, byte[]>();
+
+    protected static byte[] getPreparedStatement(SimpleClient client, String cqlQuery) throws Exception
+    {
+        byte[] statementId = preparedStatementsNative.get(cqlQuery.hashCode());
+        if (statementId == null)
+        {
+            statementId = client.prepare(cqlQuery).statementId.bytes;
+            preparedStatementsNative.put(cqlQuery.hashCode(), statementId);
+        }
         return statementId;
     }
 
@@ -305,5 +325,10 @@ public abstract class Operation
         return session.cqlVersion.startsWith("3")
                 ? "\"" + string + "\""
                 : string;
+    }
+
+    public interface CQLQueryExecutor
+    {
+        public boolean execute(String query, List<String> queryParameters) throws Exception;
     }
 }

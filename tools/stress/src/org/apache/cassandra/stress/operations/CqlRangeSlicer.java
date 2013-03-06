@@ -24,6 +24,7 @@ package org.apache.cassandra.stress.operations;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.List;
 
 import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -32,19 +33,22 @@ import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
+import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.thrift.CqlResult;
+import org.apache.cassandra.transport.SimpleClient;
 
-public class CqlRangeSlicer extends Operation
+public class CqlRangeSlicer extends CQLOperation
 {
     private static String cqlQuery = null;
+    private int lastRowCount;
 
     public CqlRangeSlicer(Session client, int idx)
     {
         super(client, idx);
     }
 
-    public void run(CassandraClient client) throws IOException
+    protected void run(CQLQueryExecutor executor) throws IOException
     {
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
             throw new RuntimeException("Super columns are not implemented for CQL");
@@ -61,13 +65,12 @@ public class CqlRangeSlicer extends Operation
         }
 
         String key = String.format("%0" +  session.getTotalKeysLength() + "d", index);
-        String formattedQuery = null;
+        List<String> queryParams = Collections.singletonList(getUnQuotedCqlBlob(key, session.cqlVersion.startsWith("3")));
 
         TimerContext context = session.latency.time();
 
         boolean success = false;
         String exceptionMessage = null;
-        int rowCount = 0;
 
         for (int t = 0; t < session.getRetryTimes(); t++)
         {
@@ -76,28 +79,7 @@ public class CqlRangeSlicer extends Operation
 
             try
             {
-                CqlResult result = null;
-
-                if (session.usePreparedStatements())
-                {
-                    Integer stmntId = getPreparedStatement(client, cqlQuery);
-                    if (session.cqlVersion.startsWith("3"))
-                        result = client.execute_prepared_cql3_query(stmntId, Collections.singletonList(ByteBuffer.wrap(key.getBytes())), session.getConsistencyLevel());
-                    else
-                        result = client.execute_prepared_cql_query(stmntId, Collections.singletonList(ByteBuffer.wrap(key.getBytes())));
-                }
-                else
-                {
-                    if (formattedQuery == null)
-                        formattedQuery = formatCqlQuery(cqlQuery, Collections.singletonList(getUnQuotedCqlBlob(key, session.cqlVersion.startsWith("3"))));
-                    if (session.cqlVersion.startsWith("3"))
-                        result = client.execute_cql3_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE, session.getConsistencyLevel());
-                    else
-                        result = client.execute_cql_query(ByteBuffer.wrap(formattedQuery.getBytes()), Compression.NONE);
-                }
-
-                rowCount = result.rows.size();
-                success = (rowCount != 0);
+                success = executor.execute(cqlQuery, queryParams);
             }
             catch (Exception e)
             {
@@ -117,7 +99,20 @@ public class CqlRangeSlicer extends Operation
         }
 
         session.operations.getAndIncrement();
-        session.keys.getAndAdd(rowCount);
+        session.keys.getAndAdd(lastRowCount);
         context.stop();
+    }
+
+    protected boolean validateThriftResult(CqlResult result)
+    {
+        lastRowCount = result.rows.size();
+        return  lastRowCount != 0;
+    }
+
+    protected boolean validateNativeResult(ResultMessage result)
+    {
+        assert result instanceof ResultMessage.Rows;
+        lastRowCount = ((ResultMessage.Rows)result).result.size();
+        return lastRowCount != 0;
     }
 }

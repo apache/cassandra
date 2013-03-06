@@ -30,6 +30,7 @@
  * cli: Warn about missing CQL3 tables in schema descriptions (CASSANDRA-5309)
  * Re-enable unknown option in replication/compaction strategies option for
    backward compatibility (CASSANDRA-4795)
+ * Add binary protocol support to stress (CASSANDRA-4993)
 Merged from 1.1:
  * nodetool: ability to repair specific range (CASSANDRA-5280)
  * Fix possible assertion triggered in SliceFromReadCommand (CASSANDRA-5284)
