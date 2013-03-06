@@ -32,6 +32,7 @@ import com.google.common.collect.Sets;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertNull;
 import static junit.framework.Assert.assertEquals;
@@ -45,6 +46,7 @@ import static org.apache.cassandra.db.TableTest.assertColumns;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.apache.commons.lang.ArrayUtils.EMPTY_BYTE_ARRAY;
 
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
@@ -68,6 +70,7 @@ import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.WrappedRunnable;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class ColumnFamilyStoreTest extends SchemaLoader
 {
     static byte[] bytes1, bytes2;
