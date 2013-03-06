@@ -180,7 +180,7 @@ public class UpdateStatement extends ModificationStatement
             {
                 for (Term t : values)
                 {
-                    ByteBuffer val = values.get(0).bindAndGet(variables);
+                    ByteBuffer val = t.bindAndGet(variables);
                     if (val == null)
                         throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", name));
                     keys.add(keyBuilder.copy().add(val).build());
