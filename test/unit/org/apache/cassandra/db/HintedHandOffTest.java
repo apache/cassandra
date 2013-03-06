@@ -65,7 +65,7 @@ public class HintedHandOffTest extends SchemaLoader
         RowMutation rm = new RowMutation(TABLE4, ByteBufferUtil.bytes(1));
         rm.add(STANDARD1_CF, ByteBufferUtil.bytes(String.valueOf(COLUMN1)), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis());
 
-        RowMutation.hintFor(rm, UUID.randomUUID()).apply();
+        HintedHandOffManager.hintFor(rm, UUID.randomUUID()).apply();
 
         // flush data to disk
         hintStore.forceBlockingFlush();

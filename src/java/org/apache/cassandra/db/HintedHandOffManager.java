@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -108,6 +109,29 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                                                                                  TimeUnit.SECONDS,
                                                                                  new LinkedBlockingQueue<Runnable>(),
                                                                                  new NamedThreadFactory("HintedHandoff", Thread.MIN_PRIORITY), "internal");
+
+    /**
+     * Returns a mutation representing a Hint to be sent to <code>targetId</code>
+     * as soon as it becomes available again.
+     */
+    public static RowMutation hintFor(RowMutation mutation, UUID targetId) throws IOException
+    {
+        UUID hintId = UUIDGen.getTimeUUID();
+
+        // The hint TTL is set at the smallest GCGraceSeconds for any of the CFs in the RM;
+        // this ensures that deletes aren't "undone" by delivery of an old hint
+        int ttl = Integer.MAX_VALUE;
+        for (ColumnFamily cf : mutation.getColumnFamilies())
+            ttl = Math.min(ttl, cf.metadata().getGcGraceSeconds());
+
+        // serialize the hint with id and version as a composite column name
+        ByteBuffer name = comparator.decompose(hintId, MessagingService.current_version);
+        ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, RowMutation.serializer, MessagingService.current_version));
+        ColumnFamily cf = ColumnFamily.create(Schema.instance.getCFMetaData(Table.SYSTEM_KS, SystemTable.HINTS_CF));
+        cf.addColumn(name, value, System.currentTimeMillis(), ttl);
+
+        return new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(targetId), cf);
+    }
 
     public void start()
     {

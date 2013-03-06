@@ -98,30 +98,6 @@ public class RowMutation implements IMutation
         return modifications.get(cfId);
     }
 
-    /**
-     * Returns mutation representing a Hints to be sent to <code>address</code>
-     * as soon as it becomes available.  See HintedHandoffManager for more details.
-     */
-    public static RowMutation hintFor(RowMutation mutation, UUID targetId) throws IOException
-    {
-        UUID hintId = UUIDGen.getTimeUUID();
-
-        // determine the TTL for the RowMutation
-        // this is set at the smallest GCGraceSeconds for any of the CFs in the RM
-        // this ensures that deletes aren't "undone" by delivery of an old hint
-        int ttl = Integer.MAX_VALUE;
-        for (ColumnFamily cf : mutation.getColumnFamilies())
-            ttl = Math.min(ttl, cf.metadata().getGcGraceSeconds());
-
-        // serialize the hint with id and version as a composite column name
-        ByteBuffer name = HintedHandOffManager.comparator.decompose(hintId, MessagingService.current_version);
-        ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, serializer, MessagingService.current_version));
-        RowMutation rm = new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(targetId));
-        rm.add(SystemTable.HINTS_CF, name, value, System.currentTimeMillis(), ttl);
-
-        return rm;
-    }
-
     /*
      * Specify a column family name and the corresponding column
      * family object.

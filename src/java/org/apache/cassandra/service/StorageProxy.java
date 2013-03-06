@@ -579,7 +579,7 @@ public class StorageProxy implements StorageProxyMBean
             return;
         }
         assert hostId != null : "Missing host ID for " + target.getHostAddress();
-        RowMutation hintedMutation = RowMutation.hintFor(mutation, hostId);
+        RowMutation hintedMutation = HintedHandOffManager.hintFor(mutation, hostId);
         hintedMutation.apply();
 
         totalHints.incrementAndGet();
