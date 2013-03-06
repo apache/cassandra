@@ -93,6 +93,11 @@ public class SimpleClient
         this.encryptionOptions = encryptionOptions;
     }
 
+    public SimpleClient(String host, int port)
+    {
+        this(host, port, new ClientEncryptionOptions());
+    }
+
     public void connect(boolean useCompression) throws IOException
     {
         establishConnection();

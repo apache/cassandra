@@ -129,7 +129,7 @@ launch_service()
     if [ "x$pidpath" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-pidfile=$pidpath"
     fi
-    
+
     # The cassandra-foreground option will tell CassandraDaemon not
     # to close stdout/stderr, but it's up to us not to background.
     if [ "x$foreground" != "x" ]; then
