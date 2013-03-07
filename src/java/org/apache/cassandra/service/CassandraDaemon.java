@@ -119,6 +119,9 @@ public class CassandraDaemon
      */
     protected void setup()
     {
+        // log warnings for different kinds of sub-optimal JVMs.  tldr use 64-bit Oracle >= 1.6u32
+        if (!System.getProperty("os.arch").contains("64"))
+            logger.info("32bit JVM detected.  It is recommended to run Cassandra on a 64bit JVM for better performance.");
         String javaVersion = System.getProperty("java.version");
         String javaVmName = System.getProperty("java.vm.name");
         logger.info("JVM vendor/version: {}/{}", javaVmName, javaVersion);

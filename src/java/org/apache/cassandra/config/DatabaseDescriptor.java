@@ -146,8 +146,8 @@ public class DatabaseDescriptor
             Yaml yaml = new Yaml(new Loader(constructor));
             conf = (Config)yaml.load(input);
 
-            if (!System.getProperty("os.arch").contains("64"))
-                logger.info("32bit JVM detected.  It is recommended to run Cassandra on a 64bit JVM for better performance.");
+            logger.info("Data files directories: " + Arrays.toString(conf.data_file_directories));
+            logger.info("Commit log directory: " + conf.commitlog_directory);
 
             if (conf.commitlog_sync == null)
             {
@@ -393,7 +393,9 @@ public class DatabaseDescriptor
                 logger.debug("setting auto_bootstrap to " + conf.auto_bootstrap);
             }
 
-           if (conf.in_memory_compaction_limit_in_mb != null && conf.in_memory_compaction_limit_in_mb <= 0)
+            logger.info((conf.multithreaded_compaction ? "" : "Not ") + "using multi-threaded compaction");
+
+            if (conf.in_memory_compaction_limit_in_mb != null && conf.in_memory_compaction_limit_in_mb <= 0)
             {
                 throw new ConfigurationException("in_memory_compaction_limit_in_mb must be a positive integer");
             }
