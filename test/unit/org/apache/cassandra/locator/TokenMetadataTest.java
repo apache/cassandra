@@ -24,14 +24,17 @@ import com.google.common.collect.Iterators;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import static org.junit.Assert.assertEquals;
 
 import static org.apache.cassandra.Util.token;
 
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class TokenMetadataTest
 {
     public final static String ONE = "1";
