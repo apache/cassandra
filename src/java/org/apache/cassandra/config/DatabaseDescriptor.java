@@ -36,6 +36,7 @@ import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -550,7 +551,7 @@ public class DatabaseDescriptor
                 {
                     public boolean accept(File pathname)
                     {
-                        return (pathname.isDirectory() && !Table.SYSTEM_KS.equals(pathname.getName()));
+                        return (pathname.isDirectory() && !Table.SYSTEM_TABLE.equals(pathname.getName()));
                     }
                 }).length;
 
