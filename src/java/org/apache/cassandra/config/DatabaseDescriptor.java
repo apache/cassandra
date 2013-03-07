@@ -553,7 +553,7 @@ public class DatabaseDescriptor
                 {
                     public boolean accept(File pathname)
                     {
-                        return pathname.isDirectory();
+                        return (pathname.isDirectory() && !Table.SYSTEM_KS.equals(pathname.getName()));
                     }
                 }).length;
 
