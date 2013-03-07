@@ -38,6 +38,7 @@ import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
@@ -582,7 +583,7 @@ public class DatabaseDescriptor
                 {
                     public boolean accept(File pathname)
                     {
-                        return (pathname.isDirectory() && !Table.SYSTEM_KS.equals(pathname.getName()));
+                        return (pathname.isDirectory() && !Schema.systemKeyspaceNames.contains(pathname.getName()));
                     }
                 }).length;
 
