@@ -98,6 +98,9 @@ public class LeveledManifest
                 manifest.add(ssTableReader);
         }
 
+        for (int i = 1; i < manifest.getAllLevelSize().length; i++)
+            manifest.repairOverlappingSSTables(i);
+
         return manifest;
     }
 
