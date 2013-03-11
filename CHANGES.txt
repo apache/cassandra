@@ -1,6 +1,6 @@
 1.2.3
  * add check for sstable overlap within a level on startup (CASSANDRA-5327)
- * replace ipv6 colons in jmx object names (CASSANDRA-5298)
+ * replace ipv6 colons in jmx object names (CASSANDRA-5298, 5328)
  * Avoid allocating SSTableBoundedScanner during repair when the range does 
    not intersect the sstable (CASSANDRA-5249)
  * Don't lowercase property map keys (this breaks NTS) (CASSANDRA-5292)

@@ -54,7 +54,7 @@ public class StreamingMetrics
 
     public StreamingMetrics(final InetAddress peer)
     {
-        incomingBytes = Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "IncomingBytes", peer.getHostAddress()));
-        outgoingBytes= Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "OutgoingBytes", peer.getHostAddress()));
+        incomingBytes = Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "IncomingBytes", peer.getHostAddress().replaceAll(":", ".")));
+        outgoingBytes= Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "OutgoingBytes", peer.getHostAddress().replaceAll(":", ".")));
     }
 }
