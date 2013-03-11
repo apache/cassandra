@@ -2308,7 +2308,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
     public int forceRepairAsync(final String keyspace, final boolean isSequential, final boolean isLocal, final boolean primaryRange, final String... columnFamilies)
     {
-        final Collection<Range<Token>> ranges = primaryRange ? Collections.singletonList(getLocalPrimaryRange()) : getLocalRanges(keyspace);
+        final Collection<Range<Token>> ranges = primaryRange ? getLocalPrimaryRanges() : getLocalRanges(keyspace);
         return forceRepairAsync(keyspace, isSequential, isLocal, ranges, columnFamilies);
     }
 
