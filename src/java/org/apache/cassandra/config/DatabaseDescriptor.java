@@ -190,14 +190,6 @@ public class DatabaseDescriptor
         if (conf.authenticator != null)
             authenticator = FBUtilities.construct(conf.authenticator, "authenticator");
 
-        if (conf.authority != null)
-        {
-            logger.warn("Please rename 'authority' to 'authorizer' in cassandra.yaml");
-            if (!conf.authority.equals("org.apache.cassandra.auth.AllowAllAuthority"))
-                throw new ConfigurationException("IAuthority interface has been deprecated,"
-                        + " please implement IAuthorizer instead.");
-        }
-
         if (conf.authorizer != null)
             authorizer = FBUtilities.construct(conf.authorizer, "authorizer");
 
