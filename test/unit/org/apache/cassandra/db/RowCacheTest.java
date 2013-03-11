@@ -114,7 +114,7 @@ public class RowCacheTest extends SchemaLoader
     public void testRowCacheLoad() throws Exception
     {
         CacheService.instance.setRowCacheCapacityInMB(1);
-        rowCacheLoad(100, Integer.MAX_VALUE, false);
+        rowCacheLoad(100, Integer.MAX_VALUE);
         CacheService.instance.setRowCacheCapacityInMB(0);
     }
 
@@ -122,11 +122,11 @@ public class RowCacheTest extends SchemaLoader
     public void testRowCachePartialLoad() throws Exception
     {
         CacheService.instance.setRowCacheCapacityInMB(1);
-        rowCacheLoad(100, 50, true);
+        rowCacheLoad(100, 50);
         CacheService.instance.setRowCacheCapacityInMB(0);
     }
 
-    public void rowCacheLoad(int totalKeys, int keysToSave, boolean reduceLoadCapacity) throws Exception
+    public void rowCacheLoad(int totalKeys, int keysToSave) throws Exception
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -143,9 +143,6 @@ public class RowCacheTest extends SchemaLoader
 
         // force the cache to disk
         CacheService.instance.rowCache.submitWrite(keysToSave).get();
-
-        if (reduceLoadCapacity)
-            CacheService.instance.reduceRowCacheSize();
 
         // empty the cache again to make sure values came from disk
         CacheService.instance.invalidateRowCache();

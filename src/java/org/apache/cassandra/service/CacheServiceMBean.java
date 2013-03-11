@@ -42,11 +42,6 @@ public interface CacheServiceMBean
     public void setKeyCacheCapacityInMB(long capacity);
 
     /**
-     * sets each cache's maximum capacity to "reduce_cache_capacity_to" of its current size
-     */
-    public void reduceCacheSizes();
-
-    /**
      * save row and key caches
      *
      * @throws ExecutionException when attempting to retrieve the result of a task that aborted by throwing an exception

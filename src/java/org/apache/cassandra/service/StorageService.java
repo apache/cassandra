@@ -3517,32 +3517,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     /**
-     * Flushes the two largest memtables by ops and by throughput
-     */
-    public void flushLargestMemtables()
-    {
-        ColumnFamilyStore largest = null;
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
-            long total = cfs.getTotalMemtableLiveSize();
-
-            if (total > 0 && (largest == null || total > largest.getTotalMemtableLiveSize()))
-            {
-                logger.debug(total + " estimated memtable size for " + cfs);
-                largest = cfs;
-            }
-        }
-        if (largest == null)
-        {
-            logger.info("Unable to reduce heap usage since there are no dirty column families");
-            return;
-        }
-
-        logger.warn("Flushing " + largest + " to relieve memory pressure");
-        largest.forceFlush();
-    }
-
-    /**
      * Seed data to the endpoints that will be responsible for it at the future
      *
      * @param rangesToStreamByTable tables and data ranges with endpoints included for each

@@ -176,19 +176,6 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         return CompactionManager.instance.submitCacheWrite(getWriter(keysToSave));
     }
 
-    public void reduceCacheSize()
-    {
-        if (getCapacity() > 0)
-        {
-            int newCapacity = (int) (DatabaseDescriptor.getReduceCacheCapacityTo() * weightedSize());
-
-            logger.warn(String.format("Reducing %s capacity from %d to %s to reduce memory pressure",
-                                      cacheType, getCapacity(), newCapacity));
-
-            setCapacity(newCapacity);
-        }
-    }
-
     public class Writer extends CompactionInfo.Holder
     {
         private final Set<K> keys;

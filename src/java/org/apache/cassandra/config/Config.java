@@ -144,9 +144,6 @@ public class Config
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 
-    public Double flush_largest_memtables_at = 1.0;
-    public Double reduce_cache_sizes_at = 1.0;
-    public double reduce_cache_capacity_to = 0.6;
     public int hinted_handoff_throttle_in_kb = 1024;
     public int max_hints_delivery_threads = 1;
     public boolean compaction_preheat_key_cache = true;

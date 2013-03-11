@@ -296,22 +296,6 @@ public class CacheService implements CacheServiceMBean
         return keyCache.size();
     }
 
-    public void reduceCacheSizes()
-    {
-        reduceRowCacheSize();
-        reduceKeyCacheSize();
-    }
-
-    public void reduceRowCacheSize()
-    {
-        rowCache.reduceCacheSize();
-    }
-
-    public void reduceKeyCacheSize()
-    {
-        keyCache.reduceCacheSize();
-    }
-
     public void saveCaches() throws ExecutionException, InterruptedException
     {
         List<Future<?>> futures = new ArrayList<Future<?>>(2);

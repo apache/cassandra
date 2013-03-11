@@ -31,7 +31,6 @@ import javax.management.ObjectName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.utils.StatusLogger;
 
@@ -49,8 +48,6 @@ public class GCInspector
 
     final List<GarbageCollectorMXBean> beans = new ArrayList<GarbageCollectorMXBean>();
     final MemoryMXBean membean = ManagementFactory.getMemoryMXBean();
-
-    private volatile boolean cacheSizesReduced;
 
     public GCInspector()
     {
@@ -125,24 +122,7 @@ public class GCInspector
 
             // if we just finished a full collection and we're still using a lot of memory, try to reduce the pressure
             if (gc.getName().equals("ConcurrentMarkSweep"))
-            {
                 SSTableDeletingTask.rescheduleFailedTasks();
-
-                double usage = (double) memoryUsed / memoryMax;
-
-                if (memoryUsed > DatabaseDescriptor.getReduceCacheSizesAt() * memoryMax && !cacheSizesReduced)
-                {
-                    cacheSizesReduced = true;
-                    logger.warn("Heap is " + usage + " full.  You may need to reduce memtable and/or cache sizes.  Cassandra is now reducing cache sizes to free up memory.  Adjust reduce_cache_sizes_at threshold in cassandra.yaml if you don't want Cassandra to do this automatically");
-                    CacheService.instance.reduceCacheSizes();
-                }
-
-                if (memoryUsed > DatabaseDescriptor.getFlushLargestMemtablesAt() * memoryMax)
-                {
-                    logger.warn("Heap is " + usage + " full.  You may need to reduce memtable and/or cache sizes.  Cassandra will now flush up to the two largest memtables to free up memory.  Adjust flush_largest_memtables_at threshold in cassandra.yaml if you don't want Cassandra to do this automatically");
-                    StorageService.instance.flushLargestMemtables();
-                }
-            }
         }
     }
 }

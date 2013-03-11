@@ -13,6 +13,7 @@
  * Change order of directory searching for c*.in.sh (CASSANDRA-3983)
  * Add tool to reset SSTable level (CASSANDRA-5271)
  * Allow custom configuration loader (CASSANDRA-5045)
+ * Remove memory emergency pressure valve logic (CASSANDRA-3534)
 
 
 1.2.3

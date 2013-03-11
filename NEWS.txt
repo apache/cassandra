@@ -15,7 +15,11 @@ Upgrading
 ---------
     - Replication and strategy options do not accept unknown options anymore.
       This was already the case for CQL3 in 1.2 but this is now the case for
-      thrift to.
+      thrift too.
+    - reduce_cache_sizes_at, reduce_cache_capacity_to, and
+      flush_largest_memtables_at options have been removed from cassandra.yaml.
+    - CacheServiceMBean.reduceCacheSizes() has been removed.
+      Use CacheServiceMBean.set{Key,Row}CacheCapacityInMB() instead.
 
 
 1.2.3

@@ -37,7 +37,6 @@ import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
@@ -1105,21 +1104,6 @@ public class DatabaseDescriptor
     public static ClientEncryptionOptions getClientEncryptionOptions()
     {
         return conf.client_encryption_options;
-    }
-
-    public static double getFlushLargestMemtablesAt()
-    {
-        return conf.flush_largest_memtables_at;
-    }
-
-    public static double getReduceCacheSizesAt()
-    {
-        return conf.reduce_cache_sizes_at;
-    }
-
-    public static double getReduceCacheCapacityTo()
-    {
-        return conf.reduce_cache_capacity_to;
     }
 
     public static int getHintedHandoffThrottleInKB()
