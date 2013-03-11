@@ -26,6 +26,7 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -35,6 +36,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.mindrot.jbcrypt.BCrypt;
 
 /**
@@ -102,7 +104,8 @@ public class PasswordAuthenticator implements IAuthenticator
                                            SALTED_HASH,
                                            Auth.AUTH_KS,
                                            CREDENTIALS_CF,
-                                           escape(username)));
+                                           escape(username)),
+                             consistencyForUser(username));
         }
         catch (RequestExecutionException e)
         {
@@ -125,7 +128,8 @@ public class PasswordAuthenticator implements IAuthenticator
                               Auth.AUTH_KS,
                               CREDENTIALS_CF,
                               escape(username),
-                              escape(hashpw(password))));
+                              escape(hashpw(password))),
+                consistencyForUser(username));
     }
 
     public void alter(String username, Map<Option, Object> options) throws RequestExecutionException
@@ -134,12 +138,14 @@ public class PasswordAuthenticator implements IAuthenticator
                               Auth.AUTH_KS,
                               CREDENTIALS_CF,
                               escape(hashpw((String) options.get(Option.PASSWORD))),
-                              escape(username)));
+                              escape(username)),
+                consistencyForUser(username));
     }
 
     public void drop(String username) throws RequestExecutionException
     {
-        process(String.format("DELETE FROM %s.%s WHERE username = '%s'", Auth.AUTH_KS, CREDENTIALS_CF, escape(username)));
+        process(String.format("DELETE FROM %s.%s WHERE username = '%s'", Auth.AUTH_KS, CREDENTIALS_CF, escape(username)),
+                consistencyForUser(username));
     }
 
     public Set<DataResource> protectedResources()
@@ -158,15 +164,18 @@ public class PasswordAuthenticator implements IAuthenticator
         // the delay is here to give the node some time to see its peers - to reduce
         // "skipped default user setup: some nodes are were not ready" log spam.
         // It's the only reason for the delay.
-        StorageService.tasks.schedule(new Runnable()
-                                      {
-                                          public void run()
-                                          {
-                                              setupDefaultUser();
+        if (DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()) || !DatabaseDescriptor.isAutoBootstrap())
+        {
+            StorageService.tasks.schedule(new Runnable()
+                                              {
+                                              public void run()
+                                              {
+                                                  setupDefaultUser();
                                           }
-                                      },
-                                      DEFAULT_USER_SETUP_DELAY,
-                                      TimeUnit.SECONDS);
+                                          },
+                                          DEFAULT_USER_SETUP_DELAY,
+                                          TimeUnit.SECONDS);
+        }
     }
 
     private void setupCredentialsTable()
@@ -175,7 +184,7 @@ public class PasswordAuthenticator implements IAuthenticator
         {
             try
             {
-                process(CREDENTIALS_CF_SCHEMA);
+                process(CREDENTIALS_CF_SCHEMA, ConsistencyLevel.ANY);
             }
             catch (RequestExecutionException e)
             {
@@ -190,13 +199,14 @@ public class PasswordAuthenticator implements IAuthenticator
         try
         {
             // insert a default superuser if AUTH_KS.CREDENTIALS_CF is empty.
-            if (process(String.format("SELECT * FROM %s.%s", Auth.AUTH_KS, CREDENTIALS_CF)).isEmpty())
+            if (process(String.format("SELECT * FROM %s.%s", Auth.AUTH_KS, CREDENTIALS_CF), ConsistencyLevel.QUORUM).isEmpty())
             {
                 process(String.format("INSERT INTO %s.%s (username, salted_hash) VALUES ('%s', '%s') USING TIMESTAMP 0",
                                       Auth.AUTH_KS,
                                       CREDENTIALS_CF,
                                       DEFAULT_USER_NAME,
-                                      escape(hashpw(DEFAULT_USER_PASSWORD))));
+                                      escape(hashpw(DEFAULT_USER_PASSWORD))),
+                        ConsistencyLevel.QUORUM);
                 logger.info("PasswordAuthenticator created default user '{}'", DEFAULT_USER_NAME);
             }
         }
@@ -216,8 +226,16 @@ public class PasswordAuthenticator implements IAuthenticator
         return StringUtils.replace(name, "'", "''");
     }
 
-    private static UntypedResultSet process(String query) throws RequestExecutionException
+    private static UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
     {
-        return QueryProcessor.process(query, ConsistencyLevel.QUORUM);
+        return QueryProcessor.process(query, cl);
+    }
+
+    private static ConsistencyLevel consistencyForUser(String username)
+    {
+        if (username.equals(DEFAULT_USER_NAME))
+            return ConsistencyLevel.QUORUM;
+        else
+            return ConsistencyLevel.ONE;
     }
 }

@@ -35,6 +35,7 @@ import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.IMigrationListener;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class Auth
 {
@@ -67,7 +68,7 @@ public class Auth
         String query = String.format("SELECT * FROM %s.%s WHERE name = '%s'", AUTH_KS, USERS_CF, escape(username));
         try
         {
-            return !QueryProcessor.process(query, ConsistencyLevel.QUORUM).isEmpty();
+            return !QueryProcessor.process(query, consistencyForUser(username)).isEmpty();
         }
         catch (RequestExecutionException e)
         {
@@ -86,7 +87,7 @@ public class Auth
         String query = String.format("SELECT super FROM %s.%s WHERE name = '%s'", AUTH_KS, USERS_CF, escape(username));
         try
         {
-            UntypedResultSet result = QueryProcessor.process(query, ConsistencyLevel.QUORUM);
+            UntypedResultSet result = QueryProcessor.process(query, consistencyForUser(username));
             return !result.isEmpty() && result.one().getBoolean("super");
         }
         catch (RequestExecutionException e)
@@ -109,7 +110,7 @@ public class Auth
                                              USERS_CF,
                                              escape(username),
                                              isSuper),
-                               ConsistencyLevel.QUORUM);
+                               consistencyForUser(username));
     }
 
     /**
@@ -124,7 +125,7 @@ public class Auth
                                              AUTH_KS,
                                              USERS_CF,
                                              escape(username)),
-                               ConsistencyLevel.QUORUM);
+                               consistencyForUser(username));
     }
 
     /**
@@ -144,15 +145,27 @@ public class Auth
         // the delay is here to give the node some time to see its peers - to reduce
         // "Skipped default superuser setup: some nodes were not ready" log spam.
         // It's the only reason for the delay.
-        StorageService.tasks.schedule(new Runnable()
-                                      {
-                                          public void run()
-                                          {
-                                              setupDefaultSuperuser();
+        if (DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()) || !DatabaseDescriptor.isAutoBootstrap())
+        {
+            StorageService.tasks.schedule(new Runnable()
+                                              {
+                                              public void run()
+                                              {
+                                                  setupDefaultSuperuser();
                                           }
-                                      },
-                                      SUPERUSER_SETUP_DELAY,
-                                      TimeUnit.SECONDS);
+                                          },
+                                          SUPERUSER_SETUP_DELAY,
+                                          TimeUnit.SECONDS);
+        }
+    }
+
+    // Only use QUORUM cl for the default superuser.
+    private static ConsistencyLevel consistencyForUser(String username)
+    {
+        if (username.equals(DEFAULT_SUPERUSER_NAME))
+            return ConsistencyLevel.QUORUM;
+        else
+            return ConsistencyLevel.ONE;
     }
 
     private static void setupAuthKeyspace()
@@ -177,7 +190,7 @@ public class Auth
         {
             try
             {
-                QueryProcessor.process(USERS_CF_SCHEMA, ConsistencyLevel.ONE);
+                QueryProcessor.process(USERS_CF_SCHEMA, ConsistencyLevel.ANY);
             }
             catch (RequestExecutionException e)
             {
