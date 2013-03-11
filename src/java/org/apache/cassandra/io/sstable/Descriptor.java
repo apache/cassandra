@@ -100,7 +100,7 @@ public class Descriptor
         this.cfname = cfname;
         this.generation = generation;
         temporary = temp;
-        hashCode = Objects.hashCode(directory, generation, ksname, cfname);
+        hashCode = Objects.hashCode(directory, generation, ksname, cfname, temp);
 
         hasStringsInBloomFilter = version.compareTo("c") < 0;
         hasIntRowSize = version.compareTo("d") < 0;
@@ -266,7 +266,7 @@ public class Descriptor
         if (!(o instanceof Descriptor))
             return false;
         Descriptor that = (Descriptor)o;
-        return that.directory.equals(this.directory) && that.generation == this.generation && that.ksname.equals(this.ksname) && that.cfname.equals(this.cfname);
+        return that.directory.equals(this.directory) && that.generation == this.generation && that.ksname.equals(this.ksname) && that.cfname.equals(this.cfname) && that.temporary == this.temporary;
     }
 
     @Override

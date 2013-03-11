@@ -1,4 +1,5 @@
 1.1.11
+ * add tmp flag to Descriptor hashcode (CASSANDRA-4021)
  * fix logging of "Found table data in data directories" when only system tables
    are present (CASSANDRA-5289)
  * cli: Add JMX authentication support (CASSANDRA-5080)
