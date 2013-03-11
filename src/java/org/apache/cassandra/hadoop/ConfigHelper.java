@@ -514,7 +514,7 @@ public class ConfigHelper
      */
     public static int getThriftMaxMessageLength(Configuration conf)
     {
-        return conf.getInt(THRIFT_FRAMED_TRANSPORT_SIZE_IN_MB, 16) * 1024 * 1024; // 16MB is default in Cassandra
+        return conf.getInt(THRIFT_MAX_MESSAGE_LENGTH_IN_MB, 16) * 1024 * 1024; // 16MB is default in Cassandra
     }
 
     public static CompressionParameters getOutputCompressionParamaters(Configuration conf)
