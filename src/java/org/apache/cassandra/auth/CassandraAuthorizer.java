@@ -249,6 +249,6 @@ public class CassandraAuthorizer implements IAuthorizer
 
     private static UntypedResultSet process(String query) throws RequestExecutionException
     {
-        return QueryProcessor.process(query, ConsistencyLevel.QUORUM);
+        return QueryProcessor.process(query, ConsistencyLevel.ONE);
     }
 }
