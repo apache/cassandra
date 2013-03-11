@@ -275,7 +275,7 @@ class TestCqlshOutput(BaseTestCase):
 
     def test_static_cf_output(self):
         self.assertCqlverQueriesGiveColoredOutput((
-            ('select a, b from twenty_rows_table where a in (1, 13, 2);', """
+            ("select a, b from twenty_rows_table where a in ('1', '13', '2');", """
              a  | b
              MM   MM
             ----+----
@@ -336,7 +336,7 @@ class TestCqlshOutput(BaseTestCase):
         ), cqlver=3)
 
     def test_columnless_key_output(self):
-        q = 'select a from twenty_rows_table where a in (1, 2, -9192);'
+        q = "select a from twenty_rows_table where a in ('1', '2', '-9192');"
         self.assertQueriesGiveColoredOutput((
             (q, """
              a
@@ -580,16 +580,16 @@ class TestCqlshOutput(BaseTestCase):
             ("select num, blobcol from has_all_types where num in (0, 1, 2, 3);", r"""
              num | blobcol
              MMM   MMMMMMM
-            -----+--------------------
+            -----+----------------------
 
-               0 | 000102030405fffefd
-               G   mmmmmmmmmmmmmmmmmm
-               1 | ffffffffffffffffff
-               G   mmmmmmmmmmmmmmmmmm
-               2 |
-               G   mmmmmmmmmmmmmmmmmm
-               3 |                 80
-               G   mmmmmmmmmmmmmmmmmm
+               0 | 0x000102030405fffefd
+               G   mmmmmmmmmmmmmmmmmmmm
+               1 | 0xffffffffffffffffff
+               G   mmmmmmmmmmmmmmmmmmmm
+               2 |                   0x
+               G   mmmmmmmmmmmmmmmmmmmm
+               3 |                 0x80
+               G   mmmmmmmmmmmmmmmmmmmm
 
             """),
         ), cqlver=(2, 3))
@@ -749,7 +749,7 @@ class TestCqlshOutput(BaseTestCase):
               max_compaction_threshold=32 AND
               replicate_on_write='true' AND
               compaction_strategy_class='SizeTieredCompactionStrategy' AND
-              compression_parameters:sstable_compression='SnappyCompressor';
+              compression_parameters:sstable_compression='LZ4Compressor';
 
         """)
 
@@ -779,8 +779,9 @@ class TestCqlshOutput(BaseTestCase):
               gc_grace_seconds=864000 AND
               read_repair_chance=0.100000 AND
               replicate_on_write='true' AND
+              populate_io_cache_on_flush='false' AND
               compaction={'class': 'SizeTieredCompactionStrategy'} AND
-              compression={'sstable_compression': 'SnappyCompressor'};
+              compression={'sstable_compression': 'LZ4Compressor'};
 
         """)
 
