@@ -13,7 +13,7 @@ CREATE TABLE has_all_types (
     uuidcol uuid,
     varcharcol varchar,
     varintcol varint
-);
+) WITH compression_parameters:sstable_compression='LZ4Compressor';
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
                            decimalcol, doublecol, floatcol, textcol,
