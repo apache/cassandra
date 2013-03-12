@@ -296,7 +296,7 @@ public class AntiEntropyService
 
         public void prepare(ColumnFamilyStore cfs)
         {
-            if (tree.partitioner() instanceof RandomPartitioner)
+            if (!tree.partitioner().preservesOrder())
             {
                 // You can't beat an even tree distribution for md5
                 tree.init();

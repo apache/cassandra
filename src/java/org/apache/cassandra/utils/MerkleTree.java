@@ -241,6 +241,9 @@ public class MerkleTree implements Serializable
      */
     static int differenceHelper(MerkleTree ltree, MerkleTree rtree, List<TreeRange> diff, TreeRange active)
     {
+        if (active.depth == Byte.MAX_VALUE)
+            return CONSISTENT;
+
         Token midpoint = ltree.partitioner().midpoint(active.left, active.right);
         TreeRange left = new TreeRange(null, active.left, midpoint, inc(active.depth), null);
         TreeRange right = new TreeRange(null, midpoint, active.right, inc(active.depth), null);
