@@ -39,6 +39,7 @@
  * Relax CL for auth queries for non-default users (CASSANDRA-5310)
  * Fix AssertionError during repair (CASSANDRA-5245)
 Merged from 1.1:
+ * add tmp flag to Descriptor hashcode (CASSANDRA-4021)
  * fix logging of "Found table data in data directories" when only system tables
    are present (CASSANDRA-5289)
  * cli: Add JMX authentication support (CASSANDRA-5080)
