@@ -304,8 +304,8 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
             if (endpoint.equals(FBUtilities.getBroadcastAddress()))
                 continue; // we've delt with localhost already
 
-            // don't send migrations to the nodes with the versions older than < 1.1
-            if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_11)
+            // don't send migrations to the nodes with the versions older than < 1.2
+            if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_12)
                 continue;
 
             pushSchemaMutation(endpoint, schema);
