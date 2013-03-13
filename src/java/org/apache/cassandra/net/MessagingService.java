@@ -70,6 +70,7 @@ public final class MessagingService implements MessagingServiceMBean
     public static final int VERSION_10  = 3;
     public static final int VERSION_11  = 4;
     public static final int VERSION_117 = 5;
+    public static final int VERSION_12  = 6;
 
     public static final int version_ = VERSION_117;
 
