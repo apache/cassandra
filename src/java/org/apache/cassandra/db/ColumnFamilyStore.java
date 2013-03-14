@@ -80,12 +80,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor("MemtablePostFlusher");
 
-    static
-    {
-        // (can block if flush queue fills up, so don't put on scheduledTasks)
-        StorageService.optionalTasks.scheduleWithFixedDelay(new MeteredFlusher(), 1000, 1000, TimeUnit.MILLISECONDS);
-    }
-
     public final Table table;
     public final String columnFamily;
     public final CFMetaData metadata;
