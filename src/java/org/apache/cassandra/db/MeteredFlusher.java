@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-class MeteredFlusher implements Runnable
+public class MeteredFlusher implements Runnable
 {
     private static Logger logger = LoggerFactory.getLogger(MeteredFlusher.class);
 

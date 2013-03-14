@@ -40,10 +40,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.utils.CLibrary;
@@ -257,6 +254,9 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             }
         };
         StorageService.optionalTasks.schedule(runnable, 5 * 60, TimeUnit.SECONDS);
+
+        // MeteredFlusher can block if flush queue fills up, so don't put on scheduledTasks
+        StorageService.optionalTasks.scheduleWithFixedDelay(new MeteredFlusher(), 1000, 1000, TimeUnit.MILLISECONDS);
 
         SystemTable.finishStartup();
 
