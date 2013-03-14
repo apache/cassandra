@@ -326,6 +326,9 @@ public class CassandraDaemon
         };
         StorageService.optionalTasks.schedule(runnable, 5 * 60, TimeUnit.SECONDS);
 
+        // MeteredFlusher can block if flush queue fills up, so don't put on scheduledTasks
+        StorageService.optionalTasks.scheduleWithFixedDelay(new MeteredFlusher(), 1000, 1000, TimeUnit.MILLISECONDS);
+
         SystemTable.finishStartup();
 
         // start server internals
