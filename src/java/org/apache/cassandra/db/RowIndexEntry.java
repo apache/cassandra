@@ -66,7 +66,7 @@ public class RowIndexEntry
 
     public List<IndexHelper.IndexInfo> columnsIndex()
     {
-        return Collections.<IndexHelper.IndexInfo>emptyList();
+        return Collections.emptyList();
     }
 
     public IFilter bloomFilter()
@@ -81,7 +81,7 @@ public class RowIndexEntry
             dos.writeLong(rie.position);
             if (rie.isIndexed())
             {
-                dos.writeInt(((IndexedEntry)rie).serializedSize());
+                dos.writeInt(rie.serializedSize());
                 DeletionInfo.serializer().serializeForSSTable(rie.deletionInfo(), dos);
                 dos.writeInt(rie.columnsIndex().size());
                 for (IndexHelper.IndexInfo info : rie.columnsIndex())
@@ -92,18 +92,6 @@ public class RowIndexEntry
             {
                 dos.writeInt(0);
             }
-        }
-
-        public RowIndexEntry deserializePositionOnly(DataInput dis, Descriptor.Version version) throws IOException
-        {
-            long position = dis.readLong();
-            if (version.hasPromotedIndexes)
-            {
-                int size = dis.readInt();
-                if (size > 0)
-                    FileUtils.skipBytesFully(dis, size);
-            }
-            return new RowIndexEntry(position);
         }
 
         public RowIndexEntry deserialize(DataInput dis, Descriptor.Version version) throws IOException
