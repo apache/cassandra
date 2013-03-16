@@ -132,9 +132,7 @@ public class LeveledManifest
         // the level for the added sstables is the max of the removed ones,
         // plus one if the removed were all on the same level
         for (SSTableReader sstable : removed)
-        {
             remove(sstable);
-        }
 
         // it's valid to do a remove w/o an add (e.g. on truncate)
         if (!added.iterator().hasNext())
@@ -274,9 +272,11 @@ public class LeveledManifest
         return Collections.emptyList();
     }
 
-    public int getLevelSize(int i)
+    public synchronized int getLevelSize(int i)
     {
-        return generations.length > i ? generations[i].size() : 0;
+        if (i > generations.length)
+            throw new ArrayIndexOutOfBoundsException("Maximum valid generation is " + (generations.length - 1));
+        return generations[i].size();
     }
 
     public synchronized int[] getAllLevelSize()
