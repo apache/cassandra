@@ -274,7 +274,7 @@ public class LeveledManifest
 
     public synchronized int getLevelSize(int i)
     {
-        if (i > generations.length)
+        if (i >= generations.length)
             throw new ArrayIndexOutOfBoundsException("Maximum valid generation is " + (generations.length - 1));
         return generations[i].size();
     }
