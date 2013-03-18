@@ -88,7 +88,14 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
         }
 
         if (!success)
-            throw new WriteTimeoutException(writeType, consistencyLevel, ackCount(), consistencyLevel.blockFor(table) + pendingEndpoints.size());
+            throw new WriteTimeoutException(writeType, consistencyLevel, ackCount(), totalBlockFor());
+    }
+
+    protected int totalBlockFor()
+    {
+        // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
+        // guarantees (see #833)
+        return consistencyLevel.blockFor(table) + pendingEndpoints.size();
     }
 
     protected abstract int ackCount();

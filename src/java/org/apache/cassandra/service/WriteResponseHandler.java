@@ -51,7 +51,7 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
                                 WriteType writeType)
     {
         super(table, writeEndpoints, pendingEndpoints, consistencyLevel, callback, writeType);
-        responses = new AtomicInteger(consistencyLevel.blockFor(table));
+        responses = new AtomicInteger(totalBlockFor());
     }
 
     public WriteResponseHandler(InetAddress endpoint, WriteType writeType, Runnable callback)
@@ -72,7 +72,7 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
 
     protected int ackCount()
     {
-        return consistencyLevel.blockFor(table) - responses.get();
+        return totalBlockFor() - responses.get();
     }
 
     public boolean isLatencyForSnitch()

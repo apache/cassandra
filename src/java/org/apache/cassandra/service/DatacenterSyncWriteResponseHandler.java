@@ -45,6 +45,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
 
     private final NetworkTopologyStrategy strategy;
     private final HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
+    private final AtomicInteger acks = new AtomicInteger(0);
 
     public DatacenterSyncWriteResponseHandler(Collection<InetAddress> naturalEndpoints,
                                               Collection<InetAddress> pendingEndpoints,
@@ -64,6 +65,13 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
             int rf = strategy.getReplicationFactor(dc);
             responses.put(dc, new AtomicInteger((rf / 2) + 1));
         }
+
+        // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
+        // guarantees (see #833)
+        for (InetAddress pending : pendingEndpoints)
+        {
+            responses.get(snitch.getDatacenter(pending)).incrementAndGet();
+        }
     }
 
     public void response(MessageIn message)
@@ -73,6 +81,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
                             : snitch.getDatacenter(message.from);
 
         responses.get(dataCenter).getAndDecrement();
+        acks.incrementAndGet();
 
         for (AtomicInteger i : responses.values())
         {
@@ -86,14 +95,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
 
     protected int ackCount()
     {
-        int n = 0;
-        for (Map.Entry<String, AtomicInteger> entry : responses.entrySet())
-        {
-            String dc = entry.getKey();
-            AtomicInteger i = entry.getValue();
-            n += (strategy.getReplicationFactor(dc) / 2) + 1 - i.get();
-        }
-        return n;
+        return acks.get();
     }
 
     public boolean isLatencyForSnitch()
