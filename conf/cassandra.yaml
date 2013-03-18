@@ -480,8 +480,10 @@ truncate_request_timeout_in_ms: 60000
 request_timeout_in_ms: 10000
 
 # Enable operation timeout information exchange between nodes to accurately
-# measure request timeouts, If disabled cassandra will assuming the request
-# was forwarded to the replica instantly by the coordinator
+# measure request timeouts.  If disabled, replicas will assume that requests
+# were forwarded to them instantly by the coordinator, which means that
+# under overload conditions we will waste that much extra time processing 
+# already-timed-out requests.
 #
 # Warning: before enabling this property make sure to ntp is installed
 # and the times are synchronized between the nodes.
