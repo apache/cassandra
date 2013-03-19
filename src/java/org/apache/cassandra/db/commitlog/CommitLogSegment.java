@@ -40,7 +40,6 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.PureJavaCrc32;
 
 /*
@@ -172,12 +171,11 @@ public class CommitLogSegment
     }
 
     /**
-     * @return true if there is room to write() @param mutation to this segment
+     * @return true if there is room to write() @param size to this segment
      */
-    public boolean hasCapacityFor(RowMutation mutation)
+    public boolean hasCapacityFor(long size)
     {
-        long totalSize = RowMutation.serializer.serializedSize(mutation, MessagingService.current_version) + ENTRY_OVERHEAD_SIZE;
-        return totalSize <= buffer.remaining();
+        return size <= buffer.remaining();
     }
 
     /**
