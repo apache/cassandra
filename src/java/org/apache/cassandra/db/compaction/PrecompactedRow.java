@@ -131,7 +131,7 @@ public class PrecompactedRow extends AbstractCompactedRow
     {
         assert compactedCf != null;
         DataOutputBuffer buffer = new DataOutputBuffer();
-        ColumnIndex.Builder builder = new ColumnIndex.Builder(compactedCf, key.key, compactedCf.getColumnCount(), buffer);
+        ColumnIndex.Builder builder = new ColumnIndex.Builder(compactedCf, key.key, buffer);
         columnIndex = builder.build(compactedCf);
 
         TypeSizes typeSizes = TypeSizes.NATIVE;

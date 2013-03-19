@@ -72,6 +72,7 @@ public class Descriptor
         //               into this new format)
         //             tracks max local deletiontime in sstable metadata
         //             records bloom_filter_fp_chance in metadata component
+        //             remove row-level BF (CASSANDRA-4885)
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -94,6 +95,7 @@ public class Descriptor
         public final boolean hasSuperColumns;
         public final boolean tracksMaxLocalDeletionTime;
         public final boolean hasBloomFilterFPChance;
+        public final boolean hasRowLevelBF;
 
         public Version(String version)
         {
@@ -120,6 +122,7 @@ public class Descriptor
                 filterType = FilterFactory.Type.MURMUR3;
             hasSuperColumns = version.compareTo("ja") < 0;
             hasBloomFilterFPChance = version.compareTo("ja") >= 0;
+            hasRowLevelBF = version.compareTo("ja") < 0;
         }
 
         /**

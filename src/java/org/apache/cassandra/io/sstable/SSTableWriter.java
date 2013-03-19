@@ -184,7 +184,7 @@ public class SSTableWriter extends SSTable
             DataOutputBuffer buffer = new DataOutputBuffer();
 
             // build column index && write columns
-            ColumnIndex.Builder builder = new ColumnIndex.Builder(cf, decoratedKey.key, cf.getColumnCount(), buffer);
+            ColumnIndex.Builder builder = new ColumnIndex.Builder(cf, decoratedKey.key, buffer);
             ColumnIndex index = builder.build(cf);
 
             TypeSizes typeSizes = TypeSizes.NATIVE;
@@ -245,7 +245,7 @@ public class SSTableWriter extends SSTable
         ColumnFamily cf = ColumnFamily.create(metadata, ArrayBackedSortedColumns.factory());
         cf.delete(deletionInfo);
 
-        ColumnIndex.Builder columnIndexer = new ColumnIndex.Builder(cf, key.key, columnCount, dataFile.stream);
+        ColumnIndex.Builder columnIndexer = new ColumnIndex.Builder(cf, key.key, dataFile.stream);
         OnDiskAtom.Serializer atomSerializer = Column.onDiskSerializer();
         for (int i = 0; i < columnCount; i++)
         {

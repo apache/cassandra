@@ -24,26 +24,16 @@ import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
-import org.apache.cassandra.utils.AlwaysPresentFilter;
-import org.apache.cassandra.utils.IFilter;
-import org.apache.cassandra.utils.FilterFactory;
 
 public class ColumnIndex
 {
     public final List<IndexHelper.IndexInfo> columnsIndex;
-    public final IFilter bloomFilter;
 
-    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList(), new AlwaysPresentFilter());
+    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList());
 
-    private ColumnIndex(int estimatedColumnCount)
-    {
-        this(new ArrayList<IndexHelper.IndexInfo>(), FilterFactory.getFilter(estimatedColumnCount, 4, false));
-    }
-
-    private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex, IFilter bloomFilter)
+    private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex)
     {
         this.columnsIndex = columnsIndex;
-        this.bloomFilter = bloomFilter;
     }
 
     /**
@@ -68,11 +58,10 @@ public class ColumnIndex
 
         public Builder(ColumnFamily cf,
                        ByteBuffer key,
-                       int estimatedColumnCount,
                        DataOutput output)
         {
             this.indexOffset = rowHeaderSize(key, cf.deletionInfo());
-            this.result = new ColumnIndex(estimatedColumnCount);
+            this.result = new ColumnIndex(new ArrayList<IndexHelper.IndexInfo>());
             this.output = output;
             this.tombstoneTracker = new RangeTombstone.Tracker(cf.getComparator());
         }
@@ -145,9 +134,6 @@ public class ColumnIndex
         public void add(OnDiskAtom column) throws IOException
         {
             atomCount++;
-
-            if (column instanceof Column)
-                result.bloomFilter.add(column.name());
 
             if (firstColumn == null)
             {

@@ -101,8 +101,9 @@ public class ScrubTest extends SchemaLoader
              rows = cfs.getRangeSlice(Util.range("", ""), 1000, new NamesQueryFilter(CompositeType.build(ByteBufferUtil.bytes("1"))), null);
              fail("This slice should fail");
         }
-        catch (NegativeArraySizeException e)
+        catch (IllegalArgumentException e)
         {
+            // thrown by Buffer.limit as the column names are attempted to be read (after the row-level BF is skipped)
             caught = true;
         }
         assert caught : "'corrupt' test file actually was not";

@@ -108,7 +108,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
 
     private void indexAndWrite(DataOutput out) throws IOException
     {
-        this.indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.key, getEstimatedColumnCount(), out);
+        this.indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.key, out);
         this.columnsIndex = indexBuilder.build(this);
     }
 
