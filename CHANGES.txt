@@ -4,16 +4,18 @@
    need for a separate Manifest file (CASSANDRA-4872)
  * avoid serializing to byte[] on commitlog append (CASSANDRA-5199)
  * make index_interval configurable per columnfamily (CASSANDRA-3961)
- * add default_tim_to_live (CASSANDRA-3974)
+ * add default_time_to_live (CASSANDRA-3974)
  * add memtable_flush_period_in_ms (CASSANDRA-4237)
  * replace supercolumns internally by composites (CASSANDRA-3237, 5123)
  * upgrade thrift to 0.9.0 (CASSANDRA-3719)
- * drop unnecessary keyspace from user-defined compaction API (CASSANDRA-5139)
+ * drop unnecessary keyspace parameter from user-defined compaction API 
+   (CASSANDRA-5139)
  * more robust solution to incomplete compactions + counters (CASSANDRA-5151)
  * Change order of directory searching for c*.in.sh (CASSANDRA-3983)
- * Add tool to reset SSTable level (CASSANDRA-5271)
+ * Add tool to reset SSTable compaction level for LCS (CASSANDRA-5271)
  * Allow custom configuration loader (CASSANDRA-5045)
  * Remove memory emergency pressure valve logic (CASSANDRA-3534)
+ * Reduce request latency with eager retry (CASSANDRA-4705)
 
 
 1.2.4
