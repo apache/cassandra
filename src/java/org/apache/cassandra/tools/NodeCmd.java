@@ -212,7 +212,16 @@ public class NodeCmd
         for (Map.Entry<String, String> entry : tokensToEndpoints.entrySet())
             endpointsToTokens.put(entry.getValue(), entry.getKey());
 
-        String format = "%-16s%-12s%-7s%-8s%-16s%-20s%-44s%n";
+        int maxAddressLength = Collections.max(endpointsToTokens.keys(), new Comparator<String>() {
+            @Override
+            public int compare(String first, String second)
+            {
+                return ((Integer)first.length()).compareTo((Integer)second.length());
+            }
+        }).length();
+
+        String formatPlaceholder = "%%-%ds  %%-12s%%-7s%%-8s%%-16s%%-20s%%-44s%%n";
+        String format = String.format(formatPlaceholder, maxAddressLength);
 
         // Calculate per-token ownership of the ring
         Map<InetAddress, Float> ownerships;
@@ -328,6 +337,7 @@ public class NodeCmd
     private class ClusterStatus
     {
         String kSpace = null, format = null;
+        int maxAddressLength;
         Collection<String> joiningNodes, leavingNodes, movingNodes, liveNodes, unreachableNodes;
         Map<String, String> loadMap, hostIDMap, tokensToEndpoints;
         EndpointSnitchInfoMBean epSnitchInfo;
@@ -376,7 +386,10 @@ public class NodeCmd
             if (format == null)
             {
                 StringBuffer buf = new StringBuffer();
-                buf.append("%s%s  %-16s  %-9s  ");            // status, address, and load
+                String addressPlaceholder = String.format("%%-%ds  ", maxAddressLength);
+                buf.append("%s%s  ");                         // status
+                buf.append(addressPlaceholder);               // address
+                buf.append("%-9s  ");                         // load
                 if (!isTokenPerNode)  buf.append("%-6s  ");   // "Tokens"
                 if (hasEffectiveOwns) buf.append("%-16s  ");  // "Owns (effective)"
                 else                  buf.append("%-5s  ");   // "Owns
@@ -435,6 +448,7 @@ public class NodeCmd
         {
             Map<InetAddress, Float> ownerships;
             boolean hasEffectiveOwns = false, isTokenPerNode = true;
+
             try
             {
                 ownerships = probe.effectiveOwnership(kSpace);
@@ -448,6 +462,21 @@ public class NodeCmd
             // More tokens then nodes (aka vnodes)?
             if (new HashSet<String>(tokensToEndpoints.values()).size() < tokensToEndpoints.keySet().size())
                 isTokenPerNode = false;
+
+            maxAddressLength = 0;
+            for (Map.Entry<String, Map<InetAddress, Float>> dc : getOwnershipByDc(ownerships).entrySet())
+            {
+                int dcMaxAddressLength = Collections.max(dc.getValue().keySet(), new Comparator<InetAddress>() {
+                    @Override
+                    public int compare(InetAddress first, InetAddress second)
+                    {
+                        return ((Integer)first.getHostAddress().length()).compareTo((Integer)second.getHostAddress().length());
+                    }
+                }).getHostAddress().length();
+
+                if(dcMaxAddressLength > maxAddressLength)
+                    maxAddressLength = dcMaxAddressLength;
+            }
 
             // Datacenters
             for (Map.Entry<String, Map<InetAddress, Float>> dc : getOwnershipByDc(ownerships).entrySet())
