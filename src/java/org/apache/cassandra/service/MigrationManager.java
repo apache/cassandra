@@ -220,7 +220,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         if (ksm == null)
             throw new ConfigurationException(String.format("Cannot add column family '%s' to non existing keyspace '%s'.", cfm.cfName, cfm.ksName));
         else if (ksm.cfMetaData().containsKey(cfm.cfName))
-            throw new AlreadyExistsException(cfm.cfName, cfm.ksName);
+            throw new AlreadyExistsException(cfm.ksName, cfm.cfName);
 
         logger.info(String.format("Create new ColumnFamily: %s", cfm));
         announce(cfm.toSchema(FBUtilities.timestampMicros()));
