@@ -2,6 +2,7 @@
  * Fix mixing prepared statements between keyspaces (CASSANDRA-5352)
  * Fix consistency level during bootstrap - strike 3 (CASSANDRA-5354)
  * Fix transposed arguments in AlreadyExistsException (CASSANDRA-5362)
+ * Improve asynchronous hint delivery (CASSANDRA-5179)
 
 
 1.2.3
