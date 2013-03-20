@@ -139,7 +139,7 @@ public class FileStreamTask extends WrappedRunnable
             return;
 
         // try to skip kernel page cache if possible
-        RandomAccessReader file = RandomAccessReader.open(new File(header.file.getFilename()), true);
+        RandomAccessReader file = RandomAccessReader.open(new File(header.file.getFilename()));
 
         // setting up data compression stream
         compressedoutput = new LZFOutputStream(output);

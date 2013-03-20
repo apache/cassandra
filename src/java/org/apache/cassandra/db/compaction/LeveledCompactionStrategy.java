@@ -179,7 +179,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
             {
                 // L0 makes no guarantees about overlapping-ness.  Just create a direct scanner for each
                 for (SSTableReader sstable : byLevel.get(level))
-                    scanners.add(sstable.getDirectScanner(range));
+                    scanners.add(sstable.getScanner(range));
             }
             else
             {
@@ -209,7 +209,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
             this.sstables = new ArrayList<SSTableReader>(sstables);
             Collections.sort(this.sstables, SSTable.sstableComparator);
             sstableIterator = this.sstables.iterator();
-            currentScanner = sstableIterator.next().getDirectScanner(range);
+            currentScanner = sstableIterator.next().getScanner(range);
 
             long length = 0;
             for (SSTableReader sstable : sstables)
@@ -234,7 +234,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
                         currentScanner = null;
                         return endOfData();
                     }
-                    currentScanner = sstableIterator.next().getDirectScanner(range);
+                    currentScanner = sstableIterator.next().getScanner(range);
                 }
             }
             catch (IOException e)

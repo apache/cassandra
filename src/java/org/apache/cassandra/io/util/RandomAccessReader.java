@@ -50,19 +50,11 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
     // channel liked with the file, used to retrieve data and force updates.
     protected final FileChannel channel;
 
-    private final boolean skipIOCache;
-
-    // file descriptor
-    private final int fd;
-
-    // used if skip I/O cache was enabled
-    private long bytesSinceCacheFlush = 0;
-
     private final long fileLength;
 
     protected final PoolingSegmentedFile owner;
 
-    protected RandomAccessReader(File file, int bufferSize, boolean skipIOCache, PoolingSegmentedFile owner) throws FileNotFoundException
+    protected RandomAccessReader(File file, int bufferSize, PoolingSegmentedFile owner) throws FileNotFoundException
     {
         super(file, "r");
 
@@ -74,18 +66,8 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
         // allocating required size of the buffer
         if (bufferSize <= 0)
             throw new IllegalArgumentException("bufferSize must be positive");
-        buffer = new byte[bufferSize];
 
-        this.skipIOCache = skipIOCache;
-        try
-        {
-            fd = CLibrary.getfd(getFD());
-        }
-        catch (IOException e)
-        {
-            // fd == null, Not Supposed To Happen
-            throw new RuntimeException(e);
-        }
+        buffer = new byte[bufferSize];
 
         // we can cache file length in read-only mode
         try
@@ -99,27 +81,22 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
         validBufferBytes = -1; // that will trigger reBuffer() on demand by read/seek operations
     }
 
-    public static RandomAccessReader open(File file)
-    {
-        return open(file, false);
-    }
-
     public static RandomAccessReader open(File file, PoolingSegmentedFile owner)
     {
-        return open(file, DEFAULT_BUFFER_SIZE, false, owner);
+        return open(file, DEFAULT_BUFFER_SIZE, owner);
     }
 
-    public static RandomAccessReader open(File file, boolean skipIOCache)
+    public static RandomAccessReader open(File file)
     {
-        return open(file, DEFAULT_BUFFER_SIZE, skipIOCache, null);
+        return open(file, DEFAULT_BUFFER_SIZE, null);
     }
 
     @VisibleForTesting
-    static RandomAccessReader open(File file, int bufferSize, boolean skipIOCache, PoolingSegmentedFile owner)
+    static RandomAccessReader open(File file, int bufferSize, PoolingSegmentedFile owner)
     {
         try
         {
-            return new RandomAccessReader(file, bufferSize, skipIOCache, owner);
+            return new RandomAccessReader(file, bufferSize, owner);
         }
         catch (FileNotFoundException e)
         {
@@ -130,7 +107,7 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
     @VisibleForTesting
     static RandomAccessReader open(SequentialWriter writer)
     {
-        return open(new File(writer.getPath()), DEFAULT_BUFFER_SIZE, false, null);
+        return open(new File(writer.getPath()), DEFAULT_BUFFER_SIZE, null);
     }
 
     /**
@@ -158,20 +135,10 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
             }
 
             validBufferBytes = read;
-            bytesSinceCacheFlush += read;
         }
         catch (IOException e)
         {
             throw new FSReadError(e, filePath);
-        }
-
-        if (skipIOCache && bytesSinceCacheFlush >= CACHE_FLUSH_INTERVAL_IN_BYTES)
-        {
-            // with random I/O we can't control what we are skipping so
-            // it will be more appropriate to just skip a whole file after
-            // we reach threshold
-            CLibrary.trySkipCache(this.fd, 0, 0);
-            bytesSinceCacheFlush = 0;
         }
     }
 
@@ -264,9 +231,6 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
     {
         buffer = null; // makes sure we don't use this after it's ostensibly closed
 
-        if (skipIOCache && bytesSinceCacheFlush > 0)
-            CLibrary.trySkipCache(fd, 0, 0);
-
         try
         {
             super.close();
@@ -280,7 +244,7 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
     @Override
     public String toString()
     {
-        return getClass().getSimpleName() + "(" + "filePath='" + filePath + "'" + ", skipIOCache=" + skipIOCache + ")";
+        return getClass().getSimpleName() + "(" + "filePath='" + filePath + "')";
     }
 
     /**

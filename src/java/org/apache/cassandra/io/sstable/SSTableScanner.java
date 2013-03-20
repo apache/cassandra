@@ -46,10 +46,10 @@ public class SSTableScanner implements ICompactionScanner
     /**
      * @param sstable SSTable to scan.
      */
-    SSTableScanner(SSTableReader sstable, boolean skipCache)
+    SSTableScanner(SSTableReader sstable)
     {
-        this.dfile = sstable.openDataReader(skipCache);
-        this.ifile = sstable.openIndexReader(skipCache);
+        this.dfile = sstable.openDataReader();
+        this.ifile = sstable.openIndexReader();
         this.sstable = sstable;
         this.filter = null;
     }
@@ -60,8 +60,8 @@ public class SSTableScanner implements ICompactionScanner
      */
     SSTableScanner(SSTableReader sstable, QueryFilter filter)
     {
-        this.dfile = sstable.openDataReader(false);
-        this.ifile = sstable.openIndexReader(false);
+        this.dfile = sstable.openDataReader();
+        this.ifile = sstable.openIndexReader();
         this.sstable = sstable;
         this.filter = filter;
     }

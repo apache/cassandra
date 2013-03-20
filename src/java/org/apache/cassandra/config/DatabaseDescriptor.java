@@ -1275,4 +1275,9 @@ public class DatabaseDescriptor
     {
         return conf.inter_dc_tcp_nodelay;
     }
+
+    public static boolean shouldPreheatPageCache()
+    {
+        return conf.preheat_kernel_page_cache;
+    }
 }
