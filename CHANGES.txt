@@ -3,6 +3,7 @@
  * Fix consistency level during bootstrap - strike 3 (CASSANDRA-5354)
  * Fix transposed arguments in AlreadyExistsException (CASSANDRA-5362)
  * Improve asynchronous hint delivery (CASSANDRA-5179)
+ * Fix Guava dependency version (12.0 -> 13.0.1) for Maven (CASSANDRA-5364)
 
 
 1.2.3
