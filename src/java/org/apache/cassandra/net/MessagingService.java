@@ -25,6 +25,7 @@ import java.lang.management.ManagementFactory;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousCloseException;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
@@ -885,6 +886,11 @@ public final class MessagingService implements MessagingServiceMBean
                 {
                     // this happens when another thread calls close().
                     logger.info("MessagingService shutting down server thread.");
+                    break;
+                }
+                catch (ClosedChannelException e)
+                {
+                    logger.debug("MessagingService server thread already closed.");
                     break;
                 }
                 catch (IOException e)
