@@ -26,9 +26,6 @@ class TestCqlshCommands(BaseTestCase):
     def tearDown(self):
         pass
 
-    def test_assume(self):
-        pass
-
     def test_show(self):
         pass
 

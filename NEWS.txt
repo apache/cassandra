@@ -22,6 +22,9 @@ Upgrading
       Use CacheServiceMBean.set{Key,Row}CacheCapacityInMB() instead.
     - authority option in cassandra.yaml has been deprecated since 1.2.0,
       but it has been completely removed in 2.0. Please use 'authorizer' option.
+    - ASSUME command has been removed from cqlsh. Use CQL3 blobAsType() and
+      typeAsBlob() conversion functions instead.
+      See https://cassandra.apache.org/doc/cql3/CQL.html#blobFun for details.
 
 Operations
 ----------

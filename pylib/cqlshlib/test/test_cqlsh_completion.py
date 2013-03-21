@@ -95,7 +95,7 @@ class TestCqlshCompletion_CQL2(CqlshCompletionCase):
     module = cqlsh.cqlhandling
 
     def test_complete_on_empty_string(self):
-        self.trycompletions('', choices=('?', 'ALTER', 'ASSUME', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
+        self.trycompletions('', choices=('?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
                                          'DROP', 'HELP', 'INSERT', 'SELECT', 'SHOW', 'SOURCE',
                                          'TRACING', 'TRUNCATE', 'UPDATE', 'USE', 'exit', 'quit'))
@@ -178,7 +178,7 @@ class TestCqlshCompletion_CQL3final(TestCqlshCompletion_CQL2):
     module = cqlsh.cql3handling
 
     def test_complete_on_empty_string(self):
-        self.trycompletions('', choices=('?', 'ALTER', 'ASSUME', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
+        self.trycompletions('', choices=('?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
                                          'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'REVOKE',
                                          'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'TRUNCATE', 'UPDATE',

@@ -894,28 +894,6 @@ class TestCqlshOutput(BaseTestCase):
             self.assertRegexpMatches(output, '^Connected to .* at %s:%d\.$'
                                              % (re.escape(TEST_HOST), TEST_PORT))
 
-    def test_show_assumptions_output(self):
-        expected_output = '\nUSE %s;\n\n' % quote_name('', get_test_keyspace())
-
-        with testrun_cqlsh(tty=True) as c:
-            output = c.cmd_and_response('show assumptions')
-            self.assertEqual(output, 'No overrides.\n')
-
-            c.cmd_and_response('assume dynamic_values VALUES aRe uuid;')
-            expected_output += 'ASSUME dynamic_values VALUES ARE uuid;\n'
-            output = c.cmd_and_response('show assumptions')
-            self.assertEqual(output, expected_output + '\n')
-
-            c.cmd_and_response('Assume has_all_types names arE float;')
-            expected_output += 'ASSUME has_all_types NAMES ARE float;\n'
-            output = c.cmd_and_response('show assumptions')
-            self.assertEqual(output, expected_output + '\n')
-
-            c.cmd_and_response('assume twenty_rows_table ( b ) values are decimal;')
-            expected_output += 'ASSUME twenty_rows_table(b) VALUES ARE decimal;\n'
-            output = c.cmd_and_response('show assumptions')
-            self.assertEqual(output, expected_output + '\n')
-
     def test_eof_prints_newline(self):
         with testrun_cqlsh(tty=True) as c:
             c.send(CONTROL_D)

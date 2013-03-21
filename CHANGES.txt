@@ -18,6 +18,7 @@
  * Allow custom configuration loader (CASSANDRA-5045)
  * Remove memory emergency pressure valve logic (CASSANDRA-3534)
  * Reduce request latency with eager retry (CASSANDRA-4705)
+ * cqlsh: Remove ASSUME command (CASSANDRA-5331)
 
 
 1.2.4

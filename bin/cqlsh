@@ -38,7 +38,6 @@ from StringIO import StringIO
 from itertools import groupby
 from contextlib import contextmanager, closing
 from glob import glob
-from functools import partial
 from uuid import UUID
 
 import cmd
@@ -102,8 +101,7 @@ except ImportError, e:
 
 import cql.decoders
 from cql.cursor import _VOID_DESCRIPTION
-from cql.cqltypes import (cql_types, cql_typename, lookup_casstype, lookup_cqltype,
-                          CassandraType)
+from cql.cqltypes import (cql_types, cql_typename, lookup_casstype, CassandraType)
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
 # out of an unpacked Cassandra tarball, and after a proper package install.
@@ -183,7 +181,6 @@ my_commands_ending_with_newline = (
     'describe',
     'desc',
     'show',
-    'assume',
     'source',
     'capture',
     'debug',
@@ -207,7 +204,6 @@ cqlsh_extra_syntax_rules = r'''
 <specialCommand> ::= <describeCommand>
                    | <consistencyCommand>
                    | <showCommand>
-                   | <assumeCommand>
                    | <sourceCommand>
                    | <captureCommand>
                    | <copyCommand>
@@ -239,17 +235,8 @@ cqlsh_extra_syntax_rules = r'''
                      | "EACH_QUORUM"
                      ;
 
-<showCommand> ::= "SHOW" what=( "VERSION" | "HOST" | "ASSUMPTIONS" )
+<showCommand> ::= "SHOW" what=( "VERSION" | "HOST" )
                 ;
-
-<assumeCommand> ::= "ASSUME" cf=<columnFamilyName> <assumeTypeDef>
-                                                   ( "," <assumeTypeDef> )*
-                  ;
-
-<assumeTypeDef> ::= "NAMES" "ARE" names=<storageType>
-                  | "VALUES" "ARE" values=<storageType>
-                  | "(" colname=<colname> ")" "VALUES" "ARE" colvalues=<storageType>
-                  ;
 
 <sourceCommand> ::= "SOURCE" fname=<stringLiteral>
                   ;
@@ -290,16 +277,6 @@ cqlsh_extra_syntax_rules = r'''
 @cqlsh_syntax_completer('helpCommand', 'topic')
 def complete_help(ctxt, cqlsh):
     return sorted([ t.upper() for t in cqldocs.get_help_topics() + cqlsh.get_help_topics() ])
-
-@cqlsh_syntax_completer('assumeTypeDef', 'colname')
-def complete_assume_col(ctxt, cqlsh):
-    ks = ctxt.get_binding('ks', None)
-    ks = cqlsh.cql_unprotect_name(ks) if ks is not None else None
-    cf = cqlsh.cql_unprotect_name(ctxt.get_binding('cf'))
-    cfdef = cqlsh.get_columnfamily(cf, ksname=ks)
-    cols = [cm.name for cm in cfdef.column_metadata]
-    cols.append(cfdef.key_alias or 'KEY')
-    return cqlsh.cql_protect_names(cols)
 
 def complete_source_quoted_filename(ctxt, cqlsh):
     partial = ctxt.get_binding('partial', '')
@@ -512,7 +489,6 @@ class Shell(cmd.Cmd):
         self.statement = StringIO()
         self.lineno = 1
         self.in_comment = False
-        self.schema_overrides = {}
 
         self.prompt = ''
         if stdin is None:
@@ -574,32 +550,6 @@ class Shell(cmd.Cmd):
         # set_cql_version.
         vers['cql'] = self.cql_version
         print "[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Thrift protocol %(thrift)s]" % vers
-
-    def show_assumptions(self):
-        all_overrides = self.schema_overrides.items()
-        all_overrides.sort()
-        if all_overrides:
-            print
-        else:
-            print 'No overrides.'
-            return
-        for keyspace, ksoverrides in groupby(all_overrides, key=lambda x:x[0][0]):
-            keyspace = self.cql_protect_name(keyspace)
-            print 'USE %s;' % keyspace
-            print
-            for (ks, cf), override in ksoverrides:
-                cf = self.cql_protect_name(cf)
-                if override.default_name_type:
-                    print 'ASSUME %s NAMES ARE %s;' \
-                          % (cf, cql_typename(override.default_name_type))
-                if override.default_value_type:
-                    print 'ASSUME %s VALUES ARE %s;' \
-                          % (cf, cql_typename(override.default_value_type))
-                for colname, vtype in override.value_types.items():
-                    colname = self.cql_protect_name(colname)
-                    print 'ASSUME %s(%s) VALUES ARE %s;' \
-                          % (cf, colname, cql_typename(vtype))
-        print
 
     def get_connection_versions(self):
         try:
@@ -969,13 +919,12 @@ class Shell(cmd.Cmd):
         if ksname is not None:
             ksname = self.cql_unprotect_name(ksname)
         cfname = self.cql_unprotect_name(parsed.get_binding('cfname'))
-        decoder = self.determine_decoder_for(cfname, ksname=ksname)
         statement = parsed.extract_orig()
         with_default_limit = parsed.get_binding('limit') is None
         if with_default_limit:
             statement = "%s LIMIT %d;" % (statement[:-1], DEFAULT_SELECT_LIMIT)
         self.perform_statement(statement,
-                               decoder=decoder,
+                               decoder=ErrorHandlingSchemaDecoder,
                                with_default_limit=with_default_limit)
 
     def perform_statement(self, statement, decoder=None, with_default_limit=False):
@@ -1041,15 +990,6 @@ class Shell(cmd.Cmd):
 
     def parseable_as_cql2(self, statement):
         return cqlhandling.CqlRuleSet.lex_and_whole_match(statement) is not None
-
-    def determine_decoder_for(self, cfname, ksname=None):
-        decoder = ErrorHandlingSchemaDecoder
-        if ksname is None:
-            ksname = self.current_keyspace
-        overrides = self.schema_overrides.get((ksname, cfname), None)
-        if overrides:
-            decoder = partial(decoder, overrides=overrides)
-        return decoder
 
     def get_nametype(self, cursor, num):
         """
@@ -1748,11 +1688,6 @@ class Shell(cmd.Cmd):
         SHOW HOST
 
           Shows where cqlsh is currently connected.
-
-        SHOW ASSUMPTIONS
-
-          Outputs the current list of type assumptions as specified by the
-          user. See the help for the ASSUME command for more information.
         """
         showwhat = parsed.get_binding('what').lower()
         if showwhat == 'version':
@@ -1760,72 +1695,8 @@ class Shell(cmd.Cmd):
             self.show_version()
         elif showwhat == 'host':
             self.show_host()
-        elif showwhat == 'assumptions':
-            self.show_assumptions()
         else:
             self.printerr('Wait, how do I show %r?' % (showwhat,))
-
-    def do_assume(self, parsed):
-        """
-        ASSUME [cqlsh only]
-
-          Instruct cqlsh to consider certain column names or values to be of a
-          specified type, even if that type information is not specified in
-          the table's metadata. Data will be deserialized according to the
-          given type, and displayed appropriately when retrieved.
-
-          Use thus:
-
-        ASSUME [<keyspace>.]<tablename> NAMES ARE <type>;
-
-          Treat all column names in the given table as being of the
-          given type.
-
-        ASSUME [<keyspace>.]<tablename> VALUES ARE <type>;
-
-          Treat all column values in the given table as being of the
-          given type, unless there is more information about the specific
-          column being deserialized. That is, a column-specific ASSUME will
-          take precedence here, as will column-specific metadata in the
-          table's definition.
-
-        ASSUME [<keyspace>.]<tablename>(<colname>) VALUES ARE <type>;
-
-          Treat all values in the given column in the given table as
-          being of the specified type. This overrides any other information
-          about the type of a value.
-
-        Assign multiple overrides at once for the same table by
-        separating with commas:
-
-          ASSUME ks.table NAMES ARE uuid, VALUES ARE int, (col) VALUES ARE ascii
-
-        See HELP TYPES for information on the supported data storage types.
-        """
-        ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
-        cf = self.cql_unprotect_name(parsed.get_binding('cfname'))
-        colname = self.cql_unprotect_name(parsed.get_binding('colname', None))
-
-        params = {}
-        for paramname in ('names', 'values', 'colvalues'):
-            val = parsed.get_binding(paramname, None)
-            params[paramname] = self.cql_unprotect_value(val)
-        if ks is None:
-            if self.current_keyspace is None:
-                self.printerr('Error: not in any keyspace.')
-                return
-            ks = self.current_keyspace
-
-        for overridetype in ('names', 'values', 'colvalues'):
-            cqltype = params[overridetype]
-            if cqltype is None:
-                continue
-            try:
-                validator_class = lookup_cqltype(cqltype).cass_parameterized_type()
-            except KeyError:
-                self.printerr('Error: validator type %s not found.' % cqltype)
-            else:
-                self.add_assumption(ks, cf, colname, overridetype, validator_class)
 
     def do_source(self, parsed):
         """
@@ -2067,41 +1938,7 @@ class Shell(cmd.Cmd):
             text = '%s:%d:%s' % (self.stdin.name, self.lineno, text)
         self.writeresult(text, color, newline=newline, out=sys.stderr)
 
-    def add_assumption(self, ksname, cfname, colname, valtype, valclass):
-        try:
-            v_info = self.schema_overrides[(ksname, cfname)]
-        except KeyError:
-            v_info = self.schema_overrides[(ksname, cfname)] = FakeCqlMetadata()
-        if valtype == 'names':
-            v_info.default_name_type = valclass
-        elif valtype == 'values':
-            v_info.default_value_type = valclass
-        elif valtype == 'colvalues':
-            v_info.value_types[colname] = valclass
-
-class FakeCqlMetadata:
-    def __init__(self):
-        self.name_types = {}
-        self.value_types = {}
-        self.default_name_type = None
-        self.default_value_type = None
-
-class OverrideableSchemaDecoder(cql.decoders.SchemaDecoder):
-    def __init__(self, schema, overrides=None):
-        cql.decoders.SchemaDecoder.__init__(self, schema)
-        self.apply_schema_overrides(overrides)
-
-    def apply_schema_overrides(self, overrides):
-        if overrides is None:
-            return
-        if overrides.default_name_type is not None:
-            self.schema.default_name_type = overrides.default_name_type
-        if overrides.default_value_type is not None:
-            self.schema.default_value_type = overrides.default_value_type
-        self.schema.name_types.update(overrides.name_types)
-        self.schema.value_types.update(overrides.value_types)
-
-class ErrorHandlingSchemaDecoder(OverrideableSchemaDecoder):
+class ErrorHandlingSchemaDecoder(cql.decoders.SchemaDecoder):
     def name_decode_error(self, err, namebytes, expectedtype):
         return DecodeError(namebytes, err, expectedtype)
 
