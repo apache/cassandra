@@ -113,6 +113,12 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return pack(buffers, elements, size);
     }
 
+    protected static int getUnsignedShort(ByteBuffer bb)
+    {
+        int length = (bb.get() & 0xFF) << 8;
+        return length | (bb.get() & 0xFF);
+    }
+
     public CQL3Type asCQL3Type()
     {
         return new CQL3Type.Collection(this);

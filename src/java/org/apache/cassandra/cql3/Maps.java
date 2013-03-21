@@ -30,6 +30,7 @@ import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -78,7 +79,20 @@ public abstract class Maps
                         throw new InvalidRequestException(String.format("Invalid map literal for %s: nested collections are not supported", receiver));
                 }
 
-                if (values.put(((Constants.Value)k).bytes, ((Constants.Value)v).bytes) != null)
+                // We don't support values > 64K because the serialization format encode the length as an unsigned short.
+                ByteBuffer keyBytes = ((Constants.Value)k).bytes;
+                if (keyBytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+                    throw new InvalidRequestException(String.format("Map key is too long. Map keys are limited to %d bytes but %d bytes keys provided",
+                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
+                                                                    keyBytes.remaining()));
+
+                ByteBuffer valueBytes = ((Constants.Value)v).bytes;
+                if (valueBytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+                    throw new InvalidRequestException(String.format("Map value is too long. Map values are limited to %d bytes but %d bytes value provided",
+                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
+                                                                    valueBytes.remaining()));
+
+                if (values.put(keyBytes, valueBytes) != null)
                     throw new InvalidRequestException(String.format("Invalid map literal: duplicate entry for key %s", entry.left));
             }
             return new Value(values);
@@ -225,9 +239,22 @@ public abstract class Maps
             assert value == null || value instanceof Constants.Value;
 
             ByteBuffer cellName = prefix.add(columnName.key).add(((Constants.Value)key).bytes).build();
-            cf.addColumn(value == null
-                       ? params.makeTombstone(cellName)
-                       : params.makeColumn(cellName, ((Constants.Value)value).bytes));
+
+            if (value == null)
+            {
+                cf.addColumn(params.makeTombstone(cellName));
+            }
+            else
+            {
+                ByteBuffer bytes = ((Constants.Value)value).bytes;
+                // We don't support value > 64K because the serialization format encode the length as an unsigned short.
+                if (bytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+                    throw new InvalidRequestException(String.format("Map value is too long. Map values are limited to %d bytes but %d bytes value provided",
+                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
+                                                                    bytes.remaining()));
+
+                cf.addColumn(params.makeColumn(cellName, bytes));
+            }
         }
     }
 
