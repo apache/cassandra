@@ -7,6 +7,7 @@
  * Fix possible assertion triggered in SliceFromReadCommand (CASSANDRA-5284)
  * cqlsh: Add inet type support on Windows (ipv4-only) (CASSANDRA-4801)
  * Fix race when initializing ColumnFamilyStore (CASSANDRA-5350)
+ * Add UseTLAB JVM flag (CASSANDRA-5361)
 
 
 1.1.10
