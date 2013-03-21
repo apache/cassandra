@@ -973,10 +973,7 @@ public class SSTableReader extends SSTable
         if (range == null)
             return getDirectScanner();
 
-        Iterator<Pair<Long, Long>> rangeIterator = getPositionsForRanges(Collections.singletonList(range)).iterator();
-        return rangeIterator.hasNext()
-               ? new SSTableBoundedScanner(this, true, rangeIterator)
-               : new EmptyCompactionScanner(getFilename());
+        return new SSTableBoundedScanner(this, true, range);
     }
 
     public FileDataInput getFileDataInput(long position)
@@ -1208,50 +1205,6 @@ public class SSTableReader extends SSTable
         for (SSTableReader sstable : sstables)
         {
             sstable.releaseReference();
-        }
-    }
-
-    private static class EmptyCompactionScanner implements ICompactionScanner
-    {
-        private final String filename;
-
-        private EmptyCompactionScanner(String filename)
-        {
-            this.filename = filename;
-        }
-
-        public long getLengthInBytes()
-        {
-            return 0;
-        }
-
-        public long getCurrentPosition()
-        {
-            return 0;
-        }
-
-        public String getBackingFiles()
-        {
-            return filename;
-        }
-
-        public void close()
-        {
-        }
-
-        public boolean hasNext()
-        {
-            return false;
-        }
-
-        public OnDiskAtomIterator next()
-        {
-            throw new IndexOutOfBoundsException();
-        }
-
-        public void remove()
-        {
-            throw new UnsupportedOperationException();
         }
     }
 }

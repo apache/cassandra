@@ -1,4 +1,5 @@
 2.0
+ * Improve LeveledScanner work estimation (CASSANDRA-5250)
  * Replace compaction lock with runWithCompactionsDisabled (CASSANDRA-3430)
  * Change Message IDs to ints (CASSANDRA-5307)
  * Move sstable level information into the Stats component, removing the
