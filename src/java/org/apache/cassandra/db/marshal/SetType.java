@@ -74,11 +74,11 @@ public class SetType<T> extends CollectionType<Set<T>>
         try
         {
             ByteBuffer input = bytes.duplicate();
-            int n = input.getShort();
+            int n = getUnsignedShort(input);
             Set<T> l = new LinkedHashSet<T>(n);
             for (int i = 0; i < n; i++)
             {
-                int s = input.getShort();
+                int s = getUnsignedShort(input);
                 byte[] data = new byte[s];
                 input.get(data);
                 ByteBuffer databb = ByteBuffer.wrap(data);

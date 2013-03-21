@@ -77,17 +77,17 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         try
         {
             ByteBuffer input = bytes.duplicate();
-            int n = input.getShort();
+            int n = getUnsignedShort(input);
             Map<K, V> m = new LinkedHashMap<K, V>(n);
             for (int i = 0; i < n; i++)
             {
-                int sk = input.getShort();
+                int sk = getUnsignedShort(input);
                 byte[] datak = new byte[sk];
                 input.get(datak);
                 ByteBuffer kbb = ByteBuffer.wrap(datak);
                 keys.validate(kbb);
 
-                int sv = input.getShort();
+                int sv = getUnsignedShort(input);
                 byte[] datav = new byte[sv];
                 input.get(datav);
                 ByteBuffer vbb = ByteBuffer.wrap(datav);

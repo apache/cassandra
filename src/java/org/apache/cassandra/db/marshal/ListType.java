@@ -74,11 +74,11 @@ public class ListType<T> extends CollectionType<List<T>>
         try
         {
             ByteBuffer input = bytes.duplicate();
-            int n = input.getShort();
+            int n = getUnsignedShort(input);
             List<T> l = new ArrayList<T>(n);
             for (int i = 0; i < n; i++)
             {
-                int s = input.getShort();
+                int s = getUnsignedShort(input);
                 byte[] data = new byte[s];
                 input.get(data);
                 ByteBuffer databb = ByteBuffer.wrap(data);

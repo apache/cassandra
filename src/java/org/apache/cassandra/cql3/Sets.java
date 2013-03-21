@@ -34,6 +34,7 @@ import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Static helper methods and classes for sets.
@@ -79,7 +80,14 @@ public abstract class Sets
                         throw new InvalidRequestException(String.format("Invalid set literal for %s: nested collections are not supported", receiver));
                 }
 
-                if (!values.add(((Constants.Value)t).bytes))
+                ByteBuffer bytes = ((Constants.Value)t).bytes;
+                // We don't support value > 64K because the serialization format encode the length as an unsigned short.
+                if (bytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+                    throw new InvalidRequestException(String.format("Set value is too long. Set values are limited to %d bytes but %d bytes value provided",
+                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
+                                                                    bytes.remaining()));
+
+                if (!values.add(bytes))
                     throw new InvalidRequestException(String.format("Invalid set literal: duplicate value %s", rt));
             }
             return new Value(values);
