@@ -128,7 +128,7 @@ public class KeyCacheTest extends SchemaLoader
                                                        false,
                                                        10));
 
-        assert CacheService.instance.keyCache.size() == 2;
+        assertEquals(2, CacheService.instance.keyCache.size());
 
         Util.compactAll(cfs).get();
         // after compaction cache should have entries for

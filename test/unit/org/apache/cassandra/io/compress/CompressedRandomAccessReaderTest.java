@@ -75,7 +75,7 @@ public class CompressedRandomAccessReaderTest
 
             assert f.exists();
             RandomAccessReader reader = compressed
-                                      ? CompressedRandomAccessReader.open(filename, new CompressionMetadata(filename + ".metadata", f.length()), false)
+                                      ? CompressedRandomAccessReader.open(filename, new CompressionMetadata(filename + ".metadata", f.length()))
                                       : RandomAccessReader.open(f);
             String expected = "The quick brown fox jumps over the lazy dog";
             assertEquals(expected.length(), reader.length());
@@ -115,7 +115,7 @@ public class CompressedRandomAccessReaderTest
         CompressionMetadata meta = new CompressionMetadata(metadata.getPath(), file.length());
         CompressionMetadata.Chunk chunk = meta.chunkFor(0);
 
-        RandomAccessReader reader = CompressedRandomAccessReader.open(file.getPath(), meta, false);
+        RandomAccessReader reader = CompressedRandomAccessReader.open(file.getPath(), meta);
         // read and verify compressed data
         assertEquals(CONTENT, reader.readLine());
         // close reader
@@ -142,7 +142,7 @@ public class CompressedRandomAccessReaderTest
                 checksumModifier.write(random.nextInt());
                 checksumModifier.getFD().sync(); // making sure that change was synced with disk
 
-                final RandomAccessReader r = CompressedRandomAccessReader.open(file.getPath(), meta, false);
+                final RandomAccessReader r = CompressedRandomAccessReader.open(file.getPath(), meta);
 
                 Throwable exception = null;
                 try
@@ -163,7 +163,7 @@ public class CompressedRandomAccessReaderTest
             // lets write original checksum and check if we can read data
             updateChecksum(checksumModifier, chunk.length, checksum);
 
-            reader = CompressedRandomAccessReader.open(file.getPath(), meta, false);
+            reader = CompressedRandomAccessReader.open(file.getPath(), meta);
             // read and verify compressed data
             assertEquals(CONTENT, reader.readLine());
             // close reader

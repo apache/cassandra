@@ -310,7 +310,7 @@ public class SSTableExport
     public static void export(Descriptor desc, PrintStream outs, Collection<String> toExport, String[] excludes) throws IOException
     {
         SSTableReader reader = SSTableReader.open(desc);
-        SSTableScanner scanner = reader.getDirectScanner();
+        SSTableScanner scanner = reader.getScanner();
 
         IPartitioner<?> partitioner = reader.partitioner;
 
@@ -367,7 +367,7 @@ public class SSTableExport
 
 
         SSTableIdentityIterator row;
-        SSTableScanner scanner = reader.getDirectScanner();
+        SSTableScanner scanner = reader.getScanner();
 
         outs.println("[");
 

@@ -38,7 +38,7 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
     {
         this.desc = desc;
         File path = new File(desc.filenameFor(SSTable.COMPONENT_INDEX));
-        in = RandomAccessReader.open(path, true);
+        in = RandomAccessReader.open(path);
     }
 
     protected DecoratedKey computeNext()

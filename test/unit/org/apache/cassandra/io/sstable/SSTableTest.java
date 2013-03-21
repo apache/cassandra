@@ -56,7 +56,7 @@ public class SSTableTest extends SchemaLoader
 
     private void verifySingle(SSTableReader sstable, ByteBuffer bytes, ByteBuffer key) throws IOException
     {
-        RandomAccessReader file = sstable.openDataReader(false);
+        RandomAccessReader file = sstable.openDataReader();
         file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key), SSTableReader.Operator.EQ).position);
         assert key.equals(ByteBufferUtil.readWithShortLength(file));
         int size = (int)SSTableReader.readRowSize(file, sstable.descriptor);
@@ -98,7 +98,7 @@ public class SSTableTest extends SchemaLoader
     {
         List<ByteBuffer> keys = new ArrayList<ByteBuffer>(map.keySet());
         //Collections.shuffle(keys);
-        RandomAccessReader file = sstable.openDataReader(false);
+        RandomAccessReader file = sstable.openDataReader();
         for (ByteBuffer key : keys)
         {
             file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key), SSTableReader.Operator.EQ).position);

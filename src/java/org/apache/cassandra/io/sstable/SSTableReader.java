@@ -352,7 +352,7 @@ public class SSTableReader extends SSTable
                                           : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
 
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
-        RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), true);
+        RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
 
         // try to load summaries from the disk and check if we need
         // to read primary index because we should re-create a BloomFilter or pre-load KeyCache
@@ -704,6 +704,29 @@ public class SSTableReader extends SSTable
         keyCache.put(cacheKey, info);
     }
 
+    public void preheat(Map<DecoratedKey, RowIndexEntry> cachedKeys) throws IOException
+    {
+        RandomAccessFile f = new RandomAccessFile(getFilename(), "r");
+
+        try
+        {
+            int fd = CLibrary.getfd(f.getFD());
+
+            for (Map.Entry<DecoratedKey, RowIndexEntry> entry : cachedKeys.entrySet())
+            {
+                cacheKey(entry.getKey(), entry.getValue());
+
+                // add to the cache but don't do actual preheating if we have it disabled in the config
+                if (DatabaseDescriptor.shouldPreheatPageCache() && fd > 0)
+                    CLibrary.preheatPage(fd, entry.getValue().position);
+            }
+        }
+        finally
+        {
+            FileUtils.closeQuietly(f);
+        }
+    }
+
     public RowIndexEntry getCachedPosition(DecoratedKey key, boolean updateStats)
     {
         return getCachedPosition(new KeyCacheKey(descriptor, key.key), updateStats);
@@ -903,6 +926,15 @@ public class SSTableReader extends SSTable
     {
         if (references.decrementAndGet() == 0 && isCompacted.get())
         {
+            /**
+             * Make OS a favour and suggest (using fadvice call) that we
+             * don't want to see pages of this SSTable in memory anymore.
+             *
+             * NOTE: We can't use madvice in java because it requires address of
+             * the mapping, so instead we always open a file and run fadvice(fd, 0, 0) on it
+             */
+            dropPageCache();
+
             // Force finalizing mmapping if necessary
             ifile.cleanup();
             dfile.cleanup();
@@ -954,12 +986,12 @@ public class SSTableReader extends SSTable
     }
 
    /**
-    * Direct I/O SSTableScanner
+    * I/O SSTableScanner
     * @return A Scanner for seeking over the rows of the SSTable.
     */
-    public SSTableScanner getDirectScanner()
+    public SSTableScanner getScanner()
     {
-        return new SSTableScanner(this, true);
+        return new SSTableScanner(this);
     }
 
    /**
@@ -968,12 +1000,12 @@ public class SSTableReader extends SSTable
     * @param range the range of keys to cover
     * @return A Scanner for seeking over the rows of the SSTable.
     */
-    public ICompactionScanner getDirectScanner(Range<Token> range)
+    public ICompactionScanner getScanner(Range<Token> range)
     {
         if (range == null)
-            return getDirectScanner();
+            return getScanner();
 
-        return new SSTableBoundedScanner(this, true, range);
+        return new SSTableBoundedScanner(this, range);
     }
 
     public FileDataInput getFileDataInput(long position)
@@ -1151,16 +1183,16 @@ public class SSTableReader extends SSTable
         return sstableMetadata;
     }
 
-    public RandomAccessReader openDataReader(boolean skipIOCache)
+    public RandomAccessReader openDataReader()
     {
         return compression
-               ? CompressedRandomAccessReader.open(getFilename(), getCompressionMetadata(), skipIOCache)
-               : RandomAccessReader.open(new File(getFilename()), skipIOCache);
+               ? CompressedRandomAccessReader.open(getFilename(), getCompressionMetadata())
+               : RandomAccessReader.open(new File(getFilename()));
     }
 
-    public RandomAccessReader openIndexReader(boolean skipIOCache)
+    public RandomAccessReader openIndexReader()
     {
-        return RandomAccessReader.open(new File(getIndexFilename()), skipIOCache);
+        return RandomAccessReader.open(new File(getIndexFilename()));
     }
 
     /**
@@ -1205,6 +1237,84 @@ public class SSTableReader extends SSTable
         for (SSTableReader sstable : sstables)
         {
             sstable.releaseReference();
+        }
+    }
+
+    private static class EmptyCompactionScanner implements ICompactionScanner
+    {
+        private final String filename;
+
+        private EmptyCompactionScanner(String filename)
+        {
+            this.filename = filename;
+        }
+
+        public long getLengthInBytes()
+        {
+            return 0;
+        }
+
+        public long getCurrentPosition()
+        {
+            return 0;
+        }
+
+        public String getBackingFiles()
+        {
+            return filename;
+        }
+
+        public void close()
+        {
+        }
+
+        public boolean hasNext()
+        {
+            return false;
+        }
+
+        public OnDiskAtomIterator next()
+        {
+            throw new IndexOutOfBoundsException();
+        }
+
+        public void remove()
+        {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private void dropPageCache()
+    {
+        dropPageCache(dfile.path);
+        dropPageCache(ifile.path);
+    }
+
+    private void dropPageCache(String filePath)
+    {
+        RandomAccessFile file = null;
+
+        try
+        {
+            file = new RandomAccessFile(filePath, "r");
+
+            int fd = CLibrary.getfd(file.getFD());
+
+            if (fd > 0)
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug(String.format("Dropping page cache of file %s.", filePath));
+
+                CLibrary.trySkipCache(fd, 0, 0);
+            }
+        }
+        catch (IOException e)
+        {
+            // we don't care if cache cleanup fails
+        }
+        finally
+        {
+            FileUtils.closeQuietly(file);
         }
     }
 }

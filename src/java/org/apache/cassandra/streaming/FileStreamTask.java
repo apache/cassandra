@@ -145,7 +145,7 @@ public class FileStreamTask extends WrappedRunnable
             return;
 
         // try to skip kernel page cache if possible
-        RandomAccessReader file = RandomAccessReader.open(new File(header.file.getFilename()), true);
+        RandomAccessReader file = RandomAccessReader.open(new File(header.file.getFilename()));
         Descriptor desc = Descriptor.fromFilename(header.file.getFilename());
         ChecksumValidator metadata = null;
         if (new File(desc.filenameFor(Component.CRC)).exists())

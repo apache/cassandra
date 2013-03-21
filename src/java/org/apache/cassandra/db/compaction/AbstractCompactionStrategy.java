@@ -184,7 +184,7 @@ public abstract class AbstractCompactionStrategy
     {
         ArrayList<ICompactionScanner> scanners = new ArrayList<ICompactionScanner>();
         for (SSTableReader sstable : sstables)
-            scanners.add(sstable.getDirectScanner(range));
+            scanners.add(sstable.getScanner(range));
         return scanners;
     }
 

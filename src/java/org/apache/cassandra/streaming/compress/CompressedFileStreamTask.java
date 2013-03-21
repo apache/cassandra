@@ -65,7 +65,7 @@ public class CompressedFileStreamTask extends FileStreamTask
         ByteBuffer headerBuffer = MessagingService.instance().constructStreamHeader(header, false, MessagingService.instance().getVersion(to));
         socket.getOutputStream().write(ByteBufferUtil.getArray(headerBuffer));
 
-        RandomAccessReader file = RandomAccessReader.open(new File(header.file.getFilename()), true);
+        RandomAccessReader file = RandomAccessReader.open(new File(header.file.getFilename()));
         FileChannel fc = file.getChannel();
 
         StreamingMetrics.activeStreamsOutbound.inc();

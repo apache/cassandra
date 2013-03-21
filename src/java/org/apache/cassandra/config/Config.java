@@ -166,6 +166,9 @@ public class Config
     public boolean inter_dc_tcp_nodelay = false;
 
     private static boolean isClientMode = false;
+
+    public boolean preheat_kernel_page_cache = false;
+
     private static boolean outboundBindAny = false;
 
     public static boolean getOutboundBindAny()
