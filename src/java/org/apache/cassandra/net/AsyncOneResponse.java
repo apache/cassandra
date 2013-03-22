@@ -28,7 +28,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * A callback specialized for returning a value from a single target; that is, this is for messages
  * that we only send to one recipient.
  */
-public class AsyncResult<T> implements IAsyncCallback<T>
+public class AsyncOneResponse<T> implements IAsyncCallback<T>
 {
     private T result;
     private final AtomicBoolean done = new AtomicBoolean(false);
@@ -36,7 +36,7 @@ public class AsyncResult<T> implements IAsyncCallback<T>
     private final Condition condition;
     private final long startTime;
 
-    public AsyncResult()
+    public AsyncOneResponse()
     {
         condition = lock.newCondition();
         startTime = System.currentTimeMillis();

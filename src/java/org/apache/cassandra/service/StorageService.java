@@ -1782,7 +1782,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.debug("Notifying " + remote.toString() + " of replication completion\n");
         while (failureDetector.isAlive(remote))
         {
-            AsyncResult iar = MessagingService.instance().sendRR(msg, remote);
+            AsyncOneResponse iar = MessagingService.instance().sendRR(msg, remote);
             try
             {
                 iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
