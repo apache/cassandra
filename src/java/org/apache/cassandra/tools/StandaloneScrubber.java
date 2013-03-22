@@ -55,6 +55,8 @@ public class StandaloneScrubber
         Options options = Options.parseArgs(args);
         try
         {
+            Directories.migrateSSTables();
+
             // load keyspace descriptions.
             DatabaseDescriptor.loadSchemas();
 
