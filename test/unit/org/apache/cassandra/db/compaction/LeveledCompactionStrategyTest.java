@@ -183,7 +183,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
 
         for(SSTableReader s : table.getColumnFamilyStore(cfname).getSSTables())
         {
-            assertTrue(changedSSTables.contains(s) && s.getSSTableLevel() == 6);
+            assertTrue(!changedSSTables.contains(s) || s.getSSTableLevel() == 6);
         }
 
         int [] levels = strat.manifest.getAllLevelSize();
@@ -192,8 +192,6 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         {
             if (i == 6)
                 assertEquals(table.getColumnFamilyStore(cfname).getSSTables().size(), levels[i]);
-            else
-                assertEquals(0, levels[i]);
         }
 
     }
