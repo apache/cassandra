@@ -38,18 +38,9 @@ public class ResponseVerbHandler implements IVerbHandler
             return;
         }
 
+        Tracing.trace("Processing response from {}", message.from);
         IAsyncCallback cb = callbackInfo.callback;
         MessagingService.instance().maybeAddLatency(cb, message.from, latency);
-
-        if (cb instanceof IAsyncCallback)
-        {
-            Tracing.trace("Processing response from {}", message.from);
-            ((IAsyncCallback) cb).response(message);
-        }
-        else
-        {
-            Tracing.trace("Processing result from {}", message.from);
-            ((AsyncOneResponse) cb).response(message);
-        }
+        cb.response(message);
     }
 }
