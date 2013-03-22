@@ -49,7 +49,7 @@ public class ResponseVerbHandler implements IVerbHandler
         else
         {
             Tracing.trace("Processing result from {}", message.from);
-            ((IAsyncResult) cb).result(message);
+            ((AsyncResult) cb).result(message);
         }
     }
 }

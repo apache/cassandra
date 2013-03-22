@@ -19,7 +19,6 @@ package org.apache.cassandra.utils;
 
 import java.io.*;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -53,7 +52,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.IAllocator;
-import org.apache.cassandra.net.IAsyncResult;
+import org.apache.cassandra.net.AsyncResult;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
@@ -384,9 +383,9 @@ public class FBUtilities
         }
     }
 
-    public static void waitOnFutures(List<IAsyncResult> results, long ms) throws TimeoutException
+    public static void waitOnFutures(List<AsyncResult> results, long ms) throws TimeoutException
     {
-        for (IAsyncResult result : results)
+        for (AsyncResult result : results)
             result.get(ms, TimeUnit.MILLISECONDS);
     }
 
