@@ -323,6 +323,8 @@ public class DefsTable
             // store deserialized keyspaces into new place
             dumpToStorage(keyspaces);
 
+            flushSchemaCFs();
+
             logger.info("Truncating deprecated system column families (migrations, schema)...");
             dropColumnFamily(Table.SYSTEM_TABLE, OLD_MIGRATIONS_CF);
             dropColumnFamily(Table.SYSTEM_TABLE, OLD_SCHEMA_CF);
