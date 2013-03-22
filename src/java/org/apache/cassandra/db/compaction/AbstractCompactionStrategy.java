@@ -219,6 +219,10 @@ public abstract class AbstractCompactionStrategy
             // there is no overlap, tombstones are safely droppable
             return true;
         }
+        else if (CompactionController.getFullyExpiredSSTables(cfs, Collections.singleton(sstable), overlaps, gcBefore).size() > 0)
+        {
+            return true;
+        }
         else
         {
             // what percentage of columns do we expect to compact outside of overlap?

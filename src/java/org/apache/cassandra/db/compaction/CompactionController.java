@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -30,6 +32,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataTracker;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.CacheService;
@@ -47,9 +50,11 @@ public class CompactionController
     public final ColumnFamilyStore cfs;
     private final DataTracker.SSTableIntervalTree overlappingTree;
     private final Set<SSTableReader> overlappingSSTables;
+    private final Set<SSTableReader> compacting;
 
     public final int gcBefore;
     public final int mergeShardBefore;
+
     private final Throttle throttle = new Throttle("Cassandra_Throttle", new Throttle.ThroughputFunction()
     {
         /** @return Instantaneous throughput target in bytes per millisecond. */
@@ -65,35 +70,91 @@ public class CompactionController
         }
     });
 
-    public CompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore)
-    {
-        this(cfs,
-             gcBefore,
-             cfs.getAndReferenceOverlappingSSTables(sstables));
-    }
-
     /**
      * Constructor that subclasses may use when overriding shouldPurge to not need overlappingTree
      */
     protected CompactionController(ColumnFamilyStore cfs, int maxValue)
     {
-        this(cfs, maxValue, null);
+        this(cfs, null, maxValue);
     }
 
-    private CompactionController(ColumnFamilyStore cfs,
-                                   int gcBefore,
-                                   Set<SSTableReader> overlappingSSTables)
+    public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting,  int gcBefore)
     {
         assert cfs != null;
         this.cfs = cfs;
         this.gcBefore = gcBefore;
+        this.compacting = compacting;
         // If we merge an old CounterId id, we must make sure that no further increment for that id are in an active memtable.
         // For that, we must make sure that this id was renewed before the creation of the oldest unflushed memtable. We
         // add 5 minutes to be sure we're on the safe side in terms of thread safety (though we should be fine in our
         // current 'stop all write during memtable switch' situation).
         this.mergeShardBefore = (int) ((cfs.oldestUnflushedMemtable() + 5 * 3600) / 1000);
-        this.overlappingSSTables = overlappingSSTables == null ? Collections.<SSTableReader>emptySet() : overlappingSSTables;
-        overlappingTree = overlappingSSTables == null ? null : DataTracker.buildIntervalTree(overlappingSSTables);
+        Set<SSTableReader> overlapping = compacting == null ? null : cfs.getAndReferenceOverlappingSSTables(compacting);
+        this.overlappingSSTables = overlapping == null ? Collections.<SSTableReader>emptySet() : overlapping;
+        this.overlappingTree = overlapping == null ? null : DataTracker.buildIntervalTree(overlapping);
+    }
+
+    public Set<SSTableReader> getFullyExpiredSSTables()
+    {
+        return getFullyExpiredSSTables(cfs, compacting, overlappingSSTables, gcBefore);
+    }
+
+    /**
+     * Finds expired sstables
+     *
+     * works something like this;
+     * 1. find "global" minTimestamp of overlapping sstables (excluding the possibly droppable ones)
+     * 2. build a list of candidates to be dropped
+     * 3. sort the candidate list, biggest maxTimestamp first in list
+     * 4. check if the candidates to be dropped actually can be dropped (maxTimestamp < global minTimestamp) and it is included in the compaction
+     *    - if not droppable, update global minTimestamp and remove from candidates
+     * 5. return candidates.
+     *
+     * @param cfStore
+     * @param compacting we take the drop-candidates from this set, it is usually the sstables included in the compaction
+     * @param overlapping the sstables that overlap the ones in compacting.
+     * @param gcBefore
+     * @return
+     */
+    public static Set<SSTableReader> getFullyExpiredSSTables(ColumnFamilyStore cfStore, Set<SSTableReader> compacting, Set<SSTableReader> overlapping, int gcBefore)
+    {
+        logger.debug("Checking droppable sstables in {}", cfStore);
+        List<SSTableReader> candidates = new ArrayList<SSTableReader>();
+
+        long minTimestamp = Integer.MAX_VALUE;
+
+        for (SSTableReader sstable : overlapping)
+            minTimestamp = Math.min(minTimestamp, sstable.getMinTimestamp());
+
+        for (SSTableReader candidate : compacting)
+        {
+            if (candidate.getSSTableMetadata().maxLocalDeletionTime < gcBefore)
+                candidates.add(candidate);
+            else
+                minTimestamp = Math.min(minTimestamp, candidate.getMinTimestamp());
+        }
+
+        // we still need to keep candidates that might shadow something in a
+        // non-candidate sstable. And if we remove a sstable from the candidates, we
+        // must take it's timestamp into account (hence the sorting below).
+        Collections.sort(candidates, SSTable.maxTimestampComparator);
+
+        Iterator<SSTableReader> iterator = candidates.iterator();
+        while (iterator.hasNext())
+        {
+            SSTableReader candidate = iterator.next();
+            if (candidate.getMaxTimestamp() >= minTimestamp)
+            {
+                minTimestamp = Math.min(candidate.getMinTimestamp(), minTimestamp);
+                iterator.remove();
+            }
+            else
+            {
+               logger.debug("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
+                        candidate, candidate.getSSTableMetadata().maxLocalDeletionTime, gcBefore);
+            }
+        }
+        return new HashSet<SSTableReader>(candidates);
     }
 
     public String getKeyspace()

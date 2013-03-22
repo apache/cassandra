@@ -446,7 +446,7 @@ public class CompactionManager implements CompactionManagerMBean
                 continue;
             }
 
-            CompactionController controller = new CompactionController(cfs, Collections.singletonList(sstable), getDefaultGcBefore(cfs));
+            CompactionController controller = new CompactionController(cfs, Collections.singleton(sstable), getDefaultGcBefore(cfs));
             long startTime = System.currentTimeMillis();
 
             long totalkeysWritten = 0;

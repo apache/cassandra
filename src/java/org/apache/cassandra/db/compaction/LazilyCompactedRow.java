@@ -99,6 +99,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         columnStats = new ColumnStats(reducer == null ? 0 : reducer.columns, 
                                       reducer == null ? Long.MAX_VALUE : reducer.minTimestampSeen, 
                                       reducer == null ? maxDelTimestamp : Math.max(maxDelTimestamp, reducer.maxTimestampSeen),
+                                      reducer == null ? Integer.MIN_VALUE : reducer.maxLocalDeletionTimeSeen,
                                       reducer == null ? new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE) : reducer.tombstones
         );
         columnSerializedSize = reducer == null ? 0 : reducer.serializedSize;
@@ -242,6 +243,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         int columns = 0;
         long minTimestampSeen = Long.MAX_VALUE;
         long maxTimestampSeen = Long.MIN_VALUE;
+        int maxLocalDeletionTimeSeen = Integer.MIN_VALUE;
         StreamingHistogram tombstones = new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE);
 
         public void reduce(OnDiskAtom current)
@@ -297,6 +299,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                 columns++;
                 minTimestampSeen = Math.min(minTimestampSeen, reduced.minTimestamp());
                 maxTimestampSeen = Math.max(maxTimestampSeen, reduced.maxTimestamp());
+                maxLocalDeletionTimeSeen = Math.max(maxLocalDeletionTimeSeen, reduced.getLocalDeletionTime());
                 int deletionTime = reduced.getLocalDeletionTime();
                 if (deletionTime < Integer.MAX_VALUE)
                 {

@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -71,7 +72,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
                                        new PreCompactingController(cfs, sstables, gcBefore, false));
         AbstractCompactionIterable parallel = new ParallelCompactionIterable(OperationType.UNKNOWN,
                                                                              strategy.getScanners(sstables),
-                                                                             new CompactionController(cfs, sstables, gcBefore),
+                                                                             new CompactionController(cfs, new HashSet<SSTableReader>(sstables), gcBefore),
                                                                              0);
         assertBytes(cfs, sstables, eager, parallel);
     }
@@ -297,7 +298,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     {
         public LazilyCompactingController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
         {
-            super(cfs, sstables, gcBefore);
+            super(cfs, new HashSet<SSTableReader>(sstables), gcBefore);
         }
 
         @Override
@@ -311,7 +312,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     {
         public PreCompactingController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
         {
-            super(cfs, sstables, gcBefore);
+            super(cfs, new HashSet<SSTableReader>(sstables), gcBefore);
         }
 
         @Override

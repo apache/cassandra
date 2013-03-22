@@ -20,6 +20,8 @@ package org.apache.cassandra.db.compaction;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 
 import com.google.common.collect.Iterables;
 import org.junit.Test;
@@ -168,19 +170,20 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
             store.forceMajorCompaction();
             Thread.sleep(200);
         }
-
+        Set<SSTableReader> changedSSTables = new HashSet<SSTableReader>();
         for (SSTableReader s : table.getColumnFamilyStore(cfname).getSSTables())
         {
             assertTrue(s.getSSTableLevel() != 6);
             strat.manifest.remove(s);
             LeveledManifest.mutateLevel(s.getSSTableMetadata(), s.descriptor, s.descriptor.filenameFor(Component.STATS), 6);
             s.reloadSSTableMetadata();
+            changedSSTables.add(s);
             strat.manifest.add(s);
         }
 
         for(SSTableReader s : table.getColumnFamilyStore(cfname).getSSTables())
         {
-            assertEquals(6, s.getSSTableLevel());
+            assertTrue(changedSSTables.contains(s) && s.getSSTableLevel() == 6);
         }
 
         int [] levels = strat.manifest.getAllLevelSize();

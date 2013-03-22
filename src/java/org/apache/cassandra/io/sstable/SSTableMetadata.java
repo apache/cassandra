@@ -35,6 +35,7 @@ import org.apache.cassandra.utils.EstimatedHistogram;
  *  - estimated column count histogram
  *  - replay position
  *  - max column timestamp
+ *  - max local deletion time
  *  - compression ratio
  *  - partitioner
  *  - generations of sstables from which this sstable was compacted, if any
@@ -53,6 +54,8 @@ public class SSTableMetadata
     public final ReplayPosition replayPosition;
     public final long minTimestamp;
     public final long maxTimestamp;
+    public final int maxLocalDeletionTime;
+
     public final double compressionRatio;
     public final String partitioner;
     public final Set<Integer> ancestors;
@@ -66,6 +69,7 @@ public class SSTableMetadata
              ReplayPosition.NONE,
              Long.MAX_VALUE,
              Long.MIN_VALUE,
+             Integer.MAX_VALUE,
              NO_COMPRESSION_RATIO,
              null,
              Collections.<Integer>emptySet(),
@@ -74,13 +78,14 @@ public class SSTableMetadata
     }
 
     private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long minTimestamp,
-            long maxTimestamp, double cr, String partitioner, Set<Integer> ancestors, StreamingHistogram estimatedTombstoneDropTime, int sstableLevel)
+            long maxTimestamp, int maxLocalDeletionTime, double cr, String partitioner, Set<Integer> ancestors, StreamingHistogram estimatedTombstoneDropTime, int sstableLevel)
     {
         this.estimatedRowSize = rowSizes;
         this.estimatedColumnCount = columnCounts;
         this.replayPosition = replayPosition;
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
+        this.maxLocalDeletionTime = maxLocalDeletionTime;
         this.compressionRatio = cr;
         this.partitioner = partitioner;
         this.ancestors = ancestors;
@@ -112,6 +117,7 @@ public class SSTableMetadata
                                    metadata.replayPosition,
                                    metadata.minTimestamp,
                                    metadata.maxTimestamp,
+                                   metadata.maxLocalDeletionTime,
                                    metadata.compressionRatio,
                                    metadata.partitioner,
                                    metadata.ancestors,
@@ -169,6 +175,7 @@ public class SSTableMetadata
         protected ReplayPosition replayPosition = ReplayPosition.NONE;
         protected long minTimestamp = Long.MAX_VALUE;
         protected long maxTimestamp = Long.MIN_VALUE;
+        protected int maxLocalDeletionTime = Integer.MIN_VALUE;
         protected double compressionRatio = NO_COMPRESSION_RATIO;
         protected Set<Integer> ancestors = new HashSet<Integer>();
         protected StreamingHistogram estimatedTombstoneDropTime = defaultTombstoneDropTimeHistogram();
@@ -208,6 +215,11 @@ public class SSTableMetadata
             maxTimestamp = Math.max(maxTimestamp, potentialMax);
         }
 
+        public void updateMaxLocalDeletionTime(int maxLocalDeletionTime)
+        {
+            this.maxLocalDeletionTime = Math.max(this.maxLocalDeletionTime, maxLocalDeletionTime);
+        }
+
         public SSTableMetadata finalizeMetadata(String partitioner)
         {
             return new SSTableMetadata(estimatedRowSize,
@@ -215,6 +227,7 @@ public class SSTableMetadata
                                        replayPosition,
                                        minTimestamp,
                                        maxTimestamp,
+                                       maxLocalDeletionTime,
                                        compressionRatio,
                                        partitioner,
                                        ancestors,
@@ -257,6 +270,7 @@ public class SSTableMetadata
              * that in this case we will not use EchoedRow, since CompactionControler.needsDeserialize() will be true).
             */
             updateMaxTimestamp(stats.maxTimestamp);
+            updateMaxLocalDeletionTime(stats.maxLocalDeletionTime);
             addRowSize(size);
             addColumnCount(stats.columnCount);
             mergeTombstoneHistogram(stats.tombstoneHistogram);
@@ -283,6 +297,7 @@ public class SSTableMetadata
             ReplayPosition.serializer.serialize(sstableStats.replayPosition, dos);
             dos.writeLong(sstableStats.minTimestamp);
             dos.writeLong(sstableStats.maxTimestamp);
+            dos.writeInt(sstableStats.maxLocalDeletionTime);
             dos.writeDouble(sstableStats.compressionRatio);
             dos.writeUTF(sstableStats.partitioner);
             dos.writeInt(sstableStats.ancestors.size());
@@ -314,6 +329,8 @@ public class SSTableMetadata
                 dos.writeLong(sstableStats.minTimestamp);
             if (legacyDesc.version.tracksMaxTimestamp)
                 dos.writeLong(sstableStats.maxTimestamp);
+            if (legacyDesc.version.tracksMaxLocalDeletionTime)
+                dos.writeInt(sstableStats.maxLocalDeletionTime);
             if (legacyDesc.version.hasCompressionRatio)
                 dos.writeDouble(sstableStats.compressionRatio);
             if (legacyDesc.version.hasPartitioner)
@@ -379,6 +396,8 @@ public class SSTableMetadata
             long maxTimestamp = desc.version.containsTimestamp() ? dis.readLong() : Long.MIN_VALUE;
             if (!desc.version.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
                 maxTimestamp = Long.MAX_VALUE;
+            int maxLocalDeletionTime = desc.version.tracksMaxLocalDeletionTime ? dis.readInt() : Integer.MAX_VALUE;
+
             double compressionRatio = desc.version.hasCompressionRatio
                                     ? dis.readDouble()
                                     : NO_COMPRESSION_RATIO;
@@ -395,7 +414,7 @@ public class SSTableMetadata
             if (loadSSTableLevel && dis.available() > 0)
                 sstableLevel = dis.readInt();
 
-            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, minTimestamp, maxTimestamp, compressionRatio, partitioner, ancestors, tombstoneHistogram, sstableLevel);
+            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, minTimestamp, maxTimestamp, maxLocalDeletionTime, compressionRatio, partitioner, ancestors, tombstoneHistogram, sstableLevel);
         }
     }
 }
