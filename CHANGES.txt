@@ -33,6 +33,7 @@
  * Fix AssertionError during repair (CASSANDRA-5245)
  * Don't announce migrations to pre-1.2 nodes (CASSANDRA-5334)
 Merged from 1.1:
+ * Update offline scrub for 1.0 -> 1.1 directory structure (CASSANDRA-5195)
  * add tmp flag to Descriptor hashcode (CASSANDRA-4021)
  * fix logging of "Found table data in data directories" when only system tables
    are present (CASSANDRA-5289)
