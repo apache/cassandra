@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.net;
 
+/**
+ * Common parent of IAsyncCallback and IAsyncResult.  Don't implement it directly.
+ */
 public interface IMessageCallback
 {
     /**
