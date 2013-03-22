@@ -24,7 +24,11 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class AsyncResult<T> implements IMessageCallback
+/**
+ * A callback specialized for returning a value from a single target; that is, this is for messages
+ * that we only send to one recipient.
+ */
+public class AsyncResult<T> implements IAsyncCallback<T>
 {
     private T result;
     private final AtomicBoolean done = new AtomicBoolean(false);
@@ -70,7 +74,7 @@ public class AsyncResult<T> implements IMessageCallback
         return result;
     }
 
-    public void result(MessageIn<T> response)
+    public void response(MessageIn<T> response)
     {
         try
         {

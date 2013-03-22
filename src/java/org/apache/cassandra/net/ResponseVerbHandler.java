@@ -38,7 +38,7 @@ public class ResponseVerbHandler implements IVerbHandler
             return;
         }
 
-        IMessageCallback cb = callbackInfo.callback;
+        IAsyncCallback cb = callbackInfo.callback;
         MessagingService.instance().maybeAddLatency(cb, message.from, latency);
 
         if (cb instanceof IAsyncCallback)
@@ -49,7 +49,7 @@ public class ResponseVerbHandler implements IVerbHandler
         else
         {
             Tracing.trace("Processing result from {}", message.from);
-            ((AsyncResult) cb).result(message);
+            ((AsyncResult) cb).response(message);
         }
     }
 }

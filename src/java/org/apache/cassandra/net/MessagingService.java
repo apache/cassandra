@@ -355,7 +355,7 @@ public final class MessagingService implements MessagingServiceMBean
      * @param address the host that replied to the message
      * @param latency
      */
-    public void maybeAddLatency(IMessageCallback cb, InetAddress address, long latency)
+    public void maybeAddLatency(IAsyncCallback cb, InetAddress address, long latency)
     {
         if (cb.isLatencyForSnitch())
             addLatency(address, latency);
@@ -514,7 +514,7 @@ public final class MessagingService implements MessagingServiceMBean
         return verbHandlers.get(type);
     }
 
-    public int addCallback(IMessageCallback cb, MessageOut message, InetAddress to, long timeout)
+    public int addCallback(IAsyncCallback cb, MessageOut message, InetAddress to, long timeout)
     {
         int messageId = nextId();
         CallbackInfo previous;
@@ -537,9 +537,9 @@ public final class MessagingService implements MessagingServiceMBean
     }
 
     /*
-     * @see #sendRR(Message message, InetAddress to, IMessageCallback cb, long timeout)
+     * @see #sendRR(Message message, InetAddress to, IAsyncCallback cb, long timeout)
      */
-    public int sendRR(MessageOut message, InetAddress to, IMessageCallback cb)
+    public int sendRR(MessageOut message, InetAddress to, IAsyncCallback cb)
     {
         return sendRR(message, to, cb, message.getTimeout());
     }
@@ -559,7 +559,7 @@ public final class MessagingService implements MessagingServiceMBean
      * @param timeout the timeout used for expiration
      * @return an reference to message id used to match with the result
      */
-    public int sendRR(MessageOut message, InetAddress to, IMessageCallback cb, long timeout)
+    public int sendRR(MessageOut message, InetAddress to, IAsyncCallback cb, long timeout)
     {
         int id = addCallback(cb, message, to, timeout);
 
@@ -713,7 +713,7 @@ public final class MessagingService implements MessagingServiceMBean
 
         if (message.verb == Verb.REQUEST_RESPONSE && PBSPredictor.instance().isLoggingEnabled())
         {
-            IMessageCallback cb = MessagingService.instance().getRegisteredCallback(id).callback;
+            IAsyncCallback cb = MessagingService.instance().getRegisteredCallback(id).callback;
 
             if (cb instanceof AbstractWriteResponseHandler)
             {

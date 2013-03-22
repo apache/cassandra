@@ -23,10 +23,16 @@ package org.apache.cassandra.net;
  * service.  In particular, if any shared state is referenced, making
  * response alone synchronized will not suffice.
  */
-public interface IAsyncCallback<T> extends IMessageCallback
+public interface IAsyncCallback<T>
 {
     /**
      * @param msg response received.
      */
     public void response(MessageIn<T> msg);
+
+    /**
+     * @return true if this callback is on the read path and its latency should be
+     * given as input to the dynamic snitch.
+     */
+    boolean isLatencyForSnitch();
 }

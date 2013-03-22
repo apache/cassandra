@@ -30,7 +30,7 @@ import org.apache.cassandra.service.StorageProxy;
 public class CallbackInfo
 {
     protected final InetAddress target;
-    protected final IMessageCallback callback;
+    protected final IAsyncCallback callback;
     protected final MessageOut<?> sentMessage;
     protected final IVersionedSerializer<?> serializer;
 
@@ -41,12 +41,12 @@ public class CallbackInfo
      * @param callback
      * @param serializer serializer to deserialize response message
      */
-    public CallbackInfo(InetAddress target, IMessageCallback callback, IVersionedSerializer<?> serializer)
+    public CallbackInfo(InetAddress target, IAsyncCallback callback, IVersionedSerializer<?> serializer)
     {
         this(target, callback, null, serializer);
     }
 
-    public CallbackInfo(InetAddress target, IMessageCallback callback, MessageOut<?> sentMessage, IVersionedSerializer<?> serializer)
+    public CallbackInfo(InetAddress target, IAsyncCallback callback, MessageOut<?> sentMessage, IVersionedSerializer<?> serializer)
     {
         this.target = target;
         this.callback = callback;
