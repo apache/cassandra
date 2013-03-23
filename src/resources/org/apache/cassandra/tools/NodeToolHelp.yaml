@@ -63,7 +63,7 @@ commands:
       Pause hints delivery process
   - name: disablegossip
     help: |
-      Disable gossip (effectively marking the node dead)
+      Disable gossip (effectively marking the node down)
   - name: enablegossip
     help: |
       Reenable gossip
