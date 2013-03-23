@@ -166,7 +166,7 @@
     </target>
     <target depends="clean" name="cleanall"/>
 
-    <target name="realclean" depends="clean">
+    <target name="realclean" depends="clean" description="Remove the entire build directory and all downloaded artifacts">
         <delete dir="${build.dir}" />
     </target>
 
