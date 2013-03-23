@@ -1972,6 +1972,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public AbstractCompactionStrategy getCompactionStrategy()
     {
+        assert compactionStrategy != null : "No compaction strategy set yet";
         return compactionStrategy;
     }
 
