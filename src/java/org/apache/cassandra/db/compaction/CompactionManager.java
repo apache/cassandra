@@ -184,6 +184,9 @@ public class CompactionManager implements CompactionManagerMBean
     private void performAllSSTableOperation(final ColumnFamilyStore cfs, final AllSSTablesOperation operation) throws InterruptedException, ExecutionException
     {
         final Collection<SSTableReader> sstables = cfs.markAllCompacting();
+        if (sstables == null)
+            return;
+
         Callable<Object> runnable = new Callable<Object>()
         {
             public Object call() throws IOException
