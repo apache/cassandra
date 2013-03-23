@@ -178,8 +178,8 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.STREAM_REQUEST, StreamRequest.serializer);
         put(Verb.RANGE_SLICE, RangeSliceCommand.serializer);
         put(Verb.BOOTSTRAP_TOKEN, BootStrapper.StringSerializer.instance);
-        put(Verb.TREE_REQUEST, AntiEntropyService.TreeRequest.serializer);
-        put(Verb.TREE_RESPONSE, AntiEntropyService.Validator.serializer);
+        put(Verb.TREE_REQUEST, ActiveRepairService.TreeRequest.serializer);
+        put(Verb.TREE_RESPONSE, ActiveRepairService.Validator.serializer);
         put(Verb.STREAMING_REPAIR_REQUEST, StreamingRepairTask.serializer);
         put(Verb.STREAMING_REPAIR_RESPONSE, UUIDSerializer.serializer);
         put(Verb.GOSSIP_DIGEST_ACK, GossipDigestAck.serializer);

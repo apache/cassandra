@@ -40,7 +40,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
@@ -82,12 +81,12 @@ import org.apache.cassandra.utils.*;
  * 4. Differencers are executed in Stage.ANTIENTROPY, to compare the two trees, and perform repair via the
  *    streaming api.
  */
-public class AntiEntropyService
+public class ActiveRepairService
 {
-    private static final Logger logger = LoggerFactory.getLogger(AntiEntropyService.class);
+    private static final Logger logger = LoggerFactory.getLogger(ActiveRepairService.class);
 
     // singleton enforcement
-    public static final AntiEntropyService instance = new AntiEntropyService();
+    public static final ActiveRepairService instance = new ActiveRepairService();
 
     private static final ThreadPoolExecutor executor;
     static
@@ -113,7 +112,7 @@ public class AntiEntropyService
     /**
      * Protected constructor. Use AntiEntropyService.instance.
      */
-    protected AntiEntropyService()
+    protected ActiveRepairService()
     {
         sessions = new ConcurrentHashMap<String, RepairSession>();
     }
@@ -411,7 +410,7 @@ public class AntiEntropyService
         public void run()
         {
             // respond to the request that triggered this validation
-            AntiEntropyService.instance.respond(this, FBUtilities.getBroadcastAddress());
+            ActiveRepairService.instance.respond(this, FBUtilities.getBroadcastAddress());
         }
 
         public MessageOut<Validator> createMessage()
@@ -481,7 +480,7 @@ public class AntiEntropyService
             // deserialize the remote tree, and register it
             Validator response = message.payload;
             TreeRequest request = new TreeRequest(response.request.sessionid, message.from, response.request.range, response.request.cf);
-            AntiEntropyService.instance.rendezvous(request, response.tree);
+            ActiveRepairService.instance.rendezvous(request, response.tree);
         }
     }
 
@@ -603,7 +602,7 @@ public class AntiEntropyService
         public RepairSession(TreeRequest req, String tablename, String... cfnames)
         {
             this(req.sessionid, req.range, tablename, false, false, cfnames);
-            AntiEntropyService.instance.sessions.put(getName(), this);
+            ActiveRepairService.instance.sessions.put(getName(), this);
         }
 
         public RepairSession(Range<Token> range, String tablename, boolean isSequential, boolean isLocal, String... cfnames)
@@ -619,7 +618,7 @@ public class AntiEntropyService
             this.cfnames = cfnames;
             assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
             this.range = range;
-            this.endpoints = AntiEntropyService.getNeighbors(tablename, range, isLocal);
+            this.endpoints = ActiveRepairService.getNeighbors(tablename, range, isLocal);
         }
 
         public String getName()
@@ -676,7 +675,7 @@ public class AntiEntropyService
                 }
             }
 
-            AntiEntropyService.instance.sessions.put(getName(), this);
+            ActiveRepairService.instance.sessions.put(getName(), this);
             Gossiper.instance.register(this);
             FailureDetector.instance.registerFailureDetectionEventListener(this);
             try
@@ -714,7 +713,7 @@ public class AntiEntropyService
                 terminate();
                 FailureDetector.instance.unregisterFailureDetectionEventListener(this);
                 Gossiper.instance.unregister(this);
-                AntiEntropyService.instance.sessions.remove(getName());
+                ActiveRepairService.instance.sessions.remove(getName());
             }
         }
 

@@ -45,12 +45,12 @@ public class SerializationsTest extends AbstractSerializationsTester
     private void testTreeRequestWrite() throws IOException
     {
         DataOutputStream out = getOutput("service.TreeRequest.bin");
-        AntiEntropyService.TreeRequest.serializer.serialize(Statics.req, out, getVersion());
+        ActiveRepairService.TreeRequest.serializer.serialize(Statics.req, out, getVersion());
         Statics.req.createMessage().serialize(out, getVersion());
         out.close();
 
         // test serializedSize
-        testSerializedSize(Statics.req, AntiEntropyService.TreeRequest.serializer);
+        testSerializedSize(Statics.req, ActiveRepairService.TreeRequest.serializer);
     }
 
     @Test
@@ -60,7 +60,7 @@ public class SerializationsTest extends AbstractSerializationsTester
             testTreeRequestWrite();
 
         DataInputStream in = getInput("service.TreeRequest.bin");
-        assert AntiEntropyService.TreeRequest.serializer.deserialize(in, getVersion()) != null;
+        assert ActiveRepairService.TreeRequest.serializer.deserialize(in, getVersion()) != null;
         assert MessageIn.read(in, getVersion(), -1) != null;
         in.close();
     }
@@ -68,25 +68,25 @@ public class SerializationsTest extends AbstractSerializationsTester
     private void testTreeResponseWrite() throws IOException
     {
         // empty validation
-        AntiEntropyService.Validator v0 = new AntiEntropyService.Validator(Statics.req);
+        ActiveRepairService.Validator v0 = new ActiveRepairService.Validator(Statics.req);
 
         // validation with a tree
         IPartitioner p = new RandomPartitioner();
         MerkleTree mt = new MerkleTree(p, FULL_RANGE, MerkleTree.RECOMMENDED_DEPTH, Integer.MAX_VALUE);
         for (int i = 0; i < 10; i++)
             mt.split(p.getRandomToken());
-        AntiEntropyService.Validator v1 = new AntiEntropyService.Validator(Statics.req, mt);
+        ActiveRepairService.Validator v1 = new ActiveRepairService.Validator(Statics.req, mt);
 
         DataOutputStream out = getOutput("service.TreeResponse.bin");
-        AntiEntropyService.Validator.serializer.serialize(v0, out, getVersion());
-        AntiEntropyService.Validator.serializer.serialize(v1, out, getVersion());
+        ActiveRepairService.Validator.serializer.serialize(v0, out, getVersion());
+        ActiveRepairService.Validator.serializer.serialize(v1, out, getVersion());
         v0.createMessage().serialize(out, getVersion());
         v1.createMessage().serialize(out, getVersion());
         out.close();
 
         // test serializedSize
-        testSerializedSize(v0, AntiEntropyService.Validator.serializer);
-        testSerializedSize(v1, AntiEntropyService.Validator.serializer);
+        testSerializedSize(v0, ActiveRepairService.Validator.serializer);
+        testSerializedSize(v1, ActiveRepairService.Validator.serializer);
     }
 
     @Test
@@ -96,8 +96,8 @@ public class SerializationsTest extends AbstractSerializationsTester
             testTreeResponseWrite();
 
         DataInputStream in = getInput("service.TreeResponse.bin");
-        assert AntiEntropyService.Validator.serializer.deserialize(in, getVersion()) != null;
-        assert AntiEntropyService.Validator.serializer.deserialize(in, getVersion()) != null;
+        assert ActiveRepairService.Validator.serializer.deserialize(in, getVersion()) != null;
+        assert ActiveRepairService.Validator.serializer.deserialize(in, getVersion()) != null;
         assert MessageIn.read(in, getVersion(), -1) != null;
         assert MessageIn.read(in, getVersion(), -1) != null;
         in.close();
@@ -105,7 +105,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private static class Statics
     {
-        private static final AntiEntropyService.CFPair pair = new AntiEntropyService.CFPair("Keyspace1", "Standard1");
-        private static final AntiEntropyService.TreeRequest req = new AntiEntropyService.TreeRequest("sessionId", FBUtilities.getBroadcastAddress(), FULL_RANGE, pair);
+        private static final ActiveRepairService.CFPair pair = new ActiveRepairService.CFPair("Keyspace1", "Standard1");
+        private static final ActiveRepairService.TreeRequest req = new ActiveRepairService.TreeRequest("sessionId", FBUtilities.getBroadcastAddress(), FULL_RANGE, pair);
     }
 }

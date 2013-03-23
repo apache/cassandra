@@ -42,7 +42,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
-import static org.apache.cassandra.service.AntiEntropyService.*;
+import static org.apache.cassandra.service.ActiveRepairService.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
@@ -53,7 +53,7 @@ import static org.junit.Assert.assertTrue;
 public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
 {
     // table and column family to test against
-    public AntiEntropyService aes;
+    public ActiveRepairService aes;
 
     public String tablename;
     public String cfname;
@@ -93,7 +93,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
             assert store != null : "CF not found: " + cfname;
         }
 
-        aes = AntiEntropyService.instance;
+        aes = ActiveRepairService.instance;
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         tmd.clearUnsafe();
         StorageService.instance.setTokens(Collections.singleton(StorageService.getPartitioner().getRandomToken()));
@@ -107,7 +107,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         // (we use REMOTE instead of LOCAL so that the reponses for the validator.complete() get lost)
         request = new TreeRequest(UUID.randomUUID().toString(), REMOTE, local_range, new CFPair(tablename, cfname));
         // Set a fake session corresponding to this fake request
-        AntiEntropyService.instance.submitArtificialRepairSession(request, tablename, cfname);
+        ActiveRepairService.instance.submitArtificialRepairSession(request, tablename, cfname);
     }
 
     @After
@@ -171,7 +171,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range, false));
+            neighbors.addAll(ActiveRepairService.getNeighbors(tablename, range, false));
         }
         assertEquals(expected, neighbors);
     }
@@ -194,7 +194,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range, false));
+            neighbors.addAll(ActiveRepairService.getNeighbors(tablename, range, false));
         }
         assertEquals(expected, neighbors);
     }
@@ -216,7 +216,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range, true));
+            neighbors.addAll(ActiveRepairService.getNeighbors(tablename, range, true));
         }
         assertEquals(expected, neighbors);
     }
@@ -244,7 +244,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range, true));
+            neighbors.addAll(ActiveRepairService.getNeighbors(tablename, range, true));
         }
         assertEquals(expected, neighbors);
     }
@@ -253,7 +253,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
     public void testDifferencer() throws Throwable
     {
         // this next part does some housekeeping so that cleanup in the differencer doesn't error out.
-        AntiEntropyService.RepairFuture sess = AntiEntropyService.instance.submitArtificialRepairSession(request, tablename, cfname);
+        ActiveRepairService.RepairFuture sess = ActiveRepairService.instance.submitArtificialRepairSession(request, tablename, cfname);
 
         // generate a tree
         Validator validator = new Validator(request);
@@ -278,9 +278,9 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
 
         // difference the trees
         // note: we reuse the same endpoint which is bogus in theory but fine here
-        AntiEntropyService.TreeResponse r1 = new AntiEntropyService.TreeResponse(REMOTE, ltree);
-        AntiEntropyService.TreeResponse r2 = new AntiEntropyService.TreeResponse(REMOTE, rtree);
-        AntiEntropyService.RepairSession.Differencer diff = sess.session.new Differencer(cfname, r1, r2);
+        ActiveRepairService.TreeResponse r1 = new ActiveRepairService.TreeResponse(REMOTE, ltree);
+        ActiveRepairService.TreeResponse r2 = new ActiveRepairService.TreeResponse(REMOTE, rtree);
+        ActiveRepairService.RepairSession.Differencer diff = sess.session.new Differencer(cfname, r1, r2);
         diff.run();
 
         // ensure that the changed range was recorded

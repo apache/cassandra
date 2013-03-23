@@ -18,12 +18,10 @@
 package org.apache.cassandra.db.compaction;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
-import com.google.common.collect.Iterables;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -39,7 +37,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.service.AntiEntropyService;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -91,10 +89,10 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         assert strat.getLevelSize(1) > 0;
         assert strat.getLevelSize(2) > 0;
 
-        AntiEntropyService.CFPair p = new AntiEntropyService.CFPair(ksname, cfname);
+        ActiveRepairService.CFPair p = new ActiveRepairService.CFPair(ksname, cfname);
         Range<Token> range = new Range<Token>(Util.token(""), Util.token(""));
-        AntiEntropyService.TreeRequest req = new AntiEntropyService.TreeRequest("1", FBUtilities.getLocalAddress(), range, p);
-        AntiEntropyService.Validator validator = new AntiEntropyService.Validator(req);
+        ActiveRepairService.TreeRequest req = new ActiveRepairService.TreeRequest("1", FBUtilities.getLocalAddress(), range, p);
+        ActiveRepairService.Validator validator = new ActiveRepairService.Validator(req);
         CompactionManager.instance.submitValidation(store, validator).get();
     }
 
