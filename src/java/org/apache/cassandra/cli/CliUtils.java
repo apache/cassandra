@@ -53,7 +53,7 @@ public class CliUtils
 
     public static String maybeEscapeName(String name)
     {
-        return name.charAt(0) == '_' ? "\'" + name + "\'" : name;
+        return Character.isLetter(name.charAt(0)) ? name : "\'" + name + "\'";
     }
 
     /**
