@@ -65,8 +65,11 @@ public class ExpiringColumn extends Column
     {
         if (localExpirationTime >= expireBefore || flag == ColumnSerializer.Flag.PRESERVE_SIZE)
             return new ExpiringColumn(name, value, timestamp, timeToLive, localExpirationTime);
-        // the column is now expired, we can safely return a simple tombstone
-        return new DeletedColumn(name, localExpirationTime, timestamp);
+        // The column is now expired, we can safely return a simple tombstone. Note that
+        // as long as the expiring column and the tombstone put together live longer than GC grace seconds,
+        // we'll fulfil our responsibility to repair.  See discussion at
+        // http://cassandra-user-incubator-apache-org.3065146.n2.nabble.com/repair-compaction-and-tombstone-rows-td7583481.html
+        return new DeletedColumn(name, localExpirationTime - timeToLive, timestamp);
     }
 
     public int getTimeToLive()
