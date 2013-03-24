@@ -410,9 +410,6 @@ public class DatabaseDescriptor
             if (conf.compaction_throughput_mb_per_sec == null)
                 conf.compaction_throughput_mb_per_sec = 16;
 
-            if (conf.stream_throughput_outbound_megabits_per_sec == null)
-                conf.stream_throughput_outbound_megabits_per_sec = 400;
-
             if (conf.rpc_min_threads == null)
                 conf.rpc_min_threads = 16;
 

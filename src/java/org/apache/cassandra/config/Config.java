@@ -110,7 +110,7 @@ public class Config
 
     public Integer max_streaming_retries = 3;
 
-    public volatile Integer stream_throughput_outbound_megabits_per_sec;
+    public volatile Integer stream_throughput_outbound_megabits_per_sec = 200;
 
     public String[] data_file_directories;
 
