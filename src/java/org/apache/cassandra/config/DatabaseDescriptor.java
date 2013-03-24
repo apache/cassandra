@@ -407,15 +407,6 @@ public class DatabaseDescriptor
             if (conf.concurrent_compactors <= 0)
                 throw new ConfigurationException("concurrent_compactors should be strictly greater than 0");
 
-            if (conf.compaction_throughput_mb_per_sec == null)
-                conf.compaction_throughput_mb_per_sec = 16;
-
-            if (conf.rpc_min_threads == null)
-                conf.rpc_min_threads = 16;
-
-            if (conf.rpc_max_threads == null)
-                conf.rpc_max_threads = Integer.MAX_VALUE;
-
             /* data file and commit log directories. they get created later, when they're needed. */
             if (conf.commitlog_directory != null && conf.data_file_directories != null && conf.saved_caches_directory != null)
             {

@@ -84,8 +84,8 @@ public class Config
     public Integer rpc_port = 9160;
     public String rpc_server_type = "sync";
     public Boolean rpc_keepalive = true;
-    public Integer rpc_min_threads = null;
-    public Integer rpc_max_threads = null;
+    public Integer rpc_min_threads = 16;
+    public Integer rpc_max_threads = Integer.MAX_VALUE;
     public Integer rpc_send_buff_size_in_bytes;
     public Integer rpc_recv_buff_size_in_bytes;
     public Integer internode_send_buff_size_in_bytes;
