@@ -23,6 +23,7 @@
 
 
 1.2.4
+ * Change default stream throughput from 400 to 200 mbps (CASSANDRA-5036)
  * Gossiper logs DOWN for symmetry with UP (CASSANDRA-5187)
  * Fix mixing prepared statements between keyspaces (CASSANDRA-5352)
  * Fix consistency level during bootstrap - strike 3 (CASSANDRA-5354)

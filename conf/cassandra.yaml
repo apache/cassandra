@@ -463,8 +463,8 @@ compaction_preheat_key_cache: true
 # given total throughput in Mbps. This is necessary because Cassandra does
 # mostly sequential IO when streaming data during bootstrap or repair, which
 # can lead to saturating the network connection and degrading rpc performance.
-# When unset, the default is 400 Mbps or 50 MB/s.
-# stream_throughput_outbound_megabits_per_sec: 400
+# When unset, the default is 200 Mbps or 25 MB/s.
+# stream_throughput_outbound_megabits_per_sec: 200
 
 # How long the coordinator should wait for read operations to complete
 read_request_timeout_in_ms: 10000
