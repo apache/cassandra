@@ -1748,7 +1748,7 @@ public class CliClient
      */
     private void showKeyspace(PrintStream output, KsDef ksDef)
     {
-        output.append("create keyspace ").append(ksDef.name);
+        output.append("create keyspace ").append(CliUtils.maybeEscapeName(ksDef.name));
 
         writeAttr(output, true, "placement_strategy", normaliseType(ksDef.strategy_class, "org.apache.cassandra.locator"));
 
@@ -1771,7 +1771,7 @@ public class CliClient
         output.append(";").append(NEWLINE);
         output.append(NEWLINE);
 
-        output.append("use " + ksDef.name + ";");
+        output.append("use " + CliUtils.maybeEscapeName(ksDef.name) + ";");
         output.append(NEWLINE);
         output.append(NEWLINE);
 
@@ -1790,7 +1790,7 @@ public class CliClient
      */
     private void showColumnFamily(PrintStream output, CfDef cfDef)
     {
-        output.append("create column family ").append(CliUtils.escapeSQLString(cfDef.name));
+        output.append("create column family ").append(CliUtils.maybeEscapeName(cfDef.name));
 
         writeAttr(output, true, "column_type", cfDef.column_type);
         writeAttr(output, false, "comparator", normaliseType(cfDef.comparator_type, "org.apache.cassandra.db.marshal"));
