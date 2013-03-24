@@ -9,6 +9,7 @@
  * cqlsh: Add inet type support on Windows (ipv4-only) (CASSANDRA-4801)
  * Fix race when initializing ColumnFamilyStore (CASSANDRA-5350)
  * Add UseTLAB JVM flag (CASSANDRA-5361)
+ * cli: Quote ks and cf names in schema output when needed (CASSANDRA-5052)
 
 
 1.1.10
