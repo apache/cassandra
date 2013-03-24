@@ -161,15 +161,19 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
             store.forceBlockingFlush();
         }
 
+        store.disableAutoCompaction();
         LeveledCompactionStrategy strat = (LeveledCompactionStrategy)store.getCompactionStrategy();
-
         while (strat.getLevelSize(0) > 1)
         {
             store.forceMajorCompaction();
             Thread.sleep(200);
         }
+
         Set<SSTableReader> changedSSTables = new HashSet<SSTableReader>();
-        for (SSTableReader s : table.getColumnFamilyStore(cfname).getSSTables())
+        Collection<SSTableReader> sstables = store.getDataTracker().getUncompactingSSTables();
+        store.getDataTracker().markCompacting(sstables); // dont touch my sstables!
+        // change sstable level on all current sstables
+        for (SSTableReader s : sstables)
         {
             assertTrue(s.getSSTableLevel() != 6);
             strat.manifest.remove(s);
@@ -178,19 +182,16 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
             changedSSTables.add(s);
             strat.manifest.add(s);
         }
-
+        // verify that all sstables in the changed set is level 6
         for(SSTableReader s : table.getColumnFamilyStore(cfname).getSSTables())
         {
-            assertTrue(!changedSSTables.contains(s) || s.getSSTableLevel() == 6);
+            if (changedSSTables.contains(s))
+                assertTrue(s.getSSTableLevel() == 6);
         }
 
         int [] levels = strat.manifest.getAllLevelSize();
-
-        for (int i =0; i < levels.length; i++)
-        {
-            if (i == 6)
-                assertEquals(table.getColumnFamilyStore(cfname).getSSTables().size(), levels[i]);
-        }
+        // verify that the manifest has correct amount of sstables
+        assertEquals(changedSSTables.size(), levels[6]);
 
     }
 
