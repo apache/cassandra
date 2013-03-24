@@ -320,7 +320,8 @@ public class SSTableWriter extends SSTable
         // main data, close will truncate if necessary
         dataFile.close();
         // write sstable statistics
-        SSTableMetadata sstableMetadata = sstableMetadataCollector.finalizeMetadata(partitioner.getClass().getCanonicalName());
+        SSTableMetadata sstableMetadata = sstableMetadataCollector.finalizeMetadata(partitioner.getClass().getCanonicalName(),
+                                                                                    metadata.getBloomFilterFpChance());
         writeMetadata(descriptor, sstableMetadata);
 
         // save the table of components

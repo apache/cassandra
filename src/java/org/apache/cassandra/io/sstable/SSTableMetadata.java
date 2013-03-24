@@ -36,6 +36,7 @@ import org.apache.cassandra.utils.EstimatedHistogram;
  *  - replay position
  *  - max column timestamp
  *  - max local deletion time
+ *  - bloom filter fp chance
  *  - compression ratio
  *  - partitioner
  *  - generations of sstables from which this sstable was compacted, if any
@@ -46,6 +47,7 @@ import org.apache.cassandra.utils.EstimatedHistogram;
  */
 public class SSTableMetadata
 {
+    public static final double NO_BLOOM_FLITER_FP_CHANCE = -1.0;
     public static final double NO_COMPRESSION_RATIO = -1.0;
     public static final SSTableMetadataSerializer serializer = new SSTableMetadataSerializer();
 
@@ -55,7 +57,7 @@ public class SSTableMetadata
     public final long minTimestamp;
     public final long maxTimestamp;
     public final int maxLocalDeletionTime;
-
+    public final double bloomFilterFPChance;
     public final double compressionRatio;
     public final String partitioner;
     public final Set<Integer> ancestors;
@@ -70,6 +72,7 @@ public class SSTableMetadata
              Long.MAX_VALUE,
              Long.MIN_VALUE,
              Integer.MAX_VALUE,
+             NO_BLOOM_FLITER_FP_CHANCE,
              NO_COMPRESSION_RATIO,
              null,
              Collections.<Integer>emptySet(),
@@ -77,8 +80,18 @@ public class SSTableMetadata
              0);
     }
 
-    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long minTimestamp,
-            long maxTimestamp, int maxLocalDeletionTime, double cr, String partitioner, Set<Integer> ancestors, StreamingHistogram estimatedTombstoneDropTime, int sstableLevel)
+    private SSTableMetadata(EstimatedHistogram rowSizes,
+                            EstimatedHistogram columnCounts,
+                            ReplayPosition replayPosition,
+                            long minTimestamp,
+                            long maxTimestamp,
+                            int maxLocalDeletionTime,
+                            double bloomFilterFPChance,
+                            double compressionRatio,
+                            String partitioner,
+                            Set<Integer> ancestors,
+                            StreamingHistogram estimatedTombstoneDropTime,
+                            int sstableLevel)
     {
         this.estimatedRowSize = rowSizes;
         this.estimatedColumnCount = columnCounts;
@@ -86,7 +99,8 @@ public class SSTableMetadata
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
         this.maxLocalDeletionTime = maxLocalDeletionTime;
-        this.compressionRatio = cr;
+        this.bloomFilterFPChance = bloomFilterFPChance;
+        this.compressionRatio = compressionRatio;
         this.partitioner = partitioner;
         this.ancestors = ancestors;
         this.estimatedTombstoneDropTime = estimatedTombstoneDropTime;
@@ -118,6 +132,7 @@ public class SSTableMetadata
                                    metadata.minTimestamp,
                                    metadata.maxTimestamp,
                                    metadata.maxLocalDeletionTime,
+                                   metadata.bloomFilterFPChance,
                                    metadata.compressionRatio,
                                    metadata.partitioner,
                                    metadata.ancestors,
@@ -220,7 +235,7 @@ public class SSTableMetadata
             this.maxLocalDeletionTime = Math.max(this.maxLocalDeletionTime, maxLocalDeletionTime);
         }
 
-        public SSTableMetadata finalizeMetadata(String partitioner)
+        public SSTableMetadata finalizeMetadata(String partitioner, double bloomFilterFPChance)
         {
             return new SSTableMetadata(estimatedRowSize,
                                        estimatedColumnCount,
@@ -228,6 +243,7 @@ public class SSTableMetadata
                                        minTimestamp,
                                        maxTimestamp,
                                        maxLocalDeletionTime,
+                                       bloomFilterFPChance,
                                        compressionRatio,
                                        partitioner,
                                        ancestors,
@@ -298,6 +314,7 @@ public class SSTableMetadata
             dos.writeLong(sstableStats.minTimestamp);
             dos.writeLong(sstableStats.maxTimestamp);
             dos.writeInt(sstableStats.maxLocalDeletionTime);
+            dos.writeDouble(sstableStats.bloomFilterFPChance);
             dos.writeDouble(sstableStats.compressionRatio);
             dos.writeUTF(sstableStats.partitioner);
             dos.writeInt(sstableStats.ancestors.size());
@@ -331,6 +348,8 @@ public class SSTableMetadata
                 dos.writeLong(sstableStats.maxTimestamp);
             if (legacyDesc.version.tracksMaxLocalDeletionTime)
                 dos.writeInt(sstableStats.maxLocalDeletionTime);
+            if (legacyDesc.version.hasBloomFilterFPChance)
+                dos.writeDouble(sstableStats.bloomFilterFPChance);
             if (legacyDesc.version.hasCompressionRatio)
                 dos.writeDouble(sstableStats.compressionRatio);
             if (legacyDesc.version.hasPartitioner)
@@ -397,10 +416,8 @@ public class SSTableMetadata
             if (!desc.version.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
                 maxTimestamp = Long.MAX_VALUE;
             int maxLocalDeletionTime = desc.version.tracksMaxLocalDeletionTime ? dis.readInt() : Integer.MAX_VALUE;
-
-            double compressionRatio = desc.version.hasCompressionRatio
-                                    ? dis.readDouble()
-                                    : NO_COMPRESSION_RATIO;
+            double bloomFilterFPChance = desc.version.hasBloomFilterFPChance ? dis.readDouble() : NO_BLOOM_FLITER_FP_CHANCE;
+            double compressionRatio = desc.version.hasCompressionRatio ? dis.readDouble() : NO_COMPRESSION_RATIO;
             String partitioner = desc.version.hasPartitioner ? dis.readUTF() : null;
             int nbAncestors = desc.version.hasAncestors ? dis.readInt() : 0;
             Set<Integer> ancestors = new HashSet<Integer>(nbAncestors);
@@ -414,7 +431,18 @@ public class SSTableMetadata
             if (loadSSTableLevel && dis.available() > 0)
                 sstableLevel = dis.readInt();
 
-            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, minTimestamp, maxTimestamp, maxLocalDeletionTime, compressionRatio, partitioner, ancestors, tombstoneHistogram, sstableLevel);
+            return new SSTableMetadata(rowSizes,
+                                       columnCounts,
+                                       replayPosition,
+                                       minTimestamp,
+                                       maxTimestamp,
+                                       maxLocalDeletionTime,
+                                       bloomFilterFPChance,
+                                       compressionRatio,
+                                       partitioner,
+                                       ancestors,
+                                       tombstoneHistogram,
+                                       sstableLevel);
         }
     }
 }

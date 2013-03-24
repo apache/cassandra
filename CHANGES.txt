@@ -20,6 +20,8 @@
  * Remove memory emergency pressure valve logic (CASSANDRA-3534)
  * Reduce request latency with eager retry (CASSANDRA-4705)
  * cqlsh: Remove ASSUME command (CASSANDRA-5331)
+ * Rebuild BF when loading sstables if bloom_filter_fp_chance
+   has changed since compaction (CASSANDRA-5015)
 
 
 1.2.4

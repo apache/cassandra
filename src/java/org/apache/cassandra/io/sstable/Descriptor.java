@@ -71,6 +71,7 @@ public class Descriptor
         //               a major version bump however, because we should not allow streaming of super columns
         //               into this new format)
         //             tracks max local deletiontime in sstable metadata
+        //             records bloom_filter_fp_chance in metadata component
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -92,6 +93,7 @@ public class Descriptor
         public final boolean hasAncestors;
         public final boolean hasSuperColumns;
         public final boolean tracksMaxLocalDeletionTime;
+        public final boolean hasBloomFilterFPChance;
 
         public Version(String version)
         {
@@ -117,6 +119,7 @@ public class Descriptor
             else
                 filterType = FilterFactory.Type.MURMUR3;
             hasSuperColumns = version.compareTo("ja") < 0;
+            hasBloomFilterFPChance = version.compareTo("ja") >= 0;
         }
 
         /**

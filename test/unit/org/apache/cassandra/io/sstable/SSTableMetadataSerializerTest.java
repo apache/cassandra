@@ -52,7 +52,7 @@ public class SSTableMetadataSerializerTest
                                                              .replayPosition(rp);
         collector.updateMinTimestamp(minTimestamp);
         collector.updateMaxTimestamp(maxTimestamp);
-        SSTableMetadata originalMetadata = collector.finalizeMetadata(RandomPartitioner.class.getCanonicalName());
+        SSTableMetadata originalMetadata = collector.finalizeMetadata(RandomPartitioner.class.getCanonicalName(), 0.1);
 
         ByteArrayOutputStream byteOutput = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(byteOutput);
@@ -74,6 +74,7 @@ public class SSTableMetadataSerializerTest
         assert stats.maxTimestamp == maxTimestamp;
         assert stats.minTimestamp == originalMetadata.minTimestamp;
         assert stats.maxTimestamp == originalMetadata.maxTimestamp;
+        assert stats.bloomFilterFPChance == originalMetadata.bloomFilterFPChance;
         assert RandomPartitioner.class.getCanonicalName().equals(stats.partitioner);
     }
 }
