@@ -62,7 +62,7 @@ public class SSTableMetadata
         this(defaultRowSizeHistogram(),
              defaultColumnCountHistogram(),
              ReplayPosition.NONE,
-             Long.MIN_VALUE,
+             Long.MAX_VALUE,
              Double.MIN_VALUE,
              null,
              Collections.<Integer>emptySet());
@@ -223,7 +223,7 @@ public class SSTableMetadata
                 // make sure we don't omit replaying something that we should.  see CASSANDRA-4782
                 replayPosition = ReplayPosition.NONE;
             }
-            long maxTimestamp = desc.containsTimestamp() ? dis.readLong() : Long.MIN_VALUE;
+            long maxTimestamp = desc.containsTimestamp() ? dis.readLong() : Long.MAX_VALUE;
             if (!desc.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
                 maxTimestamp = Long.MAX_VALUE;
             double compressionRatio = desc.hasCompressionRatio
