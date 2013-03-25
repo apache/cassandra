@@ -1939,8 +1939,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // and adds generation of live ancestors
         for (SSTableReader sstable : sstables)
         {
-            sstableMetadataCollector.updateMinTimestamp(sstable.getMinTimestamp());
-            sstableMetadataCollector.updateMaxTimestamp(sstable.getMaxTimestamp());
             sstableMetadataCollector.addAncestor(sstable.descriptor.generation);
             for (Integer i : sstable.getAncestors())
             {
