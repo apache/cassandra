@@ -207,8 +207,7 @@ public class CollationController
      */
     private void reduceNameFilter(QueryFilter filter, ColumnFamily container, long sstableTimestamp)
     {
-        // MIN_VALUE means we don't know any information
-        if (container == null || sstableTimestamp == Long.MIN_VALUE)
+        if (container == null)
             return;
 
         for (Iterator<ByteBuffer> iterator = ((NamesQueryFilter) filter.filter).columns.iterator(); iterator.hasNext(); )

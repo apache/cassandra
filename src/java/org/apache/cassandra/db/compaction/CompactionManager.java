@@ -210,7 +210,7 @@ public class CompactionManager implements CompactionManagerMBean
         });
     }
 
-    public void performSSTableRewrite(ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
+    public void performSSTableRewrite(ColumnFamilyStore cfStore, final boolean excludeCurrentVersion) throws InterruptedException, ExecutionException
     {
         performAllSSTableOperation(cfStore, new AllSSTablesOperation()
         {
@@ -218,6 +218,9 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 for (final SSTableReader sstable : sstables)
                 {
+                    if (excludeCurrentVersion && sstable.descriptor.version.equals(Descriptor.Version.CURRENT))
+                        continue;
+
                     // SSTables are marked by the caller
                     // NOTE: it is important that the task create one and only one sstable, even for Leveled compaction (see LeveledManifest.replace())
                     CompactionTask task = new CompactionTask(cfs, Collections.singletonList(sstable), NO_GC);

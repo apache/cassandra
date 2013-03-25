@@ -2096,10 +2096,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             cfStore.scrub();
     }
 
-    public void upgradeSSTables(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public void upgradeSSTables(String tableName, boolean excludeCurrentVersion, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, true, tableName, columnFamilies))
-            cfStore.sstablesRewrite();
+            cfStore.sstablesRewrite(excludeCurrentVersion);
     }
 
     public void forceTableCompaction(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException

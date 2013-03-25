@@ -1040,9 +1040,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionManager.instance.performScrub(ColumnFamilyStore.this);
     }
 
-    public void sstablesRewrite() throws ExecutionException, InterruptedException
+    public void sstablesRewrite(boolean excludeCurrentVersion) throws ExecutionException, InterruptedException
     {
-        CompactionManager.instance.performSSTableRewrite(ColumnFamilyStore.this);
+        CompactionManager.instance.performSSTableRewrite(ColumnFamilyStore.this, excludeCurrentVersion);
     }
 
     public void markCompacted(Collection<SSTableReader> sstables, OperationType compactionType)
@@ -2089,9 +2089,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // and adds generation of live ancestors
         for (SSTableReader sstable : sstables)
         {
-            sstableMetadataCollector.updateMinTimestamp(sstable.getMinTimestamp());
-            sstableMetadataCollector.updateMaxTimestamp(sstable.getMaxTimestamp());
-
             sstableMetadataCollector.addAncestor(sstable.descriptor.generation);
             for (Integer i : sstable.getAncestors())
             {

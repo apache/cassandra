@@ -69,8 +69,8 @@ public class SSTableMetadata
         this(defaultRowSizeHistogram(),
              defaultColumnCountHistogram(),
              ReplayPosition.NONE,
-             Long.MAX_VALUE,
              Long.MIN_VALUE,
+             Long.MAX_VALUE,
              Integer.MAX_VALUE,
              NO_BLOOM_FLITER_FP_CHANCE,
              NO_COMPRESSION_RATIO,
@@ -105,11 +105,6 @@ public class SSTableMetadata
         this.ancestors = ancestors;
         this.estimatedTombstoneDropTime = estimatedTombstoneDropTime;
         this.sstableLevel = sstableLevel;
-    }
-
-    public static SSTableMetadata createDefaultInstance()
-    {
-        return new SSTableMetadata();
     }
 
     public static Collector createCollector()
