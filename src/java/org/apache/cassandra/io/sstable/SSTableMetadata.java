@@ -63,16 +63,23 @@ public class SSTableMetadata
         this(defaultRowSizeHistogram(),
              defaultColumnCountHistogram(),
              ReplayPosition.NONE,
-             Long.MAX_VALUE,
              Long.MIN_VALUE,
+             Long.MAX_VALUE,
              NO_COMPRESSION_RATIO,
              null,
              Collections.<Integer>emptySet(),
              defaultTombstoneDropTimeHistogram());
     }
 
-    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long minTimestamp,
-            long maxTimestamp, double cr, String partitioner, Set<Integer> ancestors, StreamingHistogram estimatedTombstoneDropTime)
+    private SSTableMetadata(EstimatedHistogram rowSizes,
+                            EstimatedHistogram columnCounts,
+                            ReplayPosition replayPosition,
+                            long minTimestamp,
+                            long maxTimestamp,
+                            double cr,
+                            String partitioner,
+                            Set<Integer> ancestors,
+                            StreamingHistogram estimatedTombstoneDropTime)
     {
         this.estimatedRowSize = rowSizes;
         this.estimatedColumnCount = columnCounts;
@@ -83,11 +90,6 @@ public class SSTableMetadata
         this.partitioner = partitioner;
         this.ancestors = ancestors;
         this.estimatedTombstoneDropTime = estimatedTombstoneDropTime;
-    }
-
-    public static SSTableMetadata createDefaultInstance()
-    {
-        return new SSTableMetadata();
     }
 
     public static Collector createCollector()
@@ -292,9 +294,7 @@ public class SSTableMetadata
                 replayPosition = ReplayPosition.NONE;
             }
             long minTimestamp = desc.version.tracksMinTimestamp ? dis.readLong() : Long.MIN_VALUE;
-            if (!desc.version.tracksMinTimestamp)
-                minTimestamp = Long.MAX_VALUE;
-            long maxTimestamp = desc.version.containsTimestamp() ? dis.readLong() : Long.MIN_VALUE;
+            long maxTimestamp = desc.version.containsTimestamp() ? dis.readLong() : Long.MAX_VALUE;
             if (!desc.version.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
                 maxTimestamp = Long.MAX_VALUE;
             double compressionRatio = desc.version.hasCompressionRatio

@@ -165,9 +165,7 @@ public class SSTableReader extends SSTable
         long start = System.currentTimeMillis();
         logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(COMPONENT_DATA)).length());
 
-        SSTableMetadata sstableMetadata = components.contains(Component.STATS)
-                                        ? SSTableMetadata.serializer.deserialize(descriptor)
-                                        : SSTableMetadata.createDefaultInstance();
+        SSTableMetadata sstableMetadata = SSTableMetadata.serializer.deserialize(descriptor);
 
         // Check if sstable is created using same partitioner.
         // Partitioner can be null, which indicates older version of sstable or no stats available.
