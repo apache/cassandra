@@ -22,6 +22,7 @@
  * cqlsh: Remove ASSUME command (CASSANDRA-5331)
  * Rebuild BF when loading sstables if bloom_filter_fp_chance
    has changed since compaction (CASSANDRA-5015)
+ * remove row-level bloom filters (CASSANDRA-4885)
 
 
 1.2.4
