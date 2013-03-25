@@ -1,4 +1,5 @@
 2.0
+ * Log when a node is down longer than the hint window (CASSANDRA-4554)
  * Optimize tombstone creation for ExpiringColumns (CASSANDRA-4917)
  * Improve LeveledScanner work estimation (CASSANDRA-5250)
  * Replace compaction lock with runWithCompactionsDisabled (CASSANDRA-3430)
