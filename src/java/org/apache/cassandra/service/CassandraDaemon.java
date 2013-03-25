@@ -144,7 +144,17 @@ public class CassandraDaemon
         {
             String[] java_version = javaVersion.split("_");
             String java_major = java_version[0];
-            int java_minor = (java_version.length > 1) ? Integer.parseInt(java_version[1]) : 0;
+            int java_minor;
+            try
+            {
+                java_minor = (java_version.length > 1) ? Integer.parseInt(java_version[1]) : 0;
+            }
+            catch (NumberFormatException e)
+            {
+                // have only seen this with java7 so far but no doubt there are other ways to break this
+                logger.info("Unable to parse java version {}", Arrays.toString(java_version));
+                java_minor = 32;
+            }
             if (java_major.equals("1.6.0"))
             {
                 // These need to be updated from time to time, but these are currently valid (12.18.2012)
