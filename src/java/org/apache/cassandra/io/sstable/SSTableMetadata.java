@@ -410,9 +410,7 @@ public class SSTableMetadata
                 replayPosition = ReplayPosition.NONE;
             }
             long minTimestamp = desc.version.tracksMinTimestamp ? dis.readLong() : Long.MIN_VALUE;
-            if (!desc.version.tracksMinTimestamp)
-                minTimestamp = Long.MAX_VALUE;
-            long maxTimestamp = desc.version.containsTimestamp() ? dis.readLong() : Long.MIN_VALUE;
+            long maxTimestamp = desc.version.containsTimestamp() ? dis.readLong() : Long.MAX_VALUE;
             if (!desc.version.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
                 maxTimestamp = Long.MAX_VALUE;
             int maxLocalDeletionTime = desc.version.tracksMaxLocalDeletionTime ? dis.readInt() : Integer.MAX_VALUE;
