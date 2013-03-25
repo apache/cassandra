@@ -8,6 +8,16 @@ upgrade, just in case you need to roll back to the previous version.
 (Cassandra version X + 1 will always be able to read data files created
 by version X, but the inverse is not necessarily the case.)
 
+1.2.4
+=====
+
+Upgrading
+---------
+    - 'nodetool upgradesstables' now only upgrade/rewrite sstables that are not
+      on the current version (which is usually what you want). Use the new -a
+      flag to recover the old behavior of rewriting all sstables.
+
+
 1.2.3
 =====
 

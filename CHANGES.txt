@@ -9,6 +9,7 @@
  * Validate that provided CQL3 collection value are < 64K (CASSANDRA-5355)
  * Change Kernel Page Cache skipping into row preheating (disabled by default)
    (CASSANDRA-4937)
+ * Make upgradeSSTable skip current version sstables by default (CASSANDRA-5366)
 Merged from 1.1:
  * cli: Quote ks and cf names in schema output when needed (CASSANDRA-5052)
  * Fix bad default for min/max timestamp in SSTableMetadata (CASSANDRA-5372)
