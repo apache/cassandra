@@ -183,12 +183,11 @@ public class OutboundTcpConnection extends Thread
                 Tracing.instance().stopIfNonLocal(state);
             }
 
-            write(qm.message, qm.id, qm.timestamp, out, targetVersion);
+            writeInternal(qm.message, qm.id, qm.timestamp);
+
             completed++;
             if (active.peek() == null)
-            {
                 out.flush();
-            }
         }
         catch (Exception e)
         {
@@ -201,28 +200,28 @@ public class OutboundTcpConnection extends Thread
         }
     }
 
-    public static void write(MessageOut message, int id, long timestamp, DataOutputStream out, int version) throws IOException
+    private void writeInternal(MessageOut message, int id, long timestamp) throws IOException
     {
         out.writeInt(MessagingService.PROTOCOL_MAGIC);
-        if (version < MessagingService.VERSION_12)
+        if (targetVersion < MessagingService.VERSION_12)
         {
-            writeHeader(out, version, false);
+            writeHeader(out, targetVersion, false);
             // 0.8 included a total message size int.  1.0 doesn't need it but expects it to be there.
             out.writeInt(-1);
         }
 
-        if (version < MessagingService.VERSION_20)
+        if (targetVersion < MessagingService.VERSION_20)
             out.writeUTF(String.valueOf(id));
         else
             out.writeInt(id);
 
-        if (version >= MessagingService.VERSION_12)
+        if (targetVersion >= MessagingService.VERSION_12)
         {
             // int cast cuts off the high-order half of the timestamp, which we can assume remains
             // the same between now and when the recipient reconstructs it.
             out.writeInt((int) timestamp);
         }
-        message.serialize(out, version);
+        message.serialize(out, targetVersion);
     }
 
     private static void writeHeader(DataOutputStream out, int version, boolean compressionEnabled) throws IOException
