@@ -44,8 +44,6 @@ import org.apache.cassandra.utils.Allocator;
  * WARNING: removing element through getSortedColumns().iterator() is *not*
  * isolated of other operations and could actually be fully ignored in the
  * face of a concurrent. Don't use it unless in a non-concurrent context.
- *
- * TODO: check the snaptree license make it ok to use
  */
 public class AtomicSortedColumns implements ISortedColumns
 {
@@ -261,11 +259,6 @@ public class AtomicSortedColumns implements ISortedColumns
     public int size()
     {
         return ref.get().map.size();
-    }
-
-    public int getEstimatedColumnCount()
-    {
-        return size();
     }
 
     public boolean isEmpty()

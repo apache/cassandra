@@ -119,7 +119,6 @@ public class ThreadSafeSortedColumns extends AbstractThreadUnsafeSortedColumns i
         addAllWithSizeDelta(cm, allocator, transformation, null);
     }
 
-    @Override
     public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
     {
         delete(cm.getDeletionInfo());

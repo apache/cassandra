@@ -86,9 +86,4 @@ public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumn
     {
         return size() == 0;
     }
-
-    public int getEstimatedColumnCount()
-    {
-        return size();
-    }
 }
