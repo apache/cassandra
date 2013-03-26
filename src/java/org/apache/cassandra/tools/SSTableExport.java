@@ -43,7 +43,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.AbstractColumnContainer;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.DecoratedKey;
@@ -118,22 +117,17 @@ public class SSTableExport
      *
      * @param out
      *            The output steam to write data
-     * @param columnFamily
+     * @param cf
      *            to which the metadata belongs
      */
-    private static void writeMeta(PrintStream out, AbstractColumnContainer columnContainer)
+    private static void writeMeta(PrintStream out, ColumnFamily cf)
     {
-        if (columnContainer instanceof ColumnFamily)
+        if (!cf.deletionInfo().equals(DeletionInfo.LIVE))
         {
-            ColumnFamily columnFamily = (ColumnFamily) columnContainer;
-            if (!columnFamily.deletionInfo().equals(DeletionInfo.LIVE))
-            {
-                // begin meta
-                writeKey(out, "metadata");
-                writeDeletionInfo(out, columnFamily.deletionInfo().getTopLevelDeletion());
-                out.print(",");
-            }
-            return;
+            // begin meta
+            writeKey(out, "metadata");
+            writeDeletionInfo(out, cf.deletionInfo().getTopLevelDeletion());
+            out.print(",");
         }
     }
 

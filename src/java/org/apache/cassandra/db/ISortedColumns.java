@@ -28,7 +28,6 @@ import com.google.common.base.Function;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.Allocator;
 
 /**
@@ -38,7 +37,7 @@ import org.apache.cassandra.utils.Allocator;
  * Whether the implementation is thread safe or not is left to the
  * implementing classes.
  */
-public interface ISortedColumns extends IIterableColumns
+public interface ISortedColumns extends Iterable<Column>
 {
     /**
      * Shallow cloning of the column map.
@@ -152,6 +151,11 @@ public interface ISortedColumns extends IIterableColumns
      * Returns if this map only support inserts in reverse order.
      */
     public boolean isInsertReversed();
+
+    /**
+     * @return the comparator whose sorting order the contained columns conform to
+     */
+    public AbstractType<?> getComparator();
 
     public interface Factory
     {

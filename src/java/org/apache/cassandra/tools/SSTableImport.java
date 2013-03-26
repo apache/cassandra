@@ -38,7 +38,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.AbstractColumnContainer;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.CounterColumn;
@@ -270,7 +269,7 @@ public class SSTableImport
         {
             Map<?, ?> unparsedDeletionInfo = (Map<?, ?>) map.get("deletionInfo");
             Number number = (Number) unparsedDeletionInfo.get("markedForDeleteAt");
-            long markedForDeleteAt = number instanceof Long ? (Long) number : ((Integer) number).longValue();
+            long markedForDeleteAt = number instanceof Long ? (Long) number : number.longValue();
             int localDeletionTime = (Integer) unparsedDeletionInfo.get("localDeletionTime");
             if (superColumnName == null)
                 cf.setDeletionInfo(new DeletionInfo(markedForDeleteAt, localDeletionTime));

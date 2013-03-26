@@ -17,11 +17,19 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.SortedSet;
 import java.util.UUID;
 
+import com.google.common.base.Function;
+import com.google.common.base.Functions;
+
+import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.utils.*;
 
@@ -30,16 +38,15 @@ import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ColumnStats;
 
-public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEntry
+public class ColumnFamily implements IRowCacheEntry, Iterable<Column>
 {
     /* The column serializer for this Column Family. Create based on config. */
     public static final ColumnFamilySerializer serializer = new ColumnFamilySerializer();
     private final CFMetaData cfm;
+    protected final ISortedColumns columns;
 
     public static ColumnFamily create(UUID cfId)
     {
@@ -71,9 +78,9 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
         return new ColumnFamily(cfm, factory.create(cfm.comparator, reversedInsertOrder));
     }
 
-    protected ColumnFamily(CFMetaData cfm, ISortedColumns map)
+    protected ColumnFamily(CFMetaData cfm, ISortedColumns columns)
     {
-        super(map);
+        this.columns = columns;
         assert cfm != null;
         this.cfm = cfm;
     }
@@ -196,17 +203,6 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
         return null;
     }
 
-    /** the size of user-provided data, not including internal overhead */
-    int dataSize()
-    {
-        int size = deletionInfo().dataSize();
-        for (Column column : columns)
-        {
-            size += column.dataSize();
-        }
-        return size;
-    }
-
     public long maxTimestamp()
     {
         long maxTimestamp = deletionInfo().maxTimestamp();
@@ -318,5 +314,157 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
                 tombstones.update(deletionTime);
         }
         return new ColumnStats(getColumnCount(), minTimestampSeen, maxTimestampSeen, maxLocalDeletionTime, tombstones);
+    }
+
+    public void delete(ColumnFamily cc2)
+    {
+        delete(cc2.columns.getDeletionInfo());
+    }
+
+    public void delete(DeletionInfo delInfo)
+    {
+        columns.delete(delInfo);
+    }
+
+    // Contrarily to delete(), this will use the provided info even if those
+    // are older that the current ones. Used for SuperColumn in QueryFilter.
+    // delete() is probably the right method in all other cases.
+    public void setDeletionInfo(DeletionInfo delInfo)
+    {
+        columns.setDeletionInfo(delInfo);
+    }
+
+    public boolean isMarkedForDelete()
+    {
+        return !deletionInfo().isLive();
+    }
+
+    public DeletionInfo deletionInfo()
+    {
+        return columns.getDeletionInfo();
+    }
+
+    public AbstractType<?> getComparator()
+    {
+        return columns.getComparator();
+    }
+
+    /**
+     * Drops expired row-level tombstones.  Normally, these are dropped once the row no longer exists, but
+     * if new columns are inserted into the row post-deletion, they can keep the row tombstone alive indefinitely,
+     * with non-intuitive results.  See https://issues.apache.org/jira/browse/CASSANDRA-2317
+     */
+    public void maybeResetDeletionTimes(int gcBefore)
+    {
+        columns.maybeResetDeletionTimes(gcBefore);
+    }
+
+    public long addAllWithSizeDelta(ColumnFamily cc, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
+    {
+        return columns.addAllWithSizeDelta(cc.columns, allocator, transformation, indexer);
+    }
+
+    public void addAll(ColumnFamily cc, Allocator allocator, Function<Column, Column> transformation)
+    {
+        columns.addAll(cc.columns, allocator, transformation);
+    }
+
+    public void addAll(ColumnFamily cc, Allocator allocator)
+    {
+        addAll(cc, allocator, Functions.<Column>identity());
+    }
+
+    public void addColumn(Column column)
+    {
+        addColumn(column, HeapAllocator.instance);
+    }
+
+    public void addColumn(Column column, Allocator allocator)
+    {
+        columns.addColumn(column, allocator);
+    }
+
+    public Column getColumn(ByteBuffer name)
+    {
+        return columns.getColumn(name);
+    }
+
+    public boolean replace(Column oldColumn, Column newColumn)
+    {
+        return columns.replace(oldColumn, newColumn);
+    }
+
+    /*
+    * Note that for some of the implementation backing the container, the
+    * return set may not have implementation for tailSet, headSet and subSet.
+    * See ColumnNamesSet in ArrayBackedSortedColumns for more details.
+    */
+    public SortedSet<ByteBuffer> getColumnNames()
+    {
+        return columns.getColumnNames();
+    }
+
+    public Collection<Column> getSortedColumns()
+    {
+        return columns.getSortedColumns();
+    }
+
+    public Collection<Column> getReverseSortedColumns()
+    {
+        return columns.getReverseSortedColumns();
+    }
+
+    public void remove(ByteBuffer columnName)
+    {
+        columns.removeColumn(columnName);
+    }
+
+    public int getColumnCount()
+    {
+        return columns.size();
+    }
+
+    public boolean isEmpty()
+    {
+        return columns.isEmpty();
+    }
+
+    public boolean hasOnlyTombstones()
+    {
+        for (Column column : columns)
+        {
+            if (column.isLive())
+                return false;
+        }
+        return true;
+    }
+
+    public Iterator<Column> iterator()
+    {
+        return columns.iterator();
+    }
+
+    public Iterator<Column> iterator(ColumnSlice[] slices)
+    {
+        return columns.iterator(slices);
+    }
+
+    public Iterator<Column> reverseIterator(ColumnSlice[] slices)
+    {
+        return columns.reverseIterator(slices);
+    }
+
+    public boolean hasIrrelevantData(int gcBefore)
+    {
+        // Do we have gcable deletion infos?
+        if (!deletionInfo().purge(gcBefore).equals(deletionInfo()))
+            return true;
+
+        // Do we have colums that are either deleted by the container or gcable tombstone?
+        for (Column column : columns)
+            if (deletionInfo().isDeleted(column) || column.hasIrrelevantData(gcBefore))
+                return true;
+
+        return false;
     }
 }
