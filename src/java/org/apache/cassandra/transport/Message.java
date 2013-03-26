@@ -274,14 +274,14 @@ public abstract class Message
                 ServerConnection connection = (ServerConnection)request.connection();
                 connection.validateNewMessage(request.type);
 
-                logger.debug("Received: " + request);
+                logger.debug("Received: {}", request);
 
                 Response response = request.execute(connection.getQueryState(request.getStreamId()));
                 response.setStreamId(request.getStreamId());
                 response.attach(connection);
                 connection.applyStateTransition(request.type, response.type);
 
-                logger.debug("Responding: " + response);
+                logger.debug("Responding: {}", response);
 
                 ctx.getChannel().write(response);
             }
