@@ -7,8 +7,6 @@
  * Improve asynchronous hint delivery (CASSANDRA-5179)
  * Fix Guava dependency version (12.0 -> 13.0.1) for Maven (CASSANDRA-5364)
  * Validate that provided CQL3 collection value are < 64K (CASSANDRA-5355)
- * Change Kernel Page Cache skipping into row preheating (disabled by default)
-   (CASSANDRA-4937)
  * Make upgradeSSTable skip current version sstables by default (CASSANDRA-5366)
  * Optimize min/max timestamp collection (CASSANDRA-5373)
 Merged from 1.1:

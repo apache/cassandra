@@ -231,7 +231,10 @@ public class CompactionTask extends AbstractCompactionTask
         cfs.replaceCompactedSSTables(toCompact, sstables, compactionType);
         // TODO: this doesn't belong here, it should be part of the reader to load when the tracker is wired up
         for (SSTableReader sstable : sstables)
-            sstable.preheat(cachedKeyMap.get(sstable.descriptor));
+        {
+            for (Map.Entry<DecoratedKey, RowIndexEntry> entry : cachedKeyMap.get(sstable.descriptor).entrySet())
+               sstable.cacheKey(entry.getKey(), entry.getValue());
+        }
 
         if (logger.isInfoEnabled())
         {

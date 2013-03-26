@@ -121,7 +121,7 @@ public class CommitLogReplayer
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
         final long segment = desc.id;
         int version = desc.getMessagingVersion();
-        RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()));
+        RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()), true);
         try
         {
             assert reader.length() <= Integer.MAX_VALUE;

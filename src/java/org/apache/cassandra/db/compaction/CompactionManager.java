@@ -571,7 +571,7 @@ public class CompactionManager implements CompactionManagerMBean
             if (compactionFileLocation == null)
                 throw new IOException("disk full");
 
-            SSTableScanner scanner = sstable.getScanner();
+            SSTableScanner scanner = sstable.getDirectScanner();
             long rowsRead = 0;
             List<IColumn> indexedColumnsInRow = null;
 

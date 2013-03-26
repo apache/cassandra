@@ -326,25 +326,4 @@ public final class CLibrary
 
         return -1;
     }
-
-    /**
-     * Suggest kernel to preheat one page for the given file.
-     *
-     * @param fd The file descriptor of file to preheat.
-     * @param position The offset of the block.
-     *
-     * @return On success, zero is returned. On error, an error number is returned.
-     */
-    public static int preheatPage(int fd, long position)
-    {
-        try
-        {
-            // 4096 is good for SSD because they operate on "Pages" 4KB in size
-            return posix_fadvise(fd, position, 4096, POSIX_FADV_WILLNEED);
-        }
-        catch (UnsatisfiedLinkError e)
-        {
-            return -1;
-        }
-    }
 }

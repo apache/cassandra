@@ -94,8 +94,8 @@ public class Scrubber implements Closeable
         // we'll also loop through the index at the same time, using the position from the index to recover if the
         // row header (key or data size) is corrupt. (This means our position in the index file will be one row
         // "ahead" of the data file.)
-        this.dataFile = sstable.openDataReader();
-        this.indexFile = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)));
+        this.dataFile = sstable.openDataReader(true);
+        this.indexFile = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)), true);
         this.scrubInfo = new ScrubInfo(dataFile, sstable);
     }
 

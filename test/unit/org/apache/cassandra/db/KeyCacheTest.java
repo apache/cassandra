@@ -130,13 +130,13 @@ public class KeyCacheTest extends SchemaLoader
                                                        false,
                                                        10));
 
-        assertEquals(2, CacheService.instance.keyCache.size());
+        assert CacheService.instance.keyCache.size() == 2;
 
         Util.compactAll(cfs).get();
         keyCacheSize = CacheService.instance.keyCache.size();
         // after compaction cache should have entries for
         // new SSTables, if we had 2 keys in cache previously it should become 4
-        assertEquals(4, keyCacheSize);
+        assert keyCacheSize == 4 : keyCacheSize;
 
         // re-read same keys to verify that key cache didn't grow further
         cfs.getColumnFamily(QueryFilter.getSliceFilter(key1,

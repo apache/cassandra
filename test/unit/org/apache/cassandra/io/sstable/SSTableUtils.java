@@ -72,8 +72,8 @@ public class SSTableUtils
 
     public static void assertContentEquals(SSTableReader lhs, SSTableReader rhs) throws IOException
     {
-        SSTableScanner slhs = lhs.getScanner();
-        SSTableScanner srhs = rhs.getScanner();
+        SSTableScanner slhs = lhs.getDirectScanner();
+        SSTableScanner srhs = rhs.getDirectScanner();
         while (slhs.hasNext())
         {
             OnDiskAtomIterator ilhs = slhs.next();

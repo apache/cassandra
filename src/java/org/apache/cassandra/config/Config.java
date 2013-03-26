@@ -167,8 +167,6 @@ public class Config
 
     public boolean inter_dc_tcp_nodelay = true;
 
-    public boolean preheat_kernel_page_cache = false;
-
     private static boolean loadYaml = true;
     private static boolean outboundBindAny = false;
 
