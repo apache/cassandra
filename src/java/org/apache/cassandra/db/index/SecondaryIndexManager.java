@@ -610,15 +610,13 @@ public class SecondaryIndexManager
 
         public void update(IColumn oldColumn, IColumn column)
         {
-            if (column.isMarkedForDelete())
-                return;
-
             SecondaryIndex index = indexFor(column.name());
             if (index == null)
                 return;
 
             ((PerColumnSecondaryIndex) index).delete(key.key, oldColumn);
-            ((PerColumnSecondaryIndex) index).insert(key.key, column);
+            if (!column.isMarkedForDelete())
+                ((PerColumnSecondaryIndex) index).insert(key.key, column);
         }
 
         public void remove(IColumn column)
@@ -666,9 +664,6 @@ public class SecondaryIndexManager
 
         public void update(IColumn oldColumn, IColumn column)
         {
-            if (column.isMarkedForDelete())
-                return;
-
             SecondaryIndex index = indexFor(column.name());
             if (index == null)
                 return;
@@ -676,7 +671,8 @@ public class SecondaryIndexManager
             if (index instanceof  PerColumnSecondaryIndex)
             {
                 ((PerColumnSecondaryIndex) index).delete(key.key, oldColumn);
-                ((PerColumnSecondaryIndex) index).insert(key.key, column);
+                if (!column.isMarkedForDelete())
+                    ((PerColumnSecondaryIndex) index).insert(key.key, column);
             }
             else
             {
