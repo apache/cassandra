@@ -112,7 +112,7 @@ public abstract class Functions
 
     private static void validateTypes(Function fun, List<? extends AssignementTestable> providedArgs, ColumnSpecification receiver) throws InvalidRequestException
     {
-        if (!receiver.type.equals(fun.returnType()))
+        if (!receiver.type.asCQL3Type().equals(fun.returnType().asCQL3Type()))
             throw new InvalidRequestException(String.format("Type error: cannot assign result of function %s (type %s) to %s (type %s)", fun.name(), fun.returnType().asCQL3Type(), receiver, receiver.type.asCQL3Type()));
 
         if (providedArgs.size() != fun.argsType().size())
@@ -135,7 +135,7 @@ public abstract class Functions
 
     private static boolean isValidType(Function fun, List<? extends AssignementTestable> providedArgs, ColumnSpecification receiver)
     {
-        if (!receiver.type.equals(fun.returnType()))
+        if (!receiver.type.asCQL3Type().equals(fun.returnType().asCQL3Type()))
             return false;
 
         if (providedArgs.size() != fun.argsType().size())

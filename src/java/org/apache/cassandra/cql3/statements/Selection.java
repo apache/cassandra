@@ -374,7 +374,7 @@ public abstract class Selection
 
         public boolean isAssignableTo(ColumnSpecification receiver)
         {
-            return receiver.type.equals(isWritetime ? LongType.instance : Int32Type.instance);
+            return receiver.type.asCQL3Type().equals(isWritetime ? CQL3Type.Native.BIGINT : CQL3Type.Native.INT);
         }
     }
 

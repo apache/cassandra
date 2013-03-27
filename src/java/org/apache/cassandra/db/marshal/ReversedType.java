@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 
@@ -94,6 +95,12 @@ public class ReversedType<T> extends AbstractType<T>
     public ByteBuffer decompose(T value)
     {
         return baseType.decompose(value);
+    }
+
+    @Override
+    public CQL3Type asCQL3Type()
+    {
+        return baseType.asCQL3Type();
     }
 
     @Override

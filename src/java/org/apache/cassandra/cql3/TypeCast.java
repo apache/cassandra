@@ -48,7 +48,7 @@ public class TypeCast implements Term.Raw
 
     public boolean isAssignableTo(ColumnSpecification receiver)
     {
-        return receiver.type.equals(type.getType());
+        return receiver.type.asCQL3Type().equals(type);
     }
 
     @Override
