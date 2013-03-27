@@ -34,7 +34,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -74,7 +73,7 @@ public class SuperColumns
 
             dos.writeInt(entry.getValue().size());
             for (Column subColumn : entry.getValue())
-                Column.serializer().serialize(subColumn, dos);
+                Column.serializer.serialize(subColumn, dos);
         }
     }
 
@@ -134,7 +133,7 @@ public class SuperColumns
 
             size += typeSizes.sizeof(entry.getValue().size());
             for (Column subColumn : entry.getValue())
-                size += Column.serializer().serializedSize(subColumn, typeSizes);
+                size += Column.serializer.serializedSize(subColumn, typeSizes);
         }
         return size;
     }
@@ -186,7 +185,7 @@ public class SuperColumns
                 List<Column> subColumns = new ArrayList<Column>(size);
 
                 for (int i = 0; i < size; ++i)
-                    subColumns.add(Column.serializer().deserialize(dis, flag, expireBefore));
+                    subColumns.add(Column.serializer.deserialize(dis, flag, expireBefore));
 
                 subColumnsIterator = subColumns.iterator();
 

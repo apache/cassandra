@@ -69,7 +69,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
             }
 
             DeletionInfo.serializer().serialize(cf.deletionInfo(), dos, version);
-            ColumnSerializer columnSerializer = Column.serializer();
+            ColumnSerializer columnSerializer = Column.serializer;
             int count = cf.getColumnCount();
             dos.writeInt(count);
             int written = 0;
@@ -107,7 +107,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
         {
             cf.delete(DeletionInfo.serializer().deserialize(dis, version, cf.getComparator()));
 
-            ColumnSerializer columnSerializer = Column.serializer();
+            ColumnSerializer columnSerializer = Column.serializer;
             int size = dis.readInt();
             for (int i = 0; i < size; ++i)
             {

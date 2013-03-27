@@ -44,12 +44,7 @@ public class Column implements OnDiskAtom
 {
     public static final int MAX_NAME_LENGTH = FBUtilities.MAX_UNSIGNED_SHORT;
 
-    private static final ColumnSerializer serializer = new ColumnSerializer();
-
-    public static ColumnSerializer serializer()
-    {
-        return serializer;
-    }
+    public static final ColumnSerializer serializer = new ColumnSerializer();
 
     public static OnDiskAtom.Serializer onDiskSerializer()
     {

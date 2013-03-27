@@ -55,7 +55,7 @@ public interface OnDiskAtom
         {
             if (atom instanceof Column)
             {
-                Column.serializer().serialize((Column)atom, dos);
+                Column.serializer.serialize((Column) atom, dos);
             }
             else
             {
@@ -79,7 +79,7 @@ public interface OnDiskAtom
             if ((b & ColumnSerializer.RANGE_TOMBSTONE_MASK) != 0)
                 return RangeTombstone.serializer.deserializeBody(dis, name, version);
             else
-                return Column.serializer().deserializeColumnBody(dis, name, b, flag, expireBefore);
+                return Column.serializer.deserializeColumnBody(dis, name, b, flag, expireBefore);
         }
     }
 }
