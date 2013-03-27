@@ -132,7 +132,7 @@ public class FunctionCall extends Term.NonTerminal
         public boolean isAssignableTo(ColumnSpecification receiver)
         {
             AbstractType<?> returnType = Functions.getReturnType(functionName, receiver.ksName, receiver.cfName);
-            return receiver.type.equals(returnType);
+            return receiver.type.asCQL3Type().equals(returnType.asCQL3Type());
         }
 
         @Override

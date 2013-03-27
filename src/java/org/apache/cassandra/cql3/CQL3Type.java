@@ -106,6 +106,22 @@ public interface CQL3Type
         }
 
         @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof Custom))
+                return false;
+
+            Custom that = (Custom)o;
+            return type.equals(that.type);
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            return type.hashCode();
+        }
+
+        @Override
         public String toString()
         {
             return "'" + type + "'";
@@ -164,6 +180,22 @@ public interface CQL3Type
         public boolean isCounter()
         {
             return false;
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof Collection))
+                return false;
+
+            Collection that = (Collection)o;
+            return type.equals(that.type);
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            return type.hashCode();
         }
 
         @Override
