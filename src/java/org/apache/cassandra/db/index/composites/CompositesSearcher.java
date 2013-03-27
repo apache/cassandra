@@ -228,7 +228,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
 
                         Collection<Column> sortedColumns = indexRow.getSortedColumns();
                         columnsRead = sortedColumns.size();
-                        indexColumns = new ArrayDeque(sortedColumns);
+                        indexColumns = new ArrayDeque<Column>(sortedColumns);
                         Column firstColumn = sortedColumns.iterator().next();
 
                         // Paging is racy, so it is possible the first column of a page is not the last seen one.
