@@ -93,7 +93,7 @@ class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
         if (!isDigest)
         {
             // This is coming from a remote host
-            row = Row.serializer.deserialize(in, version, ColumnSerializer.Flag.FROM_REMOTE, ArrayBackedSortedColumns.factory());
+            row = Row.serializer.deserialize(in, version, ColumnSerializer.Flag.FROM_REMOTE);
         }
 
         return isDigest ? new ReadResponse(ByteBuffer.wrap(digest)) : new ReadResponse(row);

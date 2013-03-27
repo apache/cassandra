@@ -280,7 +280,7 @@ public class RowMutation implements IMutation
             // We used to uselessly write the cf id here
             if (version < MessagingService.VERSION_12)
                 ColumnFamily.serializer.deserializeCfId(in, version);
-            ColumnFamily cf = ColumnFamily.serializer.deserialize(in, flag, TreeMapBackedSortedColumns.factory(), version);
+            ColumnFamily cf = ColumnFamily.serializer.deserialize(in, flag, version);
             // We don't allow RowMutation with null column family, so we should never get null back.
             assert cf != null;
             return cf;

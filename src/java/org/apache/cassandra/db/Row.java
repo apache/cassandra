@@ -61,15 +61,15 @@ public class Row
             ColumnFamily.serializer.serialize(row.cf, out, version);
         }
 
-        public Row deserialize(DataInput in, int version, ColumnSerializer.Flag flag, ISortedColumns.Factory factory) throws IOException
+        public Row deserialize(DataInput in, int version, ColumnSerializer.Flag flag) throws IOException
         {
             return new Row(StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in)),
-                           ColumnFamily.serializer.deserialize(in, flag, factory, version));
+                           ColumnFamily.serializer.deserialize(in, flag, version));
         }
 
         public Row deserialize(DataInput in, int version) throws IOException
         {
-            return deserialize(in, version, ColumnSerializer.Flag.LOCAL, TreeMapBackedSortedColumns.factory());
+            return deserialize(in, version, ColumnSerializer.Flag.LOCAL);
         }
 
         public long serializedSize(Row row, int version)

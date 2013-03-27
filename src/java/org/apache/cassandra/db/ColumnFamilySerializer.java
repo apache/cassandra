@@ -88,15 +88,15 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
 
     public ColumnFamily deserialize(DataInput in, int version) throws IOException
     {
-        return deserialize(in, ColumnSerializer.Flag.LOCAL, TreeMapBackedSortedColumns.factory(), version);
+        return deserialize(in, ColumnSerializer.Flag.LOCAL, version);
     }
 
-    public ColumnFamily deserialize(DataInput in, ColumnSerializer.Flag flag, ISortedColumns.Factory factory, int version) throws IOException
+    public ColumnFamily deserialize(DataInput in, ColumnSerializer.Flag flag, int version) throws IOException
     {
         if (!in.readBoolean())
             return null;
 
-        ColumnFamily cf = ColumnFamily.create(deserializeCfId(in, version), factory);
+        ColumnFamily cf = ColumnFamily.create(deserializeCfId(in, version), ArrayBackedSortedColumns.factory());
         int expireBefore = (int) (System.currentTimeMillis() / 1000);
 
         if (cf.metadata().isSuper() && version < MessagingService.VERSION_20)
