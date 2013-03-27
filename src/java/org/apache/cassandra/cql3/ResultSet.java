@@ -96,13 +96,12 @@ public class ResultSet
     {
         String ksName = metadata.names.get(0).ksName;
         String cfName = metadata.names.get(0).cfName;
-        metadata.names.clear();
-        metadata.names.add(new ColumnSpecification(ksName, cfName, COUNT_COLUMN, LongType.instance));
-
         long count = rows.size();
-        rows.clear();
-        rows.add(Collections.singletonList(ByteBufferUtil.bytes(count)));
-        return this;
+
+        Metadata newMetadata = new Metadata(Collections.singletonList(new ColumnSpecification(ksName, cfName, COUNT_COLUMN, LongType.instance)));
+        List<List<ByteBuffer>> newRows = Collections.singletonList(Collections.singletonList(ByteBufferUtil.bytes(count)));
+
+        return new ResultSet(newMetadata, newRows);
     }
 
     public CqlResult toThriftResult()

@@ -40,6 +40,8 @@
  * Make upgradeSSTable skip current version sstables by default (CASSANDRA-5366)
  * Optimize min/max timestamp collection (CASSANDRA-5373)
  * Invalid streamId in cql binary protocol when using invalid CL (CASSANDRA-5164)
+ * Fix validation for IN where clauses with collections (CASSANDRA-5376)
+ * Copy resultSet on count query to avoid ConcurrentModificationException (CASSANDRA-5382)
 Merged from 1.1:
  * cli: Quote ks and cf names in schema output when needed (CASSANDRA-5052)
  * Fix bad default for min/max timestamp in SSTableMetadata (CASSANDRA-5372)
