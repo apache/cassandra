@@ -184,6 +184,9 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
             executor.shutdown();
         }
 
+        /**
+         * Merges a set of in-memory rows
+         */
         private class MergeTask implements Callable<ColumnFamily>
         {
             private final List<Row> rows;
@@ -195,23 +198,17 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
             public ColumnFamily call() throws Exception
             {
-                ColumnFamily cf = null;
+                final ColumnFamily returnCF = ColumnFamily.create(controller.cfs.metadata, ArrayBackedSortedColumns.factory());
+
+                List<CloseableIterator<IColumn>> data = new ArrayList<CloseableIterator<IColumn>>(rows.size());
                 for (Row row : rows)
                 {
-                    ColumnFamily thisCF = row.cf;
-                    if (cf == null)
-                    {
-                        cf = thisCF;
-                    }
-                    else
-                    {
-                        // addAll is ok even if cf is an ArrayBackedSortedColumns
-                        SecondaryIndexManager.Updater indexer = controller.cfs.indexManager.updaterFor(row.key, false);
-                        cf.addAllWithSizeDelta(thisCF, HeapAllocator.instance, Functions.<IColumn>identity(), indexer);
-                    }
+                    returnCF.delete(row.cf);
+                    data.add(FBUtilities.closeableIterator(row.cf.iterator()));
                 }
 
-                return PrecompactedRow.removeDeletedAndOldShards(rows.get(0).key, controller, cf);
+                PrecompactedRow.merge(returnCF, data, controller.cfs.indexManager.updaterFor(rows.get(0).key, false));
+                return PrecompactedRow.removeDeletedAndOldShards(rows.get(0).key, controller, returnCF);
             }
         }
 
@@ -300,7 +297,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                         else
                         {
                             logger.debug("parallel eager deserialize from " + iter.getPath());
-                            queue.put(new RowContainer(new Row(iter.getKey(), iter.getColumnFamilyWithColumns(TreeMapBackedSortedColumns.factory()))));
+                            queue.put(new RowContainer(new Row(iter.getKey(), iter.getColumnFamilyWithColumns(ArrayBackedSortedColumns.factory()))));
                         }
                     }
                 }

@@ -153,6 +153,7 @@ public class CompactionsPurgeTest extends SchemaLoader
     @Test
     public void testMinTimestampPurge() throws IOException, ExecutionException, InterruptedException
     {
+        // verify that we don't drop tombstones during a minor compaction that might still be relevant
         CompactionManager.instance.disableAutoCompaction();
         Table table = Table.open(TABLE2);
         String cfName = "Standard1";
@@ -180,8 +181,10 @@ public class CompactionsPurgeTest extends SchemaLoader
         cfs.forceBlockingFlush();
         cfs.getCompactionStrategy().getUserDefinedTask(sstablesIncomplete, Integer.MAX_VALUE).execute(null);
 
+        // we should have both the c1 and c2 tombstones still, since the c2 timestamp is older than the c1 tombstone
+        // so it would be invalid to assume we can throw out the c1 entry.
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key3, new QueryPath(cfName)));
-        Assert.assertTrue(!cf.getColumn(ByteBufferUtil.bytes("c2")).isLive());
+        Assert.assertFalse(cf.getColumn(ByteBufferUtil.bytes("c2")).isLive());
         Assert.assertEquals(2, cf.getColumnCount());
     }
 
