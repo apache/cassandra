@@ -20,16 +20,21 @@ package org.apache.cassandra.db.compaction;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 
-import com.google.common.base.Functions;
-
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.utils.HeapAllocator;
+import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MergeIterator;
 
 /**
  * PrecompactedRow merges its rows in its constructor in memory.
@@ -97,34 +102,61 @@ public class PrecompactedRow extends AbstractCompactedRow
     private static ColumnFamily merge(List<SSTableIdentityIterator> rows, CompactionController controller)
     {
         assert !rows.isEmpty();
-        ColumnFamily cf = null;
-        SecondaryIndexManager.Updater indexer = null;
+
+        final ColumnFamily returnCF = ColumnFamily.create(controller.cfs.metadata, ArrayBackedSortedColumns.factory());
+
+        // transform into iterators that MergeIterator will like, and apply row-level tombstones
+        List<CloseableIterator<Column>> data = new ArrayList<CloseableIterator<Column>>(rows.size());
         for (SSTableIdentityIterator row : rows)
         {
-            ColumnFamily thisCF;
             try
             {
-                // use a map for the first once since that will be the one we merge into
-                ISortedColumns.Factory factory = cf == null ? TreeMapBackedSortedColumns.factory() : ArrayBackedSortedColumns.factory();
-                thisCF = row.getColumnFamilyWithColumns(factory);
+                ColumnFamily cf = row.getColumnFamilyWithColumns(ArrayBackedSortedColumns.factory());
+                returnCF.delete(cf);
+                data.add(FBUtilities.closeableIterator(cf.iterator()));
             }
             catch (IOException e)
             {
-                throw new RuntimeException("Failed merge of rows on row with key: " + row.getKey(), e);
-            }
-
-            if (cf == null)
-            {
-                cf = thisCF;
-                indexer = controller.cfs.indexManager.updaterFor(row.getKey(), false); // only init indexer once
-            }
-            else
-            {
-                // addAll is ok even if cf is an ArrayBackedSortedColumns
-                cf.addAllWithSizeDelta(thisCF, HeapAllocator.instance, Functions.<Column>identity(), indexer);
+                throw new RuntimeException(e);
             }
         }
-        return cf;
+
+        merge(returnCF, data, controller.cfs.indexManager.updaterFor(rows.get(0).getKey(), false));
+
+        return returnCF;
+    }
+
+    // returnCF should already have row-level tombstones applied
+    public static void merge(final ColumnFamily returnCF, List<CloseableIterator<Column>> data, final SecondaryIndexManager.Updater indexer)
+    {
+        IDiskAtomFilter filter = new IdentityQueryFilter();
+        Comparator<Column> fcomp = filter.getColumnComparator(returnCF.getComparator());
+
+        MergeIterator.Reducer<Column, Column> reducer = new MergeIterator.Reducer<Column, Column>()
+        {
+            ColumnFamily container = returnCF.cloneMeShallow();
+
+            public void reduce(Column column)
+            {
+                container.addColumn(column);
+                if (indexer != SecondaryIndexManager.nullUpdater
+                    && !column.isMarkedForDelete()
+                    && container.getColumn(column.name()) != column)
+                {
+                    indexer.remove(column);
+                }
+            }
+
+            protected Column getReduced()
+            {
+                Column c = container.iterator().next();
+                container.clear();
+                return c;
+            }
+        };
+
+        Iterator<Column> reduced = MergeIterator.get(data, fcomp, reducer);
+        filter.collectReducedColumns(returnCF, reduced, CompactionManager.NO_GC);
     }
 
     public long write(DataOutput out) throws IOException

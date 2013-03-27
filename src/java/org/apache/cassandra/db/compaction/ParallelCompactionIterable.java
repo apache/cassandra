@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Condition;
 
-import com.google.common.base.Functions;
 import com.google.common.collect.AbstractIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +34,6 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.ICountableColumnIterator;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.utils.*;
 
@@ -184,6 +182,9 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
             executor.shutdown();
         }
 
+        /**
+         * Merges a set of in-memory rows
+         */
         private class MergeTask implements Callable<ColumnFamily>
         {
             private final List<Row> rows;
@@ -195,23 +196,17 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
             public ColumnFamily call() throws Exception
             {
-                ColumnFamily cf = null;
+                final ColumnFamily returnCF = ColumnFamily.create(controller.cfs.metadata, ArrayBackedSortedColumns.factory());
+
+                List<CloseableIterator<Column>> data = new ArrayList<CloseableIterator<Column>>(rows.size());
                 for (Row row : rows)
                 {
-                    ColumnFamily thisCF = row.cf;
-                    if (cf == null)
-                    {
-                        cf = thisCF;
-                    }
-                    else
-                    {
-                        // addAll is ok even if cf is an ArrayBackedSortedColumns
-                        SecondaryIndexManager.Updater indexer = controller.cfs.indexManager.updaterFor(row.key, false);
-                        cf.addAllWithSizeDelta(thisCF, HeapAllocator.instance, Functions.<Column>identity(), indexer);
-                    }
+                    returnCF.delete(row.cf);
+                    data.add(FBUtilities.closeableIterator(row.cf.iterator()));
                 }
 
-                return PrecompactedRow.removeDeletedAndOldShards(rows.get(0).key, controller, cf);
+                PrecompactedRow.merge(returnCF, data, controller.cfs.indexManager.updaterFor(rows.get(0).key, false));
+                return PrecompactedRow.removeDeletedAndOldShards(rows.get(0).key, controller, returnCF);
             }
         }
 
@@ -300,7 +295,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                         else
                         {
                             logger.debug("parallel eager deserialize from " + iter.getPath());
-                            queue.put(new RowContainer(new Row(iter.getKey(), iter.getColumnFamilyWithColumns(TreeMapBackedSortedColumns.factory()))));
+                            queue.put(new RowContainer(new Row(iter.getKey(), iter.getColumnFamilyWithColumns(ArrayBackedSortedColumns.factory()))));
                         }
                     }
                 }
