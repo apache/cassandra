@@ -103,28 +103,28 @@ public class IndexSummary
 
     public static class IndexSummarySerializer
     {
-        public void serialize(IndexSummary t, DataOutput dos) throws IOException
+        public void serialize(IndexSummary t, DataOutput out) throws IOException
         {
             assert t.keys.size() == t.positions.size() : "keysize and the position sizes are not same.";
-            dos.writeInt(t.indexInterval);
-            dos.writeInt(t.keys.size());
+            out.writeInt(t.indexInterval);
+            out.writeInt(t.keys.size());
             for (int i = 0; i < t.keys.size(); i++)
             {
-                dos.writeLong(t.positions.get(i));
-                ByteBufferUtil.writeWithLength(t.keys.get(i).key, dos);
+                out.writeLong(t.positions.get(i));
+                ByteBufferUtil.writeWithLength(t.keys.get(i).key, out);
             }
         }
 
-        public IndexSummary deserialize(DataInput dis, IPartitioner partitioner) throws IOException
+        public IndexSummary deserialize(DataInput in, IPartitioner partitioner) throws IOException
         {
             IndexSummary summary = new IndexSummary();
-            summary.indexInterval = dis.readInt();
+            summary.indexInterval = in.readInt();
 
-            int size = dis.readInt();
+            int size = in.readInt();
             for (int i = 0; i < size; i++)
             {
-                long location = dis.readLong();
-                ByteBuffer key = ByteBufferUtil.readWithLength(dis);
+                long location = in.readLong();
+                ByteBuffer key = ByteBufferUtil.readWithLength(in);
                 summary.addEntry(partitioner.decorateKey(key), location);
             }
             return summary;

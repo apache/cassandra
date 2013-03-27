@@ -51,24 +51,24 @@ public class ColumnSerializer implements ISerializer<Column>
         LOCAL, FROM_REMOTE, PRESERVE_SIZE;
     }
 
-    public void serialize(Column column, DataOutput dos) throws IOException
+    public void serialize(Column column, DataOutput out) throws IOException
     {
         assert column.name().remaining() > 0;
-        ByteBufferUtil.writeWithShortLength(column.name(), dos);
+        ByteBufferUtil.writeWithShortLength(column.name(), out);
         try
         {
-            dos.writeByte(column.serializationFlags());
+            out.writeByte(column.serializationFlags());
             if (column instanceof CounterColumn)
             {
-                dos.writeLong(((CounterColumn)column).timestampOfLastDelete());
+                out.writeLong(((CounterColumn)column).timestampOfLastDelete());
             }
             else if (column instanceof ExpiringColumn)
             {
-                dos.writeInt(((ExpiringColumn) column).getTimeToLive());
-                dos.writeInt(column.getLocalDeletionTime());
+                out.writeInt(((ExpiringColumn) column).getTimeToLive());
+                out.writeInt(column.getLocalDeletionTime());
             }
-            dos.writeLong(column.timestamp());
-            ByteBufferUtil.writeWithLength(column.value(), dos);
+            out.writeLong(column.timestamp());
+            ByteBufferUtil.writeWithLength(column.value(), out);
         }
         catch (IOException e)
         {
@@ -76,9 +76,9 @@ public class ColumnSerializer implements ISerializer<Column>
         }
     }
 
-    public Column deserialize(DataInput dis) throws IOException
+    public Column deserialize(DataInput in) throws IOException
     {
-        return deserialize(dis, Flag.LOCAL);
+        return deserialize(in, Flag.LOCAL);
     }
 
     /*
@@ -86,42 +86,42 @@ public class ColumnSerializer implements ISerializer<Column>
      * deserialize comes from a remote host. If it does, then we must clear
      * the delta.
      */
-    public Column deserialize(DataInput dis, ColumnSerializer.Flag flag) throws IOException
+    public Column deserialize(DataInput in, ColumnSerializer.Flag flag) throws IOException
     {
-        return deserialize(dis, flag, (int) (System.currentTimeMillis() / 1000));
+        return deserialize(in, flag, (int) (System.currentTimeMillis() / 1000));
     }
 
-    public Column deserialize(DataInput dis, ColumnSerializer.Flag flag, int expireBefore) throws IOException
+    public Column deserialize(DataInput in, ColumnSerializer.Flag flag, int expireBefore) throws IOException
     {
-        ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
+        ByteBuffer name = ByteBufferUtil.readWithShortLength(in);
         if (name.remaining() <= 0)
-            throw CorruptColumnException.create(dis, name);
+            throw CorruptColumnException.create(in, name);
 
-        int b = dis.readUnsignedByte();
-        return deserializeColumnBody(dis, name, b, flag, expireBefore);
+        int b = in.readUnsignedByte();
+        return deserializeColumnBody(in, name, b, flag, expireBefore);
     }
 
-    Column deserializeColumnBody(DataInput dis, ByteBuffer name, int mask, ColumnSerializer.Flag flag, int expireBefore) throws IOException
+    Column deserializeColumnBody(DataInput in, ByteBuffer name, int mask, ColumnSerializer.Flag flag, int expireBefore) throws IOException
     {
         if ((mask & COUNTER_MASK) != 0)
         {
-            long timestampOfLastDelete = dis.readLong();
-            long ts = dis.readLong();
-            ByteBuffer value = ByteBufferUtil.readWithLength(dis);
+            long timestampOfLastDelete = in.readLong();
+            long ts = in.readLong();
+            ByteBuffer value = ByteBufferUtil.readWithLength(in);
             return CounterColumn.create(name, value, ts, timestampOfLastDelete, flag);
         }
         else if ((mask & EXPIRATION_MASK) != 0)
         {
-            int ttl = dis.readInt();
-            int expiration = dis.readInt();
-            long ts = dis.readLong();
-            ByteBuffer value = ByteBufferUtil.readWithLength(dis);
+            int ttl = in.readInt();
+            int expiration = in.readInt();
+            long ts = in.readLong();
+            ByteBuffer value = ByteBufferUtil.readWithLength(in);
             return ExpiringColumn.create(name, value, ts, ttl, expiration, expireBefore, flag);
         }
         else
         {
-            long ts = dis.readLong();
-            ByteBuffer value = ByteBufferUtil.readWithLength(dis);
+            long ts = in.readLong();
+            ByteBuffer value = ByteBufferUtil.readWithLength(in);
             return (mask & COUNTER_UPDATE_MASK) != 0
                    ? new CounterUpdateColumn(name, value, ts)
                    : ((mask & DELETION_MASK) == 0
@@ -142,14 +142,14 @@ public class ColumnSerializer implements ISerializer<Column>
             super(s);
         }
 
-        public static CorruptColumnException create(DataInput dis, ByteBuffer name)
+        public static CorruptColumnException create(DataInput in, ByteBuffer name)
         {
             assert name.remaining() <= 0;
             String format = "invalid column name length %d%s";
             String details = "";
-            if (dis instanceof FileDataInput)
+            if (in instanceof FileDataInput)
             {
-                FileDataInput fdis = (FileDataInput)dis;
+                FileDataInput fdis = (FileDataInput)in;
                 long remaining;
                 try
                 {

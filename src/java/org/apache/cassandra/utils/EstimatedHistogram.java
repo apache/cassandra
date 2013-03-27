@@ -248,27 +248,27 @@ public class EstimatedHistogram
 
     public static class EstimatedHistogramSerializer implements ISerializer<EstimatedHistogram>
     {
-        public void serialize(EstimatedHistogram eh, DataOutput dos) throws IOException
+        public void serialize(EstimatedHistogram eh, DataOutput out) throws IOException
         {
             long[] offsets = eh.getBucketOffsets();
             long[] buckets = eh.getBuckets(false);
-            dos.writeInt(buckets.length);
+            out.writeInt(buckets.length);
             for (int i = 0; i < buckets.length; i++)
             {
-                dos.writeLong(offsets[i == 0 ? 0 : i - 1]);
-                dos.writeLong(buckets[i]);
+                out.writeLong(offsets[i == 0 ? 0 : i - 1]);
+                out.writeLong(buckets[i]);
             }
         }
 
-        public EstimatedHistogram deserialize(DataInput dis) throws IOException
+        public EstimatedHistogram deserialize(DataInput in) throws IOException
         {
-            int size = dis.readInt();
+            int size = in.readInt();
             long[] offsets = new long[size - 1];
             long[] buckets = new long[size];
 
             for (int i = 0; i < size; i++) {
-                offsets[i == 0 ? 0 : i - 1] = dis.readLong();
-                buckets[i] = dis.readLong();
+                offsets[i == 0 ? 0 : i - 1] = in.readLong();
+                buckets[i] = in.readLong();
             }
             return new EstimatedHistogram(offsets, buckets);
         }

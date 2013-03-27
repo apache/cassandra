@@ -235,32 +235,32 @@ public class StreamingRepairTask implements Runnable
 
     private static class StreamingRepairTaskSerializer implements IVersionedSerializer<StreamingRepairTask>
     {
-        public void serialize(StreamingRepairTask task, DataOutput dos, int version) throws IOException
+        public void serialize(StreamingRepairTask task, DataOutput out, int version) throws IOException
         {
-            UUIDSerializer.serializer.serialize(task.id, dos, version);
-            CompactEndpointSerializationHelper.serialize(task.owner, dos);
-            CompactEndpointSerializationHelper.serialize(task.src, dos);
-            CompactEndpointSerializationHelper.serialize(task.dst, dos);
-            dos.writeUTF(task.tableName);
-            dos.writeUTF(task.cfName);
-            dos.writeInt(task.ranges.size());
+            UUIDSerializer.serializer.serialize(task.id, out, version);
+            CompactEndpointSerializationHelper.serialize(task.owner, out);
+            CompactEndpointSerializationHelper.serialize(task.src, out);
+            CompactEndpointSerializationHelper.serialize(task.dst, out);
+            out.writeUTF(task.tableName);
+            out.writeUTF(task.cfName);
+            out.writeInt(task.ranges.size());
             for (Range<Token> range : task.ranges)
-                AbstractBounds.serializer.serialize(range, dos, version);
+                AbstractBounds.serializer.serialize(range, out, version);
             // We don't serialize the callback on purpose
         }
 
-        public StreamingRepairTask deserialize(DataInput dis, int version) throws IOException
+        public StreamingRepairTask deserialize(DataInput in, int version) throws IOException
         {
-            UUID id = UUIDSerializer.serializer.deserialize(dis, version);
-            InetAddress owner = CompactEndpointSerializationHelper.deserialize(dis);
-            InetAddress src = CompactEndpointSerializationHelper.deserialize(dis);
-            InetAddress dst = CompactEndpointSerializationHelper.deserialize(dis);
-            String tableName = dis.readUTF();
-            String cfName = dis.readUTF();
-            int rangesCount = dis.readInt();
+            UUID id = UUIDSerializer.serializer.deserialize(in, version);
+            InetAddress owner = CompactEndpointSerializationHelper.deserialize(in);
+            InetAddress src = CompactEndpointSerializationHelper.deserialize(in);
+            InetAddress dst = CompactEndpointSerializationHelper.deserialize(in);
+            String tableName = in.readUTF();
+            String cfName = in.readUTF();
+            int rangesCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<Range<Token>>(rangesCount);
             for (int i = 0; i < rangesCount; ++i)
-                ranges.add((Range<Token>) AbstractBounds.serializer.deserialize(dis, version).toTokenBounds());
+                ranges.add((Range<Token>) AbstractBounds.serializer.deserialize(in, version).toTokenBounds());
             return new StreamingRepairTask(id, owner, src, dst, tableName, cfName, ranges, makeReplyingCallback(owner, id));
         }
 

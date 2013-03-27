@@ -94,12 +94,12 @@ public class CompressedInputStreamTest
         // read buffer using CompressedInputStream
         CompressionInfo info = new CompressionInfo(chunks, param);
         CompressedInputStream input = new CompressedInputStream(new ByteArrayInputStream(toRead), info);
-        DataInputStream dis = new DataInputStream(input);
+        DataInputStream in = new DataInputStream(input);
 
         for (int i = 0; i < sections.size(); i++)
         {
             input.position(sections.get(i).left);
-            long exp = dis.readLong();
+            long exp = in.readLong();
             assert exp == valuesToCheck[i] : "expected " + valuesToCheck[i] + " but was " + exp;
         }
     }

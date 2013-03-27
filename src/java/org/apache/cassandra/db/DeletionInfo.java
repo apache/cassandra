@@ -276,14 +276,14 @@ public class DeletionInfo
     {
         private final static ISerializer<ByteBuffer> bbSerializer = new ISerializer<ByteBuffer>()
         {
-            public void serialize(ByteBuffer bb, DataOutput dos) throws IOException
+            public void serialize(ByteBuffer bb, DataOutput out) throws IOException
             {
-                ByteBufferUtil.writeWithShortLength(bb, dos);
+                ByteBufferUtil.writeWithShortLength(bb, out);
             }
 
-            public ByteBuffer deserialize(DataInput dis) throws IOException
+            public ByteBuffer deserialize(DataInput in) throws IOException
             {
-                return ByteBufferUtil.readWithShortLength(dis);
+                return ByteBufferUtil.readWithShortLength(in);
             }
 
             public long serializedSize(ByteBuffer bb, TypeSizes typeSizes)

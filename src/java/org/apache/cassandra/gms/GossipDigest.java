@@ -79,18 +79,18 @@ public class GossipDigest implements Comparable<GossipDigest>
 
 class GossipDigestSerializer implements IVersionedSerializer<GossipDigest>
 {
-    public void serialize(GossipDigest gDigest, DataOutput dos, int version) throws IOException
+    public void serialize(GossipDigest gDigest, DataOutput out, int version) throws IOException
     {
-        CompactEndpointSerializationHelper.serialize(gDigest.endpoint, dos);
-        dos.writeInt(gDigest.generation);
-        dos.writeInt(gDigest.maxVersion);
+        CompactEndpointSerializationHelper.serialize(gDigest.endpoint, out);
+        out.writeInt(gDigest.generation);
+        out.writeInt(gDigest.maxVersion);
     }
 
-    public GossipDigest deserialize(DataInput dis, int version) throws IOException
+    public GossipDigest deserialize(DataInput in, int version) throws IOException
     {
-        InetAddress endpoint = CompactEndpointSerializationHelper.deserialize(dis);
-        int generation = dis.readInt();
-        int maxVersion = dis.readInt();
+        InetAddress endpoint = CompactEndpointSerializationHelper.deserialize(in);
+        int generation = in.readInt();
+        int maxVersion = in.readInt();
         return new GossipDigest(endpoint, generation, maxVersion);
     }
 

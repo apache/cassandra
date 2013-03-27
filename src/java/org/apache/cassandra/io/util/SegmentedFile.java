@@ -110,14 +110,14 @@ public abstract class SegmentedFile
          */
         public abstract SegmentedFile complete(String path);
 
-        public void serializeBounds(DataOutput dos) throws IOException
+        public void serializeBounds(DataOutput out) throws IOException
         {
-            dos.writeUTF(DatabaseDescriptor.getDiskAccessMode().name());
+            out.writeUTF(DatabaseDescriptor.getDiskAccessMode().name());
         }
 
-        public void deserializeBounds(DataInput dis) throws IOException
+        public void deserializeBounds(DataInput in) throws IOException
         {
-            if (!dis.readUTF().equals(DatabaseDescriptor.getDiskAccessMode().name()))
+            if (!in.readUTF().equals(DatabaseDescriptor.getDiskAccessMode().name()))
                 throw new IOException("Cannot deserialize SSTable Summary component because the DiskAccessMode was changed!");
         }
     }

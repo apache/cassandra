@@ -568,10 +568,10 @@ public class LeveledManifest
     {
         logger.debug("Mutating {} to level {}", descriptor.filenameFor(Component.STATS), level);
         SSTableMetadata metadata = SSTableMetadata.copyWithNewSSTableLevel(oldMetadata, level);
-        DataOutputStream dos = new DataOutputStream(new FileOutputStream(filename + "-tmp"));
-        SSTableMetadata.serializer.legacySerialize(metadata, descriptor, dos);
-        dos.flush();
-        dos.close();
+        DataOutputStream out = new DataOutputStream(new FileOutputStream(filename + "-tmp"));
+        SSTableMetadata.serializer.legacySerialize(metadata, descriptor, out);
+        out.flush();
+        out.close();
         FileUtils.renameWithConfirm(filename + "-tmp", filename);
     }
 }

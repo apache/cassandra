@@ -391,16 +391,16 @@ public class OpenBitSet implements IBitSet
     // noop, let GC do the cleanup.
   }
 
-  public void serialize(DataOutput dos) throws IOException {
+  public void serialize(DataOutput out) throws IOException {
     int bitLength = getNumWords();
     int pageSize = getPageSize();
     int pageCount = getPageCount();
 
-    dos.writeInt(bitLength);
+    out.writeInt(bitLength);
     for (int p = 0; p < pageCount; p++) {
       long[] bits = getPage(p);
       for (int i = 0; i < pageSize && bitLength-- > 0; i++) {
-        dos.writeLong(bits[i]);
+        out.writeLong(bits[i]);
       }
     }
 }
@@ -423,8 +423,8 @@ public class OpenBitSet implements IBitSet
     clear(0, capacity());
   }
 
-  public static OpenBitSet deserialize(DataInput dis) throws IOException {
-    long bitLength = dis.readInt();
+  public static OpenBitSet deserialize(DataInput in) throws IOException {
+    long bitLength = in.readInt();
 
     OpenBitSet bs = new OpenBitSet(bitLength << 6);
     int pageSize = bs.getPageSize();
@@ -433,7 +433,7 @@ public class OpenBitSet implements IBitSet
     for (int p = 0; p < pageCount; p++) {
       long[] bits = bs.getPage(p);
       for (int i = 0; i < pageSize && bitLength-- > 0; i++)
-        bits[i] = dis.readLong();
+        bits[i] = in.readLong();
     }
     return bs;
   }

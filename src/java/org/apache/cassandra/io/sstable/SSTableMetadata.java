@@ -299,24 +299,24 @@ public class SSTableMetadata
     {
         private static final Logger logger = LoggerFactory.getLogger(SSTableMetadataSerializer.class);
 
-        public void serialize(SSTableMetadata sstableStats, DataOutput dos) throws IOException
+        public void serialize(SSTableMetadata sstableStats, DataOutput out) throws IOException
         {
             assert sstableStats.partitioner != null;
 
-            EstimatedHistogram.serializer.serialize(sstableStats.estimatedRowSize, dos);
-            EstimatedHistogram.serializer.serialize(sstableStats.estimatedColumnCount, dos);
-            ReplayPosition.serializer.serialize(sstableStats.replayPosition, dos);
-            dos.writeLong(sstableStats.minTimestamp);
-            dos.writeLong(sstableStats.maxTimestamp);
-            dos.writeInt(sstableStats.maxLocalDeletionTime);
-            dos.writeDouble(sstableStats.bloomFilterFPChance);
-            dos.writeDouble(sstableStats.compressionRatio);
-            dos.writeUTF(sstableStats.partitioner);
-            dos.writeInt(sstableStats.ancestors.size());
+            EstimatedHistogram.serializer.serialize(sstableStats.estimatedRowSize, out);
+            EstimatedHistogram.serializer.serialize(sstableStats.estimatedColumnCount, out);
+            ReplayPosition.serializer.serialize(sstableStats.replayPosition, out);
+            out.writeLong(sstableStats.minTimestamp);
+            out.writeLong(sstableStats.maxTimestamp);
+            out.writeInt(sstableStats.maxLocalDeletionTime);
+            out.writeDouble(sstableStats.bloomFilterFPChance);
+            out.writeDouble(sstableStats.compressionRatio);
+            out.writeUTF(sstableStats.partitioner);
+            out.writeInt(sstableStats.ancestors.size());
             for (Integer g : sstableStats.ancestors)
-                dos.writeInt(g);
-            StreamingHistogram.serializer.serialize(sstableStats.estimatedTombstoneDropTime, dos);
-            dos.writeInt(sstableStats.sstableLevel);
+                out.writeInt(g);
+            StreamingHistogram.serializer.serialize(sstableStats.estimatedTombstoneDropTime, out);
+            out.writeInt(sstableStats.sstableLevel);
         }
 
         /**
@@ -327,38 +327,38 @@ public class SSTableMetadata
          *
          * @param sstableStats
          * @param legacyDesc
-         * @param dos
+         * @param out
          * @throws IOException
          */
         @Deprecated
-        public void legacySerialize(SSTableMetadata sstableStats, Descriptor legacyDesc, DataOutput dos) throws IOException
+        public void legacySerialize(SSTableMetadata sstableStats, Descriptor legacyDesc, DataOutput out) throws IOException
         {
-            EstimatedHistogram.serializer.serialize(sstableStats.estimatedRowSize, dos);
-            EstimatedHistogram.serializer.serialize(sstableStats.estimatedColumnCount, dos);
+            EstimatedHistogram.serializer.serialize(sstableStats.estimatedRowSize, out);
+            EstimatedHistogram.serializer.serialize(sstableStats.estimatedColumnCount, out);
             if (legacyDesc.version.metadataIncludesReplayPosition)
-                ReplayPosition.serializer.serialize(sstableStats.replayPosition, dos);
+                ReplayPosition.serializer.serialize(sstableStats.replayPosition, out);
             if (legacyDesc.version.tracksMinTimestamp)
-                dos.writeLong(sstableStats.minTimestamp);
+                out.writeLong(sstableStats.minTimestamp);
             if (legacyDesc.version.tracksMaxTimestamp)
-                dos.writeLong(sstableStats.maxTimestamp);
+                out.writeLong(sstableStats.maxTimestamp);
             if (legacyDesc.version.tracksMaxLocalDeletionTime)
-                dos.writeInt(sstableStats.maxLocalDeletionTime);
+                out.writeInt(sstableStats.maxLocalDeletionTime);
             if (legacyDesc.version.hasBloomFilterFPChance)
-                dos.writeDouble(sstableStats.bloomFilterFPChance);
+                out.writeDouble(sstableStats.bloomFilterFPChance);
             if (legacyDesc.version.hasCompressionRatio)
-                dos.writeDouble(sstableStats.compressionRatio);
+                out.writeDouble(sstableStats.compressionRatio);
             if (legacyDesc.version.hasPartitioner)
-                dos.writeUTF(sstableStats.partitioner);
+                out.writeUTF(sstableStats.partitioner);
             if (legacyDesc.version.hasAncestors)
             {
-                dos.writeInt(sstableStats.ancestors.size());
+                out.writeInt(sstableStats.ancestors.size());
                 for (Integer g : sstableStats.ancestors)
-                    dos.writeInt(g);
+                    out.writeInt(g);
             }
             if (legacyDesc.version.tracksTombstones)
-                StreamingHistogram.serializer.serialize(sstableStats.estimatedTombstoneDropTime, dos);
+                StreamingHistogram.serializer.serialize(sstableStats.estimatedTombstoneDropTime, out);
 
-            dos.writeInt(sstableStats.sstableLevel);
+            out.writeInt(sstableStats.sstableLevel);
         }
 
         public SSTableMetadata deserialize(Descriptor descriptor) throws IOException
@@ -376,27 +376,27 @@ public class SSTableMetadata
                 return new SSTableMetadata();
             }
 
-            DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(statsFile)));
+            DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(statsFile)));
             try
             {
-                return deserialize(dis, descriptor, loadSSTableLevel);
+                return deserialize(in, descriptor, loadSSTableLevel);
             }
             finally
             {
-                FileUtils.closeQuietly(dis);
+                FileUtils.closeQuietly(in);
             }
         }
-        public SSTableMetadata deserialize(DataInputStream dis, Descriptor desc) throws IOException
+        public SSTableMetadata deserialize(DataInputStream in, Descriptor desc) throws IOException
         {
-            return deserialize(dis, desc, true);
+            return deserialize(in, desc, true);
         }
 
-        public SSTableMetadata deserialize(DataInputStream dis, Descriptor desc, boolean loadSSTableLevel) throws IOException
+        public SSTableMetadata deserialize(DataInputStream in, Descriptor desc, boolean loadSSTableLevel) throws IOException
         {
-            EstimatedHistogram rowSizes = EstimatedHistogram.serializer.deserialize(dis);
-            EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(dis);
+            EstimatedHistogram rowSizes = EstimatedHistogram.serializer.deserialize(in);
+            EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(in);
             ReplayPosition replayPosition = desc.version.metadataIncludesReplayPosition
-                                          ? ReplayPosition.serializer.deserialize(dis)
+                                          ? ReplayPosition.serializer.deserialize(in)
                                           : ReplayPosition.NONE;
             if (!desc.version.metadataIncludesModernReplayPosition)
             {
@@ -404,25 +404,25 @@ public class SSTableMetadata
                 // make sure we don't omit replaying something that we should.  see CASSANDRA-4782
                 replayPosition = ReplayPosition.NONE;
             }
-            long minTimestamp = desc.version.tracksMinTimestamp ? dis.readLong() : Long.MIN_VALUE;
-            long maxTimestamp = desc.version.containsTimestamp() ? dis.readLong() : Long.MAX_VALUE;
+            long minTimestamp = desc.version.tracksMinTimestamp ? in.readLong() : Long.MIN_VALUE;
+            long maxTimestamp = desc.version.containsTimestamp() ? in.readLong() : Long.MAX_VALUE;
             if (!desc.version.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
                 maxTimestamp = Long.MAX_VALUE;
-            int maxLocalDeletionTime = desc.version.tracksMaxLocalDeletionTime ? dis.readInt() : Integer.MAX_VALUE;
-            double bloomFilterFPChance = desc.version.hasBloomFilterFPChance ? dis.readDouble() : NO_BLOOM_FLITER_FP_CHANCE;
-            double compressionRatio = desc.version.hasCompressionRatio ? dis.readDouble() : NO_COMPRESSION_RATIO;
-            String partitioner = desc.version.hasPartitioner ? dis.readUTF() : null;
-            int nbAncestors = desc.version.hasAncestors ? dis.readInt() : 0;
+            int maxLocalDeletionTime = desc.version.tracksMaxLocalDeletionTime ? in.readInt() : Integer.MAX_VALUE;
+            double bloomFilterFPChance = desc.version.hasBloomFilterFPChance ? in.readDouble() : NO_BLOOM_FLITER_FP_CHANCE;
+            double compressionRatio = desc.version.hasCompressionRatio ? in.readDouble() : NO_COMPRESSION_RATIO;
+            String partitioner = desc.version.hasPartitioner ? in.readUTF() : null;
+            int nbAncestors = desc.version.hasAncestors ? in.readInt() : 0;
             Set<Integer> ancestors = new HashSet<Integer>(nbAncestors);
             for (int i = 0; i < nbAncestors; i++)
-                ancestors.add(dis.readInt());
+                ancestors.add(in.readInt());
             StreamingHistogram tombstoneHistogram = desc.version.tracksTombstones
-                                                   ? StreamingHistogram.serializer.deserialize(dis)
+                                                   ? StreamingHistogram.serializer.deserialize(in)
                                                    : defaultTombstoneDropTimeHistogram();
             int sstableLevel = 0;
 
-            if (loadSSTableLevel && dis.available() > 0)
-                sstableLevel = dis.readInt();
+            if (loadSSTableLevel && in.available() > 0)
+                sstableLevel = in.readInt();
 
             return new SSTableMetadata(rowSizes,
                                        columnCounts,

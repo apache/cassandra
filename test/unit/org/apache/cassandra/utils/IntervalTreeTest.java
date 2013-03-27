@@ -143,14 +143,14 @@ public class IntervalTreeTest extends TestCase
         IVersionedSerializer<IntervalTree<Integer, String, Interval<Integer, String>>> serializer = IntervalTree.serializer(
             new ISerializer<Integer>()
             {
-                public void serialize(Integer i, DataOutput dos) throws IOException { dos.writeInt(i); }
-                public Integer deserialize(DataInput dis) throws IOException { return dis.readInt(); }
+                public void serialize(Integer i, DataOutput out) throws IOException { out.writeInt(i); }
+                public Integer deserialize(DataInput in) throws IOException { return in.readInt(); }
                 public long serializedSize(Integer i, TypeSizes ts) { return 4; }
             },
             new ISerializer<String>()
             {
-                public void serialize(String v, DataOutput dos) throws IOException { dos.writeUTF(v); }
-                public String deserialize(DataInput dis) throws IOException { return dis.readUTF(); }
+                public void serialize(String v, DataOutput out) throws IOException { out.writeUTF(v); }
+                public String deserialize(DataInput in) throws IOException { return in.readUTF(); }
                 public long serializedSize(String v, TypeSizes ts) { return v.length(); }
             },
             Interval.class.getConstructor(Object.class, Object.class, Object.class)

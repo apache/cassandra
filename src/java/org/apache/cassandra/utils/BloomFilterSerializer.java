@@ -29,21 +29,21 @@ import org.apache.cassandra.utils.obs.OpenBitSet;
 
 abstract class BloomFilterSerializer implements ISerializer<BloomFilter>
 {
-    public void serialize(BloomFilter bf, DataOutput dos) throws IOException
+    public void serialize(BloomFilter bf, DataOutput out) throws IOException
     {
-        dos.writeInt(bf.hashCount);
-        bf.bitset.serialize(dos);
+        out.writeInt(bf.hashCount);
+        bf.bitset.serialize(out);
     }
 
-    public BloomFilter deserialize(DataInput dis) throws IOException
+    public BloomFilter deserialize(DataInput in) throws IOException
     {
-        return deserialize(dis, false);
+        return deserialize(in, false);
     }
 
-    public BloomFilter deserialize(DataInput dis, boolean offheap) throws IOException
+    public BloomFilter deserialize(DataInput in, boolean offheap) throws IOException
     {
-        int hashes = dis.readInt();
-        IBitSet bs = offheap ? OffHeapBitSet.deserialize(dis) : OpenBitSet.deserialize(dis);
+        int hashes = in.readInt();
+        IBitSet bs = offheap ? OffHeapBitSet.deserialize(in) : OpenBitSet.deserialize(in);
         return createFilter(hashes, bs);
     }
 

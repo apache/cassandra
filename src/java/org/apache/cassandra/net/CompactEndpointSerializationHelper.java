@@ -24,17 +24,17 @@ import java.net.InetAddress;
 
 public class CompactEndpointSerializationHelper
 {
-    public static void serialize(InetAddress endpoint, DataOutput dos) throws IOException
+    public static void serialize(InetAddress endpoint, DataOutput out) throws IOException
     {
         byte[] buf = endpoint.getAddress();
-        dos.writeByte(buf.length);
-        dos.write(buf);
+        out.writeByte(buf.length);
+        out.write(buf);
     }
 
-    public static InetAddress deserialize(DataInput dis) throws IOException
+    public static InetAddress deserialize(DataInput in) throws IOException
     {
-        byte[] bytes = new byte[dis.readByte()];
-        dis.readFully(bytes, 0, bytes.length);
+        byte[] bytes = new byte[in.readByte()];
+        in.readFully(bytes, 0, bytes.length);
         return InetAddress.getByAddress(bytes);
     }
 

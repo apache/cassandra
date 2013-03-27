@@ -113,33 +113,33 @@ public class EndpointState
 
 class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
 {
-    public void serialize(EndpointState epState, DataOutput dos, int version) throws IOException
+    public void serialize(EndpointState epState, DataOutput out, int version) throws IOException
     {
         /* serialize the HeartBeatState */
         HeartBeatState hbState = epState.getHeartBeatState();
-        HeartBeatState.serializer.serialize(hbState, dos, version);
+        HeartBeatState.serializer.serialize(hbState, out, version);
 
         /* serialize the map of ApplicationState objects */
         int size = epState.applicationState.size();
-        dos.writeInt(size);
+        out.writeInt(size);
         for (Map.Entry<ApplicationState, VersionedValue> entry : epState.applicationState.entrySet())
         {
             VersionedValue value = entry.getValue();
-            dos.writeInt(entry.getKey().ordinal());
-            VersionedValue.serializer.serialize(value, dos, version);
+            out.writeInt(entry.getKey().ordinal());
+            VersionedValue.serializer.serialize(value, out, version);
         }
     }
 
-    public EndpointState deserialize(DataInput dis, int version) throws IOException
+    public EndpointState deserialize(DataInput in, int version) throws IOException
     {
-        HeartBeatState hbState = HeartBeatState.serializer.deserialize(dis, version);
+        HeartBeatState hbState = HeartBeatState.serializer.deserialize(in, version);
         EndpointState epState = new EndpointState(hbState);
 
-        int appStateSize = dis.readInt();
+        int appStateSize = in.readInt();
         for (int i = 0; i < appStateSize; ++i)
         {
-            int key = dis.readInt();
-            VersionedValue value = VersionedValue.serializer.deserialize(dis, version);
+            int key = in.readInt();
+            VersionedValue value = VersionedValue.serializer.deserialize(in, version);
             epState.addApplicationState(Gossiper.STATES[key], value);
         }
         return epState;

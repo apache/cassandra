@@ -43,23 +43,23 @@ public class WriteResponse
 
     public static class WriteResponseSerializer implements IVersionedSerializer<WriteResponse>
     {
-        public void serialize(WriteResponse wm, DataOutput dos, int version) throws IOException
+        public void serialize(WriteResponse wm, DataOutput out, int version) throws IOException
         {
             if (version < MessagingService.VERSION_12)
             {
-                dos.writeUTF("");
-                ByteBufferUtil.writeWithShortLength(ByteBufferUtil.EMPTY_BYTE_BUFFER, dos);
-                dos.writeBoolean(true);
+                out.writeUTF("");
+                ByteBufferUtil.writeWithShortLength(ByteBufferUtil.EMPTY_BYTE_BUFFER, out);
+                out.writeBoolean(true);
             }
         }
 
-        public WriteResponse deserialize(DataInput dis, int version) throws IOException
+        public WriteResponse deserialize(DataInput in, int version) throws IOException
         {
             if (version < MessagingService.VERSION_12)
             {
-                dis.readUTF();
-                ByteBufferUtil.readWithShortLength(dis);
-                dis.readBoolean();
+                in.readUTF();
+                ByteBufferUtil.readWithShortLength(in);
+                in.readBoolean();
             }
             return new WriteResponse();
         }

@@ -55,14 +55,14 @@ public class QueryPath
                ')';
     }
 
-    public void serialize(DataOutput dos) throws IOException
+    public void serialize(DataOutput out) throws IOException
     {
         assert !"".equals(columnFamilyName);
         assert superColumnName == null || superColumnName.remaining() > 0;
         assert columnName == null || columnName.remaining() > 0;
-        dos.writeUTF(columnFamilyName == null ? "" : columnFamilyName);
-        ByteBufferUtil.writeWithShortLength(superColumnName == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : superColumnName, dos);
-        ByteBufferUtil.writeWithShortLength(columnName == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : columnName, dos);
+        out.writeUTF(columnFamilyName == null ? "" : columnFamilyName);
+        ByteBufferUtil.writeWithShortLength(superColumnName == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : superColumnName, out);
+        ByteBufferUtil.writeWithShortLength(columnName == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : columnName, out);
     }
 
     public static QueryPath deserialize(DataInput din) throws IOException

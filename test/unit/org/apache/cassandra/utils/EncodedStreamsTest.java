@@ -51,30 +51,30 @@ public class EncodedStreamsTest extends SchemaLoader
         EncodedDataOutputStream odos = new EncodedDataOutputStream(byteArrayOStream1);
 
         ByteArrayOutputStream byteArrayOStream2 = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(byteArrayOStream2);
+        DataOutputStream out = new DataOutputStream(byteArrayOStream2);
         
         for (short i = 0; i < 10000; i++)
         {
-            dos.writeShort(i);
+            out.writeShort(i);
             odos.writeShort(i);
         }
-        dos.flush();
+        out.flush();
         odos.flush();
 
         for (int i = Short.MAX_VALUE; i < ((int)Short.MAX_VALUE + 10000); i++)
         {
-            dos.writeInt(i);
+            out.writeInt(i);
             odos.writeInt(i);
         }
-        dos.flush();
+        out.flush();
         odos.flush();
 
         for (long i = Integer.MAX_VALUE; i < ((long)Integer.MAX_VALUE + 10000);i++)
         {
-            dos.writeLong(i);
+            out.writeLong(i);
             odos.writeLong(i);
         }
-        dos.flush();
+        out.flush();
         odos.flush();
         Assert.assertTrue(byteArrayOStream1.size() < byteArrayOStream2.size());
 

@@ -71,27 +71,27 @@ public abstract class RowPosition implements RingPosition<RowPosition>
          * token is recreated on the other side). In the other cases, we then
          * serialize the token.
          */
-        public void serialize(RowPosition pos, DataOutput dos) throws IOException
+        public void serialize(RowPosition pos, DataOutput out) throws IOException
         {
             Kind kind = pos.kind();
-            dos.writeByte(kind.ordinal());
+            out.writeByte(kind.ordinal());
             if (kind == Kind.ROW_KEY)
-                ByteBufferUtil.writeWithShortLength(((DecoratedKey)pos).key, dos);
+                ByteBufferUtil.writeWithShortLength(((DecoratedKey)pos).key, out);
             else
-                Token.serializer.serialize(pos.getToken(), dos);
+                Token.serializer.serialize(pos.getToken(), out);
         }
 
-        public RowPosition deserialize(DataInput dis) throws IOException
+        public RowPosition deserialize(DataInput in) throws IOException
         {
-            Kind kind = Kind.fromOrdinal(dis.readByte());
+            Kind kind = Kind.fromOrdinal(in.readByte());
             if (kind == Kind.ROW_KEY)
             {
-                ByteBuffer k = ByteBufferUtil.readWithShortLength(dis);
+                ByteBuffer k = ByteBufferUtil.readWithShortLength(in);
                 return StorageService.getPartitioner().decorateKey(k);
             }
             else
             {
-                Token t = Token.serializer.deserialize(dis);
+                Token t = Token.serializer.deserialize(in);
                 return kind == Kind.MIN_BOUND ? t.minKeyBound() : t.maxKeyBound();
             }
         }

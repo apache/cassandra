@@ -68,18 +68,18 @@ public class StreamReply
 
     private static class FileStatusSerializer implements IVersionedSerializer<StreamReply>
     {
-        public void serialize(StreamReply reply, DataOutput dos, int version) throws IOException
+        public void serialize(StreamReply reply, DataOutput out, int version) throws IOException
         {
-            UUIDSerializer.serializer.serialize(reply.sessionId, dos, MessagingService.current_version);
-            dos.writeUTF(reply.file);
-            dos.writeInt(reply.action.ordinal());
+            UUIDSerializer.serializer.serialize(reply.sessionId, out, MessagingService.current_version);
+            out.writeUTF(reply.file);
+            out.writeInt(reply.action.ordinal());
         }
 
-        public StreamReply deserialize(DataInput dis, int version) throws IOException
+        public StreamReply deserialize(DataInput in, int version) throws IOException
         {
-            UUID sessionId = UUIDSerializer.serializer.deserialize(dis, MessagingService.current_version);
-            String targetFile = dis.readUTF();
-            Status action = Status.values()[dis.readInt()];
+            UUID sessionId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
+            String targetFile = in.readUTF();
+            Status action = Status.values()[in.readInt()];
             return new StreamReply(targetFile, sessionId, action);
         }
 

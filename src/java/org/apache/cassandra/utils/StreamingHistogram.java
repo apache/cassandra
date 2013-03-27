@@ -169,26 +169,26 @@ public class StreamingHistogram
 
     public static class StreamingHistogramSerializer implements ISerializer<StreamingHistogram>
     {
-        public void serialize(StreamingHistogram histogram, DataOutput dos) throws IOException
+        public void serialize(StreamingHistogram histogram, DataOutput out) throws IOException
         {
-            dos.writeInt(histogram.maxBinSize);
+            out.writeInt(histogram.maxBinSize);
             Map<Double, Long> entries = histogram.getAsMap();
-            dos.writeInt(entries.size());
+            out.writeInt(entries.size());
             for (Map.Entry<Double, Long> entry : entries.entrySet())
             {
-                dos.writeDouble(entry.getKey());
-                dos.writeLong(entry.getValue());
+                out.writeDouble(entry.getKey());
+                out.writeLong(entry.getValue());
             }
         }
 
-        public StreamingHistogram deserialize(DataInput dis) throws IOException
+        public StreamingHistogram deserialize(DataInput in) throws IOException
         {
-            int maxBinSize = dis.readInt();
-            int size = dis.readInt();
+            int maxBinSize = in.readInt();
+            int size = in.readInt();
             Map<Double, Long> tmp = new HashMap<Double, Long>(size);
             for (int i = 0; i < size; i++)
             {
-                tmp.put(dis.readDouble(), dis.readLong());
+                tmp.put(in.readDouble(), in.readLong());
             }
 
             return new StreamingHistogram(maxBinSize, tmp);

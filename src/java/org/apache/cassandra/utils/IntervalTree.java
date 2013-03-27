@@ -390,14 +390,14 @@ public class IntervalTree<C, D, I extends Interval<C, D>> implements Iterable<I>
             this.constructor = constructor;
         }
 
-        public void serialize(IntervalTree<C, D, I> it, DataOutput dos, int version) throws IOException
+        public void serialize(IntervalTree<C, D, I> it, DataOutput out, int version) throws IOException
         {
-            dos.writeInt(it.count);
+            out.writeInt(it.count);
             for (Interval<C, D> interval : it)
             {
-                pointSerializer.serialize(interval.min, dos);
-                pointSerializer.serialize(interval.max, dos);
-                dataSerializer.serialize(interval.data, dos);
+                pointSerializer.serialize(interval.min, out);
+                pointSerializer.serialize(interval.max, out);
+                dataSerializer.serialize(interval.data, out);
             }
         }
 
@@ -407,22 +407,22 @@ public class IntervalTree<C, D, I extends Interval<C, D>> implements Iterable<I>
          * tree is to use a custom comparator, as the comparator is *not*
          * serialized.
          */
-        public IntervalTree<C, D, I> deserialize(DataInput dis, int version) throws IOException
+        public IntervalTree<C, D, I> deserialize(DataInput in, int version) throws IOException
         {
-            return deserialize(dis, version, null);
+            return deserialize(in, version, null);
         }
 
-        public IntervalTree<C, D, I> deserialize(DataInput dis, int version, Comparator<C> comparator) throws IOException
+        public IntervalTree<C, D, I> deserialize(DataInput in, int version, Comparator<C> comparator) throws IOException
         {
             try
             {
-                int count = dis.readInt();
+                int count = in.readInt();
                 List<Interval<C, D>> intervals = new ArrayList<Interval<C, D>>(count);
                 for (int i = 0; i < count; i++)
                 {
-                    C min = pointSerializer.deserialize(dis);
-                    C max = pointSerializer.deserialize(dis);
-                    D data = dataSerializer.deserialize(dis);
+                    C min = pointSerializer.deserialize(in);
+                    C max = pointSerializer.deserialize(in);
+                    D data = dataSerializer.deserialize(in);
                     intervals.add(constructor.newInstance(min, max, data));
                 }
                 return new IntervalTree(intervals, comparator);

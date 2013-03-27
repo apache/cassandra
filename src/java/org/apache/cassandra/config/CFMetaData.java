@@ -1199,16 +1199,16 @@ public final class CFMetaData
         return (cfName + "_" + comparator.getString(columnName) + "_idx").replaceAll("\\W", "");
     }
 
-    public Iterator<OnDiskAtom> getOnDiskIterator(DataInput dis, int count, Descriptor.Version version)
+    public Iterator<OnDiskAtom> getOnDiskIterator(DataInput in, int count, Descriptor.Version version)
     {
-        return getOnDiskIterator(dis, count, ColumnSerializer.Flag.LOCAL, (int) (System.currentTimeMillis() / 1000), version);
+        return getOnDiskIterator(in, count, ColumnSerializer.Flag.LOCAL, (int) (System.currentTimeMillis() / 1000), version);
     }
 
-    public Iterator<OnDiskAtom> getOnDiskIterator(DataInput dis, int count, ColumnSerializer.Flag flag, int expireBefore, Descriptor.Version version)
+    public Iterator<OnDiskAtom> getOnDiskIterator(DataInput in, int count, ColumnSerializer.Flag flag, int expireBefore, Descriptor.Version version)
     {
         if (version.hasSuperColumns && cfType == ColumnFamilyType.Super)
-            return SuperColumns.onDiskIterator(dis, count, flag, expireBefore);
-        return Column.onDiskIterator(dis, count, flag, expireBefore, version);
+            return SuperColumns.onDiskIterator(in, count, flag, expireBefore);
+        return Column.onDiskIterator(in, count, flag, expireBefore, version);
     }
 
     public static boolean isNameValid(String name)

@@ -73,13 +73,13 @@ public class BitSetTest
     @Test
     public void testExpectedCompatablity() throws IOException
     {
-        DataInputStream dis = new DataInputStream(new FileInputStream(new File(LEGACY_SST_FILE)));
-        dis.readInt(); // bloom filter hash count
-        OpenBitSet bs = OpenBitSet.deserialize(dis);
+        DataInputStream in = new DataInputStream(new FileInputStream(new File(LEGACY_SST_FILE)));
+        in.readInt(); // bloom filter hash count
+        OpenBitSet bs = OpenBitSet.deserialize(in);
 
-        dis = new DataInputStream(new FileInputStream(new File(LEGACY_SST_FILE)));
-        dis.readInt(); // bloom filter hash count
-        OffHeapBitSet obs = OffHeapBitSet.deserialize(dis);
+        in = new DataInputStream(new FileInputStream(new File(LEGACY_SST_FILE)));
+        in.readInt(); // bloom filter hash count
+        OffHeapBitSet obs = OffHeapBitSet.deserialize(in);
 
         compare(obs, bs);
     }
@@ -109,10 +109,10 @@ public class BitSetTest
             if (random.nextBoolean())
                 bs.set(i);
 
-        DataOutputBuffer dos = new DataOutputBuffer();
-        bs.serialize(dos);
-        DataInputStream dis = new DataInputStream(new ByteArrayInputStream(dos.getData()));
-        OffHeapBitSet newbs = OffHeapBitSet.deserialize(dis);
+        DataOutputBuffer out = new DataOutputBuffer();
+        bs.serialize(out);
+        DataInputStream in = new DataInputStream(new ByteArrayInputStream(out.getData()));
+        OffHeapBitSet newbs = OffHeapBitSet.deserialize(in);
         compare(bs, newbs);
     }
 

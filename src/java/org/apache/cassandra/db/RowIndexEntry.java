@@ -69,39 +69,39 @@ public class RowIndexEntry
 
     public static class Serializer
     {
-        public void serialize(RowIndexEntry rie, DataOutput dos) throws IOException
+        public void serialize(RowIndexEntry rie, DataOutput out) throws IOException
         {
-            dos.writeLong(rie.position);
+            out.writeLong(rie.position);
             if (rie.isIndexed())
             {
-                dos.writeInt(rie.serializedSize());
-                DeletionInfo.serializer().serializeForSSTable(rie.deletionInfo(), dos);
-                dos.writeInt(rie.columnsIndex().size());
+                out.writeInt(rie.serializedSize());
+                DeletionInfo.serializer().serializeForSSTable(rie.deletionInfo(), out);
+                out.writeInt(rie.columnsIndex().size());
                 for (IndexHelper.IndexInfo info : rie.columnsIndex())
-                    info.serialize(dos);
+                    info.serialize(out);
             }
             else
             {
-                dos.writeInt(0);
+                out.writeInt(0);
             }
         }
 
-        public RowIndexEntry deserialize(DataInput dis, Descriptor.Version version) throws IOException
+        public RowIndexEntry deserialize(DataInput in, Descriptor.Version version) throws IOException
         {
-            long position = dis.readLong();
+            long position = in.readLong();
             if (version.hasPromotedIndexes)
             {
-                int size = dis.readInt();
+                int size = in.readInt();
                 if (size > 0)
                 {
-                    DeletionInfo delInfo = DeletionInfo.serializer().deserializeFromSSTable(dis, version);
-                    int entries = dis.readInt();
+                    DeletionInfo delInfo = DeletionInfo.serializer().deserializeFromSSTable(in, version);
+                    int entries = in.readInt();
                     List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
                     for (int i = 0; i < entries; i++)
-                        columnsIndex.add(IndexHelper.IndexInfo.deserialize(dis));
+                        columnsIndex.add(IndexHelper.IndexInfo.deserialize(in));
 
                     if (version.hasRowLevelBF)
-                        IndexHelper.skipBloomFilter(dis);
+                        IndexHelper.skipBloomFilter(in);
                     return new IndexedEntry(position, delInfo, columnsIndex);
                 }
                 else
@@ -115,20 +115,20 @@ public class RowIndexEntry
             }
         }
 
-        public void skip(DataInput dis, Descriptor.Version version) throws IOException
+        public void skip(DataInput in, Descriptor.Version version) throws IOException
         {
-            dis.readLong();
+            in.readLong();
             if (version.hasPromotedIndexes)
-                skipPromotedIndex(dis);
+                skipPromotedIndex(in);
         }
 
-        public void skipPromotedIndex(DataInput dis) throws IOException
+        public void skipPromotedIndex(DataInput in) throws IOException
         {
-            int size = dis.readInt();
+            int size = in.readInt();
             if (size <= 0)
                 return;
 
-            FileUtils.skipBytesFully(dis, size);
+            FileUtils.skipBytesFully(in, size);
         }
     }
 

@@ -596,7 +596,7 @@ public class Shuffle extends AbstractJmxClient
         sb.append(" ls               List pending relocations").append(String.format("%n"));
         sb.append(" clear            Clear pending relocations").append(String.format("%n"));
         sb.append(" en[able]         Enable shuffling").append(String.format("%n"));
-        sb.append(" dis[able]        Disable shuffling").append(String.format("%n%n"));
+        sb.append(" in[able]        Disable shuffling").append(String.format("%n%n"));
 
         printHelp("shuffle [options] <sub-command>", sb.toString());
     }
@@ -680,7 +680,7 @@ public class Shuffle extends AbstractJmxClient
                 shuffler.ls();
             else if (subCommand.startsWith("en"))
                 shuffler.enable();
-            else if (subCommand.startsWith("dis"))
+            else if (subCommand.startsWith("in"))
                 shuffler.disable();
             else if (subCommand.equals("clear"))
                 shuffler.clear();

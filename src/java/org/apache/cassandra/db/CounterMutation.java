@@ -164,16 +164,16 @@ public class CounterMutation implements IMutation
 
 class CounterMutationSerializer implements IVersionedSerializer<CounterMutation>
 {
-    public void serialize(CounterMutation cm, DataOutput dos, int version) throws IOException
+    public void serialize(CounterMutation cm, DataOutput out, int version) throws IOException
     {
-        RowMutation.serializer.serialize(cm.rowMutation(), dos, version);
-        dos.writeUTF(cm.consistency().name());
+        RowMutation.serializer.serialize(cm.rowMutation(), out, version);
+        out.writeUTF(cm.consistency().name());
     }
 
-    public CounterMutation deserialize(DataInput dis, int version) throws IOException
+    public CounterMutation deserialize(DataInput in, int version) throws IOException
     {
-        RowMutation rm = RowMutation.serializer.deserialize(dis, version);
-        ConsistencyLevel consistency = Enum.valueOf(ConsistencyLevel.class, dis.readUTF());
+        RowMutation rm = RowMutation.serializer.deserialize(in, version);
+        ConsistencyLevel consistency = Enum.valueOf(ConsistencyLevel.class, in.readUTF());
         return new CounterMutation(rm, consistency);
     }
 

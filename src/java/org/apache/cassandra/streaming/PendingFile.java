@@ -120,47 +120,47 @@ public class PendingFile
 
     public static class PendingFileSerializer implements IVersionedSerializer<PendingFile>
     {
-        public void serialize(PendingFile sc, DataOutput dos, int version) throws IOException
+        public void serialize(PendingFile sc, DataOutput out, int version) throws IOException
         {
             if (sc == null)
             {
-                dos.writeUTF("");
+                out.writeUTF("");
                 return;
             }
 
-            dos.writeUTF(sc.desc.filenameFor(sc.component));
-            dos.writeUTF(sc.component);
-            dos.writeInt(sc.sections.size());
+            out.writeUTF(sc.desc.filenameFor(sc.component));
+            out.writeUTF(sc.component);
+            out.writeInt(sc.sections.size());
             for (Pair<Long,Long> section : sc.sections)
             {
-                dos.writeLong(section.left);
-                dos.writeLong(section.right);
+                out.writeLong(section.left);
+                out.writeLong(section.right);
             }
-            dos.writeUTF(sc.type.name());
-            dos.writeLong(sc.estimatedKeys);
+            out.writeUTF(sc.type.name());
+            out.writeLong(sc.estimatedKeys);
             if (version > MessagingService.VERSION_11)
-                CompressionInfo.serializer.serialize(sc.compressionInfo, dos, version);
+                CompressionInfo.serializer.serialize(sc.compressionInfo, out, version);
         }
 
-        public PendingFile deserialize(DataInput dis, int version) throws IOException
+        public PendingFile deserialize(DataInput in, int version) throws IOException
         {
-            String filename = dis.readUTF();
+            String filename = in.readUTF();
             if (filename.isEmpty())
                 return null;
 
             Descriptor desc = Descriptor.fromFilename(filename);
-            String component = dis.readUTF();
-            int count = dis.readInt();
+            String component = in.readUTF();
+            int count = in.readInt();
             List<Pair<Long,Long>> sections = new ArrayList<Pair<Long,Long>>(count);
             for (int i = 0; i < count; i++)
-                sections.add(Pair.create(dis.readLong(), dis.readLong()));
+                sections.add(Pair.create(in.readLong(), in.readLong()));
             // this controls the way indexes are rebuilt when streaming in.
             OperationType type = OperationType.RESTORE_REPLICA_COUNT;
-            type = OperationType.valueOf(dis.readUTF());
-            long estimatedKeys = dis.readLong();
+            type = OperationType.valueOf(in.readUTF());
+            long estimatedKeys = in.readLong();
             CompressionInfo info = null;
             if (version > MessagingService.VERSION_11)
-                info = CompressionInfo.serializer.deserialize(dis, version);
+                info = CompressionInfo.serializer.deserialize(in, version);
             return new PendingFile(null, desc, component, sections, type, estimatedKeys, info);
         }
 

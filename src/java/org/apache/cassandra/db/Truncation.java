@@ -54,16 +54,16 @@ public class Truncation
 
 class TruncationSerializer implements IVersionedSerializer<Truncation>
 {
-    public void serialize(Truncation t, DataOutput dos, int version) throws IOException
+    public void serialize(Truncation t, DataOutput out, int version) throws IOException
     {
-        dos.writeUTF(t.keyspace);
-        dos.writeUTF(t.columnFamily);
+        out.writeUTF(t.keyspace);
+        out.writeUTF(t.columnFamily);
     }
 
-    public Truncation deserialize(DataInput dis, int version) throws IOException
+    public Truncation deserialize(DataInput in, int version) throws IOException
     {
-        String keyspace = dis.readUTF();
-        String columnFamily = dis.readUTF();
+        String keyspace = in.readUTF();
+        String columnFamily = in.readUTF();
         return new Truncation(keyspace, columnFamily);
     }
 

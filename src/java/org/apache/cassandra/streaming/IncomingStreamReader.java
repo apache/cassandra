@@ -110,10 +110,10 @@ public class IncomingStreamReader
             }
 
             assert remoteFile.estimatedKeys > 0;
-            DataInput dis = new DataInputStream(underliningStream);
+            DataInput in = new DataInputStream(underliningStream);
             try
             {
-                SSTableReader reader = streamIn(dis, localFile, remoteFile);
+                SSTableReader reader = streamIn(in, localFile, remoteFile);
                 session.finished(remoteFile, reader);
             }
             catch (IOException ex)

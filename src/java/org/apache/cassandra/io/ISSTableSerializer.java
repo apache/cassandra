@@ -29,18 +29,18 @@ public interface ISSTableSerializer<T>
      * Serialize the specified type into the specified DataOutputStream
      * instance in the format suited for SSTables.
      * @param t type that needs to be serialized
-     * @param dos DataOutput into which serialization needs to happen.
+     * @param out DataOutput into which serialization needs to happen.
      * @throws java.io.IOException
      */
-    public void serializeForSSTable(T t, DataOutput dos) throws IOException;
+    public void serializeForSSTable(T t, DataOutput out) throws IOException;
 
     /**
      * Deserialize into the specified DataInputStream instance in the format
      * suited for SSTables.
-     * @param dis DataInput from which deserialization needs to happen.
+     * @param in DataInput from which deserialization needs to happen.
      * @param version the version for the sstable we're reading from
      * @throws IOException
      * @return the type that was deserialized
      */
-    public T deserializeFromSSTable(DataInput dis, Descriptor.Version version) throws IOException;
+    public T deserializeFromSSTable(DataInput in, Descriptor.Version version) throws IOException;
 }

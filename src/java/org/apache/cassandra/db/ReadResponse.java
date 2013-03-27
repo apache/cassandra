@@ -67,33 +67,33 @@ public class ReadResponse
 
 class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
 {
-    public void serialize(ReadResponse response, DataOutput dos, int version) throws IOException
+    public void serialize(ReadResponse response, DataOutput out, int version) throws IOException
     {
-        dos.writeInt(response.isDigestQuery() ? response.digest().remaining() : 0);
+        out.writeInt(response.isDigestQuery() ? response.digest().remaining() : 0);
         ByteBuffer buffer = response.isDigestQuery() ? response.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        ByteBufferUtil.write(buffer, dos);
-        dos.writeBoolean(response.isDigestQuery());
+        ByteBufferUtil.write(buffer, out);
+        out.writeBoolean(response.isDigestQuery());
         if (!response.isDigestQuery())
-            Row.serializer.serialize(response.row(), dos, version);
+            Row.serializer.serialize(response.row(), out, version);
     }
 
-    public ReadResponse deserialize(DataInput dis, int version) throws IOException
+    public ReadResponse deserialize(DataInput in, int version) throws IOException
     {
         byte[] digest = null;
-        int digestSize = dis.readInt();
+        int digestSize = in.readInt();
         if (digestSize > 0)
         {
             digest = new byte[digestSize];
-            dis.readFully(digest, 0, digestSize);
+            in.readFully(digest, 0, digestSize);
         }
-        boolean isDigest = dis.readBoolean();
+        boolean isDigest = in.readBoolean();
         assert isDigest == digestSize > 0;
 
         Row row = null;
         if (!isDigest)
         {
             // This is coming from a remote host
-            row = Row.serializer.deserialize(dis, version, ColumnSerializer.Flag.FROM_REMOTE, ArrayBackedSortedColumns.factory());
+            row = Row.serializer.deserialize(in, version, ColumnSerializer.Flag.FROM_REMOTE, ArrayBackedSortedColumns.factory());
         }
 
         return isDigest ? new ReadResponse(ByteBuffer.wrap(digest)) : new ReadResponse(row);

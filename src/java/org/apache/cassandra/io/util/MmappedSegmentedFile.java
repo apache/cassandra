@@ -207,23 +207,23 @@ public class MmappedSegmentedFile extends SegmentedFile
         }
 
         @Override
-        public void serializeBounds(DataOutput dos) throws IOException
+        public void serializeBounds(DataOutput out) throws IOException
         {
-            super.serializeBounds(dos);
-            dos.writeInt(boundaries.size());
+            super.serializeBounds(out);
+            out.writeInt(boundaries.size());
             for (long position: boundaries)
-                dos.writeLong(position);
+                out.writeLong(position);
         }
 
         @Override
-        public void deserializeBounds(DataInput dis) throws IOException
+        public void deserializeBounds(DataInput in) throws IOException
         {
-            super.deserializeBounds(dis);
+            super.deserializeBounds(in);
             List<Long> temp = new ArrayList<Long>();
 
-            int size = dis.readInt();
+            int size = in.readInt();
             for (int i = 0; i < size; i++)
-                temp.add(dis.readLong());
+                temp.add(in.readLong());
 
             boundaries = temp;
         }

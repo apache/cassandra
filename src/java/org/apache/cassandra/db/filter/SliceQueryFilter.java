@@ -246,50 +246,50 @@ public class SliceQueryFilter implements IDiskAtomFilter
 
     public static class Serializer implements IVersionedSerializer<SliceQueryFilter>
     {
-        public void serialize(SliceQueryFilter f, DataOutput dos, int version) throws IOException
+        public void serialize(SliceQueryFilter f, DataOutput out, int version) throws IOException
         {
             if (version < MessagingService.VERSION_12)
             {
                 // It's kind of lame, but probably better than throwing an exception
                 ColumnSlice slice = new ColumnSlice(f.start(), f.finish());
-                ColumnSlice.serializer.serialize(slice, dos, version);
+                ColumnSlice.serializer.serialize(slice, out, version);
             }
             else
             {
-                dos.writeInt(f.slices.length);
+                out.writeInt(f.slices.length);
                 for (ColumnSlice slice : f.slices)
-                    ColumnSlice.serializer.serialize(slice, dos, version);
+                    ColumnSlice.serializer.serialize(slice, out, version);
             }
-            dos.writeBoolean(f.reversed);
+            out.writeBoolean(f.reversed);
             int count = f.count;
             if (f.compositesToGroup > 0 && version < MessagingService.VERSION_12)
                 count *= f.countMutliplierForCompatibility;
-            dos.writeInt(count);
+            out.writeInt(count);
 
             if (version < MessagingService.VERSION_12)
                 return;
 
-            dos.writeInt(f.compositesToGroup);
+            out.writeInt(f.compositesToGroup);
         }
 
-        public SliceQueryFilter deserialize(DataInput dis, int version) throws IOException
+        public SliceQueryFilter deserialize(DataInput in, int version) throws IOException
         {
             ColumnSlice[] slices;
             if (version < MessagingService.VERSION_12)
             {
-                slices = new ColumnSlice[]{ ColumnSlice.serializer.deserialize(dis, version) };
+                slices = new ColumnSlice[]{ ColumnSlice.serializer.deserialize(in, version) };
             }
             else
             {
-                slices = new ColumnSlice[dis.readInt()];
+                slices = new ColumnSlice[in.readInt()];
                 for (int i = 0; i < slices.length; i++)
-                    slices[i] = ColumnSlice.serializer.deserialize(dis, version);
+                    slices[i] = ColumnSlice.serializer.deserialize(in, version);
             }
-            boolean reversed = dis.readBoolean();
-            int count = dis.readInt();
+            boolean reversed = in.readBoolean();
+            int count = in.readInt();
             int compositesToGroup = -1;
             if (version >= MessagingService.VERSION_12)
-                compositesToGroup = dis.readInt();
+                compositesToGroup = in.readInt();
 
             return new SliceQueryFilter(slices, reversed, count, compositesToGroup, 1);
         }

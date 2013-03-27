@@ -119,15 +119,15 @@ public class ReplayPosition implements Comparable<ReplayPosition>
 
     public static class ReplayPositionSerializer implements ISerializer<ReplayPosition>
     {
-        public void serialize(ReplayPosition rp, DataOutput dos) throws IOException
+        public void serialize(ReplayPosition rp, DataOutput out) throws IOException
         {
-            dos.writeLong(rp.segment);
-            dos.writeInt(rp.position);
+            out.writeLong(rp.segment);
+            out.writeInt(rp.position);
         }
 
-        public ReplayPosition deserialize(DataInput dis) throws IOException
+        public ReplayPosition deserialize(DataInput in) throws IOException
         {
-            return new ReplayPosition(dis.readLong(), dis.readInt());
+            return new ReplayPosition(in.readLong(), in.readInt());
         }
 
         public long serializedSize(ReplayPosition object, TypeSizes typeSizes)

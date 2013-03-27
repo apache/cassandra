@@ -22,25 +22,25 @@ import java.util.BitSet;
 
 public class LegacyBloomFilterSerializer
 {
-    public void serialize(LegacyBloomFilter bf, DataOutput dos)
+    public void serialize(LegacyBloomFilter bf, DataOutput out)
             throws IOException
     {
         throw new UnsupportedOperationException("Shouldn't be serializing legacy bloom filters");
-//        dos.writeInt(bf.getHashCount());
-//        ObjectOutputStream oos = new ObjectOutputStream(dos);
+//        out.writeInt(bf.getHashCount());
+//        ObjectOutputStream oos = new ObjectOutputStream(out);
 //        oos.writeObject(bf.getBitSet());
 //        oos.flush();
     }
 
-    public LegacyBloomFilter deserialize(final DataInput dis) throws IOException
+    public LegacyBloomFilter deserialize(final DataInput in) throws IOException
     {
-        int hashes = dis.readInt();
+        int hashes = in.readInt();
         ObjectInputStream ois = new ObjectInputStream(new InputStream()
         {
             @Override
             public int read() throws IOException
             {
-                return dis.readByte() & 0xFF;
+                return in.readByte() & 0xFF;
             }
         });
         try

@@ -186,10 +186,10 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         return sp;
     }
 
-    public void serialize(RangeSliceCommand sliceCommand, DataOutput dos, int version) throws IOException
+    public void serialize(RangeSliceCommand sliceCommand, DataOutput out, int version) throws IOException
     {
-        dos.writeUTF(sliceCommand.keyspace);
-        dos.writeUTF(sliceCommand.column_family);
+        out.writeUTF(sliceCommand.keyspace);
+        out.writeUTF(sliceCommand.column_family);
 
         IDiskAtomFilter filter = sliceCommand.predicate;
         if (version < MessagingService.VERSION_20)
@@ -206,69 +206,69 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                 filter = scFilter.updatedFilter;
             }
 
-            dos.writeInt(sc == null ? 0 : sc.remaining());
+            out.writeInt(sc == null ? 0 : sc.remaining());
             if (sc != null)
-                ByteBufferUtil.write(sc, dos);
+                ByteBufferUtil.write(sc, out);
         }
 
         if (version < MessagingService.VERSION_12)
         {
-            FBUtilities.serialize(new TSerializer(new TBinaryProtocol.Factory()), asSlicePredicate(sliceCommand.predicate), dos);
+            FBUtilities.serialize(new TSerializer(new TBinaryProtocol.Factory()), asSlicePredicate(sliceCommand.predicate), out);
         }
         else
         {
-            IDiskAtomFilter.Serializer.instance.serialize(sliceCommand.predicate, dos, version);
+            IDiskAtomFilter.Serializer.instance.serialize(sliceCommand.predicate, out, version);
         }
 
         if (version >= MessagingService.VERSION_11)
         {
             if (sliceCommand.row_filter == null)
             {
-                dos.writeInt(0);
+                out.writeInt(0);
             }
             else
             {
-                dos.writeInt(sliceCommand.row_filter.size());
+                out.writeInt(sliceCommand.row_filter.size());
                 for (IndexExpression expr : sliceCommand.row_filter)
                 {
                     if (version < MessagingService.VERSION_12)
                     {
-                        FBUtilities.serialize(new TSerializer(new TBinaryProtocol.Factory()), expr, dos);
+                        FBUtilities.serialize(new TSerializer(new TBinaryProtocol.Factory()), expr, out);
                     }
                     else
                     {
-                        ByteBufferUtil.writeWithShortLength(expr.column_name, dos);
-                        dos.writeInt(expr.op.getValue());
-                        ByteBufferUtil.writeWithShortLength(expr.value, dos);
+                        ByteBufferUtil.writeWithShortLength(expr.column_name, out);
+                        out.writeInt(expr.op.getValue());
+                        ByteBufferUtil.writeWithShortLength(expr.value, out);
                     }
                 }
             }
         }
-        AbstractBounds.serializer.serialize(sliceCommand.range, dos, version);
-        dos.writeInt(sliceCommand.maxResults);
+        AbstractBounds.serializer.serialize(sliceCommand.range, out, version);
+        out.writeInt(sliceCommand.maxResults);
         if (version >= MessagingService.VERSION_11)
         {
-            dos.writeBoolean(sliceCommand.countCQL3Rows);
-            dos.writeBoolean(sliceCommand.isPaging);
+            out.writeBoolean(sliceCommand.countCQL3Rows);
+            out.writeBoolean(sliceCommand.isPaging);
         }
     }
 
-    public RangeSliceCommand deserialize(DataInput dis, int version) throws IOException
+    public RangeSliceCommand deserialize(DataInput in, int version) throws IOException
     {
-        String keyspace = dis.readUTF();
-        String columnFamily = dis.readUTF();
+        String keyspace = in.readUTF();
+        String columnFamily = in.readUTF();
 
         CFMetaData metadata = Schema.instance.getCFMetaData(keyspace, columnFamily);
 
         IDiskAtomFilter predicate;
         if (version < MessagingService.VERSION_20)
         {
-            int scLength = dis.readInt();
+            int scLength = in.readInt();
             ByteBuffer superColumn = null;
             if (scLength > 0)
             {
                 byte[] buf = new byte[scLength];
-                dis.readFully(buf);
+                in.readFully(buf);
                 superColumn = ByteBuffer.wrap(buf);
             }
 
@@ -286,12 +286,12 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             if (version < MessagingService.VERSION_12)
             {
                 SlicePredicate pred = new SlicePredicate();
-                FBUtilities.deserialize(new TDeserializer(new TBinaryProtocol.Factory()), pred, dis);
+                FBUtilities.deserialize(new TDeserializer(new TBinaryProtocol.Factory()), pred, in);
                 predicate = ThriftValidation.asIFilter(pred, metadata, superColumn);
             }
             else
             {
-                predicate = IDiskAtomFilter.Serializer.instance.deserialize(dis, version, comparator);
+                predicate = IDiskAtomFilter.Serializer.instance.deserialize(in, version, comparator);
             }
 
             if (metadata.cfType == ColumnFamilyType.Super)
@@ -299,13 +299,13 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         }
         else
         {
-            predicate = IDiskAtomFilter.Serializer.instance.deserialize(dis, version, metadata.comparator);
+            predicate = IDiskAtomFilter.Serializer.instance.deserialize(in, version, metadata.comparator);
         }
 
         List<IndexExpression> rowFilter = null;
         if (version >= MessagingService.VERSION_11)
         {
-            int filterCount = dis.readInt();
+            int filterCount = in.readInt();
             rowFilter = new ArrayList<IndexExpression>(filterCount);
             for (int i = 0; i < filterCount; i++)
             {
@@ -313,26 +313,26 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                 if (version < MessagingService.VERSION_12)
                 {
                     expr = new IndexExpression();
-                    FBUtilities.deserialize(new TDeserializer(new TBinaryProtocol.Factory()), expr, dis);
+                    FBUtilities.deserialize(new TDeserializer(new TBinaryProtocol.Factory()), expr, in);
                 }
                 else
                 {
-                    expr = new IndexExpression(ByteBufferUtil.readWithShortLength(dis),
-                                               IndexOperator.findByValue(dis.readInt()),
-                                               ByteBufferUtil.readWithShortLength(dis));
+                    expr = new IndexExpression(ByteBufferUtil.readWithShortLength(in),
+                                               IndexOperator.findByValue(in.readInt()),
+                                               ByteBufferUtil.readWithShortLength(in));
                 }
                 rowFilter.add(expr);
             }
         }
-        AbstractBounds<RowPosition> range = AbstractBounds.serializer.deserialize(dis, version).toRowBounds();
+        AbstractBounds<RowPosition> range = AbstractBounds.serializer.deserialize(in, version).toRowBounds();
 
-        int maxResults = dis.readInt();
+        int maxResults = in.readInt();
         boolean countCQL3Rows = false;
         boolean isPaging = false;
         if (version >= MessagingService.VERSION_11)
         {
-            countCQL3Rows = dis.readBoolean();
-            isPaging = dis.readBoolean();
+            countCQL3Rows = in.readBoolean();
+            isPaging = in.readBoolean();
         }
         return new RangeSliceCommand(keyspace, columnFamily, predicate, range, rowFilter, maxResults, countCQL3Rows, isPaging);
     }

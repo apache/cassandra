@@ -39,12 +39,12 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SuperColumns
 {
-    public static Iterator<OnDiskAtom> onDiskIterator(DataInput dis, int superColumnCount, ColumnSerializer.Flag flag, int expireBefore)
+    public static Iterator<OnDiskAtom> onDiskIterator(DataInput in, int superColumnCount, ColumnSerializer.Flag flag, int expireBefore)
     {
-        return new SCIterator(dis, superColumnCount, flag, expireBefore);
+        return new SCIterator(in, superColumnCount, flag, expireBefore);
     }
 
-    public static void serializeSuperColumnFamily(ColumnFamily scf, DataOutput dos, int version) throws IOException
+    public static void serializeSuperColumnFamily(ColumnFamily scf, DataOutput out, int version) throws IOException
     {
         /*
          * There is 2 complications:
@@ -59,21 +59,21 @@ public class SuperColumns
         Map<ByteBuffer, List<Column>> scMap = groupSuperColumns(scf);
 
         // Actually Serialize
-        DeletionInfo.serializer().serialize(new DeletionInfo(delInfo.getTopLevelDeletion()), dos, version);
-        dos.writeInt(scMap.size());
+        DeletionInfo.serializer().serialize(new DeletionInfo(delInfo.getTopLevelDeletion()), out, version);
+        out.writeInt(scMap.size());
 
         for (Map.Entry<ByteBuffer, List<Column>> entry : scMap.entrySet())
         {
-            ByteBufferUtil.writeWithShortLength(entry.getKey(), dos);
+            ByteBufferUtil.writeWithShortLength(entry.getKey(), out);
 
             List<DeletionTime> delTimes = delInfo.rangeCovering(entry.getKey());
             assert delTimes.size() <= 1; // We're supposed to have either no deletion, or a full SC deletion.
             DeletionInfo scDelInfo = delTimes.isEmpty() ? DeletionInfo.LIVE : new DeletionInfo(delTimes.get(0));
-            DeletionInfo.serializer().serialize(scDelInfo, dos, MessagingService.VERSION_10);
+            DeletionInfo.serializer().serialize(scDelInfo, out, MessagingService.VERSION_10);
 
-            dos.writeInt(entry.getValue().size());
+            out.writeInt(entry.getValue().size());
             for (Column subColumn : entry.getValue())
-                Column.serializer.serialize(subColumn, dos);
+                Column.serializer.serialize(subColumn, out);
         }
     }
 
@@ -103,13 +103,13 @@ public class SuperColumns
         return scMap;
     }
 
-    public static void deserializerSuperColumnFamily(DataInput dis, ColumnFamily cf, ColumnSerializer.Flag flag, int expireBefore, int version) throws IOException
+    public static void deserializerSuperColumnFamily(DataInput in, ColumnFamily cf, ColumnSerializer.Flag flag, int expireBefore, int version) throws IOException
     {
         // Note that there was no way to insert a range tombstone in a SCF in 1.2
-        cf.delete(DeletionInfo.serializer().deserialize(dis, version, cf.getComparator()));
+        cf.delete(DeletionInfo.serializer().deserialize(in, version, cf.getComparator()));
         assert !cf.deletionInfo().rangeIterator().hasNext();
 
-        Iterator<OnDiskAtom> iter = onDiskIterator(dis, dis.readInt(), flag, expireBefore);
+        Iterator<OnDiskAtom> iter = onDiskIterator(in, in.readInt(), flag, expireBefore);
         while (iter.hasNext())
             cf.addAtom(iter.next());
     }
@@ -140,7 +140,7 @@ public class SuperColumns
 
     private static class SCIterator implements Iterator<OnDiskAtom>
     {
-        private final DataInput dis;
+        private final DataInput in;
         private final int scCount;
 
         private final ColumnSerializer.Flag flag;
@@ -150,9 +150,9 @@ public class SuperColumns
         private ByteBuffer scName;
         private Iterator<Column> subColumnsIterator;
 
-        private SCIterator(DataInput dis, int superColumnCount, ColumnSerializer.Flag flag, int expireBefore)
+        private SCIterator(DataInput in, int superColumnCount, ColumnSerializer.Flag flag, int expireBefore)
         {
-            this.dis = dis;
+            this.in = in;
             this.scCount = superColumnCount;
             this.flag = flag;
             this.expireBefore = expireBefore;
@@ -176,16 +176,16 @@ public class SuperColumns
                 // Read one more super column
                 ++read;
 
-                scName = ByteBufferUtil.readWithShortLength(dis);
-                DeletionInfo delInfo = DeletionInfo.serializer().deserialize(dis, MessagingService.VERSION_10, null);
+                scName = ByteBufferUtil.readWithShortLength(in);
+                DeletionInfo delInfo = DeletionInfo.serializer().deserialize(in, MessagingService.VERSION_10, null);
                 assert !delInfo.rangeIterator().hasNext(); // We assume no range tombstone (there was no way to insert some in a SCF in 1.2)
 
                 /* read the number of columns */
-                int size = dis.readInt();
+                int size = in.readInt();
                 List<Column> subColumns = new ArrayList<Column>(size);
 
                 for (int i = 0; i < size; ++i)
-                    subColumns.add(Column.serializer.deserialize(dis, flag, expireBefore));
+                    subColumns.add(Column.serializer.deserialize(in, flag, expireBefore));
 
                 subColumnsIterator = subColumns.iterator();
 

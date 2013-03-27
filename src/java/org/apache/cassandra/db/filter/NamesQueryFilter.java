@@ -140,32 +140,32 @@ public class NamesQueryFilter implements IDiskAtomFilter
 
     public static class Serializer implements IVersionedSerializer<NamesQueryFilter>
     {
-        public void serialize(NamesQueryFilter f, DataOutput dos, int version) throws IOException
+        public void serialize(NamesQueryFilter f, DataOutput out, int version) throws IOException
         {
-            dos.writeInt(f.columns.size());
+            out.writeInt(f.columns.size());
             for (ByteBuffer cName : f.columns)
             {
-                ByteBufferUtil.writeWithShortLength(cName, dos);
+                ByteBufferUtil.writeWithShortLength(cName, out);
             }
             // If we talking against an older node, we have no way to tell him that we want to count CQL3 rows. This does mean that
             // this node may return less data than required. The workaround being to upgrade all nodes.
             if (version >= MessagingService.VERSION_12)
-                dos.writeBoolean(f.countCQL3Rows);
+                out.writeBoolean(f.countCQL3Rows);
         }
 
-        public NamesQueryFilter deserialize(DataInput dis, int version) throws IOException
+        public NamesQueryFilter deserialize(DataInput in, int version) throws IOException
         {
             throw new UnsupportedOperationException();
         }
 
-        public NamesQueryFilter deserialize(DataInput dis, int version, AbstractType comparator) throws IOException
+        public NamesQueryFilter deserialize(DataInput in, int version, AbstractType comparator) throws IOException
         {
-            int size = dis.readInt();
+            int size = in.readInt();
             SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(comparator);
             for (int i = 0; i < size; ++i)
-                columns.add(ByteBufferUtil.readWithShortLength(dis));
+                columns.add(ByteBufferUtil.readWithShortLength(in));
             boolean countCQL3Rows = version >= MessagingService.VERSION_12
-                                  ? dis.readBoolean()
+                                  ? in.readBoolean()
                                   : false;
             return new NamesQueryFilter(columns, countCQL3Rows);
         }

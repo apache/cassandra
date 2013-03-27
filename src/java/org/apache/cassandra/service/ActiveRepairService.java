@@ -420,18 +420,18 @@ public class ActiveRepairService
 
         public static class ValidatorSerializer implements IVersionedSerializer<Validator>
         {
-            public void serialize(Validator validator, DataOutput dos, int version) throws IOException
+            public void serialize(Validator validator, DataOutput out, int version) throws IOException
             {
-                TreeRequest.serializer.serialize(validator.request, dos, version);
-                MerkleTree.serializer.serialize(validator.tree, dos, version);
+                TreeRequest.serializer.serialize(validator.request, out, version);
+                MerkleTree.serializer.serialize(validator.tree, out, version);
             }
 
-            public Validator deserialize(DataInput dis, int version) throws IOException
+            public Validator deserialize(DataInput in, int version) throws IOException
             {
-                final TreeRequest request = TreeRequest.serializer.deserialize(dis, version);
+                final TreeRequest request = TreeRequest.serializer.deserialize(in, version);
                 try
                 {
-                    return new Validator(request, MerkleTree.serializer.deserialize(dis, version));
+                    return new Validator(request, MerkleTree.serializer.deserialize(in, version));
                 }
                 catch(Exception e)
                 {
@@ -545,22 +545,22 @@ public class ActiveRepairService
 
         public static class TreeRequestSerializer implements IVersionedSerializer<TreeRequest>
         {
-            public void serialize(TreeRequest request, DataOutput dos, int version) throws IOException
+            public void serialize(TreeRequest request, DataOutput out, int version) throws IOException
             {
-                dos.writeUTF(request.sessionid);
-                CompactEndpointSerializationHelper.serialize(request.endpoint, dos);
-                dos.writeUTF(request.cf.left);
-                dos.writeUTF(request.cf.right);
-                AbstractBounds.serializer.serialize(request.range, dos, version);
+                out.writeUTF(request.sessionid);
+                CompactEndpointSerializationHelper.serialize(request.endpoint, out);
+                out.writeUTF(request.cf.left);
+                out.writeUTF(request.cf.right);
+                AbstractBounds.serializer.serialize(request.range, out, version);
             }
 
-            public TreeRequest deserialize(DataInput dis, int version) throws IOException
+            public TreeRequest deserialize(DataInput in, int version) throws IOException
             {
-                String sessId = dis.readUTF();
-                InetAddress endpoint = CompactEndpointSerializationHelper.deserialize(dis);
-                CFPair cfpair = new CFPair(dis.readUTF(), dis.readUTF());
+                String sessId = in.readUTF();
+                InetAddress endpoint = CompactEndpointSerializationHelper.deserialize(in);
+                CFPair cfpair = new CFPair(in.readUTF(), in.readUTF());
                 Range<Token> range;
-                range = (Range<Token>) AbstractBounds.serializer.deserialize(dis, version);
+                range = (Range<Token>) AbstractBounds.serializer.deserialize(in, version);
 
                 return new TreeRequest(sessId, endpoint, range, cfpair);
             }

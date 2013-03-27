@@ -182,12 +182,12 @@ public class IndexHelper
             this.width = width;
         }
 
-        public void serialize(DataOutput dos) throws IOException
+        public void serialize(DataOutput out) throws IOException
         {
-            ByteBufferUtil.writeWithShortLength(firstName, dos);
-            ByteBufferUtil.writeWithShortLength(lastName, dos);
-            dos.writeLong(offset);
-            dos.writeLong(width);
+            ByteBufferUtil.writeWithShortLength(firstName, out);
+            ByteBufferUtil.writeWithShortLength(lastName, out);
+            out.writeLong(offset);
+            out.writeLong(width);
         }
 
         public int serializedSize(TypeSizes typeSizes)
@@ -199,9 +199,9 @@ public class IndexHelper
                    typeSizes.sizeof(offset) + typeSizes.sizeof(width);
         }
 
-        public static IndexInfo deserialize(DataInput dis) throws IOException
+        public static IndexInfo deserialize(DataInput in) throws IOException
         {
-            return new IndexInfo(ByteBufferUtil.readWithShortLength(dis), ByteBufferUtil.readWithShortLength(dis), dis.readLong(), dis.readLong());
+            return new IndexInfo(ByteBufferUtil.readWithShortLength(in), ByteBufferUtil.readWithShortLength(in), in.readLong(), in.readLong());
         }
     }
 }

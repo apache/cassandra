@@ -233,33 +233,33 @@ public class RowMutation implements IMutation
 
     public static class RowMutationSerializer implements IVersionedSerializer<RowMutation>
     {
-        public void serialize(RowMutation rm, DataOutput dos, int version) throws IOException
+        public void serialize(RowMutation rm, DataOutput out, int version) throws IOException
         {
-            dos.writeUTF(rm.getTable());
-            ByteBufferUtil.writeWithShortLength(rm.key(), dos);
+            out.writeUTF(rm.getTable());
+            ByteBufferUtil.writeWithShortLength(rm.key(), out);
 
             /* serialize the modifications in the mutation */
             int size = rm.modifications.size();
-            dos.writeInt(size);
+            out.writeInt(size);
             assert size >= 0;
             for (Map.Entry<UUID, ColumnFamily> entry : rm.modifications.entrySet())
             {
                 if (version < MessagingService.VERSION_12)
-                    ColumnFamily.serializer.serializeCfId(entry.getKey(), dos, version);
-                ColumnFamily.serializer.serialize(entry.getValue(), dos, version);
+                    ColumnFamily.serializer.serializeCfId(entry.getKey(), out, version);
+                ColumnFamily.serializer.serialize(entry.getValue(), out, version);
             }
         }
 
-        public RowMutation deserialize(DataInput dis, int version, ColumnSerializer.Flag flag) throws IOException
+        public RowMutation deserialize(DataInput in, int version, ColumnSerializer.Flag flag) throws IOException
         {
-            String table = dis.readUTF();
-            ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
-            int size = dis.readInt();
+            String table = in.readUTF();
+            ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
+            int size = in.readInt();
 
             Map<UUID, ColumnFamily> modifications;
             if (size == 1)
             {
-                ColumnFamily cf = deserializeOneCf(dis, version, flag);
+                ColumnFamily cf = deserializeOneCf(in, version, flag);
                 modifications = Collections.singletonMap(cf.id(), cf);
             }
             else
@@ -267,7 +267,7 @@ public class RowMutation implements IMutation
                 modifications = new HashMap<UUID, ColumnFamily>();
                 for (int i = 0; i < size; ++i)
                 {
-                    ColumnFamily cf = deserializeOneCf(dis, version, flag);
+                    ColumnFamily cf = deserializeOneCf(in, version, flag);
                     modifications.put(cf.id(), cf);
                 }
             }
@@ -275,20 +275,20 @@ public class RowMutation implements IMutation
             return new RowMutation(table, key, modifications);
         }
 
-        private ColumnFamily deserializeOneCf(DataInput dis, int version, ColumnSerializer.Flag flag) throws IOException
+        private ColumnFamily deserializeOneCf(DataInput in, int version, ColumnSerializer.Flag flag) throws IOException
         {
             // We used to uselessly write the cf id here
             if (version < MessagingService.VERSION_12)
-                ColumnFamily.serializer.deserializeCfId(dis, version);
-            ColumnFamily cf = ColumnFamily.serializer.deserialize(dis, flag, TreeMapBackedSortedColumns.factory(), version);
+                ColumnFamily.serializer.deserializeCfId(in, version);
+            ColumnFamily cf = ColumnFamily.serializer.deserialize(in, flag, TreeMapBackedSortedColumns.factory(), version);
             // We don't allow RowMutation with null column family, so we should never get null back.
             assert cf != null;
             return cf;
         }
 
-        public RowMutation deserialize(DataInput dis, int version) throws IOException
+        public RowMutation deserialize(DataInput in, int version) throws IOException
         {
-            return deserialize(dis, version, ColumnSerializer.Flag.FROM_REMOTE);
+            return deserialize(in, version, ColumnSerializer.Flag.FROM_REMOTE);
         }
 
         public long serializedSize(RowMutation rm, int version)

@@ -57,26 +57,26 @@ public class StreamHeader
 
     private static class StreamHeaderSerializer implements IVersionedSerializer<StreamHeader>
     {
-        public void serialize(StreamHeader sh, DataOutput dos, int version) throws IOException
+        public void serialize(StreamHeader sh, DataOutput out, int version) throws IOException
         {
-            dos.writeUTF(sh.table);
-            UUIDSerializer.serializer.serialize(sh.sessionId, dos, MessagingService.current_version);
-            PendingFile.serializer.serialize(sh.file, dos, version);
-            dos.writeInt(sh.pendingFiles.size());
+            out.writeUTF(sh.table);
+            UUIDSerializer.serializer.serialize(sh.sessionId, out, MessagingService.current_version);
+            PendingFile.serializer.serialize(sh.file, out, version);
+            out.writeInt(sh.pendingFiles.size());
             for (PendingFile file : sh.pendingFiles)
-                PendingFile.serializer.serialize(file, dos, version);
+                PendingFile.serializer.serialize(file, out, version);
         }
 
-        public StreamHeader deserialize(DataInput dis, int version) throws IOException
+        public StreamHeader deserialize(DataInput in, int version) throws IOException
         {
-            String table = dis.readUTF();
-            UUID sessionId = UUIDSerializer.serializer.deserialize(dis, MessagingService.current_version);
-            PendingFile file = PendingFile.serializer.deserialize(dis, version);
-            int size = dis.readInt();
+            String table = in.readUTF();
+            UUID sessionId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
+            PendingFile file = PendingFile.serializer.deserialize(in, version);
+            int size = in.readInt();
 
             List<PendingFile> pendingFiles = new ArrayList<PendingFile>(size);
             for (int i = 0; i < size; i++)
-                pendingFiles.add(PendingFile.serializer.deserialize(dis, version));
+                pendingFiles.add(PendingFile.serializer.deserialize(in, version));
             return new StreamHeader(table, sessionId, file, pendingFiles);
         }
 

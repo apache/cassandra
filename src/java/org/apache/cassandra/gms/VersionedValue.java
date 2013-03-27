@@ -173,10 +173,10 @@ public class VersionedValue implements Comparable<VersionedValue>
         public VersionedValue tokens(Collection<Token> tokens)
         {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            DataOutputStream dos = new DataOutputStream(bos);
+            DataOutputStream out = new DataOutputStream(bos);
             try
             {
-                TokenSerializer.serialize(partitioner, tokens, dos);
+                TokenSerializer.serialize(partitioner, tokens, out);
             }
             catch (IOException e)
             {
@@ -243,10 +243,10 @@ public class VersionedValue implements Comparable<VersionedValue>
 
     private static class VersionedValueSerializer implements IVersionedSerializer<VersionedValue>
     {
-        public void serialize(VersionedValue value, DataOutput dos, int version) throws IOException
+        public void serialize(VersionedValue value, DataOutput out, int version) throws IOException
         {
-            dos.writeUTF(outValue(value, version));
-            dos.writeInt(value.version);
+            out.writeUTF(outValue(value, version));
+            out.writeInt(value.version);
         }
 
         private String outValue(VersionedValue value, int version)
@@ -282,10 +282,10 @@ public class VersionedValue implements Comparable<VersionedValue>
             return outValue;
         }
 
-        public VersionedValue deserialize(DataInput dis, int version) throws IOException
+        public VersionedValue deserialize(DataInput in, int version) throws IOException
         {
-            String value = dis.readUTF();
-            int valVersion = dis.readInt();
+            String value = in.readUTF();
+            int valVersion = in.readInt();
             return new VersionedValue(value, valVersion);
         }
 

@@ -144,13 +144,13 @@ public class BatchlogManager implements BatchlogManagerMBean
     private static ByteBuffer serializeRowMutations(Collection<RowMutation> mutations)
     {
         FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
+        DataOutputStream out = new DataOutputStream(bos);
 
         try
         {
-            dos.writeInt(mutations.size());
+            out.writeInt(mutations.size());
             for (RowMutation rm : mutations)
-                RowMutation.serializer.serialize(rm, dos, VERSION);
+                RowMutation.serializer.serialize(rm, out, VERSION);
         }
         catch (IOException e)
         {

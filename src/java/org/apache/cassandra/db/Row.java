@@ -55,21 +55,21 @@ public class Row
 
     public static class RowSerializer implements IVersionedSerializer<Row>
     {
-        public void serialize(Row row, DataOutput dos, int version) throws IOException
+        public void serialize(Row row, DataOutput out, int version) throws IOException
         {
-            ByteBufferUtil.writeWithShortLength(row.key.key, dos);
-            ColumnFamily.serializer.serialize(row.cf, dos, version);
+            ByteBufferUtil.writeWithShortLength(row.key.key, out);
+            ColumnFamily.serializer.serialize(row.cf, out, version);
         }
 
-        public Row deserialize(DataInput dis, int version, ColumnSerializer.Flag flag, ISortedColumns.Factory factory) throws IOException
+        public Row deserialize(DataInput in, int version, ColumnSerializer.Flag flag, ISortedColumns.Factory factory) throws IOException
         {
-            return new Row(StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(dis)),
-                           ColumnFamily.serializer.deserialize(dis, flag, factory, version));
+            return new Row(StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in)),
+                           ColumnFamily.serializer.deserialize(in, flag, factory, version));
         }
 
-        public Row deserialize(DataInput dis, int version) throws IOException
+        public Row deserialize(DataInput in, int version) throws IOException
         {
-            return deserialize(dis, version, ColumnSerializer.Flag.LOCAL, TreeMapBackedSortedColumns.factory());
+            return deserialize(in, version, ColumnSerializer.Flag.LOCAL, TreeMapBackedSortedColumns.factory());
         }
 
         public long serializedSize(Row row, int version)

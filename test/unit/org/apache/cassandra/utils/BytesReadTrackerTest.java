@@ -37,37 +37,37 @@ public class BytesReadTrackerTest
         byte[] testData;
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(baos);
+        DataOutputStream out = new DataOutputStream(baos);
         try
         {
             // boolean
-            dos.writeBoolean(true);
+            out.writeBoolean(true);
             // byte
-            dos.writeByte(0x1);
+            out.writeByte(0x1);
             // char
-            dos.writeChar('a');
+            out.writeChar('a');
             // short
-            dos.writeShort(1);
+            out.writeShort(1);
             // int
-            dos.writeInt(1);
+            out.writeInt(1);
             // long
-            dos.writeLong(1L);
+            out.writeLong(1L);
             // float
-            dos.writeFloat(1.0f);
+            out.writeFloat(1.0f);
             // double
-            dos.writeDouble(1.0d);
+            out.writeDouble(1.0d);
 
             // String
-            dos.writeUTF("abc");
+            out.writeUTF("abc");
             testData = baos.toByteArray();
         }
         finally
         {
-            dos.close();
+            out.close();
         }
 
-        DataInputStream dis = new DataInputStream(new ByteArrayInputStream(testData));
-        BytesReadTracker tracker = new BytesReadTracker(dis);
+        DataInputStream in = new DataInputStream(new ByteArrayInputStream(testData));
+        BytesReadTracker tracker = new BytesReadTracker(in);
 
         try
         {
@@ -112,7 +112,7 @@ public class BytesReadTrackerTest
         }
         finally
         {
-            dis.close();
+            in.close();
         }
 
         tracker.reset(0);
@@ -125,22 +125,22 @@ public class BytesReadTrackerTest
         byte[] testData;
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(baos);
+        DataOutputStream out = new DataOutputStream(baos);
         try
         {
             // byte
-            dos.writeByte(0x1);
+            out.writeByte(0x1);
             // short
-            dos.writeShort(1);
+            out.writeShort(1);
             testData = baos.toByteArray();
         }
         finally
         {
-            dos.close();
+            out.close();
         }
 
-        DataInputStream dis = new DataInputStream(new ByteArrayInputStream(testData));
-        BytesReadTracker tracker = new BytesReadTracker(dis);
+        DataInputStream in = new DataInputStream(new ByteArrayInputStream(testData));
+        BytesReadTracker tracker = new BytesReadTracker(in);
 
         try
         {
@@ -157,7 +157,7 @@ public class BytesReadTrackerTest
         }
         finally
         {
-            dis.close();
+            in.close();
         }
     }
 
@@ -167,8 +167,8 @@ public class BytesReadTrackerTest
         String testStr = "1234567890";
         byte[] testData = testStr.getBytes();
 
-        DataInputStream dis = new DataInputStream(new ByteArrayInputStream(testData));
-        BytesReadTracker tracker = new BytesReadTracker(dis);
+        DataInputStream in = new DataInputStream(new ByteArrayInputStream(testData));
+        BytesReadTracker tracker = new BytesReadTracker(in);
 
         try
         {
@@ -192,15 +192,15 @@ public class BytesReadTrackerTest
         }
         finally
         {
-            dis.close();
+            in.close();
         }
     }
 
     @Test(expected = UnsupportedOperationException.class)
     public void testReadLine() throws Exception
     {
-        DataInputStream dis = new DataInputStream(new ByteArrayInputStream("1".getBytes()));
-        BytesReadTracker tracker = new BytesReadTracker(dis);
+        DataInputStream in = new DataInputStream(new ByteArrayInputStream("1".getBytes()));
+        BytesReadTracker tracker = new BytesReadTracker(in);
 
         try
         {
@@ -209,7 +209,7 @@ public class BytesReadTrackerTest
         }
         finally
         {
-            dis.close();
+            in.close();
         }
     }
 }

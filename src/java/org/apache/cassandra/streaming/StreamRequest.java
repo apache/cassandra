@@ -118,54 +118,54 @@ public class StreamRequest
 
     private static class StreamRequestSerializer implements IVersionedSerializer<StreamRequest>
     {
-        public void serialize(StreamRequest srm, DataOutput dos, int version) throws IOException
+        public void serialize(StreamRequest srm, DataOutput out, int version) throws IOException
         {
-            UUIDSerializer.serializer.serialize(srm.sessionId, dos, MessagingService.current_version);
-            CompactEndpointSerializationHelper.serialize(srm.target, dos);
+            UUIDSerializer.serializer.serialize(srm.sessionId, out, MessagingService.current_version);
+            CompactEndpointSerializationHelper.serialize(srm.target, out);
             if (srm.file != null)
             {
-                dos.writeBoolean(true);
-                PendingFile.serializer.serialize(srm.file, dos, version);
+                out.writeBoolean(true);
+                PendingFile.serializer.serialize(srm.file, out, version);
             }
             else
             {
-                dos.writeBoolean(false);
-                dos.writeUTF(srm.table);
-                dos.writeInt(srm.ranges.size());
+                out.writeBoolean(false);
+                out.writeUTF(srm.table);
+                out.writeInt(srm.ranges.size());
                 for (Range<Token> range : srm.ranges)
-                    AbstractBounds.serializer.serialize(range, dos, version);
+                    AbstractBounds.serializer.serialize(range, out, version);
 
-                dos.writeUTF(srm.type.name());
+                out.writeUTF(srm.type.name());
 
-                dos.writeInt(Iterables.size(srm.columnFamilies));
+                out.writeInt(Iterables.size(srm.columnFamilies));
                 for (ColumnFamilyStore cfs : srm.columnFamilies)
-                    ColumnFamily.serializer.serializeCfId(cfs.metadata.cfId, dos, version);
+                    ColumnFamily.serializer.serializeCfId(cfs.metadata.cfId, out, version);
             }
         }
 
-        public StreamRequest deserialize(DataInput dis, int version) throws IOException
+        public StreamRequest deserialize(DataInput in, int version) throws IOException
         {
-            UUID sessionId = UUIDSerializer.serializer.deserialize(dis, MessagingService.current_version);
-            InetAddress target = CompactEndpointSerializationHelper.deserialize(dis);
-            boolean singleFile = dis.readBoolean();
+            UUID sessionId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
+            InetAddress target = CompactEndpointSerializationHelper.deserialize(in);
+            boolean singleFile = in.readBoolean();
             if (singleFile)
             {
-                PendingFile file = PendingFile.serializer.deserialize(dis, version);
+                PendingFile file = PendingFile.serializer.deserialize(in, version);
                 return new StreamRequest(target, file, sessionId);
             }
             else
             {
-                String table = dis.readUTF();
-                int size = dis.readInt();
+                String table = in.readUTF();
+                int size = in.readInt();
                 List<Range<Token>> ranges = (size == 0) ? null : new ArrayList<Range<Token>>(size);
                 for (int i = 0; i < size; ++i)
-                    ranges.add((Range<Token>) AbstractBounds.serializer.deserialize(dis, version).toTokenBounds());
-                OperationType type = OperationType.valueOf(dis.readUTF());
+                    ranges.add((Range<Token>) AbstractBounds.serializer.deserialize(in, version).toTokenBounds());
+                OperationType type = OperationType.valueOf(in.readUTF());
 
                 List<ColumnFamilyStore> stores = new ArrayList<ColumnFamilyStore>();
-                int cfsSize = dis.readInt();
+                int cfsSize = in.readInt();
                 for (int i = 0; i < cfsSize; ++i)
-                    stores.add(Table.open(table).getColumnFamilyStore(ColumnFamily.serializer.deserializeCfId(dis, version)));
+                    stores.add(Table.open(table).getColumnFamilyStore(ColumnFamily.serializer.deserializeCfId(in, version)));
 
                 return new StreamRequest(target, ranges, table, stores, sessionId, type);
             }

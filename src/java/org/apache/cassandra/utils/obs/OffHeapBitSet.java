@@ -88,9 +88,9 @@ public class OffHeapBitSet implements IBitSet
         bytes.setMemory(0, bytes.size(), (byte) 0);
     }
 
-    public void serialize(DataOutput dos) throws IOException
+    public void serialize(DataOutput out) throws IOException
     {
-        dos.writeInt((int) (bytes.size() / 8));
+        out.writeInt((int) (bytes.size() / 8));
         for (long i = 0; i < bytes.size();)
         {
             long value = ((bytes.getByte(i++) & 0xff) << 0) 
@@ -101,7 +101,7 @@ public class OffHeapBitSet implements IBitSet
                        + ((long) (bytes.getByte(i++) & 0xff) << 40)
                        + ((long) (bytes.getByte(i++) & 0xff) << 48)
                        + ((long) bytes.getByte(i++) << 56);
-            dos.writeLong(value);
+            out.writeLong(value);
         }
     }
 
@@ -110,13 +110,13 @@ public class OffHeapBitSet implements IBitSet
         return type.sizeof((int) bytes.size()) + bytes.size();
     }
 
-    public static OffHeapBitSet deserialize(DataInput dis) throws IOException
+    public static OffHeapBitSet deserialize(DataInput in) throws IOException
     {
-        int byteCount = dis.readInt() * 8;
+        int byteCount = in.readInt() * 8;
         Memory memory = RefCountedMemory.allocate(byteCount);
         for (int i = 0; i < byteCount;)
         {
-            long v = dis.readLong();
+            long v = in.readLong();
             memory.setByte(i++, (byte) (v >>> 0));
             memory.setByte(i++, (byte) (v >>> 8));
             memory.setByte(i++, (byte) (v >>> 16));

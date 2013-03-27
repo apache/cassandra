@@ -51,7 +51,7 @@ public class Column implements OnDiskAtom
         return OnDiskAtom.Serializer.instance;
     }
 
-    public static Iterator<OnDiskAtom> onDiskIterator(final DataInput dis, final int count, final ColumnSerializer.Flag flag, final int expireBefore, final Descriptor.Version version)
+    public static Iterator<OnDiskAtom> onDiskIterator(final DataInput in, final int count, final ColumnSerializer.Flag flag, final int expireBefore, final Descriptor.Version version)
     {
         return new Iterator<OnDiskAtom>()
         {
@@ -67,7 +67,7 @@ public class Column implements OnDiskAtom
                 ++i;
                 try
                 {
-                    return onDiskSerializer().deserializeFromSSTable(dis, flag, expireBefore, version);
+                    return onDiskSerializer().deserializeFromSSTable(in, flag, expireBefore, version);
                 }
                 catch (IOException e)
                 {

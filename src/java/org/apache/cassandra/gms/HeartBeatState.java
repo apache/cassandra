@@ -66,15 +66,15 @@ class HeartBeatState
 
 class HeartBeatStateSerializer implements IVersionedSerializer<HeartBeatState>
 {
-    public void serialize(HeartBeatState hbState, DataOutput dos, int version) throws IOException
+    public void serialize(HeartBeatState hbState, DataOutput out, int version) throws IOException
     {
-        dos.writeInt(hbState.getGeneration());
-        dos.writeInt(hbState.getHeartBeatVersion());
+        out.writeInt(hbState.getGeneration());
+        out.writeInt(hbState.getHeartBeatVersion());
     }
 
-    public HeartBeatState deserialize(DataInput dis, int version) throws IOException
+    public HeartBeatState deserialize(DataInput in, int version) throws IOException
     {
-        return new HeartBeatState(dis.readInt(), dis.readInt());
+        return new HeartBeatState(in.readInt(), in.readInt());
     }
 
     public long serializedSize(HeartBeatState state, int version)

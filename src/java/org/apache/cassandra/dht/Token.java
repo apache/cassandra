@@ -83,19 +83,19 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
 
     public static class TokenSerializer implements ISerializer<Token>
     {
-        public void serialize(Token token, DataOutput dos) throws IOException
+        public void serialize(Token token, DataOutput out) throws IOException
         {
             IPartitioner p = StorageService.getPartitioner();
             ByteBuffer b = p.getTokenFactory().toByteArray(token);
-            ByteBufferUtil.writeWithLength(b, dos);
+            ByteBufferUtil.writeWithLength(b, out);
         }
 
-        public Token deserialize(DataInput dis) throws IOException
+        public Token deserialize(DataInput in) throws IOException
         {
             IPartitioner p = StorageService.getPartitioner();
-            int size = dis.readInt();
+            int size = in.readInt();
             byte[] bytes = new byte[size];
-            dis.readFully(bytes);
+            in.readFully(bytes);
             return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
         }
 

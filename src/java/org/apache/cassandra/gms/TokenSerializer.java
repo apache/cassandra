@@ -34,28 +34,28 @@ public class TokenSerializer
 {
     private static final Logger logger = LoggerFactory.getLogger(TokenSerializer.class);
 
-    public static void serialize(IPartitioner partitioner, Collection<Token> tokens, DataOutput dos) throws IOException
+    public static void serialize(IPartitioner partitioner, Collection<Token> tokens, DataOutput out) throws IOException
     {
         for (Token<?> token : tokens)
         {
             byte[] bintoken = partitioner.getTokenFactory().toByteArray(token).array();
-            dos.writeInt(bintoken.length);
-            dos.write(bintoken);
+            out.writeInt(bintoken.length);
+            out.write(bintoken);
         }
-        dos.writeInt(0);
+        out.writeInt(0);
     }
 
-    public static Collection<Token> deserialize(IPartitioner partitioner, DataInput dis) throws IOException
+    public static Collection<Token> deserialize(IPartitioner partitioner, DataInput in) throws IOException
     {
         Collection<Token> tokens = new ArrayList<Token>();
         while (true)
         {
-            int size = dis.readInt();
+            int size = in.readInt();
             if (size < 1)
                 break;
             logger.trace("Reading token of {} bytes", size);
             byte[] bintoken = new byte[size];
-            dis.readFully(bintoken);
+            in.readFully(bintoken);
             tokens.add(partitioner.getTokenFactory().fromByteArray(ByteBuffer.wrap(bintoken)));
         }
         return tokens;

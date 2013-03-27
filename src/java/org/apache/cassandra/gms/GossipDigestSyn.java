@@ -52,19 +52,19 @@ public class GossipDigestSyn
 
 class GossipDigestSerializationHelper
 {
-    static void serialize(List<GossipDigest> gDigestList, DataOutput dos, int version) throws IOException
+    static void serialize(List<GossipDigest> gDigestList, DataOutput out, int version) throws IOException
     {
-        dos.writeInt(gDigestList.size());
+        out.writeInt(gDigestList.size());
         for (GossipDigest gDigest : gDigestList)
-            GossipDigest.serializer.serialize(gDigest, dos, version);
+            GossipDigest.serializer.serialize(gDigest, out, version);
     }
 
-    static List<GossipDigest> deserialize(DataInput dis, int version) throws IOException
+    static List<GossipDigest> deserialize(DataInput in, int version) throws IOException
     {
-        int size = dis.readInt();
+        int size = in.readInt();
         List<GossipDigest> gDigests = new ArrayList<GossipDigest>(size);
         for (int i = 0; i < size; ++i)
-            gDigests.add(GossipDigest.serializer.deserialize(dis, version));
+            gDigests.add(GossipDigest.serializer.deserialize(in, version));
         return gDigests;
     }
 
@@ -79,21 +79,21 @@ class GossipDigestSerializationHelper
 
 class GossipDigestSynSerializer implements IVersionedSerializer<GossipDigestSyn>
 {
-    public void serialize(GossipDigestSyn gDigestSynMessage, DataOutput dos, int version) throws IOException
+    public void serialize(GossipDigestSyn gDigestSynMessage, DataOutput out, int version) throws IOException
     {
-        dos.writeUTF(gDigestSynMessage.clusterId);
+        out.writeUTF(gDigestSynMessage.clusterId);
         if (version >= MessagingService.VERSION_12)
-            dos.writeUTF(gDigestSynMessage.partioner);
-        GossipDigestSerializationHelper.serialize(gDigestSynMessage.gDigests, dos, version);
+            out.writeUTF(gDigestSynMessage.partioner);
+        GossipDigestSerializationHelper.serialize(gDigestSynMessage.gDigests, out, version);
     }
 
-    public GossipDigestSyn deserialize(DataInput dis, int version) throws IOException
+    public GossipDigestSyn deserialize(DataInput in, int version) throws IOException
     {
-        String clusterId = dis.readUTF();
+        String clusterId = in.readUTF();
         String partioner = null;
         if (version >= MessagingService.VERSION_12)
-            partioner = dis.readUTF();
-        List<GossipDigest> gDigests = GossipDigestSerializationHelper.deserialize(dis, version);
+            partioner = in.readUTF();
+        List<GossipDigest> gDigests = GossipDigestSerializationHelper.deserialize(in, version);
         return new GossipDigestSyn(clusterId, partioner, gDigests);
     }
 
