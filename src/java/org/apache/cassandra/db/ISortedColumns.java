@@ -54,7 +54,6 @@ public interface ISortedColumns extends Iterable<Column>
 
     public void delete(DeletionInfo info);
     public void maybeResetDeletionTimes(int gcBefore);
-    public void retainAll(ISortedColumns columns);
 
     /**
      * Adds a column to this column map.

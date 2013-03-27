@@ -130,18 +130,6 @@ public class AtomicSortedColumns implements ISortedColumns
         }
     }
 
-    public void retainAll(ISortedColumns columns)
-    {
-        Holder current, modified;
-        do
-        {
-            current = ref.get();
-            modified = current.cloneMe();
-            modified.retainAll(columns);
-        }
-        while (!ref.compareAndSet(current, modified));
-    }
-
     public void addColumn(Column column, Allocator allocator)
     {
         Holder current, modified;
