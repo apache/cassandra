@@ -50,11 +50,11 @@ import org.apache.cassandra.streaming.StreamingRepairTask;
 import org.apache.cassandra.utils.*;
 
 /**
- * AntiEntropyService encapsulates "validating" (hashing) individual column families,
+ * ActiveRepairService encapsulates "validating" (hashing) individual column families,
  * exchanging MerkleTrees with remote nodes via a TreeRequest/Response conversation,
  * and then triggering repairs for disagreeing ranges.
  *
- * Every Tree conversation has an 'initiator', where valid trees are sent after generation
+ * The node where repair was invoked acts as the 'initiator,' where valid trees are sent after generation
  * and where the local and remote tree will rendezvous in rendezvous(cf, endpoint, tree).
  * Once the trees rendezvous, a Differencer is executed and the service can trigger repairs
  * for disagreeing ranges.
@@ -62,11 +62,11 @@ import org.apache.cassandra.utils.*;
  * Tree comparison and repair triggering occur in the single threaded Stage.ANTIENTROPY.
  *
  * The steps taken to enact a repair are as follows:
- * 1. A major compaction is triggered via nodeprobe:
- *   * Nodeprobe sends TreeRequest messages to all neighbors of the target node: when a node
- *     receives a TreeRequest, it will perform a readonly compaction to immediately validate
- *     the column family.
- * 2. The compaction process validates the column family by:
+ * 1. A repair is requested via nodeprobe:
+ *   * The initiator sends TreeRequest messages to all neighbors of the target node: when a node
+ *     receives a TreeRequest, it will perform a validation (read-only) compaction to immediately validate
+ *     the column family.  This is performed on the CompactionManager ExecutorService.
+ * 2. The validation process builds the merkle tree by:
  *   * Calling Validator.prepare(), which samples the column family to determine key distribution,
  *   * Calling Validator.add() in order for every row in the column family,
  *   * Calling Validator.complete() to indicate that all rows have been added.
