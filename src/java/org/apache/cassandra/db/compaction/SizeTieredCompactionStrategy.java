@@ -151,6 +151,9 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     public AbstractCompactionTask getMaximalTask(final int gcBefore)
     {
         Collection<SSTableReader> sstables = cfs.markAllCompacting();
+        if (sstables == null)
+            return null;
+
         return new CompactionTask(cfs, sstables, gcBefore);
     }
 
