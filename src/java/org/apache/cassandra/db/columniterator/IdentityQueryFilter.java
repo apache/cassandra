@@ -24,7 +24,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class IdentityQueryFilter extends SliceQueryFilter
 {
     /**
-     * Only for use in testing; will read entire CF into memory.
+     * Will read entire CF into memory.  Use with caution.
      */
     public IdentityQueryFilter()
     {
