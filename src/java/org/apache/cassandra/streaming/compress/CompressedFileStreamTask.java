@@ -92,6 +92,7 @@ public class CompressedFileStreamTask extends FileStreamTask
                     }
                     else
                     {
+                        file.seek(section.left);
                         // NIO is not available. Fall back to normal streaming.
                         // This happens when inter-node encryption is turned on.
                         if (transferBuffer == null)
@@ -105,6 +106,9 @@ public class CompressedFileStreamTask extends FileStreamTask
                     bytesTransferred += lastWrite;
                     header.file.progress += lastWrite;
                 }
+
+                if (sc == null)
+                    socket.getOutputStream().flush();
 
                 logger.debug("Bytes transferred " + bytesTransferred + "/" + header.file.size);
             }
