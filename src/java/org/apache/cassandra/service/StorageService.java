@@ -419,7 +419,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.instance.register(migrationManager);
         Gossiper.instance.start((int) (System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
-        Schema.instance.updateVersion();
 
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
         try
