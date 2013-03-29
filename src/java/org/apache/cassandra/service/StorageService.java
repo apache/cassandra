@@ -375,10 +375,38 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public synchronized void initClient() throws IOException, ConfigurationException
     {
-        initClient(RING_DELAY);
+        // We don't wait, because we're going to actually try to work on
+        initClient(0);
+
+        try
+        {
+            // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
+            boolean isUp = false;
+            while (!isUp)
+            {
+                Thread.sleep(1000);
+                for (InetAddress address : Gossiper.instance.getLiveMembers())
+                {
+                    if (!Gossiper.instance.isFatClient(address))
+                    {
+                        isUp = true;
+                    }
+                }
+            }
+
+            // sleep until any schema migrations have finished
+            while (!MigrationManager.isReadyForBootstrap())
+            {
+                Thread.sleep(1000);
+            }
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
     }
 
-    public synchronized void initClient(int delay) throws IOException, ConfigurationException
+    public synchronized void initClient(int ringDelay) throws IOException, ConfigurationException
     {
         if (initialized)
         {
@@ -391,14 +419,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Starting up client gossip");
         setMode(Mode.CLIENT, false);
         Gossiper.instance.register(this);
-        Gossiper.instance.start((int)(System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
+        Gossiper.instance.register(migrationManager);
+        Gossiper.instance.start((int) (System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
-        MessagingService.instance().listen(FBUtilities.getLocalAddress());
+        Schema.instance.updateVersion();
 
-        // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
+        MessagingService.instance().listen(FBUtilities.getLocalAddress());
         try
         {
-            Thread.sleep(delay);
+           Thread.sleep(ringDelay);
         }
         catch (InterruptedException e)
         {

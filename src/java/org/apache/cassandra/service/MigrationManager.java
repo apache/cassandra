@@ -117,6 +117,9 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_117)
             return;
 
+        if (Gossiper.instance.isFatClient(endpoint))
+            return;
+
         if (Schema.instance.getVersion().equals(theirVersion))
             return;
 
