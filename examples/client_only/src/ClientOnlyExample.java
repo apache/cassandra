@@ -19,20 +19,13 @@
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.NamesQueryFilter;
-import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-import org.apache.thrift.TException;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.protocol.TProtocol;
-import org.apache.thrift.transport.TFramedTransport;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.service.*;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,36 +34,35 @@ public class ClientOnlyExample
 {
     private static final Logger logger = LoggerFactory.getLogger(ClientOnlyExample.class);
 
-    private static final String KEYSPACE = "Keyspace1";
-    private static final String COLUMN_FAMILY = "Standard1";
-    
+    private static final String KEYSPACE = "keyspace1";
+    private static final String COLUMN_FAMILY = "standard1";
+
     private static void startClient() throws Exception
     {
         StorageService.instance.initClient();
-        // sleep for a bit so that gossip can do its thing.
-        try
-        {
-            Thread.sleep(10000L);
-        }
-        catch (Exception ex)
-        {
-            throw new AssertionError(ex);
-        }
     }
 
     private static void testWriting() throws Exception
     {
+        ClientState state = new ClientState(false);
+        state.setKeyspace(KEYSPACE);
         // do some writing.
         for (int i = 0; i < 100; i++)
         {
-            RowMutation change = new RowMutation(KEYSPACE, ByteBufferUtil.bytes(("key" + i)));
-            change.add(COLUMN_FAMILY, ByteBufferUtil.bytes("colb"), ByteBufferUtil.bytes(("value" + i)), 0);
+            QueryProcessor.process(
+                    new StringBuilder()
+                            .append("INSERT INTO ")
+                            .append(COLUMN_FAMILY)
+                            .append(" (id, name, value) VALUES ( 'key")
+                            .append(i)
+                            .append("', 'colb', 'value")
+                            .append(i)
+                            .append("' )")
+                            .toString(),
+                    ConsistencyLevel.QUORUM,
+                    new QueryState(state)
+            );
 
-            // don't call change.apply().  The reason is that is makes a static call into Table, which will perform
-            // local storage initialization, which creates local directories.
-            // change.apply();
-
-            StorageProxy.mutate(Arrays.asList(change), ConsistencyLevel.ONE);
             System.out.println("wrote key" + i);
         }
         System.out.println("Done writing.");
@@ -79,112 +71,111 @@ public class ClientOnlyExample
     private static void testReading() throws Exception
     {
         // do some queries.
+        ClientState state = new ClientState(false);
+        state.setKeyspace(KEYSPACE);
         for (int i = 0; i < 100; i++)
         {
-            List<ReadCommand> commands = new ArrayList<ReadCommand>();
-            SliceByNamesReadCommand readCommand = new SliceByNamesReadCommand(KEYSPACE, ByteBufferUtil.bytes(("key" + i)), COLUMN_FAMILY, new NamesQueryFilter(ByteBufferUtil.bytes("colb")));
-            readCommand.setDigestQuery(false);
-            commands.add(readCommand);
-            List<Row> rows = StorageProxy.read(commands, ConsistencyLevel.ONE);
+            List<List<ByteBuffer>> rows = ((ResultMessage.Rows)QueryProcessor.process(
+                    new StringBuilder()
+                    .append("SELECT id, name, value FROM ")
+                    .append(COLUMN_FAMILY)
+                    .append(" WHERE id = 'key")
+                    .append(i)
+                    .append("'")
+                    .toString(),
+                    ConsistencyLevel.QUORUM,
+                    new QueryState(state)
+            )).result.rows;
+
             assert rows.size() == 1;
-            Row row = rows.get(0);
-            ColumnFamily cf = row.cf;
-            if (cf != null)
-            {
-                for (IColumn col : cf.getSortedColumns())
-                {
-                    System.out.println(ByteBufferUtil.string(col.name()) + ", " + ByteBufferUtil.string(col.value()));
-                }
-            }
-            else
-                System.err.println("This output indicates that nothing was read.");
+            List<ByteBuffer> r = rows.get(0);
+            assert r.size() == 3;
+            System.out.println(new StringBuilder()
+                    .append("ID: ")
+                    .append(AsciiType.instance.compose(r.get(0)))
+                    .append(", Name: ")
+                    .append(AsciiType.instance.compose(r.get(1)))
+                    .append(", Value: ")
+                    .append(AsciiType.instance.compose(r.get(2)))
+                    .toString());
         }
     }
 
     /**
      * First, bring one or more nodes up. Then run ClientOnlyExample with these VM arguments:
-     *
+     * <p/>
      * -Xmx1G
      * -Dcassandra.config=/Users/gary/cassandra/conf/cassandra.yaml (optional, will first look for cassandra.yaml on classpath)
-     *
+     * <p/>
      * Pass "write" or "read" into the program to exercise the various methods.
-     *
+     * <p/>
      * Caveats:
-     *
+     * <p/>
      * 1.  Much of cassandra is not reentrant.  That is, you can't spin a client up, down, then back up in the same jvm.
      * 2.  Because of the above, you still need to force-quit the process. StorageService.stopClient() doesn't (can't)
-     *     spin everything down.
+     * spin everything down.
      */
     public static void main(String args[]) throws Exception
     {
         startClient();
-        setupKeyspace(createConnection());
+        setupKeyspace();
         testWriting();
         logger.info("Writing is done. Sleeping, then will try to read.");
         try
         {
-            Thread.currentThread().sleep(10000);
+            Thread.currentThread().sleep(1000);
         }
-        catch (InterruptedException ex) 
+        catch (InterruptedException ex)
         {
             throw new RuntimeException(ex);
         }
-        
+
         testReading();
-        
+
         // no need to do this:
         // StorageService.instance().decommission();
         // do this instead:
         StorageService.instance.stopClient();
         System.exit(0); // the only way to really stop the process.
     }
-    
-    /**
-    * This method will fail if the keyspace already exists
-    */
-    private static void setupKeyspace(Cassandra.Iface client) throws TException, InvalidRequestException
+
+    private static void setupKeyspace() throws RequestExecutionException, RequestValidationException, InterruptedException
     {
-        List<CfDef> cfDefList = new ArrayList<CfDef>();
-        CfDef columnFamily = new CfDef(KEYSPACE, COLUMN_FAMILY);
-        cfDefList.add(columnFamily);
-
-        try 
+        if (QueryProcessor.process(
+                new StringBuilder()
+                        .append("SELECT * FROM system.schema_keyspaces WHERE keyspace_name='")
+                        .append(KEYSPACE)
+                        .append("'")
+                        .toString(), ConsistencyLevel.QUORUM)
+                .isEmpty())
         {
-            client.system_add_keyspace(new KsDef(KEYSPACE, "org.apache.cassandra.locator.SimpleStrategy", 1, cfDefList));
-            int magnitude = client.describe_ring(KEYSPACE).size();
-            try
-            {
-                Thread.sleep(1000 * magnitude);
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException(e);
-            }
+            QueryProcessor.process(new StringBuilder()
+                    .append("CREATE KEYSPACE ")
+                    .append(KEYSPACE)
+                    .append(" WITH replication = { 'class': 'SimpleStrategy', 'replication_factor': '1' }")
+                    .toString(), ConsistencyLevel.QUORUM);
+            Thread.sleep(1000);
         }
-        catch (InvalidRequestException probablyExists) 
+
+        if (QueryProcessor.process(
+                new StringBuilder()
+                        .append("SELECT * FROM system.schema_columnfamilies WHERE keyspace_name='")
+                        .append(KEYSPACE)
+                        .append("' AND columnfamily_name='")
+                        .append(COLUMN_FAMILY)
+                        .append("'")
+                        .toString(), ConsistencyLevel.QUORUM)
+                .isEmpty())
         {
-            logger.warn("Problem creating keyspace: " + probablyExists.getMessage());    
+            ClientState state = new ClientState();
+            state.setKeyspace(KEYSPACE);
+
+            QueryProcessor.process(new StringBuilder()
+                    .append("CREATE TABLE ")
+                    .append(COLUMN_FAMILY)
+                    .append(" ( id ascii PRIMARY KEY, name ascii, value ascii )")
+                    .toString(), ConsistencyLevel.QUORUM, new QueryState(state));
+            Thread.sleep(1000);
         }
-    }
-
-    private static Cassandra.Iface createConnection() throws TTransportException
-    {
-        if (System.getProperty("cassandra.host") == null || System.getProperty("cassandra.port") == null)
-        {
-           logger.warn("cassandra.host or cassandra.port is not defined, using default");
-        }
-        return createConnection( System.getProperty("cassandra.host","localhost"),
-                                 Integer.valueOf(System.getProperty("cassandra.port","9160")),
-                                 Boolean.valueOf(System.getProperty("cassandra.framed", "true")) );
-    }
-
-    private static Cassandra.Client createConnection(String host, Integer port, boolean framed) throws TTransportException
-    {
-        TSocket socket = new TSocket(host, port);
-        TTransport trans = framed ? new TFramedTransport(socket) : socket;
-        trans.open();
-        TProtocol protocol = new TBinaryProtocol(trans);
-
-        return new Cassandra.Client(protocol);
     }
 }

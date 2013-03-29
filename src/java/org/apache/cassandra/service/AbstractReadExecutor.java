@@ -26,6 +26,7 @@ import java.util.List;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ReadCommand;
@@ -126,11 +127,18 @@ public abstract class AbstractReadExecutor
     public static AbstractReadExecutor getReadExecutor(ReadCommand command, ConsistencyLevel consistency_level) throws UnavailableException
     {
         Table table = Table.open(command.table);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(command.cfName);
         List<InetAddress> allReplicas = StorageProxy.getLiveSortedEndpoints(table, command.key);
-        List<InetAddress> queryTargets = consistency_level.filterForQuery(table, allReplicas, cfs.metadata.newReadRepairDecision());
+        CFMetaData metaData = Schema.instance.getCFMetaData(command.table, command.cfName);
+        List<InetAddress> queryTargets = consistency_level.filterForQuery(table, allReplicas, metaData.newReadRepairDecision());
 
-        switch (cfs.metadata.getSpeculativeRetry().type)
+        if (StorageService.instance.isClientMode())
+        {
+            return new DefaultReadExecutor(null, command, consistency_level, allReplicas, queryTargets);
+        }
+
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(command.cfName);
+
+        switch (metaData.getSpeculativeRetry().type)
         {
             case ALWAYS:
                 return new SpeculateAlwaysExecutor(cfs, command, consistency_level, allReplicas, queryTargets);

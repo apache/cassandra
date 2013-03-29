@@ -30,6 +30,6 @@ public class InitClientTest // extends CleanupHelper
     @Test
     public void testInitClientStartup() throws IOException, ConfigurationException
     {
-        StorageService.instance.initClient(0);
+        StorageService.instance.initClient();
     }
 }

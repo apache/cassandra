@@ -1060,12 +1060,14 @@ public class SelectStatement implements CQLStatement
             {
                 stmt.isKeyRange = true;
                 boolean hasEq = false;
-                SecondaryIndexManager idxManager = Table.open(keyspace()).getColumnFamilyStore(columnFamily()).indexManager;
                 Set<ByteBuffer> indexedNames = new HashSet<ByteBuffer>();
-                for (SecondaryIndex index : idxManager.getIndexes())
+                indexedNames.add(cfm.getKeyName());
+                for (ColumnDefinition cfdef : cfm.getColumn_metadata().values())
                 {
-                    for (ColumnDefinition cdef : index.getColumnDefs())
-                        indexedNames.add(cdef.name);
+                    if (cfdef.getIndexType() != null)
+                    {
+                        indexedNames.add(cfdef.name);
+                    }
                 }
 
                 // Note: we cannot use idxManager.indexes() methods because we don't have a complete column name at this point, we only

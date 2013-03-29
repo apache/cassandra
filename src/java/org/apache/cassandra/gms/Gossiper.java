@@ -556,6 +556,16 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
     }
 
+    public boolean isFatClient(InetAddress endpoint)
+    {
+        EndpointState epState = endpointStateMap.get(endpoint);
+        if (epState == null)
+        {
+            return false;
+        }
+        return !isDeadState(epState) && !epState.isAlive() && !StorageService.instance.getTokenMetadata().isMember(endpoint);
+    }
+
     private void doStatusCheck()
     {
         long now = System.currentTimeMillis();
@@ -574,7 +584,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
                 // check if this is a fat client. fat clients are removed automatically from
                 // gossip after FatClientTimeout.  Do not remove dead states here.
-                if (!isDeadState(epState) && !epState.isAlive() && !StorageService.instance.getTokenMetadata().isMember(endpoint) && !justRemovedEndpoints.containsKey(endpoint) && (duration > FatClientTimeout))
+                if (isFatClient(endpoint) && !justRemovedEndpoints.containsKey(endpoint) && (duration > FatClientTimeout))
                 {
                     logger.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout + "ms, removing from gossip");
                     removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
