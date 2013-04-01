@@ -484,6 +484,7 @@
         
         <!-- don't need jamm unless running a server in which case it needs to be a -javagent to be used anyway -->
         <dependency groupId="com.github.stephenc" artifactId="jamm"/>
+        <dependency groupId="io.netty" artifactId="netty"/>
       </artifact:pom>
       <artifact:pom id="thrift-pom"
                     artifactId="cassandra-thrift"
