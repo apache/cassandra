@@ -292,7 +292,7 @@ public class Server implements CassandraDaemon.Server
             {
                 // That should not happen, so log an error, but return the
                 // endpoint address since there's a good change this is right
-                logger.error("Problem retrieving RPC address for %s", endpoint, e);
+                logger.error("Problem retrieving RPC address for {}", endpoint, e);
                 return endpoint;
             }
         }
