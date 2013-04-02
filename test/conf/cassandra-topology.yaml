@@ -1,0 +1,74 @@
+# Test YAML topology configuration file for Cassandra,
+# to be used with YamlFileNetworkTopologySnitch.
+
+# The topology, as a list of data centers.
+topology:
+    # Each data center has a name and a list of racks.
+    - dc_name: DC1
+      racks:
+          # Each rack has a name and a list of nodes.
+          - rack_name: RAC1
+            nodes:
+                # Each node has a broadcast address (required)
+                # and a data-center-local address (optional).
+                # If dc_local_address is specified, its peers
+                # in the same data center will attempt to
+                # reconnect over that address instead.
+                - broadcast_address: 127.0.0.1
+                  dc_local_address: 9.0.0.1
+                - broadcast_address: 192.168.1.100
+                  dc_local_address: 9.0.0.2
+                - broadcast_address: 10.0.0.10
+                  dc_local_address: 9.0.0.3
+                - broadcast_address: 10.0.0.11
+                  dc_local_address: 9.0.0.4
+          - rack_name: RAC2
+            nodes:
+                - broadcast_address: 192.168.2.200
+                - broadcast_address: 10.0.0.12
+                - broadcast_address: 10.0.0.13
+                - broadcast_address: 127.0.0.2
+          - rack_name: RAC3
+            nodes:
+                - broadcast_address: 127.0.0.3
+    - dc_name: DC2
+      racks:
+          - rack_name: RAC1
+            nodes:
+                - broadcast_address: 10.20.114.10
+                - broadcast_address: 10.20.114.11
+          - rack_name: RAC2
+            nodes:
+                - broadcast_address: 10.20.114.15
+          - rack_name: RAC4
+            nodes:
+                - broadcast_address: 127.0.0.4
+          - rack_name: RAC5
+            nodes:
+                - broadcast_address: 127.0.0.5
+    - dc_name: DC3
+      racks:
+          - rack_name: RAC1
+            nodes:
+                - broadcast_address: 10.21.119.13
+                - broadcast_address: 10.21.119.10
+          - rack_name: RAC2
+            nodes:
+                - broadcast_address: 10.21.119.14
+          - rack_name: RAC6
+            nodes:
+                - broadcast_address: 127.0.0.6
+          - rack_name: RAC7
+            nodes:
+                - broadcast_address: 127.0.0.7
+          - rack_name: RAC8
+            nodes:
+                - broadcast_address: 127.0.0.8
+
+
+# Default data center name for unknown nodes
+default_dc_name: DC1
+
+# Default rack name for unknown nodes
+default_rack_name: r1
+

@@ -1,0 +1,25 @@
+# YAML topology configuration file for Cassandra,
+# to be used with YamlFileNetworkTopologySnitch.
+
+# The topology, as a list of data centers.
+topology:
+    # Each data center has a name and a list of racks.
+    - dc_name: DC1
+      racks:
+          # Each rack has a name and a list of nodes.
+          - rack_name: c1
+            nodes:
+                # Each node has a broadcast address (required)
+                # and a data-center-local address (optional).
+                # If dc_local_address is specified, its peers
+                # in the same data center will attempt to
+                # reconnect over that address instead.
+                - broadcast_address: 1.2.3.4
+                  dc_local_address: 5.6.7.8
+
+# Default data center name for unknown nodes; defaults to "UNKNOWN"
+# default_dc_name: UNKNOWN
+
+# Default rack name for unknown nodes
+# default_rack_name: UNKNOWN; defaults to "UNKNOWN"
+
