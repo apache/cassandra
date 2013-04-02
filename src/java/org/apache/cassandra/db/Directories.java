@@ -554,7 +554,7 @@ public class Directories
             String name = file.getName();
             boolean isManifest = name.endsWith(LeveledManifest.EXTENSION);
             String cfname = isManifest
-                          ? name.substring(0, name.length() - LeveledManifest.EXTENSION.length())
+                          ? getCfNameFromManifest(name)
                           : name.substring(0, name.indexOf(Component.separator));
 
             int idx = cfname.indexOf(SECONDARY_INDEX_NAME_SEPARATOR); // idx > 0 => secondary index
@@ -569,6 +569,14 @@ public class Directories
         {
             throw new IOError(e);
         }
+    }
+
+    private static String getCfNameFromManifest(String name)
+    {
+        String withoutExt = name.substring(0, name.length() - LeveledManifest.EXTENSION.length());
+        return withoutExt.endsWith("-old") || withoutExt.endsWith("-tmp")
+                ? withoutExt.substring(0, withoutExt.length() - 4)
+                : withoutExt;
     }
 
     // Hack for tests, don't use otherwise
