@@ -248,18 +248,23 @@ public abstract class Selection
 
         public void add(IColumn c)
         {
-            current.add(c == null || c.isMarkedForDelete() ? null : value(c));
+            current.add(isDead(c) ? null : value(c));
             if (timestamps != null)
             {
-                timestamps[current.size() - 1] = c.timestamp();
+                timestamps[current.size() - 1] = isDead(c) ? -1 : c.timestamp();
             }
             if (ttls != null)
             {
                 int ttl = -1;
-                if (c instanceof ExpiringColumn)
+                if (!isDead(c) && c instanceof ExpiringColumn)
                     ttl = ((ExpiringColumn)c).getLocalDeletionTime() - (int) (System.currentTimeMillis() / 1000);
                 ttls[current.size() - 1] = ttl;
             }
+        }
+
+        private boolean isDead(IColumn c)
+        {
+            return c == null || c.isMarkedForDelete();
         }
 
         public void newRow() throws InvalidRequestException
@@ -366,7 +371,10 @@ public abstract class Selection
         public ByteBuffer compute(ResultSetBuilder rs)
         {
             if (isWritetime)
-                return ByteBufferUtil.bytes(rs.timestamps[idx]);
+            {
+                long ts = rs.timestamps[idx];
+                return ts >= 0 ? ByteBufferUtil.bytes(ts) : null;
+            }
 
             int ttl = rs.ttls[idx];
             return ttl > 0 ? ByteBufferUtil.bytes(ttl) : null;
