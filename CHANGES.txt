@@ -45,6 +45,7 @@
  * Correctly typecheck in CQL3 even with ReversedType (CASSANDRA-5386)
  * Fix streaming compressed files when using encryption (CASSANDRA-5391)
  * cassandra-all 1.2.0 pom missing netty dependency (CASSANDRA-5392)
+ * Fix writetime/ttl functions on null values (CASSANDRA-5341)
 Merged from 1.1:
  * cli: Quote ks and cf names in schema output when needed (CASSANDRA-5052)
  * Fix bad default for min/max timestamp in SSTableMetadata (CASSANDRA-5372)
