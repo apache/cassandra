@@ -18,6 +18,7 @@
  * Fix writetime/ttl functions on null values (CASSANDRA-5341)
  * Fix NPE during cql3 select with token() (CASSANDRA-5404)
  * IndexHelper.skipBloomFilters won't skip non-SHA filters (CASSANDRA-5385)
+ * cqlsh: Print maps ordered by key, sort sets (CASSANDRA-5413)
 Merged from 1.1:
  * cli: Quote ks and cf names in schema output when needed (CASSANDRA-5052)
  * Fix bad default for min/max timestamp in SSTableMetadata (CASSANDRA-5372)
