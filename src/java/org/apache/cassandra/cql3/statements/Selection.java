@@ -262,7 +262,7 @@ public abstract class Selection
             }
         }
 
-        private boolean isDead(IColumn c)
+        private boolean isDead(Column c)
         {
             return c == null || c.isMarkedForDelete();
         }
