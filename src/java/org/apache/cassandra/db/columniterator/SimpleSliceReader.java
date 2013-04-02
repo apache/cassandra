@@ -30,6 +30,7 @@ import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -68,15 +69,16 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
             ByteBufferUtil.skipShortLength(file);
             SSTableReader.readRowSize(file, sstable.descriptor);
 
-            if (!sstable.descriptor.version.hasPromotedIndexes)
+            Descriptor.Version version = sstable.descriptor.version;
+            if (!version.hasPromotedIndexes)
             {
                 if(sstable.descriptor.version.hasRowLevelBF)
-                    IndexHelper.skipBloomFilter(file);
+                    IndexHelper.skipBloomFilter(file, version.filterType);
                 IndexHelper.skipIndex(file);
             }
 
             emptyColumnFamily = ColumnFamily.create(sstable.metadata);
-            emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, sstable.descriptor.version));
+            emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
             atomIterator = emptyColumnFamily.metadata().getOnDiskIterator(file, file.readInt(), sstable.descriptor.version);
             mark = file.mark();
         }

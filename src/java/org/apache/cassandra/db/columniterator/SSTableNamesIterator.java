@@ -130,7 +130,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         else
         {
             assert file != null;
-            IndexHelper.skipBloomFilter(file);
+            IndexHelper.skipBloomFilter(file, sstable.descriptor.version.filterType );
             indexList = IndexHelper.deserializeIndex(file);
         }
 

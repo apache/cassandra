@@ -101,7 +101,7 @@ public class RowIndexEntry
                         columnsIndex.add(IndexHelper.IndexInfo.deserialize(in));
 
                     if (version.hasRowLevelBF)
-                        IndexHelper.skipBloomFilter(in);
+                        IndexHelper.skipBloomFilter(in, version.filterType);
                     return new IndexedEntry(position, delInfo, columnsIndex);
                 }
                 else
