@@ -19,6 +19,7 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.*;
 
+import org.apache.cassandra.utils.FilterFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -122,11 +123,11 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 if (dataStart + dataSize > file.length())
                     throw new IOException(String.format("dataSize of %s starting at %s would be larger than file %s length %s",
                                           dataSize, dataStart, file.getPath(), file.length()));
-                if (checkData && !sstable.descriptor.version.hasPromotedIndexes)
+                if (checkData && !dataVersion.hasPromotedIndexes)
                 {
                     try
                     {
-                        IndexHelper.defreezeBloomFilter(file, dataSize, sstable.descriptor.version.filterType);
+                        IndexHelper.defreezeBloomFilter(file, dataSize, dataVersion.filterType);
                     }
                     catch (Exception e)
                     {
@@ -150,9 +151,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 }
             }
 
-            if (sstable != null && !sstable.descriptor.version.hasPromotedIndexes)
+            if (sstable != null && !dataVersion.hasPromotedIndexes)
             {
-                IndexHelper.skipBloomFilter(inputWithTracker);
+                IndexHelper.skipBloomFilter(inputWithTracker, dataVersion.filterType);
                 IndexHelper.skipIndex(inputWithTracker);
             }
             columnFamily = ColumnFamily.create(metadata);
