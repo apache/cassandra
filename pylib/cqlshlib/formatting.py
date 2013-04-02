@@ -202,7 +202,7 @@ def format_value_list(val, encoding, colormap, time_format, float_precision, sub
 
 @formatter_for('set')
 def format_value_set(val, encoding, colormap, time_format, float_precision, subtypes, nullval, **_):
-    return format_simple_collection(subtypes[0], val, '{', '}', encoding, colormap,
+    return format_simple_collection(subtypes[0], sorted(val), '{', '}', encoding, colormap,
                                     time_format, float_precision, nullval)
 
 @formatter_for('map')
@@ -213,7 +213,7 @@ def format_value_map(val, encoding, colormap, time_format, float_precision, subt
                             nullval=nullval)
 
     subkeytype, subvaltype = subtypes
-    subs = [(subformat(k, subkeytype), subformat(v, subvaltype)) for (k, v) in val.items()]
+    subs = [(subformat(k, subkeytype), subformat(v, subvaltype)) for (k, v) in sorted(val.items())]
     bval = '{' + ', '.join(k.strval + ': ' + v.strval for (k, v) in subs) + '}'
     lb, comma, colon, rb = [colormap['collection'] + s + colormap['reset']
                             for s in ('{', ', ', ': ', '}')]
