@@ -645,7 +645,7 @@ public class Directories
             if (isManifest || (separatorIndex >= 0))
             {
                 String cfname = isManifest
-                              ? name.substring(0, name.length() - LeveledManifest.EXTENSION.length())
+                              ? getCfNameFromManifest(name)
                               : name.substring(0, separatorIndex);
 
                 int idx = cfname.indexOf(SECONDARY_INDEX_NAME_SEPARATOR); // idx > 0 => secondary index
@@ -665,6 +665,14 @@ public class Directories
         {
             throw new RuntimeException(String.format("Failed migrating file %s from pre 1.1 format.", file.getPath()), e);
         }
+    }
+
+    private static String getCfNameFromManifest(String name)
+    {
+        String withoutExt = name.substring(0, name.length() - LeveledManifest.EXTENSION.length());
+        return withoutExt.endsWith("-old") || withoutExt.endsWith("-tmp")
+                ? withoutExt.substring(0, withoutExt.length() - 4)
+                : withoutExt;
     }
 
     // Hack for tests, don't use otherwise
