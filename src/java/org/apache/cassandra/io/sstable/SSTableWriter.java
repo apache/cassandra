@@ -242,7 +242,7 @@ public class SSTableWriter extends SSTable
         long maxTimestamp = Long.MIN_VALUE;
         int maxLocalDeletionTime = Integer.MIN_VALUE;
         StreamingHistogram tombstones = new StreamingHistogram(TOMBSTONE_HISTOGRAM_BIN_SIZE);
-        ColumnFamily cf = ColumnFamily.create(metadata, ArrayBackedSortedColumns.factory());
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(metadata);
         cf.delete(deletionInfo);
 
         ColumnIndex.Builder columnIndexer = new ColumnIndex.Builder(cf, key.key, dataFile.stream);

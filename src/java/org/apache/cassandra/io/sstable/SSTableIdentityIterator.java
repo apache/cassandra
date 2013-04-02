@@ -154,7 +154,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 IndexHelper.skipBloomFilter(inputWithTracker, dataVersion.filterType);
                 IndexHelper.skipIndex(inputWithTracker);
             }
-            columnFamily = ColumnFamily.create(metadata);
+            columnFamily = EmptyColumns.factory.create(metadata);
             columnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(inputWithTracker, dataVersion));
 
             columnCount = inputWithTracker.readInt();
@@ -230,7 +230,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         }
     }
 
-    public ColumnFamily getColumnFamilyWithColumns(ISortedColumns.Factory containerFactory) throws IOException
+    public ColumnFamily getColumnFamilyWithColumns(ColumnFamily.Factory containerFactory) throws IOException
     {
         assert inputWithTracker.getBytesRead() == headerSize();
         ColumnFamily cf = columnFamily.cloneMeShallow(containerFactory, false);
@@ -240,7 +240,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         {
             try
             {
-                cf.validateColumnFields();
+                cf.metadata().validateColumns(cf);
             }
             catch (MarshalException e)
             {

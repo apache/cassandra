@@ -51,7 +51,7 @@ public class MeteredFlusherTest extends SchemaLoader
             for (int i = 0; i < 100; i++)
             {
                 RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key" + j));
-                ColumnFamily cf = ColumnFamily.create("Keyspace1", "_CF" + i);
+                ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "_CF" + i);
                 // don't cheat by allocating this outside of the loop; that defeats the purpose of deliberately using lots of memory
                 ByteBuffer value = ByteBuffer.allocate(100000);
                 cf.addColumn(new Column(name, value));

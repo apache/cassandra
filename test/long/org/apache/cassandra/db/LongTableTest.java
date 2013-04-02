@@ -40,7 +40,7 @@ public class LongTableTest extends SchemaLoader
         for (int i = 1; i < 5000; i += 100)
         {
             RowMutation rm = new RowMutation("Keyspace1", Util.dk("key" + i).key);
-            ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+            ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
             for (int j = 0; j < i; j++)
                 cf.addColumn(column("c" + j, "v" + j, 1L));
             rm.add(cf);

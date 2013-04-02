@@ -32,6 +32,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamily;
 
 import com.googlecode.concurrentlinkedhashmap.Weighers;
+import org.apache.cassandra.db.TreeMapBackedSortedColumns;
 
 import static org.apache.cassandra.Util.column;
 import static org.junit.Assert.*;
@@ -99,7 +100,7 @@ public class CacheProviderTest extends SchemaLoader
 
     private ColumnFamily createCF()
     {
-        ColumnFamily cf = ColumnFamily.create(tableName, cfName);
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(tableName, cfName);
         cf.addColumn(column("vijay", "great", 1));
         cf.addColumn(column("awesome", "vijay", 1));
         return cf;

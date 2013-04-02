@@ -21,7 +21,6 @@ package org.apache.cassandra.db;
  */
 
 
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.junit.Test;
@@ -30,12 +29,14 @@ import static org.junit.Assert.*;
 
 import com.google.common.base.Functions;
 
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.utils.HeapAllocator;
 
-public class ArrayBackedSortedColumnsTest
+public class ArrayBackedSortedColumnsTest extends SchemaLoader
 {
     @Test
     public void testAdd()
@@ -44,9 +45,14 @@ public class ArrayBackedSortedColumnsTest
         testAddInternal(true);
     }
 
+    private CFMetaData metadata()
+    {
+        return Schema.instance.getCFMetaData("Keyspace1", "Standard1");
+    }
+
     private void testAddInternal(boolean reversed)
     {
-        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
+        ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
         int[] values = new int[]{ 1, 2, 2, 3 };
 
         for (int i = 0; i < values.length; ++i)
@@ -67,8 +73,8 @@ public class ArrayBackedSortedColumnsTest
 
     private void testAddAllInternal(boolean reversed)
     {
-        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
-        ISortedColumns map2 = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
+        ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
+        ColumnFamily map2 = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
 
         int[] values1 = new int[]{ 1, 3, 5, 6 };
         int[] values2 = new int[]{ 2, 4, 5, 6 };
@@ -99,7 +105,7 @@ public class ArrayBackedSortedColumnsTest
 
     private void testGetCollectionInternal(boolean reversed)
     {
-        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
+        ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
         int[] values = new int[]{ 1, 2, 3, 5, 9 };
 
         List<Column> sorted = new ArrayList<Column>();
@@ -116,27 +122,6 @@ public class ArrayBackedSortedColumnsTest
     }
 
     @Test
-    public void testGetNames()
-    {
-        testGetNamesInternal(false);
-        testGetNamesInternal(true);
-    }
-
-    private void testGetNamesInternal(boolean reversed)
-    {
-        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
-        List<ByteBuffer> names = new ArrayList<ByteBuffer>();
-        int[] values = new int[]{ 1, 2, 3, 5, 9 };
-        for (int v : values)
-            names.add(ByteBufferUtil.bytes(v));
-
-        for (int i = 0; i < values.length; ++i)
-            map.addColumn(new Column(ByteBufferUtil.bytes(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
-
-        assertSame(names, map.getColumnNames());
-    }
-
-    @Test
     public void testIterator()
     {
         testIteratorInternal(false);
@@ -145,18 +130,12 @@ public class ArrayBackedSortedColumnsTest
 
     private void testIteratorInternal(boolean reversed)
     {
-        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
+        ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
 
-        List<ByteBuffer> names = new ArrayList<ByteBuffer>();
         int[] values = new int[]{ 1, 2, 3, 5, 9 };
-        for (int v : values)
-            names.add(ByteBufferUtil.bytes(v));
 
         for (int i = 0; i < values.length; ++i)
             map.addColumn(new Column(ByteBufferUtil.bytes(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
-
-        //assertSame(new int[]{ 3, 5, 9 }, map.iterator(ByteBufferUtil.bytes(3)));
-        //assertSame(new int[]{ 5, 9 }, map.iterator(ByteBufferUtil.bytes(4)));
 
         assertSame(new int[]{ 3, 2, 1 }, map.reverseIterator(new ColumnSlice[]{ new ColumnSlice(ByteBufferUtil.bytes(3), ByteBufferUtil.EMPTY_BYTE_BUFFER) }));
         assertSame(new int[]{ 3, 2, 1 }, map.reverseIterator(new ColumnSlice[]{ new ColumnSlice(ByteBufferUtil.bytes(4), ByteBufferUtil.EMPTY_BYTE_BUFFER) }));
@@ -164,7 +143,7 @@ public class ArrayBackedSortedColumnsTest
         assertSame(map.iterator(), map.iterator(ColumnSlice.ALL_COLUMNS_ARRAY));
     }
 
-    private <T> void assertSame(Collection<T> c1, Collection<T> c2)
+    private <T> void assertSame(Iterable<T> c1, Iterable<T> c2)
     {
         assertSame(c1.iterator(), c2.iterator());
     }

@@ -1693,6 +1693,12 @@ public final class CFMetaData
         return false;
     }
 
+    public void validateColumns(Iterable<Column> columns)
+    {
+        for (Column column : columns)
+            column.validateFields(this);
+    }
+
     @Override
     public String toString()
     {

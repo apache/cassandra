@@ -196,7 +196,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
             public ColumnFamily call() throws Exception
             {
-                final ColumnFamily returnCF = ColumnFamily.create(controller.cfs.metadata, ArrayBackedSortedColumns.factory());
+                final ColumnFamily returnCF = ArrayBackedSortedColumns.factory.create(controller.cfs.metadata);
 
                 List<CloseableIterator<Column>> data = new ArrayList<CloseableIterator<Column>>(rows.size());
                 for (Row row : rows)
@@ -295,7 +295,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                         else
                         {
                             logger.debug("parallel eager deserialize from " + iter.getPath());
-                            queue.put(new RowContainer(new Row(iter.getKey(), iter.getColumnFamilyWithColumns(ArrayBackedSortedColumns.factory()))));
+                            queue.put(new RowContainer(new Row(iter.getKey(), iter.getColumnFamilyWithColumns(ArrayBackedSortedColumns.factory))));
                         }
                     }
                 }

@@ -103,7 +103,7 @@ public class PrecompactedRow extends AbstractCompactedRow
     {
         assert !rows.isEmpty();
 
-        final ColumnFamily returnCF = ColumnFamily.create(controller.cfs.metadata, ArrayBackedSortedColumns.factory());
+        final ColumnFamily returnCF = ArrayBackedSortedColumns.factory.create(controller.cfs.metadata);
 
         // transform into iterators that MergeIterator will like, and apply row-level tombstones
         List<CloseableIterator<Column>> data = new ArrayList<CloseableIterator<Column>>(rows.size());
@@ -111,7 +111,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         {
             try
             {
-                ColumnFamily cf = row.getColumnFamilyWithColumns(ArrayBackedSortedColumns.factory());
+                ColumnFamily cf = row.getColumnFamilyWithColumns(ArrayBackedSortedColumns.factory);
                 returnCF.delete(cf);
                 data.add(FBUtilities.closeableIterator(cf.iterator()));
             }

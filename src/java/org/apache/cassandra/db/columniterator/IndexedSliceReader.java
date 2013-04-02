@@ -26,11 +26,7 @@ import java.util.List;
 
 import com.google.common.collect.AbstractIterator;
 
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DeletionInfo;
-import org.apache.cassandra.db.OnDiskAtom;
-import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
@@ -83,13 +79,13 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 if (indexes.isEmpty())
                 {
                     setToRowStart(sstable, indexEntry, input);
-                    this.emptyColumnFamily = ColumnFamily.create(sstable.metadata);
+                    this.emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
                     emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
                     fetcher = new SimpleBlockFetcher();
                 }
                 else
                 {
-                    this.emptyColumnFamily = ColumnFamily.create(sstable.metadata);
+                    this.emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
                     emptyColumnFamily.delete(indexEntry.deletionInfo());
                     fetcher = new IndexedBlockFetcher(indexEntry.position);
                 }
@@ -99,7 +95,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 setToRowStart(sstable, indexEntry, input);
                 IndexHelper.skipBloomFilter(file, version.filterType);
                 this.indexes = IndexHelper.deserializeIndex(file);
-                this.emptyColumnFamily = ColumnFamily.create(sstable.metadata);
+                this.emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
                 emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
                 fetcher = indexes.isEmpty()
                         ? new SimpleBlockFetcher()

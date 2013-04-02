@@ -17,18 +17,21 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
 
-import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.ISSTableColumnIterator;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.SSTableSliceIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -168,34 +171,21 @@ public class SliceQueryFilter implements IDiskAtomFilter
     {
         ColumnCounter counter = getColumnCounter(cf);
 
-        Collection<ByteBuffer> toRemove = null;
-        boolean trimRemaining = false;
-
         Collection<Column> columns = reversed
                                    ? cf.getReverseSortedColumns()
                                    : cf.getSortedColumns();
 
-        for (Column column : columns)
+        for (Iterator<Column> iter = columns.iterator(); iter.hasNext(); )
         {
-            if (trimRemaining)
-            {
-                toRemove.add(column.name());
-                continue;
-            }
-
+            Column column = iter.next();
             counter.count(column, cf);
+
             if (counter.live() > trimTo)
             {
-                toRemove = new HashSet<ByteBuffer>();
-                toRemove.add(column.name());
-                trimRemaining = true;
+                iter.remove();
+                while (iter.hasNext())
+                    iter.remove();
             }
-        }
-
-        if (toRemove != null)
-        {
-            for (ByteBuffer columnName : toRemove)
-                cf.remove(columnName);
         }
     }
 

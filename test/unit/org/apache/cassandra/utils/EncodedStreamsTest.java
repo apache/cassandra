@@ -27,6 +27,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.TreeMapBackedSortedColumns;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.vint.EncodedDataInputStream;
@@ -96,7 +97,7 @@ public class EncodedStreamsTest extends SchemaLoader
 
     private ColumnFamily createCF()
     {
-        ColumnFamily cf = ColumnFamily.create(tableName, standardCFName);
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(tableName, standardCFName);
         cf.addColumn(column("vijay", "try", 1));
         cf.addColumn(column("to", "be_nice", 1));
         return cf;
@@ -104,7 +105,7 @@ public class EncodedStreamsTest extends SchemaLoader
 
     private ColumnFamily createCounterCF()
     {
-        ColumnFamily cf = ColumnFamily.create(tableName, counterCFName);
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(tableName, counterCFName);
         cf.addColumn(counterColumn("vijay", 1L, 1));
         cf.addColumn(counterColumn("wants", 1000000, 1));
         return cf;

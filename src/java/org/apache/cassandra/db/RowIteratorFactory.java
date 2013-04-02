@@ -64,7 +64,7 @@ public class RowIteratorFactory
         // memtables
         for (Memtable memtable : memtables)
         {
-            iterators.add(new ConvertToColumnIterator(filter, memtable.getEntryIterator(startWith, stopAt)));
+            iterators.add(new ConvertToColumnIterator<AtomicSortedColumns>(filter, memtable.getEntryIterator(startWith, stopAt)));
         }
 
         for (SSTableReader sstable : sstables)
@@ -85,7 +85,7 @@ public class RowIteratorFactory
             @Override
             protected void onKeyChange()
             {
-                this.returnCF = ColumnFamily.create(cfs.metadata);
+                this.returnCF = TreeMapBackedSortedColumns.factory.create(cfs.metadata);
             }
 
             public void reduce(OnDiskAtomIterator current)
@@ -122,12 +122,12 @@ public class RowIteratorFactory
     /**
      * Get a ColumnIterator for a specific key in the memtable.
      */
-    private static class ConvertToColumnIterator implements CloseableIterator<OnDiskAtomIterator>
+    private static class ConvertToColumnIterator<T extends ColumnFamily> implements CloseableIterator<OnDiskAtomIterator>
     {
         private final QueryFilter filter;
-        private final Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter;
+        private final Iterator<Map.Entry<DecoratedKey, T>> iter;
 
-        public ConvertToColumnIterator(QueryFilter filter, Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter)
+        public ConvertToColumnIterator(QueryFilter filter, Iterator<Map.Entry<DecoratedKey, T>> iter)
         {
             this.filter = filter;
             this.iter = iter;
@@ -147,7 +147,7 @@ public class RowIteratorFactory
          */
         public OnDiskAtomIterator next()
         {
-            final Map.Entry<DecoratedKey, ColumnFamily> entry = iter.next();
+            final Map.Entry<DecoratedKey, T> entry = iter.next();
             return new LazyColumnIterator(entry.getKey(), new IColumnIteratorFactory()
             {
                 public OnDiskAtomIterator create()

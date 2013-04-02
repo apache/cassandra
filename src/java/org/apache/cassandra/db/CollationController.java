@@ -43,7 +43,7 @@ public class CollationController
 
     private final ColumnFamilyStore cfs;
     private final QueryFilter filter;
-    private final ISortedColumns.Factory factory;
+    private final ColumnFamily.Factory factory;
     private final int gcBefore;
 
     private int sstablesIterated = 0;
@@ -55,8 +55,8 @@ public class CollationController
         this.gcBefore = gcBefore;
 
         this.factory = mutableColumns
-                     ? AtomicSortedColumns.factory()
-                     : ArrayBackedSortedColumns.factory();
+                     ? AtomicSortedColumns.factory
+                     : ArrayBackedSortedColumns.factory;
     }
 
     public ColumnFamily getTopLevelColumns()
@@ -75,7 +75,7 @@ public class CollationController
     private ColumnFamily collectTimeOrderedData()
     {
         logger.trace("collectTimeOrderedData");
-        ColumnFamily container = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());
+        ColumnFamily container = factory.create(cfs.metadata, filter.filter.isReversed());
         List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>();
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
@@ -84,7 +84,7 @@ public class CollationController
         // which requires addAtom to happen in sorted order.  Then we use addAll to merge into the final collection,
         // which allows a (sorted) set of columns to be merged even if they are not uniformly sorted after the existing
         // ones.
-        ColumnFamily temp = ColumnFamily.create(cfs.metadata, ArrayBackedSortedColumns.factory(), filter.filter.isReversed());
+        ColumnFamily temp = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
 
         try
         {
@@ -229,7 +229,7 @@ public class CollationController
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
         List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>(Iterables.size(view.memtables) + view.sstables.size());
-        ColumnFamily returnCF = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());
+        ColumnFamily returnCF = factory.create(cfs.metadata, filter.filter.isReversed());
 
         try
         {

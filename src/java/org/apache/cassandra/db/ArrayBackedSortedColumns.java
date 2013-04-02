@@ -22,72 +22,56 @@ import java.util.*;
 
 import com.google.common.base.Function;
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
 /**
- * A ISortedColumns backed by an ArrayList.
+ * A ColumnFamily backed by an ArrayList.
  * This implementation is not synchronized and should only be used when
  * thread-safety is not required. This implementation makes sense when the
  * main operations performed are iterating over the map and adding columns
  * (especially if insertion is in sorted order).
  */
-public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns implements ISortedColumns
+public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
 {
-    private final AbstractType<?> comparator;
     private final boolean reversed;
     private final ArrayList<Column> columns;
 
-    public static final ISortedColumns.Factory factory = new Factory()
+    public static final ColumnFamily.Factory<ArrayBackedSortedColumns> factory = new Factory<ArrayBackedSortedColumns>()
     {
-        public ISortedColumns create(AbstractType<?> comparator, boolean insertReversed)
+        public ArrayBackedSortedColumns create(CFMetaData metadata, boolean insertReversed)
         {
-            return new ArrayBackedSortedColumns(comparator, insertReversed);
-        }
-
-        public ISortedColumns fromSorted(SortedMap<ByteBuffer, Column> sortedMap, boolean insertReversed)
-        {
-            return new ArrayBackedSortedColumns(sortedMap.values(), (AbstractType<?>)sortedMap.comparator(), insertReversed);
+            return new ArrayBackedSortedColumns(metadata, insertReversed);
         }
     };
 
-    public static ISortedColumns.Factory factory()
+    private ArrayBackedSortedColumns(CFMetaData metadata, boolean reversed)
     {
-        return factory;
-    }
-
-    private ArrayBackedSortedColumns(AbstractType<?> comparator, boolean reversed)
-    {
-        super();
-        this.comparator = comparator;
+        super(metadata);
         this.reversed = reversed;
         this.columns = new ArrayList<Column>();
     }
 
-    private ArrayBackedSortedColumns(Collection<Column> columns, AbstractType<?> comparator, boolean reversed)
+    private ArrayBackedSortedColumns(Collection<Column> columns, CFMetaData metadata, boolean reversed)
     {
-        this.comparator = comparator;
+        super(metadata);
         this.reversed = reversed;
         this.columns = new ArrayList<Column>(columns);
     }
 
-    public ISortedColumns.Factory getFactory()
+    public ColumnFamily.Factory getFactory()
     {
-        return factory();
+        return factory;
     }
 
-    public AbstractType<?> getComparator()
+    public ColumnFamily cloneMe()
     {
-        return comparator;
-    }
-
-    public ISortedColumns cloneMe()
-    {
-        return new ArrayBackedSortedColumns(columns, comparator, reversed);
+        return new ArrayBackedSortedColumns(columns, metadata, reversed);
     }
 
     public boolean isInsertReversed()
@@ -97,7 +81,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
 
     private Comparator<ByteBuffer> internalComparator()
     {
-        return reversed ? comparator.reverseComparator : comparator;
+        return reversed ? getComparator().reverseComparator : getComparator();
     }
 
     public Column getColumn(ByteBuffer name)
@@ -125,7 +109,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         }
 
         // Fast path if inserting at the tail
-        int c = internalComparator().compare(columns.get(size() - 1).name(), column.name());
+        int c = internalComparator().compare(columns.get(getColumnCount() - 1).name(), column.name());
         // note that we want an assertion here (see addColumn javadoc), but we also want that if
         // assertion are disabled, addColumn works correctly with unsorted input
         assert c <= 0 : "Added column does not sort as the " + (reversed ? "first" : "last") + " column";
@@ -138,7 +122,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         else if (c == 0)
         {
             // Resolve against last
-            resolveAgainst(size() - 1, column, allocator);
+            resolveAgainst(getColumnCount() - 1, column, allocator);
         }
         else
         {
@@ -199,18 +183,13 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         return -mid - (result < 0 ? 1 : 2);
     }
 
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
+    public void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation)
     {
-        throw new UnsupportedOperationException();
-    }
-
-    public void addAll(ISortedColumns cm, Allocator allocator, Function<Column, Column> transformation)
-    {
-        delete(cm.getDeletionInfo());
+        delete(cm.deletionInfo());
         if (cm.isEmpty())
             return;
 
-        Column[] copy = columns.toArray(new Column[size()]);
+        Column[] copy = columns.toArray(new Column[getColumnCount()]);
         int idx = 0;
         Iterator<Column> other = reversed ? cm.reverseIterator(ColumnSlice.ALL_COLUMNS_ARRAY) : cm.iterator();
         Column otherColumn = other.next();
@@ -233,7 +212,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
             else // c == 0
             {
                 columns.add(copy[idx]);
-                resolveAgainst(size() - 1, transformation.apply(otherColumn), allocator);
+                resolveAgainst(getColumnCount() - 1, transformation.apply(otherColumn), allocator);
                 idx++;
                 otherColumn = other.hasNext() ? other.next() : null;
             }
@@ -276,14 +255,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         return reversed ? new ForwardSortedCollection() : new ReverseSortedCollection();
     }
 
-    public void removeColumn(ByteBuffer name)
-    {
-        int pos = binarySearch(name);
-        if (pos >= 0)
-            columns.remove(pos);
-    }
-
-    public int size()
+    public int getColumnCount()
     {
         return columns.size();
     }
@@ -293,10 +265,15 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         columns.clear();
     }
 
-    public SortedSet<ByteBuffer> getColumnNames()
+    public Iterable<ByteBuffer> getColumnNames()
     {
-        // we could memoize the created set but it's unlikely we'll call this method a lot on the same object anyway
-        return new ColumnNamesSet();
+        return Iterables.transform(columns, new Function<Column, ByteBuffer>()
+        {
+            public ByteBuffer apply(Column column)
+            {
+                return column.name;
+            }
+        });
     }
 
     public Iterator<Column> iterator()
@@ -306,12 +283,12 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
 
     public Iterator<Column> iterator(ColumnSlice[] slices)
     {
-        return new SlicesIterator(columns, comparator, slices, reversed);
+        return new SlicesIterator(columns, getComparator(), slices, reversed);
     }
 
     public Iterator<Column> reverseIterator(ColumnSlice[] slices)
     {
-        return new SlicesIterator(columns, comparator, slices, !reversed);
+        return new SlicesIterator(columns, getComparator(), slices, !reversed);
     }
 
     private static class SlicesIterator extends AbstractIterator<Column>
@@ -408,81 +385,6 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         public Iterator<Column> iterator()
         {
             return columns.iterator();
-        }
-    }
-
-    private class ColumnNamesSet extends AbstractSet<ByteBuffer> implements SortedSet<ByteBuffer>
-    {
-        public int size()
-        {
-            return columns.size();
-        }
-
-        public Iterator<ByteBuffer> iterator()
-        {
-            final Iterator<Column> outerIterator = ArrayBackedSortedColumns.this.iterator(); // handles reversed
-            return new Iterator<ByteBuffer>()
-            {
-                public boolean hasNext()
-                {
-                    return outerIterator.hasNext();
-                }
-
-                public ByteBuffer next()
-                {
-                    return outerIterator.next().name();
-                }
-
-                public void remove()
-                {
-                    outerIterator.remove();
-                }
-            };
-        }
-
-        public Comparator<ByteBuffer> comparator()
-        {
-            return getComparator();
-        }
-
-        public ByteBuffer first()
-        {
-            final ArrayBackedSortedColumns outerList = ArrayBackedSortedColumns.this;
-            if (outerList.isEmpty())
-                throw new NoSuchElementException();
-            return outerList.columns.get(outerList.reversed ? size() - 1 : 0).name();
-        }
-
-        public ByteBuffer last()
-        {
-            final ArrayBackedSortedColumns outerList = ArrayBackedSortedColumns.this;
-            if (outerList.isEmpty())
-                throw new NoSuchElementException();
-            return outerList.columns.get(outerList.reversed ? 0 : size() - 1).name();
-        }
-
-        /*
-         * It is fairly hard to implement headSet, tailSet and subSet so that they respect their specification.
-         * Namely, the part "The returned set is backed by this set, so changes in the returned set are reflected
-         * in this set, and vice-versa". Simply keeping a lower and upper index in the backing arrayList wouldn't
-         * ensure those property. Since we do not use those function so far, we prefer returning UnsupportedOperationException
-         * for now and revisit this when and if the need arise.
-         */
-        public SortedSet<ByteBuffer> headSet(ByteBuffer fromElement)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        // see headSet
-        public SortedSet<ByteBuffer> tailSet(ByteBuffer toElement)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        // see headSet
-        public SortedSet<ByteBuffer> subSet(ByteBuffer fromElement, ByteBuffer toElement)
-        {
-            throw new UnsupportedOperationException();
         }
     }
 }

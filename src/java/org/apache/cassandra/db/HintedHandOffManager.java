@@ -129,7 +129,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         // serialize the hint with id and version as a composite column name
         ByteBuffer name = comparator.decompose(hintId, MessagingService.current_version);
         ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, RowMutation.serializer, MessagingService.current_version));
-        ColumnFamily cf = ColumnFamily.create(Schema.instance.getCFMetaData(Table.SYSTEM_KS, SystemTable.HINTS_CF));
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Schema.instance.getCFMetaData(Table.SYSTEM_KS, SystemTable.HINTS_CF));
         cf.addColumn(name, value, System.currentTimeMillis(), ttl);
 
         return new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(targetId), cf);
@@ -350,7 +350,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
             List<WriteResponseHandler> responseHandlers = Lists.newArrayList();
 
-            for (final Column hint : hintsPage.getSortedColumns())
+            for (final Column hint : hintsPage)
             {
                 // check if hints delivery has been paused during the process
                 if (hintedHandOffPaused)

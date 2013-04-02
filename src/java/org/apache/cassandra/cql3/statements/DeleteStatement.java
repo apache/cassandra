@@ -23,14 +23,10 @@ import java.util.*;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DeletionInfo;
-import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.thrift.ThriftValidation;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * A <code>DELETE</code> parsed from a CQL query statement.
@@ -103,7 +99,7 @@ public class DeleteStatement extends ModificationStatement
     throws InvalidRequestException
     {
         QueryProcessor.validateKey(key);
-        ColumnFamily cf = ColumnFamily.create(Schema.instance.getCFMetaData(cfDef.cfm.ksName, columnFamily()));
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(Schema.instance.getCFMetaData(cfDef.cfm.ksName, columnFamily()));
 
         if (toRemove.isEmpty() && builder.componentCount() == 0)
         {

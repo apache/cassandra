@@ -23,11 +23,7 @@ import java.util.Iterator;
 
 import com.google.common.collect.AbstractIterator;
 
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DeletionInfo;
-import org.apache.cassandra.db.OnDiskAtom;
-import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -77,9 +73,9 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
                 IndexHelper.skipIndex(file);
             }
 
-            emptyColumnFamily = ColumnFamily.create(sstable.metadata);
+            emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
             emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
-            atomIterator = emptyColumnFamily.metadata().getOnDiskIterator(file, file.readInt(), sstable.descriptor.version);
+            atomIterator = emptyColumnFamily.metadata().getOnDiskIterator(file, file.readInt(), version);
             mark = file.mark();
         }
         catch (IOException e)

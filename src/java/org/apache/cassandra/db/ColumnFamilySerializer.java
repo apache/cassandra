@@ -93,10 +93,15 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
 
     public ColumnFamily deserialize(DataInput in, ColumnSerializer.Flag flag, int version) throws IOException
     {
+        return deserialize(in, ArrayBackedSortedColumns.factory, flag, version);
+    }
+
+    public ColumnFamily deserialize(DataInput in, ColumnFamily.Factory factory, ColumnSerializer.Flag flag, int version) throws IOException
+    {
         if (!in.readBoolean())
             return null;
 
-        ColumnFamily cf = ColumnFamily.create(deserializeCfId(in, version), ArrayBackedSortedColumns.factory());
+        ColumnFamily cf = factory.create(Schema.instance.getCFMetaData(deserializeCfId(in, version)));
         int expireBefore = (int) (System.currentTimeMillis() / 1000);
 
         if (cf.metadata().isSuper() && version < MessagingService.VERSION_20)

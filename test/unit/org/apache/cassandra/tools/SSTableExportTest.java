@@ -35,11 +35,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.CounterColumn;
-import org.apache.cassandra.db.DeletionInfo;
-import org.apache.cassandra.db.ExpiringColumn;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -62,7 +58,7 @@ public class SSTableExportTest extends SchemaLoader
     public void testEnumeratekeys() throws IOException
     {
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
-        ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cfamily = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
 
         // Add rowA
@@ -95,7 +91,7 @@ public class SSTableExportTest extends SchemaLoader
     public void testExportSimpleCf() throws IOException, ParseException
     {
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
-        ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cfamily = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
 
         int nowInSec = (int)(System.currentTimeMillis() / 1000) + 42; //live for 42 seconds
@@ -150,7 +146,7 @@ public class SSTableExportTest extends SchemaLoader
     public void testRoundTripStandardCf() throws IOException, ParseException
     {
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
-        ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cfamily = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
 
         // Add rowA
@@ -189,7 +185,7 @@ public class SSTableExportTest extends SchemaLoader
     public void testExportCounterCf() throws IOException, ParseException
     {
         File tempSS = tempSSTableFile("Keyspace1", "Counter1");
-        ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Counter1");
+        ColumnFamily cfamily = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Counter1");
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
 
         // Add rowA
@@ -220,7 +216,7 @@ public class SSTableExportTest extends SchemaLoader
     public void testEscapingDoubleQuotes() throws IOException, ParseException
     {
         File tempSS = tempSSTableFile("Keyspace1", "ValuesWithQuotes");
-        ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "ValuesWithQuotes");
+        ColumnFamily cfamily = TreeMapBackedSortedColumns.factory.create("Keyspace1", "ValuesWithQuotes");
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
 
         // Add rowA
@@ -252,7 +248,7 @@ public class SSTableExportTest extends SchemaLoader
     {
 
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
-        ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cfamily = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
 
         // Add rowA

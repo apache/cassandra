@@ -178,7 +178,7 @@ public class DefsTable
             if (Schema.invalidSchemaRow(row))
                 continue;
 
-            for (Column column : row.cf.columns)
+            for (Column column : row.cf)
             {
                 Date columnDate = new Date(column.timestamp());
 
@@ -218,7 +218,7 @@ public class DefsTable
 
             RowMutation mutation = new RowMutation(Table.SYSTEM_KS, row.key.key);
 
-            for (Column column : row.cf.columns)
+            for (Column column : row.cf)
             {
                 if (column.isLive())
                     mutation.add(columnFamily, column.name(), column.value(), microTimestamp);
@@ -275,10 +275,9 @@ public class DefsTable
             org.apache.avro.Schema schema = org.apache.avro.Schema.parse(ByteBufferUtil.string(value));
 
             // deserialize keyspaces using schema
-            Collection<Column> columns = cf.getSortedColumns();
-            keyspaces = new ArrayList<KSMetaData>(columns.size());
+            keyspaces = new ArrayList<KSMetaData>(Iterables.size(cf));
 
-            for (Column column : columns)
+            for (Column column : cf)
             {
                 if (column.name().equals(DEFINITION_SCHEMA_COLUMN_NAME))
                     continue;

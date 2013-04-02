@@ -234,7 +234,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
     {
         // all columns reduced together will have the same name, so there will only be one column
         // in the container; we just want to leverage the conflict resolution code from CF
-        ColumnFamily container = emptyColumnFamily.cloneMeShallow();
+        ColumnFamily container = emptyColumnFamily.cloneMeShallow(ArrayBackedSortedColumns.factory, false);
 
         // tombstone reference; will be reconciled w/ column during getReduced
         RangeTombstone tombstone;

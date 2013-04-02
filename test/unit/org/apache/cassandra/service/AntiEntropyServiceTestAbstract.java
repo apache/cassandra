@@ -154,7 +154,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
 
         // add a row
         validator.add(new PrecompactedRow(new DecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")),
-                                          ColumnFamily.create(Schema.instance.getCFMetaData(tablename, cfname))));
+                                          TreeMapBackedSortedColumns.factory.create(Schema.instance.getCFMetaData(tablename, cfname))));
         validator.completeTree();
 
         // confirm that the tree was validated

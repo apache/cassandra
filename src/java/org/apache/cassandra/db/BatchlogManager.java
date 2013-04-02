@@ -134,9 +134,9 @@ public class BatchlogManager implements BatchlogManagerMBean
         ByteBuffer writtenAt = LongType.instance.decompose(timestamp / 1000);
         ByteBuffer data = serializeRowMutations(mutations);
 
-        ColumnFamily cf = ColumnFamily.create(CFMetaData.BatchlogCF);
-        cf.addColumn(new Column(WRITTEN_AT, writtenAt, timestamp));
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(CFMetaData.BatchlogCF);
         cf.addColumn(new Column(DATA, data, timestamp));
+        cf.addColumn(new Column(WRITTEN_AT, writtenAt, timestamp));
 
         return new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(uuid), cf);
     }

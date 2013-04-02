@@ -77,7 +77,7 @@ public class SliceQueryPager implements Iterator<ColumnFamily>
             else
                 slices = Arrays.copyOfRange(slices, i, slices.length);
         }
-        return cf == null ? ColumnFamily.create(cfs.metadata) : cf;
+        return cf == null ? EmptyColumns.factory.create(cfs.metadata) : cf;
     }
 
     public void remove()

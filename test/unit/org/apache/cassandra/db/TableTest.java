@@ -26,6 +26,8 @@ import java.util.*;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.apache.commons.lang.StringUtils;
@@ -40,7 +42,6 @@ import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.expiringColumn;
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -63,7 +64,7 @@ public class TableTest extends SchemaLoader
         final Table table = Table.open("Keyspace2");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard3");
 
-        ColumnFamily cf = ColumnFamily.create("Keyspace2", "Standard3");
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace2", "Standard3");
         cf.addColumn(column("col1","val1", 1L));
         RowMutation rm = new RowMutation("Keyspace2", TEST_KEY.key, cf);
         rm.apply();
@@ -93,7 +94,7 @@ public class TableTest extends SchemaLoader
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
 
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1","val1", 1L));
         cf.addColumn(column("col2","val2", 1L));
         cf.addColumn(column("col3","val3", 1L));
@@ -122,7 +123,7 @@ public class TableTest extends SchemaLoader
     	DecoratedKey key = TEST_SLICE_KEY;
     	Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         // First write "a", "b", "c"
         cf.addColumn(column("a", "val1", 1L));
         cf.addColumn(column("b", "val2", 1L));
@@ -144,7 +145,7 @@ public class TableTest extends SchemaLoader
     public void testGetSliceNoMatch() throws Throwable
     {
         Table table = Table.open("Keyspace1");
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard2");
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard2");
         cf.addColumn(column("col1", "val1", 1));
         RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("row1000"), cf);
         rm.apply();
@@ -168,7 +169,7 @@ public class TableTest extends SchemaLoader
         final DecoratedKey ROW = Util.dk("row4");
         final NumberFormat fmt = new DecimalFormat("000");
 
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         // at this rate, we're getting 78-79 cos/block, assuming the blocks are set to be about 4k.
         // so if we go to 300, we'll get at least 4 blocks, which is plenty for testing.
         for (int i = 0; i < 300; i++)
@@ -226,7 +227,7 @@ public class TableTest extends SchemaLoader
 
         for (int i = 0; i < 10; i++)
         {
-            ColumnFamily cf = ColumnFamily.create("Keyspace1", "StandardLong1");
+            ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "StandardLong1");
             cf.addColumn(new Column(ByteBufferUtil.bytes((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
             RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
             rm.apply();
@@ -236,13 +237,13 @@ public class TableTest extends SchemaLoader
 
         for (int i = 10; i < 20; i++)
         {
-            ColumnFamily cf = ColumnFamily.create("Keyspace1", "StandardLong1");
+            ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "StandardLong1");
             cf.addColumn(new Column(ByteBufferUtil.bytes((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
             RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
             rm.apply();
 
             cf = cfs.getColumnFamily(ROW, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 1);
-            assertEquals(1, cf.getColumnNames().size());
+            assertEquals(1, Iterables.size(cf.getColumnNames()));
             assertEquals(i, cf.getColumnNames().iterator().next().getLong());
         }
     }
@@ -269,7 +270,7 @@ public class TableTest extends SchemaLoader
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
         final DecoratedKey ROW = Util.dk("row1");
 
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
         cf.addColumn(column("col3", "val3", 1L));
         cf.addColumn(column("col4", "val4", 1L));
@@ -324,7 +325,7 @@ public class TableTest extends SchemaLoader
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
         final DecoratedKey ROW = Util.dk("row5");
 
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
         cf.addColumn(expiringColumn("col2", "val2", 1L, 60)); // long enough not to be tombstoned
         cf.addColumn(column("col3", "val3", 1L));
@@ -358,7 +359,7 @@ public class TableTest extends SchemaLoader
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
         final DecoratedKey ROW = Util.dk("row2");
 
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
         cf.addColumn(column("col2", "val2", 1L));
         cf.addColumn(column("col3", "val3", 1L));
@@ -369,7 +370,7 @@ public class TableTest extends SchemaLoader
         rm.apply();
         cfStore.forceBlockingFlush();
 
-        cf = ColumnFamily.create("Keyspace1", "Standard1");
+        cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "valx", 2L));
         cf.addColumn(column("col2", "valx", 2L));
         cf.addColumn(column("col3", "valx", 2L));
@@ -406,7 +407,7 @@ public class TableTest extends SchemaLoader
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
         DecoratedKey key = Util.dk("row3");
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         for (int i = 1000; i < 2000; i++)
             cf.addColumn(column("col" + i, ("v" + i), 1L));
         RowMutation rm = new RowMutation("Keyspace1", key.key, cf);

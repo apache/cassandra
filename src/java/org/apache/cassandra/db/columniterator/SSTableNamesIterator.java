@@ -22,13 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilySerializer;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DeletionInfo;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.OnDiskAtom;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.IndexHelper;
@@ -136,12 +130,10 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
 
         if (!indexEntry.isIndexed())
         {
-            // we can stop early if bloom filter says none of the columns actually exist -- but,
-            // we can't stop before initializing the cf above, in case there's a relevant tombstone
             ColumnFamilySerializer serializer = ColumnFamily.serializer;
             try
             {
-                cf = ColumnFamily.create(sstable.metadata);
+                cf = ArrayBackedSortedColumns.factory.create(sstable.metadata);
                 cf.delete(DeletionInfo.serializer().deserializeFromSSTable(file, sstable.descriptor.version));
             }
             catch (Exception e)
@@ -151,7 +143,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         }
         else
         {
-            cf = ColumnFamily.create(sstable.metadata);
+            cf = ArrayBackedSortedColumns.factory.create(sstable.metadata);
             cf.delete(indexEntry.deletionInfo());
         }
 

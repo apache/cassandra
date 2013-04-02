@@ -116,7 +116,7 @@ public class RowMutation implements IMutation
         ColumnFamily cf = modifications.get(cfm.cfId);
         if (cf == null)
         {
-            cf = ColumnFamily.create(cfm);
+            cf = TreeMapBackedSortedColumns.factory.create(cfm);
             modifications.put(cfm.cfId, cf);
         }
         return cf;
@@ -280,7 +280,7 @@ public class RowMutation implements IMutation
             // We used to uselessly write the cf id here
             if (version < MessagingService.VERSION_12)
                 ColumnFamily.serializer.deserializeCfId(in, version);
-            ColumnFamily cf = ColumnFamily.serializer.deserialize(in, flag, version);
+            ColumnFamily cf = ColumnFamily.serializer.deserialize(in, UnsortedColumns.factory, flag, version);
             // We don't allow RowMutation with null column family, so we should never get null back.
             assert cf != null;
             return cf;

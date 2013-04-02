@@ -173,7 +173,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     }
 
     /* convenience method */
-    public String getColumnsString(Collection<Column> columns)
+    public String getColumnsString(Iterable<Column> columns)
     {
         StringBuilder builder = new StringBuilder();
         for (Column column : columns)

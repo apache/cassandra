@@ -23,10 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -41,7 +38,7 @@ public class SSTableUtils
 
     public static ColumnFamily createCF(long mfda, int ldt, Column... cols)
     {
-        ColumnFamily cf = ColumnFamily.create(TABLENAME, CFNAME);
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(TABLENAME, CFNAME);
         cf.delete(new DeletionInfo(mfda, ldt));
         for (Column col : cols)
             cf.addColumn(col);
@@ -165,7 +162,7 @@ public class SSTableUtils
             Map<String, ColumnFamily> map = new HashMap<String, ColumnFamily>();
             for (String key : keys)
             {
-                ColumnFamily cf = ColumnFamily.create(ksname, cfname);
+                ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(ksname, cfname);
                 cf.addColumn(new Column(ByteBufferUtil.bytes(key), ByteBufferUtil.bytes(key), 0));
                 map.put(key, cf);
             }

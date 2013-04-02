@@ -107,7 +107,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         // If the CF already exist in memory, we'll just continue adding to it
         if (previous == null)
         {
-            previous = ColumnFamily.create(metadata, TreeMapBackedSortedColumns.factory());
+            previous = TreeMapBackedSortedColumns.factory.create(metadata);
             buffer.put(currentKey, previous);
         }
         else

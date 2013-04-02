@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -364,8 +363,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         private final ByteBuffer Start = ByteBufferUtil.bytes("Start");
         private final ByteBuffer Stop = ByteBufferUtil.bytes("Stop");
 
-        private final ColumnFamily StandardCf = ColumnFamily.create(KS, StandardCF);
-        private final ColumnFamily SuperCf = ColumnFamily.create(KS, SuperCF);
+        private final ColumnFamily StandardCf = TreeMapBackedSortedColumns.factory.create(KS, StandardCF);
+        private final ColumnFamily SuperCf = TreeMapBackedSortedColumns.factory.create(KS, SuperCF);
 
         private final Row StandardRow = new Row(Util.dk("key0"), StandardCf);
         private final Row SuperRow = new Row(Util.dk("key1"), SuperCf);
