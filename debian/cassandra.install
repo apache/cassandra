@@ -1,3 +1,4 @@
+conf/cassandra-topology.yaml etc/cassandra
 conf/log4j-server.properties etc/cassandra
 conf/cassandra.yaml etc/cassandra
 conf/cassandra-env.sh etc/cassandra
