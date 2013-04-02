@@ -117,6 +117,8 @@ public abstract class Selection
                 args.add(makeSelector(cfDef, rawArg, names, null));
 
             AbstractType<?> returnType = Functions.getReturnType(withFun.functionName, cfDef.cfm.ksName, cfDef.cfm.cfName);
+            if (returnType == null)
+                throw new InvalidRequestException(String.format("Unknown function '%s'", withFun.functionName));
             ColumnSpecification spec = makeFunctionSpec(cfDef, withFun, returnType);
             Function fun = Functions.get(withFun.functionName, args, spec);
             if (metadata != null)
