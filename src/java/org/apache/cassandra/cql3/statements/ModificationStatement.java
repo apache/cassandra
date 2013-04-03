@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.io.IOError;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -168,33 +166,26 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
                                                   new QueryPath(columnFamily()),
                                                   new SliceQueryFilter(slices, false, Integer.MAX_VALUE)));
 
-        try
+        List<Row> rows = local
+                       ? SelectStatement.readLocally(keyspace(), commands)
+                       : StorageProxy.read(commands, cl);
+
+        Map<ByteBuffer, ColumnGroupMap> map = new HashMap<ByteBuffer, ColumnGroupMap>();
+        for (Row row : rows)
         {
-            List<Row> rows = local
-                           ? SelectStatement.readLocally(keyspace(), commands)
-                           : StorageProxy.read(commands, cl);
+            if (row.cf == null || row.cf.isEmpty())
+                continue;
 
-            Map<ByteBuffer, ColumnGroupMap> map = new HashMap<ByteBuffer, ColumnGroupMap>();
-            for (Row row : rows)
-            {
-                if (row.cf == null || row.cf.isEmpty())
-                    continue;
+            ColumnGroupMap.Builder groupBuilder = new ColumnGroupMap.Builder(composite, true);
+            for (IColumn column : row.cf)
+                groupBuilder.add(column);
 
-                ColumnGroupMap.Builder groupBuilder = new ColumnGroupMap.Builder(composite, true);
-                for (IColumn column : row.cf)
-                    groupBuilder.add(column);
-
-                List<ColumnGroupMap> groups = groupBuilder.groups();
-                assert groups.isEmpty() || groups.size() == 1;
-                if (!groups.isEmpty())
-                    map.put(row.key.key, groups.get(0));
-            }
-            return map;
+            List<ColumnGroupMap> groups = groupBuilder.groups();
+            assert groups.isEmpty() || groups.size() == 1;
+            if (!groups.isEmpty())
+                map.put(row.key.key, groups.get(0));
         }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        return map;
     }
 
     /**

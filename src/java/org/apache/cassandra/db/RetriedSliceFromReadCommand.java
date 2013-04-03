@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.thrift.ColumnParent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,11 +27,6 @@ public class RetriedSliceFromReadCommand extends SliceFromReadCommand
 {
     static final Logger logger = LoggerFactory.getLogger(RetriedSliceFromReadCommand.class);
     public final int originalCount;
-
-    public RetriedSliceFromReadCommand(String table, ByteBuffer key, ColumnParent column_parent, SliceQueryFilter filter, int originalCount)
-    {
-        this(table, key, new QueryPath(column_parent), filter, originalCount);
-    }
 
     public RetriedSliceFromReadCommand(String table, ByteBuffer key, QueryPath path, SliceQueryFilter filter, int originalCount)
     {

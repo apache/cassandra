@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -31,9 +30,7 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
@@ -52,7 +49,6 @@ import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * Encapsulates a completely parsed SELECT query, including the target
@@ -127,18 +123,11 @@ public class SelectStatement implements CQLStatement
 
         cl.validateForRead(keyspace());
 
-        try
-        {
-            List<Row> rows = isKeyRange
-                           ? StorageProxy.getRangeSlice(getRangeCommand(variables), cl)
-                           : StorageProxy.read(getSliceCommands(variables), cl);
+        List<Row> rows = isKeyRange
+                       ? StorageProxy.getRangeSlice(getRangeCommand(variables), cl)
+                       : StorageProxy.read(getSliceCommands(variables), cl);
 
-            return processResults(rows, variables);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return processResults(rows, variables);
     }
 
     private ResultMessage.Rows processResults(List<Row> rows, List<ByteBuffer> variables) throws RequestValidationException
@@ -149,7 +138,7 @@ public class SelectStatement implements CQLStatement
         return new ResultMessage.Rows(rset);
     }
 
-    static List<Row> readLocally(String keyspace, List<ReadCommand> cmds) throws IOException
+    static List<Row> readLocally(String keyspace, List<ReadCommand> cmds)
     {
         Table table = Table.open(keyspace);
         List<Row> rows = new ArrayList(cmds.size());
@@ -167,10 +156,6 @@ public class SelectStatement implements CQLStatement
                            : readLocally(keyspace(), getSliceCommands(Collections.<ByteBuffer>emptyList()));
 
             return processResults(rows, Collections.<ByteBuffer>emptyList());
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
         }
         catch (ExecutionException e)
         {

@@ -52,7 +52,6 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.*;
@@ -110,10 +109,6 @@ public class CassandraServer implements Cassandra.Iface
         catch (RequestExecutionException e)
         {
             ThriftConversion.rethrow(e);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
         }
 
         for (Row row: rows)
@@ -977,10 +972,6 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw ThriftConversion.toThrift(e);
         }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
         finally
         {
             Tracing.instance().stopSession();
@@ -1065,10 +1056,6 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw ThriftConversion.toThrift(e);
         }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
         finally
         {
             Tracing.instance().stopSession();
@@ -1144,10 +1131,6 @@ public class CassandraServer implements Cassandra.Iface
         catch (org.apache.cassandra.exceptions.UnavailableException e)
         {
             throw ThriftConversion.toThrift(e);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
         }
         finally
         {

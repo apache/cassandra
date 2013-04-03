@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.ColumnFamily;
@@ -35,7 +34,7 @@ public class RowDigestResolver extends AbstractRowResolver
     /**
      * Special case of resolve() so that CL.ONE reads never throw DigestMismatchException in the foreground
      */
-    public Row getData() throws IOException
+    public Row getData()
     {
         for (MessageIn<ReadResponse> message : replies)
         {
@@ -57,7 +56,7 @@ public class RowDigestResolver extends AbstractRowResolver
      * b) we're checking additional digests that arrived after the minimum to handle
      *    the requested ConsistencyLevel, i.e. asynchronous read repair check
      */
-    public Row resolve() throws DigestMismatchException, IOException
+    public Row resolve() throws DigestMismatchException
     {
         if (logger.isDebugEnabled())
             logger.debug("resolving " + replies.size() + " responses");
