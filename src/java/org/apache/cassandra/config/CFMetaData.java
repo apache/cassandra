@@ -236,7 +236,7 @@ public final class CFMetaData
                                                               + "requested_at timestamp"
                                                               + ") WITH COMMENT='ranges requested for transfer here'");
 
-    public static final CFMetaData CompactionLogCF = compile(18, "CREATE TABLE " + SystemTable.COMPACTION_LOG + " ("
+    public static final CFMetaData CompactionLogCf = compile(18, "CREATE TABLE " + SystemTable.COMPACTION_LOG + " ("
                                                                  + "id uuid PRIMARY KEY,"
                                                                  + "keyspace_name text,"
                                                                  + "columnfamily_name text,"
