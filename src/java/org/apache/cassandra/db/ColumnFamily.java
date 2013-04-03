@@ -292,7 +292,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
                 .append(deletionInfo());
         for (Column column : this)
             builder.append(column);
-        return builder.hashCode();
+        return builder.toHashCode();
     }
 
     @Override
