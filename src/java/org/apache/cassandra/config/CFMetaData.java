@@ -224,7 +224,7 @@ public final class CFMetaData
                                                                + "  PRIMARY KEY (session_id, event_id)"
                                                                + ");", Tracing.TRACE_KS);
 
-    public static final CFMetaData BatchlogCF = compile(16, "CREATE TABLE " + SystemTable.BATCHLOG_CF + " ("
+    public static final CFMetaData BatchlogCf = compile(16, "CREATE TABLE " + SystemTable.BATCHLOG_CF + " ("
                                                             + "id uuid PRIMARY KEY,"
                                                             + "written_at timestamp,"
                                                             + "data blob"

@@ -134,7 +134,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         ByteBuffer writtenAt = LongType.instance.decompose(timestamp / 1000);
         ByteBuffer data = serializeRowMutations(mutations);
 
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(CFMetaData.BatchlogCF);
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(CFMetaData.BatchlogCf);
         cf.addColumn(new Column(DATA, data, timestamp));
         cf.addColumn(new Column(WRITTEN_AT, writtenAt, timestamp));
 
@@ -250,7 +250,7 @@ public class BatchlogManager implements BatchlogManagerMBean
     private static ByteBuffer columnName(String name)
     {
         ByteBuffer raw = UTF8Type.instance.decompose(name);
-        return CFMetaData.BatchlogCF.getCfDef().getColumnNameBuilder().add(raw).build();
+        return CFMetaData.BatchlogCf.getCfDef().getColumnNameBuilder().add(raw).build();
     }
 
     private static List<Row> getRangeSlice(IDiskAtomFilter columnFilter)
