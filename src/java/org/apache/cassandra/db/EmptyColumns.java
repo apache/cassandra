@@ -5,12 +5,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 
-import com.google.common.base.Function;
-
-import com.sun.xml.internal.xsom.impl.scd.Iterators;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.utils.Allocator;
+
+import com.google.common.base.Function;
+import com.google.common.collect.Iterators;
 
 public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
 {
@@ -83,12 +83,12 @@ public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
 
     public Iterator<Column> iterator(ColumnSlice[] slices)
     {
-        return Iterators.empty();
+        return Iterators.emptyIterator();
     }
 
     public Iterator<Column> reverseIterator(ColumnSlice[] slices)
     {
-        return Iterators.empty();
+        return Iterators.emptyIterator();
     }
 
     public boolean isInsertReversed()
