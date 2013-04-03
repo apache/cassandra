@@ -124,7 +124,10 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         else
         {
             assert file != null;
-            IndexHelper.skipBloomFilter(file, sstable.descriptor.version.filterType );
+            if (sstable.descriptor.version.hasRowLevelBF)
+            {
+                IndexHelper.skipSSTableBloomFilter(file, sstable.descriptor.version);
+            }
             indexList = IndexHelper.deserializeIndex(file);
         }
 

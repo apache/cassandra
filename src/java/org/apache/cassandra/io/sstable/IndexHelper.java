@@ -36,6 +36,19 @@ import org.apache.cassandra.utils.*;
  */
 public class IndexHelper
 {
+    public static void skipSSTableBloomFilter(DataInput in, Descriptor.Version version) throws IOException
+    {
+        if (version.hasBloomFilterSizeInHeader)
+        {
+            int size = in.readInt();
+            FileUtils.skipBytesFully(in, size);
+        }
+        else
+        {
+            skipBloomFilter(in, version.filterType);
+        }
+    }
+
 
     /**
      * Skip the bloom filter

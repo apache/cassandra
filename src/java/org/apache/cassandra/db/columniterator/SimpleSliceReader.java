@@ -69,7 +69,7 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
             if (!version.hasPromotedIndexes)
             {
                 if(sstable.descriptor.version.hasRowLevelBF)
-                    IndexHelper.skipBloomFilter(file, version.filterType);
+                    IndexHelper.skipSSTableBloomFilter(file, version);
                 IndexHelper.skipIndex(file);
             }
 

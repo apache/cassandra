@@ -93,6 +93,7 @@ public class Descriptor
         public final FilterFactory.Type filterType;
         public final boolean hasAncestors;
         public final boolean hasSuperColumns;
+        public final boolean hasBloomFilterSizeInHeader;
         public final boolean tracksMaxLocalDeletionTime;
         public final boolean hasBloomFilterFPChance;
         public final boolean hasRowLevelBF;
@@ -120,6 +121,7 @@ public class Descriptor
                 filterType = FilterFactory.Type.MURMUR2;
             else
                 filterType = FilterFactory.Type.MURMUR3;
+            hasBloomFilterSizeInHeader = version.compareTo("ia") < 0;
             hasSuperColumns = version.compareTo("ja") < 0;
             hasBloomFilterFPChance = version.compareTo("ja") >= 0;
             hasRowLevelBF = version.compareTo("ja") < 0;
