@@ -19,8 +19,8 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.concurrent.Callable;
 
+import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,7 +28,6 @@ import org.apache.cassandra.cql3.CFPropDefs;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
@@ -75,6 +74,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         logger.debug("Compaction buckets are {}", buckets);
         updateEstimatedCompactionsByTasks(buckets);
 
+        // skip buckets containing less than minThreshold sstables, and limit other buckets to maxThreshold entries
         List<List<SSTableReader>> prunedBuckets = new ArrayList<List<SSTableReader>>();
         for (List<SSTableReader> bucket : buckets)
         {
@@ -92,10 +92,10 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             prunedBuckets.add(prunedBucket);
         }
 
+        // if there is no sstable to compact in standard way, try compacting single sstable whose droppable tombstone
+        // ratio is greater than threshold.
         if (prunedBuckets.isEmpty())
         {
-            // if there is no sstable to compact in standard way, try compacting single sstable whose droppable tombstone
-            // ratio is greater than threshold.
             for (List<SSTableReader> bucket : buckets)
             {
                 for (SSTableReader table : bucket)
@@ -109,16 +109,12 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
                 return Collections.emptyList();
         }
 
+        // prefer compacting buckets with smallest average size; that will yield the fastest improvement for read performance
         return Collections.min(prunedBuckets, new Comparator<List<SSTableReader>>()
         {
             public int compare(List<SSTableReader> o1, List<SSTableReader> o2)
             {
-                long n = avgSize(o1) - avgSize(o2);
-                if (n < 0)
-                    return -1;
-                if (n > 0)
-                    return 1;
-                return 0;
+                return Longs.compare(avgSize(o1), avgSize(o2));
             }
 
             private long avgSize(List<SSTableReader> sstables)
