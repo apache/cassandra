@@ -78,7 +78,7 @@ public final class KSMetaData
 
     public static KSMetaData systemKeyspace()
     {
-        List<CFMetaData> cfDefs = Arrays.asList(CFMetaData.BatchlogCF,
+        List<CFMetaData> cfDefs = Arrays.asList(CFMetaData.BatchlogCf,
                                                 CFMetaData.RangeXfersCf,
                                                 CFMetaData.LocalCf,
                                                 CFMetaData.PeersCf,
