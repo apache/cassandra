@@ -40,6 +40,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.LocalToken;
@@ -56,6 +57,7 @@ import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Pair;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class SSTableReaderTest extends SchemaLoader
@@ -313,6 +315,29 @@ public class SSTableReaderTest extends SchemaLoader
 
         SSTableReader reopened = SSTableReader.open(sstable.descriptor);
         assert reopened.first.token instanceof LocalToken;
+    }
+
+    /** see CASSANDRA-5407 */
+    @Test
+    public void testGetScannerForNoIntersectingRanges()
+    {
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
+        ByteBuffer key = ByteBufferUtil.bytes(String.valueOf("k1"));
+        RowMutation rm = new RowMutation("Keyspace1", key);
+        rm.add("Standard1", ByteBufferUtil.bytes("xyz"), ByteBufferUtil.bytes("abc"), 0);
+        rm.apply();
+        store.forceBlockingFlush();
+        boolean foundScanner = false;
+        for (SSTableReader s : store.getSSTables())
+        {
+            ICompactionScanner scanner = s.getScanner(new Range<Token>(t(0),
+                                                                       t(1),
+                                                                       s.partitioner));
+            scanner.next(); // throws exception pre 5407
+            foundScanner = true;
+        }
+        assertTrue(foundScanner);
     }
 
     private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS) throws IOException

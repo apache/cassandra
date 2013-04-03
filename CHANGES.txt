@@ -2,7 +2,7 @@
  * Add yaml network topology snitch for mixed ec2/other envs (CASSANDRA-5339)
  * Log when a node is down longer than the hint window (CASSANDRA-4554)
  * Optimize tombstone creation for ExpiringColumns (CASSANDRA-4917)
- * Improve LeveledScanner work estimation (CASSANDRA-5250)
+ * Improve LeveledScanner work estimation (CASSANDRA-5250, 5407)
  * Replace compaction lock with runWithCompactionsDisabled (CASSANDRA-3430)
  * Change Message IDs to ints (CASSANDRA-5307)
  * Move sstable level information into the Stats component, removing the

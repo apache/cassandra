@@ -1019,8 +1019,11 @@ public class SSTableReader extends SSTable
     {
         if (range == null)
             return getScanner();
-
-        return new SSTableBoundedScanner(this, range);
+        Iterator<Pair<Long, Long>> rangeIterator = getPositionsForRanges(Collections.singletonList(range)).iterator();
+        if (rangeIterator.hasNext())
+            return new SSTableBoundedScanner(this, rangeIterator);
+        else
+            return new EmptyCompactionScanner(getFilename());
     }
 
     public FileDataInput getFileDataInput(long position)
@@ -1285,5 +1288,44 @@ public class SSTableReader extends SSTable
         {
             FileUtils.closeQuietly(file);
         }
+    }
+
+    protected class EmptyCompactionScanner implements ICompactionScanner
+    {
+        private final String filename;
+
+        public EmptyCompactionScanner(String filename)
+        {
+            this.filename = filename;
+        }
+
+        public long getLengthInBytes()
+        {
+            return 0;
+        }
+
+        public long getCurrentPosition()
+        {
+            return 0;
+        }
+
+        public String getBackingFiles()
+        {
+            return filename;
+        }
+
+        public boolean hasNext()
+        {
+            return false;
+        }
+
+        public OnDiskAtomIterator next()
+        {
+            return null;
+        }
+
+        public void close() throws IOException { }
+
+        public void remove() { }
     }
 }
