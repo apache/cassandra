@@ -86,7 +86,7 @@ public class YamlFileNetworkTopologySnitch
 
     /**
      * Constructor.
-     * 
+     *
      * @throws ConfigurationException
      *             on failure
      */
@@ -97,7 +97,7 @@ public class YamlFileNetworkTopologySnitch
 
     /**
      * Constructor.
-     * 
+     *
      * @param topologyConfigFilename
      *            name of the topology configuration file
      * @throws ConfigurationException
@@ -139,7 +139,7 @@ public class YamlFileNetworkTopologySnitch
 
     /**
      * Returns the name of the rack for the endpoint, or {@code UNKNOWN} if not known.
-     * 
+     *
      * @return the name of the data center for the endpoint, or {@code UNKNOWN} if not known
      */
     @Override
@@ -151,7 +151,7 @@ public class YamlFileNetworkTopologySnitch
 
     /**
      * Returns the name of the data center for the endpoint, or {@code UNKNOWN} if not known.
-     * 
+     *
      * @return the name of the data center for the endpoint, or {@code UNKNOWN} if not known
      */
     @Override
@@ -167,7 +167,7 @@ public class YamlFileNetworkTopologySnitch
      * <p>
      * Currently, the only preferred address that is considered is the data-center-local address.
      * </p>
-     * 
+     *
      * @param endpoint
      *            the broadcast address for the endpoint
      * @return the preferred non-broadcast address for the endpoint, or null if none was specified
@@ -179,7 +179,7 @@ public class YamlFileNetworkTopologySnitch
 
     /**
      * Returns the data-center-local address for the endpoint, or null if none was specified.
-     * 
+     *
      * @param endpoint
      *            the broadcast address for the endpoint
      * @return the data-center-local address for the endpoint, or null if none was specified
@@ -200,7 +200,7 @@ public class YamlFileNetworkTopologySnitch
      * <li>the endpoint has a configured preferred address as determined by {@link #getPreferredAddress(InetAddress)}.
      * </ul>
      * </p>
-     * 
+     *
      * @param endpoint
      *            the endpoint's broadcast address
      */
@@ -223,7 +223,7 @@ public class YamlFileNetworkTopologySnitch
      * This method is only meant to be called by {@link #reconnectViaPreferredAddress(InetAddress)}, but is declared to
      * have package-private scope in order to facilitate unit testing.
      * </p>
-     * 
+     *
      * @param endpoint
      *            the endpoint's broadcast address
      * @param preferredAddress
@@ -284,7 +284,7 @@ public class YamlFileNetworkTopologySnitch
 
     /**
      * Loads the topology configuration file.
-     * 
+     *
      * @throws ConfigurationException
      *             on failure
      */
@@ -376,7 +376,7 @@ public class YamlFileNetworkTopologySnitch
                         throw new ConfigurationException(
                                 String.format(
                                         "IP address '%s' appears more than once in the topology configuration file",
-                                        datacenter.dc_name, rack.rack_name));
+                                        endpoint));
                     }
 
                     if (dcLocalAddress != null
@@ -385,7 +385,7 @@ public class YamlFileNetworkTopologySnitch
                         throw new ConfigurationException(
                                 String.format(
                                         "IP address '%s' appears more than once in the topology configuration file",
-                                        datacenter.dc_name, rack.rack_name));
+                                        dcLocalAddress));
                     }
                 }
             }
@@ -448,7 +448,7 @@ public class YamlFileNetworkTopologySnitch
 
         /**
          * Returns a simple key-value string representation of this node's data.
-         * 
+         *
          * @return a simple key-value string representation of this node's data
          */
         public String toString()
@@ -473,7 +473,7 @@ public class YamlFileNetworkTopologySnitch
 
             /**
              * Called upon a "restart" gossip event; does nothing.
-             * 
+             *
              * @param endpoint
              *            the endpoint's broadcast address
              * @param state
@@ -488,7 +488,7 @@ public class YamlFileNetworkTopologySnitch
 
             /**
              * Called upon a "remove" gossip event; does nothing.
-             * 
+             *
              * @param endpoint
              *            the endpoint's broadcast address
              */
@@ -501,7 +501,7 @@ public class YamlFileNetworkTopologySnitch
             /**
              * Called upon a "join" gossip event; attempts a reconnect to a preferred non-broadcast address if
              * necessary.
-             * 
+             *
              * @param endpoint
              *            the endpoint's broadcast address
              * @param epState
@@ -516,7 +516,7 @@ public class YamlFileNetworkTopologySnitch
 
             /**
              * Called upon a "dead" gossip event; does nothing.
-             * 
+             *
              * @param endpoint
              *            the endpoint's broadcast address
              * @param state
@@ -531,7 +531,7 @@ public class YamlFileNetworkTopologySnitch
 
             /**
              * Called upon a "change" gossip event; does nothing.
-             * 
+             *
              * @param endpoint
              *            the endpoint's broadcast address
              * @param state
@@ -549,7 +549,7 @@ public class YamlFileNetworkTopologySnitch
             /**
              * Called upon an "alive" gossip event; attempts a reconnect to a preferred non-broadcast address if
              * necessary.
-             * 
+             *
              * @param endpoint
              *            the endpoint's broadcast address
              * @param state
