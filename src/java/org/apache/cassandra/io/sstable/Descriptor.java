@@ -85,6 +85,7 @@ public class Descriptor
         public final boolean hasPromotedIndexes;
         public final FilterFactory.Type filterType;
         public final boolean hasAncestors;
+        public final boolean hasBloomFilterSizeInHeader;
 
         public Version(String version)
         {
@@ -108,6 +109,7 @@ public class Descriptor
                 filterType = FilterFactory.Type.MURMUR2;
             else
                 filterType = FilterFactory.Type.MURMUR3;
+            hasBloomFilterSizeInHeader = version.compareTo("ia") < 0;
         }
 
         /**

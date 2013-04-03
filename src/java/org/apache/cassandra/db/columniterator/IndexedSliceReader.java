@@ -96,7 +96,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             else
             {
                 setToRowStart(sstable, indexEntry, input);
-                IndexHelper.skipBloomFilter(file, version.filterType);
+                IndexHelper.skipSSTableBloomFilter(file, version);
                 this.indexes = IndexHelper.deserializeIndex(file);
                 this.emptyColumnFamily = ColumnFamily.create(sstable.metadata);
                 emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
