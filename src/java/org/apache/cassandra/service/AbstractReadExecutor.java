@@ -119,7 +119,7 @@ public abstract class AbstractReadExecutor
         // noop by default.
     }
 
-    Row get() throws ReadTimeoutException, DigestMismatchException, IOException
+    Row get() throws ReadTimeoutException, DigestMismatchException
     {
         return handler.get();
     }

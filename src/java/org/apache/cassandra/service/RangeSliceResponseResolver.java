@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -59,7 +58,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
         this.sources = endpoints;
     }
 
-    public List<Row> getData() throws IOException
+    public List<Row> getData()
     {
         MessageIn<RangeSliceReply> response = responses.iterator().next();
         return response.payload.rows;
@@ -67,7 +66,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
 
     // Note: this would deserialize the response a 2nd time if getData was called first.
     // (this is not currently an issue since we don't do read repair for range queries.)
-    public Iterable<Row> resolve() throws IOException
+    public Iterable<Row> resolve()
     {
         ArrayList<RowIterator> iters = new ArrayList<RowIterator>(responses.size());
         int n = 0;

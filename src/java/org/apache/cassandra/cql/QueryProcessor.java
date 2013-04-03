@@ -112,14 +112,7 @@ public class QueryProcessor
             }
         }
 
-        try
-        {
-            return StorageProxy.read(commands, select.getConsistencyLevel());
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return StorageProxy.read(commands, select.getConsistencyLevel());
     }
 
     private static SortedSet<ByteBuffer> getColumnNames(SelectStatement select, CFMetaData metadata, List<ByteBuffer> variables)
@@ -140,7 +133,6 @@ public class QueryProcessor
     private static List<org.apache.cassandra.db.Row> multiRangeSlice(CFMetaData metadata, SelectStatement select, List<ByteBuffer> variables)
     throws ReadTimeoutException, UnavailableException, InvalidRequestException
     {
-        List<org.apache.cassandra.db.Row> rows;
         IPartitioner<?> p = StorageService.getPartitioner();
 
         AbstractType<?> keyType = Schema.instance.getCFMetaData(metadata.ksName, select.getColumnFamily()).getKeyValidator();
@@ -183,20 +175,13 @@ public class QueryProcessor
                   ? select.getNumRecords() + 1
                   : select.getNumRecords();
 
-        try
-        {
-            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(metadata.ksName,
-                                                                    select.getColumnFamily(),
-                                                                    columnFilter,
-                                                                    bounds,
-                                                                    expressions,
-                                                                    limit),
-                                                                    select.getConsistencyLevel());
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        List<org.apache.cassandra.db.Row> rows = StorageProxy.getRangeSlice(new RangeSliceCommand(metadata.ksName,
+                                                                                                  select.getColumnFamily(),
+                                                                                                  columnFilter,
+                                                                                                  bounds,
+                                                                                                  expressions,
+                                                                                                  limit),
+                                                                            select.getConsistencyLevel());
 
         // if start key was set and relation was "greater than"
         if (select.getKeyStart() != null && !select.includeStartKey() && !rows.isEmpty())

@@ -105,7 +105,7 @@ public abstract class ReadCommand implements IReadCommand
 
     public abstract ReadCommand copy();
 
-    public abstract Row getRow(Table table) throws IOException;
+    public abstract Row getRow(Table table);
 
     public abstract IDiskAtomFilter filter();
 

@@ -792,7 +792,7 @@ public class StorageProxy implements StorageProxyMBean
                     // and we want to avoid blocking too much the MUTATION stage
                     StageManager.getStage(Stage.REPLICATE_ON_WRITE).execute(new DroppableRunnable(MessagingService.Verb.READ)
                     {
-                        public void runMayThrow() throws IOException, OverloadedException
+                        public void runMayThrow() throws OverloadedException
                         {
                             // send mutation to other replica
                             sendToHintedEndpoints(cm.makeReplicationMutation(), remotes, responseHandler, localDataCenter, consistency_level);
@@ -816,7 +816,7 @@ public class StorageProxy implements StorageProxyMBean
      * a specific set of column names from a given column family.
      */
     public static List<Row> read(List<ReadCommand> commands, ConsistencyLevel consistency_level)
-    throws IOException, UnavailableException, IsBootstrappingException, ReadTimeoutException
+    throws UnavailableException, IsBootstrappingException, ReadTimeoutException
     {
         if (StorageService.instance.isBootstrapMode() && !systemTableQuery(commands))
         {
@@ -861,7 +861,7 @@ public class StorageProxy implements StorageProxyMBean
      * 5. else carry out read repair by getting data from all the nodes.
      */
     private static List<Row> fetchRows(List<ReadCommand> initialCommands, ConsistencyLevel consistency_level)
-    throws IOException, UnavailableException, ReadTimeoutException
+    throws UnavailableException, ReadTimeoutException
     {
         List<Row> rows = new ArrayList<Row>(initialCommands.size());
         List<ReadCommand> commandsToRetry = Collections.emptyList();
@@ -996,7 +996,7 @@ public class StorageProxy implements StorageProxyMBean
             this.handler = handler;
         }
 
-        protected void runMayThrow() throws IOException
+        protected void runMayThrow()
         {
             logger.trace("LocalReadRunnable reading {}", command);
 
@@ -1056,7 +1056,7 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     public static List<Row> getRangeSlice(RangeSliceCommand command, ConsistencyLevel consistency_level)
-    throws IOException, UnavailableException, ReadTimeoutException
+    throws UnavailableException, ReadTimeoutException
     {
         Tracing.trace("Determining replicas to query");
         logger.trace("Command/ConsistencyLevel is {}/{}", command.toString(), consistency_level);

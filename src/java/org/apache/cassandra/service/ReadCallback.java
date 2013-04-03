@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
@@ -42,7 +41,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SimpleCondition;
-import org.apache.cassandra.utils.WrappedRunnable;
 
 public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessage>
 {
@@ -97,7 +95,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         }
     }
 
-    public TResolved get() throws ReadTimeoutException, DigestMismatchException, IOException
+    public TResolved get() throws ReadTimeoutException, DigestMismatchException
     {
         long timeout = command.getTimeout() - (System.currentTimeMillis() - startTime);
         if (!await(timeout))
@@ -166,9 +164,9 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         return true;
     }
 
-    private class AsyncRepairRunner extends WrappedRunnable
+    private class AsyncRepairRunner implements Runnable
     {
-        protected void runMayThrow() throws IOException
+        public void run()
         {
             // If the resolver is a RowDigestResolver, we need to do a full data read if there is a mismatch.
             // Otherwise, resolve will send the repairs directly if needs be (and in that case we should never
