@@ -1472,10 +1472,8 @@ public class CassandraServer implements Cassandra.Iface
 
     public void set_keyspace(String keyspace) throws InvalidRequestException, TException
     {
-        validateLogin();
         try
         {
-            ThriftValidation.validateTable(keyspace);
             state().setKeyspace(keyspace);
         }
         catch (RequestValidationException e)
