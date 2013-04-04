@@ -1,4 +1,8 @@
 1.2.4
+ * avoid duplicate index entries ind PrecompactedRow and 
+   ParallelCompactionIterable (CASSANDRA-5395)
+ * remove the index entry on oldColumn when new column is a tombstone 
+   (CASSANDRA-5395)
  * Change default stream throughput from 400 to 200 mbps (CASSANDRA-5036)
  * Gossiper logs DOWN for symmetry with UP (CASSANDRA-5187)
  * Fix mixing prepared statements between keyspaces (CASSANDRA-5352)
@@ -9,9 +13,11 @@
  * Validate that provided CQL3 collection value are < 64K (CASSANDRA-5355)
  * Make upgradeSSTable skip current version sstables by default (CASSANDRA-5366)
  * Optimize min/max timestamp collection (CASSANDRA-5373)
- * Invalid streamId in cql binary protocol when using invalid CL (CASSANDRA-5164)
+ * Invalid streamId in cql binary protocol when using invalid CL 
+   (CASSANDRA-5164)
  * Fix validation for IN where clauses with collections (CASSANDRA-5376)
- * Copy resultSet on count query to avoid ConcurrentModificationException (CASSANDRA-5382)
+ * Copy resultSet on count query to avoid ConcurrentModificationException 
+   (CASSANDRA-5382)
  * Correctly typecheck in CQL3 even with ReversedType (CASSANDRA-5386)
  * Fix streaming compressed files when using encryption (CASSANDRA-5391)
  * cassandra-all 1.2.0 pom missing netty dependency (CASSANDRA-5392)
@@ -23,7 +29,8 @@
 Merged from 1.1:
  * cli: Quote ks and cf names in schema output when needed (CASSANDRA-5052)
  * Fix bad default for min/max timestamp in SSTableMetadata (CASSANDRA-5372)
- * Fix cf name extraction from manifest in Directories.migrateFile() (CASSANDRA-5242)
+ * Fix cf name extraction from manifest in Directories.migrateFile() 
+   (CASSANDRA-5242)
 
 
 1.2.3
