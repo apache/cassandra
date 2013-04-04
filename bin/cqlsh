@@ -1633,12 +1633,9 @@ class Shell(cmd.Cmd):
                     rowmap[name] = self.cql_protect_value(value)
                 else:
                     rowmap[name] = value
-        if not self.do_import_insert(layout, rowmap):
-            return False
-        nulls = set(columns) - set(rowmap.keys())
-        if nulls:
-            return self.do_import_delete(layout, rowmap, nulls)
-        return True
+            else:
+                rowmap[name] = 'null'
+        return self.do_import_insert(layout, rowmap)
 
     def do_import_insert(self, layout, rowmap):
         # would be nice to be able to use a prepared query here, but in order
@@ -1651,19 +1648,6 @@ class Shell(cmd.Cmd):
             self.cql_protect_name(layout.columnfamily_name),
             ', '.join(self.cql_protect_names(rowmap.keys())),
             ', '.join(rowmap.values())
-        )
-        if self.debug:
-            print 'Import using CQL: %s' % query
-        return self.perform_statement_untraced(query)
-
-    def do_import_delete(self, layout, rowmap, nulls):
-        pk_components = layout.primary_key_components
-        where = [(self.cql_protect_name(pk), rowmap[pk]) for pk in pk_components]
-        query = 'DELETE %s FROM %s.%s WHERE %s' % (
-            ', '.join(self.cql_protect_names(nulls)),
-            self.cql_protect_name(layout.keyspace_name),
-            self.cql_protect_name(layout.columnfamily_name),
-            ' AND '.join([ '%s = %s' % kv for kv in where])
         )
         if self.debug:
             print 'Import using CQL: %s' % query
