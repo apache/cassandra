@@ -71,13 +71,8 @@ public abstract class Maps
                 Term k = entry.left.prepare(keySpec);
                 Term v = entry.right.prepare(valueSpec);
 
-                if (!(k instanceof Constants.Value && v instanceof Constants.Value))
-                {
-                    if (k instanceof Term.NonTerminal || v instanceof Term.NonTerminal)
-                        throw new InvalidRequestException(String.format("Invalid map literal for %s: bind variables are not supported inside collection literals", receiver));
-                    else
-                        throw new InvalidRequestException(String.format("Invalid map literal for %s: nested collections are not supported", receiver));
-                }
+                if (k instanceof Term.NonTerminal || v instanceof Term.NonTerminal)
+                    throw new InvalidRequestException(String.format("Invalid map literal for %s: bind variables are not supported inside collection literals", receiver));
 
                 // We don't support values > 64K because the serialization format encode the length as an unsigned short.
                 ByteBuffer keyBytes = ((Constants.Value)k).bytes;
