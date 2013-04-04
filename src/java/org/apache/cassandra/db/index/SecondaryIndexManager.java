@@ -19,21 +19,18 @@ package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.thrift.Column;
@@ -54,6 +51,8 @@ public class SecondaryIndexManager
         public void update(IColumn oldColumn, IColumn column) { }
 
         public void remove(IColumn current) { }
+
+        public void commit() {}
     };
 
     /**
@@ -580,11 +579,17 @@ public class SecondaryIndexManager
 
     public static interface Updater
     {
+        /** called when constructing the index against pre-existing data */
         public void insert(IColumn column);
 
+        /** called when updating the index from a memtable */
         public void update(IColumn oldColumn, IColumn column);
 
+        /** called when lazy-updating the index during compaction (CASSANDRA-2897) */
         public void remove(IColumn current);
+
+        /** called after memtable updates are complete (CASSANDRA-5397) */
+        public void commit();
     }
 
     private class PerColumnIndexUpdater implements Updater
@@ -630,12 +635,17 @@ public class SecondaryIndexManager
 
             ((PerColumnSecondaryIndex) index).delete(key.key, column);
         }
+
+        public void commit()
+        {
+            // this is a no-op as per-column index updates are applied immediately
+        }
     }
 
     private class MixedIndexUpdater implements Updater
     {
         private final DecoratedKey key;
-        Set<Class<? extends SecondaryIndex>> appliedRowLevelIndexes = new HashSet<Class<? extends SecondaryIndex>>();
+        ConcurrentHashMap<SecondaryIndex, ByteBuffer> deferredUpdates = new ConcurrentHashMap<SecondaryIndex, ByteBuffer>();
 
         public MixedIndexUpdater(DecoratedKey key)
         {
@@ -651,14 +661,13 @@ public class SecondaryIndexManager
             if (index == null)
                 return;
 
-            if (index instanceof  PerColumnSecondaryIndex)
+            if (index instanceof PerColumnSecondaryIndex)
             {
                 ((PerColumnSecondaryIndex) index).insert(key.key, column);
             }
             else
             {
-                if (appliedRowLevelIndexes.add(index.getClass()))
-                    ((PerRowSecondaryIndex) index).index(key.key);
+                deferredUpdates.putIfAbsent(index, key.key);
             }
         }
 
@@ -668,7 +677,7 @@ public class SecondaryIndexManager
             if (index == null)
                 return;
 
-            if (index instanceof  PerColumnSecondaryIndex)
+            if (index instanceof PerColumnSecondaryIndex)
             {
                 ((PerColumnSecondaryIndex) index).delete(key.key, oldColumn);
                 if (!column.isMarkedForDelete())
@@ -676,8 +685,7 @@ public class SecondaryIndexManager
             }
             else
             {
-                if (appliedRowLevelIndexes.add(index.getClass()))
-                    ((PerRowSecondaryIndex) index).index(key.key);
+                deferredUpdates.putIfAbsent(index, key.key);
             }
         }
 
@@ -690,14 +698,23 @@ public class SecondaryIndexManager
             if (index == null)
                 return;
 
-            if (index instanceof  PerColumnSecondaryIndex)
+            if (index instanceof PerColumnSecondaryIndex)
             {
                 ((PerColumnSecondaryIndex) index).delete(key.key, column);
             }
             else
             {
-                if (appliedRowLevelIndexes.add(index.getClass()))
-                    ((PerRowSecondaryIndex) index).index(key.key);
+                // per-row secondary indexes are assumed to keep the index up-to-date at insert time, rather
+                // than performing lazy updates
+            }
+        }
+
+        public void commit()
+        {
+            for (Map.Entry<SecondaryIndex, ByteBuffer> update : deferredUpdates.entrySet())
+            {
+                assert update.getKey() instanceof PerRowSecondaryIndex;
+                ((PerRowSecondaryIndex) update.getKey()).index(update.getValue());
             }
         }
     }
