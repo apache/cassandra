@@ -35,7 +35,6 @@ import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
 
@@ -139,6 +138,10 @@ public class DataTracker
             return;
         }
 
+        // back up before creating a new View (which makes the new one eligible for compaction)
+        if (sstable != null)
+            maybeIncrementallyBackup(sstable);
+
         View currentView, newView;
         do
         {
@@ -151,24 +154,16 @@ public class DataTracker
         {
             addNewSSTablesSize(Arrays.asList(sstable));
             notifyAdded(sstable);
-            incrementallyBackup(sstable);
         }
     }
 
-    public void incrementallyBackup(final SSTableReader sstable)
+    public void maybeIncrementallyBackup(final SSTableReader sstable)
     {
         if (!DatabaseDescriptor.isIncrementalBackupsEnabled())
             return;
 
-        Runnable runnable = new Runnable()
-        {
-            public void run()
-            {
-                File backupsDir = Directories.getBackupsDirectory(sstable.descriptor);
-                sstable.createLinks(FileUtils.getCanonicalPath(backupsDir));
-            }
-        };
-        StorageService.tasks.execute(runnable);
+        File backupsDir = Directories.getBackupsDirectory(sstable.descriptor);
+        sstable.createLinks(FileUtils.getCanonicalPath(backupsDir));
     }
 
     /**
@@ -239,7 +234,7 @@ public class DataTracker
         replace(Collections.<SSTableReader>emptyList(), sstables);
         for (SSTableReader sstable : sstables)
         {
-            incrementallyBackup(sstable);
+            maybeIncrementallyBackup(sstable);
             notifyAdded(sstable);
         }
     }
