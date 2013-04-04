@@ -311,14 +311,6 @@ public class SecondaryIndexManager
         return indexesByColumn.get(column);
     }
 
-    private SecondaryIndex getIndexForFullColumnName(ByteBuffer column)
-    {
-        for (SecondaryIndex index : indexesByColumn.values())
-            if (index.indexes(column))
-                return index;
-        return null;
-    }
-
     /**
      * Remove the index
      */
@@ -355,16 +347,6 @@ public class SecondaryIndexManager
         }
 
         return indexList;
-    }
-
-    public ByteBuffer getColumnByIdxName(String idxName)
-    {
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-        {
-            if (entry.getValue().getIndexName().equals(idxName))
-                return entry.getKey();
-        }
-        throw new RuntimeException("Unknown Index Name: " + idxName);
     }
 
     /**
