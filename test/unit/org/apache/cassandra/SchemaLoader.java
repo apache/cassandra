@@ -24,6 +24,8 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Charsets;
+import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
@@ -113,6 +115,8 @@ public class SchemaLoader
         String ks_kcs = "KeyCacheSpace";
         String ks_rcs = "RowCacheSpace";
         String ks_nocommit = "NoCommitlogSpace";
+        String ks_prsi = "PerRowSecondaryIndex";
+
 
         Class<? extends AbstractReplicationStrategy> simple = SimpleStrategy.class;
 
@@ -278,11 +282,36 @@ public class SchemaLoader
                                                      opts_rf1,
                                                      standardCFMD(ks_nocommit, "Standard1", withOldCfIds)));
 
+        // PerRowSecondaryIndexTest
+        schema.add(KSMetaData.testMetadata(ks_prsi,
+                                           simple,
+                                           opts_rf1,
+                                           perRowIndexedCFMD(ks_prsi, "Indexed1", withOldCfIds)));
+
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
             useCompression(schema);
 
         return schema;
+    }
+
+    private static CFMetaData perRowIndexedCFMD(String ksName, String cfName, boolean withOldCfIds)
+    {
+        final Map<String, String> indexOptions = Collections.singletonMap(
+                                                      SecondaryIndex.CUSTOM_INDEX_OPTION_NAME,
+                                                      PerRowSecondaryIndexTest.TestIndex.class.getName());
+        return standardCFMD(ksName, cfName, withOldCfIds)
+                .keyValidator(AsciiType.instance)
+                .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
+                {{
+                        ByteBuffer cName = ByteBuffer.wrap("indexed".getBytes(Charsets.UTF_8));
+                        put(cName, new ColumnDefinition(cName,
+                                AsciiType.instance,
+                                IndexType.CUSTOM,
+                                indexOptions,
+                                ByteBufferUtil.bytesToHex(cName),
+                                null));
+                    }});
     }
 
     private static void useCompression(List<KSMetaData> schema)

@@ -30,6 +30,8 @@
 
 
 1.2.4
+ * Ensure that PerRowSecondaryIndex updates see the most recent values
+   (CASSANDRA-5397)
  * avoid duplicate index entries ind PrecompactedRow and 
    ParallelCompactionIterable (CASSANDRA-5395)
  * remove the index entry on oldColumn when new column is a tombstone 
