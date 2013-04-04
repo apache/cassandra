@@ -125,7 +125,8 @@ public interface Term
     {
         public ByteBuffer bindAndGet(List<ByteBuffer> values) throws InvalidRequestException
         {
-            return bind(values).get();
+            Terminal t = bind(values);
+            return t == null ? null : t.get();
         }
     }
 }

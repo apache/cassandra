@@ -81,6 +81,9 @@ public abstract class Sets
                 }
 
                 ByteBuffer bytes = ((Constants.Value)t).bytes;
+                if (bytes == null)
+                    throw new InvalidRequestException("null is not supported inside collections");
+
                 // We don't support value > 64K because the serialization format encode the length as an unsigned short.
                 if (bytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
                     throw new InvalidRequestException(String.format("Set value is too long. Set values are limited to %d bytes but %d bytes value provided",
@@ -215,7 +218,7 @@ public abstract class Sets
             if (value == null)
                 return;
 
-            assert value instanceof Sets.Value;
+            assert value instanceof Sets.Value : value;
 
             Set<ByteBuffer> toAdd = ((Sets.Value)value).elements;
             for (ByteBuffer bb : toAdd)

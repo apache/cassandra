@@ -81,6 +81,9 @@ public abstract class Lists
                 // We don't allow prepared marker in collections, nor nested collections
                 assert t instanceof Constants.Value;
                 ByteBuffer bytes = ((Constants.Value)t).bytes;
+                if (bytes == null)
+                    throw new InvalidRequestException("null is not supported inside collections");
+
                 // We don't support value > 64K because the serialization format encode the length as an unsigned short.
                 if (bytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
                     throw new InvalidRequestException(String.format("List value is too long. List values are limited to %d bytes but %d bytes value provided",
@@ -255,24 +258,33 @@ public abstract class Lists
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
         {
-            Term.Terminal index = idx.bind(params.variables);
-            Term.Terminal value = t.bind(params.variables);
-            assert index instanceof Constants.Value && value instanceof Constants.Value;
+            ByteBuffer index = idx.bindAndGet(params.variables);
+            ByteBuffer value = t.bindAndGet(params.variables);
+
+            if (index == null)
+                throw new InvalidRequestException("Invalid null value for list index");
 
             List<Pair<ByteBuffer, IColumn>> existingList = params.getPrefetchedList(rowKey, columnName.key);
-            int idx = ByteBufferUtil.toInt(((Constants.Value)index).bytes);
+            int idx = ByteBufferUtil.toInt(index);
             if (idx < 0 || idx >= existingList.size())
                 throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, existingList.size()));
 
-            ByteBuffer bytes = ((Constants.Value)value).bytes;
-            // We don't support value > 64K because the serialization format encode the length as an unsigned short.
-            if (bytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
-                throw new InvalidRequestException(String.format("List value is too long. List values are limited to %d bytes but %d bytes value provided",
-                                                                FBUtilities.MAX_UNSIGNED_SHORT,
-                                                                bytes.remaining()));
-
             ByteBuffer elementName = existingList.get(idx).right.name();
-            cf.addColumn(params.makeColumn(elementName, bytes));
+
+            if (value == null)
+            {
+                cf.addColumn(params.makeTombstone(elementName));
+            }
+            else
+            {
+                // We don't support value > 64K because the serialization format encode the length as an unsigned short.
+                if (value.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+                    throw new InvalidRequestException(String.format("List value is too long. List values are limited to %d bytes but %d bytes value provided",
+                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
+                                                                    value.remaining()));
+
+                cf.addColumn(params.makeColumn(elementName, value));
+            }
         }
     }
 
