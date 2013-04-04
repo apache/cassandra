@@ -77,6 +77,9 @@ public class CompressedFileStreamTask extends FileStreamTask
             // stream each of the required sections of the file
             for (Pair<Long, Long> section : sections)
             {
+                // seek to the beginning of the section when socket channel is not available
+                if (sc == null)
+                    file.seek(section.left);
                 // length of the section to stream
                 long length = section.right - section.left;
                 // tracks write progress
@@ -92,7 +95,6 @@ public class CompressedFileStreamTask extends FileStreamTask
                     }
                     else
                     {
-                        file.seek(section.left);
                         // NIO is not available. Fall back to normal streaming.
                         // This happens when inter-node encryption is turned on.
                         if (transferBuffer == null)
