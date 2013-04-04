@@ -72,14 +72,11 @@ public abstract class Sets
             {
                 Term t = rt.prepare(valueSpec);
 
-                if (!(t instanceof Constants.Value))
-                {
-                    if (t instanceof Term.NonTerminal)
-                        throw new InvalidRequestException(String.format("Invalid set literal for %s: bind variables are not supported inside collection literals", receiver));
-                    else
-                        throw new InvalidRequestException(String.format("Invalid set literal for %s: nested collections are not supported", receiver));
-                }
+                if (t instanceof Term.NonTerminal)
+                    throw new InvalidRequestException(String.format("Invalid set literal for %s: bind variables are not supported inside collection literals", receiver));
 
+                // We don't allow prepared marker in collections, nor nested collections (for the later, prepare will throw an exception)
+                assert t instanceof Constants.Value;
                 ByteBuffer bytes = ((Constants.Value)t).bytes;
                 if (bytes == null)
                     throw new InvalidRequestException("null is not supported inside collections");
