@@ -62,6 +62,7 @@ public class DatabaseDescriptor
     private static InetAddress broadcastAddress;
     private static InetAddress rpcAddress;
     private static SeedProvider seedProvider;
+    private static IInternodeAuthenticator internodeAuthenticator;
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner<?> partitioner;
@@ -193,8 +194,14 @@ public class DatabaseDescriptor
         if (conf.authorizer != null)
             authorizer = FBUtilities.construct(conf.authorizer, "authorizer");
 
+        if (conf.internode_authenticator != null)
+            internodeAuthenticator = FBUtilities.construct(conf.internode_authenticator, "internode_authenticator");
+        else
+            internodeAuthenticator = new AllowAllInternodeAuthenticator();
+
         authenticator.validateConfiguration();
         authorizer.validateConfiguration();
+        internodeAuthenticator.validateConfiguration();
 
         /* Hashing strategy */
         if (conf.partitioner == null)
@@ -893,6 +900,11 @@ public class DatabaseDescriptor
     public static InetAddress getBroadcastAddress()
     {
         return broadcastAddress;
+    }
+
+    public static IInternodeAuthenticator getInternodeAuthenticator()
+    {
+        return internodeAuthenticator;
     }
 
     public static void setBroadcastAddress(InetAddress broadcastAdd)

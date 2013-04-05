@@ -66,6 +66,7 @@ Merged from 1.1:
  * Fix bad default for min/max timestamp in SSTableMetadata (CASSANDRA-5372)
  * Fix cf name extraction from manifest in Directories.migrateFile() 
    (CASSANDRA-5242)
+ * Support pluggable internode authentication (CASSANDRA-5401)
 
 
 1.2.3

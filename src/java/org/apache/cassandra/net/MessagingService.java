@@ -880,7 +880,10 @@ public final class MessagingService implements MessagingServiceMBean
                 try
                 {
                     Socket socket = server.accept();
-                    new IncomingTcpConnection(socket).start();
+                    if (authenticate(socket))
+                        new IncomingTcpConnection(socket).start();
+                    else
+                        socket.close();
                 }
                 catch (AsynchronousCloseException e)
                 {
@@ -903,6 +906,11 @@ public final class MessagingService implements MessagingServiceMBean
         void close() throws IOException
         {
             server.close();
+        }
+
+        private boolean authenticate(Socket socket)
+        {
+            return DatabaseDescriptor.getInternodeAuthenticator().authenticate(socket.getInetAddress(), socket.getPort());
         }
     }
 
