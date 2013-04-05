@@ -700,6 +700,16 @@ public class NodeProbe
         hhProxy.pauseHintsDelivery(false);
     }
 
+    public void stopNativeTransport()
+    {
+        ssProxy.stopNativeTransport();
+    }
+
+    public void startNativeTransport()
+    {
+        ssProxy.startNativeTransport();
+    }
+
     public void stopGossiping()
     {
         ssProxy.stopGossiping();

@@ -123,7 +123,7 @@ public class Server implements CassandraDaemon.Server
         final EncryptionOptions.ClientEncryptionOptions clientEnc = DatabaseDescriptor.getClientEncryptionOptions();
         if (clientEnc.enabled)
         {
-            logger.info("enabling encrypted CQL connections between client and server");
+            logger.info("Enabling encrypted CQL connections between client and server");
             bootstrap.setPipelineFactory(new SecurePipelineFactory(this, clientEnc));
         }
         else
@@ -145,6 +145,7 @@ public class Server implements CassandraDaemon.Server
         factory = null;
         executionHandler.releaseExternalResources();
         executionHandler = null;
+        logger.info("Stop listening for CQL clients");
     }
 
     public static class ConnectionTracker implements Connection.Tracker

@@ -340,7 +340,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (daemon == null)
         {
-            throw new IllegalStateException("No configured  daemon");
+            throw new IllegalStateException("No configured daemon");
         }
         daemon.nativeServer.stop();
     }

@@ -107,10 +107,12 @@ public class NodeCmd
         COMPACT,
         COMPACTIONSTATS,
         DECOMMISSION,
+        DISABLEBINARY,
         DISABLEGOSSIP,
         DISABLEHANDOFF,
         DISABLETHRIFT,
         DRAIN,
+        ENABLEBINARY,
         ENABLEGOSSIP,
         ENABLEHANDOFF,
         ENABLETHRIFT,
@@ -1048,6 +1050,8 @@ public class NodeCmd
                 case TPSTATS         : nodeCmd.printThreadPoolStats(System.out); break;
                 case VERSION         : nodeCmd.printReleaseVersion(System.out); break;
                 case COMPACTIONSTATS : nodeCmd.printCompactionStats(System.out); break;
+                case DISABLEBINARY   : probe.stopNativeTransport(); break;
+                case ENABLEBINARY    : probe.startNativeTransport(); break;
                 case DISABLEGOSSIP   : probe.stopGossiping(); break;
                 case ENABLEGOSSIP    : probe.startGossiping(); break;
                 case DISABLEHANDOFF  : probe.disableHintedHandoff(); break;

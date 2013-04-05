@@ -49,6 +49,12 @@ commands:
   - name: compactionstats
     help: |
       Print statistics on compactions
+  - name: disablebinary
+    help: |
+      Disable native transport (binary protocol)
+  - name: enablebinary
+    help: |
+      Reenable native transport (binary protocol)
   - name: disablehandoff
     help: |
       Disable the future hints storing on the current node
