@@ -155,7 +155,7 @@ commands:
   - name: getcompactionthreshold <keyspace> <cfname>
     help: |
       Print min and max compaction thresholds for a given column family
-  - name: stop <compacion_type>
+  - name: stop <compaction_type>
     help: |
       Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB, INDEX_BUILD
   - name: cfhistograms <keyspace> <cfname>
