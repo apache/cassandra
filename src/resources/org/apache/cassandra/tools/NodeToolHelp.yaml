@@ -55,6 +55,9 @@ commands:
   - name: enablebinary
     help: |
       Reenable native transport (binary protocol)
+  - name: statusbinary
+    help: |
+      Status of native transport (binary protocol)
   - name: disablehandoff
     help: |
       Disable the future hints storing on the current node
