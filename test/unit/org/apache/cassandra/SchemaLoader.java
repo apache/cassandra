@@ -310,7 +310,7 @@ public class SchemaLoader
                                 IndexType.CUSTOM,
                                 indexOptions,
                                 ByteBufferUtil.bytesToHex(cName),
-                                null));
+                                null, ColumnDefinition.Type.REGULAR));
                     }});
     }
 

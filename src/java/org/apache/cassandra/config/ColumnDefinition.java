@@ -20,6 +20,7 @@ package org.apache.cassandra.config;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.Maps;
 
@@ -97,7 +98,8 @@ public class ColumnDefinition
         this(name, validator, null, null, null, componentIndex, type);
     }
 
-    private ColumnDefinition(ByteBuffer name, AbstractType<?> validator, IndexType index_type, Map<String, String> index_options, String index_name, Integer componentIndex, Type type)
+    @VisibleForTesting
+    public ColumnDefinition(ByteBuffer name, AbstractType<?> validator, IndexType index_type, Map<String, String> index_options, String index_name, Integer componentIndex, Type type)
     {
         assert name != null && validator != null;
         this.name = name;

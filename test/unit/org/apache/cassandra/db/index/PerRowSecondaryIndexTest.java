@@ -50,7 +50,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         // create a row then test that the configured index instance was able to read the row
         RowMutation rm;
         rm = new RowMutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k1"));
-        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("indexed")), ByteBufferUtil.bytes("foo"), 1);
+        rm.add("Indexed1", ByteBufferUtil.bytes("indexed"), ByteBufferUtil.bytes("foo"), 1);
         rm.apply();
 
         ColumnFamily indexedRow = TestIndex.LAST_INDEXED_ROW;
@@ -59,7 +59,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
 
         // update the row and verify what was indexed
         rm = new RowMutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k1"));
-        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("indexed")), ByteBufferUtil.bytes("bar"), 2);
+        rm.add("Indexed1", ByteBufferUtil.bytes("indexed"), ByteBufferUtil.bytes("bar"), 2);
         rm.apply();
 
         indexedRow = TestIndex.LAST_INDEXED_ROW;
@@ -80,7 +80,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         public void index(ByteBuffer rowKey)
         {
             QueryFilter filter = QueryFilter.getIdentityFilter(DatabaseDescriptor.getPartitioner().decorateKey(rowKey),
-                                                               new QueryPath(baseCfs.getColumnFamilyName()));
+                                                               baseCfs.getColumnFamilyName());
             LAST_INDEXED_ROW = baseCfs.getColumnFamily(filter);
         }
 
@@ -144,7 +144,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         }
 
         @Override
-        public void truncate(long truncatedAt)
+        public void truncateBlocking(long truncatedAt)
         {
         }
     }
