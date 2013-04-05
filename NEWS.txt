@@ -8,6 +8,19 @@ upgrade, just in case you need to roll back to the previous version.
 (Cassandra version X + 1 will always be able to read data files created
 by version X, but the inverse is not necessarily the case.)
 
+1.1.11
+======
+
+Upgrading
+---------
+    - Nothing specific to this release, but please see the previous instructions
+      if you are not upgrading from 1.1.10.
+
+Features
+--------
+    - Pluggable internode authentication.
+      See `internode_authenticator` setting in cassandra.yaml.
+
 1.1.10
 ======
 

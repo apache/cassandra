@@ -63,6 +63,7 @@ public class DatabaseDescriptor
     private static InetAddress broadcastAddress;
     private static InetAddress rpcAddress;
     private static SeedProvider seedProvider;
+    private static IInternodeAuthenticator internodeAuthenticator;
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
@@ -201,14 +202,22 @@ public class DatabaseDescriptor
                 authenticator = FBUtilities.<IAuthenticator>construct(conf.authenticator, "authenticator");
             if (conf.authority != null)
                 authority = FBUtilities.<IAuthority>construct(conf.authority, "authority");
+
+            if (conf.internode_authenticator != null)
+                internodeAuthenticator = FBUtilities.construct(conf.internode_authenticator, "internode_authenticator");
+            else
+                internodeAuthenticator = new AllowAllInternodeAuthenticator();
+
             authenticator.validateConfiguration();
             authority.validateConfiguration();
+            internodeAuthenticator.validateConfiguration();
 
             /* Hashing strategy */
             if (conf.partitioner == null)
             {
                 throw new ConfigurationException("Missing directive: partitioner");
             }
+
             try
             {
                 partitioner = FBUtilities.newPartitioner(System.getProperty("cassandra.partitioner", conf.partitioner));
@@ -810,6 +819,11 @@ public class DatabaseDescriptor
     public static InetAddress getBroadcastAddress()
     {
         return broadcastAddress;
+    }
+
+    public static IInternodeAuthenticator getInternodeAuthenticator()
+    {
+        return internodeAuthenticator;
     }
 
     public static void setBroadcastAddress(InetAddress broadcastAdd)

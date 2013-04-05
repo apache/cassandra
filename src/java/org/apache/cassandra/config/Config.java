@@ -66,6 +66,7 @@ public class Config
     public Integer ssl_storage_port = 7001;
     public String listen_address;
     public String broadcast_address;
+    public String internode_authenticator;
 
     public String rpc_address;
     public Integer rpc_port = 9160;
