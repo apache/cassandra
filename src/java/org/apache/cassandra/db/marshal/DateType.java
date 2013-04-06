@@ -25,7 +25,6 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import org.apache.cassandra.cql.jdbc.JdbcDate;
-import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.time.DateUtils;

@@ -44,7 +44,6 @@ import org.apache.cassandra.io.util.MappedFileDataInput;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static junit.framework.Assert.assertEquals;

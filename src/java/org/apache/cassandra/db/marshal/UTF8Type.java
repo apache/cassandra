@@ -20,7 +20,6 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql.jdbc.JdbcUTF8;
-import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.CQL3Type;
 
 public class UTF8Type extends AbstractType<String>

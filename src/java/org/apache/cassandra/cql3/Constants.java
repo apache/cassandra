@@ -18,11 +18,8 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
-import com.google.common.base.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

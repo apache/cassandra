@@ -25,7 +25,6 @@ import java.util.UUID;
 import org.apache.cassandra.cql.jdbc.JdbcUUID;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.lang.time.DateUtils;
 

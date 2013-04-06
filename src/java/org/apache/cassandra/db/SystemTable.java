@@ -25,12 +25,8 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import com.google.common.base.Function;
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
-import com.google.common.collect.Sets;
-import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,7 +43,6 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.service.StorageService;

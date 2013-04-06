@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.exceptions.SyntaxException;

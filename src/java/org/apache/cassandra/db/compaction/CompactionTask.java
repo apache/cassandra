@@ -21,7 +21,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;

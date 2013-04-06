@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.utils.CloseableIterator;

@@ -20,8 +20,6 @@ package org.apache.cassandra.db.compaction;
 import java.util.Collection;
 import java.util.Set;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.db.ColumnFamilyStore;

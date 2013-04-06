@@ -18,13 +18,10 @@
 package org.apache.cassandra.io.sstable;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.Pair;
 
 /**

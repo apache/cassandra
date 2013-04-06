@@ -23,8 +23,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * ClientState used by thrift that also provide a QueryState.

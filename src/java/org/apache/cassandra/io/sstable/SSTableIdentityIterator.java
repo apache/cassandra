@@ -19,7 +19,6 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.*;
 
-import org.apache.cassandra.utils.FilterFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

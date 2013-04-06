@@ -20,21 +20,15 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.exceptions.UnavailableException;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This class blocks for a quorum of responses _in all datacenters_ (CL.EACH_QUORUM).

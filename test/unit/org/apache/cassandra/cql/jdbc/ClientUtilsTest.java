@@ -23,7 +23,6 @@ package org.apache.cassandra.cql.jdbc;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.sql.Date;

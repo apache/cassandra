@@ -19,7 +19,6 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.utils.ByteBufferUtil;

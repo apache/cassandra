@@ -27,10 +27,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ConcurrentHashMultiset;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Multiset;
 import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
@@ -54,7 +52,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CompactionMetrics;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;

@@ -28,7 +28,6 @@ import java.util.concurrent.Future;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
@@ -49,9 +48,7 @@ import static org.apache.commons.lang.ArrayUtils.EMPTY_BYTE_ARRAY;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
@@ -419,7 +416,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assert "k1".equals( key );
 
     }
-    
+
     @Test
     public void testDeleteOfInconsistentValuesInKeysIndex() throws Exception
     {
@@ -431,7 +428,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         cfs.truncate().get();
 
         ByteBuffer rowKey = ByteBufferUtil.bytes("k1");
-        ByteBuffer colName = ByteBufferUtil.bytes("birthdate"); 
+        ByteBuffer colName = ByteBufferUtil.bytes("birthdate");
         ByteBuffer val1 = ByteBufferUtil.bytes(1L);
         ByteBuffer val2 = ByteBufferUtil.bytes(2L);
 
@@ -456,7 +453,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         table.apply(rm, true, false);
 
         // Now searching the index for either the old or new value should return 0 rows
-        // because the new value was not indexed and the old value should be ignored 
+        // because the new value was not indexed and the old value should be ignored
         // (and in fact purged from the index cf).
         // first check for the old value
         rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);
@@ -495,7 +492,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         ByteBuffer rowKey = ByteBufferUtil.bytes("k1");
         ByteBuffer clusterKey = ByteBufferUtil.bytes("ck1");
-        ByteBuffer colName = ByteBufferUtil.bytes("col1"); 
+        ByteBuffer colName = ByteBufferUtil.bytes("col1");
         CompositeType baseComparator = (CompositeType)cfs.getComparator();
         CompositeType.Builder builder = baseComparator.builder();
         builder.add(clusterKey);
@@ -530,7 +527,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         table.apply(rm, true, false);
 
         // Now searching the index for either the old or new value should return 0 rows
-        // because the new value was not indexed and the old value should be ignored 
+        // because the new value was not indexed and the old value should be ignored
         // (and in fact purged from the index cf).
         // first check for the old value
         rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);

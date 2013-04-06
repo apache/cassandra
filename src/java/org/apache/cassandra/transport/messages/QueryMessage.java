@@ -29,7 +29,6 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.*;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**

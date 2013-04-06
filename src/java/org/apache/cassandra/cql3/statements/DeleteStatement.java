@@ -29,7 +29,6 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.thrift.ThriftValidation;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * A <code>DELETE</code> parsed from a CQL query statement.

@@ -24,7 +24,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Stopwatch;
-import org.slf4j.Logger;
 import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.concurrent.Stage;

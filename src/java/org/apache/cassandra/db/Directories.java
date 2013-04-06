@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.primitives.Longs;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -101,13 +100,13 @@ public class Directories
 
         if (!StorageService.instance.isClientMode())
         {
-            for (File dir : sstableDirectories) 
+            for (File dir : sstableDirectories)
             {
-                try 
+                try
                 {
                     FileUtils.createDirectory(dir);
                 }
-                catch (FSError e) 
+                catch (FSError e)
                 {
                     // don't just let the default exception handler do this, we need the create loop to continue
                     logger.error("Failed to create {} directory", dir);

@@ -25,7 +25,6 @@ import org.jboss.netty.buffer.ChannelBuffers;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.transport.*;
-import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.thrift.CqlPreparedResult;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlResultType;
