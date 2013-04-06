@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.nio.ByteBuffer;
-
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 

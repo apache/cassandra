@@ -30,7 +30,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Checksum;
 
-import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -383,14 +382,14 @@ public class CommitLogSegment
         return buffer.position();
     }
 
-    
+
     public static class CommitLogSegmentFileComparator implements Comparator<File>
     {
         public int compare(File f, File f2)
         {
             CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(f.getName());
             CommitLogDescriptor desc2 = CommitLogDescriptor.fromFileName(f2.getName());
-            return (int) (desc.id - desc2.id);        
+            return (int) (desc.id - desc2.id);
         }
     }
 }

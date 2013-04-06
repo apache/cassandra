@@ -22,7 +22,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -90,7 +89,7 @@ public class CustomTHsHaServer extends THsHaServer
                                                                                TimeUnit.SECONDS,
                                                                                new SynchronousQueue<Runnable>(),
                                                                                new NamedThreadFactory("RPC-Thread"), "RPC-THREAD-POOL");
-           THsHaServer.Args serverArgs = new THsHaServer.Args(serverTransport).inputTransportFactory(args.inTransportFactory) 
+           THsHaServer.Args serverArgs = new THsHaServer.Args(serverTransport).inputTransportFactory(args.inTransportFactory)
                                                                                .outputTransportFactory(args.outTransportFactory)
                                                                                .inputProtocolFactory(args.tProtocolFactory)
                                                                                .outputProtocolFactory(args.tProtocolFactory)

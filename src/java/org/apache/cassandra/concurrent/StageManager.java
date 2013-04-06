@@ -27,7 +27,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.*;
-import org.apache.cassandra.utils.FBUtilities;
 
 
 /**

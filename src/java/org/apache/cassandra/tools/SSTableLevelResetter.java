@@ -19,7 +19,6 @@ package org.apache.cassandra.tools;
 
 import java.io.IOException;
 import java.io.PrintStream;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -28,7 +27,6 @@ import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
-import org.apache.cassandra.io.sstable.SSTableReader;
 
 /**
  * Reset level to 0 on a given set of sstables

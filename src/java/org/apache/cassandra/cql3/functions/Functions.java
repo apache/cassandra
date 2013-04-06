@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.cql3.functions;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.List;
 
 import com.google.common.collect.ArrayListMultimap;

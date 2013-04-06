@@ -22,9 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.primitives.Ints;
-
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.CompressedSegmentedFile;

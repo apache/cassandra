@@ -24,15 +24,12 @@ package org.apache.cassandra.db.marshal;
 import com.google.common.base.Charsets;
 
 import org.apache.cassandra.cql.jdbc.*;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Test;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.Calendar;
-import java.util.TimeZone;
 import java.util.UUID;
 
 public class RoundTripTest

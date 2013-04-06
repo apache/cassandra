@@ -18,8 +18,6 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,8 +27,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.index.composites.CompositesIndex;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;

@@ -18,9 +18,6 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
-import java.util.List;
-
-import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
  * Build a potentially composite column name.

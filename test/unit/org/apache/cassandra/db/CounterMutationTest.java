@@ -26,12 +26,10 @@ import org.junit.Test;
 import static org.junit.Assert.fail;
 
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.Util;
 import static org.apache.cassandra.db.context.CounterContext.ContextState;
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class CounterMutationTest extends SchemaLoader
 {

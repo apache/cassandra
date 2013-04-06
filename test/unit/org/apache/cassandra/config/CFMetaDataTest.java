@@ -18,11 +18,9 @@
  */
 package org.apache.cassandra.config;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
-import java.util.Map;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -125,9 +123,9 @@ public class CFMetaDataTest extends SchemaLoader
     {
         DecoratedKey k = StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(cfm.ksName));
 
-        // This is a nasty hack to work around the fact that non-null componentIndex 
+        // This is a nasty hack to work around the fact that non-null componentIndex
         // are only used by CQL (so far) so we don't expose them through thrift
-        // There is a CFM with componentIndex defined in Keyspace2 which is used by 
+        // There is a CFM with componentIndex defined in Keyspace2 which is used by
         // ColumnFamilyStoreTest to verify index repair (CASSANDRA-2897)
         for (ColumnDefinition def: cfm.allColumns())
         {

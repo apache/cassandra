@@ -26,7 +26,6 @@ import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
-import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
 import org.apache.commons.lang.ArrayUtils;
@@ -53,7 +52,6 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.LZ4Compressor;
-import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.tracing.Tracing;
@@ -702,7 +700,7 @@ public final class CFMetaData
     {
         return defaultTimeToLive;
     }
-    
+
     public boolean equals(Object obj)
     {
         if (obj == this)
@@ -1815,7 +1813,7 @@ public final class CFMetaData
          * it is intended as a dense CF or not.
          */
 
-        // First, we compute the number of clustering columns metadata actually defined (and 
+        // First, we compute the number of clustering columns metadata actually defined (and
         // whether there is some "hole" in the metadata)
         boolean[] definedClusteringKeys = new boolean[comparator.componentsCount()];
         boolean hasRegular = false;

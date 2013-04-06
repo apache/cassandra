@@ -408,7 +408,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assert "k1".equals( key );
 
     }
-    
+
     @Test
     public void testDeleteOfInconsistentValuesInKeysIndex() throws Exception
     {
@@ -420,7 +420,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         cfs.truncateBlocking();
 
         ByteBuffer rowKey = ByteBufferUtil.bytes("k1");
-        ByteBuffer colName = ByteBufferUtil.bytes("birthdate"); 
+        ByteBuffer colName = ByteBufferUtil.bytes("birthdate");
         ByteBuffer val1 = ByteBufferUtil.bytes(1L);
         ByteBuffer val2 = ByteBufferUtil.bytes(2L);
 
@@ -445,7 +445,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         table.apply(rm, true, false);
 
         // Now searching the index for either the old or new value should return 0 rows
-        // because the new value was not indexed and the old value should be ignored 
+        // because the new value was not indexed and the old value should be ignored
         // (and in fact purged from the index cf).
         // first check for the old value
         rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);
@@ -484,7 +484,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         ByteBuffer rowKey = ByteBufferUtil.bytes("k1");
         ByteBuffer clusterKey = ByteBufferUtil.bytes("ck1");
-        ByteBuffer colName = ByteBufferUtil.bytes("col1"); 
+        ByteBuffer colName = ByteBufferUtil.bytes("col1");
         CompositeType baseComparator = (CompositeType)cfs.getComparator();
         CompositeType.Builder builder = baseComparator.builder();
         builder.add(clusterKey);
@@ -519,7 +519,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         table.apply(rm, true, false);
 
         // Now searching the index for either the old or new value should return 0 rows
-        // because the new value was not indexed and the old value should be ignored 
+        // because the new value was not indexed and the old value should be ignored
         // (and in fact purged from the index cf).
         // first check for the old value
         rows = table.getColumnFamilyStore(cfName).search(clause, range, 100, filter);

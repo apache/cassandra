@@ -24,7 +24,6 @@ import java.nio.channels.FileChannel;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.io.FSReadError;
-import org.apache.cassandra.utils.CLibrary;
 
 public class RandomAccessReader extends RandomAccessFile implements FileDataInput
 {

@@ -22,8 +22,6 @@ package org.apache.cassandra.thrift;
 
 import org.junit.Test;
 
-import java.util.Collections;
-
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.marshal.AsciiType;

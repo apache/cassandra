@@ -19,9 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Set;
-import java.util.SortedSet;
 
 import org.junit.Test;
 

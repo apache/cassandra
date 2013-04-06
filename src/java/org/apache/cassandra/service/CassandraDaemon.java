@@ -29,8 +29,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
 
-import org.apache.cassandra.db.compaction.LegacyLeveledManifest;
-import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +40,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.LegacyLeveledManifest;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.thrift.ThriftServer;

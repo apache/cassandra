@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 
 import org.apache.cassandra.concurrent.Stage;
@@ -41,8 +38,6 @@ import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.primitives.Longs;
 
 public abstract class AbstractReadExecutor
 {
