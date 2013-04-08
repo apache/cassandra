@@ -22,6 +22,7 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,6 +72,18 @@ public class DataTracker
     public Set<SSTableReader> getUncompactingSSTables()
     {
         return view.get().nonCompactingSStables();
+    }
+
+    public Iterable<SSTableReader> getUncompactingSSTables(Iterable<SSTableReader> candidates)
+    {
+        final View v = view.get();
+        return Iterables.filter(candidates, new Predicate<SSTableReader>()
+        {
+            public boolean apply(SSTableReader sstable)
+            {
+                return !v.compacting.contains(sstable);
+            }
+        });
     }
 
     public View getView()

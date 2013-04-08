@@ -112,6 +112,27 @@ public class SSTableMetadata
         return new Collector();
     }
 
+    public static Collector createCollector(Collection<SSTableReader> sstables, int level)
+    {
+        Collector collector = new Collector();
+
+        collector.replayPosition(ReplayPosition.getReplayPosition(sstables));
+        collector.sstableLevel(level);
+        // Get the max timestamp of the precompacted sstables
+        // and adds generation of live ancestors
+        for (SSTableReader sstable : sstables)
+        {
+            collector.addAncestor(sstable.descriptor.generation);
+            for (Integer i : sstable.getAncestors())
+            {
+                if (new File(sstable.descriptor.withGeneration(i).filenameFor(Component.DATA)).exists())
+                    collector.addAncestor(i);
+            }
+        }
+
+        return collector;
+    }
+
     /**
      * Used when updating sstablemetadata files with an sstable level
      * @param metadata

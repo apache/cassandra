@@ -26,12 +26,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.base.Throwables;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ConcurrentHashMultiset;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multiset;
-import com.google.common.primitives.Longs;
+import com.google.common.collect.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +47,6 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.CounterId;
@@ -246,13 +240,7 @@ public class CompactionManager implements CompactionManagerMBean
                 // Sort the column families in order of SSTable size, so cleanup of smaller CFs
                 // can free up space for larger ones
                 List<SSTableReader> sortedSSTables = new ArrayList<SSTableReader>(sstables);
-                Collections.sort(sortedSSTables, new Comparator<SSTableReader>()
-                {
-                    public int compare(SSTableReader o1, SSTableReader o2)
-                    {
-                        return Longs.compare(o1.onDiskLength(), o2.onDiskLength());
-                    }
-                });
+                Collections.sort(sortedSSTables, new SSTableReader.SizeComparator());
 
                 doCleanupCompaction(store, sortedSSTables, renewer);
             }
@@ -495,7 +483,7 @@ public class CompactionManager implements CompactionManagerMBean
                         AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
                         if (compactedRow.isEmpty())
                             continue;
-                        writer = maybeCreateWriter(cfs, OperationType.CLEANUP, compactionFileLocation, expectedBloomFilterSize, writer, Collections.singletonList(sstable));
+                        writer = maybeCreateWriter(cfs, OperationType.CLEANUP, compactionFileLocation, expectedBloomFilterSize, writer, sstable);
                         writer.append(compactedRow);
                         totalkeysWritten++;
                     }
@@ -581,12 +569,16 @@ public class CompactionManager implements CompactionManagerMBean
                                                   File compactionFileLocation,
                                                   int expectedBloomFilterSize,
                                                   SSTableWriter writer,
-                                                  Collection<SSTableReader> sstables)
+                                                  SSTableReader sstable)
     {
         if (writer == null)
         {
             FileUtils.createDirectory(compactionFileLocation);
-            writer = cfs.createCompactionWriter(compactionType, expectedBloomFilterSize, compactionFileLocation, sstables);
+            writer = new SSTableWriter(cfs.getTempSSTablePath(compactionFileLocation),
+                                       expectedBloomFilterSize,
+                                       cfs.metadata,
+                                       cfs.partitioner,
+                                       SSTableMetadata.createCollector(Collections.singleton(sstable), sstable.getSSTableLevel()));
         }
         return writer;
     }

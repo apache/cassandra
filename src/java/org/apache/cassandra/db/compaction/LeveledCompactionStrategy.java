@@ -38,6 +38,7 @@ import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
+import org.apache.cassandra.utils.Pair;
 
 public class LeveledCompactionStrategy extends AbstractCompactionStrategy implements INotificationConsumer
 {
@@ -98,9 +99,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     {
         while (true)
         {
-            Collection<SSTableReader> sstables = manifest.getCompactionCandidates();
-            OperationType op = OperationType.COMPACTION;
-            if (sstables.isEmpty())
+            Pair<? extends Collection<SSTableReader>, Integer> pair = manifest.getCompactionCandidates();
+            Collection<SSTableReader> sstables;
+            OperationType op;
+            int level;
+            if (pair == null)
             {
                 // if there is no sstable to compact in standard way, try compacting based on droppable tombstone ratio
                 SSTableReader sstable = findDroppableSSTable(gcBefore);
@@ -111,11 +114,18 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
                 }
                 sstables = Collections.singleton(sstable);
                 op = OperationType.TOMBSTONE_COMPACTION;
+                level = sstable.getSSTableLevel();
+            }
+            else
+            {
+                op = OperationType.COMPACTION;
+                sstables = pair.left;
+                level = pair.right;
             }
 
             if (cfs.getDataTracker().markCompacting(sstables))
             {
-                LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, sstables, gcBefore, maxSSTableSizeInMB);
+                LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, sstables, level, gcBefore, maxSSTableSizeInMB);
                 newTask.setCompactionType(op);
                 return newTask;
             }
@@ -338,10 +348,5 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         uncheckedOptions.remove(SSTABLE_SIZE_OPTION);
 
         return uncheckedOptions;
-    }
-
-    public int getNextLevel(Collection<SSTableReader> sstables, OperationType operationType)
-    {
-        return manifest.getNextLevel(sstables, operationType);
     }
 }

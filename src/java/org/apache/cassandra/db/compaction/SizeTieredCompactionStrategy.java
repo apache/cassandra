@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 import java.util.*;
 import java.util.Map.Entry;
 
+import com.google.common.collect.Iterables;
 import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,10 +71,30 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         }
 
         Set<SSTableReader> candidates = cfs.getUncompactingSSTables();
-        List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(filterSuspectSSTables(candidates)));
+        List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(filterSuspectSSTables(candidates)), bucketHigh, bucketLow, minSSTableSize);
         logger.debug("Compaction buckets are {}", buckets);
         updateEstimatedCompactionsByTasks(buckets);
+        List<SSTableReader> mostInteresting = mostInterestingBucket(buckets, minThreshold, maxThreshold);
+        if (!mostInteresting.isEmpty())
+            return mostInteresting;
 
+        // if there is no sstable to compact in standard way, try compacting single sstable whose droppable tombstone
+        // ratio is greater than threshold.
+        List<SSTableReader> sstablesWithTombstones = new ArrayList<SSTableReader>();
+        for (SSTableReader sstable : candidates)
+        {
+            if (worthDroppingTombstones(sstable, gcBefore))
+                sstablesWithTombstones.add(sstable);
+        }
+        if (sstablesWithTombstones.isEmpty())
+            return Collections.emptyList();
+
+        Collections.sort(sstablesWithTombstones, new SSTableReader.SizeComparator());
+        return Collections.singletonList(sstablesWithTombstones.get(0));
+    }
+
+    public static List<SSTableReader> mostInterestingBucket(List<List<SSTableReader>> buckets, int minThreshold, int maxThreshold)
+    {
         // skip buckets containing less than minThreshold sstables, and limit other buckets to maxThreshold entries
         List<List<SSTableReader>> prunedBuckets = new ArrayList<List<SSTableReader>>();
         for (List<SSTableReader> bucket : buckets)
@@ -91,23 +112,8 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             List<SSTableReader> prunedBucket = bucket.subList(0, Math.min(bucket.size(), maxThreshold));
             prunedBuckets.add(prunedBucket);
         }
-
-        // if there is no sstable to compact in standard way, try compacting single sstable whose droppable tombstone
-        // ratio is greater than threshold.
         if (prunedBuckets.isEmpty())
-        {
-            for (List<SSTableReader> bucket : buckets)
-            {
-                for (SSTableReader table : bucket)
-                {
-                    if (worthDroppingTombstones(table, gcBefore))
-                        prunedBuckets.add(Collections.singletonList(table));
-                }
-            }
-
-            if (prunedBuckets.isEmpty())
-                return Collections.emptyList();
-        }
+            return Collections.emptyList();
 
         // prefer compacting buckets with smallest average size; that will yield the fastest improvement for read performance
         return Collections.min(prunedBuckets, new Comparator<List<SSTableReader>>()
@@ -171,10 +177,10 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         return estimatedRemainingTasks;
     }
 
-    private static List<Pair<SSTableReader, Long>> createSSTableAndLengthPairs(Collection<SSTableReader> collection)
+    public static List<Pair<SSTableReader, Long>> createSSTableAndLengthPairs(Iterable<SSTableReader> sstables)
     {
-        List<Pair<SSTableReader, Long>> tableLengthPairs = new ArrayList<Pair<SSTableReader, Long>>(collection.size());
-        for(SSTableReader table: collection)
+        List<Pair<SSTableReader, Long>> tableLengthPairs = new ArrayList<Pair<SSTableReader, Long>>(Iterables.size(sstables));
+        for(SSTableReader table: sstables)
             tableLengthPairs.add(Pair.create(table, table.onDiskLength()));
         return tableLengthPairs;
     }
@@ -182,7 +188,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     /*
      * Group files of similar size into buckets.
      */
-    <T> List<List<T>> getBuckets(Collection<Pair<T, Long>> files)
+    public static <T> List<List<T>> getBuckets(Collection<Pair<T, Long>> files, double bucketHigh, double bucketLow, long minSSTableSize)
     {
         // Sort the list in order to get deterministic results during the grouping below
         List<Pair<T, Long>> sortedFiles = new ArrayList<Pair<T, Long>>(files);

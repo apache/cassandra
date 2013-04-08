@@ -19,6 +19,8 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.*;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -161,17 +163,15 @@ public abstract class AbstractCompactionStrategy
      * @param originalCandidates The collection to check for blacklisted SSTables
      * @return list of the SSTables with blacklisted ones filtered out
      */
-    public static List<SSTableReader> filterSuspectSSTables(Collection<SSTableReader> originalCandidates)
+    public static Iterable<SSTableReader> filterSuspectSSTables(Iterable<SSTableReader> originalCandidates)
     {
-        List<SSTableReader> filteredCandidates = new ArrayList<SSTableReader>();
-
-        for (SSTableReader candidate : originalCandidates)
+        return Iterables.filter(originalCandidates, new Predicate<SSTableReader>()
         {
-            if (!candidate.isMarkedSuspect())
-                filteredCandidates.add(candidate);
-        }
-
-        return filteredCandidates;
+            public boolean apply(SSTableReader sstable)
+            {
+                return !sstable.isMarkedSuspect();
+            }
+        });
     }
 
     /**
@@ -286,10 +286,5 @@ public abstract class AbstractCompactionStrategy
         uncheckedOptions.remove(TOMBSTONE_THRESHOLD_OPTION);
         uncheckedOptions.remove(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
         return uncheckedOptions;
-    }
-
-    public int getNextLevel(Collection<SSTableReader> sstables, OperationType operationType)
-    {
-        return 0;
     }
 }

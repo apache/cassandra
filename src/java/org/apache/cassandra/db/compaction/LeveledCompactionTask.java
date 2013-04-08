@@ -25,11 +25,13 @@ import org.apache.cassandra.io.sstable.SSTableWriter;
 
 public class LeveledCompactionTask extends CompactionTask
 {
+    private final int level;
     private final int sstableSizeInMB;
 
-    public LeveledCompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, final int gcBefore, int sstableSizeInMB)
+    public LeveledCompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int level, final int gcBefore, int sstableSizeInMB)
     {
         super(cfs, sstables, gcBefore);
+        this.level = level;
         this.sstableSizeInMB = sstableSizeInMB;
     }
 
@@ -43,5 +45,10 @@ public class LeveledCompactionTask extends CompactionTask
     protected boolean partialCompactionsAcceptable()
     {
         return false;
+    }
+
+    protected int getLevel()
+    {
+        return level;
     }
 }

@@ -17,17 +17,16 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.junit.Test;
-import static org.junit.Assert.*;
 
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.Pair;
 
-public class SizeTieredCompactionStrategyTest extends SchemaLoader
+import static org.junit.Assert.assertEquals;
+
+public class SizeTieredCompactionStrategyTest
 {
     @Test
     public void testGetBuckets()
@@ -40,11 +39,7 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
             pairs.add(pair);
         }
 
-        ColumnFamilyStore cfs = Table.open("Keyspace1").getColumnFamilyStore("Standard1");
-        Map<String, String> opts = new HashMap<String, String>();
-        opts.put(SizeTieredCompactionStrategy.MIN_SSTABLE_SIZE_KEY, "2");
-        SizeTieredCompactionStrategy strategy = new SizeTieredCompactionStrategy(cfs, opts);
-        List<List<String>> buckets = strategy.getBuckets(pairs);
+        List<List<String>> buckets = SizeTieredCompactionStrategy.getBuckets(pairs, 1.5, 0.5, 2);
         assertEquals(3, buckets.size());
 
         for (List<String> bucket : buckets)
@@ -64,7 +59,7 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
             pairs.add(pair);
         }
 
-        buckets = strategy.getBuckets(pairs);
+        buckets = SizeTieredCompactionStrategy.getBuckets(pairs, 1.5, 0.5, 2);
         assertEquals(2, buckets.size());
 
         for (List<String> bucket : buckets)
@@ -85,9 +80,7 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
             pairs.add(pair);
         }
 
-        opts.put(SizeTieredCompactionStrategy.MIN_SSTABLE_SIZE_KEY, "10");
-        strategy = new SizeTieredCompactionStrategy(cfs, opts);
-        buckets = strategy.getBuckets(pairs); // notice the min is 10
+        buckets = SizeTieredCompactionStrategy.getBuckets(pairs, 1.5, 0.5, 10);
         assertEquals(1, buckets.size());
     }
 }

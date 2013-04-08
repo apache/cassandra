@@ -148,7 +148,7 @@ public class CompactionTask extends AbstractCompactionTask
                 return;
             }
 
-            SSTableWriter writer = cfs.createCompactionWriter(compactionType, keysPerSSTable, sstableDirectory, toCompact);
+            SSTableWriter writer = createCompactionWriter(sstableDirectory, keysPerSSTable);
             writers.add(writer);
             while (iter.hasNext())
             {
@@ -186,7 +186,7 @@ public class CompactionTask extends AbstractCompactionTask
                 {
                     // tmp = false because later we want to query it with descriptor from SSTableReader
                     cachedKeyMap.put(writer.descriptor.asTemporary(false), cachedKeys);
-                    writer = cfs.createCompactionWriter(compactionType, keysPerSSTable, sstableDirectory, toCompact);
+                    writer = createCompactionWriter(sstableDirectory, keysPerSSTable);
                     writers.add(writer);
                     cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
                 }
@@ -275,6 +275,20 @@ public class CompactionTask extends AbstractCompactionTask
                                       toCompact.size(), builder.toString(), startsize, endsize, (int) (ratio * 100), dTime, mbps, totalSourceRows, totalkeysWritten, mergeSummary.toString()));
             logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
         }
+    }
+
+    private SSTableWriter createCompactionWriter(File sstableDirectory, long keysPerSSTable)
+    {
+        return new SSTableWriter(cfs.getTempSSTablePath(sstableDirectory),
+                                 keysPerSSTable,
+                                 cfs.metadata,
+                                 cfs.partitioner,
+                                 SSTableMetadata.createCollector(toCompact, getLevel()));
+    }
+
+    protected int getLevel()
+    {
+        return 0;
     }
 
     protected boolean partialCompactionsAcceptable()
