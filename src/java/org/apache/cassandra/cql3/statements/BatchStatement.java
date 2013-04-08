@@ -96,11 +96,8 @@ public class BatchStatement extends ModificationStatement
         Map<Pair<String, ByteBuffer>, IMutation> mutations = new HashMap<Pair<String, ByteBuffer>, IMutation>();
         for (ModificationStatement statement : statements)
         {
-            if (isSetTimestamp())
-                statement.setTimestamp(getTimestamp(now));
-
             // Group mutation together, otherwise they won't get applied atomically
-            for (IMutation m : statement.getMutationsInternal(variables, local, cl, now, true))
+            for (IMutation m : statement.getMutationsInternal(variables, local, cl, getTimestamp(now), true))
             {
                 if (m instanceof CounterMutation && type != Type.COUNTER)
                     throw new InvalidRequestException("Counter mutations are only allowed in COUNTER batches");
