@@ -17,19 +17,18 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.Collection;
 import java.util.Set;
 
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorStatsCollector;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.DiskAwareRunnable;
 
 public abstract class AbstractCompactionTask extends DiskAwareRunnable
 {
     protected final ColumnFamilyStore cfs;
-    protected Collection<SSTableReader> sstables;
+    protected Iterable<SSTableReader> sstables;
     protected boolean isUserDefined;
     protected OperationType compactionType;
 
@@ -37,7 +36,7 @@ public abstract class AbstractCompactionTask extends DiskAwareRunnable
      * @param cfs
      * @param sstables must be marked compacting
      */
-    public AbstractCompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
+    public AbstractCompactionTask(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables)
     {
         this.cfs = cfs;
         this.sstables = sstables;

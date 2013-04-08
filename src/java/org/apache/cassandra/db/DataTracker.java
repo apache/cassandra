@@ -186,13 +186,13 @@ public class DataTracker
      * unmarkCompacting, but since we will never call markCompacted on a sstable marked
      * as compacting (unless there is a serious bug), we can skip this.
      */
-    public boolean markCompacting(Collection<SSTableReader> sstables)
+    public boolean markCompacting(Iterable<SSTableReader> sstables)
     {
-        assert sstables != null && !sstables.isEmpty();
+        assert sstables != null && !Iterables.isEmpty(sstables);
 
         View currentView = view.get();
         Set<SSTableReader> inactive = Sets.difference(ImmutableSet.copyOf(sstables), currentView.compacting);
-        if (inactive.size() < sstables.size())
+        if (inactive.size() < Iterables.size(sstables))
             return false;
 
         View newView = currentView.markCompacting(inactive);
@@ -203,7 +203,7 @@ public class DataTracker
      * Removes files from compacting status: this is different from 'markCompacted'
      * because it should be run regardless of whether a compaction succeeded.
      */
-    public void unmarkCompacting(Collection<SSTableReader> unmark)
+    public void unmarkCompacting(Iterable<SSTableReader> unmark)
     {
         if (!cfstore.isValid())
         {
@@ -533,7 +533,7 @@ public class DataTracker
             return new View(memtable, memtablesPendingFlush, sstables, compactingNew, intervalTree);
         }
 
-        public View unmarkCompacting(Collection<SSTableReader> tounmark)
+        public View unmarkCompacting(Iterable<SSTableReader> tounmark)
         {
             Set<SSTableReader> compactingNew = ImmutableSet.copyOf(Sets.difference(compacting, ImmutableSet.copyOf(tounmark)));
             return new View(memtable, memtablesPendingFlush, sstables, compactingNew, intervalTree);

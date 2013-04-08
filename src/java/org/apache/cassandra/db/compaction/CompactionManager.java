@@ -177,12 +177,12 @@ public class CompactionManager implements CompactionManagerMBean
 
     private static interface AllSSTablesOperation
     {
-        public void perform(ColumnFamilyStore store, Collection<SSTableReader> sstables) throws IOException;
+        public void perform(ColumnFamilyStore store, Iterable<SSTableReader> sstables) throws IOException;
     }
 
     private void performAllSSTableOperation(final ColumnFamilyStore cfs, final AllSSTablesOperation operation) throws InterruptedException, ExecutionException
     {
-        final Collection<SSTableReader> sstables = cfs.markAllCompacting();
+        final Iterable<SSTableReader> sstables = cfs.markAllCompacting();
         if (sstables == null)
             return;
 
@@ -202,7 +202,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         performAllSSTableOperation(cfStore, new AllSSTablesOperation()
         {
-            public void perform(ColumnFamilyStore store, Collection<SSTableReader> sstables) throws IOException
+            public void perform(ColumnFamilyStore store, Iterable<SSTableReader> sstables) throws IOException
             {
                 doScrub(store, sstables);
             }
@@ -213,7 +213,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         performAllSSTableOperation(cfStore, new AllSSTablesOperation()
         {
-            public void perform(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
+            public void perform(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables)
             {
                 for (final SSTableReader sstable : sstables)
                 {
@@ -235,11 +235,11 @@ public class CompactionManager implements CompactionManagerMBean
     {
         performAllSSTableOperation(cfStore, new AllSSTablesOperation()
         {
-            public void perform(ColumnFamilyStore store, Collection<SSTableReader> sstables) throws IOException
+            public void perform(ColumnFamilyStore store, Iterable<SSTableReader> sstables) throws IOException
             {
                 // Sort the column families in order of SSTable size, so cleanup of smaller CFs
                 // can free up space for larger ones
-                List<SSTableReader> sortedSSTables = new ArrayList<SSTableReader>(sstables);
+                List<SSTableReader> sortedSSTables = Lists.newArrayList(sstables);
                 Collections.sort(sortedSSTables, new SSTableReader.SizeComparator());
 
                 doCleanupCompaction(store, sortedSSTables, renewer);
@@ -385,7 +385,7 @@ public class CompactionManager implements CompactionManagerMBean
      *
      * @throws IOException
      */
-    private void doScrub(ColumnFamilyStore cfs, Collection<SSTableReader> sstables) throws IOException
+    private void doScrub(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables) throws IOException
     {
         assert !cfs.isIndex();
         for (final SSTableReader sstable : sstables)

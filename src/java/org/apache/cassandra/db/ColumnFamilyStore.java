@@ -1894,15 +1894,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public Collection<SSTableReader> markAllCompacting()
+    public Iterable<SSTableReader> markAllCompacting()
     {
-        Callable<Collection<SSTableReader>> callable = new Callable<Collection<SSTableReader>>()
+        Callable<Iterable<SSTableReader>> callable = new Callable<Iterable<SSTableReader>>()
         {
-            public Collection<SSTableReader> call() throws Exception
+            public Iterable<SSTableReader> call() throws Exception
             {
                 assert data.getCompacting().isEmpty() : data.getCompacting();
-                Collection<SSTableReader> sstables = AbstractCompactionStrategy.filterSuspectSSTables(getSSTables());
-                if (sstables.isEmpty())
+                Iterable<SSTableReader> sstables = AbstractCompactionStrategy.filterSuspectSSTables(getSSTables());
+                if (Iterables.isEmpty(sstables))
                     return null;
                 boolean success = data.markCompacting(sstables);
                 assert success : "something marked things compacting while compactions are disabled";

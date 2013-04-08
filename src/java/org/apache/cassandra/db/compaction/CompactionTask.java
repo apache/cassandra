@@ -41,11 +41,11 @@ public class CompactionTask extends AbstractCompactionTask
     private Set<SSTableReader> toCompact;
     private CompactionExecutorStatsCollector collector;
 
-    public CompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, final int gcBefore)
+    public CompactionTask(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables, final int gcBefore)
     {
         super(cfs, sstables);
         this.gcBefore = gcBefore;
-        toCompact = new HashSet<SSTableReader>(sstables);
+        toCompact = Sets.newHashSet(sstables);
     }
 
     public static synchronized long addToTotalBytesCompacted(long bytesCompacted)
