@@ -864,43 +864,6 @@ public class CompactionManager implements CompactionManagerMBean
         return metrics.completedTasks.value();
     }
 
-    private static class SimpleFuture implements Future
-    {
-        private Runnable runnable;
-
-        private SimpleFuture(Runnable r)
-        {
-            runnable = r;
-        }
-
-        public boolean cancel(boolean mayInterruptIfRunning)
-        {
-            throw new IllegalStateException("May not call SimpleFuture.cancel()");
-        }
-
-        public boolean isCancelled()
-        {
-            return false;
-        }
-
-        public boolean isDone()
-        {
-            return runnable == null;
-        }
-
-        public Object get() throws InterruptedException, ExecutionException
-        {
-            runnable.run();
-            runnable = null;
-            return runnable;
-        }
-
-        public Object get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
-        {
-            throw new IllegalStateException("May not call SimpleFuture.get(long, TimeUnit)");
-        }
-    }
-
     private static class CleanupInfo extends CompactionInfo.Holder
     {
         private final SSTableReader sstable;
