@@ -1061,7 +1061,6 @@ public class SelectStatement implements CQLStatement
                 stmt.isKeyRange = true;
                 boolean hasEq = false;
                 Set<ByteBuffer> indexedNames = new HashSet<ByteBuffer>();
-                indexedNames.add(cfm.getKeyName());
                 for (ColumnDefinition cfdef : cfm.getColumn_metadata().values())
                 {
                     if (cfdef.getIndexType() != null)
