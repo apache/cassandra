@@ -17,6 +17,11 @@ Upgrading
       on the current version (which is usually what you want). Use the new -a
       flag to recover the old behavior of rewriting all sstables.
 
+Features
+--------
+    - superuser setup delay (10 seconds) can now be overridden using
+      'cassandra.superuser_setup_delay_ms' property.
+
 
 1.2.3
 =====

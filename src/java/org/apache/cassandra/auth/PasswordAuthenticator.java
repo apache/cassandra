@@ -48,8 +48,6 @@ public class PasswordAuthenticator implements IAuthenticator
 {
     private static final Logger logger = LoggerFactory.getLogger(PasswordAuthenticator.class);
 
-    private static final long DEFAULT_USER_SETUP_DELAY = 10; // seconds
-
     // 2 ** GENSALT_LOG2_ROUNS rounds of hashing will be performed.
     private static final int GENSALT_LOG2_ROUNDS = 10;
 
@@ -167,14 +165,14 @@ public class PasswordAuthenticator implements IAuthenticator
         if (DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()) || !DatabaseDescriptor.isAutoBootstrap())
         {
             StorageService.tasks.schedule(new Runnable()
-                                              {
+                                          {
                                               public void run()
                                               {
                                                   setupDefaultUser();
-                                          }
+                                              }
                                           },
-                                          DEFAULT_USER_SETUP_DELAY,
-                                          TimeUnit.SECONDS);
+                                          Auth.SUPERUSER_SETUP_DELAY,
+                                          TimeUnit.MILLISECONDS);
         }
     }
 
