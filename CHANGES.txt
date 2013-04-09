@@ -32,6 +32,11 @@
    out TreeRequests (CASSANDRA-4932)
  * Add an official way to disable compactions (CASSANDRA-5074)
 
+
+1.2.5
+ * Include fatal errors in trace events (CASSANDRA-5447)
+
+
 1.2.4
  * Ensure that PerRowSecondaryIndex updates see the most recent values
    (CASSANDRA-5397)

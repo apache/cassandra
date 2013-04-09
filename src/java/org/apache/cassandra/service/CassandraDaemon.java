@@ -44,6 +44,7 @@ import org.apache.cassandra.db.compaction.LegacyLeveledManifest;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.thrift.ThriftServer;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Mx4jTool;
 import org.apache.cassandra.utils.Pair;
@@ -176,6 +177,7 @@ public class CassandraDaemon
             {
                 exceptions.incrementAndGet();
                 logger.error("Exception in thread " + t, e);
+                Tracing.trace("Exception in thread " + t, e);
                 for (Throwable e2 = e; e2 != null; e2 = e2.getCause())
                 {
                     // some code, like FileChannel.map, will wrap an OutOfMemoryError in another exception
