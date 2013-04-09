@@ -184,7 +184,10 @@ public class SliceQueryFilter implements IDiskAtomFilter
             {
                 iter.remove();
                 while (iter.hasNext())
+                {
+                    iter.next();
                     iter.remove();
+                }
             }
         }
     }
