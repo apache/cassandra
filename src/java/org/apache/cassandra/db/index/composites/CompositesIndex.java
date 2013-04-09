@@ -99,7 +99,7 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
     {
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
-        cfi.addTombstone(entry.indexEntry, (int) (System.currentTimeMillis() / 1000), entry.timestamp);
+        cfi.addTombstone(entry.indexEntry, localDeletionTime, entry.timestamp);
         indexCfs.apply(entry.indexValue, cfi, SecondaryIndexManager.nullUpdater);
         if (logger.isDebugEnabled())
             logger.debug("removed index entry for cleaned-up value {}:{}", entry.indexValue, cfi);
