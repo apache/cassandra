@@ -195,7 +195,7 @@ public class AtomicSortedColumns implements ISortedColumns
         }
         while (!ref.compareAndSet(current, modified));
 
-        indexer.commit();
+        indexer.updateRowLevelIndexes();
 
         return sizeDelta;
     }

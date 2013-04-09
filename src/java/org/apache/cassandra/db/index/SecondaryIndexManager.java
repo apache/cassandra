@@ -52,7 +52,7 @@ public class SecondaryIndexManager
 
         public void remove(IColumn current) { }
 
-        public void commit() {}
+        public void updateRowLevelIndexes() {}
     };
 
     /**
@@ -480,11 +480,11 @@ public class SecondaryIndexManager
      * can get updated. Note: only a CF backed by AtomicSortedColumns implements this behaviour
      * fully, other types simply ignore the index updater.
      */
-    public Updater updaterFor(final DecoratedKey key, boolean includeRowIndexes)
+    public Updater updaterFor(final DecoratedKey key)
     {
-        return (includeRowIndexes && !rowLevelIndexMap.isEmpty())
-               ? new MixedIndexUpdater(key)
-               : indexesByColumn.isEmpty() ? nullUpdater : new PerColumnIndexUpdater(key);
+        return (indexesByColumn.isEmpty() && rowLevelIndexMap.isEmpty())
+                ? nullUpdater
+                : new StandardUpdater(key);
     }
 
     /**
@@ -589,65 +589,14 @@ public class SecondaryIndexManager
         public void remove(IColumn current);
 
         /** called after memtable updates are complete (CASSANDRA-5397) */
-        public void commit();
+        public void updateRowLevelIndexes();
     }
 
-    private class PerColumnIndexUpdater implements Updater
+    private class StandardUpdater implements Updater
     {
         private final DecoratedKey key;
 
-        public PerColumnIndexUpdater(DecoratedKey key)
-        {
-            this.key = key;
-        }
-
-        public void insert(IColumn column)
-        {
-            if (column.isMarkedForDelete())
-                return;
-
-            SecondaryIndex index = indexFor(column.name());
-            if (index == null)
-                return;
-
-            ((PerColumnSecondaryIndex) index).insert(key.key, column);
-        }
-
-        public void update(IColumn oldColumn, IColumn column)
-        {
-            SecondaryIndex index = indexFor(column.name());
-            if (index == null)
-                return;
-
-            ((PerColumnSecondaryIndex) index).delete(key.key, oldColumn);
-            if (!column.isMarkedForDelete())
-                ((PerColumnSecondaryIndex) index).insert(key.key, column);
-        }
-
-        public void remove(IColumn column)
-        {
-            if (column.isMarkedForDelete())
-                return;
-
-            SecondaryIndex index = indexFor(column.name());
-            if (index == null)
-                return;
-
-            ((PerColumnSecondaryIndex) index).delete(key.key, column);
-        }
-
-        public void commit()
-        {
-            // this is a no-op as per-column index updates are applied immediately
-        }
-    }
-
-    private class MixedIndexUpdater implements Updater
-    {
-        private final DecoratedKey key;
-        ConcurrentHashMap<SecondaryIndex, ByteBuffer> deferredUpdates = new ConcurrentHashMap<SecondaryIndex, ByteBuffer>();
-
-        public MixedIndexUpdater(DecoratedKey key)
+        public StandardUpdater(DecoratedKey key)
         {
             this.key = key;
         }
@@ -662,13 +611,7 @@ public class SecondaryIndexManager
                 return;
 
             if (index instanceof PerColumnSecondaryIndex)
-            {
                 ((PerColumnSecondaryIndex) index).insert(key.key, column);
-            }
-            else
-            {
-                deferredUpdates.putIfAbsent(index, key.key);
-            }
         }
 
         public void update(IColumn oldColumn, IColumn column)
@@ -683,10 +626,6 @@ public class SecondaryIndexManager
                 if (!column.isMarkedForDelete())
                     ((PerColumnSecondaryIndex) index).insert(key.key, column);
             }
-            else
-            {
-                deferredUpdates.putIfAbsent(index, key.key);
-            }
         }
 
         public void remove(IColumn column)
@@ -699,23 +638,13 @@ public class SecondaryIndexManager
                 return;
 
             if (index instanceof PerColumnSecondaryIndex)
-            {
                 ((PerColumnSecondaryIndex) index).delete(key.key, column);
-            }
-            else
-            {
-                // per-row secondary indexes are assumed to keep the index up-to-date at insert time, rather
-                // than performing lazy updates
-            }
         }
 
-        public void commit()
+        public void updateRowLevelIndexes()
         {
-            for (Map.Entry<SecondaryIndex, ByteBuffer> update : deferredUpdates.entrySet())
-            {
-                assert update.getKey() instanceof PerRowSecondaryIndex;
-                ((PerRowSecondaryIndex) update.getKey()).index(update.getValue());
-            }
+            for (SecondaryIndex index : rowLevelIndexMap.values())
+                ((PerRowSecondaryIndex) index).index(key.key);
         }
     }
 }

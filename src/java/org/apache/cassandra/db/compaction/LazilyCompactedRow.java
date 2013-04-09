@@ -71,7 +71,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         super(rows.get(0).getKey());
         this.rows = rows;
         this.controller = controller;
-        indexer = controller.cfs.indexManager.updaterFor(key, false);
+        indexer = controller.cfs.indexManager.updaterFor(key);
 
         long maxDelTimestamp = Long.MIN_VALUE;
         for (OnDiskAtomIterator row : rows)
