@@ -233,7 +233,7 @@ public class Shuffle extends AbstractJmxClient
         {
             try
             {
-                JMXConnection conn = new JMXConnection(endpoint, port);
+                JMXConnection conn = new JMXConnection(endpoint, port, username, password);
                 getSSProxy(conn.getMbeanServerConn()).enableScheduledRangeXfers();
                 conn.close();
             }
@@ -265,7 +265,7 @@ public class Shuffle extends AbstractJmxClient
         {
             try
             {
-                JMXConnection conn = new JMXConnection(endpoint, port);
+                JMXConnection conn = new JMXConnection(endpoint, port, username, password);
                 getSSProxy(conn.getMbeanServerConn()).disableScheduledRangeXfers();
                 conn.close();
             }
@@ -286,7 +286,7 @@ public class Shuffle extends AbstractJmxClient
     {
         try
         {
-            JMXConnection conn = new JMXConnection(host, port);
+            JMXConnection conn = new JMXConnection(host, port, username, password);
             return getSSProxy(conn.getMbeanServerConn()).getLiveNodes();
         }
         catch (IOException e)
@@ -631,6 +631,8 @@ public class Shuffle extends AbstractJmxClient
 
         String hostName = (cmd.getOptionValue("host") != null) ? cmd.getOptionValue("host") : DEFAULT_HOST;
         String port = (cmd.getOptionValue("port") != null) ? cmd.getOptionValue("port") : Integer.toString(DEFAULT_JMX_PORT);
+        String username = cmd.getOptionValue("username");
+        String password = cmd.getOptionValue("password");
         String thriftHost = (cmd.getOptionValue("thrift-host") != null) ? cmd.getOptionValue("thrift-host") : hostName;
         String thriftPort = (cmd.getOptionValue("thrift-port") != null) ? cmd.getOptionValue("thrift-port") : "9160";
         String onlyDc = cmd.getOptionValue("only-dc");
@@ -670,7 +672,8 @@ public class Shuffle extends AbstractJmxClient
         else
             thriftPortNum = 9160;
 
-        Shuffle shuffler = new Shuffle(hostName, portNum, thriftHost, thriftPortNum, thriftFramed, null, null);
+        Shuffle shuffler = new Shuffle(hostName, portNum, thriftHost, thriftPortNum, thriftFramed,
+                username, password);
 
         try
         {

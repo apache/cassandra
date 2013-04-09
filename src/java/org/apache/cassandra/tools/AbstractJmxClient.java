@@ -47,6 +47,8 @@ public abstract class AbstractJmxClient implements Closeable
 
     protected final String host;
     protected final int port;
+    protected final String username;
+    protected final String password;
     protected JMXConnection jmxConn;
     protected PrintStream out = System.out;
 
@@ -54,6 +56,8 @@ public abstract class AbstractJmxClient implements Closeable
     {
         options.addOption("h", "host", true,  "JMX hostname or IP address (Default: localhost)");
         options.addOption("p", "port", true,  "JMX port number (Default: 7199)");
+        options.addOption("u", "username", true,  "JMX username");
+        options.addOption("pw", "password", true,  "JMX password");
         options.addOption("H", "help", false, "Print help information");
     }
 
@@ -61,6 +65,8 @@ public abstract class AbstractJmxClient implements Closeable
     {
         this.host = (host != null) ? host : DEFAULT_HOST;
         this.port = (port != null) ? port : DEFAULT_JMX_PORT;
+        this.username = username;
+        this.password = password;
         jmxConn = new JMXConnection(this.host, this.port, username, password);
     }
 
@@ -132,11 +138,6 @@ class JMXConnection
     private final int port;
     private JMXConnector jmxc;
     private MBeanServerConnection mbeanServerConn;
-
-    JMXConnection(String host, int port) throws IOException
-    {
-        this(host, port, null, null);
-    }
 
     JMXConnection(String host, int port, String username, String password) throws IOException
     {

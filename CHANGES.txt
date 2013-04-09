@@ -64,6 +64,7 @@
  * Fix potential incremental backups race (CASSANDRA-5410)
  * Fix prepared BATCH statements with batch-level timestamps (CASSANDRA-5415)
  * Allow overriding superuser setup delay (CASSANDRA-5430)
+ * cassandra-shuffle with JMX usernames and passwords (CASSANDRA-5431)
 Merged from 1.1:
  * cli: Quote ks and cf names in schema output when needed (CASSANDRA-5052)
  * Fix bad default for min/max timestamp in SSTableMetadata (CASSANDRA-5372)
