@@ -28,7 +28,8 @@
  * remove row-level bloom filters (CASSANDRA-4885)
  * Change Kernel Page Cache skipping into row preheating (disabled by default)
    (CASSANDRA-4937)
-
+ * Improve repair by deciding on a gcBefore before sending
+   out TreeRequests (CASSANDRA-4932)
 
 1.2.4
  * Ensure that PerRowSecondaryIndex updates see the most recent values

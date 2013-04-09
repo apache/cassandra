@@ -105,7 +105,8 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         local_range = StorageService.instance.getLocalPrimaryRange();
 
         // (we use REMOTE instead of LOCAL so that the reponses for the validator.complete() get lost)
-        request = new TreeRequest(UUID.randomUUID().toString(), REMOTE, local_range, new CFPair(tablename, cfname));
+        int gcBefore = (int)(System.currentTimeMillis()/1000) - store.metadata.getGcGraceSeconds();
+        request = new TreeRequest(UUID.randomUUID().toString(), REMOTE, local_range, gcBefore, new CFPair(tablename, cfname));
         // Set a fake session corresponding to this fake request
         ActiveRepairService.instance.submitArtificialRepairSession(request, tablename, cfname);
     }

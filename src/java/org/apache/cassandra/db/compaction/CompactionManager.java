@@ -618,7 +618,10 @@ public class CompactionManager implements CompactionManagerMBean
             // we don't mark validating sstables as compacting in DataTracker, so we have to mark them referenced
             // instead so they won't be cleaned up if they do get compacted during the validation
             sstables = cfs.markCurrentSSTablesReferenced();
-            gcBefore = getDefaultGcBefore(cfs);
+            if (validator.request.gcBefore > 0)
+                gcBefore = validator.request.gcBefore;
+            else
+                gcBefore = getDefaultGcBefore(cfs);
         }
 
         CompactionIterable ci = new ValidationCompactionIterable(cfs, sstables, validator.request.range, gcBefore);

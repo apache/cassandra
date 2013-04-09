@@ -442,7 +442,7 @@ public class ActiveRepairService
         public void doVerb(MessageIn<TreeRequest> message, int id)
         {
             TreeRequest remotereq = message.payload;
-            TreeRequest request = new TreeRequest(remotereq.sessionid, message.from, remotereq.range, remotereq.cf);
+            TreeRequest request = new TreeRequest(remotereq.sessionid, message.from, remotereq.range, remotereq.gcBefore, remotereq.cf);
 
             // trigger read-only compaction
             ColumnFamilyStore store = Table.open(request.cf.left).getColumnFamilyStore(request.cf.right);
@@ -462,7 +462,7 @@ public class ActiveRepairService
         {
             // deserialize the remote tree, and register it
             Validator response = message.payload;
-            TreeRequest request = new TreeRequest(response.request.sessionid, message.from, response.request.range, response.request.cf);
+            TreeRequest request = new TreeRequest(response.request.sessionid, message.from, response.request.range, response.request.gcBefore, response.request.cf);
             ActiveRepairService.instance.rendezvous(request, response.tree);
         }
     }
@@ -489,20 +489,22 @@ public class ActiveRepairService
         public final String sessionid;
         public final InetAddress endpoint;
         public final Range<Token> range;
+        public final int gcBefore;
         public final CFPair cf;
 
-        public TreeRequest(String sessionid, InetAddress endpoint, Range<Token> range, CFPair cf)
+        public TreeRequest(String sessionid, InetAddress endpoint, Range<Token> range, int gcBefore, CFPair cf)
         {
             this.sessionid = sessionid;
             this.endpoint = endpoint;
             this.cf = cf;
+            this.gcBefore = gcBefore;
             this.range = range;
         }
 
         @Override
         public final int hashCode()
         {
-            return Objects.hashCode(sessionid, endpoint, cf, range);
+            return Objects.hashCode(sessionid, endpoint, gcBefore, cf, range);
         }
 
         @Override
@@ -512,13 +514,13 @@ public class ActiveRepairService
                 return false;
             TreeRequest that = (TreeRequest)o;
             // handles nulls properly
-            return Objects.equal(sessionid, that.sessionid) && Objects.equal(endpoint, that.endpoint) && Objects.equal(cf, that.cf) && Objects.equal(range, that.range);
+            return Objects.equal(sessionid, that.sessionid) && Objects.equal(endpoint, that.endpoint) && gcBefore == that.gcBefore && Objects.equal(cf, that.cf) && Objects.equal(range, that.range);
         }
 
         @Override
         public String toString()
         {
-            return "#<TreeRequest " + sessionid + ", " + endpoint + ", " + cf + ", " + range + ">";
+            return "#<TreeRequest " + sessionid + ", " + endpoint + ", " + gcBefore + ", " + cf  + ", " + range + ">";
         }
 
         public MessageOut<TreeRequest> createMessage()
@@ -532,6 +534,9 @@ public class ActiveRepairService
             {
                 out.writeUTF(request.sessionid);
                 CompactEndpointSerializationHelper.serialize(request.endpoint, out);
+
+                if (version >= MessagingService.VERSION_20)
+                    out.writeInt(request.gcBefore);
                 out.writeUTF(request.cf.left);
                 out.writeUTF(request.cf.right);
                 AbstractBounds.serializer.serialize(request.range, out, version);
@@ -541,17 +546,21 @@ public class ActiveRepairService
             {
                 String sessId = in.readUTF();
                 InetAddress endpoint = CompactEndpointSerializationHelper.deserialize(in);
+                int gcBefore = -1;
+                if (version >= MessagingService.VERSION_20)
+                    gcBefore = in.readInt();
                 CFPair cfpair = new CFPair(in.readUTF(), in.readUTF());
                 Range<Token> range;
                 range = (Range<Token>) AbstractBounds.serializer.deserialize(in, version);
 
-                return new TreeRequest(sessId, endpoint, range, cfpair);
+                return new TreeRequest(sessId, endpoint, range, gcBefore, cfpair);
             }
 
             public long serializedSize(TreeRequest request, int version)
             {
                 return TypeSizes.NATIVE.sizeof(request.sessionid)
                      + CompactEndpointSerializationHelper.serializedSize(request.endpoint)
+                     + TypeSizes.NATIVE.sizeof(request.gcBefore)
                      + TypeSizes.NATIVE.sizeof(request.cf.left)
                      + TypeSizes.NATIVE.sizeof(request.cf.right)
                      + AbstractBounds.serializer.serializedSize(request.range, version);
@@ -833,8 +842,10 @@ public class ActiveRepairService
                 if (isSequential)
                     makeSnapshots(endpoints);
 
+                int gcBefore = (int)(System.currentTimeMillis()/1000) - Table.open(tablename).getColumnFamilyStore(cfname).metadata.getGcGraceSeconds();
+
                 for (InetAddress endpoint : allEndpoints)
-                    treeRequests.add(new TreeRequest(getName(), endpoint, range, new CFPair(tablename, cfname)));
+                    treeRequests.add(new TreeRequest(getName(), endpoint, range, gcBefore, new CFPair(tablename, cfname)));
 
                 logger.info(String.format("[repair #%s] requesting merkle trees for %s (to %s)", getName(), cfname, allEndpoints));
                 treeRequests.start();
