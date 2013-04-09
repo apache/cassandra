@@ -42,7 +42,6 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -222,12 +221,12 @@ public class CompactionsTest extends SchemaLoader
     public void testDontPurgeAccidentaly() throws IOException, ExecutionException, InterruptedException
     {
         // Testing with and without forcing deserialization. Without deserialization, EchoedRow will be used.
-        testDontPurgeAccidentaly("test1", "Super5", false);
-        testDontPurgeAccidentaly("test2", "Super5", true);
+        testDontPurgeAccidentaly("test1", "Super5");
+        testDontPurgeAccidentaly("test2", "Super5");
 
         // Use CF with gc_grace=0, see last bug of CASSANDRA-2786
-        testDontPurgeAccidentaly("test1", "SuperDirectGC", false);
-        testDontPurgeAccidentaly("test2", "SuperDirectGC", true);
+        testDontPurgeAccidentaly("test1", "SuperDirectGC");
+        testDontPurgeAccidentaly("test2", "SuperDirectGC");
     }
 
     @Test
@@ -299,7 +298,7 @@ public class CompactionsTest extends SchemaLoader
         assert !compactionLogs.containsKey(Pair.create(TABLE1, cf));
     }
 
-    private void testDontPurgeAccidentaly(String k, String cfname, boolean forceDeserialize) throws IOException, ExecutionException, InterruptedException
+    private void testDontPurgeAccidentaly(String k, String cfname) throws IOException, ExecutionException, InterruptedException
     {
         // This test catches the regression of CASSANDRA-2786
         Table table = Table.open(TABLE1);
