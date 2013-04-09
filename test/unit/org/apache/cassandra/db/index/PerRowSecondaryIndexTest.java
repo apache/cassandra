@@ -18,20 +18,20 @@
 package org.apache.cassandra.db.index;
 
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Set;
+
+import org.junit.Before;
+import org.junit.Test;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import org.junit.Before;
-import org.junit.Test;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Set;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
@@ -82,13 +82,13 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         // issue a column delete and test that the configured index instance was notified to update
         RowMutation rm;
         rm = new RowMutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k2"));
-        rm.delete(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("indexed")), 1);
+        rm.delete("Indexed1", ByteBufferUtil.bytes("indexed"), 1);
         rm.apply();
 
         ColumnFamily indexedRow = TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);
 
-        for (IColumn column : indexedRow.getSortedColumns())
+        for (Column column : indexedRow.getSortedColumns())
         {
             assertTrue(column.isMarkedForDelete());
         }
@@ -101,12 +101,12 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         // issue a row level delete and test that the configured index instance was notified to update
         RowMutation rm;
         rm = new RowMutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k3"));
-        rm.delete(new QueryPath("Indexed1"), 1);
+        rm.delete("Indexed1", 1);
         rm.apply();
 
         ColumnFamily indexedRow = TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);
-        for (IColumn column : indexedRow.getSortedColumns())
+        for (Column column : indexedRow.getSortedColumns())
         {
             assertTrue(column.isMarkedForDelete());
         }

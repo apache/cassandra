@@ -608,9 +608,12 @@ public class SecondaryIndexManager
         {
             for (SecondaryIndex index : indexFor(column.name()))
             {
-                ((PerColumnSecondaryIndex) index).delete(key.key, oldColumn);
-                if (!column.isMarkedForDelete())
-                    ((PerColumnSecondaryIndex) index).insert(key.key, column);
+                if (index instanceof PerColumnSecondaryIndex)
+                {
+                    ((PerColumnSecondaryIndex) index).delete(key.key, oldColumn);
+                    if (!column.isMarkedForDelete())
+                        ((PerColumnSecondaryIndex) index).insert(key.key, column);
+                }
             }
         }
 
