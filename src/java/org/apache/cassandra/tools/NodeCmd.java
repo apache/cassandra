@@ -118,6 +118,8 @@ public class NodeCmd
         ENABLETHRIFT,
         FLUSH,
         GETCOMPACTIONTHRESHOLD,
+        DISABLEAUTOCOMPACTION,
+        ENABLEAUTOCOMPACTION,
         GETENDPOINTS,
         GETSSTABLES,
         GOSSIPINFO,
@@ -1168,6 +1170,8 @@ public class NodeCmd
                 case FLUSH   :
                 case SCRUB   :
                 case UPGRADESSTABLES   :
+                case DISABLEAUTOCOMPACTION:
+                case ENABLEAUTOCOMPACTION:
                     optionalKSandCFs(command, cmd, arguments, probe);
                     break;
 
@@ -1195,7 +1199,6 @@ public class NodeCmd
                     if (minthreshold < 2 && maxthreshold != 0)    { badUse("Min threshold must be at least 2"); }
                     probe.setCompactionThreshold(arguments[0], arguments[1], minthreshold, maxthreshold);
                     break;
-
                 case GETENDPOINTS :
                     if (arguments.length != 3) { badUse("getendpoints requires ks, cf and key args"); }
                     nodeCmd.printEndPoints(arguments[0], arguments[1], arguments[2], System.out);
@@ -1419,6 +1422,12 @@ public class NodeCmd
                     boolean excludeCurrentVersion = !cmd.hasOption(UPGRADE_ALL_SSTABLE_OPT.left);
                     try { probe.upgradeSSTables(keyspace, excludeCurrentVersion, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occurred while upgrading the sstables for keyspace " + keyspace); }
+                    break;
+                case ENABLEAUTOCOMPACTION:
+                    probe.enableAutoCompaction(keyspace, columnFamilies);
+                    break;
+                case DISABLEAUTOCOMPACTION:
+                    probe.disableAutoCompaction(keyspace, columnFamilies);
                     break;
                 default:
                     throw new RuntimeException("Unreachable code.");

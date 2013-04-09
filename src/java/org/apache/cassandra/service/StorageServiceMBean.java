@@ -470,4 +470,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void enableScheduledRangeXfers();
     /** Disable processing of queued range transfers. */
     public void disableScheduledRangeXfers();
+
+    void disableAutoCompaction(String ks, String ... columnFamilies) throws IOException;
+    void enableAutoCompaction(String ks, String ... columnFamilies) throws IOException;
+
 }

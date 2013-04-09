@@ -48,6 +48,7 @@ public abstract class AbstractCompactionStrategy
     protected static final long DEFAULT_TOMBSTONE_COMPACTION_INTERVAL = 86400;
     protected static final String TOMBSTONE_THRESHOLD_OPTION = "tombstone_threshold";
     protected static final String TOMBSTONE_COMPACTION_INTERVAL_OPTION = "tombstone_compaction_interval";
+    protected static final String COMPACTION_ENABLED = "enabled";
 
     public final Map<String, String> options;
 
@@ -67,6 +68,8 @@ public abstract class AbstractCompactionStrategy
      */
     protected boolean isActive = true;
 
+    protected volatile boolean enabled = true;
+
     protected AbstractCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
         assert cfs != null;
@@ -82,6 +85,13 @@ public abstract class AbstractCompactionStrategy
             tombstoneThreshold = optionValue == null ? DEFAULT_TOMBSTONE_THRESHOLD : Float.parseFloat(optionValue);
             optionValue = options.get(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
             tombstoneCompactionInterval = optionValue == null ? DEFAULT_TOMBSTONE_COMPACTION_INTERVAL : Long.parseLong(optionValue);
+            optionValue = options.get(COMPACTION_ENABLED);
+
+            if (optionValue != null)
+            {
+                if (optionValue.equalsIgnoreCase("false"))
+                    this.enabled = false;
+            }
         }
         catch (ConfigurationException e)
         {
@@ -156,6 +166,21 @@ public abstract class AbstractCompactionStrategy
      * @return size in bytes of the largest sstables for this strategy
      */
     public abstract long getMaxSSTableSize();
+
+    public boolean isEnabled()
+    {
+        return this.enabled && this.isActive;
+    }
+
+    public void enable()
+    {
+        this.enabled = true;
+    }
+
+    public void disable()
+    {
+        this.enabled = false;
+    }
 
     /**
      * Filters SSTables that are to be blacklisted from the given collection
@@ -282,9 +307,18 @@ public abstract class AbstractCompactionStrategy
             }
         }
 
+        String compactionEnabled = options.get(COMPACTION_ENABLED);
+        if (compactionEnabled != null)
+        {
+            if (!compactionEnabled.equalsIgnoreCase("true") && !compactionEnabled.equalsIgnoreCase("false"))
+            {
+                throw new ConfigurationException(String.format("enabled should either be 'true' or 'false', not %s", compactionEnabled));
+            }
+        }
         Map<String, String> uncheckedOptions = new HashMap<String, String>(options);
         uncheckedOptions.remove(TOMBSTONE_THRESHOLD_OPTION);
         uncheckedOptions.remove(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
+        uncheckedOptions.remove(COMPACTION_ENABLED);
         return uncheckedOptions;
     }
 }

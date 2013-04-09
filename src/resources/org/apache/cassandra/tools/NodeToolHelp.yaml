@@ -155,6 +155,12 @@ commands:
   - name: getcompactionthreshold <keyspace> <cfname>
     help: |
       Print min and max compaction thresholds for a given column family
+  - name: disableautocompaction [keyspace] [cfnames]
+    help: |
+      Disable autocompaction for the given keyspace and column family
+  - name: enableautocompaction [keyspace] [cfnames]
+    help: |
+      Enable autocompaction
   - name: stop <compaction_type>
     help: |
       Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB, INDEX_BUILD

@@ -520,6 +520,16 @@ public class NodeProbe
         cfsProxy.setCompactionThresholds(minimumCompactionThreshold, maximumCompactionThreshold);
     }
 
+    public void disableAutoCompaction(String ks, String ... columnFamilies) throws IOException
+    {
+        ssProxy.disableAutoCompaction(ks, columnFamilies);
+    }
+
+    public void enableAutoCompaction(String ks, String ... columnFamilies) throws IOException
+    {
+        ssProxy.enableAutoCompaction(ks, columnFamilies);
+    }
+
     public void setCacheCapacities(int keyCacheCapacity, int rowCacheCapacity)
     {
         try

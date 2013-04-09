@@ -182,7 +182,7 @@ public class CollationController
 
             // "hoist up" the requested data into a more recent sstable
             if (sstablesIterated > cfs.getMinimumCompactionThreshold()
-                && !cfs.isCompactionDisabled()
+                && !cfs.isAutoCompactionDisabled()
                 && cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
             {
                 Tracing.trace("Defragmenting requested data");

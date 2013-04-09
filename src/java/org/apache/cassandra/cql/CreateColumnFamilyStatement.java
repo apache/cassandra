@@ -161,7 +161,7 @@ public class CreateColumnFamilyStatement
      * @return a CFMetaData instance corresponding to the values parsed from this statement
      * @throws InvalidRequestException on failure to validate parsed parameters
      */
-    public CFMetaData getCFMetaData(String keyspace, List<ByteBuffer> variables) throws InvalidRequestException
+    public CFMetaData getCFMetaData(String keyspace, List<ByteBuffer> variables) throws InvalidRequestException, ConfigurationException
     {
         validate(variables);
 
@@ -178,6 +178,10 @@ public class CreateColumnFamilyStatement
 
             if (CFMetaData.DEFAULT_COMPRESSOR != null && cfProps.compressionParameters.isEmpty())
                 cfProps.compressionParameters.put(CompressionParameters.SSTABLE_COMPRESSION, CFMetaData.DEFAULT_COMPRESSOR);
+            int maxCompactionThreshold = getPropertyInt(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD);
+            int minCompactionThreshold = getPropertyInt(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD);
+            if (minCompactionThreshold <= 0 || maxCompactionThreshold <= 0)
+                throw new ConfigurationException("Disabling compaction by setting compaction thresholds to 0 has been deprecated, set the compaction option 'enabled' to false instead.");
 
             newCFMD.comment(cfProps.getProperty(CFPropDefs.KW_COMMENT))
                    .readRepairChance(getPropertyDouble(CFPropDefs.KW_READREPAIRCHANCE, CFMetaData.DEFAULT_READ_REPAIR_CHANCE))
@@ -185,8 +189,8 @@ public class CreateColumnFamilyStatement
                    .replicateOnWrite(getPropertyBoolean(CFPropDefs.KW_REPLICATEONWRITE, CFMetaData.DEFAULT_REPLICATE_ON_WRITE))
                    .gcGraceSeconds(getPropertyInt(CFPropDefs.KW_GCGRACESECONDS, CFMetaData.DEFAULT_GC_GRACE_SECONDS))
                    .defaultValidator(cfProps.getValidator())
-                   .minCompactionThreshold(getPropertyInt(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD))
-                   .maxCompactionThreshold(getPropertyInt(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD))
+                   .minCompactionThreshold(minCompactionThreshold)
+                   .maxCompactionThreshold(maxCompactionThreshold)
                    .columnMetadata(getColumns(comparator))
                    .keyValidator(TypeParser.parse(CFPropDefs.comparators.get(getKeyType())))
                    .compactionStrategyClass(cfProps.compactionStrategyClass)

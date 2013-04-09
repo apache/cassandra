@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import javax.management.*;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.ImmutableSet;
@@ -267,6 +268,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // compaction strategy should be created after the CFS has been prepared
         this.compactionStrategy = metadata.createCompactionStrategyInstance(this);
+
+        if (maxCompactionThreshold.value() <= 0 || minCompactionThreshold.value() <=0)
+        {
+            logger.warn("Disabling compaction strategy by setting compaction thresholds to 0 is deprecated, set the compaction option 'enabled' to 'false' instead.");
+            this.compactionStrategy.disable();
+        }
 
         // create the private ColumnFamilyStores for the secondary column indexes
         for (ColumnDefinition info : metadata.allColumns())
@@ -1951,14 +1958,30 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // we don't use CompactionStrategy.pause since we don't want users flipping that on and off
         // during runWithCompactionsDisabled
-        minCompactionThreshold.set(0);
-        maxCompactionThreshold.set(0);
+        this.compactionStrategy.disable();
     }
 
     public void enableAutoCompaction()
     {
-        minCompactionThreshold.reset();
-        maxCompactionThreshold.reset();
+        enableAutoCompaction(false);
+    }
+
+    /**
+     * used for tests - to be able to check things after a minor compaction
+     * @param waitForFutures if we should block until autocompaction is done
+     */
+    @VisibleForTesting
+    public void enableAutoCompaction(boolean waitForFutures)
+    {
+        this.compactionStrategy.enable();
+        List<Future<?>> futures = CompactionManager.instance.submitBackground(this);
+        if (waitForFutures)
+            FBUtilities.waitOnFutures(futures);
+    }
+
+    public boolean isAutoCompactionDisabled()
+    {
+        return !this.compactionStrategy.isEnabled();
     }
 
     /*
@@ -2012,14 +2035,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private void validateCompactionThresholds(int minThreshold, int maxThreshold)
     {
-        if (minThreshold > maxThreshold && maxThreshold != 0)
+        if (minThreshold > maxThreshold)
             throw new RuntimeException(String.format("The min_compaction_threshold cannot be larger than the max_compaction_threshold. " +
                                                      "Min is '%d', Max is '%d'.", minThreshold, maxThreshold));
-    }
 
-    public boolean isCompactionDisabled()
-    {
-        return getMinimumCompactionThreshold() <= 0 || getMaximumCompactionThreshold() <= 0;
+        if (maxThreshold == 0 || minThreshold == 0)
+            throw new RuntimeException("Disabling compaction by setting min_compaction_threshold or max_compaction_threshold to 0 " +
+                    "is deprecated, set the compaction strategy option 'enabled' to 'false' instead or use the nodetool command 'disableautocompaction'.");
     }
 
     // End JMX get/set.

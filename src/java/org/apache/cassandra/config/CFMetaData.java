@@ -168,7 +168,7 @@ public final class CFMetaData
                                                          + "mutation blob,"
                                                          + "PRIMARY KEY (target_id, hint_id, message_version)"
                                                          + ") WITH COMPACT STORAGE "
-                                                         + "AND COMPACTION={'class' : 'SizeTieredCompactionStrategy', 'min_threshold' : 0, 'max_threshold' : 0} "
+                                                         + "AND COMPACTION={'class' : 'SizeTieredCompactionStrategy', 'enabled' : false} "
                                                          + "AND COMMENT='hints awaiting delivery'"
                                                          + "AND gc_grace_seconds=0");
 
@@ -1335,7 +1335,11 @@ public final class CFMetaData
     private void validateCompactionThresholds() throws ConfigurationException
     {
         if (maxCompactionThreshold == 0)
+        {
+            logger.warn("Disabling compaction by setting max or min compaction has been deprecated, " +
+                    "set the compaction strategy option 'enabled' to 'false' instead");
             return;
+        }
 
         if (minCompactionThreshold <= 1)
             throw new ConfigurationException(String.format("Min compaction threshold cannot be less than 2 (got %d).", minCompactionThreshold));

@@ -281,10 +281,7 @@ public interface ColumnFamilyStoreMBean
      */
     public void setCrcCheckChance(double crcCheckChance);
 
-    /**
-     * Disable automatic compaction.
-     */
-    public void disableAutoCompaction();
+    public boolean isAutoCompactionDisabled();
 
     public long estimateKeys();
 

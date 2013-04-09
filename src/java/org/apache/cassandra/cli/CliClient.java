@@ -1311,9 +1311,15 @@ public class CliClient
                 cfDef.setDefault_validation_class(CliUtils.unescapeSQLString(mValue));
                 break;
             case MIN_COMPACTION_THRESHOLD:
-                cfDef.setMin_compaction_threshold(Integer.parseInt(mValue));
+                int threshold = Integer.parseInt(mValue);
+                if (threshold <= 0)
+                    throw new RuntimeException("Disabling compaction by setting min/max compaction thresholds to 0 has been deprecated, set compaction_strategy_options={'enabled':false} instead");
+                cfDef.setMin_compaction_threshold(threshold);
                 break;
             case MAX_COMPACTION_THRESHOLD:
+                threshold = Integer.parseInt(mValue);
+                if (threshold <= 0)
+                    throw new RuntimeException("Disabling compaction by setting min/max compaction thresholds to 0 has been deprecated, set compaction_strategy_options={'enabled':false} instead");
                 cfDef.setMax_compaction_threshold(Integer.parseInt(mValue));
                 break;
             case REPLICATE_ON_WRITE:

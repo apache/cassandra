@@ -56,19 +56,16 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         bucketLow = optionValue == null ? DEFAULT_BUCKET_LOW : Double.parseDouble(optionValue);
         optionValue = options.get(BUCKET_HIGH_KEY);
         bucketHigh = optionValue == null ? DEFAULT_BUCKET_HIGH : Double.parseDouble(optionValue);
-        cfs.setCompactionThresholds(cfs.metadata.getMinCompactionThreshold(), cfs.metadata.getMaxCompactionThreshold());
     }
 
     private List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
     {
+        if (!isEnabled())
+            return Collections.emptyList();
+
         // make local copies so they can't be changed out from under us mid-method
         int minThreshold = cfs.getMinimumCompactionThreshold();
         int maxThreshold = cfs.getMaximumCompactionThreshold();
-        if (minThreshold == 0 || maxThreshold == 0)
-        {
-            logger.debug("Compaction is currently disabled.");
-            return Collections.emptyList();
-        }
 
         Set<SSTableReader> candidates = cfs.getUncompactingSSTables();
         List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(filterSuspectSSTables(candidates)), bucketHigh, bucketLow, minSSTableSize);
@@ -135,7 +132,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public synchronized AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
-        if (!isActive)
+        if (!isEnabled())
             return null;
 
         while (true)

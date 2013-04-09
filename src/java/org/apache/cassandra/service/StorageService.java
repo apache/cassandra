@@ -3842,4 +3842,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         rangeXferExecutor.tearDown();
     }
+
+    @Override
+    public void disableAutoCompaction(String ks, String... columnFamilies) throws IOException
+    {
+        for (ColumnFamilyStore cfs : getValidColumnFamilies(true, true, ks, columnFamilies))
+        {
+            cfs.disableAutoCompaction();
+        }
+    }
+
+    @Override
+    public void enableAutoCompaction(String ks, String... columnFamilies) throws IOException
+    {
+        for (ColumnFamilyStore cfs : getValidColumnFamilies(true, true, ks, columnFamilies))
+        {
+            cfs.enableAutoCompaction();
+        }
+    }
 }

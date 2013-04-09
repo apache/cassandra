@@ -69,8 +69,7 @@ public class TTLExpiryTest extends SchemaLoader
         cfs.forceBlockingFlush();
         Thread.sleep(2000); // wait for ttl to expire
         assertEquals(4, cfs.getSSTables().size());
-        cfs.enableAutoCompaction();
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(cfs));
+        cfs.enableAutoCompaction(true);
         assertEquals(0, cfs.getSSTables().size());
     }
 
@@ -117,8 +116,7 @@ public class TTLExpiryTest extends SchemaLoader
         cfs.forceBlockingFlush();
         Thread.sleep(2000); // wait for ttl to expire
         assertEquals(4, cfs.getSSTables().size());
-        cfs.enableAutoCompaction();
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(cfs));
+        cfs.enableAutoCompaction(true);
         assertEquals(1, cfs.getSSTables().size());
         SSTableReader sstable = cfs.getSSTables().iterator().next();
         SSTableScanner scanner = sstable.getScanner(new QueryFilter(null, "Standard1", new IdentityQueryFilter()));

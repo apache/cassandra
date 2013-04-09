@@ -30,6 +30,9 @@ Operations
 ----------
     - Major compactions, cleanup, scrub, and upgradesstables will interrupt 
       any in-progress compactions (but not repair validations) when invoked.
+    - Disabling autocompactions by setting min/max compaction threshold to 0
+      has been deprecated, instead, use the nodetool commands 'disableautocompaction'
+      and 'enableautocompaction' or set the compaction strategy option enabled = false
 
 
 1.2.4

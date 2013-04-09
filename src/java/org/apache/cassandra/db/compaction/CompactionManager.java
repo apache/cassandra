@@ -106,6 +106,12 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public List<Future<?>> submitBackground(final ColumnFamilyStore cfs)
     {
+        if (cfs.isAutoCompactionDisabled())
+        {
+            logger.debug("Autocompaction is disabled");
+            return Collections.emptyList();
+        }
+
         int count = compactingCF.count(cfs);
         if (count > 0 && executor.getActiveCount() >= executor.getMaximumPoolSize())
         {
