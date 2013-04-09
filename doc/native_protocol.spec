@@ -1,6 +1,6 @@
 
                              CQL BINARY PROTOCOL v1
-                                    (draft)
+
 
 Table of Contents
 

@@ -173,7 +173,7 @@ public class AtomicSortedColumns extends ColumnFamily
         }
         while (!ref.compareAndSet(current, modified));
 
-        indexer.commit();
+        indexer.updateRowLevelIndexes();
 
         return sizeDelta;
     }

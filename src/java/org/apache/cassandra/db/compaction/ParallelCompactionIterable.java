@@ -205,7 +205,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                     data.add(FBUtilities.closeableIterator(row.cf.iterator()));
                 }
 
-                PrecompactedRow.merge(returnCF, data, controller.cfs.indexManager.updaterFor(rows.get(0).key, false));
+                PrecompactedRow.merge(returnCF, data, controller.cfs.indexManager.updaterFor(rows.get(0).key));
                 return PrecompactedRow.removeDeletedAndOldShards(rows.get(0).key, controller, returnCF);
             }
         }

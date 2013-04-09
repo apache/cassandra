@@ -87,7 +87,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         // See comment in preceding method
         ColumnFamily compacted = ColumnFamilyStore.removeDeleted(cf,
                                                                  shouldPurge ? controller.gcBefore : Integer.MIN_VALUE,
-                                                                 controller.cfs.indexManager.updaterFor(key, false));
+                                                                 controller.cfs.indexManager.updaterFor(key));
         if (shouldPurge && compacted != null && compacted.metadata().getDefaultValidator().isCommutative())
             CounterColumn.mergeAndRemoveOldShards(key, compacted, controller.gcBefore, controller.mergeShardBefore);
         return compacted;
@@ -121,7 +121,7 @@ public class PrecompactedRow extends AbstractCompactedRow
             }
         }
 
-        merge(returnCF, data, controller.cfs.indexManager.updaterFor(rows.get(0).getKey(), false));
+        merge(returnCF, data, controller.cfs.indexManager.updaterFor(rows.get(0).getKey()));
 
         return returnCF;
     }

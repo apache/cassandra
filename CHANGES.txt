@@ -35,6 +35,8 @@
 
 1.2.5
  * Include fatal errors in trace events (CASSANDRA-5447)
+ * Ensure that PerRowSecondaryIndex is notified of row-level deletes
+   (CASSANDRA-5445)
 
 
 1.2.4

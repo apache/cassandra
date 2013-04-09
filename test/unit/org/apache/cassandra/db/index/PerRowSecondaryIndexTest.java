@@ -25,14 +25,17 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Set;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class PerRowSecondaryIndexTest extends SchemaLoader
 {
@@ -42,6 +45,12 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
     // key. TestIndex.index(key) simply reads the data to be
     // indexed & stashes it in a static variable for inspection
     // in the test.
+
+    @Before
+    public void clearTestStub()
+    {
+        TestIndex.reset();
+    }
 
     @Test
     public void testIndexInsertAndUpdate() throws IOException
@@ -64,11 +73,56 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         indexedRow = TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);
         assertEquals(ByteBufferUtil.bytes("bar"), indexedRow.getColumn(ByteBufferUtil.bytes("indexed")).value());
+        assertTrue(Arrays.equals("k1".getBytes(), TestIndex.LAST_INDEXED_KEY.array()));
+    }
+
+    @Test
+    public void testColumnDelete() throws IOException
+    {
+        // issue a column delete and test that the configured index instance was notified to update
+        RowMutation rm;
+        rm = new RowMutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k2"));
+        rm.delete(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("indexed")), 1);
+        rm.apply();
+
+        ColumnFamily indexedRow = TestIndex.LAST_INDEXED_ROW;
+        assertNotNull(indexedRow);
+
+        for (IColumn column : indexedRow.getSortedColumns())
+        {
+            assertTrue(column.isMarkedForDelete());
+        }
+        assertTrue(Arrays.equals("k2".getBytes(), TestIndex.LAST_INDEXED_KEY.array()));
+    }
+
+    @Test
+    public void testRowDelete() throws IOException
+    {
+        // issue a row level delete and test that the configured index instance was notified to update
+        RowMutation rm;
+        rm = new RowMutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k3"));
+        rm.delete(new QueryPath("Indexed1"), 1);
+        rm.apply();
+
+        ColumnFamily indexedRow = TestIndex.LAST_INDEXED_ROW;
+        assertNotNull(indexedRow);
+        for (IColumn column : indexedRow.getSortedColumns())
+        {
+            assertTrue(column.isMarkedForDelete());
+        }
+        assertTrue(Arrays.equals("k3".getBytes(), TestIndex.LAST_INDEXED_KEY.array()));
     }
 
     public static class TestIndex extends PerRowSecondaryIndex
     {
         public static ColumnFamily LAST_INDEXED_ROW;
+        public static ByteBuffer LAST_INDEXED_KEY;
+
+        public static void reset()
+        {
+            LAST_INDEXED_KEY = null;
+            LAST_INDEXED_ROW = null;
+        }
 
         @Override
         public void index(ByteBuffer rowKey, ColumnFamily cf)
@@ -81,6 +135,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
             QueryFilter filter = QueryFilter.getIdentityFilter(DatabaseDescriptor.getPartitioner().decorateKey(rowKey),
                                                                baseCfs.getColumnFamilyName());
             LAST_INDEXED_ROW = baseCfs.getColumnFamily(filter);
+            LAST_INDEXED_KEY = rowKey;
         }
 
         @Override

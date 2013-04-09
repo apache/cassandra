@@ -311,7 +311,7 @@ public class SchemaLoader
                                 indexOptions,
                                 ByteBufferUtil.bytesToHex(cName),
                                 null, ColumnDefinition.Type.REGULAR));
-                    }});
+                }});
     }
 
     private static void useCompression(List<KSMetaData> schema)
