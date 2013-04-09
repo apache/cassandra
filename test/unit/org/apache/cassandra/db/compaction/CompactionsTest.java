@@ -220,13 +220,10 @@ public class CompactionsTest extends SchemaLoader
     @Test
     public void testDontPurgeAccidentaly() throws IOException, ExecutionException, InterruptedException
     {
-        // Testing with and without forcing deserialization. Without deserialization, EchoedRow will be used.
         testDontPurgeAccidentaly("test1", "Super5");
-        testDontPurgeAccidentaly("test2", "Super5");
 
         // Use CF with gc_grace=0, see last bug of CASSANDRA-2786
         testDontPurgeAccidentaly("test1", "SuperDirectGC");
-        testDontPurgeAccidentaly("test2", "SuperDirectGC");
     }
 
     @Test
