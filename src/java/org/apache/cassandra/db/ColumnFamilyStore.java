@@ -457,7 +457,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             ColumnFamily data = getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(columnFamily)),
                                                    Integer.MIN_VALUE,
                                                    true);
-            CacheService.instance.rowCache.put(new RowCacheKey(metadata.cfId, key), data);
+            if (data != null)
+                CacheService.instance.rowCache.put(new RowCacheKey(metadata.cfId, key), data);
             cachedRowsRead++;
         }
 
