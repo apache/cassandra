@@ -230,6 +230,18 @@ class TestMutations(ThriftTester):
         assert _big_slice('key1', ColumnParent('Standard2')) == []
         assert _big_slice('key1', ColumnParent('Super1')) == []
 
+    def test_cas(self):
+        _set_keyspace('Keyspace1')
+        assert not client.cas('key1', 'Standard1', _SIMPLE_COLUMNS, _SIMPLE_COLUMNS)
+
+        assert client.cas('key1', 'Standard1', None, _SIMPLE_COLUMNS)
+
+        result = [cosc.column for cosc in _big_slice('key1', ColumnParent('Standard1'))]
+        # CAS will use its own timestamp, so we can't just compare result == _SIMPLE_COLUMNS
+        assert dict((c.name, c.value) for c in result) == dict((c.name, c.value) for c in _SIMPLE_COLUMNS), result
+
+        assert not client.cas('key1', 'Standard1', None, _SIMPLE_COLUMNS)
+
     def test_missing_super(self):
         _set_keyspace('Keyspace1')
         _expect_missing(lambda: client.get('key1', ColumnPath('Super1', 'sc1', _i64(1)), ConsistencyLevel.ONE))

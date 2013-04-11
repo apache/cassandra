@@ -1,4 +1,5 @@
 2.0
+ * CAS support (CASSANDRA-5062, )
  * Leveled compaction performs size-tiered compactions in L0 (CASSANDRA-5371)
  * Add yaml network topology snitch for mixed ec2/other envs (CASSANDRA-5339)
  * Log when a node is down longer than the hint window (CASSANDRA-4554)

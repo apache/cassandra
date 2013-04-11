@@ -347,7 +347,7 @@ public class DefsTable
             ColumnFamily ksAttrs = entry.getValue();
 
             // we don't care about nested ColumnFamilies here because those are going to be processed separately
-            if (!ksAttrs.isEmpty())
+            if (!(ksAttrs.getColumnCount() == 0))
                 addKeyspace(KSMetaData.fromSchema(new Row(entry.getKey(), entry.getValue()), Collections.<CFMetaData>emptyList()));
         }
 
@@ -367,7 +367,7 @@ public class DefsTable
             ColumnFamily prevValue = entry.getValue().leftValue();
             ColumnFamily newValue = entry.getValue().rightValue();
 
-            if (prevValue.isEmpty())
+            if (prevValue.getColumnCount() == 0)
             {
                 addKeyspace(KSMetaData.fromSchema(new Row(entry.getKey(), newValue), Collections.<CFMetaData>emptyList()));
                 continue;
@@ -391,7 +391,7 @@ public class DefsTable
 
             ColumnFamily newState = valueDiff.rightValue();
 
-            if (newState.isEmpty())
+            if (newState.getColumnCount() == 0)
                 keyspacesToDrop.add(AsciiType.instance.getString(key.key));
             else
                 updateKeyspace(KSMetaData.fromSchema(new Row(key, newState), Collections.<CFMetaData>emptyList()));
@@ -411,7 +411,7 @@ public class DefsTable
         {
             ColumnFamily cfAttrs = entry.getValue();
 
-            if (!cfAttrs.isEmpty())
+            if (!(cfAttrs.getColumnCount() == 0))
             {
                Map<String, CFMetaData> cfDefs = KSMetaData.deserializeColumnFamilies(new Row(entry.getKey(), cfAttrs));
 
@@ -432,12 +432,12 @@ public class DefsTable
 
             Row newRow = new Row(keyspace, newValue);
 
-            if (prevValue.isEmpty()) // whole keyspace was deleted and now it's re-created
+            if (prevValue.getColumnCount() == 0) // whole keyspace was deleted and now it's re-created
             {
                 for (CFMetaData cfm : KSMetaData.deserializeColumnFamilies(newRow).values())
                     addColumnFamily(cfm);
             }
-            else if (newValue.isEmpty()) // whole keyspace is deleted
+            else if (newValue.getColumnCount() == 0) // whole keyspace is deleted
             {
                 for (CFMetaData cfm : KSMetaData.deserializeColumnFamilies(new Row(keyspace, prevValue)).values())
                     dropColumnFamily(cfm.ksName, cfm.cfName);

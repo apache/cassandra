@@ -15,14 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+package org.apache.cassandra.utils;
 
-public enum WriteType
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.UUID;
+
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
+
+public class BooleanSerializer implements IVersionedSerializer<Boolean>
 {
-    SIMPLE,
-    BATCH,
-    UNLOGGED_BATCH,
-    COUNTER,
-    BATCH_LOG,
-    CAS;
+    public static BooleanSerializer serializer = new BooleanSerializer();
+
+    public void serialize(Boolean b, DataOutput out, int version) throws IOException
+    {
+        out.writeBoolean(b);
+    }
+
+    public Boolean deserialize(DataInput in, int version) throws IOException
+    {
+        return in.readBoolean();
+    }
+
+    public long serializedSize(Boolean aBoolean, int version)
+    {
+        return 1;
+    }
 }

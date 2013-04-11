@@ -34,6 +34,7 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
@@ -50,6 +51,8 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.thrift.cassandraConstants;
 import org.apache.cassandra.utils.*;
 
@@ -73,6 +76,7 @@ public class SystemTable
     public static final String SCHEMA_COLUMNFAMILIES_CF = "schema_columnfamilies";
     public static final String SCHEMA_COLUMNS_CF = "schema_columns";
     public static final String COMPACTION_LOG = "compactions_in_progress";
+    public static final String PAXOS_CF = "paxos";
 
     @Deprecated
     public static final String OLD_STATUS_CF = "LocationInfo";
@@ -792,5 +796,60 @@ public class SystemTable
                                                         Integer.MAX_VALUE);
 
         return new Row(key, result);
+    }
+
+    public static PaxosState loadPaxosState(ByteBuffer key, CFMetaData metadata)
+    {
+        String req = "SELECT * FROM system.%s WHERE row_key = 0x%s AND cf_id = %s";
+        UntypedResultSet results = processInternal(String.format(req, PAXOS_CF, ByteBufferUtil.bytesToHex(key), metadata.cfId));
+        if (results.isEmpty())
+            return new PaxosState(key, metadata);
+        UntypedResultSet.Row row = results.one();
+        Commit inProgress = new Commit(key,
+                                       row.getUUID("in_progress_ballot"),
+                                       row.has("proposal") ? ColumnFamily.fromBytes(row.getBytes("proposal")) : EmptyColumns.factory.create(metadata));
+        // either most_recent_commit and most_recent_commit_at will both be set, or neither
+        Commit mostRecent = row.has("most_recent_commit")
+                          ? new Commit(key, row.getUUID("most_recent_commit_at"), ColumnFamily.fromBytes(row.getBytes("most_recent_commit")))
+                          : Commit.emptyCommit(key, metadata);
+        return new PaxosState(inProgress, mostRecent);
+    }
+
+    public static void savePaxosPromise(Commit promise)
+    {
+        String req = "UPDATE %s USING TIMESTAMP %d AND TTL %d SET in_progress_ballot = %s WHERE row_key = 0x%s AND cf_id = %s";
+        processInternal(String.format(req,
+                                      PAXOS_CF,
+                                      UUIDGen.microsTimestamp(promise.ballot),
+                                      promise.update.metadata().getGcGraceSeconds(),
+                                      promise.ballot,
+                                      ByteBufferUtil.bytesToHex(promise.key),
+                                      promise.update.id()));
+    }
+
+    public static void savePaxosProposal(Commit commit)
+    {
+        processInternal(String.format("UPDATE %s USING TIMESTAMP %d AND TTL %d SET proposal = 0x%s WHERE row_key = 0x%s AND cf_id = %s",
+                                      PAXOS_CF,
+                                      UUIDGen.microsTimestamp(commit.ballot),
+                                      commit.update.metadata().getGcGraceSeconds(),
+                                      ByteBufferUtil.bytesToHex(commit.update.toBytes()),
+                                      ByteBufferUtil.bytesToHex(commit.key),
+                                      commit.update.id()));
+    }
+
+    public static void savePaxosCommit(Commit commit, boolean eraseInProgressProposal)
+    {
+        String preserveCql = "UPDATE %s USING TIMESTAMP %d AND TTL %d SET most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s";
+        // identical except adds proposal = null
+        String eraseCql = "UPDATE %s USING TIMESTAMP %d AND TTL %d SET proposal = null, most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s";
+        processInternal(String.format(eraseInProgressProposal ? eraseCql : preserveCql,
+                                      PAXOS_CF,
+                                      UUIDGen.microsTimestamp(commit.ballot),
+                                      commit.update.metadata().getGcGraceSeconds(),
+                                      commit.ballot,
+                                      ByteBufferUtil.bytesToHex(commit.update.toBytes()),
+                                      ByteBufferUtil.bytesToHex(commit.key),
+                                      commit.update.id()));
     }
 }

@@ -467,7 +467,7 @@ public class Memtable
                         // and BL data is strictly local, so we don't need to preserve tombstones for repair.
                         // If we have a data row + row level tombstone, then writing it is effectively an expensive no-op so we skip it.
                         // See CASSANDRA-4667.
-                        if (cfs.name.equals(SystemTable.BATCHLOG_CF) && cfs.table.getName().equals(Table.SYSTEM_KS) && !cf.isEmpty())
+                        if (cfs.name.equals(SystemTable.BATCHLOG_CF) && cfs.table.getName().equals(Table.SYSTEM_KS) && !(cf.getColumnCount() == 0))
                             continue;
 
                         // Pedantically, you could purge column level tombstones that are past GcGRace when writing to the SSTable.

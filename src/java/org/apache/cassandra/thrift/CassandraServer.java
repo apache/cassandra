@@ -26,8 +26,10 @@ import java.util.concurrent.TimeoutException;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
+import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -42,19 +44,21 @@ import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.cql.QueryProcessor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.scheduler.IRequestScheduler;
-import org.apache.cassandra.service.*;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -308,7 +312,7 @@ public class CassandraServer implements Cassandra.Iface
 
     private List<ColumnOrSuperColumn> thriftifyColumnFamily(ColumnFamily cf, boolean subcolumnsOnly, boolean reverseOrder)
     {
-        if (cf == null || cf.isEmpty())
+        if (cf == null || cf.getColumnCount() == 0)
             return EMPTY_COLUMNS;
 
         if (cf.metadata().isSuper())
@@ -713,6 +717,87 @@ public class CassandraServer implements Cassandra.Iface
         catch (RequestValidationException e)
         {
             throw ThriftConversion.toThrift(e);
+        }
+        finally
+        {
+            Tracing.instance().stopSession();
+        }
+    }
+
+    public boolean cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates)
+    throws InvalidRequestException, UnavailableException, TimedOutException
+    {
+        if (startSessionIfRequested())
+        {
+            Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
+                                                                  "column_family", column_family,
+                                                                  "old", expected.toString(),
+                                                                  "updates", updates.toString());
+            Tracing.instance().begin("cas", traceParameters);
+        }
+        else
+        {
+            logger.debug("cas");
+        }
+
+        try
+        {
+            ThriftClientState cState = state();
+            String keyspace = cState.getKeyspace();
+            cState.hasColumnFamilyAccess(keyspace, column_family, Permission.MODIFY);
+
+            CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_family, false);
+            ThriftValidation.validateKey(metadata, key);
+            if (metadata.cfType == ColumnFamilyType.Super)
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("CAS does not support supercolumns");
+
+            Iterable<ByteBuffer> names = Iterables.transform(updates, new Function<Column, ByteBuffer>()
+            {
+                public ByteBuffer apply(Column column)
+                {
+                    return column.name;
+                }
+            });
+            ThriftValidation.validateColumnNames(metadata, new ColumnParent(column_family), names);
+            for (Column column : updates)
+                ThriftValidation.validateColumnData(metadata, column, false);
+
+            CFMetaData cfm = Schema.instance.getCFMetaData(cState.getKeyspace(), column_family);
+            UnsortedColumns cfUpdates = UnsortedColumns.factory.create(cfm);
+            for (Column column : updates)
+                cfUpdates.addColumn(column.name, column.value, column.timestamp);
+
+            ColumnFamily cfExpected;
+            if (expected == null)
+            {
+                cfExpected = null;
+            }
+            else
+            {
+                cfExpected = TreeMapBackedSortedColumns.factory.create(cfm);
+                for (Column column : expected)
+                    cfExpected.addColumn(column.name, column.value, column.timestamp);
+            }
+
+            schedule(DatabaseDescriptor.getWriteRpcTimeout());
+            return StorageProxy.cas(cState.getKeyspace(), column_family, key, cfExpected, cfUpdates);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (RequestTimeoutException e)
+        {
+            throw ThriftConversion.toThrift(e);
+        }
+        catch (RequestValidationException e)
+        {
+            throw ThriftConversion.toThrift(e);
+        }
+        catch (RequestExecutionException e)
+        {
+            ThriftConversion.rethrow(e);
+            return false; // makes javac happy -- it can't tell that rethrow always throws
         }
         finally
         {

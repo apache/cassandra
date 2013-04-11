@@ -60,6 +60,8 @@ import org.apache.cassandra.metrics.DroppedMessageMetrics;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.*;
+import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.service.paxos.PrepareResponse;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.streaming.compress.CompressedFileStreamTask;
 import org.apache.cassandra.tracing.Tracing;
@@ -119,33 +121,49 @@ public final class MessagingService implements MessagingServiceMBean
         _TRACE, // dummy verb so we can use MS.droppedMessages
         ECHO,
         // use as padding for backwards compatability where a previous version needs to validate a verb from the future.
+        PAXOS_PREPARE,
+        PAXOS_PROPOSE,
+        PAXOS_COMMIT,
+        // remember to add new verbs at the end, since we serialize by ordinal
         UNUSED_1,
         UNUSED_2,
         UNUSED_3,
         ;
-        // remember to add new verbs at the end, since we serialize by ordinal
     }
 
     public static final EnumMap<MessagingService.Verb, Stage> verbStages = new EnumMap<MessagingService.Verb, Stage>(MessagingService.Verb.class)
     {{
         put(Verb.MUTATION, Stage.MUTATION);
-        put(Verb.BINARY, Stage.MUTATION);
         put(Verb.READ_REPAIR, Stage.MUTATION);
         put(Verb.TRUNCATE, Stage.MUTATION);
+        put(Verb.COUNTER_MUTATION, Stage.MUTATION);
+        put(Verb.PAXOS_PREPARE, Stage.MUTATION);
+        put(Verb.PAXOS_PROPOSE, Stage.MUTATION);
+        put(Verb.PAXOS_COMMIT, Stage.MUTATION);
+
         put(Verb.READ, Stage.READ);
+        put(Verb.RANGE_SLICE, Stage.READ);
+        put(Verb.INDEX_SCAN, Stage.READ);
+
         put(Verb.REQUEST_RESPONSE, Stage.REQUEST_RESPONSE);
+        put(Verb.INTERNAL_RESPONSE, Stage.INTERNAL_RESPONSE);
+
         put(Verb.STREAM_REPLY, Stage.MISC); // actually handled by FileStreamTask and streamExecutors
         put(Verb.STREAM_REQUEST, Stage.MISC);
-        put(Verb.RANGE_SLICE, Stage.READ);
         put(Verb.BOOTSTRAP_TOKEN, Stage.MISC);
+        put(Verb.REPLICATION_FINISHED, Stage.MISC);
+        put(Verb.SNAPSHOT, Stage.MISC);
+
         put(Verb.TREE_REQUEST, Stage.ANTI_ENTROPY);
         put(Verb.TREE_RESPONSE, Stage.ANTI_ENTROPY);
         put(Verb.STREAMING_REPAIR_REQUEST, Stage.ANTI_ENTROPY);
         put(Verb.STREAMING_REPAIR_RESPONSE, Stage.ANTI_ENTROPY);
+
         put(Verb.GOSSIP_DIGEST_ACK, Stage.GOSSIP);
         put(Verb.GOSSIP_DIGEST_ACK2, Stage.GOSSIP);
         put(Verb.GOSSIP_DIGEST_SYN, Stage.GOSSIP);
         put(Verb.GOSSIP_SHUTDOWN, Stage.GOSSIP);
+
         put(Verb.DEFINITIONS_UPDATE, Stage.MIGRATION);
         put(Verb.SCHEMA_CHECK, Stage.MIGRATION);
         put(Verb.MIGRATION_REQUEST, Stage.MIGRATION);
@@ -155,6 +173,7 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.COUNTER_MUTATION, Stage.MUTATION);
         put(Verb.SNAPSHOT, Stage.MISC);
         put(Verb.ECHO, Stage.GOSSIP);
+
         put(Verb.UNUSED_1, Stage.INTERNAL_RESPONSE);
         put(Verb.UNUSED_2, Stage.INTERNAL_RESPONSE);
         put(Verb.UNUSED_3, Stage.INTERNAL_RESPONSE);
@@ -194,6 +213,9 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.REPLICATION_FINISHED, null);
         put(Verb.COUNTER_MUTATION, CounterMutation.serializer);
         put(Verb.ECHO, EchoMessage.serializer);
+        put(Verb.PAXOS_PREPARE, Commit.serializer);
+        put(Verb.PAXOS_PROPOSE, Commit.serializer);
+        put(Verb.PAXOS_COMMIT, Commit.serializer);
     }};
 
     /**
@@ -213,6 +235,9 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.SCHEMA_CHECK, UUIDSerializer.serializer);
         put(Verb.BOOTSTRAP_TOKEN, BootStrapper.StringSerializer.instance);
         put(Verb.REPLICATION_FINISHED, null);
+
+        put(Verb.PAXOS_PREPARE, PrepareResponse.serializer);
+        put(Verb.PAXOS_PROPOSE, BooleanSerializer.serializer);
     }};
 
     /* This records all the results mapped by message Id */

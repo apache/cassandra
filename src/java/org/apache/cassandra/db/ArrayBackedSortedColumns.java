@@ -186,7 +186,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
     public void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation)
     {
         delete(cm.deletionInfo());
-        if (cm.isEmpty())
+        if (cm.getColumnCount() == 0)
             return;
 
         Column[] copy = columns.toArray(new Column[getColumnCount()]);

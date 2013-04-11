@@ -37,12 +37,14 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -58,10 +60,9 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.service.paxos.*;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.*;
 
 public class StorageProxy implements StorageProxyMBean
 {
@@ -160,6 +161,168 @@ public class StorageProxy implements StorageProxyMBean
                 StageManager.getStage(Stage.MUTATION).execute(runnable);
             }
         };
+    }
+
+    /**
+     * Apply @param updates if and only if the current values in the row for @param key
+     * match the ones given by @param old.  The algorithm is "raw" Paxos: that is, Paxos
+     * minus leader election -- any node in the cluster may propose changes for any row,
+     * which (that is, the row) is the unit of values being proposed, not single columns.
+     *
+     * The Paxos cohort is only the replicas for the given key, not the entire cluster.
+     * So we expect performance to be reasonable, but CAS is still intended to be used
+     * "when you really need it," not for all your updates.
+     *
+     * There are three phases to Paxos:
+     *  1. Prepare: the coordinator generates a ballot (timeUUID in our case) and asks replicas to (a) promise
+     *     not to accept updates from older ballots and (b) tell us about the most recent update it has already
+     *     accepted.
+     *  2. Accept: if a majority of replicas reply, the coordinator asks replicas to accept the value of the
+     *     highest proposal ballot it heard about, or a new value if no in-progress proposals were reported.
+     *  3. Commit (Learn): if a majority of replicas acknowledge the accept request, we can commit the new
+     *     value.
+     *
+     *  Commit procedure is not covered in "Paxos Made Simple," and only briefly mentioned in "Paxos Made Live,"
+     *  so here is our approach:
+     *   3a. The coordinator sends a commit message to all replicas with the ballot and value.
+     *   3b. Because of 1-2, this will be the highest-seen commit ballot.  The replicas will note that,
+     *       and send it with subsequent promise replies.  This allows us to discard acceptance records
+     *       for successfully committed replicas, without allowing incomplete proposals to commit erroneously
+     *       later on.
+     *
+     *  Note that since we are performing a CAS rather than a simple update, we perform a read (of committed
+     *  values) between the prepare and accept phases.  This gives us a slightly longer window for another
+     *  coordinator to come along and trump our own promise with a newer one but is otherwise safe.
+     *
+     * @return true if the operation succeeds in updating the row
+     */
+    public static boolean cas(String table, String cfName, ByteBuffer key, ColumnFamily expected, ColumnFamily updates)
+    throws UnavailableException, IOException, IsBootstrappingException, ReadTimeoutException, WriteTimeoutException
+    {
+        CFMetaData metadata = Schema.instance.getCFMetaData(table, cfName);
+
+        long timedOut = System.currentTimeMillis() + DatabaseDescriptor.getCasContentionTimeout();
+        while (System.currentTimeMillis() < timedOut)
+        {
+            // begin a paxos round
+            UUID ballot = UUIDGen.getTimeUUID();
+            Token tk = StorageService.getPartitioner().getToken(key);
+            List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(table, tk);
+            Collection<InetAddress> pendingEndpoints = StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, table);
+            int requiredParticipants = pendingEndpoints.size() + 1 + naturalEndpoints.size() / 2; // See CASSANDRA-833
+            // for simplicity, we'll do a single liveness check at the start.  the gains from repeating this check
+            // are not large enough to bother with.
+            List<InetAddress> liveEndpoints = ImmutableList.copyOf(Iterables.filter(Iterables.concat(naturalEndpoints, pendingEndpoints), IAsyncCallback.isAlive));
+            if (liveEndpoints.size() < requiredParticipants)
+               throw new UnavailableException(ConsistencyLevel.SERIAL, requiredParticipants, liveEndpoints.size());
+
+            // prepare
+            logger.debug("Preparing {}", ballot);
+            Commit toPrepare = Commit.newPrepare(key, metadata, ballot);
+            PrepareCallback summary = preparePaxos(toPrepare, liveEndpoints, requiredParticipants);
+            if (!summary.promised)
+            {
+                logger.debug("Some replicas have already promised a higher ballot than ours; aborting");
+                // sleep a random amount to give the other proposer a chance to finish
+                FBUtilities.sleep(FBUtilities.threadLocalRandom().nextInt(100));
+                continue;
+            }
+
+            Commit inProgress = summary.inProgressCommit;
+            Commit mostRecent = summary.mostRecentCommit;
+
+            // If we have an in-progress ballot greater than the MRC we know, then it's an in-progress round that
+            // needs to be completed, so do it.
+            if (!inProgress.update.isEmpty() && inProgress.isAfter(mostRecent))
+            {
+                logger.debug("Finishing incomplete paxos round {}", inProgress);
+                if (proposePaxos(inProgress, liveEndpoints, requiredParticipants))
+                    commitPaxos(inProgress, liveEndpoints);
+                // no need to sleep here
+                continue;
+            }
+
+            // To be able to propose our value on a new round, we need a quorum of replica to have learn the previous one. Why is explained at:
+            // https://issues.apache.org/jira/browse/CASSANDRA-5062?focusedCommentId=13619810&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13619810)
+            // Since we waited for quorum nodes, if some of them haven't seen the last commit (which may just be a timing issue, but may also
+            // mean we lost messages), we pro-actively "repair" those nodes, and retry.
+            Iterable<InetAddress> missingMRC = summary.replicasMissingMostRecentCommit();
+            if (Iterables.size(missingMRC) > 0)
+            {
+                logger.debug("Repairing replicas that missed the most recent commit");
+                commitPaxos(mostRecent, missingMRC);
+                // TODO: provided commits don't invalid the prepare we just did above (which they don't), we could just wait
+                // for all the missingMRC to acknowledge this commit and then move on with proposing our value. But that means
+                // adding the ability to have commitPaxos block, which is exactly CASSANDRA-5442 will do. So once we have that
+                // latter ticket, we can pass CL.ALL to the commit above and remove the 'continue'.
+                continue;
+            }
+
+            // read the current value and compare with expected
+            logger.debug("Reading existing values for CAS precondition");
+            ReadCommand readCommand = expected == null
+                                    ? new SliceFromReadCommand(table, key, cfName, new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1))
+                                    : new SliceByNamesReadCommand(table, key, cfName, new NamesQueryFilter(ImmutableSortedSet.copyOf(expected.getColumnNames())));
+            List<Row> rows = read(Arrays.asList(readCommand), ConsistencyLevel.QUORUM);
+            ColumnFamily current = rows.get(0).cf;
+            if ((current == null) != (expected == null))
+            {
+                logger.debug("CAS precondition {} does not match current values {}", expected, current);
+                return false;
+            }
+            if (current != null && !com.google.common.base.Objects.equal(current.asMap(), expected.asMap()))
+            {
+                logger.debug("CAS precondition {} does not match current values {}", expected, current);
+                return false;
+            }
+
+            // finish the paxos round w/ the desired updates
+            // TODO turn null updates into delete?
+            Commit proposal = toPrepare.makeProposal(updates);
+            logger.debug("CAS precondition is met; proposing client-requested updates for {}", ballot);
+            if (proposePaxos(proposal, liveEndpoints, requiredParticipants))
+            {
+                commitPaxos(proposal, liveEndpoints);
+                logger.debug("Paxos CAS successful");
+                return true;
+            }
+
+            logger.debug("Paxos proposal not accepted (pre-empted by a higher ballot)");
+            FBUtilities.sleep(FBUtilities.threadLocalRandom().nextInt(100));
+            // continue to retry
+        }
+
+        throw new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, -1, -1);
+    }
+
+    private static PrepareCallback preparePaxos(Commit toPrepare, List<InetAddress> endpoints, int requiredParticipants)
+    throws WriteTimeoutException, UnavailableException
+    {
+        PrepareCallback callback = new PrepareCallback(toPrepare.key, toPrepare.update.metadata(), requiredParticipants);
+        MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PREPARE, toPrepare, Commit.serializer);
+        for (InetAddress target : endpoints)
+            MessagingService.instance().sendRR(message, target, callback);
+        callback.await();
+        return callback;
+    }
+
+    private static boolean proposePaxos(Commit proposal, List<InetAddress> endpoints, int requiredParticipants)
+    throws WriteTimeoutException
+    {
+        ProposeCallback callback = new ProposeCallback(requiredParticipants);
+        MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PROPOSE, proposal, Commit.serializer);
+        for (InetAddress target : endpoints)
+            MessagingService.instance().sendRR(message, target, callback);
+        callback.await();
+
+        return callback.getSuccessful() >= requiredParticipants;
+    }
+
+    private static void commitPaxos(Commit proposal, Iterable<InetAddress> endpoints)
+    {
+        MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_COMMIT, proposal, Commit.serializer);
+        for (InetAddress target : endpoints)
+            MessagingService.instance().sendOneWay(message, target);
     }
 
     /**
@@ -1642,9 +1805,13 @@ public class StorageProxy implements StorageProxyMBean
     public Long getWriteRpcTimeout() { return DatabaseDescriptor.getWriteRpcTimeout(); }
     public void setWriteRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setWriteRpcTimeout(timeoutInMillis); }
 
+    public Long getCasContentionTimeout() { return DatabaseDescriptor.getCasContentionTimeout(); }
+    public void setCasContentionTimeout(Long timeoutInMillis) { DatabaseDescriptor.setCasContentionTimeout(timeoutInMillis); }
+
     public Long getRangeRpcTimeout() { return DatabaseDescriptor.getRangeRpcTimeout(); }
     public void setRangeRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setRangeRpcTimeout(timeoutInMillis); }
 
     public Long getTruncateRpcTimeout() { return DatabaseDescriptor.getTruncateRpcTimeout(); }
     public void setTruncateRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setTruncateRpcTimeout(timeoutInMillis); }
+
 }

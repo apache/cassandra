@@ -82,6 +82,8 @@ public interface StorageProxyMBean
     public void setReadRpcTimeout(Long timeoutInMillis);
     public Long getWriteRpcTimeout();
     public void setWriteRpcTimeout(Long timeoutInMillis);
+    public Long getCasContentionTimeout();
+    public void setCasContentionTimeout(Long timeoutInMillis);
     public Long getRangeRpcTimeout();
     public void setRangeRpcTimeout(Long timeoutInMillis);
     public Long getTruncateRpcTimeout();

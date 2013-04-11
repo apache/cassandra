@@ -61,6 +61,8 @@ public class Config
 
     public Long write_request_timeout_in_ms = new Long(10000);
 
+    public Long cas_contention_timeout_in_ms = new Long(1000);
+
     public Long truncate_request_timeout_in_ms = new Long(60000);
 
     public Integer streaming_socket_timeout_in_ms = new Integer(0);

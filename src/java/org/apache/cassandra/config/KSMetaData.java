@@ -89,6 +89,7 @@ public final class KSMetaData
                                                 CFMetaData.SchemaColumnFamiliesCf,
                                                 CFMetaData.SchemaColumnsCf,
                                                 CFMetaData.CompactionLogCf,
+                                                CFMetaData.PaxosCf,
                                                 CFMetaData.OldStatusCf,
                                                 CFMetaData.OldHintsCf,
                                                 CFMetaData.OldMigrationsCf,

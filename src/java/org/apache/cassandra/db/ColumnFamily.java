@@ -17,14 +17,18 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.UUID;
 
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
@@ -35,6 +39,8 @@ import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.*;
 
 /**
@@ -209,9 +215,12 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
     public abstract int getColumnCount();
 
     /**
-     * Returns true if this map is empty, false otherwise.
+     * Returns true if this contains no columns or deletion info
      */
-    public abstract boolean isEmpty();
+    public boolean isEmpty()
+    {
+        return deletionInfo().isLive() && getColumnCount() == 0;
+    }
 
     /**
      * Returns an iterator over the columns of this map that returns only the matching @param slices.
@@ -271,7 +280,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
             }
         }
 
-        if (!cfDiff.isEmpty() || cfDiff.isMarkedForDelete())
+        if (!cfDiff.isEmpty())
             return cfDiff;
         return null;
     }
@@ -416,6 +425,36 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
                 return true;
 
         return false;
+    }
+
+    public Map<ByteBuffer, ByteBuffer> asMap()
+    {
+        ImmutableMap.Builder<ByteBuffer, ByteBuffer> builder = ImmutableMap.builder();
+        for (Column column : this)
+            builder.put(column.name, column.value);
+        return builder.build();
+    }
+
+    public static ColumnFamily fromBytes(ByteBuffer bytes)
+    {
+        if (bytes == null)
+            return null;
+
+        try
+        {
+            return serializer.deserialize(new DataInputStream(ByteBufferUtil.inputStream(bytes)), MessagingService.current_version);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public ByteBuffer toBytes()
+    {
+        DataOutputBuffer out = new DataOutputBuffer();
+        serializer.serialize(this, out, MessagingService.current_version);
+        return ByteBuffer.wrap(out.getData(), 0, out.getLength());
     }
 
     public abstract static class Factory <T extends ColumnFamily>

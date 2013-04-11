@@ -55,7 +55,7 @@ namespace rb CassandraThrift
 # An effort should be made not to break forward-client-compatibility either
 # (e.g. one should avoid removing obsolete fields from the IDL), but no
 # guarantees in this respect are made by the Cassandra project.
-const string VERSION = "19.36.0"
+const string VERSION = "19.37.0"
 
 
 #
@@ -633,6 +633,15 @@ service Cassandra {
            2:required ColumnParent column_parent,
            3:required CounterColumn column,
            4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
+       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
+  /**
+   * Atomic compare and set
+   */
+  bool cas(1:required binary key, 
+           2:required string column_family,
+           3:list<Column> expected,
+           4:list<Column> updates)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**

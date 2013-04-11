@@ -243,6 +243,16 @@ public final class CFMetaData
                                                                  + "inputs set<int>"
                                                                  + ") WITH COMMENT='unfinished compactions'");
 
+    public static final CFMetaData PaxosCf = compile(18, "CREATE TABLE " + SystemTable.PAXOS_CF + " ("
+                                                                 + "row_key blob,"
+                                                                 + "cf_id UUID,"
+                                                                 + "in_progress_ballot timeuuid,"
+                                                                 + "proposal blob,"
+                                                                 + "most_recent_commit_at timeuuid,"
+                                                                 + "most_recent_commit blob,"
+                                                                 + "PRIMARY KEY (row_key, cf_id)"
+                                                                 + ") WITH COMMENT='in-progress paxos proposals'");
+
     public enum Caching
     {
         ALL, KEYS_ONLY, ROWS_ONLY, NONE;
@@ -889,7 +899,7 @@ public final class CFMetaData
     {
         Row cfDefRow = SystemTable.readSchemaRow(ksName, cfName);
 
-        if (cfDefRow.cf == null || cfDefRow.cf.isEmpty())
+        if (cfDefRow.cf == null || cfDefRow.cf.getColumnCount() == 0)
             throw new RuntimeException(String.format("%s not found in the schema definitions table.", ksName + ":" + cfName));
 
         try

@@ -172,7 +172,7 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
         Map<ByteBuffer, ColumnGroupMap> map = new HashMap<ByteBuffer, ColumnGroupMap>();
         for (Row row : rows)
         {
-            if (row.cf == null || row.cf.isEmpty())
+            if (row.cf == null || row.cf.getColumnCount() == 0)
                 continue;
 
             ColumnGroupMap.Builder groupBuilder = new ColumnGroupMap.Builder(composite, true);

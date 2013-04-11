@@ -65,7 +65,7 @@ class BaseTester(object):
             if os.path.exists(pid_fname):
                 pid_path = os.path.join(root, pid_fname)
                 print "Unclean shutdown detected, (%s found)" % pid_path
-                sys.exit()
+                raise Exception('damn it')
 
             # clean out old stuff
             import shutil
@@ -103,7 +103,7 @@ class BaseTester(object):
                     stdout_value, stderr_value = process.communicate()
                     print "Stdout: %s" % (stdout_value)
                     print "Stderr: %s" % (stderr_value)
-                sys.exit()
+                raise Exception('damn it')
         else:
             try:
                 self.open_client()

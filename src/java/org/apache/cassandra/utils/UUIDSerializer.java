@@ -29,10 +29,6 @@ public class UUIDSerializer implements IVersionedSerializer<UUID>
 {
     public static UUIDSerializer serializer = new UUIDSerializer();
 
-    private UUIDSerializer()
-    {
-    }
-
     public void serialize(UUID uuid, DataOutput out, int version) throws IOException
     {
         out.writeLong(uuid.getMostSignificantBits());

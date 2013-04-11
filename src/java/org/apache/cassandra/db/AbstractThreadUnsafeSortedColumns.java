@@ -53,9 +53,4 @@ public abstract class AbstractThreadUnsafeSortedColumns extends ColumnFamily
     {
         deletionInfo = deletionInfo.purge(gcBefore);
     }
-
-    public boolean isEmpty()
-    {
-        return getColumnCount() == 0;
-    }
 }

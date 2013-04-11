@@ -25,6 +25,9 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -32,6 +35,8 @@ import org.apache.cassandra.io.util.FileUtils;
 
 public class MessageIn<T>
 {
+    private static final Logger logger = LoggerFactory.getLogger(MessageIn.class);
+
     public final InetAddress from;
     public final T payload;
     public final Map<String, byte[]> parameters;

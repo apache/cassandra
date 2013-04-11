@@ -40,7 +40,7 @@ public class RowMutation implements IMutation
     public static final String FORWARD_TO = "FWD_TO";
     public static final String FORWARD_FROM = "FWD_FRM";
 
-    private final String table;
+    private final String table; // todo this is redundant
     private final ByteBuffer key;
     // map of column family id to mutations for that column family.
     private final Map<UUID, ColumnFamily> modifications;
@@ -65,6 +65,11 @@ public class RowMutation implements IMutation
         this.table = table;
         this.key = key;
         this.modifications = modifications;
+    }
+
+    public RowMutation(ByteBuffer key, ColumnFamily cf)
+    {
+        this(Schema.instance.getCFMetaData(cf.id()).ksName, key, cf);
     }
 
     public String getTable()
@@ -229,7 +234,6 @@ public class RowMutation implements IMutation
             buff.append(StringUtils.join(modifications.values(), ", "));
         return buff.append("])").toString();
     }
-
 
     public static class RowMutationSerializer implements IVersionedSerializer<RowMutation>
     {

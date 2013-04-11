@@ -54,6 +54,6 @@ import org.slf4j.LoggerFactory;
 
 public class cassandraConstants {
 
-  public static final String VERSION = "19.36.0";
+  public static final String VERSION = "19.37.0";
 
 }

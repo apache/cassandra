@@ -752,6 +752,16 @@ public class DatabaseDescriptor
         conf.write_request_timeout_in_ms = timeOutInMillis;
     }
 
+    public static long getCasContentionTimeout()
+    {
+        return conf.cas_contention_timeout_in_ms;
+    }
+
+    public static void setCasContentionTimeout(Long timeOutInMillis)
+    {
+        conf.cas_contention_timeout_in_ms = timeOutInMillis;
+    }
+
     public static long getTruncateRpcTimeout()
     {
         return conf.truncate_request_timeout_in_ms;

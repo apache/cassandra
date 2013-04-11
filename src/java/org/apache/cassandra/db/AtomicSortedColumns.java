@@ -231,11 +231,6 @@ public class AtomicSortedColumns extends ColumnFamily
         return ref.get().map.size();
     }
 
-    public boolean isEmpty()
-    {
-        return ref.get().map.isEmpty();
-    }
-
     public Iterator<Column> iterator(ColumnSlice[] slices)
     {
         return new ColumnSlice.NavigableMapIterator(ref.get().map, slices);

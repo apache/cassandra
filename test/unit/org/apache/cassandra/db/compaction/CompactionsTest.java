@@ -316,7 +316,7 @@ public class CompactionsTest extends SchemaLoader
         Collection<SSTableReader> sstablesBefore = cfs.getSSTables();
 
         QueryFilter filter = QueryFilter.getIdentityFilter(key, cfname);
-        assert !cfs.getColumnFamily(filter).isEmpty();
+        assert !(cfs.getColumnFamily(filter).getColumnCount() == 0);
 
         // Remove key
         rm = new RowMutation(TABLE1, key.key);
@@ -324,7 +324,7 @@ public class CompactionsTest extends SchemaLoader
         rm.apply();
 
         ColumnFamily cf = cfs.getColumnFamily(filter);
-        assert cf == null || cf.isEmpty() : "should be empty: " + cf;
+        assert cf == null || cf.getColumnCount() == 0 : "should be empty: " + cf;
 
         // Sleep one second so that the removal is indeed purgeable even with gcgrace == 0
         Thread.sleep(1000);
@@ -340,6 +340,6 @@ public class CompactionsTest extends SchemaLoader
         Util.compact(cfs, toCompact);
 
         cf = cfs.getColumnFamily(filter);
-        assert cf == null || cf.isEmpty() : "should be empty: " + cf;
+        assert cf == null || cf.getColumnCount() == 0 : "should be empty: " + cf;
     }
 }

@@ -138,12 +138,12 @@ public class ColumnFamilyStoreTest extends SchemaLoader
                 QueryFilter sliceFilter = QueryFilter.getSliceFilter(Util.dk("key1"), "Standard2", ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
                 ColumnFamily cf = store.getColumnFamily(sliceFilter);
                 assert cf.isMarkedForDelete();
-                assert cf.isEmpty();
+                assert cf.getColumnCount() == 0;
 
                 QueryFilter namesFilter = QueryFilter.getNamesFilter(Util.dk("key1"), "Standard2", ByteBufferUtil.bytes("a"));
                 cf = store.getColumnFamily(namesFilter);
                 assert cf.isMarkedForDelete();
-                assert cf.isEmpty();
+                assert cf.getColumnCount() == 0;
             }
         };
 
