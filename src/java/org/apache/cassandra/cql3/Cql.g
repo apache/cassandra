@@ -1052,7 +1052,7 @@ IDENT
     ;
 
 HEXNUMBER
-    : '0' X HEX+
+    : '0' X HEX*
     ;
 
 UUID
