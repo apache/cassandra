@@ -591,16 +591,6 @@ public final class MessagingService implements MessagingServiceMBean
     public int sendRR(MessageOut message, InetAddress to, IAsyncCallback cb, long timeout)
     {
         int id = addCallback(cb, message, to, timeout);
-
-        if (cb instanceof AbstractWriteResponseHandler)
-        {
-            PBSPredictor.instance().startWriteOperation(id);
-        }
-        else if (cb instanceof ReadCallback)
-        {
-            PBSPredictor.instance().startReadOperation(id);
-        }
-
         sendOneWay(message, id, to);
         return id;
     }
@@ -739,20 +729,6 @@ public final class MessagingService implements MessagingServiceMBean
         Runnable runnable = new MessageDeliveryTask(message, id, timestamp);
         ExecutorService stage = StageManager.getStage(message.getMessageType());
         assert stage != null : "No stage for message type " + message.verb;
-
-        if (message.verb == Verb.REQUEST_RESPONSE && PBSPredictor.instance().isLoggingEnabled())
-        {
-            IAsyncCallback cb = MessagingService.instance().getRegisteredCallback(id).callback;
-
-            if (cb instanceof AbstractWriteResponseHandler)
-            {
-                PBSPredictor.instance().logWriteResponse(id, timestamp);
-            }
-            else if (cb instanceof ReadCallback)
-            {
-                PBSPredictor.instance().logReadResponse(id, timestamp);
-            }
-        }
 
         stage.execute(runnable);
     }

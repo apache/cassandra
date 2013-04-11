@@ -77,7 +77,6 @@ public class NodeProbe
     public MessagingServiceMBean msProxy;
     private FailureDetectorMBean fdProxy;
     private CacheServiceMBean cacheService;
-    private PBSPredictorMBean PBSPredictorProxy;
     private StorageProxyMBean spProxy;
     private HintedHandOffManagerMBean hhProxy;
     private boolean failed;
@@ -149,8 +148,6 @@ public class NodeProbe
         {
             ObjectName name = new ObjectName(ssObjName);
             ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
-            name = new ObjectName(PBSPredictor.MBEAN_NAME);
-            PBSPredictorProxy = JMX.newMBeanProxy(mbeanServerConn, name, PBSPredictorMBean.class);
             name = new ObjectName(MessagingService.MBEAN_NAME);
             msProxy = JMX.newMBeanProxy(mbeanServerConn, name, MessagingServiceMBean.class);
             name = new ObjectName(StreamingService.MBEAN_OBJECT_NAME);
@@ -813,11 +810,6 @@ public class NodeProbe
     public List<String> describeRing(String keyspaceName) throws IOException
     {
         return ssProxy.describeRingJMX(keyspaceName);
-    }
-
-    public PBSPredictorMBean getPBSPredictorMBean()
-    {
-        return PBSPredictorProxy;
     }
 
     public void rebuild(String sourceDc)

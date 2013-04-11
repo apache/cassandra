@@ -47,8 +47,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.CacheServiceMBean;
-import org.apache.cassandra.service.PBSPredictionResult;
-import org.apache.cassandra.service.PBSPredictorMBean;
 import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
@@ -157,7 +155,6 @@ public class NodeCmd
         RANGEKEYSAMPLE,
         REBUILD_INDEX,
         RESETLOCALSCHEMA,
-        PREDICTCONSISTENCY
     }
 
 
@@ -925,48 +922,6 @@ public class NodeCmd
         outs.println(probe.isThriftServerRunning() ? "running" : "not running");
     }
 
-    public void predictConsistency(Integer replicationFactor,
-                                   Integer timeAfterWrite,
-                                   Integer numVersions,
-                                   Float percentileLatency,
-                                   PrintStream output)
-    {
-        PBSPredictorMBean predictorMBean = probe.getPBSPredictorMBean();
-
-        for(int r = 1; r <= replicationFactor; ++r) {
-            for(int w = 1; w <= replicationFactor; ++w) {
-                if(w+r > replicationFactor+1)
-                    continue;
-
-                try {
-                    PBSPredictionResult result = predictorMBean.doPrediction(replicationFactor,
-                                                                             r,
-                                                                             w,
-                                                                             timeAfterWrite,
-                                                                             numVersions,
-                                                                             percentileLatency);
-
-                    if(r == 1 && w == 1) {
-                        output.printf("%dms after a given write, with maximum version staleness of k=%d%n", timeAfterWrite, numVersions);
-                    }
-
-                    output.printf("N=%d, R=%d, W=%d%n", replicationFactor, r, w);
-                    output.printf("Probability of consistent reads: %f%n", result.getConsistencyProbability());
-                    output.printf("Average read latency: %fms (%.3fth %%ile %dms)%n", result.getAverageReadLatency(),
-                                                                                   result.getPercentileReadLatencyPercentile()*100,
-                                                                                   result.getPercentileReadLatencyValue());
-                    output.printf("Average write latency: %fms (%.3fth %%ile %dms)%n%n", result.getAverageWriteLatency(),
-                                                                                      result.getPercentileWriteLatencyPercentile()*100,
-                                                                                      result.getPercentileWriteLatencyValue());
-                } catch (Exception e) {
-                        System.out.println(e.getMessage());
-                        e.printStackTrace();
-                        return;
-                }
-            }
-        }
-    }
-
     public static void main(String[] args) throws IOException, InterruptedException, ConfigurationException, ParseException
     {
         CommandLineParser parser = new PosixParser();
@@ -1242,20 +1197,6 @@ public class NodeCmd
 
                 case RANGEKEYSAMPLE :
                     nodeCmd.printRangeKeySample(System.out);
-                    break;
-
-                case PREDICTCONSISTENCY:
-                    if (arguments.length < 2) { badUse("Requires replication factor and time"); }
-                    int numVersions = 1;
-                    if (arguments.length == 3) { numVersions = Integer.parseInt(arguments[2]); }
-                    float percentileLatency = .999f;
-                    if (arguments.length == 4) { percentileLatency = Float.parseFloat(arguments[3]); }
-
-                    nodeCmd.predictConsistency(Integer.parseInt(arguments[0]),
-                                               Integer.parseInt(arguments[1]),
-                                               numVersions,
-                                               percentileLatency,
-                                               System.out);
                     break;
 
                 default :
