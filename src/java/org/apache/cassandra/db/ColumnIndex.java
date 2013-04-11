@@ -68,13 +68,22 @@ public class ColumnIndex
         public Builder(ColumnFamily cf,
                        ByteBuffer key,
                        int estimatedColumnCount,
-                       DataOutput output)
+                       DataOutput output,
+                       boolean fromStream)
         {
             this.indexOffset = rowHeaderSize(key, cf.deletionInfo());
             this.result = new ColumnIndex(estimatedColumnCount);
             this.output = output;
             this.atomSerializer = cf.getOnDiskSerializer();
-            this.tombstoneTracker = new RangeTombstone.Tracker(cf.getComparator());
+            this.tombstoneTracker = fromStream ? null : new RangeTombstone.Tracker(cf.getComparator());
+        }
+
+        public Builder(ColumnFamily cf,
+                       ByteBuffer key,
+                       int estimatedColumnCount,
+                       DataOutput output)
+        {
+            this(cf, key, estimatedColumnCount, output, false);
         }
 
         /**
@@ -99,7 +108,7 @@ public class ColumnIndex
 
         public int writtenAtomCount()
         {
-            return atomCount + tombstoneTracker.writtenAtom();
+            return tombstoneTracker == null ? atomCount : atomCount + tombstoneTracker.writtenAtom();
         }
 
         /**
@@ -153,11 +162,11 @@ public class ColumnIndex
             {
                 firstColumn = column;
                 startPosition = endPosition;
-                // TODO: have that use the firstColumn as min + make sure we
-                // optimize that on read
-                endPosition += tombstoneTracker.writeOpenedMarker(firstColumn, output, atomSerializer);
+                // TODO: have that use the firstColumn as min + make sure we optimize that on read
+                if (tombstoneTracker != null)
+                    endPosition += tombstoneTracker.writeOpenedMarker(firstColumn, output, atomSerializer);
                 blockSize = 0; // We don't count repeated tombstone marker in the block size, to avoid a situation
-                               // where we wouldn't make any problem because a block is filled by said marker
+                               // where we wouldn't make any progress because a block is filled by said marker
             }
 
             long size = column.serializedSizeForSSTable();
@@ -177,7 +186,8 @@ public class ColumnIndex
                 atomSerializer.serializeForSSTable(column, output);
 
             // TODO: Should deal with removing unneeded tombstones
-            tombstoneTracker.update(column);
+            if (tombstoneTracker != null)
+                tombstoneTracker.update(column);
 
             lastColumn = column;
         }
