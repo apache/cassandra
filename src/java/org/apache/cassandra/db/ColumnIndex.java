@@ -58,7 +58,6 @@ public class ColumnIndex
 
         public Builder(ColumnFamily cf,
                        ByteBuffer key,
-                       DataOutput output)
                        DataOutput output,
                        boolean fromStream)
         {

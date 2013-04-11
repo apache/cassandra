@@ -146,8 +146,8 @@ public class StreamingTransferTest extends SchemaLoader
         String key = "key1";
         RowMutation rm = new RowMutation(ks, ByteBufferUtil.bytes(key));
         // add columns of size slightly less than column_index_size to force insert column index
-        rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes(1)), ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize() - 64]), 2);
-        rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes(6)), ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize()]), 2);
+        rm.add(cfname, ByteBufferUtil.bytes(1), ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize() - 64]), 2);
+        rm.add(cfname, ByteBufferUtil.bytes(6), ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize()]), 2);
         ColumnFamily cf = rm.addOrGet(cfname);
         // add RangeTombstones
         cf.delete(new DeletionInfo(ByteBufferUtil.bytes(2), ByteBufferUtil.bytes(3), cf.getComparator(), 1, (int) (System.currentTimeMillis() / 1000)));
