@@ -26,9 +26,11 @@ import static org.apache.cassandra.Util.column;
 
 import java.net.InetAddress;
 import java.sql.Date;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.context.CounterContext;
@@ -128,6 +130,40 @@ public class StreamingTransferTest extends SchemaLoader
         StreamOutSession session = StreamOutSession.create(table.getName(), LOCAL, (IStreamCallback)null);
         StreamOut.transferSSTables(session, Arrays.asList(sstable), ranges, OperationType.BOOTSTRAP);
         session.await();
+    }
+
+    /**
+     * Test to make sure RangeTombstones at column index boundary transferred correctly.
+     */
+    @Test
+    public void testTransferRangeTombstones() throws Exception
+    {
+        String ks = "Keyspace1";
+        String cfname = "StandardInteger1";
+        Table table = Table.open(ks);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfname);
+
+        String key = "key1";
+        RowMutation rm = new RowMutation(ks, ByteBufferUtil.bytes(key));
+        // add columns of size slightly less than column_index_size to force insert column index
+        rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes(1)), ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize() - 64]), 2);
+        rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes(6)), ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize()]), 2);
+        ColumnFamily cf = rm.addOrGet(cfname);
+        // add RangeTombstones
+        cf.delete(new DeletionInfo(ByteBufferUtil.bytes(2), ByteBufferUtil.bytes(3), cf.getComparator(), 1, (int) (System.currentTimeMillis() / 1000)));
+        cf.delete(new DeletionInfo(ByteBufferUtil.bytes(5), ByteBufferUtil.bytes(7), cf.getComparator(), 1, (int) (System.currentTimeMillis() / 1000)));
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        cfs.clearUnsafe();
+        transfer(table, sstable);
+
+        // confirm that a single SSTable was transferred and registered
+        assertEquals(1, cfs.getSSTables().size());
+
+        List<Row> rows = Util.getRangeSlice(cfs);
+        assertEquals(1, rows.size());
     }
 
     @Test
