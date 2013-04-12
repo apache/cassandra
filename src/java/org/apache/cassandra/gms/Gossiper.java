@@ -275,6 +275,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onRemove(endpoint);
 
+        if(seeds.contains(endpoint))
+        {
+            buildSeedsList();
+            seeds.remove(endpoint);
+            logger.info("removed {} from seeds, updated seeds list = {}", endpoint, seeds);
+        }
+
         liveEndpoints.remove(endpoint);
         unreachableEndpoints.remove(endpoint);
         // do not remove endpointState until the quarantine expires
@@ -1019,15 +1026,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public void start(int generationNbr, Map<ApplicationState, VersionedValue> preloadLocalStates)
     {
-        /* Get the seeds from the config and initialize them. */
-        Set<InetAddress> seedHosts = DatabaseDescriptor.getSeeds();
-        for (InetAddress seed : seedHosts)
-        {
-            if (seed.equals(FBUtilities.getBroadcastAddress()))
-                continue;
-            seeds.add(seed);
-        }
-
+        buildSeedsList();
         /* initialize the heartbeat state for this localEndpoint */
         maybeInitializeLocalState(generationNbr);
         EndpointState localState = endpointStateMap.get(FBUtilities.getBroadcastAddress());
@@ -1043,6 +1042,16 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                                                               Gossiper.intervalInMillis,
                                                               Gossiper.intervalInMillis,
                                                               TimeUnit.MILLISECONDS);
+    }
+
+    private void buildSeedsList()
+    {
+        for (InetAddress seed : DatabaseDescriptor.getSeeds())
+        {
+            if (seed.equals(FBUtilities.getBroadcastAddress()))
+                continue;
+            seeds.add(seed);
+        }
     }
 
     // initialize local HB state if needed, i.e., if gossiper has never been started before.
