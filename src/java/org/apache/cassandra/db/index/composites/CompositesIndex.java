@@ -135,7 +135,7 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
             throw new ConfigurationException("Unknown options provided for COMPOSITES index: " + options.keySet());
     }
 
-    public class IndexedEntry
+    public static class IndexedEntry
     {
         public final DecoratedKey indexValue;
         public final ByteBuffer indexEntry;
