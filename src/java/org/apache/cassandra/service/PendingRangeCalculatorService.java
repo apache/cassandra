@@ -38,6 +38,7 @@ import java.net.InetAddress;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.LinkedHashMap;
 import java.util.concurrent.*;
 
 
@@ -153,8 +154,10 @@ public class PendingRangeCalculatorService extends PendingRangeCalculatorService
 
         // For each of the bootstrapping nodes, simply add and remove them one by one to
         // allLeftMetadata and check in between what their ranges would be.
-        synchronized (bootstrapTokens)
-        {
+	synchronized(bootstrapTokens) {
+	    bootstrapTokens = new LinkedHashMap<Token, InetAddress>(bootstrapTokens);
+	}
+
             for (Map.Entry<Token, InetAddress> entry : bootstrapTokens.entrySet())
             {
                 InetAddress endpoint = entry.getValue();
@@ -164,7 +167,6 @@ public class PendingRangeCalculatorService extends PendingRangeCalculatorService
                     pendingRanges.put(range, endpoint);
                 allLeftMetadata.removeEndpoint(endpoint);
             }
-        }
 
         // At this stage pendingRanges has been updated according to leaving and bootstrapping nodes.
         // We can now finish the calculation by checking moving nodes.
