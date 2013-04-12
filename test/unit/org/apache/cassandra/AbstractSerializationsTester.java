@@ -44,7 +44,6 @@ public class AbstractSerializationsTester extends SchemaLoader
         put("2.0", MessagingService.VERSION_20);
     }};
 
-    // TODO ant doesn't pass this -D up to the test, so it's kind of useless
     protected static final boolean EXECUTE_WRITES = Boolean.getBoolean("cassandra.test-serialization-writes");
 
     protected final int getVersion()

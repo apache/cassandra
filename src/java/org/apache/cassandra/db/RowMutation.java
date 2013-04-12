@@ -40,7 +40,10 @@ public class RowMutation implements IMutation
     public static final String FORWARD_TO = "FWD_TO";
     public static final String FORWARD_FROM = "FWD_FRM";
 
-    private final String table; // todo this is redundant
+    // todo this is redundant
+    // when we remove it, also restore SerializationsTest.testRowMutationRead to not regenerate new RowMutations each test
+    private final String table;
+
     private final ByteBuffer key;
     // map of column family id to mutations for that column family.
     private final Map<UUID, ColumnFamily> modifications;
