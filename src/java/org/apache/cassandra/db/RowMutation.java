@@ -69,7 +69,7 @@ public class RowMutation implements IMutation
 
     public RowMutation(ByteBuffer key, ColumnFamily cf)
     {
-        this(Schema.instance.getCFMetaData(cf.id()).ksName, key, cf);
+        this(cf.metadata().ksName, key, cf);
     }
 
     public String getTable()
@@ -239,13 +239,15 @@ public class RowMutation implements IMutation
     {
         public void serialize(RowMutation rm, DataOutput out, int version) throws IOException
         {
-            out.writeUTF(rm.getTable());
+            if (version < MessagingService.VERSION_20)
+                out.writeUTF(rm.getTable());
+
             ByteBufferUtil.writeWithShortLength(rm.key(), out);
 
             /* serialize the modifications in the mutation */
             int size = rm.modifications.size();
             out.writeInt(size);
-            assert size >= 0;
+            assert size > 0;
             for (Map.Entry<UUID, ColumnFamily> entry : rm.modifications.entrySet())
             {
                 if (version < MessagingService.VERSION_12)
@@ -256,15 +258,20 @@ public class RowMutation implements IMutation
 
         public RowMutation deserialize(DataInput in, int version, ColumnSerializer.Flag flag) throws IOException
         {
-            String table = in.readUTF();
+            String table = null; // will always be set from cf.metadata but javac isn't smart enough to see that
+            if (version < MessagingService.VERSION_20)
+                table = in.readUTF();
+
             ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
             int size = in.readInt();
+            assert size > 0;
 
             Map<UUID, ColumnFamily> modifications;
             if (size == 1)
             {
                 ColumnFamily cf = deserializeOneCf(in, version, flag);
                 modifications = Collections.singletonMap(cf.id(), cf);
+                table = cf.metadata().ksName;
             }
             else
             {
@@ -273,6 +280,7 @@ public class RowMutation implements IMutation
                 {
                     ColumnFamily cf = deserializeOneCf(in, version, flag);
                     modifications.put(cf.id(), cf);
+                    table = cf.metadata().ksName;
                 }
             }
 
@@ -298,7 +306,11 @@ public class RowMutation implements IMutation
         public long serializedSize(RowMutation rm, int version)
         {
             TypeSizes sizes = TypeSizes.NATIVE;
-            int size = sizes.sizeof(rm.getTable());
+            int size = 0;
+
+            if (version < MessagingService.VERSION_20)
+                size += sizes.sizeof(rm.getTable());
+
             int keySize = rm.key().remaining();
             size += sizes.sizeof((short) keySize) + keySize;
 
