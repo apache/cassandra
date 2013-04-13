@@ -580,7 +580,7 @@ public class Shuffle extends AbstractJmxClient
             Token<?> token = partitioner.getTokenFactory().fromString(tokenStr);
             String hexToken = ByteBufferUtil.bytesToHex(partitioner.getTokenFactory().toByteArray(token));
             query.append("INSERT INTO system.range_xfers (token_bytes, requested_at) ")
-                 .append("VALUES ('").append(hexToken).append("', 'now');").append("\n");
+                 .append("VALUES (").append("0x").append(hexToken).append(", 'now');").append("\n");
         }
 
         query.append("APPLY BATCH").append("\n");
