@@ -368,11 +368,6 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                     return;
                 }
 
-                // prepare for the next slice to be read
-                KeySlice lastRow = rows.get(rows.size() - 1);
-                ByteBuffer rowkey = lastRow.key;
-                startToken = partitioner.getTokenFactory().toString(partitioner.getToken(rowkey));
-
                 // remove ghosts when fetching all columns
                 if (isEmptyPredicate)
                 {
@@ -436,7 +431,6 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 return;
 
             KeyRange keyRange;
-            ByteBuffer startColumn;
             if (totalRead == 0)
             {
                 String startToken = split.getStartToken();
