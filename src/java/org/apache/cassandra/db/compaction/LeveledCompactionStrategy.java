@@ -48,9 +48,10 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledCompactionStrategy.class);
 
+    private static final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
+
     @VisibleForTesting
     final LeveledManifest manifest;
-    private final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
     private final int maxSSTableSizeInMB;
     private final AtomicReference<LeveledCompactionTask> task = new AtomicReference<LeveledCompactionTask>();
 
