@@ -102,7 +102,9 @@ permissions_validity_in_ms: 2000
 # partitioners and token selection.
 partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 
-# directories where Cassandra should store data on disk.
+# Directories where Cassandra should store data on disk.  Cassandra
+# will spread data evenly across them, subject to the granularity of
+# the configured compaction strategy.
 data_file_directories:
     - /var/lib/cassandra/data
 
