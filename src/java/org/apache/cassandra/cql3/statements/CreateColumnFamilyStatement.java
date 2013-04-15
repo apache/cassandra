@@ -258,7 +258,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         {
             AbstractType type = columns.get(t);
             if (type == null)
-                throw new InvalidRequestException(String.format("Unkown definition %s referenced in PRIMARY KEY", t));
+                throw new InvalidRequestException(String.format("Unknown definition %s referenced in PRIMARY KEY", t));
             columns.remove(t);
             Boolean isReversed = definedOrdering.get(t);
             return isReversed != null && isReversed ? ReversedType.getInstance(type) : type;
