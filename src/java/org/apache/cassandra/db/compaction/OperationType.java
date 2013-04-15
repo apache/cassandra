@@ -31,7 +31,7 @@ public enum OperationType
     SCRUB("Scrub"),
     UPGRADE_SSTABLES("Upgrade sstables"),
     INDEX_BUILD("Secondary index build"),
-    UNKNOWN("Unkown compaction type");
+    UNKNOWN("Unknown compaction type");
 
     private final String type;
 
