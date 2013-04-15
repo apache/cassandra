@@ -22,11 +22,9 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.*;
@@ -50,6 +48,8 @@ import org.apache.pig.ResourceSchema.ResourceFieldSchema;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A LoadStoreFunc for retrieving data from and storing data to Cassandra
@@ -83,7 +83,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private final static String PARTITION_FILTER_SIGNATURE = "cassandra.partition.filter";
 
     private final static ByteBuffer BOUND = ByteBufferUtil.EMPTY_BYTE_BUFFER;
-    private static final Log logger = LogFactory.getLog(CassandraStorage.class);
+    private static final Logger logger = LoggerFactory.getLogger(CassandraStorage.class);
 
     private ByteBuffer slice_start = BOUND;
     private ByteBuffer slice_end = BOUND;

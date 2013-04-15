@@ -203,6 +203,11 @@ Merged from 1.1:
  * Adds E notation for floating point numbers (CASSANDRA-4927)
  * Detect (and warn) unintentional use of the cql2 thrift methods when cql3 was
    intended (CASSANDRA-5172)
+ * cli: Quote ks and cf names in schema output when needed (CASSANDRA-5052)
+ * Fix bad default for min/max timestamp in SSTableMetadata (CASSANDRA-5372)
+ * Fix cf name extraction from manifest in Directories.migrateFile() (CASSANDRA-5242)
+ * Support pluggable internode authentication (CASSANDRA-5401)
+ * Replace mistaken usage of commons-logging with slf4j (CASSANDRA-5464)
 
 
 1.1.10
