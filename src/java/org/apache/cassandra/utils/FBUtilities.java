@@ -42,7 +42,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.IRowCacheProvider;
-import org.apache.cassandra.concurrent.CreationTimeAwareFuture;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -386,32 +385,6 @@ public class FBUtilities
     {
         for (IAsyncResult result : results)
             result.get(ms, TimeUnit.MILLISECONDS);
-    }
-
-
-    /**
-     * Waits for the futures to complete.
-     * @param timeout the timeout expressed in <code>TimeUnit</code> units
-     * @param timeUnit TimeUnit
-     * @throws TimeoutException if the waiting time exceeds <code>timeout</code>
-     */
-    public static void waitOnFutures(List<CreationTimeAwareFuture<?>> hintFutures, long timeout, TimeUnit timeUnit) throws TimeoutException
-    {
-        for (Future<?> future : hintFutures)
-        {
-            try
-            {
-                future.get(timeout, timeUnit);
-            }
-            catch (InterruptedException ex)
-            {
-                throw new AssertionError(ex);
-            }
-            catch (ExecutionException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
     }
 
     public static IPartitioner newPartitioner(String partitionerClassName) throws ConfigurationException
