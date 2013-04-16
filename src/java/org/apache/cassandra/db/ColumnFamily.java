@@ -59,6 +59,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
 
     protected ColumnFamily(CFMetaData metadata)
     {
+        assert metadata != null;
         this.metadata = metadata;
     }
 
