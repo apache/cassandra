@@ -78,7 +78,8 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     @SuppressWarnings("serial")
     public List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
     {
-        Set<InetAddress> replicas = new HashSet<InetAddress>();
+        // we want to preserve insertion order so that the first added endpoint becomes primary
+        Set<InetAddress> replicas = new LinkedHashSet<InetAddress>();
         // replicas we have found in each DC
         Map<String, Set<InetAddress>> dcReplicas = new HashMap<String, Set<InetAddress>>(datacenters.size())
         {{
