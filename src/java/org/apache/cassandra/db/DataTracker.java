@@ -183,7 +183,7 @@ public class DataTracker
      * @return true if we are able to mark the given @param sstables as compacted, before anyone else
      *
      * Note that we could acquire references on the marked sstables and release them in
-     * unmarkCompacting, but since we will never call markCompacted on a sstable marked
+     * unmarkCompacting, but since we will never call markObsolete on a sstable marked
      * as compacting (unless there is a serious bug), we can skip this.
      */
     public boolean markCompacting(Iterable<SSTableReader> sstables)
@@ -200,7 +200,7 @@ public class DataTracker
     }
 
     /**
-     * Removes files from compacting status: this is different from 'markCompacted'
+     * Removes files from compacting status: this is different from 'markObsolete'
      * because it should be run regardless of whether a compaction succeeded.
      */
     public void unmarkCompacting(Iterable<SSTableReader> unmark)
@@ -224,7 +224,7 @@ public class DataTracker
         while (!view.compareAndSet(currentView, newView));
     }
 
-    public void markCompacted(Collection<SSTableReader> sstables, OperationType compactionType)
+    public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)
     {
         replace(sstables, Collections.<SSTableReader>emptyList());
         notifySSTablesChanged(sstables, Collections.<SSTableReader>emptyList(), compactionType);

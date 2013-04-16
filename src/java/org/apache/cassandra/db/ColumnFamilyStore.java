@@ -1050,10 +1050,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionManager.instance.performSSTableRewrite(ColumnFamilyStore.this, excludeCurrentVersion);
     }
 
-    public void markCompacted(Collection<SSTableReader> sstables, OperationType compactionType)
+    public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)
     {
         assert !sstables.isEmpty();
-        data.markCompacted(sstables, compactionType);
+        data.markObsolete(sstables, compactionType);
     }
 
     public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements, OperationType compactionType)
@@ -2190,7 +2190,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (truncatedSSTables.isEmpty())
             return ReplayPosition.NONE;
 
-        markCompacted(truncatedSSTables, OperationType.UNKNOWN);
+        markObsolete(truncatedSSTables, OperationType.UNKNOWN);
         return ReplayPosition.getReplayPosition(truncatedSSTables);
     }
 

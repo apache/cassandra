@@ -418,7 +418,7 @@ public class CompactionManager implements CompactionManagerMBean
             cfs.addSSTable(scrubber.getNewInOrderSSTable());
 
         if (scrubber.getNewSSTable() == null)
-            cfs.markCompacted(Collections.singletonList(sstable), OperationType.SCRUB);
+            cfs.markObsolete(Collections.singletonList(sstable), OperationType.SCRUB);
         else
             cfs.replaceCompactedSSTables(Collections.singletonList(sstable), Collections.singletonList(scrubber.getNewSSTable()), OperationType.SCRUB);
     }

@@ -210,7 +210,7 @@ public class CompactionsTest extends SchemaLoader
         assertEquals(2, cfs.getSSTables().size());
 
         // Now, we remove the sstable that was just created to force the use of EchoedRow (so that it doesn't hide the problem)
-        cfs.markCompacted(Collections.singleton(tmpSSTable), OperationType.UNKNOWN);
+        cfs.markObsolete(Collections.singleton(tmpSSTable), OperationType.UNKNOWN);
         assertEquals(1, cfs.getSSTables().size());
 
         // Now assert we do have the 4 keys

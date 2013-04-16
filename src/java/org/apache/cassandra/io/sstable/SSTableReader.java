@@ -969,8 +969,8 @@ public class SSTableReader extends SSTable
      * When calling this function, the caller must ensure that the SSTableReader is not referenced anywhere
      * except for threads holding a reference.
      *
-     * @return true if the this is the first time the file was marked compacted.  With rare exceptions
-     * (see DataTracker.unmarkCompacted) calling this multiple times would be buggy.
+     * @return true if the this is the first time the file was marked compacted.  Calling this
+     * multiple times would be buggy.
      */
     public boolean markObsolete()
     {

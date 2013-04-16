@@ -144,7 +144,7 @@ public class CompactionTask extends AbstractCompactionTask
                 // don't mark compacted in the finally block, since if there _is_ nondeleted data,
                 // we need to sync it (via closeAndOpen) first, so there is no period during which
                 // a crash could cause data loss.
-                cfs.markCompacted(toCompact, compactionType);
+                cfs.markObsolete(toCompact, compactionType);
                 return;
             }
 
