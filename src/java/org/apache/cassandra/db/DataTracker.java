@@ -207,9 +207,9 @@ public class DataTracker
     {
         if (!cfstore.isValid())
         {
-            // We don't know if the original compaction suceeded or failed, which makes it difficult to know
-            // if the sstable reference has already been released.
-            // A "good enough" approach is to mark the sstables involved compacted, which if compaction succeeded
+            // The CF has been dropped.  We don't know if the original compaction suceeded or failed,
+            // which makes it difficult to know if the sstable reference has already been released.
+            // A "good enough" approach is to mark the sstables involved obsolete, which if compaction succeeded
             // is harmlessly redundant, and if it failed ensures that at least the sstable will get deleted on restart.
             for (SSTableReader sstable : unmark)
                 sstable.markObsolete();
