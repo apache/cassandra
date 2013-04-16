@@ -212,7 +212,7 @@ public class DataTracker
             // A "good enough" approach is to mark the sstables involved compacted, which if compaction succeeded
             // is harmlessly redundant, and if it failed ensures that at least the sstable will get deleted on restart.
             for (SSTableReader sstable : unmark)
-                sstable.markCompacted();
+                sstable.markObsolete();
         }
 
         View currentView, newView;
@@ -364,7 +364,7 @@ public class DataTracker
             long size = sstable.bytesOnDisk();
             StorageMetrics.load.dec(size);
             cfstore.metric.liveDiskSpaceUsed.dec(size);
-            boolean firstToCompact = sstable.markCompacted();
+            boolean firstToCompact = sstable.markObsolete();
             assert firstToCompact : sstable + " was already marked compacted";
             sstable.releaseReference();
         }

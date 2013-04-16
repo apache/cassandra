@@ -141,7 +141,7 @@ public class StandaloneScrubber
                         }
 
                         // Remove the sstable (it's been copied by scrub and snapshotted)
-                        sstable.markCompacted();
+                        sstable.markObsolete();
                         sstable.releaseReference();
                     }
                     catch (Exception e)

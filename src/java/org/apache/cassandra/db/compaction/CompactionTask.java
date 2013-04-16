@@ -213,7 +213,7 @@ public class CompactionTask extends AbstractCompactionTask
             // also remove already completed SSTables
             for (SSTableReader sstable : sstables)
             {
-                sstable.markCompacted();
+                sstable.markObsolete();
                 sstable.releaseReference();
             }
             throw Throwables.propagate(t);

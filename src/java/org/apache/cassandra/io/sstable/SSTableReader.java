@@ -964,14 +964,15 @@ public class SSTableReader extends SSTable
     }
 
     /**
-     * Mark the sstable as compacted.
+     * Mark the sstable as obsolete, i.e., compacted into newer sstables.
+     *
      * When calling this function, the caller must ensure that the SSTableReader is not referenced anywhere
      * except for threads holding a reference.
      *
      * @return true if the this is the first time the file was marked compacted.  With rare exceptions
      * (see DataTracker.unmarkCompacted) calling this multiple times would be buggy.
      */
-    public boolean markCompacted()
+    public boolean markObsolete()
     {
         if (logger.isDebugEnabled())
             logger.debug("Marking " + getFilename() + " compacted");
