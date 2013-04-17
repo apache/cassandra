@@ -17,6 +17,6 @@
  */
 package org.apache.cassandra.cache;
 
-public interface IRowCacheEntry
+public interface IRowCacheEntry extends IMeasurableMemory
 {
 }

@@ -38,16 +38,16 @@ import static org.junit.Assert.*;
 
 public class CacheProviderTest extends SchemaLoader
 {
-    String key1 = "key1";
-    String key2 = "key2";
-    String key3 = "key3";
-    String key4 = "key4";
-    String key5 = "key5";
+    MeasureableString key1 = new MeasureableString("key1");
+    MeasureableString key2 = new MeasureableString("key2");
+    MeasureableString key3 = new MeasureableString("key3");
+    MeasureableString key4 = new MeasureableString("key4");
+    MeasureableString key5 = new MeasureableString("key5");
     private static final long CAPACITY = 4;
     private String tableName = "Keyspace1";
     private String cfName = "Standard1";
 
-    private void simpleCase(ColumnFamily cf, ICache<String, IRowCacheEntry> cache)
+    private void simpleCase(ColumnFamily cf, ICache<MeasureableString, IRowCacheEntry> cache)
     {
         cache.put(key1, cf);
         assert cache.get(key1) != null;
@@ -69,7 +69,7 @@ public class CacheProviderTest extends SchemaLoader
     }
 
     // TODO this isn't terribly useful
-    private void concurrentCase(final ColumnFamily cf, final ICache<String, IRowCacheEntry> cache) throws InterruptedException
+    private void concurrentCase(final ColumnFamily cf, final ICache<MeasureableString, IRowCacheEntry> cache) throws InterruptedException
     {
         Runnable runable = new Runnable()
         {
@@ -108,7 +108,7 @@ public class CacheProviderTest extends SchemaLoader
     @Test
     public void testHeapCache() throws InterruptedException
     {
-        ICache<String, IRowCacheEntry> cache = ConcurrentLinkedHashCache.create(CAPACITY, Weighers.<String, IRowCacheEntry>entrySingleton());
+        ICache<MeasureableString, IRowCacheEntry> cache = ConcurrentLinkedHashCache.create(CAPACITY, Weighers.<MeasureableString, IRowCacheEntry>entrySingleton());
         ColumnFamily cf = createCF();
         simpleCase(cf, cache);
         concurrentCase(cf, cache);
@@ -117,7 +117,7 @@ public class CacheProviderTest extends SchemaLoader
     @Test
     public void testSerializingCache() throws InterruptedException
     {
-        ICache<String, IRowCacheEntry> cache = SerializingCache.create(CAPACITY, Weighers.<RefCountedMemory>singleton(), new SerializingCacheProvider.RowCacheSerializer());
+        ICache<MeasureableString, IRowCacheEntry> cache = SerializingCache.create(CAPACITY, Weighers.<RefCountedMemory>singleton(), new SerializingCacheProvider.RowCacheSerializer());
         ColumnFamily cf = createCF();
         simpleCase(cf, cache);
         concurrentCase(cf, cache);
@@ -139,5 +139,20 @@ public class CacheProviderTest extends SchemaLoader
         RowCacheKey key3 = new RowCacheKey(cfId, ByteBuffer.wrap(b3));
         assertNotSame(key1, key3);
         assertNotSame(key1.hashCode(), key3.hashCode());
+    }
+
+    private class MeasureableString implements IMeasurableMemory
+    {
+        public final String string;
+
+        public MeasureableString(String input)
+        {
+            this.string = input;
+        }
+
+        public long memorySize()
+        {
+            return string.length();
+        }
     }
 }
