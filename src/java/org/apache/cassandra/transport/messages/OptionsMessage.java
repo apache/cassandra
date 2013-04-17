@@ -37,7 +37,7 @@ public class OptionsMessage extends Message.Request
 {
     public static final Message.Codec<OptionsMessage> codec = new Message.Codec<OptionsMessage>()
     {
-        public OptionsMessage decode(ChannelBuffer body)
+        public OptionsMessage decode(ChannelBuffer body, int version)
         {
             return new OptionsMessage();
         }

@@ -33,7 +33,7 @@ public class SupportedMessage extends Message.Response
 {
     public static final Message.Codec<SupportedMessage> codec = new Message.Codec<SupportedMessage>()
     {
-        public SupportedMessage decode(ChannelBuffer body)
+        public SupportedMessage decode(ChannelBuffer body, int version)
         {
             return new SupportedMessage(CBUtil.readStringToStringListMap(body));
         }

@@ -29,7 +29,7 @@ public class AuthenticateMessage extends Message.Response
 {
     public static final Message.Codec<AuthenticateMessage> codec = new Message.Codec<AuthenticateMessage>()
     {
-        public AuthenticateMessage decode(ChannelBuffer body)
+        public AuthenticateMessage decode(ChannelBuffer body, int version)
         {
             String authenticator = CBUtil.readString(body);
             return new AuthenticateMessage(authenticator);

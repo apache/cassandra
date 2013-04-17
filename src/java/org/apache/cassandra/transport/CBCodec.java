@@ -21,6 +21,6 @@ import org.jboss.netty.buffer.ChannelBuffer;
 
 public interface CBCodec<T>
 {
-    public T decode(ChannelBuffer body);
+    public T decode(ChannelBuffer body, int version);
     public ChannelBuffer encode(T t);
 }

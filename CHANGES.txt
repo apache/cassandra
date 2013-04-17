@@ -35,7 +35,7 @@
    out TreeRequests (CASSANDRA-4932)
  * Add an official way to disable compactions (CASSANDRA-5074)
  * Reenable ALTER TABLE DROP with new semantics (CASSANDRA-3919)
-
+ * Add binary protocol versioning (CASSANDRA-5436)
 
 1.2.5
  * remove per-row column name bloom filters (CASSANDRA-5492)

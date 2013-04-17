@@ -175,9 +175,9 @@ public class ResultSet
          *   - rows count (4 bytes)
          *   - rows
          */
-        public ResultSet decode(ChannelBuffer body)
+        public ResultSet decode(ChannelBuffer body, int version)
         {
-            Metadata m = Metadata.codec.decode(body);
+            Metadata m = Metadata.codec.decode(body, version);
             int rowCount = body.readInt();
             ResultSet rs = new ResultSet(m, new ArrayList<List<ByteBuffer>>(rowCount));
 
@@ -255,7 +255,7 @@ public class ResultSet
 
         private static class Codec implements CBCodec<Metadata>
         {
-            public Metadata decode(ChannelBuffer body)
+            public Metadata decode(ChannelBuffer body, int version)
             {
                 // flags & column count
                 int iflags = body.readInt();

@@ -34,10 +34,10 @@ public abstract class ResultMessage extends Message.Response
 {
     public static final Message.Codec<ResultMessage> codec = new Message.Codec<ResultMessage>()
     {
-        public ResultMessage decode(ChannelBuffer body)
+        public ResultMessage decode(ChannelBuffer body, int version)
         {
             Kind kind = Kind.fromId(body.readInt());
-            return kind.subcodec.decode(body);
+            return kind.subcodec.decode(body, version);
         }
 
         public ChannelBuffer encode(ResultMessage msg)
@@ -119,7 +119,7 @@ public abstract class ResultMessage extends Message.Response
 
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ChannelBuffer body)
+            public ResultMessage decode(ChannelBuffer body, int version)
             {
                 return new Void();
             }
@@ -160,7 +160,7 @@ public abstract class ResultMessage extends Message.Response
 
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ChannelBuffer body)
+            public ResultMessage decode(ChannelBuffer body, int version)
             {
                 String keyspace = CBUtil.readString(body);
                 return new SetKeyspace(keyspace);
@@ -194,9 +194,9 @@ public abstract class ResultMessage extends Message.Response
     {
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ChannelBuffer body)
+            public ResultMessage decode(ChannelBuffer body, int version)
             {
-                return new Rows(ResultSet.codec.decode(body));
+                return new Rows(ResultSet.codec.decode(body, version));
             }
 
             public ChannelBuffer encode(ResultMessage msg)
@@ -237,10 +237,10 @@ public abstract class ResultMessage extends Message.Response
     {
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ChannelBuffer body)
+            public ResultMessage decode(ChannelBuffer body, int version)
             {
                 MD5Digest id = MD5Digest.wrap(CBUtil.readBytes(body));
-                return new Prepared(id, -1, ResultSet.Metadata.codec.decode(body));
+                return new Prepared(id, -1, ResultSet.Metadata.codec.decode(body, version));
             }
 
             public ChannelBuffer encode(ResultMessage msg)
@@ -328,7 +328,7 @@ public abstract class ResultMessage extends Message.Response
 
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ChannelBuffer body)
+            public ResultMessage decode(ChannelBuffer body, int version)
             {
                 String cStr = CBUtil.readString(body);
                 Change change = null;

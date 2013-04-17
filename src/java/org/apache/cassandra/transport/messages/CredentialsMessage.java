@@ -35,7 +35,7 @@ public class CredentialsMessage extends Message.Request
 {
     public static final Message.Codec<CredentialsMessage> codec = new Message.Codec<CredentialsMessage>()
     {
-        public CredentialsMessage decode(ChannelBuffer body)
+        public CredentialsMessage decode(ChannelBuffer body, int version)
         {
             CredentialsMessage msg = new CredentialsMessage();
             int count = body.readUnsignedShort();

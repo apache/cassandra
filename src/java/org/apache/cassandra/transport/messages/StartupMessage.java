@@ -40,7 +40,7 @@ public class StartupMessage extends Message.Request
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {
-        public StartupMessage decode(ChannelBuffer body)
+        public StartupMessage decode(ChannelBuffer body, int version)
         {
             return new StartupMessage(CBUtil.readStringMap(body));
         }

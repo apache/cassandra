@@ -32,7 +32,7 @@ public class PrepareMessage extends Message.Request
 {
     public static final Message.Codec<PrepareMessage> codec = new Message.Codec<PrepareMessage>()
     {
-        public PrepareMessage decode(ChannelBuffer body)
+        public PrepareMessage decode(ChannelBuffer body, int version)
         {
             String query = CBUtil.readLongString(body);
             return new PrepareMessage(query);

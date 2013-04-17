@@ -30,7 +30,7 @@ public class RegisterMessage extends Message.Request
 {
     public static final Message.Codec<RegisterMessage> codec = new Message.Codec<RegisterMessage>()
     {
-        public RegisterMessage decode(ChannelBuffer body)
+        public RegisterMessage decode(ChannelBuffer body, int version)
         {
             int length = body.readUnsignedShort();
             List<Event.Type> eventTypes = new ArrayList<Event.Type>(length);

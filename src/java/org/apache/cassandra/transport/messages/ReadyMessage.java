@@ -29,7 +29,7 @@ public class ReadyMessage extends Message.Response
 {
     public static final Message.Codec<ReadyMessage> codec = new Message.Codec<ReadyMessage>()
     {
-        public ReadyMessage decode(ChannelBuffer body)
+        public ReadyMessage decode(ChannelBuffer body, int version)
         {
             return new ReadyMessage();
         }

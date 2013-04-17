@@ -75,16 +75,16 @@ public class Frame
         return new Frame(header, fullFrame, connection);
     }
 
-    public static Frame create(Message.Type type, int streamId, EnumSet<Header.Flag> flags, ChannelBuffer body, Connection connection)
+    public static Frame create(Message.Type type, int streamId, int version, EnumSet<Header.Flag> flags, ChannelBuffer body, Connection connection)
     {
-        Header header = new Header(Header.CURRENT_VERSION, flags, streamId, type);
+        Header header = new Header(version, flags, streamId, type);
         return new Frame(header, body, connection);
     }
 
     public static class Header
     {
         public static final int LENGTH = 8;
-        public static final int CURRENT_VERSION = 1;
+        public static final int CURRENT_VERSION = 2;
 
         public final int version;
         public final EnumSet<Flag> flags;
@@ -170,8 +170,8 @@ public class Frame
                 int firstByte = buffer.getByte(0);
                 Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
                 int version = firstByte & 0x7F;
-                // We really only support the current version so far
-                if (version != Header.CURRENT_VERSION)
+
+                if (version > Header.CURRENT_VERSION)
                     throw new ProtocolException("Invalid or unsupported protocol version: " + version);
 
                 // Validate the opcode

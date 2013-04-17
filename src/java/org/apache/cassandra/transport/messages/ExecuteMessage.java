@@ -39,7 +39,7 @@ public class ExecuteMessage extends Message.Request
 {
     public static final Message.Codec<ExecuteMessage> codec = new Message.Codec<ExecuteMessage>()
     {
-        public ExecuteMessage decode(ChannelBuffer body)
+        public ExecuteMessage decode(ChannelBuffer body, int version)
         {
             byte[] id = CBUtil.readBytes(body);
 
