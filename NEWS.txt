@@ -33,6 +33,9 @@ Operations
     - Disabling autocompactions by setting min/max compaction threshold to 0
       has been deprecated, instead, use the nodetool commands 'disableautocompaction'
       and 'enableautocompaction' or set the compaction strategy option enabled = false
+    - ALTER TABLE DROP has been reenabled for CQL3 tables and has new semantics now.
+      See https://cassandra.apache.org/doc/cql3/CQL.html#alterTableStmt and
+      https://issues.apache.org/jira/browse/CASSANDRA-3919 for details.
 
 
 1.2.4

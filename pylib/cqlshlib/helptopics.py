@@ -898,6 +898,22 @@ class CQL3HelpTopics(CQLHelpTopics):
         Currently, COUNT is the only function supported by CQL.
         """
 
+    def help_alter_drop(self):
+        print """
+        ALTER TABLE: dropping a typed column
+
+          ALTER TABLE addamsFamily DROP gender;
+
+        An ALTER TABLE ... DROP statement removes the type of a column
+        from the column family metadata. Dropped columns will immediately
+        become unavailable in the queries and will not be included in
+        compacted sstables in the future. If a column is readded, queries
+        won't return values written before the column was last dropped.
+        It is assumed that timestamps represent actual time, so if this
+        is not your case, you should NOT readd previously dropped columns.
+        Columns can't be dropped from tables defined with COMPACT STORAGE.
+        """
+
     def help_create(self):
         super(CQL3HelpTopics, self).help_create()
         print "          HELP CREATE_USER;"

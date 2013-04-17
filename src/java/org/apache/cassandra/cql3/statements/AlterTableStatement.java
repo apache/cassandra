@@ -155,6 +155,8 @@ public class AlterTableStatement extends SchemaAlteringStatement
             case DROP:
                 if (cfDef.isCompact)
                     throw new InvalidRequestException("Cannot drop columns from a compact CF");
+                if (!cfDef.isComposite)
+                    throw new InvalidRequestException("Cannot drop columns from a non-CQL3 CF");
                 if (name == null)
                     throw new InvalidRequestException(String.format("Column %s was not found in table %s", columnName, columnFamily()));
 
@@ -172,6 +174,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         }
                         assert toDelete != null;
                         cfm.removeColumnDefinition(toDelete);
+                        cfm.recordColumnDrop(toDelete);
                         break;
                 }
                 break;

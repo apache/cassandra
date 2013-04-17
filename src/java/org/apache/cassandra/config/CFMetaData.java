@@ -36,6 +36,7 @@ import org.apache.commons.lang.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -115,6 +116,7 @@ public final class CFMetaData
                                                                   + "strategy_class text,"
                                                                   + "strategy_options text"
                                                                   + ") WITH COMPACT STORAGE AND COMMENT='keyspace definitions' AND gc_grace_seconds=8640");
+
     public static final CFMetaData SchemaColumnFamiliesCf = compile(9, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNFAMILIES_CF + "("
                                                                        + "keyspace_name text,"
                                                                        + "columnfamily_name text,"
@@ -146,8 +148,10 @@ public final class CFMetaData
                                                                        + "default_write_consistency text,"
                                                                        + "speculative_retry text,"
                                                                        + "populate_io_cache_on_flush boolean,"
+                                                                       + "dropped_columns map<text, bigint>,"
                                                                        + "PRIMARY KEY (keyspace_name, columnfamily_name)"
                                                                        + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
+
     public static final CFMetaData SchemaColumnsCf = compile(10, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNS_CF + "("
                                                                + "keyspace_name text,"
                                                                + "columnfamily_name text,"
@@ -363,6 +367,7 @@ public final class CFMetaData
     private volatile int defaultTimeToLive = DEFAULT_DEFAULT_TIME_TO_LIVE;
     private volatile SpeculativeRetry speculativeRetry = DEFAULT_SPECULATIVE_RETRY;
     private volatile boolean populateIoCacheOnFlush = DEFAULT_POPULATE_IO_CACHE_ON_FLUSH;
+    private volatile Map<ByteBuffer, Long> droppedColumns = new HashMap<ByteBuffer, Long>();
 
     /*
      * All CQL3 columns definition are stored in the column_metadata map.
@@ -407,6 +412,7 @@ public final class CFMetaData
     public CFMetaData defaultTimeToLive(int prop) {defaultTimeToLive = prop; return this;}
     public CFMetaData speculativeRetry(SpeculativeRetry prop) {speculativeRetry = prop; return this;}
     public CFMetaData populateIoCacheOnFlush(boolean prop) {populateIoCacheOnFlush = prop; return this;}
+    public CFMetaData droppedColumns(Map<ByteBuffer, Long> cols) {droppedColumns = cols; return this;}
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp, AbstractType<?> subcc)
     {
@@ -466,11 +472,6 @@ public final class CFMetaData
     static UUID getId(String ksName, String cfName)
     {
         return UUID.nameUUIDFromBytes(ArrayUtils.addAll(ksName.getBytes(), cfName.getBytes()));
-    }
-
-    private void init()
-    {
-        updateCfDef(); // init cqlCfDef
     }
 
     private static CFMetaData newSystemMetadata(String keyspace, String cfName, int oldCfId, String comment, AbstractType<?> comparator, AbstractType<?> subcc)
@@ -555,7 +556,8 @@ public final class CFMetaData
                       .indexInterval(oldCFMD.indexInterval)
                       .speculativeRetry(oldCFMD.speculativeRetry)
                       .memtableFlushPeriod(oldCFMD.memtableFlushPeriod)
-                      .populateIoCacheOnFlush(oldCFMD.populateIoCacheOnFlush);
+                      .populateIoCacheOnFlush(oldCFMD.populateIoCacheOnFlush)
+                      .droppedColumns(oldCFMD.droppedColumns);
     }
 
     /**
@@ -711,6 +713,11 @@ public final class CFMetaData
         return defaultTimeToLive;
     }
 
+    public Map<ByteBuffer, Long> getDroppedColumns()
+    {
+        return droppedColumns;
+    }
+
     public boolean equals(Object obj)
     {
         if (obj == this)
@@ -749,6 +756,7 @@ public final class CFMetaData
             .append(indexInterval, rhs.indexInterval)
             .append(speculativeRetry, rhs.speculativeRetry)
             .append(populateIoCacheOnFlush, rhs.populateIoCacheOnFlush)
+            .append(droppedColumns, rhs.droppedColumns)
             .isEquals();
     }
 
@@ -780,6 +788,7 @@ public final class CFMetaData
             .append(indexInterval)
             .append(speculativeRetry)
             .append(populateIoCacheOnFlush)
+            .append(droppedColumns)
             .toHashCode();
     }
 
@@ -949,6 +958,9 @@ public final class CFMetaData
         defaultTimeToLive = cfm.defaultTimeToLive;
         speculativeRetry = cfm.speculativeRetry;
         populateIoCacheOnFlush = cfm.populateIoCacheOnFlush;
+
+        if (!cfm.droppedColumns.isEmpty())
+            droppedColumns = cfm.droppedColumns;
 
         MapDifference<ByteBuffer, ColumnDefinition> columnDiff = Maps.difference(column_metadata, cfm.column_metadata);
         // columns that are no longer needed
@@ -1442,6 +1454,9 @@ public final class CFMetaData
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "compaction_strategy_options"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "index_interval"));
 
+        for (Map.Entry<ByteBuffer, Long> entry : droppedColumns.entrySet())
+            cf.addColumn(new DeletedColumn(makeDroppedColumnName(entry.getKey()), ldt, timestamp));
+
         for (ColumnDefinition cd : column_metadata.values())
             cd.deleteFromSchema(rm, cfName, getColumnDefinitionComparator(cd), timestamp);
 
@@ -1505,6 +1520,9 @@ public final class CFMetaData
         cf.addColumn(Column.create(json(compactionStrategyOptions), timestamp, cfName, "compaction_strategy_options"));
         cf.addColumn(Column.create(indexInterval, timestamp, cfName, "index_interval"));
         cf.addColumn(Column.create(speculativeRetry.toString(), timestamp, cfName, "speculative_retry"));
+
+        for (Map.Entry<ByteBuffer, Long> entry : droppedColumns.entrySet())
+            cf.addColumn(new Column(makeDroppedColumnName(entry.getKey()), LongType.instance.decompose(entry.getValue()), timestamp));
 
         // Save the CQL3 metadata "the old way" for compatibility sake
         cf.addColumn(Column.create(aliasesToJson(partitionKeyColumns), timestamp, cfName, "key_aliases"));
@@ -1574,6 +1592,9 @@ public final class CFMetaData
             if (result.has("value_alias"))
                 cfm.addColumnMetadataFromAliases(Collections.<ByteBuffer>singletonList(result.getBytes("value_alias")), cfm.defaultValidator, ColumnDefinition.Type.COMPACT_VALUE);
 
+            if (result.has("dropped_columns"))
+                cfm.droppedColumns(convertDroppedColumns(result.getMap("dropped_columns", UTF8Type.instance, LongType.instance)));
+
             return cfm;
         }
         catch (SyntaxException e)
@@ -1639,6 +1660,22 @@ public final class CFMetaData
         for (String alias : aliases)
             rawAliases.add(alias == null ? null : UTF8Type.instance.decompose(alias));
         return rawAliases;
+    }
+
+    private static Map<ByteBuffer, Long> convertDroppedColumns(Map<String, Long> raw)
+    {
+        Map<ByteBuffer, Long> converted = Maps.newHashMap();
+        for (Map.Entry<String, Long> entry : raw.entrySet())
+            converted.put(UTF8Type.instance.decompose(entry.getKey()), entry.getValue());
+        return converted;
+    }
+
+    private ByteBuffer makeDroppedColumnName(ByteBuffer column)
+    {
+        ColumnNameBuilder builder = SchemaColumnFamiliesCf.cqlCfDef.getColumnNameBuilder();
+        builder.add(UTF8Type.instance.decompose(cfName));
+        builder.add(UTF8Type.instance.decompose("dropped_columns"));
+        return builder.add(column).build();
     }
 
     /**
@@ -1719,6 +1756,12 @@ public final class CFMetaData
         boolean removed = column_metadata.remove(def.name) != null;
         updateCfDef();
         return removed;
+    }
+
+    public void recordColumnDrop(ColumnDefinition def)
+    {
+        assert def.componentIndex != null;
+        droppedColumns.put(def.name, FBUtilities.timestampMicros());
     }
 
     public void renameColumn(ByteBuffer from, String strFrom, ByteBuffer to, String strTo) throws InvalidRequestException
@@ -1950,6 +1993,7 @@ public final class CFMetaData
             .append("speculative_retry", speculativeRetry)
             .append("indexInterval", indexInterval)
             .append("populateIoCacheOnFlush", populateIoCacheOnFlush)
+            .append("droppedColumns", droppedColumns)
             .toString();
     }
 }

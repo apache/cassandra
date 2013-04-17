@@ -146,6 +146,13 @@ public class CompositeType extends AbstractCompositeType
         return null;
     }
 
+    // Extract CQL3 column name from the full column name.
+    public ByteBuffer extractLastComponent(ByteBuffer bb)
+    {
+        int idx = types.get(types.size() - 1) instanceof ColumnToCollectionType ? types.size() - 2 : types.size() - 1;
+        return extractComponent(bb, idx);
+    }
+
     @Override
     public int componentsCount()
     {

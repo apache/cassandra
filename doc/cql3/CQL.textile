@@ -338,6 +338,7 @@ bc(syntax)..
 
 <instruction> ::= ALTER <identifier> TYPE <type>
                 | ADD   <identifier> <type>
+                | DROP  <identifier>
                 | WITH  <option> ( AND <option> )*
 p. 
 __Sample:__
@@ -358,9 +359,8 @@ The @ALTER@ statement is used to manipulate table definitions. It allows to add 
 The @<tablename>@ is the table name optionally preceded by the keyspace name.  The @<instruction>@ defines the alteration to perform:
 * @ALTER@: Update the type of a given defined column. Note that the type of the "clustering keys":#createTablepartitionClustering cannot be modified as it induces the on-disk ordering of rows. Columns on which a "secondary index":#createIndexStmt is defined have the same restriction. Other columns are free from those restrictions (no validation of existing data is performed), but it is usually a bad idea to change the type to a non-compatible one, unless no data have been inserted for that column yet, as this could confuse CQL drivers/tools.
 * @ADD@: Adds a new column to the table. The @<identifier>@ for the new column must not conflict with an existing column. Moreover, columns cannot be added to tables defined with the @COMPACT STORAGE@ option.
+* @DROP@: Removes a column from the table. Dropped columns will immediately become unavailable in the queries and will not be included in compacted sstables in the future. If a column is readded, queries won't return values written before the column was last dropped. It is assumed that timestamps represent actual time, so if this is not your case, you should NOT readd previously dropped columns. Columns can't be dropped from tables defined with the @COMPACT STORAGE@ option.
 * @WITH@: Allows to update the options of the table. The "supported @<option>@":#createTableOptions (and syntax) are the same as for the @CREATE TABLE@ statement except that @COMPACT STORAGE@ is not supported. Note that setting any @compaction@ sub-options has the effect of erasing all previous @compaction@ options, so you  need to re-specify all the sub-options if you want to keep them. The same note applies to the set of @compression@ sub-options.
-
-Dropping a column is no yet supported but is on "the roadmap":https://issues.apache.org/jira/browse/CASSANDRA-3919. In the meantime, a declared but unused column has no impact on performance nor uses any storage.
 
 h3(#dropTableStmt). DROP TABLE
 
@@ -1044,6 +1044,10 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 h2(#changes). Changes
 
 The following describes the addition/changes brought for each version of CQL.
+
+h3. 3.1.0
+
+* "ALTER TABLE":#alterTableStmt @DROP@ option has been reenabled for CQL3 tables and has new semantics now: the space formerly used by dropped columns will now be eventually reclaimed (post-compaction). You should not readd previously dropped columns unless you use timestamps with microsecond precision (see "CASSANDRA-3919":https://issues.apache.org/jira/browse/CASSANDRA-3919 for more details).
 
 h3. 3.0.2
 

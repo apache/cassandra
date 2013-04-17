@@ -57,6 +57,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -910,7 +911,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // remove columns if
             // (a) the column itself is gcable or
             // (b) the column is shadowed by a CF tombstone
-            if (c.getLocalDeletionTime() < gcBefore || cf.deletionInfo().isDeleted(c))
+            // (c) the column has been dropped from the CF schema (CQL3 tables only)
+            if (c.getLocalDeletionTime() < gcBefore || cf.deletionInfo().isDeleted(c) || isDroppedColumn(c, cf.metadata()))
             {
                 iter.remove();
                 indexer.remove(c);
@@ -921,6 +923,28 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public static void removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore)
     {
         removeDeletedColumnsOnly(cf, gcBefore, SecondaryIndexManager.nullUpdater);
+    }
+
+    // returns true if
+    // 1. this column has been dropped from schema and
+    // 2. if it has been re-added since then, this particular column was inserted before the last drop
+    private static boolean isDroppedColumn(Column c, CFMetaData meta)
+    {
+        if (meta.getDroppedColumns().isEmpty())
+            return false;
+        Long droppedAt = meta.getDroppedColumns().get(((CompositeType) meta.comparator).extractLastComponent(c.name()));
+        return droppedAt != null && c.timestamp() <= droppedAt;
+    }
+
+    private void removeDroppedColumns(ColumnFamily cf)
+    {
+        if (cf == null)
+            return;
+
+        Iterator<Column> iter = cf.iterator();
+        while (iter.hasNext())
+            if (isDroppedColumn(iter.next(), metadata))
+                iter.remove();
     }
 
     /**
@@ -1287,8 +1311,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     return null;
 
                 result = removeDeletedCF(cf, gcBefore);
-
             }
+
+            removeDroppedColumns(result);
         }
         finally
         {
@@ -1540,12 +1565,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                             data.addAll(cf, HeapAllocator.instance);
                     }
 
+                    removeDroppedColumns(data);
+
                     if (!filter.isSatisfiedBy(rawRow.key.key, data, null))
                         continue;
 
                     logger.trace("{} satisfies all filter expressions", data);
                     // cut the resultset back to what was requested, if necessary
                     data = filter.prune(data);
+                }
+                else
+                {
+                    removeDroppedColumns(data);
                 }
 
                 rows.add(new Row(rawRow.key, data));
