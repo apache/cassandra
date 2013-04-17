@@ -219,5 +219,11 @@ public class IndexHelper
         {
             return new IndexInfo(ByteBufferUtil.readWithShortLength(in), ByteBufferUtil.readWithShortLength(in), in.readLong(), in.readLong());
         }
+
+        public long memorySize()
+        {
+            long fields = ObjectSizes.getSize(firstName) + ObjectSizes.getSize(lastName) + 8 + 8; 
+            return ObjectSizes.getFieldSize(fields);
+        }
     }
 }

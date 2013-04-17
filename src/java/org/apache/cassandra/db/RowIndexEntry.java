@@ -24,11 +24,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.ObjectSizes;
 
-public class RowIndexEntry
+public class RowIndexEntry implements IMeasurableMemory
 {
     public static final Serializer serializer = new Serializer();
 
@@ -65,6 +67,12 @@ public class RowIndexEntry
     public List<IndexHelper.IndexInfo> columnsIndex()
     {
         return Collections.emptyList();
+    }
+
+    public long memorySize()
+    {
+        long fields = TypeSizes.NATIVE.sizeof(position) + ObjectSizes.getReferenceSize(); 
+        return ObjectSizes.getFieldSize(fields);
     }
 
     public static class Serializer
@@ -172,6 +180,15 @@ public class RowIndexEntry
 
             assert size <= Integer.MAX_VALUE;
             return (int)size;
+        }
+
+        public long memorySize()
+        {
+            long internal = 0;
+            for (IndexHelper.IndexInfo idx : columnsIndex)
+                internal += idx.memorySize();
+            long listSize = ObjectSizes.getFieldSize(ObjectSizes.getArraySize(columnsIndex.size(), internal) + 4);
+            return ObjectSizes.getFieldSize(deletionInfo.memorySize() + listSize);
         }
     }
 }

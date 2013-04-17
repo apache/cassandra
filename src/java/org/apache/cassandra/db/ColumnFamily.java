@@ -286,6 +286,11 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         return null;
     }
 
+    public long memorySize()
+    {
+        return ObjectSizes.measureDeep(this);
+    }
+
     public long maxTimestamp()
     {
         long maxTimestamp = deletionInfo().maxTimestamp();

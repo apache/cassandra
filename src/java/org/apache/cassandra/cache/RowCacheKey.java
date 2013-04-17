@@ -25,6 +25,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 
 public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
@@ -47,6 +48,12 @@ public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
     public Pair<String, String> getPathInfo()
     {
         return Schema.instance.getCF(cfId);
+    }
+
+    public long memorySize()
+    {
+        long fields = ObjectSizes.getReferenceSize() + ObjectSizes.getSizeWithRef(key);
+        return ObjectSizes.getFieldSize(fields);
     }
 
     @Override

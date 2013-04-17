@@ -19,7 +19,7 @@ package org.apache.cassandra.cache;
 
 import org.apache.cassandra.utils.Pair;
 
-public interface CacheKey
+public interface CacheKey extends IMeasurableMemory
 {
     /**
      * @return The keyspace and ColumnFamily names to which this key belongs
