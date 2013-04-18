@@ -1,3 +1,6 @@
+1.1.12
+ * Add retry mechanism to OTC for non-droppable_verbs (CASSANDRA-5393)
+
 1.1.11
  * Fix trying to load deleted row into row cache on startup (CASSANDRA-4463)
  * Update offline scrub for 1.0 -> 1.1 directory structure (CASSANDRA-5195)
