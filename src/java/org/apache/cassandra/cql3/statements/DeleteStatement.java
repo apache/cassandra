@@ -71,7 +71,7 @@ public class DeleteStatement extends ModificationStatement
         boolean isRange = cfDef.isCompact ? !fullKey : (!fullKey || toRemove.isEmpty());
 
         if (!toRemove.isEmpty() && isRange)
-            throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s since %s specified", firstEmpty, toRemove.iterator().next().columnName));
+            throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s since %s specified", firstEmpty, toRemove.get(0).columnName));
 
         Set<ByteBuffer> toRead = null;
         for (Operation op : toRemove)
