@@ -68,6 +68,9 @@ public class SemanticVersionTest
     {
         SemanticVersion v1, v2;
 
+        v1 = new SemanticVersion("3.0.2");
+        assert v1.isSupportedBy(v1);
+
         v1 = new SemanticVersion("1.2.3");
         v2 = new SemanticVersion("1.2.4");
         assert v1.isSupportedBy(v2);
@@ -82,6 +85,11 @@ public class SemanticVersionTest
         v2 = new SemanticVersion("1.3.3");
         assert !v1.isSupportedBy(v2);
         assert !v2.isSupportedBy(v1);
+
+        v1 = new SemanticVersion("3.1.0");
+        v2 = new SemanticVersion("3.0.1");
+        assert !v1.isSupportedBy(v2);
+        assert v2.isSupportedBy(v1);
     }
 
     @Test

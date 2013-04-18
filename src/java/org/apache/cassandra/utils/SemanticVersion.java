@@ -143,7 +143,7 @@ public class SemanticVersion implements Comparable<SemanticVersion>
 
     public boolean isSupportedBy(SemanticVersion version)
     {
-        return major == version.major && minor <= version.minor && patch <= version.patch;
+        return major == version.major && this.compareTo(version) <= 0;
     }
 
     private static int compareIdentifiers(String[] ids1, String[] ids2, int defaultPred)
