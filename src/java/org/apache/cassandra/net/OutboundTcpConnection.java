@@ -82,7 +82,7 @@ public class OutboundTcpConnection extends Thread
         expireMessages();
         try
         {
-            backlog.put(new QueuedMessage(message, id, System.currentTimeMillis()));
+            backlog.put(new QueuedMessage(message, id));
         }
         catch (InterruptedException e)
         {
@@ -191,12 +191,31 @@ public class OutboundTcpConnection extends Thread
         }
         catch (Exception e)
         {
-            // Non IO exceptions is likely a programming error so let's not silence it
-            if (!(e instanceof IOException))
-                logger.error("error writing to " + poolReference.endPoint(), e);
-            else if (logger.isDebugEnabled())
-                logger.debug("error writing to " + poolReference.endPoint(), e);
             disconnect();
+            if (e instanceof IOException)
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("error writing to " + poolReference.endPoint(), e);
+
+                // if the message was important, such as a repair acknowledgement, put it back on the queue
+                // to retry after re-connecting.  See CASSANDRA-5393
+                if (e instanceof SocketException && qm.shouldRetry())
+                {
+                    try
+                    {
+                        backlog.put(new RetriedQueuedMessage(qm));
+                    }
+                    catch (InterruptedException e1)
+                    {
+                        throw new AssertionError(e1);
+                    }
+                }
+            }
+            else
+            {
+                // Non IO exceptions are likely a programming error so let's not silence them
+                logger.error("error writing to " + poolReference.endPoint(), e);
+            }
         }
     }
 
@@ -369,17 +388,36 @@ public class OutboundTcpConnection extends Thread
         }
     }
 
+    /** messages that have not been retried yet */
     private static class QueuedMessage
     {
         final MessageOut<?> message;
         final int id;
         final long timestamp;
 
-        QueuedMessage(MessageOut<?> message, int id, long timestamp)
+        QueuedMessage(MessageOut<?> message, int id)
         {
             this.message = message;
             this.id = id;
-            this.timestamp = timestamp;
+            this.timestamp = System.currentTimeMillis();
+        }
+
+        boolean shouldRetry()
+        {
+            return MessagingService.DROPPABLE_VERBS.contains(message.verb);
+        }
+    }
+
+    private static class RetriedQueuedMessage extends QueuedMessage
+    {
+        RetriedQueuedMessage(QueuedMessage msg)
+        {
+            super(msg.message, msg.id);
+        }
+
+        boolean shouldRetry()
+        {
+            return false;
         }
     }
 }
