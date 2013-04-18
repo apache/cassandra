@@ -33,6 +33,7 @@
  * Improve repair by deciding on a gcBefore before sending
    out TreeRequests (CASSANDRA-4932)
  * Add an official way to disable compactions (CASSANDRA-5074)
+ * Reenable ALTER TABLE DROP with new semantics (CASSANDRA-3919)
 
 
 1.2.5
