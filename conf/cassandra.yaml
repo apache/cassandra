@@ -42,7 +42,7 @@ hinted_handoff_enabled: true
 # generated.  After it has been dead this long, new hints for it will not be
 # created until it has been seen alive and gone down again.
 max_hint_window_in_ms: 10800000 # 3 hours
-# throttle in KB's per second, per delivery thread
+# throttle in KBs per second, per delivery thread
 hinted_handoff_throttle_in_kb: 1024
 # Number of threads with which to deliver hints;
 # Consider increasing this number when you have multi-dc deployments, since
@@ -95,7 +95,7 @@ permissions_validity_in_ms: 2000
 # - OrderPreservingPartitioner is an obsolete form of BOP, that stores
 # - keys in a less-efficient format and only works with keys that are
 #   UTF8-encoded Strings.
-# - CollatingOPP colates according to EN,US rules rather than lexical byte
+# - CollatingOPP collates according to EN,US rules rather than lexical byte
 #   ordering.  Use this as an example if you need custom collation.
 #
 # See http://wiki.apache.org/cassandra/Operations for more on
@@ -113,7 +113,7 @@ commitlog_directory: /var/lib/cassandra/commitlog
 
 # policy for data disk failures:
 # stop: shut down gossip and Thrift, leaving the node effectively dead, but
-#       still inspectable via JMX.
+#       can still be inspected via JMX.
 # best_effort: stop using the failed disk and respond to requests based on
 #              remaining available sstables.  This means you WILL see obsolete
 #              data at CL.ONE!
@@ -125,8 +125,8 @@ disk_failure_policy: stop
 # Each key cache hit saves 1 seek and each row cache hit saves 2 seeks at the
 # minimum, sometimes more. The key cache is fairly tiny for the amount of
 # time it saves, so it's worthwhile to use it at large numbers.
-# The row cache saves even more time, but must store the whole values of
-# its rows, so it is extremely space-intensive. It's best to only use the
+# The row cache saves even more time, but must contain the entire row,
+# so it is extremely space-intensive. It's best to only use the
 # row cache if you have hot rows or static rows.
 #
 # NOTE: if you reduce the size, you may not get you hottest keys loaded on startup.
@@ -135,7 +135,7 @@ disk_failure_policy: stop
 key_cache_size_in_mb:
 
 # Duration in seconds after which Cassandra should
-# safe the keys cache. Caches are saved to saved_caches_directory as
+# save the key cache. Caches are saved to saved_caches_directory as
 # specified in this configuration file.
 #
 # Saved caches greatly improve cold-start speeds, and is relatively cheap in
@@ -179,6 +179,8 @@ row_cache_save_period: 0
 # significantly less memory than "live" rows in the JVM, so you can cache
 # more rows in a given memory footprint.  And storing the cache off-heap
 # means you can use smaller heap sizes, reducing the impact of GC pauses.
+# Note however that when a row is requested from the row cache, it must be
+# deserialized into the heap for use.
 #
 # It is also valid to specify the fully-qualified class name to a class
 # that implements org.apache.cassandra.cache.IRowCacheProvider.
@@ -206,7 +208,7 @@ commitlog_sync_period_in_ms: 10000
 
 # The size of the individual commitlog file segments.  A commitlog
 # segment may be archived, deleted, or recycled once all the data
-# in it (potentally from each columnfamily in the system) has been 
+# in it (potentially from each columnfamily in the system) has been
 # flushed to sstables.  
 #
 # The default size is 32, which is almost always fine, but if you are
@@ -295,7 +297,7 @@ memtable_flush_queue_size: 4
 # Whether to, when doing sequential writing, fsync() at intervals in
 # order to force the operating system to flush the dirty
 # buffers. Enable this to avoid sudden dirty buffer flushing from
-# impacting read latencies. Almost always a good idea on SSD:s; not
+# impacting read latencies. Almost always a good idea on SSDs; not
 # necessarily on platters.
 trickle_fsync: false
 trickle_fsync_interval_in_kb: 10240
@@ -312,7 +314,7 @@ ssl_storage_port: 7001
 # communicate!
 # 
 # Leaving it blank leaves it up to InetAddress.getLocalHost(). This
-# will always do the Right Thing *if* the node is properly configured
+# will always do the Right Thing _if_ the node is properly configured
 # (hostname, name resolution, etc), and the Right Thing is to use the
 # address associated with the hostname (it might not be).
 #
@@ -336,9 +338,8 @@ start_native_transport: false
 # port for the CQL native transport to listen for clients on
 native_transport_port: 9042
 # The minimum and maximum threads for handling requests when the native
-# transport is used. The meaning is those is similar to the one of
-# rpc_min_threads and rpc_max_threads, though the default differ slightly and
-# are the ones below:
+# transport is used. They are similar to rpc_min_threads and rpc_max_threads,
+# though the defaults differ slightly.
 # native_transport_min_threads: 16
 # native_transport_max_threads: 128
 
@@ -346,7 +347,7 @@ native_transport_port: 9042
 start_rpc: true
 
 # The address to bind the Thrift RPC service to -- clients connect
-# here. Unlike ListenAddress above, you *can* specify 0.0.0.0 here if
+# here. Unlike ListenAddress above, you _can_ specify 0.0.0.0 here if
 # you want Thrift to listen on all interfaces.
 # 
 # Leaving this blank has the same effect it does for ListenAddress,
@@ -361,7 +362,7 @@ rpc_keepalive: true
 # Cassandra provides three out-of-the-box options for the RPC Server:
 #
 # sync  -> One thread per thrift connection. For a very large number of clients, memory
-#          will be your limiting factor. On a 64 bit JVM, 128KB is the minimum stack size
+#          will be your limiting factor. On a 64 bit JVM, 180KB is the minimum stack size
 #          per thread, and that will correspond to your use of virtual memory (but physical memory
 #          may be limited depending on use of stack space).
 #
@@ -383,7 +384,7 @@ rpc_server_type: sync
 # RPC thread pool dictates how many concurrent requests are possible (but if you are using the sync
 # RPC server, it also dictates the number of clients that can be connected at all).
 #
-# The default is unlimited and thus provide no protection against clients overwhelming the server. You are
+# The default is unlimited and thus provides no protection against clients overwhelming the server. You are
 # encouraged to set a maximum that makes sense for you in production, but do keep in mind that
 # rpc_max_threads represents the maximum number of client requests this server may execute concurrently.
 #
@@ -415,7 +416,7 @@ thrift_max_message_length_in_mb: 16
 
 # Set to true to have Cassandra create a hard link to each sstable
 # flushed or streamed locally in a backups/ subdirectory of the
-# Keyspace data.  Removing these links is the operator's
+# keyspace data.  Removing these links is the operator's
 # responsibility.
 incremental_backups: false
 
@@ -508,7 +509,7 @@ cross_node_timeout: false
 
 # Enable socket timeout for streaming operation.
 # When a timeout occurs during streaming, streaming is retried from the start
-# of the current file. This *can* involve re-streaming an important amount of
+# of the current file. This _can_ involve re-streaming an important amount of
 # data, so you should avoid setting the value too low.
 # Default value is 0, which never timeout streams.
 # streaming_socket_timeout_in_ms: 0
@@ -551,9 +552,9 @@ cross_node_timeout: false
 #    deployment conventions (as it did Facebook's), this is best used
 #    as an example of writing a custom Snitch class.
 #  - Ec2Snitch:
-#    Appropriate for EC2 deployments in a single Region.  Loads Region
+#    Appropriate for EC2 deployments in a single Region. Loads Region
 #    and Availability Zone information from the EC2 API. The Region is
-#    treated as the Datacenter, and the Availability Zone as the rack.
+#    treated as the datacenter, and the Availability Zone as the rack.
 #    Only private IPs are used, so this will not work across multiple
 #    Regions.
 #  - Ec2MultiRegionSnitch:
@@ -619,7 +620,7 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 #      Keyspace1: 1
 #      Keyspace2: 5
 
-# request_scheduler_id -- An identifer based on which to perform
+# request_scheduler_id -- An identifier based on which to perform
 # the request scheduling. Currently the only valid option is keyspace.
 # request_scheduler_id: keyspace
 
