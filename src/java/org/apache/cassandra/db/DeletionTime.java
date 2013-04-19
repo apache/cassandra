@@ -35,7 +35,7 @@ public class DeletionTime implements Comparable<DeletionTime>
 
     public static final ISerializer<DeletionTime> serializer = new Serializer();
 
-    DeletionTime(long markedForDeleteAt, int localDeletionTime)
+    public DeletionTime(long markedForDeleteAt, int localDeletionTime)
     {
         this.markedForDeleteAt = markedForDeleteAt;
         this.localDeletionTime = localDeletionTime;
