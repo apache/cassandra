@@ -404,7 +404,7 @@ public class OutboundTcpConnection extends Thread
 
         boolean shouldRetry()
         {
-            return MessagingService.DROPPABLE_VERBS.contains(message.verb);
+            return !MessagingService.DROPPABLE_VERBS.contains(message.verb);
         }
     }
 
