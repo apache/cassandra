@@ -206,7 +206,7 @@ public class RowIndexEntry implements IMeasurableMemory
             for (IndexHelper.IndexInfo idx : columnsIndex)
                 internal += idx.memorySize();
             long listSize = ObjectSizes.getFieldSize(ObjectSizes.getArraySize(columnsIndex.size(), internal) + 4);
-            return ObjectSizes.getFieldSize(deletionInfo.memorySize() + listSize);
+            return ObjectSizes.getFieldSize(deletion.memorySize() + listSize);
         }
     }
 }
