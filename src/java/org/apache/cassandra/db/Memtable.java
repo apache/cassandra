@@ -120,9 +120,18 @@ public class Memtable
 
     public long getLiveSize()
     {
+
         // 25% fudge factor on the base throughput * liveRatio calculation.  (Based on observed
         // pre-slabbing behavior -- not sure what accounts for this. May have changed with introduction of slabbing.)
-        return (long) (currentSize.get() * cfs.liveRatio * 1.25);
+        long estimatedSize = (long) (currentSize.get() * cfs.liveRatio * 1.25);
+
+        // cap the estimate at both ends by what the allocator can tell us
+        if (estimatedSize < allocator.getMinimumSize())
+            return allocator.getMinimumSize();
+        if (estimatedSize > allocator.getMaximumSize())
+            return allocator.getMaximumSize();
+
+        return estimatedSize;
     }
 
     public long getSerializedSize()

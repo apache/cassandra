@@ -21,6 +21,7 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Preconditions;
@@ -49,7 +50,8 @@ public class SlabAllocator extends Allocator
     private final static int MAX_CLONED_SIZE = 128 * 1024; // bigger than this don't go in the region
 
     private final AtomicReference<Region> currentRegion = new AtomicReference<Region>();
-    private volatile int regionCount;
+    private volatile int regionCount = 0;
+    private AtomicLong unslabbed = new AtomicLong(0);
 
     public ByteBuffer allocate(int size)
     {
@@ -60,7 +62,10 @@ public class SlabAllocator extends Allocator
         // satisfy large allocations directly from JVM since they don't cause fragmentation
         // as badly, and fill up our regions quickly
         if (size > MAX_CLONED_SIZE)
+        {
+            unslabbed.addAndGet(size);
             return ByteBuffer.allocate(size);
+        }
 
         while (true)
         {
@@ -103,6 +108,22 @@ public class SlabAllocator extends Allocator
             // someone else won race - that's fine, we'll try to grab theirs
             // in the next iteration of the loop.
         }
+    }
+
+    /**
+     * @return a lower bound on how much space has been allocated
+     */
+    public long getMinimumSize()
+    {
+        return unslabbed.get() + (regionCount - 1) * REGION_SIZE;
+    }
+
+    /**
+     * @return an upper bound on how much space has been allocated
+     */
+    public long getMaximumSize()
+    {
+        return unslabbed.get() + regionCount * REGION_SIZE;
     }
 
     /**
