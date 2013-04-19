@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
@@ -47,6 +49,12 @@ public class ColumnIndex
 
         this.columnsIndex = columnsIndex;
         this.bloomFilter = bloomFilter;
+    }
+
+    @VisibleForTesting
+    public static ColumnIndex nothing()
+    {
+        return new ColumnIndex(0);
     }
 
     /**
