@@ -65,7 +65,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
      * finish (reverse start) elements. i.e. forward: [a,b],[d,e],[g,h] reverse: [h,g],[e,d],[b,a]. This reader also
      * assumes that validation has been performed in terms of intervals (no overlapping intervals).
      */
-    public IndexedSliceReader(SSTableReader sstable, RowIndexEntry indexEntry, FileDataInput input, ColumnSlice[] slices, boolean reversed)
+    public IndexedSliceReader(SSTableReader sstable, RowIndexEntry rowEntry, FileDataInput input, ColumnSlice[] slices, boolean reversed)
     {
         this.sstable = sstable;
         this.originalInput = input;
@@ -76,34 +76,53 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         try
         {
             Descriptor.Version version = sstable.descriptor.version;
-            if (version.hasPromotedIndexes)
+            emptyColumnFamily = ColumnFamily.create(sstable.metadata);
+
+            if (version.hasPromotedRowTombstones && !rowEntry.columnsIndex().isEmpty())
             {
-                this.indexes = indexEntry.columnsIndex();
-                if (indexes.isEmpty())
-                {
-                    setToRowStart(sstable, indexEntry, input);
-                    this.emptyColumnFamily = ColumnFamily.create(sstable.metadata);
-                    emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
-                    fetcher = new SimpleBlockFetcher();
-                }
-                else
-                {
-                    this.emptyColumnFamily = ColumnFamily.create(sstable.metadata);
-                    emptyColumnFamily.delete(indexEntry.deletionInfo());
-                    fetcher = new IndexedBlockFetcher(indexEntry.position);
-                }
+                // skip the row header entirely
+                indexes = rowEntry.columnsIndex();
+                emptyColumnFamily.delete(rowEntry.deletionInfo());
+                fetcher = new IndexedBlockFetcher(rowEntry.position);
+                return;
+            }
+
+            // skip up to bloom filter where things get a bit more interesting
+            if (input == null)
+            {
+                file = sstable.getFileDataInput(rowEntry.position);
             }
             else
             {
-                setToRowStart(sstable, indexEntry, input);
-                IndexHelper.skipSSTableBloomFilter(file, version);
-                this.indexes = IndexHelper.deserializeIndex(file);
-                this.emptyColumnFamily = ColumnFamily.create(sstable.metadata);
-                emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
-                fetcher = indexes.isEmpty()
-                        ? new SimpleBlockFetcher()
-                        : new IndexedBlockFetcher(file.getFilePointer() + 4); // We still have the column count to
-                                                                              // skip to get the basePosition
+                file = input;
+                file.seek(rowEntry.position);
+            }
+            this.sstable.decodeKey(ByteBufferUtil.readWithShortLength(file));
+            SSTableReader.readRowSize(file, this.sstable.descriptor);
+
+            // read the row header up to and including the row-level tombstones
+            if (version.hasPromotedIndexes)
+            {
+                indexes = rowEntry.columnsIndex();
+                emptyColumnFamily.delete(rowEntry.deletionInfo());
+            }
+            else
+            {
+                IndexHelper.skipSSTableBloomFilter(input, version);
+                indexes = IndexHelper.deserializeIndex(file);
+            }
+            emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
+
+            if (indexes.isEmpty())
+            {
+                fetcher = new SimpleBlockFetcher();
+            }
+            else
+            {
+                // index offsets changed to be based against the row key start in 1.2
+                fetcher = version.hasPromotedIndexes
+                        ? new IndexedBlockFetcher(rowEntry.position)
+                        : new IndexedBlockFetcher(file.getFilePointer() + 4); // +4 to skip the int column count
             }
         }
         catch (IOException e)
@@ -111,24 +130,6 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             sstable.markSuspect();
             throw new CorruptSSTableException(e, file.getPath());
         }
-    }
-
-    /**
-     * Sets the seek position to the start of the row for column scanning.
-     */
-    private void setToRowStart(SSTableReader reader, RowIndexEntry indexEntry, FileDataInput input) throws IOException
-    {
-        if (input == null)
-        {
-            this.file = sstable.getFileDataInput(indexEntry.position);
-        }
-        else
-        {
-            this.file = input;
-            input.seek(indexEntry.position);
-        }
-        sstable.decodeKey(ByteBufferUtil.readWithShortLength(file));
-        SSTableReader.readRowSize(file, sstable.descriptor);
     }
 
     public ColumnFamily getColumnFamily()
@@ -197,8 +198,6 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             return reversed ? slices[currentSliceIdx].start : slices[currentSliceIdx].finish;
         }
 
-        protected abstract boolean setNextSlice();
-
         protected abstract boolean fetchMoreData();
 
         protected boolean isColumnBeforeSliceStart(OnDiskAtom column)
@@ -248,7 +247,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             setNextSlice();
         }
 
-        protected boolean setNextSlice()
+        private boolean setNextSlice()
         {
             while (++currentSliceIdx < slices.length)
             {
@@ -350,7 +349,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             /* seek to the correct offset to the data, and calculate the data size */
             long positionToSeek = basePosition + currentIndex.offset;
 
-            // With new promoted indexes, our first seek in the data file will happen at that point.
+            // With 1.2 promoted indexes, our first seek in the data file will happen at this point
             if (file == null)
                 file = originalInput == null ? sstable.getFileDataInput(positionToSeek) : originalInput;
 
@@ -464,7 +463,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             }
         }
 
-        protected boolean setNextSlice()
+        private boolean setNextSlice()
         {
             if (reversed)
             {
