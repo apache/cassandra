@@ -33,7 +33,7 @@ public class ColumnIndex
     public final List<IndexHelper.IndexInfo> columnsIndex;
     public final IFilter bloomFilter;
 
-    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList(), new AlwaysPresentFilter());
+    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList(), AlwaysPresentFilter.instance);
 
     private ColumnIndex(int estimatedColumnCount)
     {
@@ -42,6 +42,9 @@ public class ColumnIndex
 
     private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex, IFilter bloomFilter)
     {
+        assert columnsIndex != null;
+        assert bloomFilter != null;
+
         this.columnsIndex = columnsIndex;
         this.bloomFilter = bloomFilter;
     }

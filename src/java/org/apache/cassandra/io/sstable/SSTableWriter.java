@@ -134,7 +134,7 @@ public class SSTableWriter extends SSTable
         return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
     }
 
-    private RowIndexEntry afterAppend(DecoratedKey decoratedKey, long dataPosition, DeletionInfo delInfo, ColumnIndex index)
+    private RowIndexEntry afterAppend(DecoratedKey decoratedKey, long dataPosition, DeletionTime deletion, ColumnIndex index)
     {
         lastWrittenKey = decoratedKey;
         last = lastWrittenKey;
@@ -143,7 +143,7 @@ public class SSTableWriter extends SSTable
 
         if (logger.isTraceEnabled())
             logger.trace("wrote " + decoratedKey + " at " + dataPosition);
-        RowIndexEntry entry = RowIndexEntry.create(dataPosition, delInfo, index);
+        RowIndexEntry entry = RowIndexEntry.create(dataPosition, deletion, index);
         iwriter.append(decoratedKey, entry);
         dbuilder.addPotentialBoundary(dataPosition);
         return entry;
@@ -165,7 +165,7 @@ public class SSTableWriter extends SSTable
             throw new FSWriteError(e, dataFile.getPath());
         }
         sstableMetadataCollector.update(dataFile.getFilePointer() - currentPosition, row.columnStats());
-        return afterAppend(row.key, currentPosition, row.deletionInfo(), row.index());
+        return afterAppend(row.key, currentPosition, row.deletionInfo().getTopLevelDeletion(), row.index());
     }
 
     public void append(DecoratedKey decoratedKey, ColumnFamily cf)
@@ -191,7 +191,7 @@ public class SSTableWriter extends SSTable
             DeletionInfo.serializer().serializeForSSTable(cf.deletionInfo(), dataFile.stream);
             dataFile.stream.writeInt(builder.writtenAtomCount());
             dataFile.stream.write(buffer.getData(), 0, buffer.getLength());
-            afterAppend(decoratedKey, startPosition, cf.deletionInfo(), index);
+            afterAppend(decoratedKey, startPosition, cf.deletionInfo().getTopLevelDeletion(), index);
         }
         catch (IOException e)
         {
@@ -220,12 +220,12 @@ public class SSTableWriter extends SSTable
             throw new FSWriteError(e, dataFile.getPath());
         }
 
-        DeletionInfo deletionInfo = DeletionInfo.serializer().deserializeFromSSTable(in, descriptor.version);
+        DeletionTime deletion = DeletionTime.serializer.deserialize(in);
         int columnCount = in.readInt();
 
         try
         {
-            DeletionInfo.serializer().serializeForSSTable(deletionInfo, dataFile.stream);
+            DeletionTime.serializer.serialize(deletion, dataFile.stream);
             dataFile.stream.writeInt(columnCount);
         }
         catch (IOException e)
@@ -238,7 +238,7 @@ public class SSTableWriter extends SSTable
         long maxTimestamp = Long.MIN_VALUE;
         StreamingHistogram tombstones = new StreamingHistogram(TOMBSTONE_HISTOGRAM_BIN_SIZE);
         ColumnFamily cf = ColumnFamily.create(metadata, ArrayBackedSortedColumns.factory());
-        cf.delete(deletionInfo);
+        cf.delete(new DeletionInfo(deletion));
 
         ColumnIndex.Builder columnIndexer = new ColumnIndex.Builder(cf, key.key, columnCount, dataFile.stream, true);
         OnDiskAtom.Serializer atomSerializer = cf.getOnDiskSerializer();
@@ -288,7 +288,7 @@ public class SSTableWriter extends SSTable
         sstableMetadataCollector.addRowSize(dataFile.getFilePointer() - currentPosition);
         sstableMetadataCollector.addColumnCount(columnCount);
         sstableMetadataCollector.mergeTombstoneHistogram(tombstones);
-        afterAppend(key, currentPosition, deletionInfo, columnIndexer.build());
+        afterAppend(key, currentPosition, deletion, columnIndexer.build());
         return currentPosition;
     }
 
