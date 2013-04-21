@@ -34,28 +34,15 @@ import org.apache.cassandra.utils.Pair;
 public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(SizeTieredCompactionStrategy.class);
-    protected static final long DEFAULT_MIN_SSTABLE_SIZE = 50L * 1024L * 1024L;
-    protected static final double DEFAULT_BUCKET_LOW = 0.5;
-    protected static final double DEFAULT_BUCKET_HIGH = 1.5;
-    protected static final String MIN_SSTABLE_SIZE_KEY = "min_sstable_size";
-    protected static final String BUCKET_LOW_KEY = "bucket_low";
-    protected static final String BUCKET_HIGH_KEY = "bucket_high";
 
-    protected long minSSTableSize;
-    protected double bucketLow;
-    protected double bucketHigh;
+    protected SizeTieredCompactionStrategyOptions options;
     protected volatile int estimatedRemainingTasks;
 
     public SizeTieredCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
         super(cfs, options);
         this.estimatedRemainingTasks = 0;
-        String optionValue = options.get(MIN_SSTABLE_SIZE_KEY);
-        minSSTableSize = optionValue == null ? DEFAULT_MIN_SSTABLE_SIZE : Long.parseLong(optionValue);
-        optionValue = options.get(BUCKET_LOW_KEY);
-        bucketLow = optionValue == null ? DEFAULT_BUCKET_LOW : Double.parseDouble(optionValue);
-        optionValue = options.get(BUCKET_HIGH_KEY);
-        bucketHigh = optionValue == null ? DEFAULT_BUCKET_HIGH : Double.parseDouble(optionValue);
+        this.options = new SizeTieredCompactionStrategyOptions(options);
     }
 
     private List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
@@ -68,7 +55,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         int maxThreshold = cfs.getMaximumCompactionThreshold();
 
         Set<SSTableReader> candidates = cfs.getUncompactingSSTables();
-        List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(filterSuspectSSTables(candidates)), bucketHigh, bucketLow, minSSTableSize);
+        List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(filterSuspectSSTables(candidates)), options.bucketHigh, options.bucketLow, options.minSSTableSize);
         logger.debug("Compaction buckets are {}", buckets);
         updateEstimatedCompactionsByTasks(buckets);
         List<SSTableReader> mostInteresting = mostInterestingBucket(buckets, minThreshold, maxThreshold);
@@ -252,50 +239,8 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
     {
         Map<String, String> uncheckedOptions = AbstractCompactionStrategy.validateOptions(options);
+        uncheckedOptions = SizeTieredCompactionStrategyOptions.validateOptions(options, uncheckedOptions);
 
-        String optionValue = options.get(MIN_SSTABLE_SIZE_KEY);
-        try
-        {
-            long minSSTableSize = optionValue == null ? DEFAULT_MIN_SSTABLE_SIZE : Long.parseLong(optionValue);
-            if (minSSTableSize < 0)
-            {
-                throw new ConfigurationException(String.format("%s must be non negative: %d", MIN_SSTABLE_SIZE_KEY, minSSTableSize));
-            }
-        }
-        catch (NumberFormatException e)
-        {
-            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, MIN_SSTABLE_SIZE_KEY), e);
-        }
-
-        double bucketLow, bucketHigh;
-        optionValue = options.get(BUCKET_LOW_KEY);
-        try
-        {
-            bucketLow = optionValue == null ? DEFAULT_BUCKET_LOW : Double.parseDouble(optionValue);
-        }
-        catch (NumberFormatException e)
-        {
-            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, DEFAULT_BUCKET_LOW), e);
-        }
-
-        optionValue = options.get(BUCKET_HIGH_KEY);
-        try
-        {
-            bucketHigh = optionValue == null ? DEFAULT_BUCKET_HIGH : Double.parseDouble(optionValue);
-        }
-        catch (NumberFormatException e)
-        {
-            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, DEFAULT_BUCKET_HIGH), e);
-        }
-
-        if (bucketHigh <= bucketLow)
-        {
-            throw new ConfigurationException(String.format("Bucket high value (%s) is less than or equal bucket low value (%s)", bucketHigh, bucketLow));
-        }
-
-        uncheckedOptions.remove(MIN_SSTABLE_SIZE_KEY);
-        uncheckedOptions.remove(BUCKET_LOW_KEY);
-        uncheckedOptions.remove(BUCKET_HIGH_KEY);
         uncheckedOptions.remove(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD);
         uncheckedOptions.remove(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD);
 

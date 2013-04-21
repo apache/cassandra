@@ -57,11 +57,13 @@ public class LeveledManifest
     private final List<SSTableReader>[] generations;
     private final RowPosition[] lastCompactedKeys;
     private final int maxSSTableSizeInBytes;
+    private final SizeTieredCompactionStrategyOptions options;
 
-    private LeveledManifest(ColumnFamilyStore cfs, int maxSSTableSizeInMB)
+    private LeveledManifest(ColumnFamilyStore cfs, int maxSSTableSizeInMB, SizeTieredCompactionStrategyOptions options)
     {
         this.cfs = cfs;
         this.maxSSTableSizeInBytes = maxSSTableSizeInMB * 1024 * 1024;
+        this.options = options;
 
         // allocate enough generations for a PB of data
         int n = (int) Math.log10(1000 * 1000 * 1000 / maxSSTableSizeInMB);
@@ -74,14 +76,14 @@ public class LeveledManifest
         }
     }
 
-    static LeveledManifest create(ColumnFamilyStore cfs, int maxSSTableSize)
+    public static LeveledManifest create(ColumnFamilyStore cfs, int maxSSTableSize, List<SSTableReader> sstables)
     {
-        return create(cfs, maxSSTableSize, cfs.getSSTables());
+        return create(cfs, maxSSTableSize, sstables, new SizeTieredCompactionStrategyOptions());
     }
 
-    public static LeveledManifest create(ColumnFamilyStore cfs, int maxSSTableSize, Iterable<SSTableReader> sstables)
+    public static LeveledManifest create(ColumnFamilyStore cfs, int maxSSTableSize, Iterable<SSTableReader> sstables, SizeTieredCompactionStrategyOptions options)
     {
-        LeveledManifest manifest = new LeveledManifest(cfs, maxSSTableSize);
+        LeveledManifest manifest = new LeveledManifest(cfs, maxSSTableSize, options);
 
         // ensure all SSTables are in the manifest
         for (SSTableReader ssTableReader : sstables)
@@ -271,9 +273,9 @@ public class LeveledManifest
                     Iterable<SSTableReader> candidates = cfs.getDataTracker().getUncompactingSSTables(generations[0]);
                     List<Pair<SSTableReader,Long>> pairs = SizeTieredCompactionStrategy.createSSTableAndLengthPairs(AbstractCompactionStrategy.filterSuspectSSTables(candidates));
                     List<List<SSTableReader>> buckets = SizeTieredCompactionStrategy.getBuckets(pairs,
-                                                                                                SizeTieredCompactionStrategy.DEFAULT_BUCKET_HIGH,
-                                                                                                SizeTieredCompactionStrategy.DEFAULT_BUCKET_LOW,
-                                                                                                SizeTieredCompactionStrategy.DEFAULT_MIN_SSTABLE_SIZE);
+                                                                                                options.bucketHigh,
+                                                                                                options.bucketLow,
+                                                                                                options.minSSTableSize);
                     List<SSTableReader> mostInteresting = SizeTieredCompactionStrategy.mostInterestingBucket(buckets, 4, 32);
                     if (!mostInteresting.isEmpty())
                         return Pair.create(mostInteresting, 0);

@@ -53,6 +53,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     {
         super(cfs, options);
         int configuredMaxSSTableSize = 5;
+        SizeTieredCompactionStrategyOptions localOptions = new SizeTieredCompactionStrategyOptions(options);
         if (options != null)
         {
             String value = options.containsKey(SSTABLE_SIZE_OPTION) ? options.get(SSTABLE_SIZE_OPTION) : "5";
@@ -63,7 +64,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         cfs.getDataTracker().subscribe(this);
         logger.debug("{} subscribed to the data tracker.", this);
 
-        manifest = LeveledManifest.create(cfs, this.maxSSTableSizeInMB);
+        manifest = LeveledManifest.create(cfs, this.maxSSTableSizeInMB, Collections.<SSTableReader>emptyList(), localOptions);
         logger.debug("Created {}", manifest);
     }
 
@@ -346,6 +347,8 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         }
 
         uncheckedOptions.remove(SSTABLE_SIZE_OPTION);
+
+        uncheckedOptions = SizeTieredCompactionStrategyOptions.validateOptions(options, uncheckedOptions);
 
         return uncheckedOptions;
     }
