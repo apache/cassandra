@@ -23,7 +23,7 @@ public class PaxosState
     }
     private static Object lockFor(ByteBuffer key)
     {
-        return locks[key.hashCode() % locks.length];
+        return locks[(0x7FFFFFFF & key.hashCode()) % locks.length];
     }
 
     private final Commit inProgressCommit;
