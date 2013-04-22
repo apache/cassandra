@@ -73,11 +73,6 @@ public class DeletionInfo
         this.ranges = ranges;
     }
 
-    public DeletionInfo(DeletionTime deletion)
-    {
-        this(deletion, IntervalTree.<ByteBuffer, DeletionTime, RangeTombstone>emptyTree());
-    }
-
     public static Serializer serializer()
     {
         return serializer;

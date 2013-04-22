@@ -323,7 +323,7 @@ public class SSTableReader extends SSTable
     {
         if (!components.contains(Component.FILTER))
         {
-            bf = AlwaysPresentFilter.instance;
+            bf = new AlwaysPresentFilter();
             return;
         }
 

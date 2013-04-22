@@ -131,7 +131,7 @@ public class FilterFactory
     {
         assert maxFalsePosProbability <= 1.0 : "Invalid probability";
         if (maxFalsePosProbability == 1.0)
-            return AlwaysPresentFilter.instance;
+            return new AlwaysPresentFilter();
         int bucketsPerElement = BloomCalculations.maxBucketsPerElement(numElements);
         BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement, maxFalsePosProbability);
         return createFilter(spec.K, numElements, spec.bucketsPerElement, type, offheap);

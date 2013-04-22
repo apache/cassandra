@@ -47,7 +47,7 @@ public class Descriptor
     public static class Version
     {
         // This needs to be at the begining for initialization sake
-        public static final String current_version = "ic";
+        public static final String current_version = "ib";
 
         public static final Version LEGACY = new Version("a"); // "pre-history"
         // b (0.7.0): added version to sstable filenames
@@ -62,11 +62,10 @@ public class Descriptor
         // hd (1.0.10): includes row tombstones in maxtimestamp
         // he (1.1.3): includes ancestors generation in metadata component
         // hf (1.1.6): marker that replay position corresponds to 1.1.5+ millis-based id (see CASSANDRA-4782)
-        // ia (1.2.0): column indexes are promoted to the index file.  (this means index offsets are now against the start of the row key, rather than the start of columns data, since the former allows us to skip the row header)
+        // ia (1.2.0): column indexes are promoted to the index file
         //             records estimated histogram of deletion times in tombstones
         //             bloom filter (keys and columns) upgraded to Murmur3
         // ib (1.2.1): tracks min client timestamp in metadata component
-        // ic (1.2.6): always promotes row-level tombstones into index file; previously this was unreliable
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -84,7 +83,6 @@ public class Descriptor
         public final boolean hasPartitioner;
         public final boolean tracksTombstones;
         public final boolean hasPromotedIndexes;
-        public final boolean hasPromotedRowTombstones;
         public final FilterFactory.Type filterType;
         public final boolean hasAncestors;
         public final boolean hasBloomFilterSizeInHeader;
@@ -104,7 +102,6 @@ public class Descriptor
             metadataIncludesModernReplayPosition = version.compareTo("hf") >= 0;
             tracksTombstones = version.compareTo("ia") >= 0;
             hasPromotedIndexes = version.compareTo("ia") >= 0;
-            hasPromotedRowTombstones = version.compareTo("ic") >= 0;
             isLatestVersion = version.compareTo(current_version) == 0;
             if (version.compareTo("f") < 0)
                 filterType = FilterFactory.Type.SHA;

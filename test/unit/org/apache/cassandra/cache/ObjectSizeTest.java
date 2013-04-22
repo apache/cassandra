@@ -3,14 +3,13 @@ package org.apache.cassandra.cache;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import org.junit.Test;
-
 import junit.framework.Assert;
-import org.apache.cassandra.db.ColumnIndex;
-import org.apache.cassandra.db.DeletionTime;
+
+import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.github.jamm.MemoryMeter;
+import org.junit.Test;
 
 public class ObjectSizeTest
 {
@@ -57,7 +56,7 @@ public class ObjectSizeTest
     @Test
     public void testKeyCacheValueWithDelInfo()
     {
-        RowIndexEntry entry = RowIndexEntry.create(123, new DeletionTime(123, 123), ColumnIndex.nothing());
+        RowIndexEntry entry = RowIndexEntry.create(123, new DeletionInfo(123, 123), null);
         long size = entry.memorySize();
         long size2 = meter.measureDeep(entry);
         Assert.assertEquals(size, size2);

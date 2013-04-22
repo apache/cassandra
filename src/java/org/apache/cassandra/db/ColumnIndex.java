@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
@@ -35,7 +33,7 @@ public class ColumnIndex
     public final List<IndexHelper.IndexInfo> columnsIndex;
     public final IFilter bloomFilter;
 
-    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList(), AlwaysPresentFilter.instance);
+    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList(), new AlwaysPresentFilter());
 
     private ColumnIndex(int estimatedColumnCount)
     {
@@ -44,17 +42,8 @@ public class ColumnIndex
 
     private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex, IFilter bloomFilter)
     {
-        assert columnsIndex != null;
-        assert bloomFilter != null;
-
         this.columnsIndex = columnsIndex;
         this.bloomFilter = bloomFilter;
-    }
-
-    @VisibleForTesting
-    public static ColumnIndex nothing()
-    {
-        return new ColumnIndex(0);
     }
 
     /**

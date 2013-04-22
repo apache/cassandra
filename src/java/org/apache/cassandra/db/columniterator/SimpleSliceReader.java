@@ -49,7 +49,7 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
     private FileMark mark;
     private final OnDiskAtom.Serializer atomSerializer;
 
-    public SimpleSliceReader(SSTableReader sstable, RowIndexEntry rowEntry, FileDataInput input, ByteBuffer finishColumn)
+    public SimpleSliceReader(SSTableReader sstable, RowIndexEntry indexEntry, FileDataInput input, ByteBuffer finishColumn)
     {
         this.sstable = sstable;
         this.finishColumn = finishColumn;
@@ -58,21 +58,19 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
         {
             if (input == null)
             {
-                this.file = sstable.getFileDataInput(rowEntry.position);
+                this.file = sstable.getFileDataInput(indexEntry.position);
                 this.needsClosing = true;
             }
             else
             {
                 this.file = input;
-                input.seek(rowEntry.position);
+                input.seek(indexEntry.position);
                 this.needsClosing = false;
             }
 
             // Skip key and data size
             ByteBufferUtil.skipShortLength(file);
             SSTableReader.readRowSize(file, sstable.descriptor);
-
-            emptyColumnFamily = ColumnFamily.create(sstable.metadata);
 
             Descriptor.Version version = sstable.descriptor.version;
             if (!version.hasPromotedIndexes)
@@ -81,6 +79,7 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
                 IndexHelper.skipIndex(file);
             }
 
+            emptyColumnFamily = ColumnFamily.create(sstable.metadata);
             emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
             atomSerializer = emptyColumnFamily.getOnDiskSerializer();
             columns = file.readInt();

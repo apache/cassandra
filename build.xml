@@ -519,7 +519,7 @@
       </artifact:pom>
     </target>
 
-    <target name="maven-ant-tasks-retrieve-build" depends="maven-declare-dependencies" unless="without.maven">
+    <target name="maven-ant-tasks-retrieve-build" depends="maven-declare-dependencies">
       <artifact:dependencies pomRefId="build-deps-pom"
                              filesetId="build-dependency-jars" 
                              sourcesFilesetId="build-dependency-sources" 

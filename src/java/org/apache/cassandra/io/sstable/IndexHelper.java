@@ -120,6 +120,11 @@ public class IndexHelper
         return indexList;
     }
 
+    public static IFilter defreezeBloomFilter(FileDataInput file, FilterFactory.Type type) throws IOException
+    {
+        return defreezeBloomFilter(file, Integer.MAX_VALUE, type);
+    }
+
     /**
      * De-freeze the bloom filter.
      *

@@ -28,7 +28,6 @@ import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.AlwaysPresentFilter;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -46,41 +45,35 @@ public class RowIndexEntry implements IMeasurableMemory
 
     public int serializedSize()
     {
-        return TypeSizes.NATIVE.sizeof(position) + promotedSize();
+        return TypeSizes.NATIVE.sizeof(position);
     }
 
-    public int promotedSize()
+    public static RowIndexEntry create(long position, DeletionInfo deletionInfo, ColumnIndex index)
     {
-        return 0;
-    }
-
-    public static RowIndexEntry create(long position, DeletionTime deletion, ColumnIndex index)
-    {
-        assert deletion != null;
-        assert index != null;
-
-        if (index.columnsIndex.size() > 1 || deletion != DeletionTime.LIVE)
-            return new IndexedEntry(position,
-                                    deletion,
-                                    index.columnsIndex.isEmpty() ? Collections.<IndexHelper.IndexInfo>emptyList() : index.columnsIndex,
-                                    AlwaysPresentFilter.instance);
+        if (index != null && index.columnsIndex != null && index.columnsIndex.size() > 1)
+            return new IndexedEntry(position, deletionInfo, index.columnsIndex, index.bloomFilter);
         else
             return new RowIndexEntry(position);
     }
 
-    public DeletionTime deletionTime()
+    public boolean isIndexed()
     {
-        return DeletionTime.LIVE;
+        return !columnsIndex().isEmpty();
+    }
+
+    public DeletionInfo deletionInfo()
+    {
+        throw new UnsupportedOperationException();
     }
 
     public List<IndexHelper.IndexInfo> columnsIndex()
     {
-        return Collections.emptyList();
+        return Collections.<IndexHelper.IndexInfo>emptyList();
     }
 
     public IFilter bloomFilter()
     {
-        return AlwaysPresentFilter.instance;
+        throw new UnsupportedOperationException();
     }
 
     public long memorySize()
@@ -94,13 +87,14 @@ public class RowIndexEntry implements IMeasurableMemory
         public void serialize(RowIndexEntry rie, DataOutput dos) throws IOException
         {
             dos.writeLong(rie.position);
-            if (!rie.columnsIndex().isEmpty() || rie.deletionTime() != DeletionTime.LIVE)
+            if (rie.isIndexed())
             {
-                dos.writeInt(rie.promotedSize());
-                DeletionTime.serializer.serialize(rie.deletionTime(), dos);
+                dos.writeInt(((IndexedEntry)rie).serializedSize());
+                DeletionInfo.serializer().serializeForSSTable(rie.deletionInfo(), dos);
                 dos.writeInt(rie.columnsIndex().size());
                 for (IndexHelper.IndexInfo info : rie.columnsIndex())
                     info.serialize(dos);
+                FilterFactory.serialize(rie.bloomFilter(), dos);
             }
             else
             {
@@ -108,23 +102,38 @@ public class RowIndexEntry implements IMeasurableMemory
             }
         }
 
+        public RowIndexEntry deserializePositionOnly(DataInput dis, Descriptor.Version version) throws IOException
+        {
+            long position = dis.readLong();
+            if (version.hasPromotedIndexes)
+            {
+                int size = dis.readInt();
+                if (size > 0)
+                    FileUtils.skipBytesFully(dis, size);
+            }
+            return new RowIndexEntry(position);
+        }
+
         public RowIndexEntry deserialize(DataInput dis, Descriptor.Version version) throws IOException
         {
             long position = dis.readLong();
-            if (!version.hasPromotedIndexes)
-                return new RowIndexEntry(position);
-
-            int size = dis.readInt();
-            if (size > 0)
+            if (version.hasPromotedIndexes)
             {
-                DeletionTime deletion = DeletionTime.serializer.deserialize(dis);
-                int entries = dis.readInt();
-                List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
-                for (int i = 0; i < entries; i++)
-                    columnsIndex.add(IndexHelper.IndexInfo.deserialize(dis));
-                if (!version.hasPromotedRowTombstones && entries > 0)
-                    FilterFactory.deserialize(dis, version.filterType, false);
-                return new IndexedEntry(position, deletion, columnsIndex, AlwaysPresentFilter.instance);
+                int size = dis.readInt();
+                if (size > 0)
+                {
+                    DeletionInfo delInfo = DeletionInfo.serializer().deserializeFromSSTable(dis, version);
+                    int entries = dis.readInt();
+                    List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
+                    for (int i = 0; i < entries; i++)
+                        columnsIndex.add(IndexHelper.IndexInfo.deserialize(dis));
+                    IFilter bf = FilterFactory.deserialize(dis, version.filterType, false);
+                    return new IndexedEntry(position, delInfo, columnsIndex, bf);
+                }
+                else
+                {
+                    return new RowIndexEntry(position);
+                }
             }
             else
             {
@@ -154,24 +163,24 @@ public class RowIndexEntry implements IMeasurableMemory
      */
     private static class IndexedEntry extends RowIndexEntry
     {
-        private final DeletionTime deletion;
+        private final DeletionInfo deletionInfo;
         private final List<IndexHelper.IndexInfo> columnsIndex;
         private final IFilter bloomFilter;
 
-        private IndexedEntry(long position, DeletionTime deletion, List<IndexHelper.IndexInfo> columnsIndex, IFilter bloomFilter)
+        private IndexedEntry(long position, DeletionInfo deletionInfo, List<IndexHelper.IndexInfo> columnsIndex, IFilter bloomFilter)
         {
             super(position);
-            assert deletion != null;
-            assert columnsIndex != null;
-            this.deletion = deletion;
+            assert deletionInfo != null;
+            assert columnsIndex != null && columnsIndex.size() > 1;
+            this.deletionInfo = deletionInfo;
             this.columnsIndex = columnsIndex;
             this.bloomFilter = bloomFilter;
         }
 
         @Override
-        public DeletionTime deletionTime()
+        public DeletionInfo deletionInfo()
         {
-            return deletion;
+            return deletionInfo;
         }
 
         @Override
@@ -187,15 +196,15 @@ public class RowIndexEntry implements IMeasurableMemory
         }
 
         @Override
-        public int promotedSize()
+        public int serializedSize()
         {
             TypeSizes typeSizes = TypeSizes.NATIVE;
-            long size = DeletionTime.serializer.serializedSize(deletion, typeSizes);
+            long size = DeletionTime.serializer.serializedSize(deletionInfo.getTopLevelDeletion(), typeSizes);
             size += typeSizes.sizeof(columnsIndex.size()); // number of entries
             for (IndexHelper.IndexInfo info : columnsIndex)
                 size += info.serializedSize(typeSizes);
 
-            size += bloomFilter instanceof AlwaysPresentFilter ? 0 : FilterFactory.serializedSize(bloomFilter);
+            size += FilterFactory.serializedSize(bloomFilter);
             assert size <= Integer.MAX_VALUE;
             return (int)size;
         }
@@ -206,7 +215,7 @@ public class RowIndexEntry implements IMeasurableMemory
             for (IndexHelper.IndexInfo idx : columnsIndex)
                 internal += idx.memorySize();
             long listSize = ObjectSizes.getFieldSize(ObjectSizes.getArraySize(columnsIndex.size(), internal) + 4);
-            return ObjectSizes.getFieldSize(deletion.memorySize() + listSize);
+            return ObjectSizes.getFieldSize(deletionInfo.memorySize() + listSize);
         }
     }
 }
