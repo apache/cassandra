@@ -102,7 +102,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
 
         Gossiper.instance.initializeNodeUnsafe(REMOTE, UUID.randomUUID(), 1);
 
-        local_range = StorageService.instance.getLocalPrimaryRange();
+        local_range = StorageService.instance.getPrimaryRangesForEndpoint(tablename, LOCAL).iterator().next();
 
         // (we use REMOTE instead of LOCAL so that the reponses for the validator.complete() get lost)
         int gcBefore = (int)(System.currentTimeMillis()/1000) - store.metadata.getGcGraceSeconds();

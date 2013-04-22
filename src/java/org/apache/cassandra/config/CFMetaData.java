@@ -165,7 +165,7 @@ public final class CFMetaData
                                                                + "PRIMARY KEY(keyspace_name, columnfamily_name, column_name)"
                                                                + ") WITH COMMENT='ColumnFamily column attributes' AND gc_grace_seconds=8640");
 
-    public static final CFMetaData HintsCf = compile(11, "CREATE TABLE " + SystemTable.HINTS_CF + " ("
+    public static final CFMetaData HintsCf = compile("CREATE TABLE " + SystemTable.HINTS_CF + " ("
                                                          + "target_id uuid,"
                                                          + "hint_id timeuuid,"
                                                          + "message_version int,"
@@ -176,7 +176,7 @@ public final class CFMetaData
                                                          + "AND COMMENT='hints awaiting delivery'"
                                                          + "AND gc_grace_seconds=0");
 
-    public static final CFMetaData PeersCf = compile(12, "CREATE TABLE " + SystemTable.PEERS_CF + " ("
+    public static final CFMetaData PeersCf = compile("CREATE TABLE " + SystemTable.PEERS_CF + " ("
                                                          + "peer inet PRIMARY KEY,"
                                                          + "host_id uuid,"
                                                          + "tokens set<varchar>,"
@@ -187,12 +187,12 @@ public final class CFMetaData
                                                          + "rack text"
                                                          + ") WITH COMMENT='known peers in the cluster'");
 
-    public static final CFMetaData PeerEventsCf = compile(12, "CREATE TABLE " + SystemTable.PEER_EVENTS_CF + " ("
+    public static final CFMetaData PeerEventsCf = compile("CREATE TABLE " + SystemTable.PEER_EVENTS_CF + " ("
                                                         + "peer inet PRIMARY KEY,"
                                                         + "hints_dropped map<uuid, int>"
                                                         + ") WITH COMMENT='cf contains events related to peers'");
 
-    public static final CFMetaData LocalCf = compile(13, "CREATE TABLE " + SystemTable.LOCAL_CF + " ("
+    public static final CFMetaData LocalCf = compile("CREATE TABLE " + SystemTable.LOCAL_CF + " ("
                                                          + "key text PRIMARY KEY,"
                                                          + "tokens set<varchar>,"
                                                          + "cluster_name text,"
@@ -209,7 +209,7 @@ public final class CFMetaData
                                                          + "truncated_at map<uuid, blob>"
                                                          + ") WITH COMMENT='information about the local node'");
 
-    public static final CFMetaData TraceSessionsCf = compile(14, "CREATE TABLE " + Tracing.SESSIONS_CF + " ("
+    public static final CFMetaData TraceSessionsCf = compile("CREATE TABLE " + Tracing.SESSIONS_CF + " ("
                                                                + "  session_id uuid PRIMARY KEY,"
                                                                + "  coordinator inet,"
                                                                + "  request text,"
@@ -218,7 +218,7 @@ public final class CFMetaData
                                                                + "  duration int"
                                                                + ") WITH COMMENT='traced sessions'", Tracing.TRACE_KS);
 
-    public static final CFMetaData TraceEventsCf = compile(15, "CREATE TABLE " + Tracing.EVENTS_CF + " ("
+    public static final CFMetaData TraceEventsCf = compile("CREATE TABLE " + Tracing.EVENTS_CF + " ("
                                                                + "  session_id uuid,"
                                                                + "  event_id timeuuid,"
                                                                + "  source inet,"
@@ -228,26 +228,26 @@ public final class CFMetaData
                                                                + "  PRIMARY KEY (session_id, event_id)"
                                                                + ");", Tracing.TRACE_KS);
 
-    public static final CFMetaData BatchlogCf = compile(16, "CREATE TABLE " + SystemTable.BATCHLOG_CF + " ("
+    public static final CFMetaData BatchlogCf = compile("CREATE TABLE " + SystemTable.BATCHLOG_CF + " ("
                                                             + "id uuid PRIMARY KEY,"
                                                             + "written_at timestamp,"
                                                             + "data blob"
                                                             + ") WITH COMMENT='uncommited batches' AND gc_grace_seconds=0 "
                                                             + "AND COMPACTION={'class' : 'SizeTieredCompactionStrategy', 'min_threshold' : 2}");
 
-    public static final CFMetaData RangeXfersCf = compile(17, "CREATE TABLE " + SystemTable.RANGE_XFERS_CF + " ("
+    public static final CFMetaData RangeXfersCf = compile("CREATE TABLE " + SystemTable.RANGE_XFERS_CF + " ("
                                                               + "token_bytes blob PRIMARY KEY,"
                                                               + "requested_at timestamp"
                                                               + ") WITH COMMENT='ranges requested for transfer here'");
 
-    public static final CFMetaData CompactionLogCf = compile(18, "CREATE TABLE " + SystemTable.COMPACTION_LOG + " ("
+    public static final CFMetaData CompactionLogCf = compile("CREATE TABLE " + SystemTable.COMPACTION_LOG + " ("
                                                                  + "id uuid PRIMARY KEY,"
                                                                  + "keyspace_name text,"
                                                                  + "columnfamily_name text,"
                                                                  + "inputs set<int>"
                                                                  + ") WITH COMMENT='unfinished compactions'");
 
-    public static final CFMetaData PaxosCf = compile(18, "CREATE TABLE " + SystemTable.PAXOS_CF + " ("
+    public static final CFMetaData PaxosCf = compile("CREATE TABLE " + SystemTable.PAXOS_CF + " ("
                                                                  + "row_key blob,"
                                                                  + "cf_id UUID,"
                                                                  + "in_progress_ballot timeuuid,"
@@ -437,7 +437,12 @@ public final class CFMetaData
         updateCfDef(); // init cqlCfDef
     }
 
-    private static CFMetaData compile(int id, String cql, String keyspace)
+    private static CFMetaData compile(String cql, String keyspace)
+    {
+        return compile(null, cql, keyspace);
+    }
+
+    private static CFMetaData compile(Integer id, String cql, String keyspace)
     {
         try
         {
@@ -450,6 +455,11 @@ public final class CFMetaData
         {
             throw new RuntimeException(e);
         }
+    }
+
+    private static CFMetaData compile(String cql)
+    {
+        return compile(null, cql, Table.SYSTEM_KS);
     }
 
     private static CFMetaData compile(int id, String cql)
