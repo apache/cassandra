@@ -47,7 +47,7 @@ public class Descriptor
     public static class Version
     {
         // This needs to be at the begining for initialization sake
-        public static final String current_version = "ib";
+        public static final String current_version = "ic";
 
         public static final Version LEGACY = new Version("a"); // "pre-history"
         // b (0.7.0): added version to sstable filenames
@@ -66,6 +66,7 @@ public class Descriptor
         //             records estimated histogram of deletion times in tombstones
         //             bloom filter (keys and columns) upgraded to Murmur3
         // ib (1.2.1): tracks min client timestamp in metadata component
+        // ic (1.2.5): omits per-row bloom filter of column names
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -85,7 +86,7 @@ public class Descriptor
         public final boolean hasPromotedIndexes;
         public final FilterFactory.Type filterType;
         public final boolean hasAncestors;
-        public final boolean hasBloomFilterSizeInHeader;
+        public final boolean hasRowLevelBF;
 
         public Version(String version)
         {
@@ -109,7 +110,7 @@ public class Descriptor
                 filterType = FilterFactory.Type.MURMUR2;
             else
                 filterType = FilterFactory.Type.MURMUR3;
-            hasBloomFilterSizeInHeader = version.compareTo("ia") < 0;
+            hasRowLevelBF = version.compareTo("ic") < 0;
         }
 
         /**

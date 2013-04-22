@@ -36,42 +36,10 @@ import org.apache.cassandra.utils.*;
  */
 public class IndexHelper
 {
-    public static void skipSSTableBloomFilter(DataInput in, Descriptor.Version version) throws IOException
+    public static void skipBloomFilter(DataInput in) throws IOException
     {
-        if (version.hasBloomFilterSizeInHeader)
-        {
-            int size = in.readInt();
-            FileUtils.skipBytesFully(in, size);
-        }
-        else
-        {
-            skipBloomFilter(in, version.filterType);
-        }
-    }
-
-    /**
-     * Skip the bloom filter
-     * @param in the data input from which the bloom filter should be skipped
-     * @throws IOException
-     */
-    public static void skipBloomFilter(DataInput in, FilterFactory.Type type) throws IOException
-    {
-        /* size of the bloom filter */
         int size = in.readInt();
-        switch (type)
-        {
-            case SHA:
-                // can skip since bitset = 1 byte
-                FileUtils.skipBytesFully(in, size);
-                break;
-            case MURMUR2:
-            case MURMUR3:
-                long bitLength = in.readInt() * 8;
-                FileUtils.skipBytesFully(in, bitLength);
-                break;
-            default:
-                throw new IllegalStateException("Unknown filterfactory type " + type.toString());
-        }
+        FileUtils.skipBytesFully(in, size);
     }
 
     /**
@@ -118,34 +86,6 @@ public class IndexHelper
         assert in.bytesPastMark(mark) == columnIndexSize;
 
         return indexList;
-    }
-
-    public static IFilter defreezeBloomFilter(FileDataInput file, FilterFactory.Type type) throws IOException
-    {
-        return defreezeBloomFilter(file, Integer.MAX_VALUE, type);
-    }
-
-    /**
-     * De-freeze the bloom filter.
-     *
-     * @param file - source file
-     * @param maxSize - sanity check: if filter claimes to be larger than this it is bogus
-     * @param type - Bloom Filter type.
-     *
-     * @return bloom filter summarizing the column information
-     * @throws java.io.IOException if an I/O error occurs.
-     * Guarantees that file's current position will be just after the bloom filter, even if
-     * the filter cannot be deserialized, UNLESS EOFException is thrown.
-     */
-    public static IFilter defreezeBloomFilter(FileDataInput file, long maxSize, FilterFactory.Type type) throws IOException
-    {
-        int size = file.readInt();
-        if (size > maxSize || size <= 0)
-            throw new EOFException("bloom filter claims to be " + size + " bytes, longer than entire row size " + maxSize);
-        ByteBuffer bytes = file.readBytes(size);
-
-        DataInputStream stream = new DataInputStream(ByteBufferUtil.inputStream(bytes));
-        return FilterFactory.deserialize(stream, type, false);
     }
 
     /**

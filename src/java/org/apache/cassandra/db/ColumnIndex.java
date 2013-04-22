@@ -22,30 +22,28 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
-import org.apache.cassandra.utils.AlwaysPresentFilter;
-import org.apache.cassandra.utils.IFilter;
-import org.apache.cassandra.utils.FilterFactory;
 
 public class ColumnIndex
 {
     public final List<IndexHelper.IndexInfo> columnsIndex;
-    public final IFilter bloomFilter;
 
-    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList(), new AlwaysPresentFilter());
+    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList());
 
-    private ColumnIndex(int estimatedColumnCount)
-    {
-        this(new ArrayList<IndexHelper.IndexInfo>(), FilterFactory.getFilter(estimatedColumnCount, 4, false));
-    }
-
-    private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex, IFilter bloomFilter)
+    private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex)
     {
         assert columnsIndex != null;
 
         this.columnsIndex = columnsIndex;
-        this.bloomFilter = bloomFilter;
+    }
+
+    @VisibleForTesting
+    public static ColumnIndex nothing()
+    {
+        return EMPTY;
     }
 
     /**
@@ -69,12 +67,11 @@ public class ColumnIndex
 
         public Builder(ColumnFamily cf,
                        ByteBuffer key,
-                       int estimatedColumnCount,
                        DataOutput output,
                        boolean fromStream)
         {
             this.indexOffset = rowHeaderSize(key, cf.deletionInfo());
-            this.result = new ColumnIndex(estimatedColumnCount);
+            this.result = new ColumnIndex(new ArrayList<IndexHelper.IndexInfo>());
             this.output = output;
             this.atomSerializer = cf.getOnDiskSerializer();
             this.tombstoneTracker = fromStream ? null : new RangeTombstone.Tracker(cf.getComparator());
@@ -82,10 +79,9 @@ public class ColumnIndex
 
         public Builder(ColumnFamily cf,
                        ByteBuffer key,
-                       int estimatedColumnCount,
                        DataOutput output)
         {
-            this(cf, key, estimatedColumnCount, output, false);
+            this(cf, key, output, false);
         }
 
         /**
@@ -156,9 +152,6 @@ public class ColumnIndex
         public void add(OnDiskAtom column) throws IOException
         {
             atomCount++;
-
-            if (column instanceof IColumn)
-                result.bloomFilter.add(column.name());
 
             if (firstColumn == null)
             {

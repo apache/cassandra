@@ -126,7 +126,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 {
                     try
                     {
-                        IndexHelper.skipSSTableBloomFilter(file, sstable.descriptor.version);
+                        IndexHelper.skipBloomFilter(file);
                     }
                     catch (Exception e)
                     {
@@ -135,10 +135,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
                         logger.debug("Invalid bloom filter in {}; will rebuild it", sstable);
                     }
-
                     try
                     {
-                        // deFreeze should have left the file position ready to deserialize index
+                        // skipping the old row-level BF should have left the file position ready to deserialize index
                         IndexHelper.deserializeIndex(file);
                     }
                     catch (Exception e)
@@ -152,7 +151,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
             if (sstable != null && !dataVersion.hasPromotedIndexes)
             {
-                IndexHelper.skipSSTableBloomFilter(inputWithTracker, dataVersion);
+                IndexHelper.skipBloomFilter(inputWithTracker);
                 IndexHelper.skipIndex(inputWithTracker);
             }
             columnFamily = ColumnFamily.create(metadata);

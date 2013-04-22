@@ -28,7 +28,7 @@ import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.IFilter;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -62,7 +62,7 @@ public class RowIndexEntry implements IMeasurableMemory
         // since if there are insufficient columns to be worth indexing we're going to seek to
         // the beginning of the row anyway, so we might as well read the tombstone there as well.
         if (index.columnsIndex.size() > 1)
-            return new IndexedEntry(position, deletionTime, index.columnsIndex, index.bloomFilter);
+            return new IndexedEntry(position, deletionTime, index.columnsIndex);
         else
             return new RowIndexEntry(position);
     }
@@ -86,11 +86,6 @@ public class RowIndexEntry implements IMeasurableMemory
         return Collections.emptyList();
     }
 
-    public IFilter bloomFilter()
-    {
-        throw new UnsupportedOperationException();
-    }
-
     public long memorySize()
     {
         long fields = TypeSizes.NATIVE.sizeof(position) + ObjectSizes.getReferenceSize(); 
@@ -99,44 +94,46 @@ public class RowIndexEntry implements IMeasurableMemory
 
     public static class Serializer
     {
-        public void serialize(RowIndexEntry rie, DataOutput dos) throws IOException
+        public void serialize(RowIndexEntry rie, DataOutput out) throws IOException
         {
-            dos.writeLong(rie.position);
+            out.writeLong(rie.position);
+            out.writeInt(rie.promotedSize());
+
             if (rie.isIndexed())
             {
-                dos.writeInt(rie.promotedSize());
-                DeletionTime.serializer.serialize(rie.deletionTime(), dos);
-                dos.writeInt(rie.columnsIndex().size());
+                DeletionTime.serializer.serialize(rie.deletionTime(), out);
+                out.writeInt(rie.columnsIndex().size());
                 for (IndexHelper.IndexInfo info : rie.columnsIndex())
-                    info.serialize(dos);
-                FilterFactory.serialize(rie.bloomFilter(), dos);
-            }
-            else
-            {
-                dos.writeInt(0);
+                    info.serialize(out);
             }
         }
 
-        public RowIndexEntry deserialize(DataInput dis, Descriptor.Version version) throws IOException
+        public RowIndexEntry deserialize(DataInput in, Descriptor.Version version) throws IOException
         {
-            long position = dis.readLong();
-            if (version.hasPromotedIndexes)
+            long position = in.readLong();
+
+            if (!version.hasPromotedIndexes)
+                return new RowIndexEntry(position);
+
+            int size = in.readInt();
+            if (size > 0)
             {
-                int size = dis.readInt();
-                if (size > 0)
+                DeletionTime deletionTime = DeletionTime.serializer.deserialize(in);
+
+                int entries = in.readInt();
+                List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
+                for (int i = 0; i < entries; i++)
+                    columnsIndex.add(IndexHelper.IndexInfo.deserialize(in));
+
+                if (version.hasRowLevelBF)
                 {
-                    DeletionTime deletionTime = DeletionTime.serializer.deserialize(dis);
-                    int entries = dis.readInt();
-                    List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
-                    for (int i = 0; i < entries; i++)
-                        columnsIndex.add(IndexHelper.IndexInfo.deserialize(dis));
-                    IFilter bf = FilterFactory.deserialize(dis, version.filterType, false);
-                    return new IndexedEntry(position, deletionTime, columnsIndex, bf);
+                    // we only ever used murmur3 BF in the promoted index
+                    in.readInt(); // hash count
+                    int words = in.readInt(); // number of Longs in the OpenBitSet
+                    FileUtils.skipBytesFully(in, words * 8);
                 }
-                else
-                {
-                    return new RowIndexEntry(position);
-                }
+
+                return new IndexedEntry(position, deletionTime, columnsIndex);
             }
             else
             {
@@ -144,20 +141,20 @@ public class RowIndexEntry implements IMeasurableMemory
             }
         }
 
-        public void skip(DataInput dis, Descriptor.Version version) throws IOException
+        public void skip(DataInput in, Descriptor.Version version) throws IOException
         {
-            dis.readLong();
+            in.readLong();
             if (version.hasPromotedIndexes)
-                skipPromotedIndex(dis);
+                skipPromotedIndex(in);
         }
 
-        public void skipPromotedIndex(DataInput dis) throws IOException
+        public void skipPromotedIndex(DataInput in) throws IOException
         {
-            int size = dis.readInt();
+            int size = in.readInt();
             if (size <= 0)
                 return;
 
-            FileUtils.skipBytesFully(dis, size);
+            FileUtils.skipBytesFully(in, size);
         }
     }
 
@@ -168,16 +165,14 @@ public class RowIndexEntry implements IMeasurableMemory
     {
         private final DeletionTime deletionTime;
         private final List<IndexHelper.IndexInfo> columnsIndex;
-        private final IFilter bloomFilter;
 
-        private IndexedEntry(long position, DeletionTime deletionTime, List<IndexHelper.IndexInfo> columnsIndex, IFilter bloomFilter)
+        private IndexedEntry(long position, DeletionTime deletionTime, List<IndexHelper.IndexInfo> columnsIndex)
         {
             super(position);
             assert deletionTime != null;
             assert columnsIndex != null && columnsIndex.size() > 1;
             this.deletionTime = deletionTime;
             this.columnsIndex = columnsIndex;
-            this.bloomFilter = bloomFilter;
         }
 
         @Override
@@ -193,12 +188,6 @@ public class RowIndexEntry implements IMeasurableMemory
         }
 
         @Override
-        public IFilter bloomFilter()
-        {
-            return bloomFilter;
-        }
-
-        @Override
         public int promotedSize()
         {
             TypeSizes typeSizes = TypeSizes.NATIVE;
@@ -207,7 +196,6 @@ public class RowIndexEntry implements IMeasurableMemory
             for (IndexHelper.IndexInfo info : columnsIndex)
                 size += info.serializedSize(typeSizes);
 
-            size += FilterFactory.serializedSize(bloomFilter);
             assert size <= Integer.MAX_VALUE;
             return (int)size;
         }
