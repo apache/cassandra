@@ -3835,7 +3835,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
         for (Table keyspace : Table.nonSystem())
         {
-            for (Range<Token> range : getPrimaryRangesForEndpoint(keyspace.name, FBUtilities.getBroadcastAddress()))
+            for (Range<Token> range : getPrimaryRangesForEndpoint(keyspace.getName(), FBUtilities.getBroadcastAddress()))
                 keys.addAll(keySamples(keyspace.getColumnFamilyStores(), range));
         }
 
