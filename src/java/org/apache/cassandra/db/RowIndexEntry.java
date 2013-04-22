@@ -45,7 +45,12 @@ public class RowIndexEntry implements IMeasurableMemory
 
     public int serializedSize()
     {
-        return TypeSizes.NATIVE.sizeof(position);
+        return TypeSizes.NATIVE.sizeof(position) + promotedSize();
+    }
+
+    protected int promotedSize()
+    {
+        return 0;
     }
 
     public static RowIndexEntry create(long position, DeletionInfo deletionInfo, ColumnIndex index)
@@ -99,7 +104,7 @@ public class RowIndexEntry implements IMeasurableMemory
             dos.writeLong(rie.position);
             if (rie.isIndexed())
             {
-                dos.writeInt(rie.serializedSize());
+                dos.writeInt(rie.promotedSize());
                 DeletionInfo.serializer().serializeForSSTable(rie.deletionInfo(), dos);
                 dos.writeInt(rie.columnsIndex().size());
                 for (IndexHelper.IndexInfo info : rie.columnsIndex())
@@ -194,7 +199,7 @@ public class RowIndexEntry implements IMeasurableMemory
         }
 
         @Override
-        public int serializedSize()
+        public int promotedSize()
         {
             TypeSizes typeSizes = TypeSizes.NATIVE;
             long size = DeletionTime.serializer.serializedSize(deletionInfo.getTopLevelDeletion(), typeSizes);
