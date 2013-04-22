@@ -113,7 +113,7 @@ public class SlabAllocator extends Allocator
      */
     public long getMinimumSize()
     {
-        return unslabbed.get() + (regionCount - 1) * REGION_SIZE;
+        return unslabbed.get() + (regionCount - 1) * (long)REGION_SIZE;
     }
 
     /**
@@ -121,7 +121,7 @@ public class SlabAllocator extends Allocator
      */
     public long getMaximumSize()
     {
-        return unslabbed.get() + regionCount * REGION_SIZE;
+        return unslabbed.get() + regionCount * (long)REGION_SIZE;
     }
 
     /**
