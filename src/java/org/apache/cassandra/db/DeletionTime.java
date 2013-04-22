@@ -21,6 +21,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.io.ISerializer;
@@ -35,7 +36,8 @@ public class DeletionTime implements Comparable<DeletionTime>
 
     public static final ISerializer<DeletionTime> serializer = new Serializer();
 
-    DeletionTime(long markedForDeleteAt, int localDeletionTime)
+    @VisibleForTesting
+    public DeletionTime(long markedForDeleteAt, int localDeletionTime)
     {
         this.markedForDeleteAt = markedForDeleteAt;
         this.localDeletionTime = localDeletionTime;

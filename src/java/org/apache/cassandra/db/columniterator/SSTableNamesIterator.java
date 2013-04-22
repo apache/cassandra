@@ -155,7 +155,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         else
         {
             cf = ColumnFamily.create(sstable.metadata);
-            cf.delete(indexEntry.deletionInfo());
+            cf.delete(indexEntry.deletionTime());
         }
 
         List<OnDiskAtom> result = new ArrayList<OnDiskAtom>();

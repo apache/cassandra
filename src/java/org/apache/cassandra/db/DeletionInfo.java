@@ -67,6 +67,11 @@ public class DeletionInfo
         assert comparator != null;
     }
 
+    public DeletionInfo(DeletionTime topLevel)
+    {
+        this(topLevel, IntervalTree.<ByteBuffer, DeletionTime, RangeTombstone>emptyTree());
+    }
+
     private DeletionInfo(DeletionTime topLevel, IntervalTree<ByteBuffer, DeletionTime, RangeTombstone> ranges)
     {
         this.topLevel = topLevel;
@@ -256,14 +261,6 @@ public class DeletionInfo
             return false;
         DeletionInfo that = (DeletionInfo)o;
         return topLevel.equals(that.topLevel) && ranges.equals(that.ranges);
-    }
-
-    public long memorySize()
-    {
-        long fields = topLevel.memorySize() + (2 * ObjectSizes.getReferenceSize());
-        if (ranges != null && !ranges.isEmpty())
-            fields += ObjectSizes.measureDeep(ranges);
-        return ObjectSizes.getFieldSize(fields);
     }
 
     @Override

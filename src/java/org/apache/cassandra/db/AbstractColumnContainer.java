@@ -51,6 +51,11 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         columns.delete(delInfo);
     }
 
+    public void delete(DeletionTime deletionTime)
+    {
+        delete(new DeletionInfo(deletionTime));
+    }
+
     // Contrarily to delete(), this will use the provided info even if those
     // are older that the current ones. Used for SuperColumn in QueryFilter.
     // delete() is probably the right method in all other cases.
