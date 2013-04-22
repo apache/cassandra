@@ -683,7 +683,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         assertRowAndColCount(1, 6, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, ThriftValidation.asIFilter(sp, cfs.getComparator()), null));
 
-        // deeleet.
+        // delete
         RowMutation rm = new RowMutation(table.name, key.key);
         rm.delete(new QueryPath(cfName, scfName), 2);
         rm.apply();

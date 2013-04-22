@@ -42,6 +42,8 @@ public class ColumnIndex
 
     private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex, IFilter bloomFilter)
     {
+        assert columnsIndex != null;
+
         this.columnsIndex = columnsIndex;
         this.bloomFilter = bloomFilter;
     }

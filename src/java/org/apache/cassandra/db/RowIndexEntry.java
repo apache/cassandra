@@ -50,12 +50,22 @@ public class RowIndexEntry implements IMeasurableMemory
 
     public static RowIndexEntry create(long position, DeletionInfo deletionInfo, ColumnIndex index)
     {
-        if (index != null && index.columnsIndex != null && index.columnsIndex.size() > 1)
+        assert index != null;
+        assert deletionInfo != null;
+
+        // we only consider the columns summary when determining whether to create an IndexedEntry,
+        // since if there are insufficient columns to be worth indexing we're going to seek to
+        // the beginning of the row anyway, so we might as well read the tombstone there as well.
+        if (index.columnsIndex.size() > 1)
             return new IndexedEntry(position, deletionInfo, index.columnsIndex, index.bloomFilter);
         else
             return new RowIndexEntry(position);
     }
 
+    /**
+     * @return true if this index entry contains the row-level tombstone and column summary.  Otherwise,
+     * caller should fetch these from the row header.
+     */
     public boolean isIndexed()
     {
         return !columnsIndex().isEmpty();
@@ -68,7 +78,7 @@ public class RowIndexEntry implements IMeasurableMemory
 
     public List<IndexHelper.IndexInfo> columnsIndex()
     {
-        return Collections.<IndexHelper.IndexInfo>emptyList();
+        return Collections.emptyList();
     }
 
     public IFilter bloomFilter()
@@ -89,7 +99,7 @@ public class RowIndexEntry implements IMeasurableMemory
             dos.writeLong(rie.position);
             if (rie.isIndexed())
             {
-                dos.writeInt(((IndexedEntry)rie).serializedSize());
+                dos.writeInt(rie.serializedSize());
                 DeletionInfo.serializer().serializeForSSTable(rie.deletionInfo(), dos);
                 dos.writeInt(rie.columnsIndex().size());
                 for (IndexHelper.IndexInfo info : rie.columnsIndex())
@@ -100,18 +110,6 @@ public class RowIndexEntry implements IMeasurableMemory
             {
                 dos.writeInt(0);
             }
-        }
-
-        public RowIndexEntry deserializePositionOnly(DataInput dis, Descriptor.Version version) throws IOException
-        {
-            long position = dis.readLong();
-            if (version.hasPromotedIndexes)
-            {
-                int size = dis.readInt();
-                if (size > 0)
-                    FileUtils.skipBytesFully(dis, size);
-            }
-            return new RowIndexEntry(position);
         }
 
         public RowIndexEntry deserialize(DataInput dis, Descriptor.Version version) throws IOException
