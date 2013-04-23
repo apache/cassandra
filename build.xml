@@ -519,7 +519,7 @@
       </artifact:pom>
     </target>
 
-    <target name="maven-ant-tasks-retrieve-build" depends="maven-declare-dependencies">
+    <target name="maven-ant-tasks-retrieve-build" depends="maven-declare-dependencies" unless="without.maven">
       <artifact:dependencies pomRefId="build-deps-pom"
                              filesetId="build-dependency-jars" 
                              sourcesFilesetId="build-dependency-sources" 
@@ -1041,7 +1041,6 @@
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
       <junit fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}">
-        <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
         <formatter type="xml" usefile="true"/>
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
@@ -1052,7 +1051,6 @@
         <classpath>
           <path refid="cassandra.classpath" />
           <pathelement location="${test.classes}"/>
-          <path refid="cobertura.classpath"/>
           <pathelement location="${test.conf}"/>
           <fileset dir="${test.lib}">
             <include name="**/*.jar" />
