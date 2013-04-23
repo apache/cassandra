@@ -171,7 +171,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
                 container.addColumn(column);
         }
 
-        Tracing.trace("Read {} live cells and {} tombstoned", columnCounter.live(), columnCounter.ignored());
+        Tracing.trace("Read {} live and {} tombstoned cells", columnCounter.live(), columnCounter.ignored());
     }
 
     public int getLiveCount(ColumnFamily cf)
