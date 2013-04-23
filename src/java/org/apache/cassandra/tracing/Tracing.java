@@ -214,9 +214,9 @@ public class Tracing
                 CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
                 ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
                 addColumn(cf, buildName(cfMeta, bytes("coordinator")), FBUtilities.getBroadcastAddress());
+                addParameterColumns(cf, parameters);
                 addColumn(cf, buildName(cfMeta, bytes("request")), request);
                 addColumn(cf, buildName(cfMeta, bytes("started_at")), started_at);
-                addParameterColumns(cf, parameters);
                 RowMutation mutation = new RowMutation(TRACE_KS, sessionIdBytes, cf);
                 StorageProxy.mutate(Arrays.asList(mutation), ConsistencyLevel.ANY);
             }
