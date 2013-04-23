@@ -187,7 +187,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
                 if (columnNames.contains(column.name()))
                 {
                     result.add(column);
-                    if (++n > columns.size())
+                    if (++n >= columns.size())
                         break;
                 }
             }
