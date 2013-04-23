@@ -19,7 +19,10 @@ package org.apache.cassandra.db.columniterator;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.SortedSet;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
@@ -124,10 +127,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         else
         {
             assert file != null;
-            if (sstable.descriptor.version.hasRowLevelBF)
-            {
-                IndexHelper.skipSSTableBloomFilter(file, sstable.descriptor.version);
-            }
+            IndexHelper.skipBloomFilter(file);
             indexList = IndexHelper.deserializeIndex(file);
         }
 
@@ -147,7 +147,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         else
         {
             cf = ArrayBackedSortedColumns.factory.create(sstable.metadata);
-            cf.delete(indexEntry.deletionInfo());
+            cf.delete(indexEntry.deletionTime());
         }
 
         List<OnDiskAtom> result = new ArrayList<OnDiskAtom>();
@@ -187,7 +187,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
                 if (columnNames.contains(column.name()))
                 {
                     result.add(column);
-                    if (n++ > columnNames.size())
+                    if (++n > columns.size())
                         break;
                 }
             }
@@ -210,7 +210,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         AbstractType<?> comparator = metadata.comparator;
         List<IndexHelper.IndexInfo> ranges = new ArrayList<IndexHelper.IndexInfo>();
         int lastIndexIdx = -1;
-        for (ByteBuffer name : columnNames)
+        for (ByteBuffer name : columns)
         {
             int index = IndexHelper.indexFor(name, indexList, comparator, false, lastIndexIdx);
             if (index < 0 || index == indexList.size())

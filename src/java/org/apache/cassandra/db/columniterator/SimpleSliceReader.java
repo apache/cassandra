@@ -68,8 +68,7 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
             Descriptor.Version version = sstable.descriptor.version;
             if (!version.hasPromotedIndexes)
             {
-                if(sstable.descriptor.version.hasRowLevelBF)
-                    IndexHelper.skipSSTableBloomFilter(file, version);
+                IndexHelper.skipBloomFilter(file);
                 IndexHelper.skipIndex(file);
             }
 

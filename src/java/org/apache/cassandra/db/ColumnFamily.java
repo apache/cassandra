@@ -159,6 +159,11 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
     public abstract void delete(DeletionInfo info);
     public abstract void maybeResetDeletionTimes(int gcBefore);
 
+    public void delete(DeletionTime deletionTime)
+    {
+        delete(new DeletionInfo(deletionTime));
+    }
+
     /**
      * Adds a column to this column map.
      * If a column with the same name is already present in the map, it will

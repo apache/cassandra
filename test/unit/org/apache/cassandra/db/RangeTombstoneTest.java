@@ -161,10 +161,6 @@ public class RangeTombstoneTest extends SchemaLoader
         return ByteBufferUtil.bytes(i);
     }
 
-    private static void insertData(ColumnFamilyStore cfs, String key) throws Exception
-    {
-    }
-
     private static void add(RowMutation rm, int value, long timestamp)
     {
         rm.add(CFNAME, b(value), b(value), timestamp);

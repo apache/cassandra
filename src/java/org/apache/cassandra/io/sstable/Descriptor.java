@@ -66,13 +66,13 @@ public class Descriptor
         //             records estimated histogram of deletion times in tombstones
         //             bloom filter (keys and columns) upgraded to Murmur3
         // ib (1.2.1): tracks min client timestamp in metadata component
+        // ic (1.2.5): omits per-row bloom filter of column names
         // ja (2.0.0): super columns are serialized as composites (note that there is no real format change,
         //               this is mostly a marker to know if we should expect super columns or not. We do need
         //               a major version bump however, because we should not allow streaming of super columns
         //               into this new format)
         //             tracks max local deletiontime in sstable metadata
         //             records bloom_filter_fp_chance in metadata component
-        //             remove row-level BF (CASSANDRA-4885)
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -93,7 +93,6 @@ public class Descriptor
         public final FilterFactory.Type filterType;
         public final boolean hasAncestors;
         public final boolean hasSuperColumns;
-        public final boolean hasBloomFilterSizeInHeader;
         public final boolean tracksMaxLocalDeletionTime;
         public final boolean hasBloomFilterFPChance;
         public final boolean hasRowLevelBF;
@@ -121,10 +120,9 @@ public class Descriptor
                 filterType = FilterFactory.Type.MURMUR2;
             else
                 filterType = FilterFactory.Type.MURMUR3;
-            hasBloomFilterSizeInHeader = version.compareTo("ia") < 0;
             hasSuperColumns = version.compareTo("ja") < 0;
             hasBloomFilterFPChance = version.compareTo("ja") >= 0;
-            hasRowLevelBF = version.compareTo("ja") < 0;
+            hasRowLevelBF = version.compareTo("ic") < 0;
         }
 
         /**

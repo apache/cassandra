@@ -158,18 +158,18 @@ public class Util
     }
 
     /**
-     * Writes out a bunch of rows for a single column family.
+     * Writes out a bunch of mutations for a single column family.
      *
-     * @param rows A group of RowMutations for the same table and column family.
+     * @param mutations A group of RowMutations for the same table and column family.
      * @return The ColumnFamilyStore that was used.
      */
-    public static ColumnFamilyStore writeColumnFamily(List<IMutation> rms) throws IOException, ExecutionException, InterruptedException
+    public static ColumnFamilyStore writeColumnFamily(List<IMutation> mutations) throws IOException, ExecutionException, InterruptedException
     {
-        IMutation first = rms.get(0);
+        IMutation first = mutations.get(0);
         String tablename = first.getTable();
         UUID cfid = first.getColumnFamilyIds().iterator().next();
 
-        for (IMutation rm : rms)
+        for (IMutation rm : mutations)
             rm.apply();
 
         ColumnFamilyStore store = Table.open(tablename).getColumnFamilyStore(cfid);

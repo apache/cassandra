@@ -126,7 +126,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 {
                     try
                     {
-                        IndexHelper.skipSSTableBloomFilter(file, dataVersion);
+                        IndexHelper.skipBloomFilter(file);
                     }
                     catch (Exception e)
                     {
@@ -151,7 +151,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
             if (sstable != null && !dataVersion.hasPromotedIndexes)
             {
-                IndexHelper.skipSSTableBloomFilter(inputWithTracker, dataVersion);
+                IndexHelper.skipBloomFilter(inputWithTracker);
                 IndexHelper.skipIndex(inputWithTracker);
             }
             columnFamily = EmptyColumns.factory.create(metadata);

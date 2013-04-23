@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
 
@@ -33,7 +35,15 @@ public class ColumnIndex
 
     private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex)
     {
+        assert columnsIndex != null;
+
         this.columnsIndex = columnsIndex;
+    }
+
+    @VisibleForTesting
+    public static ColumnIndex nothing()
+    {
+        return EMPTY;
     }
 
     /**

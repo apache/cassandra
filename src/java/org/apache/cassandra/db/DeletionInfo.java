@@ -28,14 +28,13 @@ import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.ISSTableSerializer;
+import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.IntervalTree;
-import org.apache.cassandra.utils.ObjectSizes;
 
 public class DeletionInfo
 {
@@ -265,14 +264,6 @@ public class DeletionInfo
             return false;
         DeletionInfo that = (DeletionInfo)o;
         return topLevel.equals(that.topLevel) && ranges.equals(that.ranges);
-    }
-
-    public long memorySize()
-    {
-        long fields = topLevel.memorySize() + (2 * ObjectSizes.getReferenceSize());
-        if (ranges != null && !ranges.isEmpty())
-            fields += ObjectSizes.measureDeep(ranges);
-        return ObjectSizes.getFieldSize(fields);
     }
 
     @Override

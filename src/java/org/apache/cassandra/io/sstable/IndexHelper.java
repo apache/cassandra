@@ -36,43 +36,10 @@ import org.apache.cassandra.utils.*;
  */
 public class IndexHelper
 {
-    public static void skipSSTableBloomFilter(DataInput in, Descriptor.Version version) throws IOException
+    public static void skipBloomFilter(DataInput in) throws IOException
     {
-        if (version.hasBloomFilterSizeInHeader)
-        {
-            int size = in.readInt();
-            FileUtils.skipBytesFully(in, size);
-        }
-        else
-        {
-            skipBloomFilter(in, version.filterType);
-        }
-    }
-
-
-    /**
-     * Skip the bloom filter
-     * @param in the data input from which the bloom filter should be skipped
-     * @throws IOException
-     */
-    public static void skipBloomFilter(DataInput in, FilterFactory.Type type) throws IOException
-    {
-        /* size of the bloom filter */
         int size = in.readInt();
-        switch (type)
-        {
-            case SHA:
-                // can skip since bitset = 1 byte
-                FileUtils.skipBytesFully(in, size);
-                break;
-            case MURMUR2:
-            case MURMUR3:
-                long bitLength = in.readInt() * 8;
-                FileUtils.skipBytesFully(in, bitLength);
-                break;
-            default:
-                throw new IllegalStateException("Unknown filterfactory type " + type.toString());
-        }
+        FileUtils.skipBytesFully(in, size);
     }
 
     /**
