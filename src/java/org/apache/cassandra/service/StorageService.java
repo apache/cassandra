@@ -366,6 +366,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return daemon.nativeServer.isRunning();
     }
 
+    private void shutdownClientServers()
+    {
+        stopRPCServer();
+        stopNativeTransport();
+    }
+
     public void stopClient()
     {
         Gossiper.instance.unregister(migrationManager);
@@ -511,7 +517,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (mutationStage.isShutdown())
                     return; // drained already
 
-                stopRPCServer();
+                shutdownClientServers();
                 optionalTasks.shutdown();
                 Gossiper.instance.stop();
 
@@ -2773,7 +2779,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             public void run()
             {
-                stopRPCServer();
+                shutdownClientServers();
                 Gossiper.instance.stop();
                 MessagingService.instance().shutdown();
                 StageManager.shutdownNow();
@@ -3358,7 +3364,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return;
         }
         setMode(Mode.DRAINING, "starting drain process", true);
-        stopRPCServer();
+        shutdownClientServers();
         optionalTasks.shutdown();
         Gossiper.instance.stop();
 
