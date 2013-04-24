@@ -3660,7 +3660,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return latch;
     }
 
-    class CountingDownStreamCallback implements IStreamCallback
+    static class CountingDownStreamCallback implements IStreamCallback
     {
         private final CountDownLatch latch;
         private final InetAddress targetAddr;
