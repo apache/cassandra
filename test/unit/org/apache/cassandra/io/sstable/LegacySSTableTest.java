@@ -75,7 +75,7 @@ public class LegacySSTableTest extends SchemaLoader
     public void buildTestSSTable() throws IOException
     {
         // write the output in a version specific directory
-        Descriptor dest = getDescriptor(Descriptor.CURRENT_VERSION);
+        Descriptor dest = getDescriptor(Descriptor.Version.current_version);
         assert dest.directory.mkdirs() : "Could not create " + dest.directory + ". Might it already exist?";
 
         SSTableReader ssTable = SSTableUtils.prepare().ks(KSNAME).cf(CFNAME).dest(dest).write(TEST_DATA);
