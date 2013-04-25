@@ -14,18 +14,19 @@ import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.util.FileUtils;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.apache.cassandra.db.compaction.LegacyLeveledManifestTestHelper.*;
 
 public class LegacyLeveledManifestTest
 {
+    private final static String LEGACY_VERSION = "ic";
+
     private File destDir;
     @Before
     public void setup()
     {
-        String root = System.getProperty("migration-sstable-root");
-        File rootDir = new File(root + File.separator + "hf" + File.separator + "Keyspace1");
-        destDir = Directories.create("Keyspace1", "legacyleveled").getDirectoryForNewSSTables(0);
+        destDir = Directories.create(KS, CF).getDirectoryForNewSSTables(0);
         FileUtils.createDirectory(destDir);
-        for (File srcFile : rootDir.listFiles())
+        for (File srcFile : getLegacySSTableDir(LEGACY_VERSION).listFiles())
         {
             File destFile = new File(destDir, srcFile.getName());
             FileUtils.createHardLink(srcFile,destFile);
@@ -41,17 +42,17 @@ public class LegacyLeveledManifestTest
     @Test
     public void migrateTest() throws IOException
     {
-        assertTrue(LegacyLeveledManifest.manifestNeedsMigration("Keyspace1", "legacyleveled"));
+        assertTrue(LegacyLeveledManifest.manifestNeedsMigration(KS, CF));
     }
 
     @Test
     public void doMigrationTest() throws IOException, InterruptedException
     {
-        LegacyLeveledManifest.migrateManifests("Keyspace1","legacyleveled");
+        LegacyLeveledManifest.migrateManifests(KS, CF);
 
         for (int i = 0; i <= 2; i++)
         {
-            Descriptor descriptor = Descriptor.fromFilename(destDir+File.separator+"Keyspace1-legacyleveled-hf-"+i+"-Statistics.db");
+            Descriptor descriptor = Descriptor.fromFilename(destDir+File.separator+KS+"-"+CF+"-"+LEGACY_VERSION+"-"+i+"-Statistics.db");
             SSTableMetadata metadata = SSTableMetadata.serializer.deserialize(descriptor);
             assertEquals(metadata.sstableLevel, i);
         }
@@ -67,11 +68,11 @@ public class LegacyLeveledManifestTest
         Map<Descriptor, SSTableMetadata> beforeMigration = new HashMap<Descriptor, SSTableMetadata>();
         for (int i = 0; i <= 2; i++)
         {
-            Descriptor descriptor = Descriptor.fromFilename(destDir+File.separator+"Keyspace1-legacyleveled-hf-"+i+"-Statistics.db");
+            Descriptor descriptor = Descriptor.fromFilename(destDir+File.separator+KS+"-"+CF+"-"+LEGACY_VERSION+"-"+i+"-Statistics.db");
             beforeMigration.put(descriptor, SSTableMetadata.serializer.deserialize(descriptor, false));
         }
 
-        LegacyLeveledManifest.migrateManifests("Keyspace1","legacyleveled");
+        LegacyLeveledManifest.migrateManifests(KS, CF);
 
         for (Map.Entry<Descriptor, SSTableMetadata> entry : beforeMigration.entrySet())
         {
