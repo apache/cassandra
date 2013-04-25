@@ -44,6 +44,12 @@ public class DeletedColumn extends Column
     }
 
     @Override
+    public Column withUpdatedTimestamp(long newTimestamp)
+    {
+        return new DeletedColumn(name, value, newTimestamp);
+    }
+
+    @Override
     public boolean isMarkedForDelete()
     {
         // We don't rely on the column implementation because it could mistakenly return false if

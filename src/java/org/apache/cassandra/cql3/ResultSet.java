@@ -47,7 +47,7 @@ public class ResultSet
         this(new Metadata(metadata), new ArrayList<List<ByteBuffer>>());
     }
 
-    private ResultSet(Metadata metadata, List<List<ByteBuffer>> rows)
+    public ResultSet(Metadata metadata, List<List<ByteBuffer>> rows)
     {
         this.metadata = metadata;
         this.rows = rows;

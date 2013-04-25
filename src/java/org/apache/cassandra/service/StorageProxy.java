@@ -197,7 +197,7 @@ public class StorageProxy implements StorageProxyMBean
      * @return true if the operation succeeds in updating the row
      */
     public static boolean cas(String table, String cfName, ByteBuffer key, ColumnFamily expected, ColumnFamily updates)
-    throws UnavailableException, IOException, IsBootstrappingException, ReadTimeoutException, WriteTimeoutException
+    throws UnavailableException, IsBootstrappingException, ReadTimeoutException, WriteTimeoutException
     {
         CFMetaData metadata = Schema.instance.getCFMetaData(table, cfName);
 
@@ -214,7 +214,7 @@ public class StorageProxy implements StorageProxyMBean
             // are not large enough to bother with.
             List<InetAddress> liveEndpoints = ImmutableList.copyOf(Iterables.filter(Iterables.concat(naturalEndpoints, pendingEndpoints), IAsyncCallback.isAlive));
             if (liveEndpoints.size() < requiredParticipants)
-               throw new UnavailableException(ConsistencyLevel.SERIAL, requiredParticipants, liveEndpoints.size());
+                throw new UnavailableException(ConsistencyLevel.SERIAL, requiredParticipants, liveEndpoints.size());
 
             // prepare
             logger.debug("Preparing {}", ballot);
@@ -265,12 +265,7 @@ public class StorageProxy implements StorageProxyMBean
                                     : new SliceByNamesReadCommand(table, key, cfName, new NamesQueryFilter(ImmutableSortedSet.copyOf(expected.getColumnNames())));
             List<Row> rows = read(Arrays.asList(readCommand), ConsistencyLevel.QUORUM);
             ColumnFamily current = rows.get(0).cf;
-            if ((current == null) != (expected == null))
-            {
-                logger.debug("CAS precondition {} does not match current values {}", expected, current);
-                return false;
-            }
-            if (current != null && !com.google.common.base.Objects.equal(current.asMap(), expected.asMap()))
+            if (!casApplies(expected, current))
             {
                 logger.debug("CAS precondition {} does not match current values {}", expected, current);
                 return false;
@@ -293,6 +288,39 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         throw new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, -1, -1);
+    }
+
+    private static boolean hasLiveColumns(ColumnFamily cf)
+    {
+        return cf != null && !cf.hasOnlyTombstones();
+    }
+
+    private static boolean casApplies(ColumnFamily expected, ColumnFamily current)
+    {
+        if (!hasLiveColumns(expected))
+            return !hasLiveColumns(current);
+        else if (!hasLiveColumns(current))
+            return false;
+
+        // current has been built from expected, so we know that it can't have columns
+        // that excepted don't have. So we just check that for each columns in expected:
+        //   - if it is a tombstone, whether current has no column or a tombstone;
+        //   - otherwise, that current has a live column with the same value.
+        for (Column e : expected)
+        {
+            Column c = current.getColumn(e.name());
+            if (e.isLive())
+            {
+                if (!(c != null && c.isLive() && c.value().equals(e.value())))
+                    return false;
+            }
+            else
+            {
+                if (c != null && c.isLive())
+                    return false;
+            }
+        }
+        return true;
     }
 
     private static PrepareCallback preparePaxos(Commit toPrepare, List<InetAddress> endpoints, int requiredParticipants)

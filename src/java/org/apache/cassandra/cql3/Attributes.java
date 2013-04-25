@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.cql3;
 
+import org.apache.cassandra.db.ExpiringColumn;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+
 /**
  * Utility class for the Parser to gather attributes for modification
  * statements.
@@ -25,4 +28,13 @@ public class Attributes
 {
     public Long timestamp;
     public int timeToLive;
+
+    public void validate() throws InvalidRequestException
+    {
+        if (timeToLive < 0)
+            throw new InvalidRequestException("A TTL must be greater or equal to 0");
+
+        if (timeToLive > ExpiringColumn.MAX_TTL)
+            throw new InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", timeToLive, ExpiringColumn.MAX_TTL));
+    }
 }

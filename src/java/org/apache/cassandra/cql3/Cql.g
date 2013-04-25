@@ -273,7 +273,7 @@ orderByClause[Map<ColumnIdentifier, Boolean> orderings]
  * USING TIMESTAMP <long>;
  *
  */
-insertStatement returns [UpdateStatement expr]
+insertStatement returns [UpdateStatement.ParsedInsert expr]
     @init {
         Attributes attrs = new Attributes();
         List<ColumnIdentifier> columnNames  = new ArrayList<ColumnIdentifier>();
@@ -285,7 +285,7 @@ insertStatement returns [UpdateStatement expr]
           '(' v1=term { values.add(v1); } ( ',' vn=term { values.add(vn); } )* ')'
         ( usingClause[attrs] )?
       {
-          $expr = new UpdateStatement(cf, attrs, columnNames, values);
+          $expr = new UpdateStatement.ParsedInsert(cf, attrs, columnNames, values);
       }
     ;
 
@@ -312,18 +312,30 @@ usingClauseObjective[Attributes attrs]
  * SET name1 = value1, name2 = value2
  * WHERE key = value;
  */
-updateStatement returns [UpdateStatement expr]
+updateStatement returns [UpdateStatement.ParsedUpdate expr]
     @init {
         Attributes attrs = new Attributes();
         List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations = new ArrayList<Pair<ColumnIdentifier, Operation.RawUpdate>>();
+        boolean ifNotExists = false;
     }
     : K_UPDATE cf=columnFamilyName
       ( usingClause[attrs] )?
       K_SET columnOperation[operations] (',' columnOperation[operations])*
       K_WHERE wclause=whereClause
+      ( K_IF (K_NOT K_EXISTS { ifNotExists = true; } | conditions=updateCondition) )?
       {
-          return new UpdateStatement(cf, operations, wclause, attrs);
+          return new UpdateStatement.ParsedUpdate(cf,
+                                                  attrs,
+                                                  operations,
+                                                  wclause,
+                                                  conditions == null ? Collections.<Pair<ColumnIdentifier, Operation.RawUpdate>>emptyList() : conditions,
+                                                  ifNotExists);
       }
+    ;
+
+updateCondition returns [List<Pair<ColumnIdentifier, Operation.RawUpdate>> conditions]
+    @init { conditions = new ArrayList<Pair<ColumnIdentifier, Operation.RawUpdate>>(); }
+    : columnOperation[conditions] ( K_AND columnOperation[conditions] )*
     ;
 
 /**
@@ -332,7 +344,7 @@ updateStatement returns [UpdateStatement expr]
  * USING TIMESTAMP <long>
  * WHERE KEY = keyname;
  */
-deleteStatement returns [DeleteStatement expr]
+deleteStatement returns [DeleteStatement.Parsed expr]
     @init {
         Attributes attrs = new Attributes();
         List<Operation.RawDeletion> columnDeletions = Collections.emptyList();
@@ -341,8 +353,13 @@ deleteStatement returns [DeleteStatement expr]
       K_FROM cf=columnFamilyName
       ( usingClauseDelete[attrs] )?
       K_WHERE wclause=whereClause
+      ( K_IF conditions=updateCondition )?
       {
-          return new DeleteStatement(cf, columnDeletions, wclause, attrs);
+          return new DeleteStatement.Parsed(cf,
+                                            attrs,
+                                            columnDeletions,
+                                            wclause,
+                                            conditions == null ? Collections.<Pair<ColumnIdentifier, Operation.RawUpdate>>emptyList() : conditions);
       }
     ;
 
@@ -381,10 +398,10 @@ deleteOp returns [Operation.RawDeletion op]
  *   ...
  * APPLY BATCH
  */
-batchStatement returns [BatchStatement expr]
+batchStatement returns [BatchStatement.Parsed expr]
     @init {
         BatchStatement.Type type = BatchStatement.Type.LOGGED;
-        List<ModificationStatement> statements = new ArrayList<ModificationStatement>();
+        List<ModificationStatement.Parsed> statements = new ArrayList<ModificationStatement.Parsed>();
         Attributes attrs = new Attributes();
     }
     : K_BEGIN
@@ -393,11 +410,11 @@ batchStatement returns [BatchStatement expr]
           s1=batchStatementObjective ';'? { statements.add(s1); } ( sN=batchStatementObjective ';'? { statements.add(sN); } )*
       K_APPLY K_BATCH
       {
-          return new BatchStatement(type, statements, attrs);
+          return new BatchStatement.Parsed(type, attrs, statements);
       }
     ;
 
-batchStatementObjective returns [ModificationStatement statement]
+batchStatementObjective returns [ModificationStatement.Parsed statement]
     : i=insertStatement  { $statement = i; }
     | u=updateStatement  { $statement = u; }
     | d=deleteStatement  { $statement = d; }
@@ -873,6 +890,7 @@ unreserved_function_keyword returns [String str]
         | K_SUPERUSER
         | K_NOSUPERUSER
         | K_PASSWORD
+        | K_EXISTS
         ) { $str = $k.text; }
     | t=native_type { $str = t.toString(); }
     ;
@@ -926,6 +944,7 @@ K_ASC:         A S C;
 K_DESC:        D E S C;
 K_ALLOW:       A L L O W;
 K_FILTERING:   F I L T E R I N G;
+K_IF:          I F;
 
 K_GRANT:       G R A N T;
 K_ALL:         A L L;
@@ -963,6 +982,8 @@ K_TOKEN:       T O K E N;
 K_WRITETIME:   W R I T E T I M E;
 
 K_NULL:        N U L L;
+K_NOT:         N O T;
+K_EXISTS:      E X I S T S;
 
 K_MAP:         M A P;
 K_LIST:        L I S T;

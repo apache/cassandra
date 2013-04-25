@@ -110,6 +110,11 @@ public class Column implements OnDiskAtom
         return new Column(newName, value, timestamp);
     }
 
+    public Column withUpdatedTimestamp(long newTimestamp)
+    {
+        return new Column(name, value, newTimestamp);
+    }
+
     public ByteBuffer name()
     {
         return name;

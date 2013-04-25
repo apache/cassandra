@@ -782,10 +782,6 @@ public class CassandraServer implements Cassandra.Iface
             schedule(DatabaseDescriptor.getWriteRpcTimeout());
             return StorageProxy.cas(cState.getKeyspace(), column_family, key, cfExpected, cfUpdates);
         }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
         catch (RequestTimeoutException e)
         {
             throw ThriftConversion.toThrift(e);

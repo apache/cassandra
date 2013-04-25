@@ -94,7 +94,7 @@ public class Commit
         ColumnFamily cf = updates.cloneMeShallow();
         long t = UUIDGen.microsTimestamp(ballot);
         for (Column column : updates)
-            cf.addColumn(column.name(), column.value(), t);
+            cf.addAtom(column.withUpdatedTimestamp(t));
         return cf;
     }
 
