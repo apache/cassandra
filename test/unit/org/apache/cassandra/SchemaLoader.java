@@ -208,6 +208,9 @@ public class SchemaLoader
                                                           null),
                                            standardCFMD(ks1, "StandardLeveled", withOldCfIds)
                                                                                .compactionStrategyClass(LeveledCompactionStrategy.class)
+                                                                               .compactionStrategyOptions(leveledOptions),
+                                           standardCFMD(ks1, "legacyleveled", withOldCfIds)
+                                                                               .compactionStrategyClass(LeveledCompactionStrategy.class)
                                                                                .compactionStrategyOptions(leveledOptions)));
 
         // Keyspace 2
