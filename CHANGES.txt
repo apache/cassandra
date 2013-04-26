@@ -11,6 +11,7 @@
  * Fix primary range ignores replication strategy (CASSANDRA-5424)
  * Fix shutdown of binary protocol server (CASSANDRA-5507)
  * Fix repair -snapshot not working (CASSANDRA-5512)
+ * Set isRunning flag later in binary protocol server (CASSANDRA-5467)
 Merged from 1.1
  * Add retry mechanism to OTC for non-droppable_verbs (CASSANDRA-5393)
  * Use allocator information to improve memtable memory usage estimate 
