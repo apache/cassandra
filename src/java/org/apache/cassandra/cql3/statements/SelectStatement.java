@@ -280,8 +280,7 @@ public class SelectStatement implements CQLStatement
             SliceQueryFilter filter = new SliceQueryFilter(new ColumnSlice[]{slice},
                                                            isReversed,
                                                            getLimit(),
-                                                           toGroup,
-                                                           multiplier);
+                                                           toGroup);
             QueryProcessor.validateSliceFilter(cfDef.cfm, filter);
             return filter;
         }

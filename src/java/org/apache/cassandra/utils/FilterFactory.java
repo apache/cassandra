@@ -35,61 +35,19 @@ public class FilterFactory
     private static final TypeSizes TYPE_SIZES = TypeSizes.NATIVE;
     private static final long BITSET_EXCESS = 20;
 
-    public enum Type
-    {
-        SHA, MURMUR2, MURMUR3
-    }
-
     public static void serialize(IFilter bf, DataOutput output) throws IOException
     {
-        serialize(bf, output, Type.MURMUR3);
+        Murmur3BloomFilter.serializer.serialize((Murmur3BloomFilter) bf, output);
     }
 
-    public static void serialize(IFilter bf, DataOutput output, Type type) throws IOException
+    public static IFilter deserialize(DataInput input, boolean offheap) throws IOException
     {
-        switch (type)
-        {
-            case SHA:
-                LegacyBloomFilter.serializer.serialize((LegacyBloomFilter) bf, output);
-                break;
-            case MURMUR2:
-                Murmur2BloomFilter.serializer.serialize((Murmur2BloomFilter) bf, output);
-                break;
-            default:
-                Murmur3BloomFilter.serializer.serialize((Murmur3BloomFilter) bf, output);
-                break;
-        }
-    }
-
-    public static IFilter deserialize(DataInput input, Type type, boolean offheap) throws IOException
-    {
-        switch (type)
-        {
-            case SHA:
-                return LegacyBloomFilter.serializer.deserialize(input);
-            case MURMUR2:
-                return Murmur2BloomFilter.serializer.deserialize(input, offheap);
-            default:
-                return Murmur3BloomFilter.serializer.deserialize(input, offheap);
-        }
+        return Murmur3BloomFilter.serializer.deserialize(input, offheap);
     }
 
     public static long serializedSize(IFilter bf)
     {
-        return serializedSize(bf, Type.MURMUR3);
-    }
-
-    public static long serializedSize(IFilter bf, Type type)
-    {
-        switch (type)
-        {
-            case SHA:
-                return LegacyBloomFilter.serializer.serializedSize((LegacyBloomFilter) bf);
-            case MURMUR2:
-                return Murmur2BloomFilter.serializer.serializedSize((Murmur2BloomFilter) bf, TYPE_SIZES);
-            default:
-                return Murmur3BloomFilter.serializer.serializedSize((Murmur3BloomFilter) bf, TYPE_SIZES);
-        }
+        return Murmur3BloomFilter.serializer.serializedSize((Murmur3BloomFilter) bf, TYPE_SIZES);
     }
 
     /**
@@ -98,12 +56,6 @@ public class FilterFactory
      */
     public static IFilter getFilter(long numElements, int targetBucketsPerElem, boolean offheap)
     {
-        return getFilter(numElements, targetBucketsPerElem, Type.MURMUR3, offheap);
-    }
-
-    // helper method for test.
-    static IFilter getFilter(long numElements, int targetBucketsPerElem, Type type, boolean offheap)
-    {
         int maxBucketsPerElement = Math.max(1, BloomCalculations.maxBucketsPerElement(numElements));
         int bucketsPerElement = Math.min(targetBucketsPerElem, maxBucketsPerElement);
         if (bucketsPerElement < targetBucketsPerElem)
@@ -111,7 +63,7 @@ public class FilterFactory
             logger.warn(String.format("Cannot provide an optimal BloomFilter for %d elements (%d/%d buckets per element).", numElements, bucketsPerElement, targetBucketsPerElem));
         }
         BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement);
-        return createFilter(spec.K, numElements, spec.bucketsPerElement, type, offheap);
+        return createFilter(spec.K, numElements, spec.bucketsPerElement, offheap);
     }
 
     /**
@@ -123,30 +75,18 @@ public class FilterFactory
      */
     public static IFilter getFilter(long numElements, double maxFalsePosProbability, boolean offheap)
     {
-        return getFilter(numElements, maxFalsePosProbability, Type.MURMUR3, offheap);
-    }
-
-    // helper method for test.
-    static IFilter getFilter(long numElements, double maxFalsePosProbability, Type type, boolean offheap)
-    {
         assert maxFalsePosProbability <= 1.0 : "Invalid probability";
         if (maxFalsePosProbability == 1.0)
             return new AlwaysPresentFilter();
         int bucketsPerElement = BloomCalculations.maxBucketsPerElement(numElements);
         BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement, maxFalsePosProbability);
-        return createFilter(spec.K, numElements, spec.bucketsPerElement, type, offheap);
+        return createFilter(spec.K, numElements, spec.bucketsPerElement, offheap);
     }
 
-    private static IFilter createFilter(int hash, long numElements, int bucketsPer, Type type, boolean offheap)
+    private static IFilter createFilter(int hash, long numElements, int bucketsPer, boolean offheap)
     {
         long numBits = (numElements * bucketsPer) + BITSET_EXCESS;
         IBitSet bitset = offheap ? new OffHeapBitSet(numBits) : new OpenBitSet(numBits);
-        switch (type)
-        {
-            case MURMUR2:
-              return new Murmur2BloomFilter(hash, bitset);
-            default:
-              return new Murmur3BloomFilter(hash, bitset);
-        }
+        return new Murmur3BloomFilter(hash, bitset);
     }
 }

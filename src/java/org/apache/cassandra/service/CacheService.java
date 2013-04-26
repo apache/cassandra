@@ -351,9 +351,7 @@ public class CacheService implements CacheServiceMBean
             ByteBufferUtil.writeWithLength(key.key, out);
             Descriptor desc = key.desc;
             out.writeInt(desc.generation);
-            out.writeBoolean(desc.version.hasPromotedIndexes);
-            if (!desc.version.hasPromotedIndexes)
-                return;
+            out.writeBoolean(true);
             RowIndexEntry.serializer.serialize(entry, out);
         }
 
@@ -368,10 +366,8 @@ public class CacheService implements CacheServiceMBean
                 return null;
             }
             RowIndexEntry entry;
-            if (input.readBoolean())
-                entry = RowIndexEntry.serializer.deserialize(input, reader.descriptor.version);
-            else
-                entry = reader.getPosition(reader.partitioner.decorateKey(key), Operator.EQ);
+            input.readBoolean(); // backwards compatibility for "promoted indexes" boolean
+            entry = RowIndexEntry.serializer.deserialize(input, reader.descriptor.version);
             return Futures.immediateFuture(Pair.create(new KeyCacheKey(reader.descriptor, key), entry));
         }
 

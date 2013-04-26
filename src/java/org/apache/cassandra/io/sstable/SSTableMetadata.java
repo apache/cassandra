@@ -356,29 +356,19 @@ public class SSTableMetadata
         {
             EstimatedHistogram.serializer.serialize(sstableStats.estimatedRowSize, out);
             EstimatedHistogram.serializer.serialize(sstableStats.estimatedColumnCount, out);
-            if (legacyDesc.version.metadataIncludesReplayPosition)
-                ReplayPosition.serializer.serialize(sstableStats.replayPosition, out);
-            if (legacyDesc.version.tracksMinTimestamp)
-                out.writeLong(sstableStats.minTimestamp);
-            if (legacyDesc.version.tracksMaxTimestamp)
-                out.writeLong(sstableStats.maxTimestamp);
+            ReplayPosition.serializer.serialize(sstableStats.replayPosition, out);
+            out.writeLong(sstableStats.minTimestamp);
+            out.writeLong(sstableStats.maxTimestamp);
             if (legacyDesc.version.tracksMaxLocalDeletionTime)
                 out.writeInt(sstableStats.maxLocalDeletionTime);
             if (legacyDesc.version.hasBloomFilterFPChance)
                 out.writeDouble(sstableStats.bloomFilterFPChance);
-            if (legacyDesc.version.hasCompressionRatio)
-                out.writeDouble(sstableStats.compressionRatio);
-            if (legacyDesc.version.hasPartitioner)
-                out.writeUTF(sstableStats.partitioner);
-            if (legacyDesc.version.hasAncestors)
-            {
-                out.writeInt(sstableStats.ancestors.size());
-                for (Integer g : sstableStats.ancestors)
-                    out.writeInt(g);
-            }
-            if (legacyDesc.version.tracksTombstones)
-                StreamingHistogram.serializer.serialize(sstableStats.estimatedTombstoneDropTime, out);
-
+            out.writeDouble(sstableStats.compressionRatio);
+            out.writeUTF(sstableStats.partitioner);
+            out.writeInt(sstableStats.ancestors.size());
+            for (Integer g : sstableStats.ancestors)
+                out.writeInt(g);
+            StreamingHistogram.serializer.serialize(sstableStats.estimatedTombstoneDropTime, out);
             out.writeInt(sstableStats.sstableLevel);
         }
 
@@ -416,30 +406,18 @@ public class SSTableMetadata
         {
             EstimatedHistogram rowSizes = EstimatedHistogram.serializer.deserialize(in);
             EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(in);
-            ReplayPosition replayPosition = desc.version.metadataIncludesReplayPosition
-                                          ? ReplayPosition.serializer.deserialize(in)
-                                          : ReplayPosition.NONE;
-            if (!desc.version.metadataIncludesModernReplayPosition)
-            {
-                // replay position may be "from the future" thanks to older versions generating them with nanotime.
-                // make sure we don't omit replaying something that we should.  see CASSANDRA-4782
-                replayPosition = ReplayPosition.NONE;
-            }
-            long minTimestamp = desc.version.tracksMinTimestamp ? in.readLong() : Long.MIN_VALUE;
-            long maxTimestamp = desc.version.containsTimestamp() ? in.readLong() : Long.MAX_VALUE;
-            if (!desc.version.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
-                maxTimestamp = Long.MAX_VALUE;
+            ReplayPosition replayPosition = ReplayPosition.serializer.deserialize(in);
+            long minTimestamp = in.readLong();
+            long maxTimestamp = in.readLong();
             int maxLocalDeletionTime = desc.version.tracksMaxLocalDeletionTime ? in.readInt() : Integer.MAX_VALUE;
             double bloomFilterFPChance = desc.version.hasBloomFilterFPChance ? in.readDouble() : NO_BLOOM_FLITER_FP_CHANCE;
-            double compressionRatio = desc.version.hasCompressionRatio ? in.readDouble() : NO_COMPRESSION_RATIO;
-            String partitioner = desc.version.hasPartitioner ? in.readUTF() : null;
-            int nbAncestors = desc.version.hasAncestors ? in.readInt() : 0;
+            double compressionRatio = in.readDouble();
+            String partitioner = in.readUTF();
+            int nbAncestors = in.readInt();
             Set<Integer> ancestors = new HashSet<Integer>(nbAncestors);
             for (int i = 0; i < nbAncestors; i++)
                 ancestors.add(in.readInt());
-            StreamingHistogram tombstoneHistogram = desc.version.tracksTombstones
-                                                   ? StreamingHistogram.serializer.deserialize(in)
-                                                   : defaultTombstoneDropTimeHistogram();
+            StreamingHistogram tombstoneHistogram = StreamingHistogram.serializer.deserialize(in);
             int sstableLevel = 0;
 
             if (loadSSTableLevel && in.available() > 0)

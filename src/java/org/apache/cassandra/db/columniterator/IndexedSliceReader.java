@@ -73,34 +73,19 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         try
         {
             Descriptor.Version version = sstable.descriptor.version;
-            if (version.hasPromotedIndexes)
+            this.indexes = indexEntry.columnsIndex();
+            if (indexes.isEmpty())
             {
-                this.indexes = indexEntry.columnsIndex();
-                if (indexes.isEmpty())
-                {
-                    setToRowStart(sstable, indexEntry, input);
-                    this.emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
-                    emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
-                    fetcher = new SimpleBlockFetcher();
-                }
-                else
-                {
-                    emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
-                    emptyColumnFamily.delete(indexEntry.deletionTime());
-                    fetcher = new IndexedBlockFetcher(indexEntry.position);
-                }
+                setToRowStart(sstable, indexEntry, input);
+                this.emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
+                emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
+                fetcher = new SimpleBlockFetcher();
             }
             else
             {
-                setToRowStart(sstable, indexEntry, input);
-                IndexHelper.skipBloomFilter(file);
-                this.indexes = IndexHelper.deserializeIndex(file);
-                this.emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
-                emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
-                fetcher = indexes.isEmpty()
-                        ? new SimpleBlockFetcher()
-                        : new IndexedBlockFetcher(file.getFilePointer() + 4); // We still have the column count to
-                                                                              // skip to get the basePosition
+                emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
+                emptyColumnFamily.delete(indexEntry.deletionTime());
+                fetcher = new IndexedBlockFetcher(indexEntry.position);
             }
         }
         catch (IOException e)
@@ -124,8 +109,8 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             this.file = input;
             input.seek(indexEntry.position);
         }
-        sstable.decodeKey(ByteBufferUtil.readWithShortLength(file));
-        SSTableReader.readRowSize(file, sstable.descriptor);
+        sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(file));
+        file.readLong();
     }
 
     public ColumnFamily getColumnFamily()

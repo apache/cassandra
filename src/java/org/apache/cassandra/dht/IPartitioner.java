@@ -27,15 +27,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 public interface IPartitioner<T extends Token>
 {
     /**
-     * @deprecated Used by SSTables before version 'e'.
-     *
-     * Convert the on disk representation to a DecoratedKey object
-     * @param key On disk representation
-     * @return DecoratedKey object
-     */
-    public DecoratedKey convertFromDiskFormat(ByteBuffer key);
-
-    /**
      * Transform key to object representation of the on-disk format.
      *
      * @param key the raw, client-facing key

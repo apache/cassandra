@@ -18,10 +18,7 @@
  */
 package org.apache.cassandra.io;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -110,8 +107,8 @@ public class LazilyCompactedRowTest extends SchemaLoader
             // key isn't part of what CompactedRow writes, that's done by SSTW.append
 
             // row size can differ b/c of bloom filter counts being different
-            long rowSize1 = SSTableReader.readRowSize(in1, sstables.iterator().next().descriptor);
-            long rowSize2 = SSTableReader.readRowSize(in2, sstables.iterator().next().descriptor);
+            long rowSize1 = in1.readLong();
+            long rowSize2 = in2.readLong();
             assertEquals(rowSize1 + 8, out1.getLength());
             assertEquals(rowSize2 + 8, out2.getLength());
 

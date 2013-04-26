@@ -85,7 +85,7 @@ public class SSTableScanner implements ICompactionScanner
             while (!ifile.isEOF())
             {
                 long startPosition = ifile.getFilePointer();
-                DecoratedKey indexDecoratedKey = sstable.decodeKey(ByteBufferUtil.readWithShortLength(ifile));
+                DecoratedKey indexDecoratedKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                 int comparison = indexDecoratedKey.compareTo(seekKey);
                 if (comparison >= 0)
                 {
@@ -98,7 +98,7 @@ public class SSTableScanner implements ICompactionScanner
                 }
                 else
                 {
-                    RowIndexEntry.serializer.skip(ifile, sstable.descriptor.version);
+                    RowIndexEntry.serializer.skip(ifile);
                 }
             }
             exhausted = true;
@@ -169,8 +169,8 @@ public class SSTableScanner implements ICompactionScanner
                 assert !dfile.isEOF();
 
                 // Read data header
-                DecoratedKey key = sstable.decodeKey(ByteBufferUtil.readWithShortLength(dfile));
-                long dataSize = SSTableReader.readRowSize(dfile, sstable.descriptor);
+                DecoratedKey key = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(dfile));
+                long dataSize = dfile.readLong();
                 long dataStart = dfile.getFilePointer();
                 finishedAt = dataStart + dataSize;
 
@@ -217,7 +217,7 @@ public class SSTableScanner implements ICompactionScanner
 
                 if (row == null)
                 {
-                    currentKey = sstable.decodeKey(ByteBufferUtil.readWithShortLength(ifile));
+                    currentKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                     currentEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor.version);
                 }
                 else
@@ -233,7 +233,7 @@ public class SSTableScanner implements ICompactionScanner
                 }
                 else
                 {
-                    nextKey = sstable.decodeKey(ByteBufferUtil.readWithShortLength(ifile));
+                    nextKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                     nextEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor.version);
                 }
 

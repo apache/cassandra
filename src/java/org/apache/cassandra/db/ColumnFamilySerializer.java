@@ -187,27 +187,12 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
 
     public void serializeCfId(UUID cfId, DataOutput out, int version) throws IOException
     {
-        if (version < MessagingService.VERSION_12) // try to use CF's old id where possible (CASSANDRA-3794)
-        {
-            Integer oldId = Schema.instance.convertNewCfId(cfId);
-
-            if (oldId == null)
-                throw new IOException("Can't serialize ColumnFamily ID " + cfId + " to be used by version " + version +
-                                      ", because int <-> uuid mapping could not be established (CF was created in mixed version cluster).");
-
-            out.writeInt(oldId);
-        }
-        else
-            UUIDSerializer.serializer.serialize(cfId, out, version);
+        UUIDSerializer.serializer.serialize(cfId, out, version);
     }
 
     public UUID deserializeCfId(DataInput in, int version) throws IOException
     {
-        // create a ColumnFamily based on the cf id
-        UUID cfId = (version < MessagingService.VERSION_12)
-                     ? Schema.instance.convertOldCfId(in.readInt())
-                     : UUIDSerializer.serializer.deserialize(in, version);
-
+        UUID cfId = UUIDSerializer.serializer.deserialize(in, version);
         if (Schema.instance.getCF(cfId) == null)
             throw new UnknownColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
 
@@ -216,17 +201,6 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
 
     public int cfIdSerializedSize(UUID cfId, TypeSizes typeSizes, int version)
     {
-        if (version < MessagingService.VERSION_12) // try to use CF's old id where possible (CASSANDRA-3794)
-        {
-            Integer oldId = Schema.instance.convertNewCfId(cfId);
-
-            if (oldId == null)
-                throw new RuntimeException("Can't serialize ColumnFamily ID " + cfId + " to be used by version " + version +
-                        ", because int <-> uuid mapping could not be established (CF was created in mixed version cluster).");
-
-            return typeSizes.sizeof(oldId);
-        }
-
         return typeSizes.sizeof(cfId);
     }
 }

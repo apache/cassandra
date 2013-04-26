@@ -41,12 +41,7 @@ public class MigrationRequestVerbHandler implements IVerbHandler
     {
         logger.debug("Received migration request from {}.", message.from);
 
-        if (message.version < MessagingService.VERSION_12)
-            logger.debug("Returning empty response to the migration request from {} (version < 1.2).", message.from);
-
-        Collection<RowMutation> schema = message.version < MessagingService.VERSION_12
-                                         ? Collections.EMPTY_SET
-                                         : SystemTable.serializeSchema();
+        Collection<RowMutation> schema = SystemTable.serializeSchema();
 
         MessageOut<Collection<RowMutation>> response = new MessageOut<Collection<RowMutation>>(MessagingService.Verb.INTERNAL_RESPONSE,
                                                                                                schema,

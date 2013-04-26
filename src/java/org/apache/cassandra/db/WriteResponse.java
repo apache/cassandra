@@ -45,30 +45,15 @@ public class WriteResponse
     {
         public void serialize(WriteResponse wm, DataOutput out, int version) throws IOException
         {
-            if (version < MessagingService.VERSION_12)
-            {
-                out.writeUTF("");
-                ByteBufferUtil.writeWithShortLength(ByteBufferUtil.EMPTY_BYTE_BUFFER, out);
-                out.writeBoolean(true);
-            }
         }
 
         public WriteResponse deserialize(DataInput in, int version) throws IOException
         {
-            if (version < MessagingService.VERSION_12)
-            {
-                in.readUTF();
-                ByteBufferUtil.readWithShortLength(in);
-                in.readBoolean();
-            }
             return new WriteResponse();
         }
 
         public long serializedSize(WriteResponse response, int version)
         {
-            TypeSizes sizes = TypeSizes.NATIVE;
-            if (version < MessagingService.VERSION_12)
-                return sizes.sizeof("") + sizes.sizeof((short) 0) + sizes.sizeof(true);
             return 0;
         }
     }

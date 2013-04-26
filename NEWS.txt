@@ -13,6 +13,10 @@ by version X, but the inverse is not necessarily the case.)
 
 Upgrading
 ---------
+    - Upgrading is ONLY supported from Cassandra 1.2.5 or later.  This
+      goes for sstable compatibility as well as network.  When
+      upgrading from an earlier release, upgrade to 1.2.5 first and
+      run upgradesstables before proceeding to 2.0.
     - Replication and strategy options do not accept unknown options anymore.
       This was already the case for CQL3 in 1.2 but this is now the case for
       thrift too.

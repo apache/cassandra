@@ -252,11 +252,7 @@ public class RowMutation implements IMutation
             out.writeInt(size);
             assert size > 0;
             for (Map.Entry<UUID, ColumnFamily> entry : rm.modifications.entrySet())
-            {
-                if (version < MessagingService.VERSION_12)
-                    ColumnFamily.serializer.serializeCfId(entry.getKey(), out, version);
                 ColumnFamily.serializer.serialize(entry.getValue(), out, version);
-            }
         }
 
         public RowMutation deserialize(DataInput in, int version, ColumnSerializer.Flag flag) throws IOException
@@ -292,9 +288,6 @@ public class RowMutation implements IMutation
 
         private ColumnFamily deserializeOneCf(DataInput in, int version, ColumnSerializer.Flag flag) throws IOException
         {
-            // We used to uselessly write the cf id here
-            if (version < MessagingService.VERSION_12)
-                ColumnFamily.serializer.deserializeCfId(in, version);
             ColumnFamily cf = ColumnFamily.serializer.deserialize(in, UnsortedColumns.factory, flag, version);
             // We don't allow RowMutation with null column family, so we should never get null back.
             assert cf != null;
@@ -319,11 +312,7 @@ public class RowMutation implements IMutation
 
             size += sizes.sizeof(rm.modifications.size());
             for (Map.Entry<UUID,ColumnFamily> entry : rm.modifications.entrySet())
-            {
-                if (version < MessagingService.VERSION_12)
-                    size += ColumnFamily.serializer.cfIdSerializedSize(entry.getValue().id(), sizes, version);
                 size += ColumnFamily.serializer.serializedSize(entry.getValue(), TypeSizes.NATIVE, version);
-            }
 
             return size;
         }

@@ -45,7 +45,7 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
             if (from == null)
             {
                 byte[] forwardBytes = message.parameters.get(RowMutation.FORWARD_TO);
-                if (forwardBytes != null && message.version >= MessagingService.VERSION_11)
+                if (forwardBytes != null)
                     forwardToLocalNodes(rm, message.verb, forwardBytes, message.from);
             }
             else

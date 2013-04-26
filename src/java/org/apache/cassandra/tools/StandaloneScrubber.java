@@ -56,10 +56,6 @@ public class StandaloneScrubber
         Options options = Options.parseArgs(args);
         try
         {
-            // Migrate sstables from pre-#2749 to the correct location
-            if (Directories.sstablesNeedsMigration())
-                Directories.migrateSSTables();
-
             // load keyspace descriptions.
             DatabaseDescriptor.loadSchemas();
 

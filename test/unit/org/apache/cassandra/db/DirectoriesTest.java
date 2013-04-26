@@ -176,33 +176,6 @@ public class DirectoriesTest
     }
 
     @Test
-    public void testHandleBadFiles() throws IOException
-    {
-        /* files not matching the pattern should just be ignored, with a log warning */
-        Directories directories = Directories.create(KS, "bad");
-        File dir = directories.getDirectoryForNewSSTables(1);
-        File f = File.createTempFile("bad", "file", dir.getParentFile());
-        Directories.migrateSSTables();
-        Assert.assertTrue(f.isFile());
-
-        /* real failures should throw an exception with informational message */
-        f = File.createTempFile("locked", ".json", dir.getParentFile());
-        File targetDir = new File(dir.getParentFile(), f.getName().substring(0, f.getName().length() - ".json".length()));
-        targetDir.mkdirs();
-        targetDir.setReadOnly();
-
-        try
-        {
-            Directories.migrateSSTables();
-            Assert.assertFalse(true);
-        }
-        catch (Exception e)
-        {
-            Assert.assertTrue(e.getMessage().contains(f.getPath()));
-        }
-    }
-
-    @Test
     public void testDiskFailurePolicy_best_effort() throws IOException
     {
         DiskFailurePolicy origPolicy = DatabaseDescriptor.getDiskFailurePolicy();

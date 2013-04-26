@@ -251,35 +251,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         private String outValue(VersionedValue value, int version)
         {
-            String outValue = value.value;
-
-            if (version < MessagingService.VERSION_12)
-            {
-                String[] pieces = value.value.split(DELIMITER_STR, -1);
-                String type = pieces[0];
-
-                if ((type.equals(STATUS_NORMAL)) || type.equals(STATUS_BOOTSTRAPPING))
-                {
-                    assert pieces.length >= 2;
-                    outValue = versionString(pieces[0], pieces[1]);
-                }
-
-                if (type.equals(STATUS_LEFT))
-                {
-                    assert pieces.length >= 3;
-
-                    // three component 'left' was adopted starting from Cassandra 1.0
-                    // previous versions have '<type>:<token>' format
-                    outValue = (version < MessagingService.VERSION_10)
-                               ? versionString(pieces[0], pieces[2])
-                               : versionString(pieces[0], pieces[2], pieces[1]);
-                }
-
-                if ((type.equals(REMOVAL_COORDINATOR)) || (type.equals(REMOVING_TOKEN)) || (type.equals(REMOVED_TOKEN)))
-                    throw new RuntimeException(String.format("Unable to serialize %s(%s...) for nodes older than 1.2",
-                                                             VersionedValue.class.getName(), type));
-            }
-            return outValue;
+            return value.value;
         }
 
         public VersionedValue deserialize(DataInput in, int version) throws IOException

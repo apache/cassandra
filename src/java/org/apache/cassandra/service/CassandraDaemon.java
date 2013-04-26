@@ -207,10 +207,6 @@ public class CassandraDaemon
                     : String.format("Directory %s is not accessible.", dataDir);
         }
 
-        // Migrate sstables from pre-#2749 to the correct location
-        if (Directories.sstablesNeedsMigration())
-            Directories.migrateSSTables();
-
         if (CacheService.instance == null) // should never happen
             throw new RuntimeException("Failed to initialize Cache Service.");
 

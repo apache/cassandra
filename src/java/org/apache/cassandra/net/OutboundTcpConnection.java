@@ -222,24 +222,15 @@ public class OutboundTcpConnection extends Thread
     private void writeInternal(MessageOut message, int id, long timestamp) throws IOException
     {
         out.writeInt(MessagingService.PROTOCOL_MAGIC);
-        if (targetVersion < MessagingService.VERSION_12)
-        {
-            writeHeader(out, targetVersion, false);
-            // 0.8 included a total message size int.  1.0 doesn't need it but expects it to be there.
-            out.writeInt(-1);
-        }
 
         if (targetVersion < MessagingService.VERSION_20)
             out.writeUTF(String.valueOf(id));
         else
             out.writeInt(id);
 
-        if (targetVersion >= MessagingService.VERSION_12)
-        {
-            // int cast cuts off the high-order half of the timestamp, which we can assume remains
-            // the same between now and when the recipient reconstructs it.
-            out.writeInt((int) timestamp);
-        }
+        // int cast cuts off the high-order half of the timestamp, which we can assume remains
+        // the same between now and when the recipient reconstructs it.
+        out.writeInt((int) timestamp);
         message.serialize(out, targetVersion);
     }
 
@@ -311,38 +302,35 @@ public class OutboundTcpConnection extends Thread
                 }
                 out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 4096));
 
-                if (targetVersion >= MessagingService.VERSION_12)
+                out.writeInt(MessagingService.PROTOCOL_MAGIC);
+                writeHeader(out, targetVersion, shouldCompressConnection());
+                out.flush();
+
+                DataInputStream in = new DataInputStream(socket.getInputStream());
+                int maxTargetVersion = in.readInt();
+                if (targetVersion > maxTargetVersion)
                 {
-                    out.writeInt(MessagingService.PROTOCOL_MAGIC);
-                    writeHeader(out, targetVersion, shouldCompressConnection());
+                    logger.debug("Target max version is {}; will reconnect with that version", maxTargetVersion);
+                    MessagingService.instance().setVersion(poolReference.endPoint(), maxTargetVersion);
+                    disconnect();
+                    return false;
+                }
+
+                if (targetVersion < maxTargetVersion && targetVersion < MessagingService.current_version)
+                {
+                    logger.trace("Detected higher max version {} (using {}); will reconnect when queued messages are done",
+                                 maxTargetVersion, targetVersion);
+                    MessagingService.instance().setVersion(poolReference.endPoint(), Math.min(MessagingService.current_version, maxTargetVersion));
+                    softCloseSocket();
+                }
+
+                out.writeInt(MessagingService.current_version);
+                CompactEndpointSerializationHelper.serialize(FBUtilities.getBroadcastAddress(), out);
+                if (shouldCompressConnection())
+                {
                     out.flush();
-
-                    DataInputStream in = new DataInputStream(socket.getInputStream());
-                    int maxTargetVersion = in.readInt();
-                    if (targetVersion > maxTargetVersion)
-                    {
-                        logger.debug("Target max version is {}; will reconnect with that version", maxTargetVersion);
-                        MessagingService.instance().setVersion(poolReference.endPoint(), maxTargetVersion);
-                        disconnect();
-                        return false;
-                    }
-
-                    if (targetVersion < maxTargetVersion && targetVersion < MessagingService.current_version)
-                    {
-                        logger.trace("Detected higher max version {} (using {}); will reconnect when queued messages are done",
-                                     maxTargetVersion, targetVersion);
-                        MessagingService.instance().setVersion(poolReference.endPoint(), Math.min(MessagingService.current_version, maxTargetVersion));
-                        softCloseSocket();
-                    }
-
-                    out.writeInt(MessagingService.current_version);
-                    CompactEndpointSerializationHelper.serialize(FBUtilities.getBroadcastAddress(), out);
-                    if (shouldCompressConnection())
-                    {
-                        out.flush();
-                        logger.trace("Upgrading OutputStream to be compressed");
-                        out = new DataOutputStream(new SnappyOutputStream(new BufferedOutputStream(socket.getOutputStream())));
-                    }
+                    logger.trace("Upgrading OutputStream to be compressed");
+                    out = new DataOutputStream(new SnappyOutputStream(new BufferedOutputStream(socket.getOutputStream())));
                 }
 
                 return true;

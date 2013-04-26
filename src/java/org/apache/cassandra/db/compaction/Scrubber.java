@@ -126,8 +126,8 @@ public class Scrubber implements Closeable
                 long dataSize = -1;
                 try
                 {
-                    key = SSTableReader.decodeKey(sstable.partitioner, sstable.descriptor, ByteBufferUtil.readWithShortLength(dataFile));
-                    dataSize = sstable.descriptor.version.hasIntRowSize ? dataFile.readInt() : dataFile.readLong();
+                    key = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
+                    dataSize = dataFile.readLong();
                     outputHandler.debug(String.format("row %s is %s bytes", ByteBufferUtil.bytesToHex(key.key), dataSize));
                 }
                 catch (Throwable th)
@@ -155,7 +155,7 @@ public class Scrubber implements Closeable
                 long dataStart = dataFile.getFilePointer();
                 long dataStartFromIndex = currentIndexKey == null
                                         ? -1
-                                        : rowStart + 2 + currentIndexKey.remaining() + (sstable.descriptor.version.hasIntRowSize ? 4 : 8);
+                                        : rowStart + 2 + currentIndexKey.remaining() + 8;
                 long dataSizeFromIndex = nextRowPositionFromIndex - dataStartFromIndex;
                 assert currentIndexKey != null || indexFile.isEOF();
                 if (currentIndexKey != null)
@@ -201,7 +201,7 @@ public class Scrubber implements Closeable
                     {
                         outputHandler.output(String.format("Retrying from row index; data is %s bytes starting at %s",
                                                   dataSizeFromIndex, dataStartFromIndex));
-                        key = SSTableReader.decodeKey(sstable.partitioner, sstable.descriptor, currentIndexKey);
+                        key = sstable.partitioner.decorateKey(currentIndexKey);
                         try
                         {
                             SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStartFromIndex, dataSizeFromIndex, true);

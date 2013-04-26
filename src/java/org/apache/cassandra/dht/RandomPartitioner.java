@@ -20,7 +20,6 @@ package org.apache.cassandra.dht;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -46,35 +45,6 @@ public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
     public DecoratedKey decorateKey(ByteBuffer key)
     {
         return new DecoratedKey(getToken(key), key);
-    }
-
-    public DecoratedKey convertFromDiskFormat(ByteBuffer fromdisk)
-    {
-        // find the delimiter position
-        int splitPoint = -1;
-        for (int i = fromdisk.position(); i < fromdisk.limit(); i++)
-        {
-            if (fromdisk.get(i) == DELIMITER_BYTE)
-            {
-                splitPoint = i;
-                break;
-            }
-        }
-        assert splitPoint != -1;
-
-        // and decode the token and key
-        String token = null;
-        try
-        {
-            token = ByteBufferUtil.string(fromdisk, fromdisk.position(), splitPoint - fromdisk.position());
-        }
-        catch (CharacterCodingException e)
-        {
-            throw new RuntimeException(e);
-        }
-        ByteBuffer key = fromdisk.duplicate();
-        key.position(splitPoint + 1);
-        return new DecoratedKey(new BigIntegerToken(token), key);
     }
 
     public Token midpoint(Token ltoken, Token rtoken)

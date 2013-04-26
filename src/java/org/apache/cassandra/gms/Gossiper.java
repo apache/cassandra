@@ -647,9 +647,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public boolean usesHostId(InetAddress endpoint)
     {
-        if (MessagingService.instance().knowsVersion(endpoint) && MessagingService.instance().getVersion(endpoint) >= MessagingService.VERSION_12)
+        if (MessagingService.instance().knowsVersion(endpoint))
             return true;
-        else if (getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NET_VERSION) != null && Integer.parseInt(getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NET_VERSION).value) >= MessagingService.VERSION_12)
+        else if (getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NET_VERSION) != null)
             return true;
         return false;
     }

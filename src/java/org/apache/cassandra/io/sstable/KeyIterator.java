@@ -47,8 +47,8 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
         {
             if (in.isEOF())
                 return endOfData();
-            DecoratedKey key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, ByteBufferUtil.readWithShortLength(in));
-            RowIndexEntry.serializer.skip(in, desc.version); // skip remainder of the entry
+            DecoratedKey key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
+            RowIndexEntry.serializer.skip(in); // skip remainder of the entry
             return key;
         }
         catch (IOException e)

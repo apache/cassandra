@@ -31,72 +31,42 @@ public class LongBloomFilterTest
     /**
      * NB: needs to run with -mx1G
      */
-    public void testBigInt(FilterFactory.Type type)
+    @Test
+    public void testBigInt()
     {
         int size = 10 * 1000 * 1000;
-        IFilter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, type, false);
-        double fp = FilterTestHelper.testFalsePositives(bf, new KeyGenerator.IntGenerator(size),
-                                                            new KeyGenerator.IntGenerator(size, size * 2));
+        IFilter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, false);
+        double fp = FilterTestHelper.testFalsePositives(bf,
+                                                        new KeyGenerator.IntGenerator(size),
+                                                        new KeyGenerator.IntGenerator(size, size * 2));
         logger.info("Bloom filter false positive: {}", fp);
     }
 
-    public void testBigRandom(FilterFactory.Type type)
+    @Test
+    public void testBigRandom()
     {
         int size = 10 * 1000 * 1000;
-        IFilter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, type, false);
-        double fp = FilterTestHelper.testFalsePositives(bf, new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
-                                                            new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
+        IFilter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, false);
+        double fp = FilterTestHelper.testFalsePositives(bf,
+                                                        new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
+                                                        new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
         logger.info("Bloom filter false positive: {}", fp);
     }
 
-    public void timeit(FilterFactory.Type type)
+    @Test
+    public void timeit()
     {
         int size = 300 * FilterTestHelper.ELEMENTS;
-        IFilter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, type, false);
+        IFilter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, false);
         double sumfp = 0;
         for (int i = 0; i < 10; i++)
         {
-            FilterTestHelper.testFalsePositives(bf, new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
-                                                    new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
+            FilterTestHelper.testFalsePositives(bf,
+                                                new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
+                                                new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
 
             bf.clear();
         }
-        logger.info("Bloom filter mean false positive: {}", sumfp/10);
-    }
-
-    @Test
-    public void testBigIntMurm2()
-    {
-        testBigInt(FilterFactory.Type.MURMUR2);
-    }
-
-    @Test
-    public void testBigRandomMurm2()
-    {
-        testBigRandom(FilterFactory.Type.MURMUR2);
-    }
-
-    @Test
-    public void timeitMurm2()
-    {
-        timeit(FilterFactory.Type.MURMUR2);
-    }
-
-    @Test
-    public void testBigIntMurm3()
-    {
-        testBigInt(FilterFactory.Type.MURMUR3);
-    }
-
-    @Test
-    public void testBigRandomMurm3()
-    {
-        testBigRandom(FilterFactory.Type.MURMUR3);
-    }
-
-    @Test
-    public void timeitMurm3()
-    {
-        timeit(FilterFactory.Type.MURMUR3);
+        logger.info("Bloom filter mean false positive: {}", sumfp / 10);
     }
 }

@@ -78,11 +78,6 @@ public class SystemTable
     public static final String COMPACTION_LOG = "compactions_in_progress";
     public static final String PAXOS_CF = "paxos";
 
-    @Deprecated
-    public static final String OLD_STATUS_CF = "LocationInfo";
-    @Deprecated
-    public static final String OLD_HINTS_CF = "HintsColumnFamily";
-
     private static final String LOCAL_KEY = "local";
     private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
 
@@ -100,20 +95,7 @@ public class SystemTable
 
     public static void finishStartup()
     {
-        DefsTable.fixSchemaNanoTimestamps();
         setupVersion();
-        try
-        {
-            upgradeSystemData();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
 
         // add entries to system schema columnfamilies for the hardcoded system definitions
         for (String ksname : Schema.systemKeyspaceNames)
@@ -144,47 +126,6 @@ public class SystemTable
                                          snitch.getDatacenter(FBUtilities.getBroadcastAddress()),
                                          snitch.getRack(FBUtilities.getBroadcastAddress()),
                                          DatabaseDescriptor.getPartitioner().getClass().getName()));
-    }
-
-    /** if system data becomes incompatible across versions of cassandra, that logic (and associated purging) is managed here */
-    private static void upgradeSystemData() throws ExecutionException, InterruptedException
-    {
-        Table table = Table.open(Table.SYSTEM_KS);
-        ColumnFamilyStore oldStatusCfs = table.getColumnFamilyStore(OLD_STATUS_CF);
-        if (oldStatusCfs.getSSTables().size() > 0)
-        {
-            SortedSet<ByteBuffer> cols = new TreeSet<ByteBuffer>(BytesType.instance);
-            cols.add(ByteBufferUtil.bytes("ClusterName"));
-            cols.add(ByteBufferUtil.bytes("Token"));
-            QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBufferUtil.bytes("L")), OLD_STATUS_CF, cols);
-            ColumnFamily oldCf = oldStatusCfs.getColumnFamily(filter);
-            Iterator<Column> oldColumns = oldCf.iterator();
-
-            String clusterName = null;
-            try
-            {
-                clusterName = ByteBufferUtil.string(oldColumns.next().value());
-            }
-            catch (CharacterCodingException e)
-            {
-                throw new RuntimeException(e);
-            }
-            // serialize the old token as a collection of (one )tokens.
-            Token token = StorageService.getPartitioner().getTokenFactory().fromByteArray(oldColumns.next().value());
-            String tokenBytes = tokensAsSet(Collections.singleton(token));
-            // (assume that any node getting upgraded was bootstrapped, since that was stored in a separate row for no particular reason)
-            String req = "INSERT INTO system.%s (key, cluster_name, tokens, bootstrapped) VALUES ('%s', '%s', %s, '%s')";
-            processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, clusterName, tokenBytes, BootstrapState.COMPLETED.name()));
-
-            oldStatusCfs.truncateBlocking();
-        }
-
-        ColumnFamilyStore oldHintsCfs = table.getColumnFamilyStore(OLD_HINTS_CF);
-        if (oldHintsCfs.getSSTables().size() > 0)
-        {
-            logger.info("Possible old-format hints found. Truncating");
-            oldHintsCfs.truncateBlocking();
-        }
     }
 
     /**

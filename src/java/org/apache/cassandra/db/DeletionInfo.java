@@ -310,18 +310,7 @@ public class DeletionInfo
         public void serialize(DeletionInfo info, DataOutput out, int version) throws IOException
         {
             DeletionTime.serializer.serialize(info.topLevel, out);
-            // Pre-1.2 version don't know about range tombstones and thus users should upgrade all
-            // nodes before using them. If they didn't, better fail early that propagating bad info
-            if (version < MessagingService.VERSION_12)
-            {
-                if (!info.ranges.isEmpty())
-                    throw new RuntimeException("Cannot send range tombstone to pre-1.2 node. You should upgrade all node to Cassandra 1.2+ before using range tombstone.");
-                // Otherwise we're done
-            }
-            else
-            {
-                itSerializer.serialize(info.ranges, out, version);
-            }
+            itSerializer.serialize(info.ranges, out, version);
         }
 
         public void serializeForSSTable(DeletionInfo info, DataOutput out) throws IOException
@@ -340,11 +329,7 @@ public class DeletionInfo
 
         public DeletionInfo deserialize(DataInput in, int version, Comparator<ByteBuffer> comparator) throws IOException
         {
-            assert version < MessagingService.VERSION_12 || comparator != null;
             DeletionTime topLevel = DeletionTime.serializer.deserialize(in);
-            if (version < MessagingService.VERSION_12)
-                return new DeletionInfo(topLevel, IntervalTree.<ByteBuffer, DeletionTime, RangeTombstone>emptyTree());
-
             IntervalTree<ByteBuffer, DeletionTime, RangeTombstone> ranges = itSerializer.deserialize(in, version, comparator);
             return new DeletionInfo(topLevel, ranges);
         }
@@ -358,9 +343,6 @@ public class DeletionInfo
         public long serializedSize(DeletionInfo info, TypeSizes typeSizes, int version)
         {
             long size = DeletionTime.serializer.serializedSize(info.topLevel, typeSizes);
-            if (version < MessagingService.VERSION_12)
-                return size;
-
             return size + itSerializer.serializedSize(info.ranges, typeSizes, version);
         }
 

@@ -41,11 +41,6 @@ public class Murmur3Partitioner extends AbstractPartitioner<LongToken>
     public static final LongToken MINIMUM = new LongToken(Long.MIN_VALUE);
     public static final long MAXIMUM = Long.MAX_VALUE;
 
-    public DecoratedKey convertFromDiskFormat(ByteBuffer key)
-    {
-        throw new UnsupportedOperationException();
-    }
-
     public DecoratedKey decorateKey(ByteBuffer key)
     {
         return new DecoratedKey(getToken(key), key);

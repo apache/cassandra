@@ -658,12 +658,6 @@ public class ActiveRepairService
                     logger.error(String.format("[repair #%s] ", getName()) + message);
                     throw new IOException(message);
                 }
-
-                if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_11 && isSequential)
-                {
-                    logger.info(String.format("[repair #%s] Cannot repair using snapshots as node %s is pre-1.1", getName(), endpoint));
-                    return;
-                }
             }
 
             ActiveRepairService.instance.sessions.put(getName(), this);
@@ -1003,9 +997,7 @@ public class ActiveRepairService
                 };
                 StreamingRepairTask task = StreamingRepairTask.create(r1.endpoint, r2.endpoint, tablename, cfname, differences, callback);
 
-                // Pre 1.0, nodes don't know how to handle forwarded streaming task so don't bother
-                if (task.isLocalTask() || MessagingService.instance().getVersion(task.dst) >= MessagingService.VERSION_10)
-                    task.run();
+                task.run();
             }
 
             public String toString()

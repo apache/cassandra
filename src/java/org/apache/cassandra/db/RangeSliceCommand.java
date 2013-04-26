@@ -131,37 +131,6 @@ public class RangeSliceCommand implements IReadCommand
         return keyspace;
     }
 
-    // Convert to a equivalent IndexScanCommand for backward compatibility sake
-    public IndexScanCommand toIndexScanCommand()
-    {
-        assert row_filter != null && !row_filter.isEmpty();
-        if (countCQL3Rows || isPaging)
-            throw new IllegalStateException("Cannot proceed with range query as the remote end has a version < 1.1. Please update the full cluster first.");
-
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace, column_family);
-        try
-        {
-            if (!ThriftValidation.validateFilterClauses(cfm, row_filter))
-                throw new IllegalStateException("Cannot proceed with non-indexed query as the remote end has a version < 1.1. Please update the full cluster first.");
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        RowPosition start = range.left;
-        ByteBuffer startKey = ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        if (start instanceof DecoratedKey)
-        {
-            startKey = ((DecoratedKey)start).key;
-        }
-
-        IndexClause clause = new IndexClause(row_filter, startKey, maxResults);
-        // IndexScanCommand is deprecated so don't bother
-        SlicePredicate pred = RangeSliceCommandSerializer.asSlicePredicate(predicate);
-        return new IndexScanCommand(keyspace, column_family, clause, pred, range);
-    }
-
     public long getTimeout()
     {
         return DatabaseDescriptor.getRangeRpcTimeout();
@@ -211,46 +180,26 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                 ByteBufferUtil.write(sc, out);
         }
 
-        if (version < MessagingService.VERSION_12)
+        IDiskAtomFilter.Serializer.instance.serialize(sliceCommand.predicate, out, version);
+
+        if (sliceCommand.row_filter == null)
         {
-            FBUtilities.serialize(new TSerializer(new TBinaryProtocol.Factory()), asSlicePredicate(sliceCommand.predicate), out);
+            out.writeInt(0);
         }
         else
         {
-            IDiskAtomFilter.Serializer.instance.serialize(sliceCommand.predicate, out, version);
-        }
-
-        if (version >= MessagingService.VERSION_11)
-        {
-            if (sliceCommand.row_filter == null)
+            out.writeInt(sliceCommand.row_filter.size());
+            for (IndexExpression expr : sliceCommand.row_filter)
             {
-                out.writeInt(0);
-            }
-            else
-            {
-                out.writeInt(sliceCommand.row_filter.size());
-                for (IndexExpression expr : sliceCommand.row_filter)
-                {
-                    if (version < MessagingService.VERSION_12)
-                    {
-                        FBUtilities.serialize(new TSerializer(new TBinaryProtocol.Factory()), expr, out);
-                    }
-                    else
-                    {
-                        ByteBufferUtil.writeWithShortLength(expr.column_name, out);
-                        out.writeInt(expr.op.getValue());
-                        ByteBufferUtil.writeWithShortLength(expr.value, out);
-                    }
-                }
+                ByteBufferUtil.writeWithShortLength(expr.column_name, out);
+                out.writeInt(expr.op.getValue());
+                ByteBufferUtil.writeWithShortLength(expr.value, out);
             }
         }
         AbstractBounds.serializer.serialize(sliceCommand.range, out, version);
         out.writeInt(sliceCommand.maxResults);
-        if (version >= MessagingService.VERSION_11)
-        {
-            out.writeBoolean(sliceCommand.countCQL3Rows);
-            out.writeBoolean(sliceCommand.isPaging);
-        }
+        out.writeBoolean(sliceCommand.countCQL3Rows);
+        out.writeBoolean(sliceCommand.isPaging);
     }
 
     public RangeSliceCommand deserialize(DataInput in, int version) throws IOException
@@ -283,16 +232,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                 comparator = metadata.comparator;
             }
 
-            if (version < MessagingService.VERSION_12)
-            {
-                SlicePredicate pred = new SlicePredicate();
-                FBUtilities.deserialize(new TDeserializer(new TBinaryProtocol.Factory()), pred, in);
-                predicate = ThriftValidation.asIFilter(pred, metadata, superColumn);
-            }
-            else
-            {
-                predicate = IDiskAtomFilter.Serializer.instance.deserialize(in, version, comparator);
-            }
+            predicate = IDiskAtomFilter.Serializer.instance.deserialize(in, version, comparator);
 
             if (metadata.cfType == ColumnFamilyType.Super)
                 predicate = SuperColumns.fromSCFilter((CompositeType)metadata.comparator, superColumn, predicate);
@@ -303,37 +243,21 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         }
 
         List<IndexExpression> rowFilter = null;
-        if (version >= MessagingService.VERSION_11)
+        int filterCount = in.readInt();
+        rowFilter = new ArrayList<IndexExpression>(filterCount);
+        for (int i = 0; i < filterCount; i++)
         {
-            int filterCount = in.readInt();
-            rowFilter = new ArrayList<IndexExpression>(filterCount);
-            for (int i = 0; i < filterCount; i++)
-            {
-                IndexExpression expr;
-                if (version < MessagingService.VERSION_12)
-                {
-                    expr = new IndexExpression();
-                    FBUtilities.deserialize(new TDeserializer(new TBinaryProtocol.Factory()), expr, in);
-                }
-                else
-                {
-                    expr = new IndexExpression(ByteBufferUtil.readWithShortLength(in),
-                                               IndexOperator.findByValue(in.readInt()),
-                                               ByteBufferUtil.readWithShortLength(in));
-                }
-                rowFilter.add(expr);
-            }
+            IndexExpression expr;
+            expr = new IndexExpression(ByteBufferUtil.readWithShortLength(in),
+                                       IndexOperator.findByValue(in.readInt()),
+                                       ByteBufferUtil.readWithShortLength(in));
+            rowFilter.add(expr);
         }
         AbstractBounds<RowPosition> range = AbstractBounds.serializer.deserialize(in, version).toRowBounds();
 
         int maxResults = in.readInt();
-        boolean countCQL3Rows = false;
-        boolean isPaging = false;
-        if (version >= MessagingService.VERSION_11)
-        {
-            countCQL3Rows = in.readBoolean();
-            isPaging = in.readBoolean();
-        }
+        boolean countCQL3Rows = in.readBoolean();
+        boolean isPaging = in.readBoolean();
         return new RangeSliceCommand(keyspace, columnFamily, predicate, range, rowFilter, maxResults, countCQL3Rows, isPaging);
     }
 
@@ -365,66 +289,26 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             }
         }
 
-        if (version < MessagingService.VERSION_12)
+        size += IDiskAtomFilter.Serializer.instance.serializedSize(filter, version);
+
+        if (rsc.row_filter == null)
         {
-            TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
-            try
-            {
-                int predicateLength = ser.serialize(asSlicePredicate(filter)).length;
-                if (version < MessagingService.VERSION_12)
-                    size += TypeSizes.NATIVE.sizeof(predicateLength);
-                size += predicateLength;
-            }
-            catch (TException e)
-            {
-                throw new RuntimeException(e);
-            }
+            size += TypeSizes.NATIVE.sizeof(0);
         }
         else
         {
-            size += IDiskAtomFilter.Serializer.instance.serializedSize(filter, version);
-        }
-
-        if (version >= MessagingService.VERSION_11)
-        {
-            if (rsc.row_filter == null)
+            size += TypeSizes.NATIVE.sizeof(rsc.row_filter.size());
+            for (IndexExpression expr : rsc.row_filter)
             {
-                size += TypeSizes.NATIVE.sizeof(0);
-            }
-            else
-            {
-                size += TypeSizes.NATIVE.sizeof(rsc.row_filter.size());
-                for (IndexExpression expr : rsc.row_filter)
-                {
-                    if (version < MessagingService.VERSION_12)
-                    {
-                        try
-                        {
-                            int filterLength = new TSerializer(new TBinaryProtocol.Factory()).serialize(expr).length;
-                            size += TypeSizes.NATIVE.sizeof(filterLength);
-                            size += filterLength;
-                        }
-                        catch (TException e)
-                        {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                    else
-                    {
-                        size += TypeSizes.NATIVE.sizeofWithShortLength(expr.column_name);
-                        size += TypeSizes.NATIVE.sizeof(expr.op.getValue());
-                        size += TypeSizes.NATIVE.sizeofWithLength(expr.value);
-                    }
-                }
+                size += TypeSizes.NATIVE.sizeofWithShortLength(expr.column_name);
+                size += TypeSizes.NATIVE.sizeof(expr.op.getValue());
+                size += TypeSizes.NATIVE.sizeofWithLength(expr.value);
             }
         }
         size += AbstractBounds.serializer.serializedSize(rsc.range, version);
         size += TypeSizes.NATIVE.sizeof(rsc.maxResults);
-        if (version >= MessagingService.VERSION_11)
-        {
-            size += TypeSizes.NATIVE.sizeof(rsc.countCQL3Rows);
-            size += TypeSizes.NATIVE.sizeof(rsc.isPaging);
-        }
+        size += TypeSizes.NATIVE.sizeof(rsc.countCQL3Rows);
+        size += TypeSizes.NATIVE.sizeof(rsc.isPaging);
         return size;
     }
 }

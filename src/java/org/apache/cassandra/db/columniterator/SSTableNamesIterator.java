@@ -113,23 +113,12 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             else
                 file.seek(indexEntry.position);
 
-            DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.partitioner,
-                                                             sstable.descriptor,
-                                                             ByteBufferUtil.readWithShortLength(file));
+            DecoratedKey keyInDisk = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(file));
             assert keyInDisk.equals(key) : String.format("%s != %s in %s", keyInDisk, key, file.getPath());
-            SSTableReader.readRowSize(file, sstable.descriptor);
+            file.readLong();
         }
 
-        if (sstable.descriptor.version.hasPromotedIndexes)
-        {
-            indexList = indexEntry.columnsIndex();
-        }
-        else
-        {
-            assert file != null;
-            IndexHelper.skipBloomFilter(file);
-            indexList = IndexHelper.deserializeIndex(file);
-        }
+        indexList = indexEntry.columnsIndex();
 
         if (!indexEntry.isIndexed())
         {
@@ -157,18 +146,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         }
         else
         {
-            long basePosition;
-            if (sstable.descriptor.version.hasPromotedIndexes)
-            {
-                basePosition = indexEntry.position;
-            }
-            else
-            {
-                assert file != null;
-                file.readInt(); // column count
-                basePosition = file.getFilePointer();
-            }
-            readIndexedColumns(sstable.metadata, file, columns, indexList, basePosition, result);
+            readIndexedColumns(sstable.metadata, file, columns, indexList, indexEntry.position, result);
         }
 
         // create an iterator view of the columns we read

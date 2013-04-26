@@ -492,35 +492,12 @@ public class DatabaseDescriptor
         // if table with definitions is empty try loading the old way
         if (schemaCFS.estimateKeys() == 0)
         {
-            // we can load tables from local storage if a version is set in the system table and that actually maps to
-            // real data in the definitions table.  If we do end up loading from xml, store the definitions so that we
-            // don't load from xml anymore.
-            UUID uuid = MigrationManager.getLastMigrationId();
-
-            if (uuid == null)
-            {
-                logger.info("Couldn't detect any schema definitions in local storage.");
-                // peek around the data directories to see if anything is there.
-                if (hasExistingNoSystemTables())
-                    logger.info("Found table data in data directories. Consider using the CLI to define your schema.");
-                else
-                    logger.info("To create keyspaces and column families, see 'help create keyspace' in the CLI, or set up a schema using the thrift system_* calls.");
-            }
+            logger.info("Couldn't detect any schema definitions in local storage.");
+            // peek around the data directories to see if anything is there.
+            if (hasExistingNoSystemTables())
+                logger.info("Found table data in data directories. Consider using cqlsh to define your schema.");
             else
-            {
-                logger.info("Loading schema version " + uuid.toString());
-                Collection<KSMetaData> tableDefs = DefsTable.loadFromStorage(uuid);
-
-                // happens when someone manually deletes all tables and restarts.
-                if (tableDefs.size() == 0)
-                {
-                    logger.warn("No schema definitions were found in local storage.");
-                }
-                else // if non-system tables where found, trying to load them
-                {
-                    Schema.instance.load(tableDefs);
-                }
-            }
+                logger.info("To create keyspaces and column families, see 'help create table' in cqlsh.");
         }
         else
         {

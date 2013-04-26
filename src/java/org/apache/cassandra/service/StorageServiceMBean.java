@@ -474,4 +474,5 @@ public interface StorageServiceMBean extends NotificationEmitter
     void disableAutoCompaction(String ks, String ... columnFamilies) throws IOException;
     void enableAutoCompaction(String ks, String ... columnFamilies) throws IOException;
 
+    public void deliverHints(String host) throws UnknownHostException;
 }

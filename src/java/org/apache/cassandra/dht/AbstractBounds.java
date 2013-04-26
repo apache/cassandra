@@ -129,11 +129,6 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
     {
         public void serialize(AbstractBounds<?> range, DataOutput out, int version) throws IOException
         {
-            // Older version don't know how to handle abstract bounds of keys
-            // However, the serialization has been designed so that token bounds are serialized the same way that before 1.1
-            if (version < MessagingService.VERSION_11)
-                range = range.toTokenBounds();
-
             /*
              * The first int tells us if it's a range or bounds (depending on the value) _and_ if it's tokens or keys (depending on the
              * sign). We use negative kind for keys so as to preserve the serialization of token from older version.

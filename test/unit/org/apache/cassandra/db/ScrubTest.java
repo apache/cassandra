@@ -23,6 +23,7 @@ package org.apache.cassandra.db;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -32,11 +33,17 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.SSTableMetadata;
+import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CLibrary;
@@ -145,27 +152,31 @@ public class ScrubTest extends SchemaLoader
     @Test
     public void testScubOutOfOrder() throws Exception
     {
-         CompactionManager.instance.disableAutoCompaction();
-         Table table = Table.open(TABLE);
-         String columnFamily = "Standard3";
-         ColumnFamilyStore cfs = table.getColumnFamilyStore(columnFamily);
+        CompactionManager.instance.disableAutoCompaction();
+        Table table = Table.open(TABLE);
+        String columnFamily = "Standard3";
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(columnFamily);
 
         /*
          * Code used to generate an outOfOrder sstable. The test for out-of-order key in SSTableWriter must also be commented out.
          * The test also assumes an ordered partitioner.
          *
-         *  ColumnFamily cf = ColumnFamily.create(TABLE, columnFamily);
-         *  cf.addColumn(new Column(ByteBufferUtil.bytes("someName"), ByteBufferUtil.bytes("someValue"), 0L));
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfs.metadata);
+        cf.addColumn(new Column(ByteBufferUtil.bytes("someName"), ByteBufferUtil.bytes("someValue"), 0L));
 
-         *  SSTableWriter writer = cfs.createCompactionWriter((long)DatabaseDescriptor.getIndexInterval(), new File("."), Collections.<SSTableReader>emptyList());
-         *  writer.append(Util.dk("a"), cf);
-         *  writer.append(Util.dk("b"), cf);
-         *  writer.append(Util.dk("z"), cf);
-         *  writer.append(Util.dk("c"), cf);
-         *  writer.append(Util.dk("y"), cf);
-         *  writer.append(Util.dk("d"), cf);
-         *  writer.closeAndOpenReader();
-         */
+        SSTableWriter writer = new SSTableWriter(cfs.getTempSSTablePath(new File(System.getProperty("corrupt-sstable-root"))),
+                                                 cfs.metadata.getIndexInterval(),
+                                                 cfs.metadata,
+                                                 cfs.partitioner,
+                                                 SSTableMetadata.createCollector());
+        writer.append(Util.dk("a"), cf);
+        writer.append(Util.dk("b"), cf);
+        writer.append(Util.dk("z"), cf);
+        writer.append(Util.dk("c"), cf);
+        writer.append(Util.dk("y"), cf);
+        writer.append(Util.dk("d"), cf);
+        writer.closeAndOpenReader();
+        */
 
         copySSTables(columnFamily);
         cfs.loadNewSSTables();
@@ -178,7 +189,7 @@ public class ScrubTest extends SchemaLoader
         CompactionManager.instance.performScrub(cfs);
         rows = cfs.getRangeSlice(Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assert isRowOrdered(rows) : "Scrub failed: " + rows;
-        assert rows.size() == 6: "Got " + rows.size();
+        assert rows.size() == 6 : "Got " + rows.size();
     }
 
     private static boolean isRowOrdered(List<Row> rows)

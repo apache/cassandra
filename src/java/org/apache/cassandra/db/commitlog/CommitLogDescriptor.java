@@ -33,7 +33,6 @@ public class CommitLogDescriptor
     // match both legacy and new version of commitlogs Ex: CommitLog-12345.log and CommitLog-4-12345.log.
     private static final Pattern COMMIT_LOG_FILE_PATTERN = Pattern.compile(FILENAME_PREFIX + "((\\d+)(" + SEPARATOR + "\\d+)?)" + FILENAME_EXTENSION);
 
-    public static final int LEGACY_VERSION = 1;
     public static final int VERSION_12 = 2;
     public static final int VERSION_20 = 3;
     /**
@@ -62,16 +61,11 @@ public class CommitLogDescriptor
         if (!(matcher = COMMIT_LOG_FILE_PATTERN.matcher(name)).matches())
             throw new RuntimeException("Cannot parse the version of the file: " + name);
 
-        if (matcher.group(3) != null)
-        {
-            long id = Long.parseLong(matcher.group(3).split(SEPARATOR)[1]);
-            return new CommitLogDescriptor(Integer.parseInt(matcher.group(2)), id);
-        }
-        else
-        {
-            long id = Long.parseLong(matcher.group(1));
-            return new CommitLogDescriptor(LEGACY_VERSION, id);
-        }
+        if (matcher.group(3) == null)
+            throw new UnsupportedOperationException("Commitlog segment is too old to open; upgrade to 1.2.5+ first");
+
+        long id = Long.parseLong(matcher.group(3).split(SEPARATOR)[1]);
+        return new CommitLogDescriptor(Integer.parseInt(matcher.group(2)), id);
     }
 
     public int getMessagingVersion()
@@ -79,8 +73,6 @@ public class CommitLogDescriptor
         assert MessagingService.current_version == MessagingService.VERSION_20;
         switch (version)
         {
-            case LEGACY_VERSION:
-                return MessagingService.VERSION_11;
             case VERSION_12:
                 return MessagingService.VERSION_12;
             case VERSION_20:

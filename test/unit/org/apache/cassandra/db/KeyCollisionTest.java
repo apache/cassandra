@@ -105,11 +105,6 @@ public class KeyCollisionTest extends SchemaLoader
             return new DecoratedKey(getToken(key), key);
         }
 
-        public DecoratedKey convertFromDiskFormat(ByteBuffer fromdisk)
-        {
-            throw new UnsupportedOperationException();
-        }
-
         public Token midpoint(Token ltoken, Token rtoken)
         {
             // the symbolic MINIMUM token should act as ZERO: the empty bit array

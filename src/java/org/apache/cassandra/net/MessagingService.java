@@ -73,9 +73,6 @@ public final class MessagingService implements MessagingServiceMBean
     public static final String MBEAN_NAME = "org.apache.cassandra.net:type=MessagingService";
 
     // 8 bits version, so don't waste versions
-    public static final int VERSION_10  = 3;
-    public static final int VERSION_11  = 4;
-    public static final int VERSION_117 = 5;
     public static final int VERSION_12  = 6;
     public static final int VERSION_20  = 7;
     public static final int current_version = VERSION_20;
@@ -209,7 +206,6 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.GOSSIP_DIGEST_SYN, GossipDigestSyn.serializer);
         put(Verb.DEFINITIONS_UPDATE, MigrationManager.MigrationsSerializer.instance);
         put(Verb.TRUNCATE, Truncation.serializer);
-        put(Verb.INDEX_SCAN, IndexScanCommand.serializer);
         put(Verb.REPLICATION_FINISHED, null);
         put(Verb.COUNTER_MUTATION, CounterMutation.serializer);
         put(Verb.SNAPSHOT, SnapshotCommand.serializer);

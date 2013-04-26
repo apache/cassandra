@@ -138,8 +138,7 @@ public class PendingFile
             }
             out.writeUTF(sc.type.name());
             out.writeLong(sc.estimatedKeys);
-            if (version > MessagingService.VERSION_11)
-                CompressionInfo.serializer.serialize(sc.compressionInfo, out, version);
+            CompressionInfo.serializer.serialize(sc.compressionInfo, out, version);
         }
 
         public PendingFile deserialize(DataInput in, int version) throws IOException
@@ -159,8 +158,7 @@ public class PendingFile
             type = OperationType.valueOf(in.readUTF());
             long estimatedKeys = in.readLong();
             CompressionInfo info = null;
-            if (version > MessagingService.VERSION_11)
-                info = CompressionInfo.serializer.deserialize(in, version);
+            info = CompressionInfo.serializer.deserialize(in, version);
             return new PendingFile(null, desc, component, sections, type, estimatedKeys, info);
         }
 
@@ -176,8 +174,7 @@ public class PendingFile
                 size += TypeSizes.NATIVE.sizeof(section.left) + TypeSizes.NATIVE.sizeof(section.right);
             size += TypeSizes.NATIVE.sizeof(pf.type.name());
             size += TypeSizes.NATIVE.sizeof(pf.estimatedKeys);
-            if (version > MessagingService.VERSION_11)
-                size += CompressionInfo.serializer.serializedSize(pf.compressionInfo, version);
+            size += CompressionInfo.serializer.serializedSize(pf.compressionInfo, version);
             return size;
         }
     }

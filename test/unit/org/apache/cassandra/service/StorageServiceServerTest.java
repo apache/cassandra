@@ -33,6 +33,7 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.StringToken;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -93,7 +94,7 @@ public class StorageServiceServerTest
     public void testColumnFamilySnapshot() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeColumnFamilySnapshot(Table.SYSTEM_KS, "Schema", "cf_snapshot");
+        StorageService.instance.takeColumnFamilySnapshot(Table.SYSTEM_KS, SystemTable.SCHEMA_KEYSPACES_CF, "cf_snapshot");
     }
 
     @Test

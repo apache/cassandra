@@ -112,10 +112,6 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
      */
     private static void maybeScheduleSchemaPull(final UUID theirVersion, final InetAddress endpoint)
     {
-        // Can't request migrations from nodes with versions younger than 1.1.7
-        if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_117)
-            return;
-
         if (Gossiper.instance.isFatClient(endpoint))
             return;
 
@@ -305,11 +301,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         for (InetAddress endpoint : Gossiper.instance.getLiveMembers())
         {
             if (endpoint.equals(FBUtilities.getBroadcastAddress()))
-                continue; // we've delt with localhost already
-
-            // don't send migrations to the nodes with the versions older than < 1.2
-            if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_12)
-                continue;
+                continue; // we've dealt with localhost already
 
             pushSchemaMutation(endpoint, schema);
         }
@@ -360,35 +352,14 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         // and due to broken timestamps in versions prior to 1.1.7
         for (InetAddress node : liveEndpoints)
         {
-            if (MessagingService.instance().getVersion(node) >= MessagingService.VERSION_117)
-            {
-                if (logger.isDebugEnabled())
-                    logger.debug("Requesting schema from " + node);
+            if (logger.isDebugEnabled())
+                logger.debug("Requesting schema from " + node);
 
-                FBUtilities.waitOnFuture(StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(node)));
-                break;
-            }
+            FBUtilities.waitOnFuture(StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(node)));
+            break;
         }
 
         logger.info("Local schema reset is complete.");
-    }
-
-    /**
-     * Used only in case node has old style migration schema (newly updated)
-     * @return the UUID identifying version of the last applied migration
-     */
-    @Deprecated
-    public static UUID getLastMigrationId()
-    {
-        DecoratedKey dkey = StorageService.getPartitioner().decorateKey(LAST_MIGRATION_KEY);
-        Table defs = Table.open(Table.SYSTEM_KS);
-        ColumnFamilyStore cfStore = defs.getColumnFamilyStore(DefsTable.OLD_SCHEMA_CF);
-        QueryFilter filter = QueryFilter.getNamesFilter(dkey, DefsTable.OLD_SCHEMA_CF, LAST_MIGRATION_KEY);
-        ColumnFamily cf = cfStore.getColumnFamily(filter);
-        if (cf == null || Iterables.isEmpty(cf.getColumnNames()))
-            return null;
-        else
-            return UUIDGen.getUUID(cf.getColumn(LAST_MIGRATION_KEY).value());
     }
 
     public static class MigrationsSerializer implements IVersionedSerializer<Collection<RowMutation>>

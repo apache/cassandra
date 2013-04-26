@@ -138,34 +138,7 @@ public class IncomingTcpConnection extends Thread
 
     private void handleLegacyVersion(int version) throws IOException
     {
-        DataInputStream in = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
-
-        from = receiveMessage(in, version); // why? see => CASSANDRA-4099
-        logger.debug("Version for {} is {}", from, version);
-        if (version > MessagingService.current_version)
-        {
-            // save the endpoint so gossip will reconnect to it
-            Gossiper.instance.addSavedEndpoint(from);
-            logger.info("Received messages from newer protocol version. Ignoring");
-            return;
-        }
-        int lastVersion = MessagingService.instance().setVersion(from, version);
-        logger.debug("set version for {} to {}", from, version);
-        if (lastVersion < version)
-        {
-            logger.debug("breaking outbound connections to force version upgrade");
-            MessagingService.instance().getConnectionPool(from).resetToNewerVersion(version);
-        }
-
-        while (true)
-        {
-            MessagingService.validateMagic(in.readInt());
-            int header = in.readInt(); // legacy protocol re-sends header for each message
-            assert !(MessagingService.getBits(header, 3, 1) == 1) : "Non-stream connection cannot change to stream";
-            version = MessagingService.getBits(header, 15, 8);
-            logger.trace("Version is now {}", version);
-            receiveMessage(in, version);
-        }
+        throw new UnsupportedOperationException("Unable to read obsolete message version " + version + "; the earliest version supported is 1.2.0");
     }
 
     private void handleStream(DataInputStream input, int version) throws IOException
@@ -187,9 +160,6 @@ public class IncomingTcpConnection extends Thread
 
     private InetAddress receiveMessage(DataInputStream input, int version) throws IOException
     {
-        if (version < MessagingService.VERSION_12)
-            input.readInt(); // size of entire message. in 1.0+ this is just a placeholder
-
         int id;
         if (version < MessagingService.VERSION_20)
             id = Integer.valueOf(input.readUTF());
@@ -197,13 +167,10 @@ public class IncomingTcpConnection extends Thread
             id = input.readInt();
 
         long timestamp = System.currentTimeMillis();
-        if (version >= MessagingService.VERSION_12)
-        {
-            // make sure to readInt, even if cross_node_to is not enabled
-            int partial = input.readInt();
-            if (DatabaseDescriptor.hasCrossNodeTimeout())
-                timestamp = (timestamp & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
-        }
+        // make sure to readInt, even if cross_node_to is not enabled
+        int partial = input.readInt();
+        if (DatabaseDescriptor.hasCrossNodeTimeout())
+            timestamp = (timestamp & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
 
         MessageIn message = MessageIn.read(input, version, id);
         if (message == null)

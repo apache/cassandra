@@ -33,8 +33,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
- * Tests backwards compatibility for SSTables. Requires that older SSTables match up with the existing config file,
- * and currently only tests specific cases for specific upgrades.
+ * Tests backwards compatibility for SSTables
  */
 public class LegacySSTableTest extends SchemaLoader
 {
@@ -106,6 +105,8 @@ public class LegacySSTableTest extends SchemaLoader
                 SSTableNamesIterator iter = new SSTableNamesIterator(reader, dk, FBUtilities.singleton(key));
                 assert iter.next().name().equals(key);
             }
+
+            // TODO actually test some reads
         }
         catch (Throwable e)
         {

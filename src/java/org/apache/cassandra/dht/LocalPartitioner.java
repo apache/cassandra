@@ -35,11 +35,6 @@ public class LocalPartitioner extends AbstractPartitioner<LocalToken>
         this.comparator = comparator;
     }
 
-    public DecoratedKey convertFromDiskFormat(ByteBuffer key)
-    {
-        return decorateKey(key);
-    }
-
     public DecoratedKey decorateKey(ByteBuffer key)
     {
         return new DecoratedKey(getToken(key), key);

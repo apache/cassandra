@@ -66,7 +66,6 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -137,8 +136,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(getPartitioner());
 
     public static final StorageService instance = new StorageService();
-
-    private static final StorageMetrics metrics = new StorageMetrics();
 
     public static IPartitioner getPartitioner()
     {
@@ -238,7 +235,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.READ_REPAIR, new ReadRepairVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.READ, new ReadVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.RANGE_SLICE, new RangeSliceVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.INDEX_SCAN, new IndexScanVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.COUNTER_MUTATION, new CounterMutationVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.TRUNCATE, new TruncateVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.PAXOS_PREPARE, new PrepareVerbHandler());
@@ -306,7 +302,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!initialized)
         {
             logger.warn("Starting gossip by operator request");
-            Gossiper.instance.start((int)(System.currentTimeMillis() / 1000));
+            Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
             initialized = true;
         }
     }
@@ -605,10 +601,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Set<InetAddress> current = new HashSet<InetAddress>();
         Collection<Token> tokens;
         logger.debug("Bootstrap variables: {} {} {} {}",
-                      new Object[]{ DatabaseDescriptor.isAutoBootstrap(),
-                                    SystemTable.bootstrapInProgress(),
-                                    SystemTable.bootstrapComplete(),
-                                    DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress())});
+                     DatabaseDescriptor.isAutoBootstrap(),
+                     SystemTable.bootstrapInProgress(),
+                     SystemTable.bootstrapComplete(),
+                     DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()));
         if (DatabaseDescriptor.isAutoBootstrap()
             && !SystemTable.bootstrapComplete()
             && !DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()))
@@ -1051,7 +1047,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public List<String> describeRingJMX(String keyspace) throws IOException
     {
-        List<TokenRange> tokenRanges = null;
+        List<TokenRange> tokenRanges;
         try
         {
             tokenRanges = describeRing(keyspace);
@@ -1400,7 +1396,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             else if (tokenMetadata.isRelocating(token))
             {
                 logger.info("Token {} is relocating to {}, ignoring update from {}",
-                        new Object[]{token, tokenMetadata.getRelocatingRanges().get(token), endpoint});
+                            token, tokenMetadata.getRelocatingRanges().get(token), endpoint);
             }
             else if (Gossiper.instance.compareEndpointStartup(endpoint, currentOwner) > 0)
             {
@@ -1507,7 +1503,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (logger.isDebugEnabled())
             logger.debug("Node " + endpoint + " state left, tokens " + tokens);
 
-        excise(tokens, endpoint, extractExpireTime(pieces, version));
+        excise(tokens, endpoint, extractExpireTime(pieces));
     }
 
     /**
@@ -1579,7 +1575,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             if (VersionedValue.REMOVED_TOKEN.equals(state))
             {
-                excise(removeTokens, endpoint, extractExpireTime(pieces, MessagingService.instance().getVersion(endpoint)));
+                excise(removeTokens, endpoint, extractExpireTime(pieces));
             }
             else if (VersionedValue.REMOVING_TOKEN.equals(state))
             {
@@ -1599,7 +1595,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         else // now that the gossiper has told us about this nonexistent member, notify the gossiper to remove it
         {
-            addExpireTimeIfFound(endpoint, extractExpireTime(pieces, MessagingService.instance().getVersion(endpoint)));
+            addExpireTimeIfFound(endpoint, extractExpireTime(pieces));
             removeEndpoint(endpoint);
         }
     }
@@ -1641,21 +1637,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    protected long extractExpireTime(String[] pieces, int version)
+    protected long extractExpireTime(String[] pieces)
     {
-        if (version < MessagingService.VERSION_12)
-        {
-            if (pieces.length >= 3)
-                return Long.parseLong(pieces[2]);
-            else
-                return 0L;
-        } else
-        {
-            if (VersionedValue.STATUS_LEFT.equals(pieces[0]))
-                return Long.parseLong(pieces[1]);
-            else
-                return Long.parseLong(pieces[2]);
-        }
+        if (VersionedValue.STATUS_LEFT.equals(pieces[0]))
+            return Long.parseLong(pieces[1]);
+        else
+            return Long.parseLong(pieces[2]);
     }
 
     /**
@@ -2371,7 +2358,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Token parsedEndToken = getPartitioner().getTokenFactory().fromString(endToken);
 
         logger.info("starting user-requested repair of range ({}, {}] for keyspace {} and column families {}",
-                new Object[] {parsedBeginToken, parsedEndToken, tableName, columnFamilies});
+                    parsedBeginToken, parsedEndToken, tableName, columnFamilies);
         return forceRepairAsync(tableName, isSequential, isLocal, Collections.singleton(new Range<Token>(parsedBeginToken, parsedEndToken)), columnFamilies);
     }
 
@@ -2411,7 +2398,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private FutureTask<Object> createRepairTask(final int cmd, final String keyspace, final Collection<Range<Token>> ranges, final boolean isSequential, final boolean isLocal, final String... columnFamilies)
     {
-        FutureTask<Object> task = new FutureTask<Object>(new WrappedRunnable()
+        return new FutureTask<Object>(new WrappedRunnable()
         {
             protected void runMayThrow() throws Exception
             {
@@ -2472,7 +2459,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 sendNotification("repair", String.format("Repair command #%d finished", cmd), new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
             }
         }, null);
-        return task;
     }
 
     public ActiveRepairService.RepairFuture forceTableRepair(final Range<Token> range, final String tableName, boolean isSequential, boolean  isLocal, final String... columnFamilies) throws IOException
@@ -2497,24 +2483,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     /* End of MBean interface methods */
-
-    /**
-     * This method returns the predecessor of the endpoint ep on the identifier
-     * space.
-     */
-    InetAddress getPredecessor(Token token)
-    {
-        return tokenMetadata.getEndpoint(tokenMetadata.getPredecessor(token));
-    }
-
-    /*
-     * This method returns the successor of the endpoint ep on the identifier
-     * space.
-     */
-    public InetAddress getSuccessor(Token token)
-    {
-        return tokenMetadata.getEndpoint(tokenMetadata.getSuccessor(token));
-    }
 
     /**
      * Get the "primary ranges" for the specified keyspace and endpoint.
@@ -3547,7 +3515,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         IEndpointSnitch oldSnitch = DatabaseDescriptor.getEndpointSnitch();
 
         // new snitch registers mbean during construction
-        IEndpointSnitch newSnitch = null;
+        IEndpointSnitch newSnitch;
         try
         {
             newSnitch = FBUtilities.construct(epSnitchClassName, "snitch");
@@ -3661,7 +3629,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.warn("Streaming to " + targetAddr + " failed");
             onSuccess(); // calling onSuccess for latch countdown
         }
-    };
+    }
 
     /**
      * Used to request ranges from endpoints in the ring (will block until all data is fetched and ready)
@@ -3881,7 +3849,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         rangeXferExecutor.tearDown();
     }
 
-    @Override
     public void disableAutoCompaction(String ks, String... columnFamilies) throws IOException
     {
         for (ColumnFamilyStore cfs : getValidColumnFamilies(true, true, ks, columnFamilies))
@@ -3890,7 +3857,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    @Override
     public void enableAutoCompaction(String ks, String... columnFamilies) throws IOException
     {
         for (ColumnFamilyStore cfs : getValidColumnFamilies(true, true, ks, columnFamilies))

@@ -122,38 +122,8 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 if (dataStart + dataSize > file.length())
                     throw new IOException(String.format("dataSize of %s starting at %s would be larger than file %s length %s",
                                           dataSize, dataStart, file.getPath(), file.length()));
-                if (checkData && !dataVersion.hasPromotedIndexes)
-                {
-                    try
-                    {
-                        IndexHelper.skipBloomFilter(file);
-                    }
-                    catch (Exception e)
-                    {
-                        if (e instanceof EOFException)
-                            throw (EOFException) e;
-
-                        logger.debug("Invalid bloom filter in {}; will rebuild it", sstable);
-                    }
-                    try
-                    {
-                        // skipping the old row-level BF should have left the file position ready to deserialize index
-                        IndexHelper.deserializeIndex(file);
-                    }
-                    catch (Exception e)
-                    {
-                        logger.debug("Invalid row summary in {}; will rebuild it", sstable);
-                    }
-                    file.seek(this.dataStart);
-                    inputWithTracker.reset(0);
-                }
             }
 
-            if (sstable != null && !dataVersion.hasPromotedIndexes)
-            {
-                IndexHelper.skipBloomFilter(inputWithTracker);
-                IndexHelper.skipIndex(inputWithTracker);
-            }
             columnFamily = EmptyColumns.factory.create(metadata);
             columnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(inputWithTracker, dataVersion));
 

@@ -59,8 +59,6 @@ public class Schema
 
     /* metadata map for faster ColumnFamily lookup */
     private final BiMap<Pair<String, String>, UUID> cfIdMap = HashBiMap.create();
-    // mapping from old ColumnFamily Id (Integer) to a new version which is UUID
-    private final BiMap<Integer, UUID> oldCfIdMap = HashBiMap.create();
 
     private volatile UUID version;
 
@@ -312,29 +310,6 @@ public class Schema
     }
 
     /* ColumnFamily query/control methods */
-
-    public void addOldCfIdMapping(Integer oldId, UUID newId)
-    {
-        if (oldId == null)
-            return;
-
-        oldCfIdMap.put(oldId, newId);
-    }
-
-    public UUID convertOldCfId(Integer oldCfId) throws UnknownColumnFamilyException
-    {
-        UUID cfId = oldCfIdMap.get(oldCfId);
-
-        if (cfId == null)
-            throw new UnknownColumnFamilyException("ColumnFamily identified by old " + oldCfId + " was not found.", null);
-
-        return cfId;
-    }
-
-    public Integer convertNewCfId(UUID newCfId)
-    {
-        return oldCfIdMap.containsValue(newCfId) ? oldCfIdMap.inverse().get(newCfId) : null;
-    }
 
     /**
      * @param cfId The identifier of the ColumnFamily to lookup

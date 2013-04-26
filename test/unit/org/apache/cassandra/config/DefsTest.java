@@ -48,14 +48,6 @@ import org.junit.runner.RunWith;
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class DefsTest extends SchemaLoader
 {
-
-    @Test
-    public void ensureStaticCFMIdsAreLessThan1000()
-    {
-        assert CFMetaData.OldStatusCf.cfId.equals(CFMetaData.getId(Table.SYSTEM_KS, SystemTable.OLD_STATUS_CF));
-        assert CFMetaData.OldHintsCf.cfId.equals(CFMetaData.getId(Table.SYSTEM_KS, SystemTable.OLD_HINTS_CF));
-    }
-
     @Test
     public void testCFMetaDataApply() throws ConfigurationException
     {

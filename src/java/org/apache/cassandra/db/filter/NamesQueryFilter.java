@@ -157,10 +157,7 @@ public class NamesQueryFilter implements IDiskAtomFilter
             {
                 ByteBufferUtil.writeWithShortLength(cName, out);
             }
-            // If we talking against an older node, we have no way to tell him that we want to count CQL3 rows. This does mean that
-            // this node may return less data than required. The workaround being to upgrade all nodes.
-            if (version >= MessagingService.VERSION_12)
-                out.writeBoolean(f.countCQL3Rows);
+            out.writeBoolean(f.countCQL3Rows);
         }
 
         public NamesQueryFilter deserialize(DataInput in, int version) throws IOException
@@ -174,9 +171,7 @@ public class NamesQueryFilter implements IDiskAtomFilter
             SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(comparator);
             for (int i = 0; i < size; ++i)
                 columns.add(ByteBufferUtil.readWithShortLength(in));
-            boolean countCQL3Rows = version >= MessagingService.VERSION_12
-                                  ? in.readBoolean()
-                                  : false;
+            boolean countCQL3Rows = in.readBoolean();
             return new NamesQueryFilter(columns, countCQL3Rows);
         }
 
@@ -189,8 +184,7 @@ public class NamesQueryFilter implements IDiskAtomFilter
                 int cNameSize = cName.remaining();
                 size += sizes.sizeof((short) cNameSize) + cNameSize;
             }
-            if (version >= MessagingService.VERSION_12)
-                size += sizes.sizeof(f.countCQL3Rows);
+            size += sizes.sizeof(f.countCQL3Rows);
             return size;
         }
     }

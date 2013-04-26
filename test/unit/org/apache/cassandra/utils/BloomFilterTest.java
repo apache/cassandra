@@ -44,10 +44,10 @@ public class BloomFilterTest
     {
         f.add(ByteBufferUtil.bytes("a"));
         DataOutputBuffer out = new DataOutputBuffer();
-        FilterFactory.serialize(f, out, FilterFactory.Type.MURMUR3);
+        FilterFactory.serialize(f, out);
 
         ByteArrayInputStream in = new ByteArrayInputStream(out.getData(), 0, out.getLength());
-        IFilter f2 = FilterFactory.deserialize(new DataInputStream(in), FilterFactory.Type.MURMUR3, true);
+        IFilter f2 = FilterFactory.deserialize(new DataInputStream(in), true);
 
         assert f2.isPresent(ByteBufferUtil.bytes("a"));
         assert !f2.isPresent(ByteBufferUtil.bytes("b"));

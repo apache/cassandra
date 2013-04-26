@@ -110,9 +110,6 @@ public class RowIndexEntry implements IMeasurableMemory
         {
             long position = in.readLong();
 
-            if (!version.hasPromotedIndexes)
-                return new RowIndexEntry(position);
-
             int size = in.readInt();
             if (size > 0)
             {
@@ -123,14 +120,6 @@ public class RowIndexEntry implements IMeasurableMemory
                 for (int i = 0; i < entries; i++)
                     columnsIndex.add(IndexHelper.IndexInfo.deserialize(in));
 
-                if (version.hasRowLevelBF)
-                {
-                    // we only ever used murmur3 BF in the promoted index
-                    in.readInt(); // hash count
-                    int words = in.readInt(); // number of Longs in the OpenBitSet
-                    FileUtils.skipBytesFully(in, words * 8);
-                }
-
                 return new IndexedEntry(position, deletionTime, columnsIndex);
             }
             else
@@ -139,11 +128,10 @@ public class RowIndexEntry implements IMeasurableMemory
             }
         }
 
-        public void skip(DataInput in, Descriptor.Version version) throws IOException
+        public void skip(DataInput in) throws IOException
         {
             in.readLong();
-            if (version.hasPromotedIndexes)
-                skipPromotedIndex(in);
+            skipPromotedIndex(in);
         }
 
         public void skipPromotedIndex(DataInput in) throws IOException

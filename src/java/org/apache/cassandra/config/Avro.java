@@ -206,9 +206,6 @@ public class Avro
             throw new RuntimeException(e);
         }
 
-        // adding old -> new style ID mapping to support backward compatibility
-        Schema.instance.addOldCfIdMapping(cf.id, newCFMD.cfId);
-
         return newCFMD.comment(cf.comment.toString())
                       .readRepairChance(cf.read_repair_chance)
                       .dcLocalReadRepairChance(cf.dclocal_read_repair_chance)

@@ -325,11 +325,6 @@ public class SSTableReader extends SSTable
             // bf is enabled, but filter component is missing.
             load(true);
         }
-        else if (descriptor.version.hasStringsInBloomFilter)
-        {
-            // versions before 'c' encoded keys as utf-16 before hashing to the filter.
-            load(true);
-        }
         else if (descriptor.version.hasBloomFilterFPChance && sstableMetadata.bloomFilterFPChance != metadata.getBloomFilterFpChance())
         {
             // bf fp chance in sstable metadata and it has changed since compaction.
@@ -349,7 +344,7 @@ public class SSTableReader extends SSTable
         try
         {
             stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER))));
-            bf = FilterFactory.deserialize(stream, descriptor.version.filterType, true);
+            bf = FilterFactory.deserialize(stream, true);
         }
         finally
         {
@@ -393,7 +388,7 @@ public class SSTableReader extends SSTable
             {
                 ByteBuffer key = ByteBufferUtil.readWithShortLength(primaryIndex);
                 RowIndexEntry indexEntry = RowIndexEntry.serializer.deserialize(primaryIndex, descriptor.version);
-                DecoratedKey decoratedKey = decodeKey(partitioner, descriptor, key);
+                DecoratedKey decoratedKey = partitioner.decorateKey(key);
                 if (first == null)
                     first = decoratedKey;
                 last = decoratedKey;
@@ -444,8 +439,8 @@ public class SSTableReader extends SSTable
                 FileUtils.deleteWithConfirm(summariesFile);
                 return false;
             }
-            reader.first = decodeKey(reader.partitioner, reader.descriptor, ByteBufferUtil.readWithLength(iStream));
-            reader.last = decodeKey(reader.partitioner, reader.descriptor, ByteBufferUtil.readWithLength(iStream));
+            reader.first = reader.partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
+            reader.last = reader.partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
             ibuilder.deserializeBounds(iStream);
             dbuilder.deserializeBounds(iStream);
         }
@@ -537,7 +532,7 @@ public class SSTableReader extends SSTable
      */
     public void forceFilterFailures()
     {
-        bf = LegacyBloomFilter.alwaysMatchingBloomFilter();
+        bf = new AlwaysPresentFilter();
     }
 
     public IFilter getBloomFilter()
@@ -547,7 +542,7 @@ public class SSTableReader extends SSTable
 
     public long getBloomFilterSerializedSize()
     {
-        return FilterFactory.serializedSize(bf, descriptor.version.filterType);
+        return FilterFactory.serializedSize(bf);
     }
 
     /**
@@ -847,7 +842,7 @@ public class SSTableReader extends SSTable
                     }
                     else
                     {
-                        DecoratedKey indexDecoratedKey = decodeKey(partitioner, descriptor, indexKey);
+                        DecoratedKey indexDecoratedKey = partitioner.decorateKey(indexKey);
                         int comparison = indexDecoratedKey.compareTo(key);
                         int v = op.apply(comparison);
                         opSatisfied = (v == 0);
@@ -872,7 +867,7 @@ public class SSTableReader extends SSTable
                             {
                                 // expensive sanity check!  see CASSANDRA-4687
                                 FileDataInput fdi = dfile.getSegment(indexEntry.position);
-                                DecoratedKey keyInDisk = SSTableReader.decodeKey(partitioner, descriptor, ByteBufferUtil.readWithShortLength(fdi));
+                                DecoratedKey keyInDisk = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(fdi));
                                 if (!keyInDisk.equals(key))
                                     throw new AssertionError(String.format("%s != %s in %s", keyInDisk, key, fdi.getPath()));
                                 fdi.close();
@@ -887,7 +882,7 @@ public class SSTableReader extends SSTable
                         return indexEntry;
                     }
 
-                    RowIndexEntry.serializer.skip(in, descriptor.version);
+                    RowIndexEntry.serializer.skip(in);
                 }
             }
             catch (IOException e)
@@ -1045,13 +1040,6 @@ public class SSTableReader extends SSTable
         return maxDataAge > age;
     }
 
-    public static long readRowSize(DataInput in, Descriptor d) throws IOException
-    {
-        if (d.version.hasIntRowSize)
-            return in.readInt();
-        return in.readLong();
-    }
-
     public void createLinks(String snapshotDirectoryPath)
     {
         for (Component component : components)
@@ -1060,21 +1048,6 @@ public class SSTableReader extends SSTable
             File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
             FileUtils.createHardLink(sourceFile, targetLink);
         }
-    }
-
-    /**
-     * Conditionally use the deprecated 'IPartitioner.convertFromDiskFormat' method.
-     */
-    public static DecoratedKey decodeKey(IPartitioner p, Descriptor d, ByteBuffer bytes)
-    {
-        if (d.version.hasEncodedKeys)
-            return p.convertFromDiskFormat(bytes);
-        return p.decorateKey(bytes);
-    }
-
-    public DecoratedKey decodeKey(ByteBuffer bytes)
-    {
-        return decodeKey(partitioner, descriptor, bytes);
     }
 
     /**

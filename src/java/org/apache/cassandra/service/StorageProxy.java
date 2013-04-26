@@ -736,11 +736,6 @@ public class StorageProxy implements StorageProxyMBean
     public static void writeHintForMutation(RowMutation mutation, InetAddress target) throws IOException
     {
         UUID hostId = StorageService.instance.getTokenMetadata().getHostId(target);
-        if ((hostId == null) && (MessagingService.instance().getVersion(target) < MessagingService.VERSION_12))
-        {
-            logger.warn("Unable to store hint for host with missing ID, {} (old node?)", target.toString());
-            return;
-        }
         assert hostId != null : "Missing host ID for " + target.getHostAddress();
         RowMutation hintedMutation = HintedHandOffManager.hintFor(mutation, hostId);
         hintedMutation.apply();

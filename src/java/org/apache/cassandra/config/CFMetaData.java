@@ -88,15 +88,6 @@ public final class CFMetaData
     // Note that this is the default only for user created tables
     public final static String DEFAULT_COMPRESSOR = LZ4Compressor.class.getCanonicalName();
 
-    @Deprecated
-    public static final CFMetaData OldStatusCf = newSystemMetadata(Table.SYSTEM_KS, SystemTable.OLD_STATUS_CF, 0, "unused", BytesType.instance, null);
-    @Deprecated
-    public static final CFMetaData OldHintsCf = newSystemMetadata(Table.SYSTEM_KS, SystemTable.OLD_HINTS_CF, 1, "unused", BytesType.instance, BytesType.instance);
-    @Deprecated
-    public static final CFMetaData OldMigrationsCf = newSystemMetadata(Table.SYSTEM_KS, DefsTable.OLD_MIGRATIONS_CF, 2, "unused", TimeUUIDType.instance, null);
-    @Deprecated
-    public static final CFMetaData OldSchemaCf = newSystemMetadata(Table.SYSTEM_KS, DefsTable.OLD_SCHEMA_CF, 3, "unused", UTF8Type.instance, null);
-
     public static final CFMetaData IndexCf = compile(5, "CREATE TABLE \"" + SystemTable.INDEX_CF + "\" ("
                                                         + "table_name text,"
                                                         + "index_name text,"
@@ -120,7 +111,6 @@ public final class CFMetaData
     public static final CFMetaData SchemaColumnFamiliesCf = compile(9, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNFAMILIES_CF + "("
                                                                        + "keyspace_name text,"
                                                                        + "columnfamily_name text,"
-                                                                       + "id int,"
                                                                        + "type text,"
                                                                        + "comparator text,"
                                                                        + "subcomparator text,"
@@ -418,7 +408,7 @@ public final class CFMetaData
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp, AbstractType<?> subcc)
     {
-        this(keyspace, name, type,  makeComparator(type, comp, subcc));
+        this(keyspace, name, type, makeComparator(type, comp, subcc));
     }
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp)
@@ -449,7 +439,7 @@ public final class CFMetaData
         try
         {
             CreateColumnFamilyStatement statement = (CreateColumnFamilyStatement) QueryProcessor.parseStatement(cql).prepare().statement;
-            CFMetaData cfmd = newSystemMetadata(keyspace, statement.columnFamily(), id, "", statement.comparator, null);
+            CFMetaData cfmd = newSystemMetadata(keyspace, statement.columnFamily(), "", statement.comparator, null);
             statement.applyPropertiesTo(cfmd);
             return cfmd;
         }
@@ -486,13 +476,10 @@ public final class CFMetaData
         return UUID.nameUUIDFromBytes(ArrayUtils.addAll(ksName.getBytes(), cfName.getBytes()));
     }
 
-    private static CFMetaData newSystemMetadata(String keyspace, String cfName, Integer oldCfId, String comment, AbstractType<?> comparator, AbstractType<?> subcc)
+    private static CFMetaData newSystemMetadata(String keyspace, String cfName, String comment, AbstractType<?> comparator, AbstractType<?> subcc)
     {
         ColumnFamilyType type = subcc == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super;
         CFMetaData newCFMD = new CFMetaData(keyspace, cfName, type, comparator,  subcc);
-
-        // adding old -> new style ID mapping to support backward compatibility
-        Schema.instance.addOldCfIdMapping(oldCfId, newCFMD.cfId);
 
         return newCFMD.comment(comment)
                 .readRepairChance(0)
@@ -1490,11 +1477,6 @@ public final class CFMetaData
         ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
-        Integer oldId = Schema.instance.convertNewCfId(cfId);
-
-        if (oldId != null) // keep old ids (see CASSANDRA-3794 for details)
-            cf.addColumn(Column.create(oldId, timestamp, cfName, "id"));
-
         cf.addColumn(Column.create(cfType.toString(), timestamp, cfName, "type"));
 
         if (isSuper())
@@ -1553,9 +1535,6 @@ public final class CFMetaData
                                             ColumnFamilyType.valueOf(result.getString("type")),
                                             TypeParser.parse(result.getString("comparator")),
                                             result.has("subcomparator") ? TypeParser.parse(result.getString("subcomparator")) : null);
-
-            if (result.has("id"))// try to identify if ColumnFamily Id is old style (before C* 1.2) and add old -> new mapping if so
-                Schema.instance.addOldCfIdMapping(result.getInt("id"), cfm.cfId);
 
             cfm.readRepairChance(result.getDouble("read_repair_chance"));
             cfm.dcLocalReadRepairChance(result.getDouble("local_read_repair_chance"));

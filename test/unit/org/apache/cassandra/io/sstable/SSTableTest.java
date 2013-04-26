@@ -59,7 +59,7 @@ public class SSTableTest extends SchemaLoader
         RandomAccessReader file = sstable.openDataReader();
         file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key), SSTableReader.Operator.EQ).position);
         assert key.equals(ByteBufferUtil.readWithShortLength(file));
-        int size = (int)SSTableReader.readRowSize(file, sstable.descriptor);
+        int size = (int) file.readLong();
         byte[] bytes2 = new byte[size];
         file.readFully(bytes2);
         assert ByteBuffer.wrap(bytes2).equals(bytes);
@@ -103,7 +103,7 @@ public class SSTableTest extends SchemaLoader
         {
             file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key), SSTableReader.Operator.EQ).position);
             assert key.equals( ByteBufferUtil.readWithShortLength(file));
-            int size = (int)SSTableReader.readRowSize(file, sstable.descriptor);
+            int size = (int) file.readLong();
             byte[] bytes2 = new byte[size];
             file.readFully(bytes2);
             assert Arrays.equals(bytes2, map.get(key).array());

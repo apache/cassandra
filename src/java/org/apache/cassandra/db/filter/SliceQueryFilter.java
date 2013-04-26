@@ -38,7 +38,6 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tracing.Tracing;
 
 public class SliceQueryFilter implements IDiskAtomFilter
@@ -50,8 +49,6 @@ public class SliceQueryFilter implements IDiskAtomFilter
     public final boolean reversed;
     public volatile int count;
     public final int compositesToGroup;
-    // This is a hack to allow rolling upgrade with pre-1.2 nodes
-    private final int countMutliplierForCompatibility;
 
     // Not serialized, just a ack for range slices to find the number of live column counted, even when we group
     private ColumnCounter columnCounter;
@@ -63,7 +60,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
 
     public SliceQueryFilter(ByteBuffer start, ByteBuffer finish, boolean reversed, int count, int compositesToGroup)
     {
-        this(new ColumnSlice[] { new ColumnSlice(start, finish) }, reversed, count, compositesToGroup, 1);
+        this(new ColumnSlice[] { new ColumnSlice(start, finish) }, reversed, count, compositesToGroup);
     }
 
     /**
@@ -72,36 +69,35 @@ public class SliceQueryFilter implements IDiskAtomFilter
      */
     public SliceQueryFilter(ColumnSlice[] slices, boolean reversed, int count)
     {
-        this(slices, reversed, count, -1, 1);
+        this(slices, reversed, count, -1);
     }
 
-    public SliceQueryFilter(ColumnSlice[] slices, boolean reversed, int count, int compositesToGroup, int countMutliplierForCompatibility)
+    public SliceQueryFilter(ColumnSlice[] slices, boolean reversed, int count, int compositesToGroup)
     {
         this.slices = slices;
         this.reversed = reversed;
         this.count = count;
         this.compositesToGroup = compositesToGroup;
-        this.countMutliplierForCompatibility = countMutliplierForCompatibility;
     }
 
     public SliceQueryFilter cloneShallow()
     {
-        return new SliceQueryFilter(slices, reversed, count, compositesToGroup, countMutliplierForCompatibility);
+        return new SliceQueryFilter(slices, reversed, count, compositesToGroup);
     }
 
     public SliceQueryFilter withUpdatedCount(int newCount)
     {
-        return new SliceQueryFilter(slices, reversed, newCount, compositesToGroup, countMutliplierForCompatibility);
+        return new SliceQueryFilter(slices, reversed, newCount, compositesToGroup);
     }
 
     public SliceQueryFilter withUpdatedSlices(ColumnSlice[] newSlices)
     {
-        return new SliceQueryFilter(newSlices, reversed, count, compositesToGroup, countMutliplierForCompatibility);
+        return new SliceQueryFilter(newSlices, reversed, count, compositesToGroup);
     }
 
     public SliceQueryFilter withUpdatedSlice(ByteBuffer start, ByteBuffer finish)
     {
-        return new SliceQueryFilter(new ColumnSlice[]{ new ColumnSlice(start, finish) }, reversed, count, compositesToGroup, countMutliplierForCompatibility);
+        return new SliceQueryFilter(new ColumnSlice[]{ new ColumnSlice(start, finish) }, reversed, count, compositesToGroup);
     }
 
     public OnDiskAtomIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key)
@@ -241,26 +237,12 @@ public class SliceQueryFilter implements IDiskAtomFilter
     {
         public void serialize(SliceQueryFilter f, DataOutput out, int version) throws IOException
         {
-            if (version < MessagingService.VERSION_12)
-            {
-                // It's kind of lame, but probably better than throwing an exception
-                ColumnSlice slice = new ColumnSlice(f.start(), f.finish());
+            out.writeInt(f.slices.length);
+            for (ColumnSlice slice : f.slices)
                 ColumnSlice.serializer.serialize(slice, out, version);
-            }
-            else
-            {
-                out.writeInt(f.slices.length);
-                for (ColumnSlice slice : f.slices)
-                    ColumnSlice.serializer.serialize(slice, out, version);
-            }
             out.writeBoolean(f.reversed);
             int count = f.count;
-            if (f.compositesToGroup > 0 && version < MessagingService.VERSION_12)
-                count *= f.countMutliplierForCompatibility;
             out.writeInt(count);
-
-            if (version < MessagingService.VERSION_12)
-                return;
 
             out.writeInt(f.compositesToGroup);
         }
@@ -268,23 +250,15 @@ public class SliceQueryFilter implements IDiskAtomFilter
         public SliceQueryFilter deserialize(DataInput in, int version) throws IOException
         {
             ColumnSlice[] slices;
-            if (version < MessagingService.VERSION_12)
-            {
-                slices = new ColumnSlice[]{ ColumnSlice.serializer.deserialize(in, version) };
-            }
-            else
-            {
-                slices = new ColumnSlice[in.readInt()];
-                for (int i = 0; i < slices.length; i++)
-                    slices[i] = ColumnSlice.serializer.deserialize(in, version);
-            }
+            slices = new ColumnSlice[in.readInt()];
+            for (int i = 0; i < slices.length; i++)
+                slices[i] = ColumnSlice.serializer.deserialize(in, version);
             boolean reversed = in.readBoolean();
             int count = in.readInt();
             int compositesToGroup = -1;
-            if (version >= MessagingService.VERSION_12)
-                compositesToGroup = in.readInt();
+            compositesToGroup = in.readInt();
 
-            return new SliceQueryFilter(slices, reversed, count, compositesToGroup, 1);
+            return new SliceQueryFilter(slices, reversed, count, compositesToGroup);
         }
 
         public long serializedSize(SliceQueryFilter f, int version)
@@ -292,21 +266,13 @@ public class SliceQueryFilter implements IDiskAtomFilter
             TypeSizes sizes = TypeSizes.NATIVE;
 
             int size = 0;
-            if (version < MessagingService.VERSION_12)
-            {
-                size += ColumnSlice.serializer.serializedSize(new ColumnSlice(f.start(), f.finish()), version);
-            }
-            else
-            {
-                size += sizes.sizeof(f.slices.length);
-                for (ColumnSlice slice : f.slices)
-                    size += ColumnSlice.serializer.serializedSize(slice, version);
-            }
+            size += sizes.sizeof(f.slices.length);
+            for (ColumnSlice slice : f.slices)
+                size += ColumnSlice.serializer.serializedSize(slice, version);
             size += sizes.sizeof(f.reversed);
             size += sizes.sizeof(f.count);
 
-            if (version >= MessagingService.VERSION_12)
-                size += sizes.sizeof(f.compositesToGroup);
+            size += sizes.sizeof(f.compositesToGroup);
             return size;
         }
     }
