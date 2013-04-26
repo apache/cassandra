@@ -95,8 +95,8 @@ public class Server implements CassandraDaemon.Server
 
     public void start()
     {
-        if (isRunning.compareAndSet(false, true))
-            run();
+        run();
+        isRunning.set(true);
     }
 
     public void stop()
@@ -110,7 +110,7 @@ public class Server implements CassandraDaemon.Server
         return isRunning.get();
     }
 
-    public void run()
+    private void run()
     {
         // Configure the server.
         executionHandler = new ExecutionHandler(new RequestThreadPoolExecutor());
@@ -137,7 +137,7 @@ public class Server implements CassandraDaemon.Server
         connectionTracker.allChannels.add(channel);
     }
 
-    public void close()
+    private void close()
     {
         // Close opened connections
         connectionTracker.closeAll();
