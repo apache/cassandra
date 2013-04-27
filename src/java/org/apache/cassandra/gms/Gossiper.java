@@ -437,6 +437,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         EndpointState epState = endpointStateMap.get(endpoint);
         Collection<Token> tokens = null;
         logger.warn("Assassinating {} via gossip", endpoint);
+
         if (epState == null)
         {
             epState = new EndpointState(new HeartBeatState((int) ((System.currentTimeMillis() + 60000) / 1000), 9999));
@@ -447,19 +448,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             {
                 tokens = StorageService.instance.getTokenMetadata().getTokens(endpoint);
             }
-            catch (AssertionError e)
+            catch (Throwable th)
             {
+                // TODO this is broken
+                logger.warn("Unable to calculate tokens for {}.  Will use a random one", address);
+                tokens = Collections.singletonList(StorageService.getPartitioner().getRandomToken());
             }
             int generation = epState.getHeartBeatState().getGeneration();
             logger.info("Sleeping for " + StorageService.RING_DELAY + "ms to ensure " + endpoint + " does not change");
-            try
-            {
-                Thread.sleep(StorageService.RING_DELAY);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
+            FBUtilities.sleep(StorageService.RING_DELAY);
             // make sure it did not change
             epState = endpointStateMap.get(endpoint);
             if (epState.getHeartBeatState().getGeneration() != generation)
@@ -467,19 +464,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             epState.updateTimestamp(); // make sure we don't evict it too soon
             epState.getHeartBeatState().forceNewerGenerationUnsafe();
         }
-        if (tokens == null)
-            tokens = Arrays.asList(StorageService.instance.getBootstrapToken());
+
         // do not pass go, do not collect 200 dollars, just gtfo
         epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
         handleMajorStateChange(endpoint, epState);
-        try
-        {
-            Thread.sleep(intervalInMillis * 4);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        FBUtilities.sleep(intervalInMillis * 4);
         logger.warn("Finished killing {}", endpoint);
     }
 

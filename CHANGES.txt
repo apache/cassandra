@@ -1,4 +1,5 @@
 2.0
+ * Removed token range bisection (CASSANDRA-5518)
  * Removed compatibility with pre-1.2.5 sstables and network messages
    (CASSANDRA-5511)
  * removed PBSPredictor (CASSANDRA-5455)

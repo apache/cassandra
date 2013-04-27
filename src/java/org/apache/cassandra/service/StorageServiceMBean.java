@@ -140,11 +140,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public List <String> describeRingJMX(String keyspace) throws IOException;
 
     /**
-     * Returns the local node's primary range.
-     */
-    public List<String> getPrimaryRange();
-
-    /**
      * Retrieve a map of pending ranges to endpoints that describe the ring topology
      * @param keyspace the keyspace to get the pending range map for.
      * @return a map of pending ranges to endpoints

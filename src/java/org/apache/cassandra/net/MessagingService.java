@@ -95,7 +95,7 @@ public final class MessagingService implements MessagingServiceMBean
         STREAM_REPLY,
         STREAM_REQUEST,
         RANGE_SLICE,
-        BOOTSTRAP_TOKEN,
+        @Deprecated BOOTSTRAP_TOKEN,
         TREE_REQUEST,
         TREE_RESPONSE,
         @Deprecated JOIN,
@@ -147,7 +147,6 @@ public final class MessagingService implements MessagingServiceMBean
 
         put(Verb.STREAM_REPLY, Stage.MISC); // actually handled by FileStreamTask and streamExecutors
         put(Verb.STREAM_REQUEST, Stage.MISC);
-        put(Verb.BOOTSTRAP_TOKEN, Stage.MISC);
         put(Verb.REPLICATION_FINISHED, Stage.MISC);
         put(Verb.SNAPSHOT, Stage.MISC);
 

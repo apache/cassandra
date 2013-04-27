@@ -34,6 +34,7 @@ import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.ObjectName;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.AtomicDouble;
 import org.apache.log4j.Level;
@@ -152,18 +153,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return getPrimaryRangesForEndpoint(keyspace, FBUtilities.getBroadcastAddress());
     }
 
-    @Deprecated
-    public Range<Token> getLocalPrimaryRange()
-    {
-        return getPrimaryRangeForEndpoint(FBUtilities.getBroadcastAddress());
-    }
-
-    // For JMX's sake. Use getLocalPrimaryRange for internal uses
-    public List<String> getPrimaryRange()
-    {
-        return getLocalPrimaryRange().asList();
-    }
-
     private final Set<InetAddress> replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddress>());
     private CassandraDaemon daemon;
 
@@ -242,7 +231,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.PAXOS_COMMIT, new CommitVerbHandler());
 
         // see BootStrapper for a summary of how the bootstrap verbs interact
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.BOOTSTRAP_TOKEN, new BootStrapper.BootstrapTokenVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.STREAM_REQUEST, new StreamRequestVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.STREAM_REPLY, new StreamReplyVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.REPLICATION_FINISHED, new ReplicationFinishedVerbHandler());
@@ -2518,6 +2506,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @return range for the specified endpoint.
      */
     @Deprecated
+    @VisibleForTesting
     public Range<Token> getPrimaryRangeForEndpoint(InetAddress ep)
     {
         return tokenMetadata.getPrimaryRangeFor(tokenMetadata.getToken(ep));
@@ -2682,36 +2671,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Iterables.addAll(keys, cfs.keySamples(range));
         FBUtilities.sortSampledKeys(keys, range);
         return keys;
-    }
-
-    /** return a token to which if a node bootstraps it will get about 1/2 of this node's range */
-    public Token getBootstrapToken()
-    {
-        Range<Token> range = getLocalPrimaryRange();
-
-        List<DecoratedKey> keys = keySamples(ColumnFamilyStore.allUserDefined(), range);
-
-        Token token;
-        if (keys.size() < 3)
-        {
-            token = getPartitioner().midpoint(range.left, range.right);
-            logger.debug("Used midpoint to assign token " + token);
-        }
-        else
-        {
-            token = keys.get(keys.size() / 2).token;
-            logger.debug("Used key sample of size " + keys.size() + " to assign token " + token);
-        }
-        if (tokenMetadata.getEndpoint(token) != null && tokenMetadata.isMember(tokenMetadata.getEndpoint(token)))
-            throw new RuntimeException("Chose token " + token + " which is already in use by " + tokenMetadata.getEndpoint(token) + " -- specify one manually with initial_token");
-        // Hack to prevent giving nodes tokens with DELIMITER_STR in them (which is fine in a row key/token)
-        if (token instanceof StringToken)
-        {
-            token = new StringToken(((String)token.token).replaceAll(VersionedValue.DELIMITER_STR, ""));
-            if (tokenMetadata.getNormalAndBootstrappingTokenToEndpointMap().containsKey(token))
-                throw new RuntimeException("Unable to compute unique token for new node -- specify one manually with initial_token");
-        }
-        return token;
     }
 
     /**

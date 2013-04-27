@@ -20,6 +20,10 @@ Upgrading
     - Replication and strategy options do not accept unknown options anymore.
       This was already the case for CQL3 in 1.2 but this is now the case for
       thrift too.
+    - auto_bootstrap of a single-token node with no initial_token will
+      now pick a random token instead of bisecting an existing token
+      range.  We recommend upgrading to vnodes; failing that, we
+      recommend specifying initial_token.
     - reduce_cache_sizes_at, reduce_cache_capacity_to, and
       flush_largest_memtables_at options have been removed from cassandra.yaml.
     - CacheServiceMBean.reduceCacheSizes() has been removed.
