@@ -329,7 +329,6 @@ public class DataTracker
     {
         for (SSTableReader sstable : newSSTables)
         {
-            assert sstable.getKeySamples() != null;
             if (logger.isDebugEnabled())
                 logger.debug(String.format("adding %s to list of files tracked for %s.%s",
                             sstable.descriptor, cfstore.table.name, cfstore.getColumnFamilyName()));

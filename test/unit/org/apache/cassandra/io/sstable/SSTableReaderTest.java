@@ -284,8 +284,8 @@ public class SSTableReaderTest extends SchemaLoader
 
         // test to see if sstable can be opened as expected
         SSTableReader target = SSTableReader.open(desc);
-        Collection<DecoratedKey> keySamples = target.getKeySamples();
-        assert keySamples.size() == 1 && keySamples.iterator().next().equals(firstKey);
+        byte[][] keySamples = target.getKeySamples();
+        assert keySamples.length == 1 && Arrays.equals(keySamples[0], firstKey.key.array());
         assert target.first.equals(firstKey);
         assert target.last.equals(lastKey);
     }

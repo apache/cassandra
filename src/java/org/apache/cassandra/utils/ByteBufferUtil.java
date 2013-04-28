@@ -396,6 +396,14 @@ public class ByteBufferUtil
         return ByteBuffer.wrap(buff);
     }
 
+    public static byte[] readBytes(DataInput in, int length) throws IOException
+    {
+        assert length > 0;
+        byte[] bytes = new byte[length];
+        in.readFully(bytes);
+        return bytes;
+    }
+
     /**
      * Convert a byte buffer to an integer.
      * Does not change the byte buffer position.

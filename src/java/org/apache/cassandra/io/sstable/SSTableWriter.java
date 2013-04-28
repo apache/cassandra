@@ -104,7 +104,7 @@ public class SSTableWriter extends SSTable
         {
             dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
             dataFile = SequentialWriter.open(new File(getFilename()),
-			                      !metadata.populateIoCacheOnFlush());
+                                             !metadata.populateIoCacheOnFlush());
             dataFile.setComputeDigest();
         }
 
@@ -346,7 +346,7 @@ public class SSTableWriter extends SSTable
                                                            partitioner,
                                                            ifile,
                                                            dfile,
-                                                           iwriter.summary,
+                                                           iwriter.summary.build(partitioner),
                                                            iwriter.bf,
                                                            maxDataAge,
                                                            sstableMetadata);
@@ -433,7 +433,7 @@ public class SSTableWriter extends SSTable
     {
         private final SequentialWriter indexFile;
         public final SegmentedFile.Builder builder;
-        public final IndexSummary summary;
+        public final IndexSummaryBuilder summary;
         public final IFilter bf;
         private FileMark mark;
 
@@ -442,7 +442,7 @@ public class SSTableWriter extends SSTable
             indexFile = SequentialWriter.open(new File(descriptor.filenameFor(SSTable.COMPONENT_INDEX)),
                                               !metadata.populateIoCacheOnFlush());
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
-            summary = new IndexSummary(keyCount);
+            summary = new IndexSummaryBuilder(keyCount);
             bf = FilterFactory.getFilter(keyCount, metadata.getBloomFilterFpChance(), true);
         }
 
@@ -495,9 +495,6 @@ public class SSTableWriter extends SSTable
             long position = indexFile.getFilePointer();
             indexFile.close(); // calls force
             FileUtils.truncate(indexFile.getPath(), position);
-
-            // finalize in-memory index state
-            summary.complete();
         }
 
         public void mark()
