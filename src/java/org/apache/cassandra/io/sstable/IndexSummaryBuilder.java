@@ -19,7 +19,6 @@ package org.apache.cassandra.io.sstable;
 
 import java.util.ArrayList;
 
-import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,10 +34,12 @@ public class IndexSummaryBuilder
 
     private final ArrayList<Long> positions;
     private final ArrayList<byte[]> keys;
+    private final int indexInterval;
     private long keysWritten = 0;
 
     public IndexSummaryBuilder(long expectedKeys, int indexInterval)
     {
+        this.indexInterval = indexInterval;
         long expectedEntries = expectedKeys / indexInterval;
         if (expectedEntries > Integer.MAX_VALUE)
         {
@@ -47,13 +48,13 @@ public class IndexSummaryBuilder
             expectedEntries = expectedKeys / effectiveInterval;
             assert expectedEntries <= Integer.MAX_VALUE : expectedEntries;
             logger.warn("Index interval of {} is too low for {} expected keys; using interval of {} instead",
-                    indexInterval, expectedKeys, effectiveInterval);
+                        indexInterval, expectedKeys, effectiveInterval);
         }
         positions = new ArrayList<Long>((int)expectedEntries);
         keys = new ArrayList<byte[]>((int)expectedEntries);
     }
 
-    public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, int indexInterval, long indexPosition)
+    public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexPosition)
     {
         if (keysWritten % indexInterval == 0)
         {
@@ -65,7 +66,7 @@ public class IndexSummaryBuilder
         return this;
     }
 
-    public IndexSummary build(IPartitioner partitioner, int indexInterval)
+    public IndexSummary build(IPartitioner partitioner)
     {
         byte[][] keysArray = new byte[keys.size()][];
         for (int i = 0; i < keys.size(); i++)

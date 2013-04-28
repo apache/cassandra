@@ -339,7 +339,7 @@ public class SSTableWriter extends SSTable
                                                            partitioner,
                                                            ifile,
                                                            dfile,
-                                                           iwriter.summary.build(partitioner, metadata.getIndexInterval()),
+                                                           iwriter.summary.build(partitioner),
                                                            iwriter.bf,
                                                            maxDataAge,
                                                            sstableMetadata);
@@ -434,7 +434,7 @@ public class SSTableWriter extends SSTable
             if (logger.isTraceEnabled())
                 logger.trace("wrote index entry: " + indexEntry + " at " + indexPosition);
 
-            summary.maybeAddEntry(key, metadata.getIndexInterval(), indexPosition);
+            summary.maybeAddEntry(key, indexPosition);
             builder.addPotentialBoundary(indexPosition);
         }
 

@@ -400,7 +400,7 @@ public class SSTableReader extends SSTable
                 // if summary was already read from disk we don't want to re-populate it using primary index
                 if (!summaryLoaded)
                 {
-                    summaryBuilder.maybeAddEntry(decoratedKey, metadata.getIndexInterval(), indexPosition);
+                    summaryBuilder.maybeAddEntry(decoratedKey, indexPosition);
                     ibuilder.addPotentialBoundary(indexPosition);
                     dbuilder.addPotentialBoundary(indexEntry.position);
                 }
