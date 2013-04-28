@@ -407,7 +407,7 @@ public class SSTableReader extends SSTable
             }
 
             if (!summaryLoaded)
-                indexSummary = summaryBuilder.build(partitioner, metadata.getIndexInterval());
+                indexSummary = summaryBuilder.build(partitioner);
         }
         finally
         {
