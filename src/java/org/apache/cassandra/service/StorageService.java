@@ -1496,7 +1496,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void handleStateLeft(InetAddress endpoint, String[] pieces)
     {
         assert pieces.length >= 2;
-        Collection<Token> tokens = getTokensFor(endpoint, pieces[1]);
+        Collection<Token> tokens;
+        Integer version = MessagingService.instance().getVersion(endpoint);
+        tokens = getTokensFor(endpoint, pieces[1]);
 
         if (logger.isDebugEnabled())
             logger.debug("Node " + endpoint + " state left, tokens " + tokens);

@@ -273,6 +273,7 @@ public class SelectStatement implements CQLStatement
             // to account for the grouping of columns.
             // Since that doesn't work for maps/sets/lists, we now use the compositesToGroup option of SliceQueryFilter.
             // But we must preserve backward compatibility too (for mixed version cluster that is).
+            int multiplier = cfDef.isCompact ? 1 : (cfDef.metadata.size() + 1);
             int toGroup = cfDef.isCompact ? -1 : cfDef.columns.size();
             ColumnSlice slice = new ColumnSlice(getRequestedBound(Bound.START, variables),
                                                 getRequestedBound(Bound.END, variables));
