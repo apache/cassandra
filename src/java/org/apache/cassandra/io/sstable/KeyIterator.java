@@ -32,11 +32,9 @@ import org.apache.cassandra.utils.CloseableIterator;
 public class KeyIterator extends AbstractIterator<DecoratedKey> implements CloseableIterator<DecoratedKey>
 {
     private final RandomAccessReader in;
-    private final Descriptor desc;
 
     public KeyIterator(Descriptor desc)
     {
-        this.desc = desc;
         File path = new File(desc.filenameFor(SSTable.COMPONENT_INDEX));
         in = RandomAccessReader.open(path);
     }
