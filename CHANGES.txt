@@ -13,9 +13,10 @@
  * Fix shutdown of binary protocol server (CASSANDRA-5507)
  * Fix repair -snapshot not working (CASSANDRA-5512)
  * Set isRunning flag later in binary protocol server (CASSANDRA-5467)
+ * Fix use of CQL3 functions with descencind clustering order (CASSANDRA-5472)
 Merged from 1.1
  * Add retry mechanism to OTC for non-droppable_verbs (CASSANDRA-5393)
- * Use allocator information to improve memtable memory usage estimate 
+ * Use allocator information to improve memtable memory usage estimate
    (CASSANDRA-5497)
  * Fix trying to load deleted row into row cache on startup (CASSANDRA-4463)
 
