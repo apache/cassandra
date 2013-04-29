@@ -50,8 +50,6 @@ import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.TBaseHelper;
 import org.apache.thrift.TException;
 import org.codehaus.jackson.*;
-import org.yaml.snakeyaml.Loader;
-import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
 
@@ -182,9 +180,7 @@ public class CliClient
         try
         {
             final Constructor constructor = new Constructor(CliUserHelp.class);
-            TypeDescription desc = new TypeDescription(CliUserHelp.class);
-            desc.putListPropertyType("commands", CliCommandHelp.class);
-            final Yaml yaml = new Yaml(new Loader(constructor));
+            final Yaml yaml = new Yaml(constructor);
             return (CliUserHelp) yaml.load(is);
         }
         finally
