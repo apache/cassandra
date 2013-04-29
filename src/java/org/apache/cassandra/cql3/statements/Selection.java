@@ -92,7 +92,7 @@ public abstract class Selection
                 throw new InvalidRequestException(String.format("Undefined name %s in selection clause", raw));
             if (metadata != null)
                 metadata.add(name);
-            return new SimpleSelector(addAndGetIndex(name, names), name.type);
+            return new SimpleSelector(name.toString(), addAndGetIndex(name, names), name.type);
         }
         else if (raw instanceof RawSelector.WritetimeOrTTL)
         {
@@ -107,7 +107,7 @@ public abstract class Selection
 
             if (metadata != null)
                 metadata.add(makeWritetimeOrTTLSpec(cfDef, tot));
-            return new WritetimeOrTTLSelector(addAndGetIndex(name, names), tot.isWritetime);
+            return new WritetimeOrTTLSelector(name.toString(), addAndGetIndex(name, names), tot.isWritetime);
         }
         else
         {
@@ -313,11 +313,13 @@ public abstract class Selection
 
     private static class SimpleSelector implements Selector
     {
+        private final String columnName;
         private final int idx;
         private final AbstractType<?> type;
 
-        public SimpleSelector(int idx, AbstractType<?> type)
+        public SimpleSelector(String columnName, int idx, AbstractType<?> type)
         {
+            this.columnName = columnName;
             this.idx = idx;
             this.type = type;
         }
@@ -329,7 +331,13 @@ public abstract class Selection
 
         public boolean isAssignableTo(ColumnSpecification receiver)
         {
-            return type.equals(receiver.type);
+            return type.asCQL3Type().equals(receiver.type.asCQL3Type());
+        }
+
+        @Override
+        public String toString()
+        {
+            return columnName;
         }
     }
 
@@ -355,17 +363,33 @@ public abstract class Selection
 
         public boolean isAssignableTo(ColumnSpecification receiver)
         {
-            return fun.returnType().equals(receiver.type);
+            return fun.returnType().asCQL3Type().equals(receiver.type.asCQL3Type());
+        }
+
+        @Override
+        public String toString()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.append(fun.name()).append("(");
+            for (int i = 0; i < argSelectors.size(); i++)
+            {
+                if (i > 0)
+                    sb.append(", ");
+                sb.append(argSelectors.get(i));
+            }
+            return sb.append(")").toString();
         }
     }
 
     private static class WritetimeOrTTLSelector implements Selector
     {
+        private final String columnName;
         private final int idx;
         private final boolean isWritetime;
 
-        public WritetimeOrTTLSelector(int idx, boolean isWritetime)
+        public WritetimeOrTTLSelector(String columnName, int idx, boolean isWritetime)
         {
+            this.columnName = columnName;
             this.idx = idx;
             this.isWritetime = isWritetime;
         }
@@ -385,6 +409,12 @@ public abstract class Selection
         public boolean isAssignableTo(ColumnSpecification receiver)
         {
             return receiver.type.asCQL3Type().equals(isWritetime ? CQL3Type.Native.BIGINT : CQL3Type.Native.INT);
+        }
+
+        @Override
+        public String toString()
+        {
+            return columnName;
         }
     }
 
