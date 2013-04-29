@@ -53,6 +53,7 @@
  * Track max/min column names in sstables to be able to optimize slice
    queries (CASSANDRA-5514)
  * Binary protocol: allow batching already prepared statements (CASSANDRA-4693)
+ * Allow preparing timestamp, ttl and limit in CQL3 queries (CASSANDRA-4450)
 
 1.2.6
  * (Hadoop) Fix InputKeyRange in CFIF (CASSANDRA-5536)

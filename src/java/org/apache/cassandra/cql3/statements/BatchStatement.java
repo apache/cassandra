@@ -76,21 +76,14 @@ public class BatchStatement implements CQLStatement
 
     public void validate(ClientState state) throws InvalidRequestException
     {
-        if (attrs.timeToLive != 0)
+        if (attrs.isTimeToLiveSet())
             throw new InvalidRequestException("Global TTL on the BATCH statement is not supported.");
 
         for (ModificationStatement statement : statements)
         {
-            statement.validate(state);
-
-            if (attrs.timestamp != null && statement.isSetTimestamp())
+            if (attrs.isTimestampSet() && statement.isTimestampSet())
                 throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements");
         }
-    }
-
-    public long getTimestamp(long now)
-    {
-        return attrs.timestamp == null ? now : attrs.timestamp;
     }
 
     private Collection<? extends IMutation> getMutations(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
@@ -125,7 +118,7 @@ public class BatchStatement implements CQLStatement
     throws RequestExecutionException, RequestValidationException
     {
         // Group mutation together, otherwise they won't get applied atomically
-        for (IMutation m : statement.getMutations(variables, local, cl, getTimestamp(now), true))
+        for (IMutation m : statement.getMutations(variables, local, cl, attrs.getTimestamp(now, variables), true))
         {
             Pair<String, ByteBuffer> key = Pair.create(m.getTable(), m.key());
             IMutation existing = mutations.get(key);
@@ -179,10 +172,10 @@ public class BatchStatement implements CQLStatement
     public static class Parsed extends CFStatement
     {
         private final Type type;
-        private final Attributes attrs;
+        private final Attributes.Raw attrs;
         private final List<ModificationStatement.Parsed> parsedStatements;
 
-        public Parsed(Type type, Attributes attrs, List<ModificationStatement.Parsed> parsedStatements)
+        public Parsed(Type type, Attributes.Raw attrs, List<ModificationStatement.Parsed> parsedStatements)
         {
             super(null);
             this.type = type;
@@ -217,7 +210,10 @@ public class BatchStatement implements CQLStatement
                 statements.add(stmt);
             }
 
-            return new ParsedStatement.Prepared(new BatchStatement(getBoundsTerms(), type, statements, attrs), Arrays.<ColumnSpecification>asList(boundNames));
+            Attributes prepAttrs = attrs.prepare("[batch]", "[batch]");
+            prepAttrs.collectMarkerSpecification(boundNames);
+
+            return new ParsedStatement.Prepared(new BatchStatement(getBoundsTerms(), type, statements, prepAttrs), Arrays.<ColumnSpecification>asList(boundNames));
         }
     }
 }

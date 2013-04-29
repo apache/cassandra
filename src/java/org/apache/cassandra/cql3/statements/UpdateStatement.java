@@ -115,14 +115,14 @@ public class UpdateStatement extends ModificationStatement
          * @param columnValues list of column values (corresponds to names)
          * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
          */
-        public ParsedInsert(CFName name, Attributes attrs, List<ColumnIdentifier> columnNames, List<Term.Raw> columnValues)
+        public ParsedInsert(CFName name, Attributes.Raw attrs, List<ColumnIdentifier> columnNames, List<Term.Raw> columnValues)
         {
             super(name, attrs, Collections.<Pair<ColumnIdentifier, Operation.RawUpdate>>emptyList(), false);
             this.columnNames = columnNames;
             this.columnValues = columnValues;
         }
 
-        protected ModificationStatement prepareInternal(CFDefinition cfDef, ColumnSpecification[] boundNames) throws InvalidRequestException
+        protected ModificationStatement prepareInternal(CFDefinition cfDef, ColumnSpecification[] boundNames, Attributes attrs) throws InvalidRequestException
         {
             UpdateStatement stmt = new UpdateStatement(getBoundsTerms(), cfDef.cfm, attrs);
 
@@ -182,7 +182,7 @@ public class UpdateStatement extends ModificationStatement
          * @param whereClause the where clause
          */
         public ParsedUpdate(CFName name,
-                            Attributes attrs,
+                            Attributes.Raw attrs,
                             List<Pair<ColumnIdentifier, Operation.RawUpdate>> updates,
                             List<Relation> whereClause,
                             List<Pair<ColumnIdentifier, Operation.RawUpdate>> conditions,
@@ -193,7 +193,7 @@ public class UpdateStatement extends ModificationStatement
             this.whereClause = whereClause;
         }
 
-        protected ModificationStatement prepareInternal(CFDefinition cfDef, ColumnSpecification[] boundNames) throws InvalidRequestException
+        protected ModificationStatement prepareInternal(CFDefinition cfDef, ColumnSpecification[] boundNames, Attributes attrs) throws InvalidRequestException
         {
             UpdateStatement stmt = new UpdateStatement(getBoundsTerms(), cfDef.cfm, attrs);
 

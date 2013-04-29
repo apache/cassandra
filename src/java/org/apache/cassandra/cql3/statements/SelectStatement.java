@@ -58,6 +58,7 @@ public class SelectStatement implements CQLStatement
     public final CFDefinition cfDef;
     public final Parameters parameters;
     private final Selection selection;
+    private final Term limit;
 
     private final Restriction[] keyRestrictions;
     private final Restriction[] columnRestrictions;
@@ -92,7 +93,7 @@ public class SelectStatement implements CQLStatement
         }
     }
 
-    public SelectStatement(CFDefinition cfDef, int boundTerms, Parameters parameters, Selection selection)
+    public SelectStatement(CFDefinition cfDef, int boundTerms, Parameters parameters, Selection selection, Term limit)
     {
         this.cfDef = cfDef;
         this.boundTerms = boundTerms;
@@ -100,6 +101,7 @@ public class SelectStatement implements CQLStatement
         this.keyRestrictions = new Restriction[cfDef.keys.size()];
         this.columnRestrictions = new Restriction[cfDef.columns.size()];
         this.parameters = parameters;
+        this.limit = limit;
     }
 
     public int getBoundsTerms()
@@ -124,17 +126,18 @@ public class SelectStatement implements CQLStatement
 
         cl.validateForRead(keyspace());
 
+        int limit = getLimit(variables);
         List<Row> rows = isKeyRange || usesSecondaryIndexing
-                       ? StorageProxy.getRangeSlice(getRangeCommand(variables), cl)
-                       : StorageProxy.read(getSliceCommands(variables), cl);
+                       ? StorageProxy.getRangeSlice(getRangeCommand(variables, limit), cl)
+                       : StorageProxy.read(getSliceCommands(variables, limit), cl);
 
-        return processResults(rows, variables);
+        return processResults(rows, variables, limit);
     }
 
-    private ResultMessage.Rows processResults(List<Row> rows, List<ByteBuffer> variables) throws RequestValidationException
+    private ResultMessage.Rows processResults(List<Row> rows, List<ByteBuffer> variables, int limit) throws RequestValidationException
     {
         // Even for count, we need to process the result as it'll group some column together in sparse column families
-        ResultSet rset = process(rows, variables);
+        ResultSet rset = process(rows, variables, limit);
         rset = parameters.isCount ? rset.makeCountResult(parameters.countAlias) : rset;
         return new ResultMessage.Rows(rset);
     }
@@ -150,17 +153,19 @@ public class SelectStatement implements CQLStatement
 
     public ResultMessage.Rows executeInternal(QueryState state) throws RequestExecutionException, RequestValidationException
     {
+        List<ByteBuffer> variables = Collections.<ByteBuffer>emptyList();
+        int limit = getLimit(variables);
         List<Row> rows = isKeyRange || usesSecondaryIndexing
-                       ? RangeSliceVerbHandler.executeLocally(getRangeCommand(Collections.<ByteBuffer>emptyList()))
-                       : readLocally(keyspace(), getSliceCommands(Collections.<ByteBuffer>emptyList()));
+                       ? RangeSliceVerbHandler.executeLocally(getRangeCommand(variables, limit))
+                       : readLocally(keyspace(), getSliceCommands(variables, limit));
 
-        return processResults(rows, Collections.<ByteBuffer>emptyList());
+        return processResults(rows, variables, limit);
     }
 
     public ResultSet process(List<Row> rows) throws InvalidRequestException
     {
         assert !parameters.isCount; // not yet needed
-        return process(rows, Collections.<ByteBuffer>emptyList());
+        return process(rows, Collections.<ByteBuffer>emptyList(), getLimit(Collections.<ByteBuffer>emptyList()));
     }
 
     public String keyspace()
@@ -173,12 +178,12 @@ public class SelectStatement implements CQLStatement
         return cfDef.cfm.cfName;
     }
 
-    private List<ReadCommand> getSliceCommands(List<ByteBuffer> variables) throws RequestValidationException
+    private List<ReadCommand> getSliceCommands(List<ByteBuffer> variables, int limit) throws RequestValidationException
     {
         Collection<ByteBuffer> keys = getKeys(variables);
         List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
 
-        IDiskAtomFilter filter = makeFilter(variables);
+        IDiskAtomFilter filter = makeFilter(variables, limit);
         // Note that we use the total limit for every key, which is potentially inefficient.
         // However, IN + LIMIT is not a very sensible choice.
         for (ByteBuffer key : keys)
@@ -192,9 +197,9 @@ public class SelectStatement implements CQLStatement
         return commands;
     }
 
-    private RangeSliceCommand getRangeCommand(List<ByteBuffer> variables) throws RequestValidationException
+    private RangeSliceCommand getRangeCommand(List<ByteBuffer> variables, int limit) throws RequestValidationException
     {
-        IDiskAtomFilter filter = makeFilter(variables);
+        IDiskAtomFilter filter = makeFilter(variables, limit);
         List<IndexExpression> expressions = getIndexExpressions(variables);
         // The LIMIT provided by the user is the number of CQL row he wants returned.
         // We want to have getRangeSlice to count the number of columns, not the number of keys.
@@ -203,7 +208,7 @@ public class SelectStatement implements CQLStatement
                                      filter,
                                      getKeyBounds(variables),
                                      expressions,
-                                     getLimit(),
+                                     limit,
                                      true,
                                      false);
     }
@@ -252,7 +257,7 @@ public class SelectStatement implements CQLStatement
         return bounds;
     }
 
-    private IDiskAtomFilter makeFilter(List<ByteBuffer> variables)
+    private IDiskAtomFilter makeFilter(List<ByteBuffer> variables, int limit)
     throws InvalidRequestException
     {
         if (isColumnRange())
@@ -266,7 +271,7 @@ public class SelectStatement implements CQLStatement
                                                 getRequestedBound(Bound.END, variables));
             SliceQueryFilter filter = new SliceQueryFilter(new ColumnSlice[]{slice},
                                                            isReversed,
-                                                           getLimit(),
+                                                           limit,
                                                            toGroup);
             QueryProcessor.validateSliceFilter(cfDef.cfm, filter);
             return filter;
@@ -279,13 +284,35 @@ public class SelectStatement implements CQLStatement
         }
     }
 
-    private int getLimit()
+    private int getLimit(List<ByteBuffer> variables) throws InvalidRequestException
     {
+        int l = Integer.MAX_VALUE;
+        if (limit != null)
+        {
+            ByteBuffer b = limit.bindAndGet(variables);
+            if (b == null)
+                throw new InvalidRequestException("Invalid null value of limit");
+
+            try
+            {
+                Int32Type.instance.validate(b);
+                l = Int32Type.instance.compose(b);
+            }
+            catch (MarshalException e)
+            {
+                throw new InvalidRequestException("Invalid limit value");
+            }
+        }
+
+        if (l <= 0)
+            throw new InvalidRequestException("LIMIT must be strictly positive");
+
         // Internally, we don't support exclusive bounds for slices. Instead,
         // we query one more element if necessary and exclude
-        return sliceRestriction != null && !sliceRestriction.isInclusive(Bound.START) && parameters.limit != Integer.MAX_VALUE
-             ? parameters.limit + 1
-             : parameters.limit;
+        if (sliceRestriction != null && !sliceRestriction.isInclusive(Bound.START) && l != Integer.MAX_VALUE)
+            l += 1;
+
+        return l;
     }
 
     private Collection<ByteBuffer> getKeys(final List<ByteBuffer> variables) throws InvalidRequestException
@@ -634,7 +661,7 @@ public class SelectStatement implements CQLStatement
         };
     }
 
-    private ResultSet process(List<Row> rows, List<ByteBuffer> variables) throws InvalidRequestException
+    private ResultSet process(List<Row> rows, List<ByteBuffer> variables, int limit) throws InvalidRequestException
     {
         Selection.ResultSetBuilder result = selection.resultSetBuilder();
         for (org.apache.cassandra.db.Row row : rows)
@@ -740,7 +767,7 @@ public class SelectStatement implements CQLStatement
             cqlRows.reverse();
 
         // Trim result if needed to respect the limit
-        cqlRows.trim(parameters.limit);
+        cqlRows.trim(limit);
         return cqlRows;
     }
 
@@ -839,21 +866,20 @@ public class SelectStatement implements CQLStatement
         private final Parameters parameters;
         private final List<RawSelector> selectClause;
         private final List<Relation> whereClause;
+        private final Term.Raw limit;
 
-        public RawStatement(CFName cfName, Parameters parameters, List<RawSelector> selectClause, List<Relation> whereClause)
+        public RawStatement(CFName cfName, Parameters parameters, List<RawSelector> selectClause, List<Relation> whereClause, Term.Raw limit)
         {
             super(cfName);
             this.parameters = parameters;
             this.selectClause = selectClause;
             this.whereClause = whereClause == null ? Collections.<Relation>emptyList() : whereClause;
+            this.limit = limit;
         }
 
         public ParsedStatement.Prepared prepare() throws InvalidRequestException
         {
             CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
-
-            if (parameters.limit <= 0)
-                throw new InvalidRequestException("LIMIT must be strictly positive");
 
             CFDefinition cfDef = cfm.getCfDef();
 
@@ -868,7 +894,14 @@ public class SelectStatement implements CQLStatement
                                 ? Selection.wildcard(cfDef)
                                 : Selection.fromSelectors(cfDef, selectClause);
 
-            SelectStatement stmt = new SelectStatement(cfDef, getBoundsTerms(), parameters, selection);
+            Term prepLimit = null;
+            if (limit != null)
+            {
+                prepLimit = limit.prepare(limitReceiver());
+                prepLimit.collectMarkerSpecification(names);
+            }
+
+            SelectStatement stmt = new SelectStatement(cfDef, getBoundsTerms(), parameters, selection, prepLimit);
 
             /*
              * WHERE clause. For a given entity, rules are:
@@ -1209,6 +1242,11 @@ public class SelectStatement implements CQLStatement
                                                });
         }
 
+        private ColumnSpecification limitReceiver()
+        {
+            return new ColumnSpecification(keyspace(), columnFamily(), new ColumnIdentifier("[limit]", true), Int32Type.instance);
+        }
+
         Restriction updateRestriction(CFDefinition.Name name, Restriction restriction, Relation newRel, ColumnSpecification[] boundNames) throws InvalidRequestException
         {
             ColumnSpecification receiver = name;
@@ -1265,12 +1303,11 @@ public class SelectStatement implements CQLStatement
         @Override
         public String toString()
         {
-            return String.format("SelectRawStatement[name=%s, selectClause=%s, whereClause=%s, isCount=%s, limit=%s]",
+            return String.format("SelectRawStatement[name=%s, selectClause=%s, whereClause=%s, isCount=%s]",
                     cfName,
                     selectClause,
                     whereClause,
-                    parameters.isCount,
-                    parameters.limit);
+                    parameters.isCount);
         }
     }
 
@@ -1409,15 +1446,13 @@ public class SelectStatement implements CQLStatement
 
     public static class Parameters
     {
-        private final int limit;
         private final Map<ColumnIdentifier, Boolean> orderings;
         private final boolean isCount;
         private final ColumnIdentifier countAlias;
         private final boolean allowFiltering;
 
-        public Parameters(int limit, Map<ColumnIdentifier, Boolean> orderings, boolean isCount, ColumnIdentifier countAlias, boolean allowFiltering)
+        public Parameters(Map<ColumnIdentifier, Boolean> orderings, boolean isCount, ColumnIdentifier countAlias, boolean allowFiltering)
         {
-            this.limit = limit;
             this.orderings = orderings;
             this.isCount = isCount;
             this.countAlias = countAlias;

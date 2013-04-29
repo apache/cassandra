@@ -221,7 +221,7 @@ public class BatchMessage extends Message.Request
 
             // Note: It's ok at this point to pass a bogus value for the number of bound terms in the BatchState ctor
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
-            BatchStatement batch = new BatchStatement(-1, type, statements, new Attributes());
+            BatchStatement batch = new BatchStatement(-1, type, statements, Attributes.none());
             Message.Response response = QueryProcessor.processBatch(batch, consistency, state, values);
 
             if (tracingId != null)

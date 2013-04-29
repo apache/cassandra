@@ -93,7 +93,7 @@ public class DeleteStatement extends ModificationStatement
         private final List<Relation> whereClause;
 
         public Parsed(CFName name,
-                      Attributes attrs,
+                      Attributes.Raw attrs,
                       List<Operation.RawDeletion> deletions,
                       List<Relation> whereClause,
                       List<Pair<ColumnIdentifier, Operation.RawUpdate>> conditions)
@@ -103,7 +103,7 @@ public class DeleteStatement extends ModificationStatement
             this.whereClause = whereClause;
         }
 
-        protected ModificationStatement prepareInternal(CFDefinition cfDef, ColumnSpecification[] boundNames) throws InvalidRequestException
+        protected ModificationStatement prepareInternal(CFDefinition cfDef, ColumnSpecification[] boundNames, Attributes attrs) throws InvalidRequestException
         {
             DeleteStatement stmt = new DeleteStatement(getBoundsTerms(), cfDef.cfm, attrs);
 
