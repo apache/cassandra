@@ -173,6 +173,12 @@ Merged from 1.1:
  * cqlsh: Add username autocompletion (CASSANDRA-5231)
  * Fix CQL3 composite partition key error (CASSANDRA-5240)
  * Allow IN clause on last clustering key (CASSANDRA-5230)
+Merged from 1.1:
+ * fix start key/end token validation for wide row iteration (CASSANDRA-5168)
+ * add ConfigHelper support for Thrift frame and max message sizes (CASSANDRA-5188)
+ * fix nodetool repair not fail on node down (CASSANDRA-5203)
+ * always collect tombstone hints (CASSANDRA-5068)
+ * Fix error when sourcing file in cqlsh (CASSANDRA-5235)
 
 
 1.2.1
@@ -225,35 +231,22 @@ Merged from 1.1:
  * Fix cf name extraction from manifest in Directories.migrateFile() (CASSANDRA-5242)
  * Support pluggable internode authentication (CASSANDRA-5401)
  * Replace mistaken usage of commons-logging with slf4j (CASSANDRA-5464)
-
-
-1.1.10
- * fix saved key cache not loading at startup (CASSANDRA-5166)
- * fix ConcurrentModificationException in getBootstrapSource (CASSANDRA-5170)
- * fix sstable maxtimestamp for row deletes and pre-1.1.1 sstables (CASSANDRA-5153)
- * fix start key/end token validation for wide row iteration (CASSANDRA-5168)
- * add ConfigHelper support for Thrift frame and max message sizes (CASSANDRA-5188)
- * fix nodetool repair not fail on node down (CASSANDRA-5203)
- * always collect tombstone hints (CASSANDRA-5068)
- * Fix thread growth on node removal (CASSANDRA-5175)
- * Fix error when sourcing file in cqlsh (CASSANDRA-5235)
- * Make Ec2Region's datacenter name configurable (CASSANDRA-5155)
-
-
-1.1.9
+ * Ensure Jackson dependency matches lib (CASSANDRA-5126)
+ * Expose droppable tombstone ratio stats over JMX (CASSANDRA-5159)
+Merged from 1.1:
  * Simplify CompressedRandomAccessReader to work around JDK FD bug (CASSANDRA-5088)
  * Improve handling a changing target throttle rate mid-compaction (CASSANDRA-5087)
  * Pig: correctly decode row keys in widerow mode (CASSANDRA-5098)
  * nodetool repair command now prints progress (CASSANDRA-4767)
- * Ensure Jackson dependency matches lib (CASSANDRA-5126)
  * fix user defined compaction to run against 1.1 data directory (CASSANDRA-5118)
  * Fix CQL3 BATCH authorization caching (CASSANDRA-5145)
  * fix get_count returns incorrect value with TTL (CASSANDRA-5099)
- * better handling for amid compaction failure (CASSANDRA-5137)
- * calculate pending ranges asynchronously (CASSANDRA-5135)
+ * better handling for mid-compaction failure (CASSANDRA-5137)
  * convert default marshallers list to map for better readability (CASSANDRA-5109)
- * Expose droppable tombstone ratio stats over JMX (CASSANDRA-5159)
- 
+ * fix ConcurrentModificationException in getBootstrapSource (CASSANDRA-5170)
+ * fix sstable maxtimestamp for row deletes and pre-1.1.1 sstables (CASSANDRA-5153)
+ * Fix thread growth on node removal (CASSANDRA-5175)
+ * Make Ec2Region's datacenter name configurable (CASSANDRA-5155)
 
 
 1.2.0
