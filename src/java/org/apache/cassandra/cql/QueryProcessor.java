@@ -338,13 +338,6 @@ public class QueryProcessor
             throw new InvalidRequestException("range finish must come after start in traversal order");
     }
 
-    private static Map<String, List<String>> describeSchemaVersions()
-    {
-        // unreachable hosts don't count towards disagreement
-        return Maps.filterKeys(StorageProxy.describeSchemaVersions(),
-                               Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
-    }
-
     public static CqlResult processStatement(CQLStatement statement,ThriftClientState clientState, List<ByteBuffer> variables )
     throws RequestExecutionException, RequestValidationException
     {
