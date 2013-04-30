@@ -668,10 +668,13 @@ public class AntiEntropyService
                     throw new IOException(message);
                 }
 
-                if (MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_11 && isSequential)
+                // All endpoints should be on the same protocol version
+                if (!MessagingService.instance().knowsVersion(endpoint) || MessagingService.instance().getVersion(endpoint) != MessagingService.current_version)
                 {
-                    logger.info(String.format("[repair #%s] Cannot repair using snapshots as node %s is pre-1.1", getName(), endpoint));
-                    return;
+                    String message = "Cannot repair among different protocol versions";
+                    differencingDone.signalAll();
+                    logger.error(String.format("[repair #%s] ", getName()) + message);
+                    throw new IOException(message);
                 }
             }
 
