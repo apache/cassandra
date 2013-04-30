@@ -119,9 +119,11 @@
         <pathelement location="${build.classes.thrift}" />
         <fileset dir="${build.lib}">
           <include name="**/*.jar" />
+          <exclude name="**/*-sources.jar"/>
         </fileset>
         <fileset dir="${build.dir.lib}">
           <include name="**/*.jar" />
+          <exclude name="**/*-sources.jar"/>
         </fileset>
     </path>
 	
