@@ -658,6 +658,15 @@ public class ActiveRepairService
                     logger.error(String.format("[repair #%s] ", getName()) + message);
                     throw new IOException(message);
                 }
+
+                // All endpoints should be on the same protocol version
+                if (!MessagingService.instance().knowsVersion(endpoint) || MessagingService.instance().getVersion(endpoint) != MessagingService.current_version)
+                {
+                    String message = "Cannot repair among different protocol versions";
+                    differencingDone.signalAll();
+                    logger.error(String.format("[repair #%s] ", getName()) + message);
+                    throw new IOException(message);
+                }
             }
 
             ActiveRepairService.instance.sessions.put(getName(), this);
