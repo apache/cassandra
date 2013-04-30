@@ -228,6 +228,7 @@ enum ConsistencyLevel {
     ANY = 6,
     TWO = 7,
     THREE = 8,
+    SERIAL = 9,
 }
 
 /**

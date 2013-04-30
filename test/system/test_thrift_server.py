@@ -242,6 +242,9 @@ class TestMutations(ThriftTester):
 
         assert not client.cas('key1', 'Standard1', None, _SIMPLE_COLUMNS)
 
+        # CL.SERIAL for reads
+        assert client.get('key1', ColumnPath('Standard1', column='c1'), ConsistencyLevel.SERIAL).column.value == 'value1'
+
     def test_missing_super(self):
         _set_keyspace('Keyspace1')
         _expect_missing(lambda: client.get('key1', ColumnPath('Super1', 'sc1', _i64(1)), ConsistencyLevel.ONE))

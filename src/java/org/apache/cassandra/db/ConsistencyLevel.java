@@ -258,11 +258,11 @@ public enum ConsistencyLevel
     {
         switch (this)
         {
-            case ANY:
-                throw new InvalidRequestException("ANY ConsistencyLevel is only supported for writes");
             case LOCAL_QUORUM:
                 requireNetworkTopologyStrategy(table);
                 break;
+            case ANY:
+                throw new InvalidRequestException("ANY ConsistencyLevel is only supported for writes");
             case EACH_QUORUM:
                 throw new InvalidRequestException("EACH_QUORUM ConsistencyLevel is only supported for writes");
         }
@@ -276,6 +276,8 @@ public enum ConsistencyLevel
             case EACH_QUORUM:
                 requireNetworkTopologyStrategy(table);
                 break;
+            case SERIAL:
+                throw new InvalidRequestException("You must use conditional updates for serializable writes");
         }
     }
 
@@ -288,6 +290,10 @@ public enum ConsistencyLevel
         else if (!metadata.getReplicateOnWrite() && this != ConsistencyLevel.ONE)
         {
             throw new InvalidRequestException("cannot achieve CL > CL.ONE without replicate_on_write on columnfamily " + metadata.cfName);
+        }
+        else if (this == ConsistencyLevel.SERIAL)
+        {
+            throw new InvalidRequestException("Counter operations are inherently non-serializable");
         }
     }
 

@@ -42,7 +42,7 @@ public class Commit
         return new Commit(key, ballot, EmptyColumns.factory.create(metadata));
     }
 
-    public Commit makeProposal(ColumnFamily update)
+    public static Commit newProposal(ByteBuffer key, UUID ballot, ColumnFamily update)
     {
         return new Commit(key, ballot, updatesWithPaxosTime(update, ballot));
     }

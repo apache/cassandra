@@ -82,7 +82,8 @@ public enum ConsistencyLevel implements org.apache.thrift.TEnum {
   ALL(5),
   ANY(6),
   TWO(7),
-  THREE(8);
+  THREE(8),
+  SERIAL(9);
 
   private final int value;
 
@@ -119,6 +120,8 @@ public enum ConsistencyLevel implements org.apache.thrift.TEnum {
         return TWO;
       case 8:
         return THREE;
+      case 9:
+        return SERIAL;
       default:
         return null;
     }

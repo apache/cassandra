@@ -74,7 +74,7 @@ public class QueryProcessor
     public static final String DEFAULT_KEY_NAME = bufferToString(CFMetaData.DEFAULT_KEY_NAME);
 
     private static List<org.apache.cassandra.db.Row> getSlice(CFMetaData metadata, SelectStatement select, List<ByteBuffer> variables)
-    throws InvalidRequestException, ReadTimeoutException, UnavailableException, IsBootstrappingException
+    throws InvalidRequestException, ReadTimeoutException, UnavailableException, IsBootstrappingException, WriteTimeoutException
     {
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
 
