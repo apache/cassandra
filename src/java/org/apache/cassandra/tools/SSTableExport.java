@@ -32,6 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.util.concurrent.RateLimiter;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.Option;
@@ -349,7 +350,7 @@ public class SSTableExport
     public static void export(Descriptor desc, PrintStream outs, Collection<String> toExport, String[] excludes) throws IOException
     {
         SSTableReader reader = SSTableReader.open(desc);
-        SSTableScanner scanner = reader.getDirectScanner();
+        SSTableScanner scanner = reader.getDirectScanner(null);
 
         IPartitioner<?> partitioner = reader.partitioner;
 
@@ -406,7 +407,7 @@ public class SSTableExport
 
 
         SSTableIdentityIterator row;
-        SSTableScanner scanner = reader.getDirectScanner();
+        SSTableScanner scanner = reader.getDirectScanner(null);
 
         outs.println("[");
 

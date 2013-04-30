@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 
+import com.google.common.util.concurrent.RateLimiter;
+
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.RowPosition;
@@ -45,10 +47,11 @@ public class SSTableScanner implements ICompactionScanner
 
     /**
      * @param sstable SSTable to scan.
+     * @param limiter
      */
-    SSTableScanner(SSTableReader sstable, boolean skipCache)
+    SSTableScanner(SSTableReader sstable, boolean skipCache, RateLimiter limiter)
     {
-        this.dfile = sstable.openDataReader(skipCache);
+        this.dfile = limiter == null ? sstable.openDataReader(skipCache) : sstable.openDataReader(limiter);
         this.ifile = sstable.openIndexReader(skipCache);
         this.sstable = sstable;
         this.filter = null;

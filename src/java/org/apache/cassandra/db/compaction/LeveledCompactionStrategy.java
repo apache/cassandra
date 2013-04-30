@@ -24,6 +24,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.*;
 import com.google.common.primitives.Doubles;
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -178,7 +179,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
             {
                 // L0 makes no guarantees about overlapping-ness.  Just create a direct scanner for each
                 for (SSTableReader sstable : byLevel.get(level))
-                    scanners.add(sstable.getDirectScanner(range));
+                    scanners.add(sstable.getDirectScanner(range, CompactionManager.instance.getRateLimiter()));
             }
             else
             {
@@ -208,7 +209,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
             this.sstables = new ArrayList<SSTableReader>(sstables);
             Collections.sort(this.sstables, SSTable.sstableComparator);
             sstableIterator = this.sstables.iterator();
-            currentScanner = sstableIterator.next().getDirectScanner(range);
+            currentScanner = sstableIterator.next().getDirectScanner(range, CompactionManager.instance.getRateLimiter());
 
             long length = 0;
             for (SSTableReader sstable : sstables)
@@ -233,7 +234,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
                         currentScanner = null;
                         return endOfData();
                     }
-                    currentScanner = sstableIterator.next().getDirectScanner(range);
+                    currentScanner = sstableIterator.next().getDirectScanner(range, CompactionManager.instance.getRateLimiter());
                 }
             }
             catch (IOException e)

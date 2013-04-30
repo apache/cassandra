@@ -78,14 +78,10 @@ public class CompactionIterable extends AbstractCompactionIterable
             finally
             {
                 rows.clear();
-                if ((row++ % 1000) == 0)
-                {
-                    long n = 0;
-                    for (ICompactionScanner scanner : scanners)
-                        n += scanner.getCurrentPosition();
-                    bytesRead = n;
-                    controller.mayThrottle(bytesRead);
-                }
+                long n = 0;
+                for (ICompactionScanner scanner : scanners)
+                    n += scanner.getCurrentPosition();
+                bytesRead = n;
             }
         }
     }

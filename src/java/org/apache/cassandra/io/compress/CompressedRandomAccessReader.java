@@ -70,7 +70,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     // raw checksum bytes
     private final ByteBuffer checksumBytes = ByteBuffer.wrap(new byte[4]);
 
-    private CompressedRandomAccessReader(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache, PoolingSegmentedFile owner) throws FileNotFoundException
+    protected CompressedRandomAccessReader(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache, PoolingSegmentedFile owner) throws FileNotFoundException
     {
         super(new File(dataFilePath), metadata.chunkLength(), skipIOCache, owner);
         this.metadata = metadata;

@@ -24,6 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.*;
 
+import com.google.common.primitives.Longs;
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,6 +48,7 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
+import org.apache.cassandra.io.compress.CompressedThrottledReader;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.service.CacheService;
@@ -946,10 +949,10 @@ public class SSTableReader extends SSTable
     * Direct I/O SSTableScanner
     * @return A Scanner for seeking over the rows of the SSTable.
     */
-    public SSTableScanner getDirectScanner()
-    {
-        return new SSTableScanner(this, true);
-    }
+   public SSTableScanner getDirectScanner(RateLimiter limiter)
+   {
+       return new SSTableScanner(this, true, limiter);
+   }
 
    /**
     * Direct I/O SSTableScanner over a defined range of tokens.
@@ -957,14 +960,14 @@ public class SSTableReader extends SSTable
     * @param range the range of keys to cover
     * @return A Scanner for seeking over the rows of the SSTable.
     */
-    public ICompactionScanner getDirectScanner(Range<Token> range)
+    public ICompactionScanner getDirectScanner(Range<Token> range, RateLimiter limiter)
     {
         if (range == null)
-            return getDirectScanner();
+            return getDirectScanner(limiter);
 
         Iterator<Pair<Long, Long>> rangeIterator = getPositionsForRanges(Collections.singletonList(range)).iterator();
         return rangeIterator.hasNext()
-               ? new SSTableBoundedScanner(this, true, rangeIterator)
+               ? new SSTableBoundedScanner(this, true, rangeIterator, limiter)
                : new EmptyCompactionScanner(getFilename());
     }
 
@@ -1115,6 +1118,14 @@ public class SSTableReader extends SSTable
     public Set<Integer> getAncestors()
     {
         return sstableMetadata.ancestors;
+    }
+
+    public RandomAccessReader openDataReader(RateLimiter limiter)
+    {
+        assert limiter != null;
+        return compression
+               ? CompressedThrottledReader.open(getFilename(), getCompressionMetadata(), limiter)
+               : ThrottledReader.open(new File(getFilename()), limiter);
     }
 
     public RandomAccessReader openDataReader(boolean skipIOCache)

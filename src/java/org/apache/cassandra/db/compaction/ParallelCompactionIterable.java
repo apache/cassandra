@@ -117,7 +117,6 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
     private class Reducer extends MergeIterator.Reducer<RowContainer, CompactedRowContainer>
     {
         private final List<RowContainer> rows = new ArrayList<RowContainer>();
-        private int row = 0;
 
         private final ThreadPoolExecutor executor = new DebuggableThreadPoolExecutor(FBUtilities.getAvailableProcessors(),
                                                                                      Integer.MAX_VALUE,
@@ -137,14 +136,10 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
             ParallelCompactionIterable.this.updateCounterFor(rows.size());
             CompactedRowContainer compacted = getCompactedRow(rows);
             rows.clear();
-            if ((row++ % 1000) == 0)
-            {
-                long n = 0;
-                for (ICompactionScanner scanner : scanners)
-                    n += scanner.getCurrentPosition();
-                bytesRead = n;
-                controller.mayThrottle(bytesRead);
-            }
+            long n = 0;
+            for (ICompactionScanner scanner : scanners)
+                n += scanner.getCurrentPosition();
+            bytesRead = n;
             return compacted;
         }
 

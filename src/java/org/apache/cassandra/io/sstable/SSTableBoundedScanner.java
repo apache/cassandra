@@ -20,6 +20,8 @@ package org.apache.cassandra.io.sstable;
 import java.util.Arrays;
 import java.util.Iterator;
 
+import com.google.common.util.concurrent.RateLimiter;
+
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.utils.Pair;
@@ -32,9 +34,9 @@ public class SSTableBoundedScanner extends SSTableScanner
     private final Iterator<Pair<Long, Long>> rangeIterator;
     private Pair<Long, Long> currentRange;
 
-    SSTableBoundedScanner(SSTableReader sstable, boolean skipCache, Iterator<Pair<Long, Long>> rangeIterator)
+    SSTableBoundedScanner(SSTableReader sstable, boolean skipCache, Iterator<Pair<Long, Long>> rangeIterator, RateLimiter limiter)
     {
-        super(sstable, skipCache);
+        super(sstable, skipCache, limiter);
         this.rangeIterator = rangeIterator;
         assert rangeIterator.hasNext(); // use EmptyCompactionScanner otherwise
         currentRange = rangeIterator.next();

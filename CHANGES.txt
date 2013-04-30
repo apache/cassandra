@@ -1,4 +1,5 @@
 1.2.5
+ * fix compaction throttling bursty-ness (CASSANDRA-4316)
  * reduce memory consumption of IndexSummary (CASSANDRA-5506)
  * remove per-row column name bloom filters (CASSANDRA-5492)
  * Include fatal errors in trace events (CASSANDRA-5447)
