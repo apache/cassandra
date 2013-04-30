@@ -44,8 +44,6 @@ public class Scrubber implements Closeable
     private final RandomAccessReader indexFile;
     private final ScrubInfo scrubInfo;
 
-    private long rowsRead;
-
     private SSTableWriter writer;
     private SSTableReader newSstable;
     private SSTableReader newInOrderSstable;
@@ -93,7 +91,9 @@ public class Scrubber implements Closeable
         // we'll also loop through the index at the same time, using the position from the index to recover if the
         // row header (key or data size) is corrupt. (This means our position in the index file will be one row
         // "ahead" of the data file.)
-        this.dataFile = sstable.openDataReader();
+        this.dataFile = isOffline
+                        ? sstable.openDataReader()
+                        : sstable.openDataReader(CompactionManager.instance.getRateLimiter());
         this.indexFile = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)));
         this.scrubInfo = new ScrubInfo(dataFile, sstable);
     }
@@ -248,8 +248,6 @@ public class Scrubber implements Closeable
                         badRows++;
                     }
                 }
-                if ((rowsRead++ % 1000) == 0)
-                    controller.mayThrottle(dataFile.getFilePointer());
             }
 
             if (writer.getFilePointer() > 0)

@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.primitives.Longs;
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +49,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
+import org.apache.cassandra.io.compress.CompressedThrottledReader;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.service.CacheService;
@@ -1001,8 +1003,13 @@ public class SSTableReader extends SSTable
     */
     public SSTableScanner getScanner()
     {
-        return new SSTableScanner(this);
+        return getScanner((RateLimiter) null);
     }
+
+   public SSTableScanner getScanner(RateLimiter limiter)
+   {
+       return new SSTableScanner(this, limiter);
+   }
 
    /**
     * Direct I/O SSTableScanner over a defined range of tokens.
@@ -1010,13 +1017,14 @@ public class SSTableReader extends SSTable
     * @param range the range of keys to cover
     * @return A Scanner for seeking over the rows of the SSTable.
     */
-    public ICompactionScanner getScanner(Range<Token> range)
+    public ICompactionScanner getScanner(Range<Token> range, RateLimiter limiter)
     {
         if (range == null)
-            return getScanner();
+            return getScanner(limiter);
+
         Iterator<Pair<Long, Long>> rangeIterator = getPositionsForRanges(Collections.singletonList(range)).iterator();
         if (rangeIterator.hasNext())
-            return new SSTableBoundedScanner(this, rangeIterator);
+            return new SSTableBoundedScanner(this, rangeIterator, limiter);
         else
             return new EmptyCompactionScanner(getFilename());
     }
@@ -1170,6 +1178,14 @@ public class SSTableReader extends SSTable
     public SSTableMetadata getSSTableMetadata()
     {
         return sstableMetadata;
+    }
+
+    public RandomAccessReader openDataReader(RateLimiter limiter)
+    {
+        assert limiter != null;
+        return compression
+               ? CompressedThrottledReader.open(getFilename(), getCompressionMetadata(), limiter)
+               : ThrottledReader.open(new File(getFilename()), limiter);
     }
 
     public RandomAccessReader openDataReader()

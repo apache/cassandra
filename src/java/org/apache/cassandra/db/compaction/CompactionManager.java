@@ -27,6 +27,7 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.*;
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -98,6 +99,26 @@ public class CompactionManager implements CompactionManagerMBean
     private final CompactionExecutor validationExecutor = new ValidationExecutor();
     private final CompactionMetrics metrics = new CompactionMetrics(executor, validationExecutor);
     private final Multiset<ColumnFamilyStore> compactingCF = ConcurrentHashMultiset.create();
+
+    private final RateLimiter compactionRateLimiter = RateLimiter.create(Double.MAX_VALUE);
+
+    /**
+     * Gets compaction rate limiter. When compaction_throughput_mb_per_sec is 0 or node is bootstrapping,
+     * this returns rate limiter with the rate of Double.MAX_VALUE bytes per second.
+     * Rate unit is bytes per sec.
+     *
+     * @return RateLimiter with rate limit set
+     */
+    public RateLimiter getRateLimiter()
+    {
+        double currentThroughput = DatabaseDescriptor.getCompactionThroughputMbPerSec() * 1024 * 1024;
+        // if throughput is set to 0, throttling is disabled
+        if (currentThroughput == 0 || StorageService.instance.isBootstrapMode())
+            currentThroughput = Double.MAX_VALUE;
+        if (compactionRateLimiter.getRate() != currentThroughput)
+            compactionRateLimiter.setRate(currentThroughput);
+        return compactionRateLimiter;
+    }
 
     /**
      * Call this whenever a compaction might be needed on the given columnfamily.
@@ -471,7 +492,7 @@ public class CompactionManager implements CompactionManagerMBean
             if (compactionFileLocation == null)
                 throw new IOException("disk full");
 
-            SSTableScanner scanner = sstable.getScanner();
+            SSTableScanner scanner = sstable.getScanner(getRateLimiter());
             long rowsRead = 0;
             List<Column> indexedColumnsInRow = null;
 
@@ -531,8 +552,6 @@ public class CompactionManager implements CompactionManagerMBean
                             }
                         }
                     }
-                    if ((rowsRead++ % 1000) == 0)
-                        controller.mayThrottle(scanner.getCurrentPosition());
                 }
                 if (writer != null)
                     newSstable = writer.closeAndOpenReader(sstable.maxDataAge);

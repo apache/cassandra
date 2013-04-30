@@ -17,52 +17,28 @@
  */
 package org.apache.cassandra.tools;
 
-import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
-import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
+import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.CounterColumn;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DeletedColumn;
-import org.apache.cassandra.db.DeletionInfo;
-import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.db.ExpiringColumn;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.OnDiskAtom;
-import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.KeyIterator;
-import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableScanner;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.map.ObjectMapper;
+
+import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
+import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
 
 /**
  * Export SSTables to JSON format.
@@ -143,7 +119,7 @@ public class SSTableExport
     /**
      * Serialize columns using given column iterator
      *
-     * @param columns column iterator
+     * @param atoms column iterator
      * @param out output stream
      * @param comparator columns comparator
      * @param cfMetaData Column Family metadata (to get validator)

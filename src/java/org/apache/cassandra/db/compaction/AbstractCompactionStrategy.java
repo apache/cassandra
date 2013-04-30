@@ -21,6 +21,7 @@ import java.util.*;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -207,9 +208,10 @@ public abstract class AbstractCompactionStrategy
      */
     public List<ICompactionScanner> getScanners(Collection<SSTableReader> sstables, Range<Token> range)
     {
+        RateLimiter limiter = CompactionManager.instance.getRateLimiter();
         ArrayList<ICompactionScanner> scanners = new ArrayList<ICompactionScanner>();
         for (SSTableReader sstable : sstables)
-            scanners.add(sstable.getScanner(range));
+            scanners.add(sstable.getScanner(range, limiter));
         return scanners;
     }
 
