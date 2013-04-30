@@ -197,7 +197,7 @@ public class StorageProxy implements StorageProxyMBean
      * @return true if the operation succeeds in updating the row
      */
     public static boolean cas(String table, String cfName, ByteBuffer key, ColumnFamily expected, ColumnFamily updates)
-    throws UnavailableException, IOException, IsBootstrappingException, ReadTimeoutException, WriteTimeoutException, InvalidRequestException
+    throws UnavailableException, IsBootstrappingException, ReadTimeoutException, WriteTimeoutException, InvalidRequestException
     {
         CFMetaData metadata = Schema.instance.getCFMetaData(table, cfName);
 
