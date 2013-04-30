@@ -476,54 +476,56 @@ public abstract class ModificationStatement implements CQLStatement
 
             ModificationStatement stmt = prepareInternal(cfDef, boundNames);
 
-            if (stmt.isCounter())
-                throw new InvalidRequestException("Conditional updates are not supported on counter tables");
+            if (stmt.hasConditions())
+            {
+                if (stmt.isCounter())
+                    throw new InvalidRequestException("Conditional updates are not supported on counter tables");
 
-            if (ifNotExists)
-            {
-                // To have both 'IF NOT EXISTS' and some other conditions doesn't make sense.
-                // So far this is enforced by the parser, but let's assert it for sanity if ever the parse changes.
-                assert conditions.isEmpty();
-                stmt.setIfNotExistCondition();
-            }
-            else
-            {
-                for (Pair<ColumnIdentifier, Operation.RawUpdate> entry : conditions)
+                if (attrs.timestamp != null)
+                    throw new InvalidRequestException("Cannot provide custom timestamp for conditional update");
+
+                if (ifNotExists)
                 {
-                    CFDefinition.Name name = cfDef.get(entry.left);
-                    if (name == null)
-                        throw new InvalidRequestException(String.format("Unknown identifier %s", entry.left));
-
-                    /*
-                     * Lists column names are based on a server-side generated timeuuid. So we can't allow lists
-                     * operation or that would yield unexpected results (update that should apply wouldn't). So for
-                     * now, we just refuse lists, which also save use from having to bother about the read that some
-                     * list operation involve.
-                     */
-                    if (name.type instanceof ListType)
-                        throw new InvalidRequestException(String.format("List operation (%s) are not allowed in conditional updates", name));
-
-                    Operation condition = entry.right.prepare(name);
-                    assert !condition.requiresRead();
-
-                    condition.collectMarkerSpecification(boundNames);
-
-                    switch (name.kind)
+                    // To have both 'IF NOT EXISTS' and some other conditions doesn't make sense.
+                    // So far this is enforced by the parser, but let's assert it for sanity if ever the parse changes.
+                    assert conditions.isEmpty();
+                    stmt.setIfNotExistCondition();
+                }
+                else
+                {
+                    for (Pair<ColumnIdentifier, Operation.RawUpdate> entry : conditions)
                     {
-                        case KEY_ALIAS:
-                        case COLUMN_ALIAS:
-                            throw new InvalidRequestException(String.format("PRIMARY KEY part %s found in SET part", entry.left));
-                        case VALUE_ALIAS:
-                        case COLUMN_METADATA:
-                            stmt.addCondition(condition);
-                            break;
+                        CFDefinition.Name name = cfDef.get(entry.left);
+                        if (name == null)
+                            throw new InvalidRequestException(String.format("Unknown identifier %s", entry.left));
+
+                        /*
+                         * Lists column names are based on a server-side generated timeuuid. So we can't allow lists
+                         * operation or that would yield unexpected results (update that should apply wouldn't). So for
+                         * now, we just refuse lists, which also save use from having to bother about the read that some
+                         * list operation involve.
+                         */
+                        if (name.type instanceof ListType)
+                            throw new InvalidRequestException(String.format("List operation (%s) are not allowed in conditional updates", name));
+
+                        Operation condition = entry.right.prepare(name);
+                        assert !condition.requiresRead();
+
+                        condition.collectMarkerSpecification(boundNames);
+
+                        switch (name.kind)
+                        {
+                            case KEY_ALIAS:
+                            case COLUMN_ALIAS:
+                                throw new InvalidRequestException(String.format("PRIMARY KEY part %s found in SET part", entry.left));
+                            case VALUE_ALIAS:
+                            case COLUMN_METADATA:
+                                stmt.addCondition(condition);
+                                break;
+                        }
                     }
                 }
             }
-
-            if (stmt.hasConditions() && attrs.timestamp != null)
-                throw new InvalidRequestException("Cannot provide custom timestamp for conditional update");
-
             return stmt;
         }
 
