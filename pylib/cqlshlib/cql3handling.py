@@ -1469,7 +1469,7 @@ class CqlTableDef:
         cf.partition_key_validator = lookup_casstype(cf.key_validator)
         cf.comparator = lookup_casstype(cf.comparator)
         cf.default_validator = lookup_casstype(cf.default_validator)
-        cf.coldefs = coldefs
+        cf.coldefs = cf.filter_regular_coldefs(coldefs)
         cf.compact_storage = cf.is_compact_storage()
         cf.key_aliases = cf.get_key_aliases()
         cf.partition_key_components = cf.key_aliases
@@ -1477,6 +1477,10 @@ class CqlTableDef:
         cf.primary_key_components = cf.key_aliases + list(cf.column_aliases)
         cf.columns = cf.get_columns()
         return cf
+
+    def filter_regular_coldefs(self, cols):
+        return [ c for c in cols if c.get('type', 'regular') == 'regular' ]
+
 
     # not perfect, but good enough; please read CFDefinition constructor comments
     # returns False if we are dealing with a CQL3 table, True otherwise.

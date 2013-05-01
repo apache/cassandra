@@ -22,6 +22,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import com.google.common.base.Predicate;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
@@ -187,6 +191,12 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 cfProps.applyToCFMetadata(cfm);
                 break;
             case RENAME:
+
+                if (cfm.getKeyAliases().size() < cfDef.keys.size() && !renamesAllAliases(cfDef, renames.keySet(), CFDefinition.Name.Kind.KEY_ALIAS, cfDef.keys.size()))
+                    throw new InvalidRequestException("When upgrading from Thrift, all the columns of the (composite) partition key must be renamed together.");
+                if (cfm.getColumnAliases().size() < cfDef.columns.size() && !renamesAllAliases(cfDef, renames.keySet(), CFDefinition.Name.Kind.COLUMN_ALIAS, cfDef.columns.size()))
+                    throw new InvalidRequestException("When upgrading from Thrift, all the columns of the (composite) clustering key must be renamed together.");
+
                 for (Map.Entry<ColumnIdentifier, ColumnIdentifier> entry : renames.entrySet())
                 {
                     CFDefinition.Name from = cfDef.get(entry.getKey());
@@ -219,6 +229,24 @@ public class AlterTableStatement extends SchemaAlteringStatement
         MigrationManager.announceColumnFamilyUpdate(cfm);
     }
 
+    private static boolean renamesAllAliases(CFDefinition cfDef, Set<ColumnIdentifier> names, CFDefinition.Name.Kind kind, int expected)
+    {
+        int renamed = Sets.filter(names, isA(cfDef, kind)).size();
+        return renamed == 0 || renamed == expected;
+    }
+
+    private static Predicate<ColumnIdentifier> isA(final CFDefinition cfDef, final CFDefinition.Name.Kind kind)
+    {
+        return new Predicate<ColumnIdentifier>()
+        {
+            public boolean apply(ColumnIdentifier input)
+            {
+                CFDefinition.Name name = cfDef.get(input);
+                return name != null && name.kind == kind;
+            }
+        };
+    }
+
     private static List<ByteBuffer> rename(int pos, ColumnIdentifier newName, List<ByteBuffer> aliases)
     {
         if (pos < aliases.size())
@@ -229,6 +257,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
         }
         else
         {
+            // We insert nulls temporarly, but have checked that all the aliases are renamed
             List<ByteBuffer> newList = new ArrayList<ByteBuffer>(pos + 1);
             for (int i = 0; i < pos; ++i)
                 newList.add(i < aliases.size() ? aliases.get(i) : null);
