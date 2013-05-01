@@ -18,6 +18,7 @@
  * Prevent repair when protocol version does not match (CASSANDRA-5523)
  * Disallow renaming columns one at a time for thrift table in CQL3
    (CASSANDRA-5531)
+ * cqlsh: add CLUSTERING ORDER BY support to DESCRIBE (CASSANDRA-5528)
 Merged from 1.1
  * Add retry mechanism to OTC for non-droppable_verbs (CASSANDRA-5393)
  * Use allocator information to improve memtable memory usage estimate
