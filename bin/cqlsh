@@ -32,7 +32,7 @@ exit 1
 from __future__ import with_statement
 
 description = "CQL Shell for Apache Cassandra"
-version = "2.3.0"
+version = "3.0.0"
 
 from StringIO import StringIO
 from itertools import groupby
@@ -101,7 +101,8 @@ except ImportError, e:
 
 import cql.decoders
 from cql.cursor import _VOID_DESCRIPTION
-from cql.cqltypes import (cql_types, cql_typename, lookup_casstype, CassandraType)
+from cql.cqltypes import (cql_types, cql_typename, lookup_casstype, lookup_cqltype,
+                          CassandraType, ReversedType, CompositeType)
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
 # out of an unpacked Cassandra tarball, and after a proper package install.
@@ -1248,7 +1249,13 @@ class Shell(cmd.Cmd):
         indexed_columns = []
         for col in layout.columns[1:]:
             colname = self.cql_protect_name(col.name)
-            out.write(",\n  %s %s" % (colname, col.cqltype.cql_parameterized_type()))
+            coltype = col.cqltype
+
+            # Reversed types only matter for clustering order, not column definitions
+            if issubclass(coltype, ReversedType):
+                coltype = coltype.subtypes[0]
+
+            out.write(",\n  %s %s" % (colname, coltype.cql_parameterized_type()))
             if col.index_name is not None:
                 indexed_columns.append(col)
 
@@ -1269,8 +1276,32 @@ class Shell(cmd.Cmd):
             out.write(' WITH COMPACT STORAGE')
             joiner = 'AND'
 
-        # TODO: this should display CLUSTERING ORDER BY information too.
-        # work out how to determine that from a layout.
+        # check if we need a CLUSTERING ORDER BY clause
+        if layout.column_aliases:
+            # get a list of clustering component types
+            if issubclass(layout.comparator, CompositeType):
+                clustering_types = layout.comparator.subtypes
+            else:
+                clustering_types = [layout.comparator]
+
+            # only write CLUSTERING ORDER clause of we have >= 1 DESC item
+            if any(issubclass(t, ReversedType) for t in clustering_types):
+                if layout.compact_storage:
+                    out.write(' AND\n ')
+                else:
+                    out.write(' WITH')
+                out.write(' CLUSTERING ORDER BY (')
+
+                clustering_names = self.cql_protect_names(layout.column_aliases)
+
+                inner = []
+                for colname, coltype in zip(clustering_names, clustering_types):
+                    ordering = "DESC" if issubclass(coltype, ReversedType) else "ASC"
+                    inner.append("%s %s" % (colname, ordering))
+                out.write(", ".join(inner))
+
+                out.write(")")
+                joiner = "AND"
 
         cf_opts = []
         compaction_strategy = trim_if_present(getattr(layout, 'compaction_strategy_class'),
