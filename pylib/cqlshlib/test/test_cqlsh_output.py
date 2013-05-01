@@ -737,8 +737,8 @@ class TestCqlshOutput(BaseTestCase):
               asciicol ascii,
               blobcol blob,
               varcharcol text,
-              textcol text,
-              varintcol varint
+              varintcol varint,
+              textcol text
             ) WITH
               comment='' AND
               comparator=text AND
