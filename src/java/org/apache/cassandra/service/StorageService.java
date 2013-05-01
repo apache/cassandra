@@ -1497,7 +1497,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         assert pieces.length >= 2;
         Collection<Token> tokens;
-        Integer version = MessagingService.instance().getVersion(endpoint);
         tokens = getTokensFor(endpoint, pieces[1]);
 
         if (logger.isDebugEnabled())
