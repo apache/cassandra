@@ -38,6 +38,7 @@
  * Add an official way to disable compactions (CASSANDRA-5074)
  * Reenable ALTER TABLE DROP with new semantics (CASSANDRA-3919)
  * Add binary protocol versioning (CASSANDRA-5436)
+ * Swap THshaServer for TThreadedSelectorServer (CASSANDRA-5530)
 
 1.2.5
  * fix compaction throttling bursty-ness (CASSANDRA-4316)

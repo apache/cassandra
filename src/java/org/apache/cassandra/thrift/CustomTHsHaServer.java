@@ -22,6 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.thrift.server.TThreadedSelectorServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,7 +42,7 @@ import org.apache.thrift.transport.TTransportException;
  * it is spread across multiple threads. Number of selector thread can be the
  * number of CPU available.
  */
-public class CustomTHsHaServer extends THsHaServer
+public class CustomTHsHaServer extends TThreadedSelectorServer
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(CustomTHsHaServer.class.getName());
 
@@ -89,11 +90,12 @@ public class CustomTHsHaServer extends THsHaServer
                                                                                TimeUnit.SECONDS,
                                                                                new SynchronousQueue<Runnable>(),
                                                                                new NamedThreadFactory("RPC-Thread"), "RPC-THREAD-POOL");
-           THsHaServer.Args serverArgs = new THsHaServer.Args(serverTransport).inputTransportFactory(args.inTransportFactory)
+           TThreadedSelectorServer.Args serverArgs = new TThreadedSelectorServer.Args(serverTransport).inputTransportFactory(args.inTransportFactory)
                                                                                .outputTransportFactory(args.outTransportFactory)
                                                                                .inputProtocolFactory(args.tProtocolFactory)
                                                                                .outputProtocolFactory(args.tProtocolFactory)
                                                                                .processor(args.processor)
+                                                                               .selectorThreads(Runtime.getRuntime().availableProcessors())
                                                                                .executorService(executorService);
             // Check for available processors in the system which will be equal to the IO Threads.
             return new CustomTHsHaServer(serverArgs);
