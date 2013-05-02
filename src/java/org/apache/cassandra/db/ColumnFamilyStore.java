@@ -1778,8 +1778,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /**
      * Truncate deletes the entire column family's data with no expensive tombstone creation
-     * @return a Future to the delete operation. Call the future's get() to make
-     * sure the column family has been deleted
      */
     public void truncateBlocking()
     {

@@ -34,7 +34,7 @@ public interface ColumnNameBuilder
 
     /**
      * Add a new ByteBuffer as the next component for this name.
-     * @param bb the ByteBuffer to add
+     * @param t the ByteBuffer to add
      * @param op the relationship this component should respect.
      * @throws IllegalStateException if the builder if full, i.e. if enough component has been added.
      * @return this builder

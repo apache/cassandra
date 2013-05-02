@@ -496,7 +496,7 @@ public class ConfigHelper
 
     /**
      * @param conf The configuration to use.
-     * @return Value (converts MBs to Bytes) set by {@link setThriftFramedTransportSizeInMb(Configuration, int)} or default of 15MB
+     * @return Value (converts MBs to Bytes) set by {@link #setThriftFramedTransportSizeInMb(Configuration, int)} or default of 15MB
      */
     public static int getThriftFramedTransportSize(Configuration conf)
     {
@@ -510,7 +510,7 @@ public class ConfigHelper
 
     /**
      * @param conf The configuration to use.
-     * @return Value (converts MBs to Bytes) set by {@link setThriftMaxMessageLengthInMb(Configuration, int)} or default of 16MB
+     * @return Value (converts MBs to Bytes) set by {@link #setThriftMaxMessageLengthInMb(Configuration, int)} or default of 16MB
      */
     public static int getThriftMaxMessageLength(Configuration conf)
     {
