@@ -144,17 +144,6 @@ public class SSTableExport
         }
     }
 
-    private static void serializeColumns(Iterator<Column> columns, PrintStream out, AbstractType<?> comparator, CFMetaData cfMetaData)
-    {
-        while (columns.hasNext())
-        {
-            writeJSON(out, serializeColumn(columns.next(), comparator, cfMetaData));
-
-            if (columns.hasNext())
-                out.print(", ");
-        }
-    }
-
     private static List<Object> serializeAtom(OnDiskAtom atom, AbstractType<?> comparator, CFMetaData cfMetaData)
     {
         if (atom instanceof Column)
