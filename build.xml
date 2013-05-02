@@ -725,7 +725,7 @@
         <pathelement location="${basedir}/build/classes/main" />
         <pathelement location="${basedir}/build/classes/thrift" />
     </path>
-    <target name="stress-build" depends="build">
+    <target name="stress-build" depends="build" description="build stress tool">
     	<mkdir dir="${stress.build.classes}" />
         <javac destdir="${stress.build.classes}" includeantruntime="true" source="${source.version}" target="${target.version}">
             <src path="${stress.build.src}" />
