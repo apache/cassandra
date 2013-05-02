@@ -13,6 +13,10 @@ by version X, but the inverse is not necessarily the case.)
 
 Upgrading
 ---------
+    - CAS and new features in CQL such as DROP COLUMN assume that cell
+      timestamps are microseconds-since-epoch.  Do not use these
+      features if you are using client-specified timestamps with some
+      other source.
     - Upgrading is ONLY supported from Cassandra 1.2.5 or later.  This
       goes for sstable compatibility as well as network.  When
       upgrading from an earlier release, upgrade to 1.2.5 first and

@@ -41,6 +41,7 @@
  * Add binary protocol versioning (CASSANDRA-5436)
  * Swap THshaServer for TThreadedSelectorServer (CASSANDRA-5530)
 
+
 1.2.5
  * fix compaction throttling bursty-ness (CASSANDRA-4316)
  * reduce memory consumption of IndexSummary (CASSANDRA-5506)
