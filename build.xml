@@ -708,7 +708,7 @@
     </path>
     <target name="stress-build" depends="build">
     	<mkdir dir="${stress.build.classes}" />
-        <javac destdir="${stress.build.classes}" includeantruntime="true">
+        <javac destdir="${stress.build.classes}" includeantruntime="true" source="${source.version}" target="${target.version}">
             <src path="${stress.build.src}" />
             <classpath>
                 <path refid="cassandra.classes" />
