@@ -28,14 +28,20 @@ import static org.junit.Assert.assertTrue;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-
-import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.CounterColumn;
+import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.ExpiringColumn;
+import org.apache.cassandra.db.TreeMapBackedSortedColumns;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -46,6 +52,7 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 import org.json.simple.parser.ParseException;
+import org.junit.Test;
 
 public class SSTableExportTest extends SchemaLoader
 {
@@ -53,6 +60,31 @@ public class SSTableExportTest extends SchemaLoader
     {
         return bytesToHex(ByteBufferUtil.bytes(str));
     }
+    
+    public SSTableWriter getDummyWriter() throws IOException
+    {
+        File tempSS = tempSSTableFile("Keyspace1", "Standard1");
+        ColumnFamily cfamily = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
+        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
+
+        // Add rowA
+        cfamily.addColumn(ByteBufferUtil.bytes("colA"), ByteBufferUtil.bytes("valA"), System.currentTimeMillis());
+        writer.append(Util.dk("rowA"), cfamily);
+        cfamily.clear();
+        
+        cfamily.addColumn(ByteBufferUtil.bytes("colB"), ByteBufferUtil.bytes("valB"), System.currentTimeMillis());
+        writer.append(Util.dk("rowB"), cfamily);
+        cfamily.clear();
+        
+        
+        return writer;
+
+    }
+    
+    
+    public PrintStream dummyStream = new PrintStream(new OutputStream(){
+        public void write(int b) throws IOException { throw new IOException(); }
+    });
 
     @Test
     public void testEnumeratekeys() throws IOException
@@ -303,4 +335,29 @@ public class SSTableExportTest extends SchemaLoader
         assertEquals("column value did not match", ByteBufferUtil.bytes("val1"), hexToBytes((String) col2.get(1)));
 
     }
+    
+    @Test(expected=IOException.class)
+    public void testBrokenPipeEnumerateKeys() throws IOException
+    {
+    	SSTableWriter writer = getDummyWriter();
+    	writer.closeAndOpenReader();
+    	SSTableExport.enumeratekeys(Descriptor.fromFilename(writer.getFilename()), dummyStream);
+    }
+    
+    @Test(expected=IOException.class)
+    public void testBrokenPipeExport1() throws IOException
+    {
+    	SSTableWriter writer = getDummyWriter();
+        SSTableExport.export(writer.closeAndOpenReader(), dummyStream, new String[0]);
+    }
+    
+    @Test(expected=IOException.class)
+    public void testBrokenPipeExport2() throws IOException 
+    {
+    	SSTableWriter writer = getDummyWriter();
+    	writer.closeAndOpenReader();
+        SSTableExport.export(Descriptor.fromFilename(writer.getFilename()), dummyStream, 
+        		new ArrayList<String>(Arrays.asList("colA")), new String[]{"colA"});
+    }
+    
 }

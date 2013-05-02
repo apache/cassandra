@@ -74,9 +74,20 @@ public class SSTableExport
     }
 
     /**
+     * Checks if PrintStream error and throw exception
+     *
+     * @param out The PrintStream to be check
+     */
+    private static void checkStream(PrintStream out) throws IOException
+    {
+        if (out.checkError())
+            throw new IOException("Error writing output stream");
+    }
+
+    /**
      * JSON Hash Key serializer
      *
-     * @param out The output steam to write data
+     * @param out   The output steam to write data
      * @param value value to set as a key
      */
     private static void writeKey(PrintStream out, String value)
@@ -91,10 +102,8 @@ public class SSTableExport
      * <li>column family deletion info (if present)</li>
      * </ul>
      *
-     * @param out
-     *            The output steam to write data
-     * @param cf
-     *            to which the metadata belongs
+     * @param out The output steam to write data
+     * @param cf  to which the metadata belongs
      */
     private static void writeMeta(PrintStream out, ColumnFamily cf)
     {
@@ -119,8 +128,8 @@ public class SSTableExport
     /**
      * Serialize columns using given column iterator
      *
-     * @param atoms column iterator
-     * @param out output stream
+     * @param atoms      column iterator
+     * @param out        output stream
      * @param comparator columns comparator
      * @param cfMetaData Column Family metadata (to get validator)
      */
@@ -150,12 +159,12 @@ public class SSTableExport
     {
         if (atom instanceof Column)
         {
-            return serializeColumn((Column)atom, comparator, cfMetaData);
+            return serializeColumn((Column) atom, comparator, cfMetaData);
         }
         else
         {
             assert atom instanceof RangeTombstone;
-            RangeTombstone rt = (RangeTombstone)atom;
+            RangeTombstone rt = (RangeTombstone) atom;
             ArrayList<Object> serializedColumn = new ArrayList<Object>();
             serializedColumn.add(comparator.getString(rt.min));
             serializedColumn.add(comparator.getString(rt.max));
@@ -169,10 +178,9 @@ public class SSTableExport
     /**
      * Serialize a given column to the JSON format
      *
-     * @param column column presentation
+     * @param column     column presentation
      * @param comparator columns comparator
      * @param cfMetaData Column Family metadata (to get validator)
-     *
      * @return column as serialized list
      */
     private static List<Object> serializeColumn(Column column, AbstractType<?> comparator, CFMetaData cfMetaData)
@@ -215,6 +223,7 @@ public class SSTableExport
 
     /**
      * Get portion of the columns and serialize in loop while not more columns left in the row
+     *
      * @param row SSTableIdentityIterator row representation with Column Family
      * @param key Decorated Key for the required row
      * @param out output stream
@@ -258,21 +267,21 @@ public class SSTableExport
             DecoratedKey key = iter.next();
 
             // validate order of the keys in the sstable
-            if (lastKey != null && lastKey.compareTo(key) > 0 )
+            if (lastKey != null && lastKey.compareTo(key) > 0)
                 throw new IOException("Key out of order! " + lastKey + " > " + key);
             lastKey = key;
 
             outs.println(bytesToHex(key.key));
+            checkStream(outs); // flushes
         }
         iter.close();
-        outs.flush();
     }
 
     /**
      * Export specific rows from an SSTable and write the resulting JSON to a PrintStream.
      *
-     * @param desc the descriptor of the sstable table to read from
-     * @param outs PrintStream to write the output to
+     * @param desc     the descriptor of the sstable table to read from
+     * @param outs     PrintStream to write the output to
      * @param toExport the keys corresponding to the rows to export
      * @param excludes keys to exclude from export
      * @throws IOException on failure to read/write input/output
@@ -317,6 +326,7 @@ public class SSTableExport
             if (i != 0)
                 outs.println(",");
 
+            checkStream(outs);
             i++;
         }
 
@@ -356,6 +366,7 @@ public class SSTableExport
                 outs.println(",");
 
             serializeRow(row, row.getKey(), outs);
+            checkStream(outs);
 
             i++;
         }
@@ -369,10 +380,9 @@ public class SSTableExport
     /**
      * Export an SSTable and write the resulting JSON to a PrintStream.
      *
-     * @param desc the descriptor of the sstable table to read from
-     * @param outs PrintStream to write the output to
+     * @param desc     the descriptor of the sstable table to read from
+     * @param outs     PrintStream to write the output to
      * @param excludes keys to exclude from export
-     *
      * @throws IOException on failure to read/write input/output
      */
     public static void export(Descriptor desc, PrintStream outs, String[] excludes) throws IOException
@@ -383,9 +393,8 @@ public class SSTableExport
     /**
      * Export an SSTable and write the resulting JSON to standard out.
      *
-     * @param desc the descriptor of the sstable table to read from
+     * @param desc     the descriptor of the sstable table to read from
      * @param excludes keys to exclude from export
-     *
      * @throws IOException on failure to read/write SSTable/standard out
      */
     public static void export(Descriptor desc, String[] excludes) throws IOException
@@ -398,8 +407,7 @@ public class SSTableExport
      * export the contents of the SSTable to JSON.
      *
      * @param args command lines arguments
-     *
-     * @throws IOException on failure to open/read/write files or output streams
+     * @throws IOException            on failure to open/read/write files or output streams
      * @throws ConfigurationException on configuration failure (wrong params given)
      */
     public static void main(String[] args) throws IOException, ConfigurationException
@@ -440,16 +448,24 @@ public class SSTableExport
             System.exit(1);
         }
 
-        if (cmd.hasOption(ENUMERATEKEYS_OPTION))
+        try
         {
-            enumeratekeys(descriptor, System.out);
-        }
-        else
-        {
-            if ((keys != null) && (keys.length > 0))
-                export(descriptor, System.out, Arrays.asList(keys), excludes);
+            if (cmd.hasOption(ENUMERATEKEYS_OPTION))
+            {
+                enumeratekeys(descriptor, System.out);
+            }
             else
-                export(descriptor, excludes);
+            {
+                if ((keys != null) && (keys.length > 0))
+                    export(descriptor, System.out, Arrays.asList(keys), excludes);
+                else
+                    export(descriptor, excludes);
+            }
+        }
+        catch (IOException e)
+        {
+            // throwing exception outside main with broken pipe causes windows cmd to hang
+            e.printStackTrace(System.err);
         }
 
         System.exit(0);
