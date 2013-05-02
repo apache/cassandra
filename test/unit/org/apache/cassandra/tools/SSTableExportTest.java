@@ -335,29 +335,4 @@ public class SSTableExportTest extends SchemaLoader
         assertEquals("column value did not match", ByteBufferUtil.bytes("val1"), hexToBytes((String) col2.get(1)));
 
     }
-    
-    @Test(expected=IOException.class)
-    public void testBrokenPipeEnumerateKeys() throws IOException
-    {
-    	SSTableWriter writer = getDummyWriter();
-    	writer.closeAndOpenReader();
-    	SSTableExport.enumeratekeys(Descriptor.fromFilename(writer.getFilename()), dummyStream);
-    }
-    
-    @Test(expected=IOException.class)
-    public void testBrokenPipeExport1() throws IOException
-    {
-    	SSTableWriter writer = getDummyWriter();
-        SSTableExport.export(writer.closeAndOpenReader(), dummyStream, new String[0]);
-    }
-    
-    @Test(expected=IOException.class)
-    public void testBrokenPipeExport2() throws IOException 
-    {
-    	SSTableWriter writer = getDummyWriter();
-    	writer.closeAndOpenReader();
-        SSTableExport.export(Descriptor.fromFilename(writer.getFilename()), dummyStream, 
-        		new ArrayList<String>(Arrays.asList("colA")), new String[]{"colA"});
-    }
-    
 }
