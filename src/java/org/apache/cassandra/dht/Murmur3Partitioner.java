@@ -121,7 +121,7 @@ public class Murmur3Partitioner extends AbstractPartitioner<LongToken>
 
         // 0-case
         if (!i.hasNext())
-            throw new RuntimeException("No nodes present in the cluster. How did you call this?");
+            throw new RuntimeException("No nodes present in the cluster. Has this node finished starting up?");
         // 1-case
         if (sortedTokens.size() == 1)
             ownerships.put((Token) i.next(), new Float(1.0));
