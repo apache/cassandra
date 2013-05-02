@@ -108,7 +108,7 @@ public class CounterMutation implements IMutation
         commands.add(new SliceByNamesReadCommand(table, key, columnFamily.metadata().cfName, new NamesQueryFilter(s)));
     }
 
-    public MessageOut<CounterMutation> makeMutationMessage() throws IOException
+    public MessageOut<CounterMutation> makeMutationMessage()
     {
         return new MessageOut<CounterMutation>(MessagingService.Verb.COUNTER_MUTATION, this, serializer);
     }

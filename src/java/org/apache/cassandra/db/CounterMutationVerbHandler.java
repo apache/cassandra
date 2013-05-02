@@ -63,9 +63,5 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
             // The coordinator will timeout on it's own so ignore
             logger.debug("counter error", e);
         }
-        catch (IOException e)
-        {
-            logger.error("Error in counter mutation", e);
-        }
     }
 }

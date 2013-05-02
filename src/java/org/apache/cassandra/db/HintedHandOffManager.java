@@ -116,7 +116,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
      * Returns a mutation representing a Hint to be sent to <code>targetId</code>
      * as soon as it becomes available again.
      */
-    public static RowMutation hintFor(RowMutation mutation, UUID targetId) throws IOException
+    public static RowMutation hintFor(RowMutation mutation, UUID targetId)
     {
         UUID hintId = UUIDGen.getTimeUUID();
 

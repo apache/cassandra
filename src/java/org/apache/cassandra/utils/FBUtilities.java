@@ -607,14 +607,22 @@ public class FBUtilities
         public void close() {}
     }
 
-    public static <T> byte[] serialize(T object, IVersionedSerializer<T> serializer, int version) throws IOException
+    public static <T> byte[] serialize(T object, IVersionedSerializer<T> serializer, int version)
     {
-        int size = (int) serializer.serializedSize(object, version);
-        DataOutputBuffer buffer = new DataOutputBuffer(size);
-        serializer.serialize(object, buffer, version);
-        assert buffer.getLength() == size && buffer.getData().length == size
-               : String.format("Final buffer length %s to accommodate data size of %s (predicted %s) for %s",
-                               buffer.getData().length, buffer.getLength(), size, object);
-        return buffer.getData();
+        try
+        {
+            int size = (int) serializer.serializedSize(object, version);
+            DataOutputBuffer buffer = new DataOutputBuffer(size);
+            serializer.serialize(object, buffer, version);
+            assert buffer.getLength() == size && buffer.getData().length == size
+                : String.format("Final buffer length %s to accommodate data size of %s (predicted %s) for %s",
+                        buffer.getData().length, buffer.getLength(), size, object);
+            return buffer.getData();
+        }
+        catch (IOException e)
+        {
+            // We're doing in-memory serialization...
+            throw new AssertionError(e);
+        }
     }
 }
