@@ -59,6 +59,10 @@
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
+	
+	<property name="source.version" value="1.6"/>
+	<property name="target.version" value="1.6"/>
+	
     <condition property="version" value="${base.version}">
       <isset property="release"/>
     </condition>
@@ -680,12 +684,12 @@
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
         <javac debug="true" debuglevel="${debuglevel}"
-               destdir="${build.classes.thrift}" includeantruntime="false">
+               destdir="${build.classes.thrift}" includeantruntime="false" source="${source.version}" target="${target.version}">
             <src path="${interface.thrift.dir}/gen-java"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
         <javac debug="true" debuglevel="${debuglevel}"
-               destdir="${build.classes.main}" includeantruntime="false">
+               destdir="${build.classes.main}" includeantruntime="false" source="${source.version}" target="${target.version}">
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
             <classpath refid="cassandra.classpath"/>
@@ -710,7 +714,7 @@
     </path>
     <target name="stress-build" depends="build">
     	<mkdir dir="${stress.build.classes}" />
-        <javac destdir="${stress.build.classes}" includeantruntime="true">
+        <javac destdir="${stress.build.classes}" includeantruntime="true" source="${source.version}" target="${target.version}">
             <src path="${stress.build.src}" />
             <classpath>
                 <path refid="cassandra.classes" />
@@ -1017,7 +1021,9 @@
      debug="true"
      debuglevel="${debuglevel}"
      destdir="${test.classes}"
-     includeantruntime="false">
+     includeantruntime="false"
+     source="${source.version}" 
+     target="${target.version}">
       <classpath>
         <path refid="cassandra.classpath"/>
       </classpath>
