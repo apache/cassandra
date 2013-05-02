@@ -21,7 +21,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Charsets;
 import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
@@ -51,8 +50,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class SchemaLoader
 {
     private static Logger logger = LoggerFactory.getLogger(SchemaLoader.class);
-
-    private static AtomicInteger oldCfIdGenerator = new AtomicInteger(1000);
 
     @BeforeClass
     public static void loadSchema() throws IOException
