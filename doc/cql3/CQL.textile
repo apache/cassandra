@@ -391,13 +391,15 @@ h3(#createIndexStmt). CREATE INDEX
 
 __Syntax:__
 
-bc(syntax). <create-index-stmt> ::= CREATE INDEX <identifier>? ON <tablename> '(' <identifier> ')'
+bc(syntax). <create-index-stmt> ::= CREATE ( CUSTOM )? INDEX <identifier>? ON <tablename> '(' <identifier> ')'
+                                        ( WITH <properties> )?
 
 __Sample:__
 
 bc(sample). 
 CREATE INDEX userIndex ON NerdMovies (user);
 CREATE INDEX ON Mutants (abilityId);
+CREATE CUSTOM INDEX ON users (email) WITH options = {'class': 'path.to.the.IndexClass'};
 
 The @CREATE INDEX@ statement is used to create a new (automatic) secondary index for a given (existing) column in a given table. A name for the index itself can be specified before the @ON@ keyword, if desired. If data already exists for the column, it will be indexed during the execution of this statement. After the index is created, new data for the column is indexed automatically at insertion time.
 
@@ -991,6 +993,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @GRANT@        | yes |
 | @IN@           | yes |
 | @INDEX@        | yes |
+| @CUSTOM@       | no  |
 | @INSERT@       | yes |
 | @INT@          | no  |
 | @INTO@         | yes |
@@ -1044,6 +1047,10 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 h2(#changes). Changes
 
 The following describes the addition/changes brought for each version of CQL.
+
+h3. 3.0.3
+
+* Support for custom "secondary indexes":#createIndexStmt has been added.
 
 h3. 3.0.2
 

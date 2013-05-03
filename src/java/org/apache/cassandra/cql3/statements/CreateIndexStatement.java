@@ -27,15 +27,15 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.index.SecondaryIndex;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.index.composites.CompositesIndex;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.IndexType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -46,12 +46,16 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
     private final String indexName;
     private final ColumnIdentifier columnName;
+    private final boolean isCustom;
+    private final IndexPropDefs props;
 
-    public CreateIndexStatement(CFName name, String indexName, ColumnIdentifier columnName)
+    public CreateIndexStatement(CFName name, String indexName, ColumnIdentifier columnName, boolean isCustom, IndexPropDefs props)
     {
         super(name);
         this.indexName = indexName;
         this.columnName = columnName;
+        this.isCustom = isCustom;
+        this.props = props;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -59,59 +63,69 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.ALTER);
     }
 
-    public void announceMigration() throws InvalidRequestException, ConfigurationException
+    @Override
+    public void validate(ClientState state) throws RequestValidationException
     {
-        CFMetaData oldCfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
-        boolean columnExists = false;
-        // Mutating oldCfm directly would be bad so cloning.
-        CFMetaData cfm = oldCfm.clone();
-        CFDefinition cfDef = oldCfm.getCfDef();
+        CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+        CFDefinition.Name name = cfm.getCfDef().get(columnName);
 
-        for (ColumnDefinition cd : cfm.getColumn_metadata().values())
+        if (name == null)
+            throw new InvalidRequestException("No column definition found for column " + columnName);
+
+        switch (name.kind)
         {
-            if (cd.name.equals(columnName.key))
-            {
+            case KEY_ALIAS:
+            case COLUMN_ALIAS:
+                throw new InvalidRequestException(String.format("Cannot create index on PRIMARY KEY part %s", columnName));
+            case VALUE_ALIAS:
+                throw new InvalidRequestException(String.format("Cannot create index on column %s of compact CF", columnName));
+            case COLUMN_METADATA:
+                ColumnDefinition cd = cfm.getColumnDefinition(columnName.key);
+
                 if (cd.getIndexType() != null)
                     throw new InvalidRequestException("Index already exists");
-                if (logger.isDebugEnabled())
-                    logger.debug("Updating column {} definition for index {}", columnName, indexName);
 
                 if (cd.getValidator().isCollection())
                     throw new InvalidRequestException("Indexes on collections are no yet supported");
 
-                if (cfDef.isComposite)
-                {
-                    CompositeType composite = (CompositeType)cfm.comparator;
-                    Map<String, String> opts = new HashMap<String, String>();
-                    opts.put(CompositesIndex.PREFIX_SIZE_OPTION, String.valueOf(composite.types.size() - (cfDef.hasCollections ? 2 : 1)));
-                    cd.setIndexType(IndexType.COMPOSITES, opts);
-                }
-                else
-                {
-                    cd.setIndexType(IndexType.KEYS, Collections.<String, String>emptyMap());
-                }
-                cd.setIndexName(indexName);
-                columnExists = true;
+                props.validate(isCustom);
                 break;
+            default:
+                throw new AssertionError();
+        }
+    }
+
+    public void announceMigration() throws InvalidRequestException, ConfigurationException
+    {
+        logger.debug("Updating column {} definition for index {}", columnName, indexName);
+        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).clone();
+        CFDefinition cfDef = cfm.getCfDef();
+        ColumnDefinition cd = cfm.getColumnDefinition(columnName.key);
+
+        if (isCustom)
+        {
+            try
+            {
+                cd.setIndexType(IndexType.CUSTOM, props.getOptions());
+            }
+            catch (SyntaxException e)
+            {
+                throw new AssertionError(); // can't happen after validation.
             }
         }
-        if (!columnExists)
+        else if (cfDef.isComposite)
         {
-            CFDefinition.Name name = cfDef.get(columnName);
-            if (name != null)
-            {
-                switch (name.kind)
-                {
-                    case KEY_ALIAS:
-                    case COLUMN_ALIAS:
-                        throw new InvalidRequestException(String.format("Cannot create index on PRIMARY KEY part %s", columnName));
-                    case VALUE_ALIAS:
-                        throw new InvalidRequestException(String.format("Cannot create index on column %s of compact CF", columnName));
-                }
-            }
-            throw new InvalidRequestException("No column definition found for column " + columnName);
+            CompositeType composite = (CompositeType)cfm.comparator;
+            Map<String, String> opts = new HashMap<String, String>();
+            opts.put(CompositesIndex.PREFIX_SIZE_OPTION, String.valueOf(composite.types.size() - (cfDef.hasCollections ? 2 : 1)));
+            cd.setIndexType(IndexType.COMPOSITES, opts);
+        }
+        else
+        {
+            cd.setIndexType(IndexType.KEYS, Collections.<String, String>emptyMap());
         }
 
+        cd.setIndexName(indexName);
         cfm.addDefaultIndexNames();
         MigrationManager.announceColumnFamilyUpdate(cfm);
     }

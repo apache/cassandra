@@ -8,6 +8,16 @@ upgrade, just in case you need to roll back to the previous version.
 (Cassandra version X + 1 will always be able to read data files created
 by version X, but the inverse is not necessarily the case.)
 
+1.2.5
+=====
+
+Features
+--------
+    - Custom secondary index support has been added to CQL3. Refer to
+      CQL3 documentation (http://cassandra.apache.org/doc/cql3/CQL.html)
+      for details and examples.
+
+
 1.2.4
 =====
 
