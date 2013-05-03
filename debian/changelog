@@ -1,3 +1,9 @@
+cassandra (1.2.5) unstable; urgency=low
+
+  * New release
+
+ -- Sylvain Lebresne <slebresne@apache.org>  Fri, 03 May 2013 17:52:01 +0200
+
 cassandra (1.2.4) unstable; urgency=low
 
   * New release
