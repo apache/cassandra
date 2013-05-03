@@ -22,8 +22,6 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.AbstractIterator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
@@ -55,8 +53,6 @@ import org.apache.cassandra.utils.Pair;
  */
 public class SelectStatement implements CQLStatement
 {
-    private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
-
     private final int boundTerms;
     public final CFDefinition cfDef;
     public final Parameters parameters;
@@ -273,7 +269,6 @@ public class SelectStatement implements CQLStatement
             // to account for the grouping of columns.
             // Since that doesn't work for maps/sets/lists, we now use the compositesToGroup option of SliceQueryFilter.
             // But we must preserve backward compatibility too (for mixed version cluster that is).
-            int multiplier = cfDef.isCompact ? 1 : (cfDef.metadata.size() + 1);
             int toGroup = cfDef.isCompact ? -1 : cfDef.columns.size();
             ColumnSlice slice = new ColumnSlice(getRequestedBound(Bound.START, variables),
                                                 getRequestedBound(Bound.END, variables));
@@ -1244,7 +1239,7 @@ public class SelectStatement implements CQLStatement
                 receiver = new ColumnSpecification(name.ksName,
                                                    name.cfName,
                                                    new ColumnIdentifier("partition key token", true),
-                                                   StorageService.instance.getPartitioner().getTokenValidator());
+                                                   StorageService.getPartitioner().getTokenValidator());
             }
 
             switch (newRel.operator())
