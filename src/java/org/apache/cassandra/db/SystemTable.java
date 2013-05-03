@@ -21,9 +21,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 
 import com.google.common.base.Function;
 import com.google.common.collect.HashMultimap;
@@ -762,7 +760,7 @@ public class SystemTable
         processInternal(String.format(req,
                                       PAXOS_CF,
                                       UUIDGen.microsTimestamp(promise.ballot),
-                                      promise.update.metadata().getGcGraceSeconds(),
+                                      paxosTtl(promise.update.metadata),
                                       promise.ballot,
                                       ByteBufferUtil.bytesToHex(promise.key),
                                       promise.update.id()));
@@ -773,10 +771,16 @@ public class SystemTable
         processInternal(String.format("UPDATE %s USING TIMESTAMP %d AND TTL %d SET proposal = 0x%s WHERE row_key = 0x%s AND cf_id = %s",
                                       PAXOS_CF,
                                       UUIDGen.microsTimestamp(commit.ballot),
-                                      commit.update.metadata().getGcGraceSeconds(),
+                                      paxosTtl(commit.update.metadata),
                                       ByteBufferUtil.bytesToHex(commit.update.toBytes()),
                                       ByteBufferUtil.bytesToHex(commit.key),
                                       commit.update.id()));
+    }
+
+    private static int paxosTtl(CFMetaData metadata)
+    {
+        // keep paxos state around for at least 3h
+        return Math.max(3 * 3600, metadata.getGcGraceSeconds());
     }
 
     public static void savePaxosCommit(Commit commit, boolean eraseInProgressProposal)
@@ -787,7 +791,7 @@ public class SystemTable
         processInternal(String.format(eraseInProgressProposal ? eraseCql : preserveCql,
                                       PAXOS_CF,
                                       UUIDGen.microsTimestamp(commit.ballot),
-                                      commit.update.metadata().getGcGraceSeconds(),
+                                      paxosTtl(commit.update.metadata),
                                       commit.ballot,
                                       ByteBufferUtil.bytesToHex(commit.update.toBytes()),
                                       ByteBufferUtil.bytesToHex(commit.key),

@@ -52,6 +52,8 @@ Operations
     - ALTER TABLE DROP has been reenabled for CQL3 tables and has new semantics now.
       See https://cassandra.apache.org/doc/cql3/CQL.html#alterTableStmt and
       https://issues.apache.org/jira/browse/CASSANDRA-3919 for details.
+    - CAS uses gc_grace_seconds to determine how long to keep unused paxos
+      state around for, or a minimum of three hours.
 
 
 1.2.4
