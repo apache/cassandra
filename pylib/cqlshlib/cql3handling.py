@@ -49,11 +49,11 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'keyspace', 'schema', 'columnfamily', 'table', 'index', 'on', 'drop',
         'primary', 'into', 'values', 'timestamp', 'ttl', 'alter', 'add', 'type',
         'compact', 'storage', 'order', 'by', 'asc', 'desc', 'clustering',
-        'token', 'writetime', 'map', 'list', 'to'
+        'token', 'writetime', 'map', 'list', 'to', 'custom'
     ))
 
     unreserved_keywords = set((
-        'key', 'clustering', 'ttl', 'compact', 'storage', 'type', 'values'
+        'key', 'clustering', 'ttl', 'compact', 'storage', 'type', 'values', 'custom'
     ))
 
     columnfamily_options = (
@@ -1205,8 +1205,9 @@ def create_cf_composite_primary_key_comma_completer(ctxt, cass):
     return [',']
 
 syntax_rules += r'''
-<createIndexStatement> ::= "CREATE" "INDEX" indexname=<identifier>? "ON"
+<createIndexStatement> ::= "CREATE" "CUSTOM"? "INDEX" indexname=<identifier>? "ON"
                                cf=<columnFamilyName> "(" col=<cident> ")"
+                               ( "WITH" "options = {'class': " <stringLiteral> "}" )?
                          ;
 '''
 

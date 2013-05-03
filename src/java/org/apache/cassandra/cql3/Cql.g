@@ -471,8 +471,13 @@ cfamOrdering[CreateColumnFamilyStatement.RawStatement expr]
  * CREATE INDEX [indexName] ON columnFamily (columnName);
  */
 createIndexStatement returns [CreateIndexStatement expr]
-    : K_CREATE K_INDEX (idxName=IDENT)? K_ON cf=columnFamilyName '(' id=cident ')'
-      { $expr = new CreateIndexStatement(cf, $idxName.text, id); }
+    @init {
+        boolean isCustom = false;
+        IndexPropDefs props = new IndexPropDefs();
+    }
+    : K_CREATE (K_CUSTOM { isCustom = true; })? K_INDEX (idxName=IDENT)? K_ON cf=columnFamilyName '(' id=cident ')'
+        ( K_WITH properties[props] )?
+      { $expr = new CreateIndexStatement(cf, $idxName.text, id, isCustom, props); }
     ;
 
 /**
@@ -891,6 +896,7 @@ unreserved_function_keyword returns [String str]
         | K_NOSUPERUSER
         | K_PASSWORD
         | K_EXISTS
+        | K_CUSTOM
         ) { $str = $k.text; }
     | t=native_type { $str = t.toString(); }
     ;
@@ -924,6 +930,7 @@ K_KEYSPACES:   K E Y S P A C E S;
 K_COLUMNFAMILY:( C O L U M N F A M I L Y
                  | T A B L E );
 K_INDEX:       I N D E X;
+K_CUSTOM:      C U S T O M;
 K_ON:          O N;
 K_TO:          T O;
 K_DROP:        D R O P;

@@ -25,13 +25,12 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.IndexType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -42,12 +41,16 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
     private final String indexName;
     private final ColumnIdentifier columnName;
+    private final boolean isCustom;
+    private final IndexPropDefs props;
 
-    public CreateIndexStatement(CFName name, String indexName, ColumnIdentifier columnName)
+    public CreateIndexStatement(CFName name, String indexName, ColumnIdentifier columnName, boolean isCustom, IndexPropDefs props)
     {
         super(name);
         this.indexName = indexName;
         this.columnName = columnName;
+        this.isCustom = isCustom;
+        this.props = props;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -55,64 +58,58 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.ALTER);
     }
 
+    @Override
+    public void validate(ClientState state) throws RequestValidationException
+    {
+        CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+        ColumnDefinition cd = cfm.getColumnDefinition(columnName.key);
+
+        if (cd == null)
+            throw new InvalidRequestException("No column definition found for column " + columnName);
+
+        if (cd.getIndexType() != null)
+            throw new InvalidRequestException("Index already exists");
+
+        // TODO: we could lift that limitation
+        if (cfm.getCfDef().isCompact && cd.type != ColumnDefinition.Type.REGULAR)
+            throw new InvalidRequestException(String.format("Secondary index on %s column %s is not yet supported for compact table", cd.type, columnName));
+
+        if (cd.getValidator().isCollection())
+            throw new InvalidRequestException("Indexes on collections are no yet supported");
+
+        if (cd.type == ColumnDefinition.Type.PARTITION_KEY && (cd.componentIndex == null || cd.componentIndex == 0))
+            throw new InvalidRequestException(String.format("Cannot add secondary index to already primarily indexed column %s", columnName));
+
+        props.validate(isCustom);
+    }
+
     public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
-        CFMetaData oldCfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
-        boolean columnExists = false;
-        // Mutating oldCfm directly would be bad so cloning.
-        CFMetaData cfm = oldCfm.clone();
-        CFDefinition cfDef = oldCfm.getCfDef();
+        logger.debug("Updating column {} definition for index {}", columnName, indexName);
+        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).clone();
+        ColumnDefinition cd = cfm.getColumnDefinition(columnName.key);
 
-        for (ColumnDefinition cd : cfm.allColumns())
+        if (isCustom)
         {
-            if (cd.name.equals(columnName.key))
+            try
             {
-                if (cd.getIndexType() != null)
-                    throw new InvalidRequestException("Index already exists");
-
-                if (cd.type == ColumnDefinition.Type.PARTITION_KEY && (cd.componentIndex == null || cd.componentIndex == 0))
-                    throw new InvalidRequestException(String.format("Cannot add secondary index to already primarily indexed column %s", columnName));
-
-                // TODO: we could lift that limitation
-                if (cfDef.isCompact && cd.type != ColumnDefinition.Type.REGULAR)
-                    throw new InvalidRequestException(String.format("Secondary index on %s column %s is not yet supported for compact table", cd.type, columnName));
-
-                if (cd.getValidator().isCollection())
-                    throw new InvalidRequestException("Indexes on collections are no yet supported");
-
-                if (logger.isDebugEnabled())
-                    logger.debug("Updating column {} definition for index {}", columnName, indexName);
-
-                if (cfDef.isComposite)
-                {
-                    cd.setIndexType(IndexType.COMPOSITES, Collections.<String, String>emptyMap());
-                }
-                else
-                {
-                    cd.setIndexType(IndexType.KEYS, Collections.<String, String>emptyMap());
-                }
-                cd.setIndexName(indexName);
-                columnExists = true;
-                break;
+                cd.setIndexType(IndexType.CUSTOM, props.getOptions());
+            }
+            catch (SyntaxException e)
+            {
+                throw new AssertionError(); // can't happen after validation.
             }
         }
-        if (!columnExists)
+        else if (cfm.getCfDef().isComposite)
         {
-            CFDefinition.Name name = cfDef.get(columnName);
-            if (name != null)
-            {
-                switch (name.kind)
-                {
-                    case KEY_ALIAS:
-                    case COLUMN_ALIAS:
-                        throw new InvalidRequestException(String.format("Cannot create index on PRIMARY KEY part %s", columnName));
-                    case VALUE_ALIAS:
-                        throw new InvalidRequestException(String.format("Cannot create index on column %s of compact CF", columnName));
-                }
-            }
-            throw new InvalidRequestException("No column definition found for column " + columnName);
+            cd.setIndexType(IndexType.COMPOSITES, Collections.<String, String>emptyMap());
+        }
+        else
+        {
+            cd.setIndexType(IndexType.KEYS, Collections.<String, String>emptyMap());
         }
 
+        cd.setIndexName(indexName);
         cfm.addDefaultIndexNames();
         MigrationManager.announceColumnFamilyUpdate(cfm, false);
     }
