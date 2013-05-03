@@ -28,7 +28,6 @@ import org.apache.cassandra.utils.MergeIterator;
 
 public class CompactionIterable extends AbstractCompactionIterable
 {
-    private long row;
 
     private static final Comparator<OnDiskAtomIterator> comparator = new Comparator<OnDiskAtomIterator>()
     {
@@ -41,7 +40,6 @@ public class CompactionIterable extends AbstractCompactionIterable
     public CompactionIterable(OperationType type, List<ICompactionScanner> scanners, CompactionController controller)
     {
         super(controller, type, scanners);
-        row = 0;
     }
 
     public CloseableIterator<AbstractCompactedRow> iterator()
