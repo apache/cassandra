@@ -186,6 +186,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private final List<IEndpointLifecycleSubscriber> lifecycleSubscribers = new CopyOnWriteArrayList<IEndpointLifecycleSubscriber>();
 
+    private static final BackgroundActivityMonitor bgMonitor = new BackgroundActivityMonitor();
+
     private final ObjectName jmxObjectName;
 
     public void finishBootstrapping()
@@ -927,24 +929,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     /**
-     * Gossip about the known severity of the events in this node
+     * Increment about the known Compaction severity of the events in this node
      */
-    public boolean reportSeverity(double incr)
+    public void reportSeverity(double incr)
     {
-        if (!Gossiper.instance.isEnabled())
-            return false;
-        VersionedValue updated = StorageService.instance.valueFactory.severity(severity.addAndGet(incr));
-        Gossiper.instance.addLocalApplicationState(ApplicationState.SEVERITY, updated);
-        return true;
+        bgMonitor.incrCompactionSeverity(incr);
     }
 
     public double getSeverity(InetAddress endpoint)
     {
-        VersionedValue event;
-        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (state != null && (event = state.getApplicationState(ApplicationState.SEVERITY)) != null)
-            return Double.parseDouble(event.value);
-        return 0.0;
+        return bgMonitor.getSeverity(endpoint);
     }
 
     /**

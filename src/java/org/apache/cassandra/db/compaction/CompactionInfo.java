@@ -139,8 +139,7 @@ public final class CompactionInfo implements Serializable
         public void started()
         {
             reportedSeverity = getCompactionInfo().getTotal() / load;
-            if (!StorageService.instance.reportSeverity(reportedSeverity))
-                reportedSeverity = 0d;
+            StorageService.instance.reportSeverity(reportedSeverity);
         }
 
         /**
