@@ -66,6 +66,12 @@ public class Memory
         unsafe.putLong(peer + offset, l);
     }
 
+    public void setInt(long offset, int l)
+    {
+        checkPosition(offset);
+        unsafe.putInt(peer + offset, l);
+    }
+
     /**
      * Transfers count bytes from buffer to Memory
      *
@@ -102,6 +108,12 @@ public class Memory
     {
         checkPosition(offset);
         return unsafe.getLong(peer + offset);
+    }
+
+    public int getInt(long offset)
+    {
+        checkPosition(offset);
+        return unsafe.getInt(peer + offset);
     }
 
     /**

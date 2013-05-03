@@ -253,7 +253,7 @@ public abstract class AbstractCompactionStrategy
         else
         {
             // what percentage of columns do we expect to compact outside of overlap?
-            if (sstable.getKeySamples().length < 2)
+            if (sstable.getKeySampleSize() < 2)
             {
                 // we have too few samples to estimate correct percentage
                 return false;

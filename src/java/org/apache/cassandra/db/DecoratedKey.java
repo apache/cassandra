@@ -86,6 +86,17 @@ public class DecoratedKey extends RowPosition
         return cmp == 0 ? ByteBufferUtil.compareUnsigned(key, otherKey.key) : cmp;
     }
 
+    public static int compareTo(IPartitioner partitioner, ByteBuffer key, RowPosition position)
+    {
+        // delegate to Token.KeyBound if needed
+        if (!(position instanceof DecoratedKey))
+            return -position.compareTo(partitioner.decorateKey(key));
+
+        DecoratedKey otherKey = (DecoratedKey) position;
+        int cmp = partitioner.getToken(key).compareTo(otherKey.getToken());
+        return cmp == 0 ? ByteBufferUtil.compareUnsigned(key, otherKey.key) : cmp;
+    }
+
     public boolean isMinimum(IPartitioner partitioner)
     {
         // A DecoratedKey can never be the minimum position on the ring

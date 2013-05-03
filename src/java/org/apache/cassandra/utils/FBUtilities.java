@@ -37,7 +37,6 @@ import java.util.zip.Checksum;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.AbstractIterator;
-import com.google.common.primitives.Longs;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -624,5 +623,25 @@ public class FBUtilities
             // We're doing in-memory serialization...
             throw new AssertionError(e);
         }
+    }
+
+    public static long copy(InputStream from, OutputStream to, long limit) throws IOException
+    {
+        byte[] buffer = new byte[64]; // 64 byte buffer
+        long copied = 0;
+        int toCopy = buffer.length;
+        while (true)
+        {
+            if (limit < buffer.length + copied)
+                toCopy = (int) (limit - copied);
+            int sofar = from.read(buffer, 0, toCopy);
+            if (sofar == -1)
+                break;
+            to.write(buffer, 0, sofar);
+            copied += sofar;
+            if (limit == copied)
+                break;
+        }
+        return copied;
     }
 }

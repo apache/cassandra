@@ -62,6 +62,7 @@ public class Descriptor
         public final boolean hasSuperColumns;
         public final boolean tracksMaxLocalDeletionTime;
         public final boolean hasBloomFilterFPChance;
+        public final boolean offHeapSummaries;
 
         public Version(String version)
         {
@@ -70,6 +71,7 @@ public class Descriptor
             isLatestVersion = version.compareTo(current_version) == 0;
             hasSuperColumns = version.compareTo("ja") < 0;
             hasBloomFilterFPChance = version.compareTo("ja") >= 0;
+            offHeapSummaries = version.compareTo("ja") >= 0;
         }
 
         /**

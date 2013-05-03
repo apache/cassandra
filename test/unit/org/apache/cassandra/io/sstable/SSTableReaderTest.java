@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.*;
 
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -255,8 +256,8 @@ public class SSTableReaderTest extends SchemaLoader
 
         // test to see if sstable can be opened as expected
         SSTableReader target = SSTableReader.open(desc);
-        byte[][] keySamples = target.getKeySamples();
-        assert keySamples.length == 1 && Arrays.equals(keySamples[0], firstKey.key.array());
+        Assert.assertEquals(target.getKeySampleSize(), 1);
+        Assert.assertArrayEquals(ByteBufferUtil.getArray(firstKey.key), target.getKeySample(0));
         assert target.first.equals(firstKey);
         assert target.last.equals(lastKey);
     }

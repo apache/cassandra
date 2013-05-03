@@ -19,14 +19,13 @@ package org.apache.cassandra.io.sstable;
 
 import java.util.ArrayList;
 
-import com.google.common.primitives.Longs;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.util.Memory;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class IndexSummaryBuilder
 {
@@ -36,6 +35,7 @@ public class IndexSummaryBuilder
     private final ArrayList<byte[]> keys;
     private final int indexInterval;
     private long keysWritten = 0;
+    private long offheapSize = 0;
 
     public IndexSummaryBuilder(long expectedKeys, int indexInterval)
     {
@@ -58,8 +58,11 @@ public class IndexSummaryBuilder
     {
         if (keysWritten % indexInterval == 0)
         {
-            keys.add(ByteBufferUtil.getArray(decoratedKey.key));
+            byte[] key = ByteBufferUtil.getArray(decoratedKey.key);
+            keys.add(key);
+            offheapSize += key.length;
             positions.add(indexPosition);
+            offheapSize += TypeSizes.NATIVE.sizeof(indexPosition);
         }
         keysWritten++;
 
@@ -68,10 +71,24 @@ public class IndexSummaryBuilder
 
     public IndexSummary build(IPartitioner partitioner)
     {
-        byte[][] keysArray = new byte[keys.size()][];
-        for (int i = 0; i < keys.size(); i++)
-            keysArray[i] = keys.get(i);
+        assert keys != null && keys.size() > 0;
+        assert keys.size() == positions.size();
 
-        return new IndexSummary(partitioner, keysArray, Longs.toArray(positions), indexInterval);
+        Memory memory = Memory.allocate(offheapSize + (keys.size() * 4));
+        int idxPosition = 0;
+        int keyPosition = keys.size() * 4;
+        for (int i = 0; i < keys.size(); i++)
+        {
+            memory.setInt(idxPosition, keyPosition);
+            idxPosition += TypeSizes.NATIVE.sizeof(keyPosition);
+
+            byte[] temp = keys.get(i);
+            memory.setBytes(keyPosition, temp, 0, temp.length);
+            keyPosition += temp.length;
+            long tempPosition = positions.get(i);
+            memory.setLong(keyPosition, tempPosition);
+            keyPosition += TypeSizes.NATIVE.sizeof(tempPosition);
+        }
+        return new IndexSummary(partitioner, memory, keys.size(), indexInterval);
     }
 }
