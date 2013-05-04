@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.*;
 
@@ -586,7 +587,8 @@ public class LeveledManifest
         JsonFactory f = new JsonFactory();
         try
         {
-            JsonGenerator g = f.createJsonGenerator(tmpFile, JsonEncoding.UTF8);
+            FileOutputStream fos = new FileOutputStream(tmpFile);
+            JsonGenerator g = f.createJsonGenerator(fos, JsonEncoding.UTF8);
             g.useDefaultPrettyPrinter();
             g.writeStartObject();
             g.writeArrayFieldStart("generations");
@@ -603,6 +605,8 @@ public class LeveledManifest
             }
             g.writeEndArray(); // for field generations
             g.writeEndObject(); // write global object
+            g.flush();
+            fos.getFD().sync();
             g.close();
         }
         catch (IOException e)
