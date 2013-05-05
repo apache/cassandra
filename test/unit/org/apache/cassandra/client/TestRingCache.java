@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.client;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -46,7 +45,7 @@ public class TestRingCache
     private Cassandra.Client thriftClient;
     private Configuration conf;
 
-    public TestRingCache(String keyspace) throws IOException
+    public TestRingCache(String keyspace)
     {
         ConfigHelper.setOutputColumnFamily(conf, keyspace, "Standard1");
     	ringCache = new RingCache(conf);

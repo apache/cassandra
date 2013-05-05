@@ -84,21 +84,20 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
      * mutations, and the ring cache for the given keyspace.
      *
      * @param context the task attempt context
-     * @throws IOException
      */
-    ColumnFamilyRecordWriter(TaskAttemptContext context) throws IOException
+    ColumnFamilyRecordWriter(TaskAttemptContext context)
     {
         this(context.getConfiguration());
         this.progressable = new Progressable(context);
     }
 
-    ColumnFamilyRecordWriter(Configuration conf, Progressable progressable) throws IOException
+    ColumnFamilyRecordWriter(Configuration conf, Progressable progressable)
     {
         this(conf);
         this.progressable = progressable;
     }
 
-    ColumnFamilyRecordWriter(Configuration conf) throws IOException
+    ColumnFamilyRecordWriter(Configuration conf)
     {
         this.conf = conf;
         this.ringCache = new RingCache(conf);
