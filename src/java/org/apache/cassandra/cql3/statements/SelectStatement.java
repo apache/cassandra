@@ -147,22 +147,11 @@ public class SelectStatement implements CQLStatement
 
     public ResultMessage.Rows executeInternal(QueryState state) throws RequestExecutionException, RequestValidationException
     {
-        try
-        {
-            List<Row> rows = isKeyRange || usesSecondaryIndexing
-                           ? RangeSliceVerbHandler.executeLocally(getRangeCommand(Collections.<ByteBuffer>emptyList()))
-                           : readLocally(keyspace(), getSliceCommands(Collections.<ByteBuffer>emptyList()));
+        List<Row> rows = isKeyRange || usesSecondaryIndexing
+                       ? RangeSliceVerbHandler.executeLocally(getRangeCommand(Collections.<ByteBuffer>emptyList()))
+                       : readLocally(keyspace(), getSliceCommands(Collections.<ByteBuffer>emptyList()));
 
-            return processResults(rows, Collections.<ByteBuffer>emptyList());
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return processResults(rows, Collections.<ByteBuffer>emptyList());
     }
 
     public ResultSet process(List<Row> rows) throws InvalidRequestException

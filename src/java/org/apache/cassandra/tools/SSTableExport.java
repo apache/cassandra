@@ -399,7 +399,7 @@ public class SSTableExport
      * @throws IOException            on failure to open/read/write files or output streams
      * @throws ConfigurationException on configuration failure (wrong params given)
      */
-    public static void main(String[] args) throws IOException, ConfigurationException
+    public static void main(String[] args) throws ConfigurationException
     {
         String usage = String.format("Usage: %s <sstable> [-k key [-k key [...]] -x key [-x key [...]]]%n", SSTableExport.class.getName());
 

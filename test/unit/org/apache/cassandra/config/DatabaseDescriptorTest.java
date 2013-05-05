@@ -67,7 +67,7 @@ public class DatabaseDescriptorTest
 
     // this came as a result of CASSANDRA-995
     @Test
-    public void testTransKsMigration() throws IOException, ConfigurationException
+    public void testTransKsMigration() throws ConfigurationException
     {
         SchemaLoader.cleanupAndLeaveDirs();
         DatabaseDescriptor.loadSchemas();

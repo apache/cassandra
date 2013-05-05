@@ -128,7 +128,7 @@ public class ClientState
         this.user = user;
     }
 
-    public void hasAllKeyspacesAccess(Permission perm) throws UnauthorizedException, InvalidRequestException
+    public void hasAllKeyspacesAccess(Permission perm) throws UnauthorizedException
     {
         if (internalCall)
             return;

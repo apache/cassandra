@@ -294,7 +294,7 @@ public class StorageProxy implements StorageProxyMBean
      * nodes have seen the mostRecentCommit.  Otherwise, return null.
      */
     private static UUID beginAndRepairPaxos(ByteBuffer key, CFMetaData metadata, List<InetAddress> liveEndpoints, int requiredParticipants)
-    throws WriteTimeoutException, UnavailableException
+    throws WriteTimeoutException
     {
         UUID ballot = UUIDGen.getTimeUUID();
 
@@ -344,7 +344,7 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     private static PrepareCallback preparePaxos(Commit toPrepare, List<InetAddress> endpoints, int requiredParticipants)
-    throws WriteTimeoutException, UnavailableException
+    throws WriteTimeoutException
     {
         PrepareCallback callback = new PrepareCallback(toPrepare.key, toPrepare.update.metadata(), requiredParticipants);
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PREPARE, toPrepare, Commit.serializer);
@@ -1244,7 +1244,7 @@ public class StorageProxy implements StorageProxyMBean
             this.handler = handler;
         }
 
-        protected void runMayThrow() throws ExecutionException, InterruptedException
+        protected void runMayThrow()
         {
             logger.trace("LocalReadRunnable reading {}", command);
 

@@ -487,7 +487,7 @@ public class SSTableImport
      * @throws ParseException on failure to parse JSON input
      * @throws ConfigurationException on configuration error.
      */
-    public static void main(String[] args) throws IOException, ParseException, ConfigurationException
+    public static void main(String[] args) throws ParseException, ConfigurationException
     {
         CommandLineParser parser = new PosixParser();
 

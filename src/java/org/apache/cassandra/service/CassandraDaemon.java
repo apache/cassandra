@@ -226,15 +226,7 @@ public class CassandraDaemon
         }
 
         // load keyspace descriptions.
-        try
-        {
-            DatabaseDescriptor.loadSchemas();
-        }
-        catch (IOException e)
-        {
-            logger.error("Fatal exception during initialization", e);
-            System.exit(100);
-        }
+        DatabaseDescriptor.loadSchemas();
 
         // clean up debris in the rest of the tables
         for (String table : Schema.instance.getTables())

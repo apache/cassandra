@@ -18,10 +18,6 @@
 package org.apache.cassandra.service;
 
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RangeSliceCommand;
@@ -35,9 +31,7 @@ import org.apache.cassandra.tracing.Tracing;
 
 public class RangeSliceVerbHandler implements IVerbHandler<RangeSliceCommand>
 {
-    private static final Logger logger = LoggerFactory.getLogger(RangeSliceVerbHandler.class);
-
-    public static List<Row> executeLocally(RangeSliceCommand command) throws ExecutionException, InterruptedException
+    public static List<Row> executeLocally(RangeSliceCommand command)
     {
         ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
         if (cfs.indexManager.hasIndexFor(command.row_filter))

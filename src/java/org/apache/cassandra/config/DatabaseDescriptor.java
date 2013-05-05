@@ -485,7 +485,7 @@ public class DatabaseDescriptor
     }
 
     /** load keyspace (table) definitions, but do not initialize the table instances. */
-    public static void loadSchemas() throws IOException
+    public static void loadSchemas()
     {
         ColumnFamilyStore schemaCFS = SystemTable.schemaCFS(SystemTable.SCHEMA_KEYSPACES_CF);
 
