@@ -65,14 +65,14 @@ class BaseTester(object):
             if os.path.exists(pid_fname):
                 pid_path = os.path.join(root, pid_fname)
                 print "Unclean shutdown detected, (%s found)" % pid_path
-                sys.exit()
+                raise Exception('damn it')
 
             # clean out old stuff
             import shutil
             # todo get directories from conf/cassandra.yaml
             for dirname in ['system', 'data', 'commitlog']:
                 try:
-                    shutil.rmtree('build/test/cassandra/' + dirname)
+                    shutil.rmtree(os.path.join(root, 'build', 'test', 'cassandra', dirname))
                 except OSError:
                     pass
             # start the server
@@ -103,7 +103,7 @@ class BaseTester(object):
                     stdout_value, stderr_value = process.communicate()
                     print "Stdout: %s" % (stdout_value)
                     print "Stderr: %s" % (stderr_value)
-                sys.exit()
+                raise Exception('damn it')
         else:
             try:
                 self.open_client()
@@ -132,6 +132,8 @@ class BaseTester(object):
                 if not is_alive(spid):
                     break
                 slept += 0.5
+            # Give time for cassandra to shutdown
+            time.sleep(2)
             if (slept > max_wait and is_alive(spid)):
                 os.kill(spid, signal.SIGKILL)
                 fpath = os.path.join(root, pid_fname)
