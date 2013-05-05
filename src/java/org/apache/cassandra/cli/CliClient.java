@@ -202,7 +202,7 @@ public class CliClient
     }
 
     // Execute a CLI Statement
-    public void executeCLIStatement(String statement) throws CharacterCodingException, TException, TimedOutException, NotFoundException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException, ClassNotFoundException
+    public void executeCLIStatement(String statement) throws CharacterCodingException, TException, TimedOutException, NotFoundException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException
     {
         Tree tree = CliCompiler.compileQuery(statement);
         try
@@ -531,7 +531,7 @@ public class CliClient
     }
 
     private void doSlice(String keyspace, ByteBuffer key, String columnFamily, byte[] superColumnName, int limit)
-            throws InvalidRequestException, UnavailableException, TimedOutException, TException, IllegalAccessException, NotFoundException, InstantiationException, NoSuchFieldException
+            throws InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException
     {
 
         long startTime = System.nanoTime();
@@ -634,7 +634,7 @@ public class CliClient
 
     // Execute GET statement
     private void executeGet(Tree statement)
-            throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, IllegalAccessException, InstantiationException, ClassNotFoundException, NoSuchFieldException
+            throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
@@ -772,7 +772,7 @@ public class CliClient
     }
 
     private void doGetCounter(ByteBuffer key, ColumnPath path)
-            throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, IllegalAccessException, InstantiationException, ClassNotFoundException, NoSuchFieldException
+            throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException
     {
         boolean isSuper = path.super_column != null;
 
@@ -896,7 +896,7 @@ public class CliClient
 
     // Execute SET statement
     private void executeSet(Tree statement)
-        throws TException, InvalidRequestException, UnavailableException, TimedOutException, NoSuchFieldException, InstantiationException, IllegalAccessException
+        throws TException, InvalidRequestException, UnavailableException, TimedOutException
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
@@ -986,7 +986,7 @@ public class CliClient
 
     // Execute INCR statement
     private void executeIncr(Tree statement, long multiplier)
-            throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, IllegalAccessException, InstantiationException, ClassNotFoundException, NoSuchFieldException
+            throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
@@ -2013,7 +2013,7 @@ public class CliClient
     }
 
     // USE <keyspace_name>
-    private void executeUseKeySpace(Tree statement) throws TException
+    private void executeUseKeySpace(Tree statement)
     {
         if (!CliMain.isConnected())
             return;
@@ -2088,7 +2088,7 @@ public class CliClient
         }
     }
 
-    private void executeTraceNextQuery() throws TException, CharacterCodingException
+    private void executeTraceNextQuery() throws TException
     {
         if (!CliMain.isConnected())
             return;
@@ -2158,7 +2158,7 @@ public class CliClient
         }
     }
 
-    private void describeColumnFamily(KsDef ks_def, CfDef cf_def, NodeProbe probe) throws TException
+    private void describeColumnFamily(KsDef ks_def, CfDef cf_def, NodeProbe probe)
     {
         // fetching bean for current column family store
         ColumnFamilyStoreMBean cfMBean = (probe == null) ? null : probe.getCfsProxy(ks_def.getName(), cf_def.getName());
@@ -2957,16 +2957,14 @@ public class CliClient
         sessionState.out.printf("%n%d Row%s Returned.%n", slices.size(), (slices.size() > 1 ? "s" : ""));
     }
 
-    // retuns sub-column name in human-readable format
+    // returns sub-column name in human-readable format
     private String formatSubcolumnName(String keyspace, String columnFamily, ByteBuffer name)
-            throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
         return getFormatType(getCfDef(keyspace, columnFamily).subcomparator_type).getString(name);
     }
 
     // retuns column name in human-readable format
     private String formatColumnName(String keyspace, String columnFamily, ByteBuffer name)
-            throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
         return getFormatType(getCfDef(keyspace, columnFamily).comparator_type).getString(name);
     }
