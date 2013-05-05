@@ -72,7 +72,7 @@ class BaseTester(object):
             # todo get directories from conf/cassandra.yaml
             for dirname in ['system', 'data', 'commitlog']:
                 try:
-                    shutil.rmtree('build/test/cassandra/' + dirname)
+                    shutil.rmtree(os.path.join(root, 'build', 'test', 'cassandra', dirname))
                 except OSError:
                     pass
             # start the server
@@ -133,7 +133,7 @@ class BaseTester(object):
                     break
                 slept += 0.5
             # Give time for cassandra to shutdown
-            time.sleep(1)
+            time.sleep(2)
             if (slept > max_wait and is_alive(spid)):
                 os.kill(spid, signal.SIGKILL)
                 fpath = os.path.join(root, pid_fname)
