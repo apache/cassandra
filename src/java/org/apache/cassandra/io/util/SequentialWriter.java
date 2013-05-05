@@ -399,7 +399,7 @@ public class SequentialWriter extends OutputStream
      * This can only be called before any data is written to this write,
      * otherwise an IllegalStateException is thrown.
      */
-    public void setDataIntegratyWriter(DataIntegrityMetadata.ChecksumWriter writer)
+    public void setDataIntegrityWriter(DataIntegrityMetadata.ChecksumWriter writer)
     {
         if (current != 0)
             throw new IllegalStateException();

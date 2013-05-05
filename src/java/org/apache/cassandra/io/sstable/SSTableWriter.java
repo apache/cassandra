@@ -46,7 +46,6 @@ public class SSTableWriter extends SSTable
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
     private final SSTableMetadata.Collector sstableMetadataCollector;
-    private DataIntegrityMetadata.ChecksumWriter integratyWriter;
 
     public SSTableWriter(String filename, long keyCount)
     {
@@ -107,8 +106,7 @@ public class SSTableWriter extends SSTable
         {
             dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
             dataFile = SequentialWriter.open(new File(getFilename()), !metadata.populateIoCacheOnFlush());
-            integratyWriter = DataIntegrityMetadata.checksumWriter(descriptor);
-            dataFile.setDataIntegratyWriter(integratyWriter);
+            dataFile.setDataIntegrityWriter(DataIntegrityMetadata.checksumWriter(descriptor));
         }
 
         this.sstableMetadataCollector = sstableMetadataCollector;
