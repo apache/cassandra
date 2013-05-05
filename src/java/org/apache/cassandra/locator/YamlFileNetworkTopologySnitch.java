@@ -60,6 +60,14 @@ public class YamlFileNetworkTopologySnitch
     /** Logger. */
     private static final Logger logger = LoggerFactory
             .getLogger(YamlFileNetworkTopologySnitch.class);
+    
+    /**
+     * How often to check the topology configuration file, in milliseconds; defaults to one minute.
+     */
+    private static final int CHECK_PERIOD_IN_MS = 60 * 1000;
+
+    /** Default name for the topology configuration file. */
+    private static final String DEFAULT_TOPOLOGY_CONFIG_FILENAME = "cassandra-topology.yaml";
 
     /** Node data map, keyed by broadcast address. */
     private volatile Map<InetAddress, NodeData> nodeDataMap;
@@ -70,16 +78,8 @@ public class YamlFileNetworkTopologySnitch
     /** Node data to fall back to when there is no match. */
     private volatile NodeData defaultNodeData;
 
-    /** Default name for the topology configuration file. */
-    private static final String DEFAULT_TOPOLOGY_CONFIG_FILENAME = "cassandra-topology.yaml";
-
     /** Name of the topology configuration file. */
     private final String topologyConfigFilename;
-
-    /**
-     * How often to check the topology configuration file, in milliseconds; defaults to one minute.
-     */
-    private final int checkPeriodInMs = 60 * 1000;
 
     /** True if the gossiper has been initialized. */
     private volatile boolean gossiperInitialized = false;
@@ -127,7 +127,7 @@ public class YamlFileNetworkTopologySnitch
                 }
             };
             ResourceWatcher.watch(topologyConfigFilename, runnable,
-                    checkPeriodInMs);
+                    CHECK_PERIOD_IN_MS);
         }
         catch (final ConfigurationException e)
         {
