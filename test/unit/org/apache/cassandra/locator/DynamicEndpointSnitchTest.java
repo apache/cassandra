@@ -41,7 +41,7 @@ public class DynamicEndpointSnitchTest
         DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(ss, String.valueOf(ss.hashCode()));
         InetAddress self = FBUtilities.getBroadcastAddress();
         ArrayList<InetAddress> order = new ArrayList<InetAddress>();
-        InetAddress host1 = InetAddress.getByName("127.0.0.1");
+        InetAddress host1 = InetAddress.getByName("127.0.0.4");
         InetAddress host2 = InetAddress.getByName("127.0.0.2");
         InetAddress host3 = InetAddress.getByName("127.0.0.3");
 
