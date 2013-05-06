@@ -692,7 +692,7 @@ public class StorageProxy implements StorageProxyMBean
     throws OverloadedException
     {
         // Multimap that holds onto all the messages and addresses meant for a specific datacenter
-        Map<String, Multimap<MessageOut, InetAddress>> dcMessages = new HashMap<String, Multimap<MessageOut, InetAddress>>();
+        Map<String, Multimap<MessageOut, InetAddress>> dcMessages = null;
 
         for (InetAddress destination : targets)
         {
@@ -720,10 +720,12 @@ public class StorageProxy implements StorageProxyMBean
                         logger.trace("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + destination);
 
                     String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
-                    Multimap<MessageOut, InetAddress> messages = dcMessages.get(dc);
+                    Multimap<MessageOut, InetAddress> messages = (dcMessages != null) ? dcMessages.get(dc) : null;
                     if (messages == null)
                     {
                         messages = HashMultimap.create();
+                        if (dcMessages == null)
+                            dcMessages = new HashMap<String, Multimap<MessageOut, InetAddress>>();
                         dcMessages.put(dc, messages);
                     }
 
@@ -740,7 +742,8 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
 
-        sendMessages(localDataCenter, dcMessages, responseHandler);
+        if (dcMessages != null)
+            sendMessages(localDataCenter, dcMessages, responseHandler);
     }
 
     public static Future<Void> submitHint(final RowMutation mutation,
