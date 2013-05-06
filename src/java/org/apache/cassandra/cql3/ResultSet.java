@@ -92,13 +92,14 @@ public class ResultSet
         }
     }
 
-    public ResultSet makeCountResult()
+    public ResultSet makeCountResult(ColumnIdentifier alias)
     {
         String ksName = metadata.names.get(0).ksName;
         String cfName = metadata.names.get(0).cfName;
         long count = rows.size();
 
-        Metadata newMetadata = new Metadata(Collections.singletonList(new ColumnSpecification(ksName, cfName, COUNT_COLUMN, LongType.instance)));
+        ColumnSpecification spec = new ColumnSpecification(ksName, cfName, alias == null ? COUNT_COLUMN : alias, LongType.instance);
+        Metadata newMetadata = new Metadata(Collections.singletonList(spec));
         List<List<ByteBuffer>> newRows = Collections.singletonList(Collections.singletonList(ByteBufferUtil.bytes(count)));
 
         return new ResultSet(newMetadata, newRows);

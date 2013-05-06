@@ -580,9 +580,9 @@ bc(syntax)..
                   ( ALLOW FILTERING )?
 
 <select-clause> ::= <selection-list>
-                  | COUNT '(' ( '*' | '1' ) ')'
+                  | COUNT '(' ( '*' | '1' ) ')' (AS <identifier>)?
 
-<selection-list> ::= <selector> ( ',' <selector> )*
+<selection-list> ::= <selector> (AS <identifier>)? ( ',' <selector> (AS <identifier>)? )*
                    | '*'
 
 <selector> ::= <identifier>
@@ -604,6 +604,8 @@ __Sample:__
 bc(sample).. 
 SELECT name, occupation FROM users WHERE userid IN (199, 200, 207);
 
+SELECT name AS user_name, occupation AS user_occupation FROM users;
+
 SELECT time, value
 FROM events
 WHERE event_type = 'myEvent'
@@ -611,6 +613,9 @@ WHERE event_type = 'myEvent'
   AND time <= 2012-01-01
 
 SELECT COUNT(*) FROM users;
+
+SELECT COUNT(*) AS user_count FROM users;
+
 p. 
 The @SELECT@ statements reads one or more columns for one or more rows in a table. It returns a result-set of rows, where each row contains the collection of columns corresponding to the query.
 
@@ -619,6 +624,8 @@ h4(#selectSelection). @<select-clause>@
 The @<select-clause>@ determines which columns needs to be queried and returned in the result-set. It consists of either the comma-separated list of <selector> or the wildcard character (@*@) to select all the columns defined for the table.
 
 A @<selector>@ is either a column name to retrieve, or a @<function>@ of one or multiple column names. The functions allows are the same that for @<term>@ and are describe in the "function section":#function. In addition to these generic functions, the @WRITETIME@ (resp. @TTL@) function allows to select the timestamp of when the column was inserted (resp. the time to live (in seconds) for the column (or null if the column has no expiration set)).
+
+Any @<selector>@ can be aliased using @AS@ keyword (see examples). Please note that @<where-clause>@ and @<order-by>@ clause should refer to the columns by their original names and not by their aliases.
 
 The @COUNT@ keyword can be used with parenthesis enclosing @*@. If so, the query will return a single result: the number of rows matching the query. Note that @COUNT(1)@ is supported as an alias.
 
@@ -966,6 +973,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @AND@          | yes |
 | @ANY@          | yes |
 | @APPLY@        | yes |
+| @AS@           | no  |
 | @ASC@          | yes |
 | @ASCII@        | no  |
 | @AUTHORIZE@    | yes |
@@ -1051,6 +1059,7 @@ The following describes the addition/changes brought for each version of CQL.
 h3. 3.1.0
 
 * "ALTER TABLE":#alterTableStmt @DROP@ option has been reenabled for CQL3 tables and has new semantics now: the space formerly used by dropped columns will now be eventually reclaimed (post-compaction). You should not readd previously dropped columns unless you use timestamps with microsecond precision (see "CASSANDRA-3919":https://issues.apache.org/jira/browse/CASSANDRA-3919 for more details).
+* SELECT statement now supports aliases in select clause. Aliases in WHERE and ORDER BY clauses are not supported. See the "section on select"#selectStmt for details.
 
 h3. 3.0.3
 

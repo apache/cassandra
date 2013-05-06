@@ -18,52 +18,16 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.List;
-
 import org.apache.cassandra.cql3.ColumnIdentifier;
 
-public interface RawSelector
+public class RawSelector
 {
-    public static class WritetimeOrTTL implements RawSelector
+    public final Selectable selectable;
+    public final ColumnIdentifier alias;
+
+    public RawSelector(Selectable selectable, ColumnIdentifier alias)
     {
-        public final ColumnIdentifier id;
-        public final boolean isWritetime;
-
-        public WritetimeOrTTL(ColumnIdentifier id, boolean isWritetime)
-        {
-            this.id = id;
-            this.isWritetime = isWritetime;
-        }
-
-        @Override
-        public String toString()
-        {
-            return (isWritetime ? "writetime" : "ttl") + "(" + id + ")";
-        }
-    }
-
-    public static class WithFunction implements RawSelector
-    {
-        public final String functionName;
-        public final List<RawSelector> args;
-
-        public WithFunction(String functionName, List<RawSelector> args)
-        {
-            this.functionName = functionName;
-            this.args = args;
-        }
-
-        @Override
-        public String toString()
-        {
-            StringBuilder sb = new StringBuilder();
-            sb.append(functionName).append("(");
-            for (int i = 0; i < args.size(); i++)
-            {
-                if (i > 0) sb.append(", ");
-                sb.append(args.get(i));
-            }
-            return sb.append(")").toString();
-        }
+        this.selectable = selectable;
+        this.alias = alias;
     }
 }

@@ -21,7 +21,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
@@ -72,6 +74,8 @@ public class SelectStatement implements CQLStatement
     private boolean keyIsInRelation;
     private boolean usesSecondaryIndexing;
 
+    private Map<CFDefinition.Name, Integer> orderingIndexes;
+
     private static enum Bound
     {
         START(0), END(1);
@@ -87,7 +91,7 @@ public class SelectStatement implements CQLStatement
         {
             return b == START ? END : START;
         }
-    };
+    }
 
     public SelectStatement(CFDefinition cfDef, int boundTerms, Parameters parameters, Selection selection)
     {
@@ -132,14 +136,14 @@ public class SelectStatement implements CQLStatement
     {
         // Even for count, we need to process the result as it'll group some column together in sparse column families
         ResultSet rset = process(rows, variables);
-        rset = parameters.isCount ? rset.makeCountResult() : rset;
+        rset = parameters.isCount ? rset.makeCountResult(parameters.countAlias) : rset;
         return new ResultMessage.Rows(rset);
     }
 
     static List<Row> readLocally(String keyspace, List<ReadCommand> cmds)
     {
         Table table = Table.open(keyspace);
-        List<Row> rows = new ArrayList(cmds.size());
+        List<Row> rows = new ArrayList<Row>(cmds.size());
         for (ReadCommand cmd : cmds)
             rows.add(cmd.getRow(table));
         return rows;
@@ -538,7 +542,7 @@ public class SelectStatement implements CQLStatement
     private List<IndexExpression> getIndexExpressions(List<ByteBuffer> variables) throws InvalidRequestException
     {
         if (!usesSecondaryIndexing || restrictedNames.isEmpty())
-            return Collections.<IndexExpression>emptyList();
+            return Collections.emptyList();
 
         List<IndexExpression> expressions = new ArrayList<IndexExpression>();
         for (CFDefinition.Name name : restrictedNames)
@@ -640,15 +644,9 @@ public class SelectStatement implements CQLStatement
             if (row.cf == null)
                 continue;
 
-            ByteBuffer[] keyComponents = null;
-            if (cfDef.hasCompositeKey)
-            {
-                keyComponents = ((CompositeType)cfDef.cfm.getKeyValidator()).split(row.key.key);
-            }
-            else
-            {
-                keyComponents = new ByteBuffer[]{ row.key.key };
-            }
+            ByteBuffer[] keyComponents = cfDef.hasCompositeKey
+                                       ? ((CompositeType)cfDef.cfm.getKeyValidator()).split(row.key.key)
+                                       : new ByteBuffer[]{ row.key.key };
 
             if (cfDef.isCompact)
             {
@@ -715,7 +713,7 @@ public class SelectStatement implements CQLStatement
                 }
 
                 for (ColumnGroupMap group : builder.groups())
-                    handleGroup(selection, result, row.key.key, keyComponents, group);
+                    handleGroup(selection, result, keyComponents, group);
             }
             else
             {
@@ -759,13 +757,14 @@ public class SelectStatement implements CQLStatement
         if (cqlRows.size() == 0 || parameters.orderings.isEmpty() || isKeyRange || !keyIsInRelation)
             return;
 
+        assert orderingIndexes != null;
 
         // optimization when only *one* order condition was given
         // because there is no point of using composite comparator if there is only one order condition
         if (parameters.orderings.size() == 1)
         {
             CFDefinition.Name ordering = cfDef.get(parameters.orderings.keySet().iterator().next());
-            Collections.sort(cqlRows.rows, new SingleColumnComparator(getColumnPositionInResultSet(cqlRows, ordering), ordering.type));
+            Collections.sort(cqlRows.rows, new SingleColumnComparator(orderingIndexes.get(ordering), ordering.type));
             return;
         }
 
@@ -780,47 +779,13 @@ public class SelectStatement implements CQLStatement
         {
             CFDefinition.Name orderingColumn = cfDef.get(identifier);
             types.add(orderingColumn.type);
-            positions[idx++] = getColumnPositionInResultSet(cqlRows, orderingColumn);
+            positions[idx++] = orderingIndexes.get(orderingColumn);
         }
 
         Collections.sort(cqlRows.rows, new CompositeComparator(types, positions));
     }
 
-    // determine position of column in the select clause
-    private int getColumnPositionInResultSet(ResultSet rs, CFDefinition.Name columnName)
-    {
-        for (int i = 0; i < rs.metadata.names.size(); i++)
-        {
-            if (rs.metadata.names.get(i).name.equals(columnName.name))
-                return i;
-        }
-
-        throw new IllegalArgumentException(String.format("Column %s wasn't found in select clause.", columnName));
-    }
-
-    /**
-     * For sparse composite, returns wheter two columns belong to the same
-     * cqlRow base on the full list of component in the name.
-     * Two columns do belong together if they differ only by the last
-     * component.
-     */
-    private static boolean isSameRow(ByteBuffer[] c1, ByteBuffer[] c2)
-    {
-        // Cql don't allow to insert columns who doesn't have all component of
-        // the composite set for sparse composite. Someone coming from thrift
-        // could hit that though. But since we have no way to handle this
-        // correctly, better fail here and tell whomever may hit that (if
-        // someone ever do) to change the definition to a dense composite
-        assert c1.length == c2.length : "Sparse composite should not have partial column names";
-        for (int i = 0; i < c1.length - 1; i++)
-        {
-            if (!c1[i].equals(c2[i]))
-                return false;
-        }
-        return true;
-    }
-
-    private void handleGroup(Selection selection, Selection.ResultSetBuilder result, ByteBuffer key, ByteBuffer[] keyComponents, ColumnGroupMap columns) throws InvalidRequestException
+    private void handleGroup(Selection selection, Selection.ResultSetBuilder result, ByteBuffer[] keyComponents, ColumnGroupMap columns) throws InvalidRequestException
     {
         // Respect requested order
         result.newRow();
@@ -868,22 +833,6 @@ public class SelectStatement implements CQLStatement
                 return false;
         }
         return true;
-    }
-
-    private boolean hasIndexedColumnRestricted(List<ColumnDefinition> columns, Restriction[] restrictions)
-    {
-        assert columns.size() == restrictions.length;
-        for (int i = 0; i < columns.size(); ++i)
-        {
-            Restriction restriction = restrictions[i];
-            if (restriction == null)
-                continue;
-
-            ColumnDefinition def = columns.get(i);
-            if (def != null && def.isIndexed())
-                return true;
-        }
-        return false;
     }
 
     public static class RawStatement extends CFStatement
@@ -935,7 +884,12 @@ public class SelectStatement implements CQLStatement
             {
                 CFDefinition.Name name = cfDef.get(rel.getEntity());
                 if (name == null)
-                    throw new InvalidRequestException(String.format("Undefined name %s in where clause ('%s')", rel.getEntity(), rel));
+                {
+                    if (containsAlias(rel.getEntity()))
+                        throw new InvalidRequestException(String.format("Aliases aren't allowed in where clause ('%s')", rel));
+                    else
+                        throw new InvalidRequestException(String.format("Undefined name %s in where clause ('%s')", rel.getEntity(), rel));
+                }
 
                 ColumnDefinition def = cfDef.cfm.getColumnDefinition(name.name.key);
                 stmt.restrictedNames.add(name);
@@ -1142,24 +1096,47 @@ public class SelectStatement implements CQLStatement
                 // If we order an IN query, we'll have to do a manual sort post-query. Currently, this sorting requires that we
                 // have queried the column on which we sort (TODO: we should update it to add the column on which we sort to the one
                 // queried automatically, and then removing it from the resultSet afterwards if needed)
-                if (stmt.keyIsInRelation && !selectClause.isEmpty()) // empty means wildcard was used
+                if (stmt.keyIsInRelation)
                 {
+                    stmt.orderingIndexes = new HashMap<CFDefinition.Name, Integer>();
                     for (ColumnIdentifier column : stmt.parameters.orderings.keySet())
                     {
-                        CFDefinition.Name name = cfDef.get(column);
-
-                        boolean hasColumn = false;
-                        for (RawSelector selector : selectClause)
+                        final CFDefinition.Name name = cfDef.get(column);
+                        if (name == null)
                         {
-                            if (name.name.equals(selector))
-                            {
-                                hasColumn = true;
-                                break;
-                            }
+                            if (containsAlias(column))
+                                throw new InvalidRequestException(String.format("Aliases are not allowed in order by clause ('%s')", column));
+                            else
+                                throw new InvalidRequestException(String.format("Order by on unknown column %s", column));
                         }
 
-                        if (!hasColumn)
-                            throw new InvalidRequestException("ORDER BY could not be used on columns missing in select clause.");
+                        if (selectClause.isEmpty()) // wildcard
+                        {
+                            stmt.orderingIndexes.put(name, Iterables.indexOf(cfDef, new Predicate<CFDefinition.Name>()
+                                                                                    {
+                                                                                        public boolean apply(CFDefinition.Name n)
+                                                                                        {
+                                                                                            return name.equals(n);
+                                                                                        }
+                                                                                    }));
+                        }
+                        else
+                        {
+                            boolean hasColumn = false;
+                            for (int i = 0; i < selectClause.size(); i++)
+                            {
+                                RawSelector selector = selectClause.get(i);
+                                if (name.name.equals(selector.selectable))
+                                {
+                                    stmt.orderingIndexes.put(name, i);
+                                    hasColumn = true;
+                                    break;
+                                }
+                            }
+
+                            if (!hasColumn)
+                                throw new InvalidRequestException("ORDER BY could not be used on columns missing in select clause.");
+                        }
                     }
                 }
 
@@ -1172,7 +1149,12 @@ public class SelectStatement implements CQLStatement
 
                     CFDefinition.Name name = cfDef.get(column);
                     if (name == null)
-                        throw new InvalidRequestException(String.format("Order by on unknown column %s", column));
+                    {
+                        if (containsAlias(column))
+                            throw new InvalidRequestException(String.format("Aliases are not allowed in order by clause ('%s')", column));
+                        else
+                            throw new InvalidRequestException(String.format("Order by on unknown column %s", column));
+                    }
 
                     if (name.kind != CFDefinition.Name.Kind.COLUMN_ALIAS)
                         throw new InvalidRequestException(String.format("Order by is currently only supported on the clustered columns of the PRIMARY KEY, got %s", column));
@@ -1215,6 +1197,17 @@ public class SelectStatement implements CQLStatement
             }
 
             return new ParsedStatement.Prepared(stmt, Arrays.<ColumnSpecification>asList(names));
+        }
+
+        private boolean containsAlias(final ColumnIdentifier name)
+        {
+            return Iterables.any(selectClause, new Predicate<RawSelector>()
+                                               {
+                                                   public boolean apply(RawSelector raw)
+                                                   {
+                                                       return name.equals(raw.alias);
+                                                   }
+                                               });
         }
 
         Restriction updateRestriction(CFDefinition.Name name, Restriction restriction, Relation newRel, ColumnSpecification[] boundNames) throws InvalidRequestException
@@ -1327,16 +1320,6 @@ public class SelectStatement implements CQLStatement
             return eqValues != null;
         }
 
-        public void setBound(Bound b, Term t)
-        {
-            bounds[b.idx] = t;
-        }
-
-        public void setInclusive(Bound b)
-        {
-            boundInclusive[b.idx] = true;
-        }
-
         public Term bound(Bound b)
         {
             return bounds[b.idx];
@@ -1373,8 +1356,8 @@ public class SelectStatement implements CQLStatement
 
         public void setBound(ColumnIdentifier name, Relation.Type type, Term t) throws InvalidRequestException
         {
-            Bound b = null;
-            boolean inclusive = false;
+            Bound b;
+            boolean inclusive;
             switch (type)
             {
                 case GT:
@@ -1393,6 +1376,8 @@ public class SelectStatement implements CQLStatement
                     b = Bound.END;
                     inclusive = true;
                     break;
+                default:
+                    throw new AssertionError();
             }
 
             if (bounds == null)
@@ -1428,13 +1413,15 @@ public class SelectStatement implements CQLStatement
         private final int limit;
         private final Map<ColumnIdentifier, Boolean> orderings;
         private final boolean isCount;
+        private final ColumnIdentifier countAlias;
         private final boolean allowFiltering;
 
-        public Parameters(int limit, Map<ColumnIdentifier, Boolean> orderings, boolean isCount, boolean allowFiltering)
+        public Parameters(int limit, Map<ColumnIdentifier, Boolean> orderings, boolean isCount, ColumnIdentifier countAlias, boolean allowFiltering)
         {
             this.limit = limit;
             this.orderings = orderings;
             this.isCount = isCount;
+            this.countAlias = countAlias;
             this.allowFiltering = allowFiltering;
         }
     }

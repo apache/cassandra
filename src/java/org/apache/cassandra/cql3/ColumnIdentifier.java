@@ -20,15 +20,14 @@ package org.apache.cassandra.cql3;
 import java.util.Locale;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.cql3.statements.Selectable;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import org.apache.cassandra.cql3.statements.RawSelector;
 
 /**
  * Represents an identifer for a CQL column definition.
  */
-public class ColumnIdentifier implements RawSelector, Comparable<ColumnIdentifier>
+public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier>
 {
     public final ByteBuffer key;
     private final String text;

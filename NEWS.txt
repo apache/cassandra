@@ -55,6 +55,11 @@ Operations
     - CAS uses gc_grace_seconds to determine how long to keep unused paxos
       state around for, or a minimum of three hours.
 
+Features
+--------
+    - Alias support has been added to CQL3 SELECT statement. Refer to
+      CQL3 documentation (http://cassandra.apache.org/doc/cql3/CQL.html) for details.
+
 
 1.2.5
 =====

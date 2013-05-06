@@ -40,6 +40,7 @@
  * Reenable ALTER TABLE DROP with new semantics (CASSANDRA-3919)
  * Add binary protocol versioning (CASSANDRA-5436)
  * Swap THshaServer for TThreadedSelectorServer (CASSANDRA-5530)
+ * Add alias support to SELECT statement (CASSANDRA-5075)
 
 
 1.2.5

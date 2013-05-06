@@ -211,11 +211,13 @@ useStatement returns [UseStatement stmt]
 selectStatement returns [SelectStatement.RawStatement expr]
     @init {
         boolean isCount = false;
+        ColumnIdentifier countAlias = null;
         int limit = Integer.MAX_VALUE;
         Map<ColumnIdentifier, Boolean> orderings = new LinkedHashMap<ColumnIdentifier, Boolean>();
         boolean allowFiltering = false;
     }
-    : K_SELECT ( sclause=selectClause | (K_COUNT '(' sclause=selectCountClause ')' { isCount = true; }) )
+    : K_SELECT ( sclause=selectClause
+               | (K_COUNT '(' sclause=selectCountClause ')' { isCount = true; } (K_AS c=cident { countAlias = c; })?) )
       K_FROM cf=columnFamilyName
       ( K_WHERE wclause=whereClause )?
       ( K_ORDER K_BY orderByClause[orderings] ( ',' orderByClause[orderings] )* )?
@@ -225,6 +227,7 @@ selectStatement returns [SelectStatement.RawStatement expr]
           SelectStatement.Parameters params = new SelectStatement.Parameters(limit,
                                                                              orderings,
                                                                              isCount,
+                                                                             countAlias,
                                                                              allowFiltering);
           $expr = new SelectStatement.RawStatement(cf, params, sclause, wclause);
       }
@@ -235,18 +238,23 @@ selectClause returns [List<RawSelector> expr]
     | '\*' { $expr = Collections.<RawSelector>emptyList();}
     ;
 
-selectionFunctionArgs returns [List<RawSelector> a]
-    : '(' ')' { $a = Collections.emptyList(); }
-    | '(' s1=selector { List<RawSelector> args = new ArrayList<RawSelector>(); args.add(s1); }
-          ( ',' sn=selector { args.add(sn); } )*
-       ')' { $a = args; }
+selector returns [RawSelector s]
+    @init{ ColumnIdentifier alias = null; }
+    : us=unaliasedSelector (K_AS c=cident { alias = c; })? { $s = new RawSelector(us, alias); }
     ;
 
-selector returns [RawSelector s]
+unaliasedSelector returns [Selectable s]
     : c=cident                                  { $s = c; }
-    | K_WRITETIME '(' c=cident ')'              { $s = new RawSelector.WritetimeOrTTL(c, true); }
-    | K_TTL       '(' c=cident ')'              { $s = new RawSelector.WritetimeOrTTL(c, false); }
-    | f=functionName args=selectionFunctionArgs { $s = new RawSelector.WithFunction(f, args); }
+    | K_WRITETIME '(' c=cident ')'              { $s = new Selectable.WritetimeOrTTL(c, true); }
+    | K_TTL       '(' c=cident ')'              { $s = new Selectable.WritetimeOrTTL(c, false); }
+    | f=functionName args=selectionFunctionArgs { $s = new Selectable.WithFunction(f, args); }
+    ;
+
+selectionFunctionArgs returns [List<Selectable> a]
+    : '(' ')' { $a = Collections.emptyList(); }
+    | '(' s1=unaliasedSelector { List<Selectable> args = new ArrayList<Selectable>(); args.add(s1); }
+          ( ',' sn=unaliasedSelector { args.add(sn); } )*
+       ')' { $a = args; }
     ;
 
 selectCountClause returns [List<RawSelector> expr]
@@ -878,6 +886,7 @@ unreserved_keyword returns [String str]
 
 unreserved_function_keyword returns [String str]
     : k=( K_KEY
+        | K_AS
         | K_CLUSTERING
         | K_COMPACT
         | K_STORAGE
@@ -905,6 +914,7 @@ unreserved_function_keyword returns [String str]
 // Case-insensitive keywords
 K_SELECT:      S E L E C T;
 K_FROM:        F R O M;
+K_AS:          A S;
 K_WHERE:       W H E R E;
 K_AND:         A N D;
 K_KEY:         K E Y;
