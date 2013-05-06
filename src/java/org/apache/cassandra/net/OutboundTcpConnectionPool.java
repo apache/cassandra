@@ -132,6 +132,8 @@ public class OutboundTcpConnectionPool
 
     InetAddress endPoint()
     {
+        if (id.equals(FBUtilities.getBroadcastAddress()))
+            return FBUtilities.getLocalAddress();
         return resetedEndpoint == null ? id : resetedEndpoint;
     }
 
