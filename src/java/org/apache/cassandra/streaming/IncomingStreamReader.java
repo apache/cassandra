@@ -127,6 +127,12 @@ public class IncomingStreamReader
                 retry();
                 throw ex;
             }
+            catch (RuntimeException e)
+            {
+                // if we encountered unexpected exception, fail this session
+                session.close(false);
+                throw e;
+            }
         }
 
         session.closeIfFinished();

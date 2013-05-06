@@ -20,6 +20,7 @@
    (CASSANDRA-5531)
  * cqlsh: add CLUSTERING ORDER BY support to DESCRIBE (CASSANDRA-5528)
  * Add custom secondary index support to CQL3 (CASSANDRA-5484)
+ * Fix repair hanging silently on unexpected error (CASSANDRA-5229)
 Merged from 1.1
  * Add retry mechanism to OTC for non-droppable_verbs (CASSANDRA-5393)
  * Use allocator information to improve memtable memory usage estimate
