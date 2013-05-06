@@ -263,8 +263,13 @@ Table of Contents
 
 4.1.4. QUERY
 
-  Performs a CQL query. The body of the message consists of a CQL query as a [long
-  string] followed by the [consistency] for the operation.
+  Performs a CQL query. The body of the message must be:
+    <query><consistency>[<n><value_1>...<value_n>]
+  where:
+    - <query> the query, [long string].
+    - <consistency> is the [consistency] level for the operation.
+    - optional: <n> [short], the number of following values.
+    - optional: <value_1>...<value_n> are [bytes] to use for bound variables in the query.
 
   Note that the consistency is ignored by some queries (USE, CREATE, ALTER,
   TRUNCATE, ...).
@@ -638,3 +643,10 @@ Table of Contents
               executed if the provide prepared statement ID is not known by
               this host. The rest of the ERROR message body will be [short
               bytes] representing the unknown ID.
+
+8. Changes from v1
+  * Protocol is versioned to allow old client connects to a newer server, if a newer
+    client connects to an older server, it needs to check if it gets a
+    ProtocolException on connection and try connecting with a lower version.
+  * A query can now have bind variables even though the statement is not
+    prepared. (see Section 4.1.4)

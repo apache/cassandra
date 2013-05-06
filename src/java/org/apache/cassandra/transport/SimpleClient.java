@@ -154,6 +154,13 @@ public class SimpleClient
         return (ResultMessage)msg;
     }
 
+    public ResultMessage execute(String query, List<ByteBuffer> values, ConsistencyLevel consistencyLevel)
+    {
+        Message.Response msg = execute(new QueryMessage(query, values, consistencyLevel));
+        assert msg instanceof ResultMessage;
+        return (ResultMessage)msg;
+    }
+
     public ResultMessage.Prepared prepare(String query)
     {
         Message.Response msg = execute(new PrepareMessage(query));

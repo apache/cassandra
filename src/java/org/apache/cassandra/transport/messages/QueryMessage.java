@@ -17,8 +17,11 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
-
 import com.google.common.collect.ImmutableMap;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -42,24 +45,53 @@ public class QueryMessage extends Message.Request
         {
             String query = CBUtil.readLongString(body);
             ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
-            return new QueryMessage(query, consistency);
+            List<ByteBuffer> values = new ArrayList<ByteBuffer>();
+            if (body.readable())
+            {
+                int paramCount = body.readUnsignedShort();
+                for (int i = 0; i < paramCount; i++)
+                     values.add(CBUtil.readValue(body));
+            }
+            return new QueryMessage(query, values, consistency);
         }
 
         public ChannelBuffer encode(QueryMessage msg)
         {
-
-            return ChannelBuffers.wrappedBuffer(CBUtil.longStringToCB(msg.query), CBUtil.consistencyLevelToCB(msg.consistency));
+            // We have:
+            //   - query
+            //   - options
+            //     * optional:
+            //   - Number of values
+            //   - The values
+            int vs = msg.values.size();
+            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(3, 0, vs);
+            builder.add(CBUtil.longStringToCB(msg.query));
+            builder.add(CBUtil.consistencyLevelToCB(msg.consistency));
+            if (vs > 0 && msg.getVersion() > 1)
+            {
+                builder.add(CBUtil.shortToCB(vs));
+                for (ByteBuffer value : msg.values)
+                    builder.addValue(value);
+            }
+            return builder.build();
         }
     };
 
     public final String query;
     public final ConsistencyLevel consistency;
+    public final List<ByteBuffer> values;
 
     public QueryMessage(String query, ConsistencyLevel consistency)
     {
-        super(Message.Type.QUERY);
+        this(query, Collections.<ByteBuffer>emptyList(), consistency);
+    }
+
+    public QueryMessage(String query, List<ByteBuffer> values, ConsistencyLevel consistency)
+    {
+        super(Type.QUERY);
         this.query = query;
         this.consistency = consistency;
+        this.values = values;
     }
 
     public ChannelBuffer encode()
@@ -84,7 +116,7 @@ public class QueryMessage extends Message.Request
                 Tracing.instance().begin("Execute CQL3 query", ImmutableMap.of("query", query));
             }
 
-            Message.Response response = QueryProcessor.process(query, consistency, state);
+            Message.Response response = QueryProcessor.process(query, values, consistency, state);
 
             if (tracingId != null)
                 response.setTracingId(tracingId);
