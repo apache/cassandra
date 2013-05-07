@@ -156,7 +156,8 @@ public class CompactionTask extends AbstractCompactionTask
                     throw new CompactionInterruptedException(ci.getCompactionInfo());
 
                 AbstractCompactedRow row = iter.next();
-                if (row.isEmpty())
+                RowIndexEntry indexEntry = writer.append(row);
+                if (indexEntry == null)
                 {
                     controller.invalidateCachedRow(row.key);
                     row.close();
@@ -166,8 +167,6 @@ public class CompactionTask extends AbstractCompactionTask
                 // If the row is cached, we call removeDeleted on at read time it to have coherent query returns,
                 // but if the row is not pushed out of the cache, obsolete tombstones will persist indefinitely.
                 controller.removeDeletedInCache(row.key);
-
-                RowIndexEntry indexEntry = writer.append(row);
                 totalkeysWritten++;
 
                 if (DatabaseDescriptor.getPreheatKeyCache())

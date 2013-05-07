@@ -27,15 +27,14 @@ import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.ning.compress.lzf.LZFInputStream;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionController;
-import org.apache.cassandra.db.compaction.PrecompactedRow;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.service.StorageService;
@@ -43,7 +42,6 @@ import org.apache.cassandra.streaming.compress.CompressedInputStream;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.BytesReadTracker;
 import org.apache.cassandra.utils.Pair;
-import com.ning.compress.lzf.LZFInputStream;
 
 public class IncomingStreamReader
 {
@@ -157,28 +155,11 @@ public class IncomingStreamReader
                 while (bytesRead < length)
                 {
                     in.reset(0);
+
                     key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
-                    long dataSize = in.readLong();
+                    writer.appendFromStream(key, cfs.metadata, in);
 
-                    if (cfs.containsCachedRow(key) && remoteFile.type == OperationType.AES && dataSize <= DatabaseDescriptor.getInMemoryCompactionLimit())
-                    {
-                        // need to update row cache
-                        // Note: Because we won't just echo the columns, there is no need to use the PRESERVE_SIZE flag, contrarily to what appendFromStream does below
-                        SSTableIdentityIterator iter = new SSTableIdentityIterator(cfs.metadata, in, localFile.getFilename(), key, 0, dataSize, ColumnSerializer.Flag.FROM_REMOTE);
-                        PrecompactedRow row = new PrecompactedRow(controller, Collections.singletonList(iter));
-                        // We don't expire anything so the row shouldn't be empty
-                        assert !row.isEmpty();
-                        writer.append(row);
-
-                        // update cache
-                        ColumnFamily cf = row.getFullColumnFamily();
-                        cfs.maybeUpdateRowCache(key, cf);
-                    }
-                    else
-                    {
-                        writer.appendFromStream(key, cfs.metadata, dataSize, in);
-                        cfs.invalidateCachedRow(key);
-                    }
+                    cfs.invalidateCachedRow(key);
 
                     bytesRead += in.getBytesRead();
                     // when compressed, report total bytes of compressed chunks read since remoteFile.size is the sum of chunks transferred

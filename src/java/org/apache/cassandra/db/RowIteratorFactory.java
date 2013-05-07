@@ -69,8 +69,7 @@ public class RowIteratorFactory
 
         for (SSTableReader sstable : sstables)
         {
-            final SSTableScanner scanner = sstable.getScanner(filter);
-            scanner.seekTo(startWith);
+            final SSTableScanner scanner = sstable.getScanner(filter, startWith);
             iterators.add(scanner);
         }
 

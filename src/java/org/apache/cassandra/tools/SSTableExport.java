@@ -33,6 +33,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -103,15 +104,15 @@ public class SSTableExport
      * </ul>
      *
      * @param out The output steam to write data
-     * @param cf  to which the metadata belongs
+     * @param deletionInfo
      */
-    private static void writeMeta(PrintStream out, ColumnFamily cf)
+    private static void writeMeta(PrintStream out, DeletionInfo deletionInfo)
     {
-        if (!cf.deletionInfo().equals(DeletionInfo.LIVE))
+        if (!deletionInfo.equals(DeletionInfo.LIVE))
         {
             // begin meta
             writeKey(out, "metadata");
-            writeDeletionInfo(out, cf.deletionInfo().getTopLevelDeletion());
+            writeDeletionInfo(out, deletionInfo.getTopLevelDeletion());
             out.print(",");
         }
     }
@@ -130,22 +131,22 @@ public class SSTableExport
      *
      * @param atoms      column iterator
      * @param out        output stream
-     * @param comparator columns comparator
      * @param cfMetaData Column Family metadata (to get validator)
      */
-    private static void serializeAtoms(Iterator<OnDiskAtom> atoms, PrintStream out, AbstractType<?> comparator, CFMetaData cfMetaData)
+    private static void serializeAtoms(Iterator<OnDiskAtom> atoms, PrintStream out, CFMetaData cfMetaData)
     {
         while (atoms.hasNext())
         {
-            writeJSON(out, serializeAtom(atoms.next(), comparator, cfMetaData));
+            writeJSON(out, serializeAtom(atoms.next(), cfMetaData));
 
             if (atoms.hasNext())
                 out.print(", ");
         }
     }
 
-    private static List<Object> serializeAtom(OnDiskAtom atom, AbstractType<?> comparator, CFMetaData cfMetaData)
+    private static List<Object> serializeAtom(OnDiskAtom atom, CFMetaData cfMetaData)
     {
+        AbstractType<?> comparator = cfMetaData.comparator;
         if (atom instanceof Column)
         {
             return serializeColumn((Column) atom, comparator, cfMetaData);
@@ -219,21 +220,22 @@ public class SSTableExport
      */
     private static void serializeRow(SSTableIdentityIterator row, DecoratedKey key, PrintStream out)
     {
-        ColumnFamily columnFamily = row.getColumnFamily();
-        CFMetaData cfMetaData = columnFamily.metadata();
-        AbstractType<?> comparator = columnFamily.getComparator();
+        serializeRow(row.getColumnFamily().deletionInfo(), row, row.getColumnFamily().metadata(), key, out);
+    }
 
+    private static void serializeRow(DeletionInfo deletionInfo, Iterator<OnDiskAtom> atoms, CFMetaData metadata, DecoratedKey key, PrintStream out)
+    {
         out.print("{");
         writeKey(out, "key");
         writeJSON(out, bytesToHex(key.key));
         out.print(",");
 
-        writeMeta(out, columnFamily);
+        writeMeta(out, deletionInfo);
 
         writeKey(out, "columns");
         out.print("[");
 
-        serializeAtoms(row, out, comparator, cfMetaData);
+        serializeAtoms(atoms, out, metadata);
 
         out.print("]");
         out.print("}");
@@ -277,10 +279,10 @@ public class SSTableExport
      */
     public static void export(Descriptor desc, PrintStream outs, Collection<String> toExport, String[] excludes) throws IOException
     {
-        SSTableReader reader = SSTableReader.open(desc);
-        SSTableScanner scanner = reader.getScanner();
+        SSTableReader sstable = SSTableReader.open(desc);
+        RandomAccessReader dfile = sstable.openDataReader();
 
-        IPartitioner<?> partitioner = reader.partitioner;
+        IPartitioner<?> partitioner = sstable.partitioner;
 
         if (excludes != null)
             toExport.removeAll(Arrays.asList(excludes));
@@ -301,16 +303,20 @@ public class SSTableExport
 
             lastKey = decoratedKey;
 
-            scanner.seekTo(decoratedKey);
-
-            if (!scanner.hasNext())
+            RowIndexEntry entry = sstable.getPosition(decoratedKey, SSTableReader.Operator.EQ);
+            if (entry == null)
                 continue;
 
-            SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
-            if (!row.getKey().equals(decoratedKey))
-                continue;
+            dfile.seek(entry.position);
+            ByteBufferUtil.readWithShortLength(dfile); // row key
+            if (sstable.descriptor.version.hasRowSizeAndColumnCount)
+                dfile.readLong(); // row size
+            DeletionInfo deletionInfo = DeletionInfo.serializer().deserializeFromSSTable(dfile, sstable.descriptor.version);
+            int columnCount = sstable.descriptor.version.hasRowSizeAndColumnCount ? dfile.readInt() : Integer.MAX_VALUE;
 
-            serializeRow(row, decoratedKey, outs);
+            Iterator<OnDiskAtom> atomIterator = sstable.metadata.getOnDiskIterator(dfile, columnCount, sstable.descriptor.version);
+
+            serializeRow(deletionInfo, atomIterator, sstable.metadata, decoratedKey, outs);
 
             if (i != 0)
                 outs.println(",");
@@ -321,8 +327,6 @@ public class SSTableExport
 
         outs.println("\n]");
         outs.flush();
-
-        scanner.close();
     }
 
     // This is necessary to accommodate the test suite since you cannot open a Reader more

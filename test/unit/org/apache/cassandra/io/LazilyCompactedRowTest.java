@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import com.google.common.base.Objects;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -55,24 +56,24 @@ public class LazilyCompactedRowTest extends SchemaLoader
         // compare eager and lazy compactions
         AbstractCompactionIterable eager = new CompactionIterable(OperationType.UNKNOWN,
                                                                   strategy.getScanners(sstables),
-                                                                  new PreCompactingController(cfs, sstables, gcBefore, false));
+                                                                  new PreCompactingController(cfs, sstables, gcBefore));
         AbstractCompactionIterable lazy = new CompactionIterable(OperationType.UNKNOWN,
                                                                  strategy.getScanners(sstables),
-                                                                 new LazilyCompactingController(cfs, sstables, gcBefore, false));
-        assertBytes(cfs, sstables, eager, lazy);
+                                                                 new LazilyCompactingController(cfs, sstables, gcBefore));
+        assertBytes(cfs, eager, lazy);
 
         // compare eager and parallel-lazy compactions
         eager = new CompactionIterable(OperationType.UNKNOWN,
                                        strategy.getScanners(sstables),
-                                       new PreCompactingController(cfs, sstables, gcBefore, false));
+                                       new PreCompactingController(cfs, sstables, gcBefore));
         AbstractCompactionIterable parallel = new ParallelCompactionIterable(OperationType.UNKNOWN,
                                                                              strategy.getScanners(sstables),
                                                                              new CompactionController(cfs, new HashSet<SSTableReader>(sstables), gcBefore),
                                                                              0);
-        assertBytes(cfs, sstables, eager, parallel);
+        assertBytes(cfs, eager, parallel);
     }
 
-    private static void assertBytes(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, AbstractCompactionIterable ci1, AbstractCompactionIterable ci2) throws IOException
+    private static void assertBytes(ColumnFamilyStore cfs, AbstractCompactionIterable ci1, AbstractCompactionIterable ci2) throws IOException
     {
         CloseableIterator<AbstractCompactedRow> iter1 = ci1.iterator();
         CloseableIterator<AbstractCompactedRow> iter2 = ci2.iterator();
@@ -89,8 +90,8 @@ public class LazilyCompactedRowTest extends SchemaLoader
             AbstractCompactedRow row2 = iter2.next();
             DataOutputBuffer out1 = new DataOutputBuffer();
             DataOutputBuffer out2 = new DataOutputBuffer();
-            row1.write(out1);
-            row2.write(out2);
+            row1.write(-1, out1);
+            row2.write(-1, out2);
 
             File tmpFile1 = File.createTempFile("lcrt1", null);
             File tmpFile2 = File.createTempFile("lcrt2", null);
@@ -104,28 +105,23 @@ public class LazilyCompactedRowTest extends SchemaLoader
             MappedFileDataInput in1 = new MappedFileDataInput(new FileInputStream(tmpFile1), tmpFile1.getAbsolutePath(), 0, 0);
             MappedFileDataInput in2 = new MappedFileDataInput(new FileInputStream(tmpFile2), tmpFile2.getAbsolutePath(), 0, 0);
 
-            // key isn't part of what CompactedRow writes, that's done by SSTW.append
-
-            // row size can differ b/c of bloom filter counts being different
-            long rowSize1 = in1.readLong();
-            long rowSize2 = in2.readLong();
-            assertEquals(rowSize1 + 8, out1.getLength());
-            assertEquals(rowSize2 + 8, out2.getLength());
+            // row key
+            assertEquals(ByteBufferUtil.readWithShortLength(in1), ByteBufferUtil.readWithShortLength(in2));
 
             // cf metadata
             ColumnFamily cf1 = TreeMapBackedSortedColumns.factory.create(cfs.metadata);
             ColumnFamily cf2 = TreeMapBackedSortedColumns.factory.create(cfs.metadata);
             cf1.delete(DeletionInfo.serializer().deserializeFromSSTable(in1, Descriptor.Version.CURRENT));
             cf2.delete(DeletionInfo.serializer().deserializeFromSSTable(in2, Descriptor.Version.CURRENT));
-            assert cf1.deletionInfo().equals(cf2.deletionInfo());
+            assertEquals(cf1.deletionInfo(), cf2.deletionInfo());
             // columns
-            int columns = in1.readInt();
-            assert columns == in2.readInt();
-            for (int i = 0; i < columns; i++)
+            while (true)
             {
                 Column c1 = (Column)Column.onDiskSerializer().deserializeFromSSTable(in1, Descriptor.Version.CURRENT);
                 Column c2 = (Column)Column.onDiskSerializer().deserializeFromSSTable(in2, Descriptor.Version.CURRENT);
-                assert c1.equals(c2) : c1.getString(cfs.metadata.comparator) + " != " + c2.getString(cfs.metadata.comparator);
+                assert Objects.equal(c1, c2) : c1.getString(cfs.metadata.comparator) + " != " + c2.getString(cfs.metadata.comparator);
+                if (c1 == null)
+                    break;
             }
             // that should be everything
             assert in1.available() == 0;
@@ -137,8 +133,8 @@ public class LazilyCompactedRowTest extends SchemaLoader
     {
         AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
         Collection<SSTableReader> sstables = cfs.getSSTables();
-        AbstractCompactionIterable ci1 = new CompactionIterable(OperationType.UNKNOWN, strategy.getScanners(sstables), new PreCompactingController(cfs, sstables, gcBefore, false));
-        AbstractCompactionIterable ci2 = new CompactionIterable(OperationType.UNKNOWN, strategy.getScanners(sstables), new LazilyCompactingController(cfs, sstables, gcBefore, false));
+        AbstractCompactionIterable ci1 = new CompactionIterable(OperationType.UNKNOWN, strategy.getScanners(sstables), new PreCompactingController(cfs, sstables, gcBefore));
+        AbstractCompactionIterable ci2 = new CompactionIterable(OperationType.UNKNOWN, strategy.getScanners(sstables), new LazilyCompactingController(cfs, sstables, gcBefore));
         CloseableIterator<AbstractCompactedRow> iter1 = ci1.iterator();
         CloseableIterator<AbstractCompactedRow> iter2 = ci2.iterator();
 
@@ -291,7 +287,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
 
     private static class LazilyCompactingController extends CompactionController
     {
-        public LazilyCompactingController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
+        public LazilyCompactingController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore)
         {
             super(cfs, new HashSet<SSTableReader>(sstables), gcBefore);
         }
@@ -305,7 +301,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
 
     private static class PreCompactingController extends CompactionController
     {
-        public PreCompactingController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
+        public PreCompactingController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore)
         {
             super(cfs, new HashSet<SSTableReader>(sstables), gcBefore);
         }

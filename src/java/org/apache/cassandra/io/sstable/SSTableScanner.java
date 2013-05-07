@@ -18,10 +18,11 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 
 import com.google.common.util.concurrent.RateLimiter;
+
+import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
@@ -31,6 +32,8 @@ import org.apache.cassandra.db.columniterator.LazyColumnIterator;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -40,77 +43,83 @@ public class SSTableScanner implements ICompactionScanner
     protected final RandomAccessReader dfile;
     protected final RandomAccessReader ifile;
     public final SSTableReader sstable;
-    private OnDiskAtomIterator row;
-    protected boolean exhausted = false;
     protected Iterator<OnDiskAtomIterator> iterator;
     private final QueryFilter filter;
+    private long stopAt;
 
     /**
-     * @param sstable SSTable to scan.
-     * @param limiter
+     * @param sstable SSTable to scan; must not be null
+     * @param filter filter to use when scanning the columns; may be null
+     * @param limiter background i/o RateLimiter; may be null
      */
-    SSTableScanner(SSTableReader sstable, RateLimiter limiter)
+    SSTableScanner(SSTableReader sstable, QueryFilter filter, RateLimiter limiter)
     {
+        assert sstable != null;
+
         this.dfile = limiter == null ? sstable.openDataReader() : sstable.openDataReader(limiter);
         this.ifile = sstable.openIndexReader();
         this.sstable = sstable;
-        this.filter = null;
-    }
-
-    /**
-     * @param sstable SSTable to scan.
-     * @param filter filter to use when scanning the columns
-     */
-    SSTableScanner(SSTableReader sstable, QueryFilter filter)
-    {
-        this.dfile = sstable.openDataReader();
-        this.ifile = sstable.openIndexReader();
-        this.sstable = sstable;
         this.filter = filter;
+        stopAt = dfile.length();
     }
 
-    public void close() throws IOException
+    public SSTableScanner(SSTableReader sstable, QueryFilter filter, RowPosition startWith, RateLimiter limiter)
     {
-        FileUtils.close(dfile, ifile);
-    }
+        this(sstable, filter, limiter);
 
-    public void seekTo(RowPosition seekKey)
-    {
+        long indexPosition = sstable.getIndexScanPosition(startWith);
+        // -1 means the key is before everything in the sstable. So just start from the beginning.
+        if (indexPosition == -1)
+            indexPosition = 0;
+        ifile.seek(indexPosition);
+
         try
         {
-            long indexPosition = sstable.getIndexScanPosition(seekKey);
-            // -1 means the key is before everything in the sstable. So just start from the beginning.
-            if (indexPosition == -1)
-                indexPosition = 0;
-
-            ifile.seek(indexPosition);
-
             while (!ifile.isEOF())
             {
-                long startPosition = ifile.getFilePointer();
+                indexPosition = ifile.getFilePointer();
                 DecoratedKey indexDecoratedKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
-                int comparison = indexDecoratedKey.compareTo(seekKey);
+                int comparison = indexDecoratedKey.compareTo(startWith);
                 if (comparison >= 0)
                 {
                     // Found, just read the dataPosition and seek into index and data files
                     long dataPosition = ifile.readLong();
-                    ifile.seek(startPosition);
+                    ifile.seek(indexPosition);
                     dfile.seek(dataPosition);
-                    row = null;
-                    return;
+                    break;
                 }
                 else
                 {
                     RowIndexEntry.serializer.skip(ifile);
                 }
             }
-            exhausted = true;
         }
         catch (IOException e)
         {
             sstable.markSuspect();
-            throw new CorruptSSTableException(e, ifile.getPath());
+            throw new CorruptSSTableException(e, sstable.getFilename());
         }
+
+    }
+
+    public SSTableScanner(SSTableReader sstable, QueryFilter filter, Range<Token> range, RateLimiter limiter)
+    {
+        this(sstable, filter, range.toRowBounds().left, limiter);
+
+        if (range.isWrapAround())
+        {
+            stopAt = dfile.length();
+        }
+        else
+        {
+            RowIndexEntry position = sstable.getPosition(range.toRowBounds().right, SSTableReader.Operator.GT);
+            stopAt = position == null ? dfile.length() : position.position;
+        }
+    }
+
+    public void close() throws IOException
+    {
+        FileUtils.close(dfile, ifile);
     }
 
     public long getLengthInBytes()
@@ -131,14 +140,14 @@ public class SSTableScanner implements ICompactionScanner
     public boolean hasNext()
     {
         if (iterator == null)
-            iterator = exhausted ? Arrays.asList(new OnDiskAtomIterator[0]).iterator() : createIterator();
+            iterator = createIterator();
         return iterator.hasNext();
     }
 
     public OnDiskAtomIterator next()
     {
         if (iterator == null)
-            iterator = exhausted ? Arrays.asList(new OnDiskAtomIterator[0]).iterator() : createIterator();
+            iterator = createIterator();
         return iterator.next();
     }
 
@@ -149,76 +158,24 @@ public class SSTableScanner implements ICompactionScanner
 
     private Iterator<OnDiskAtomIterator> createIterator()
     {
-        return filter == null ? new KeyScanningIterator() : new FilteredKeyScanningIterator();
+        return new KeyScanningIterator();
     }
 
-    protected class KeyScanningIterator implements Iterator<OnDiskAtomIterator>
+    protected class KeyScanningIterator extends AbstractIterator<OnDiskAtomIterator>
     {
-        protected long finishedAt;
+        private DecoratedKey nextKey;
+        private RowIndexEntry nextEntry;
+        private DecoratedKey currentKey;
+        private RowIndexEntry currentEntry;
 
-        public boolean hasNext()
-        {
-            if (row == null)
-                return !dfile.isEOF();
-            return finishedAt < dfile.length();
-        }
-
-        public OnDiskAtomIterator next()
+        protected OnDiskAtomIterator computeNext()
         {
             try
             {
-                if (row != null)
-                    dfile.seek(finishedAt);
-                assert !dfile.isEOF();
+                if (ifile.isEOF() && nextKey == null)
+                    return endOfData();
 
-                // Read data header
-                DecoratedKey key = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(dfile));
-                long dataSize = dfile.readLong();
-                long dataStart = dfile.getFilePointer();
-                finishedAt = dataStart + dataSize;
-
-                row = new SSTableIdentityIterator(sstable, dfile, key, dataStart, dataSize);
-                return row;
-            }
-            catch (IOException e)
-            {
-                sstable.markSuspect();
-                throw new CorruptSSTableException(e, dfile.getPath());
-            }
-        }
-
-        public void remove()
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String toString()
-        {
-            return getClass().getSimpleName() + "(" + "finishedAt:" + finishedAt + ")";
-        }
-    }
-
-    protected class FilteredKeyScanningIterator implements Iterator<OnDiskAtomIterator>
-    {
-        protected DecoratedKey nextKey;
-        protected RowIndexEntry nextEntry;
-
-        public boolean hasNext()
-        {
-            if (row == null)
-                return !ifile.isEOF();
-            return nextKey != null;
-        }
-
-        public OnDiskAtomIterator next()
-        {
-            try
-            {
-                final DecoratedKey currentKey;
-                final RowIndexEntry currentEntry;
-
-                if (row == null)
+                if (currentKey == null)
                 {
                     currentKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                     currentEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor.version);
@@ -228,6 +185,10 @@ public class SSTableScanner implements ICompactionScanner
                     currentKey = nextKey;
                     currentEntry = nextEntry;
                 }
+
+                assert currentEntry.position <= stopAt;
+                if (currentEntry.position == stopAt)
+                    return endOfData();
 
                 if (ifile.isEOF())
                 {
@@ -241,7 +202,18 @@ public class SSTableScanner implements ICompactionScanner
                 }
 
                 assert !dfile.isEOF();
-                return row = new LazyColumnIterator(currentKey, new IColumnIteratorFactory()
+
+                if (filter == null)
+                {
+                    dfile.seek(currentEntry.position);
+                    ByteBufferUtil.readWithShortLength(dfile); // key
+                    if (sstable.descriptor.version.hasRowSizeAndColumnCount)
+                        dfile.readLong();
+                    long dataSize = (nextEntry == null ? dfile.length() : nextEntry.position) - dfile.getFilePointer();
+                    return new SSTableIdentityIterator(sstable, dfile, currentKey, dataSize);
+                }
+
+                return new LazyColumnIterator(currentKey, new IColumnIteratorFactory()
                 {
                     public OnDiskAtomIterator create()
                     {
@@ -252,13 +224,8 @@ public class SSTableScanner implements ICompactionScanner
             catch (IOException e)
             {
                 sstable.markSuspect();
-                throw new CorruptSSTableException(e, ifile.getPath());
+                throw new CorruptSSTableException(e, sstable.getFilename());
             }
-        }
-
-        public void remove()
-        {
-            throw new UnsupportedOperationException();
         }
     }
 
@@ -269,7 +236,6 @@ public class SSTableScanner implements ICompactionScanner
                "dfile=" + dfile +
                " ifile=" + ifile +
                " sstable=" + sstable +
-               " exhausted=" + exhausted +
                ")";
     }
 }

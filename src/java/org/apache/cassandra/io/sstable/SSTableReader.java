@@ -1000,10 +1000,15 @@ public class SSTableReader extends SSTable
      */
     public SSTableScanner getScanner(QueryFilter filter)
     {
-        return new SSTableScanner(this, filter);
+        return new SSTableScanner(this, filter, null);
     }
 
-   /**
+    public SSTableScanner getScanner(QueryFilter filter, RowPosition startWith)
+    {
+        return new SSTableScanner(this, filter, startWith, null);
+    }
+
+    /**
     * I/O SSTableScanner
     * @return A Scanner for seeking over the rows of the SSTable.
     */
@@ -1014,7 +1019,7 @@ public class SSTableReader extends SSTable
 
    public SSTableScanner getScanner(RateLimiter limiter)
    {
-       return new SSTableScanner(this, limiter);
+       return new SSTableScanner(this, null, limiter);
    }
 
    /**
@@ -1030,7 +1035,7 @@ public class SSTableReader extends SSTable
 
         Iterator<Pair<Long, Long>> rangeIterator = getPositionsForRanges(Collections.singletonList(range)).iterator();
         if (rangeIterator.hasNext())
-            return new SSTableBoundedScanner(this, rangeIterator, limiter);
+            return new SSTableScanner(this, null, range, limiter);
         else
             return new EmptyCompactionScanner(getFilename());
     }

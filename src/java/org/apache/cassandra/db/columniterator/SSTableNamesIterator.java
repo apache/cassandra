@@ -115,7 +115,8 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
 
             DecoratedKey keyInDisk = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(file));
             assert keyInDisk.equals(key) : String.format("%s != %s in %s", keyInDisk, key, file.getPath());
-            file.readLong();
+            if (sstable.descriptor.version.hasRowSizeAndColumnCount)
+                file.readLong();
         }
 
         indexList = indexEntry.columnsIndex();
@@ -142,7 +143,8 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         List<OnDiskAtom> result = new ArrayList<OnDiskAtom>();
         if (indexList.isEmpty())
         {
-            readSimpleColumns(file, columns, result);
+            int columnCount = sstable.descriptor.version.hasRowSizeAndColumnCount ? file.readInt() : Integer.MAX_VALUE;
+            readSimpleColumns(file, columns, result, columnCount);
         }
         else
         {
@@ -153,9 +155,9 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         iter = result.iterator();
     }
 
-    private void readSimpleColumns(FileDataInput file, SortedSet<ByteBuffer> columnNames, List<OnDiskAtom> result) throws IOException
+    private void readSimpleColumns(FileDataInput file, SortedSet<ByteBuffer> columnNames, List<OnDiskAtom> result, int columnCount) throws IOException
     {
-        Iterator<OnDiskAtom> atomIterator = cf.metadata().getOnDiskIterator(file, file.readInt(), sstable.descriptor.version);
+        Iterator<OnDiskAtom> atomIterator = cf.metadata().getOnDiskIterator(file, columnCount, sstable.descriptor.version);
         int n = 0;
         while (atomIterator.hasNext())
         {

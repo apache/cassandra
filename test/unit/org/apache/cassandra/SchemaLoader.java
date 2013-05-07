@@ -52,12 +52,12 @@ public class SchemaLoader
     private static Logger logger = LoggerFactory.getLogger(SchemaLoader.class);
 
     @BeforeClass
-    public static void loadSchema() throws IOException
+    public static void loadSchema() throws IOException, ConfigurationException
     {
         loadSchema(false);
     }
 
-    public static void loadSchema(boolean withOldCfIds) throws IOException
+    public static void loadSchema(boolean withOldCfIds) throws IOException, ConfigurationException
     {
         // Cleanup first
         cleanupAndLeaveDirs();
@@ -72,18 +72,13 @@ public class SchemaLoader
             }
         });
 
-
-        // Migrations aren't happy if gossiper is not started
+        // Migrations aren't happy if gossiper is not started.  Even if we don't use migrations though,
+        // some tests now expect us to start gossip for them.
         startGossiper();
-        try
-        {
-            for (KSMetaData ksm : schemaDefinition(withOldCfIds))
-                MigrationManager.announceNewKeyspace(ksm);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
+        // if you're messing with low-level sstable stuff, it can be useful to inject the schema directly
+        // Schema.instance.load(schemaDefinition(withOldCfIds));
+        for (KSMetaData ksm : schemaDefinition(withOldCfIds))
+            MigrationManager.announceNewKeyspace(ksm);
     }
 
     public static void startGossiper()

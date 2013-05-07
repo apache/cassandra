@@ -74,16 +74,15 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         {
             Descriptor.Version version = sstable.descriptor.version;
             this.indexes = indexEntry.columnsIndex();
+            emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
             if (indexes.isEmpty())
             {
-                setToRowStart(sstable, indexEntry, input);
-                this.emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
+                setToRowStart(indexEntry, input);
                 emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
                 fetcher = new SimpleBlockFetcher();
             }
             else
             {
-                emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
                 emptyColumnFamily.delete(indexEntry.deletionTime());
                 fetcher = new IndexedBlockFetcher(indexEntry.position);
             }
@@ -98,19 +97,20 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
     /**
      * Sets the seek position to the start of the row for column scanning.
      */
-    private void setToRowStart(SSTableReader reader, RowIndexEntry indexEntry, FileDataInput input) throws IOException
+    private void setToRowStart(RowIndexEntry rowEntry, FileDataInput in) throws IOException
     {
-        if (input == null)
+        if (in == null)
         {
-            this.file = sstable.getFileDataInput(indexEntry.position);
+            this.file = sstable.getFileDataInput(rowEntry.position);
         }
         else
         {
-            this.file = input;
-            input.seek(indexEntry.position);
+            this.file = in;
+            in.seek(rowEntry.position);
         }
         sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(file));
-        file.readLong();
+        if (sstable.descriptor.version.hasRowSizeAndColumnCount)
+            file.readLong();
     }
 
     public ColumnFamily getColumnFamily()
@@ -210,7 +210,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
     private class IndexedBlockFetcher extends BlockFetcher
     {
         // where this row starts
-        private final long basePosition;
+        private final long columnsStart;
 
         // the index entry for the next block to deserialize
         private int nextIndexIdx = -1;
@@ -222,10 +222,10 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         // may still match a slice
         private final Deque<OnDiskAtom> prefetched;
 
-        public IndexedBlockFetcher(long basePosition)
+        public IndexedBlockFetcher(long columnsStart)
         {
             super(-1);
-            this.basePosition = basePosition;
+            this.columnsStart = columnsStart;
             this.prefetched = reversed ? new ArrayDeque<OnDiskAtom>() : null;
             setNextSlice();
         }
@@ -330,7 +330,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             IndexInfo currentIndex = indexes.get(lastDeserializedBlock);
 
             /* seek to the correct offset to the data, and calculate the data size */
-            long positionToSeek = basePosition + currentIndex.offset;
+            long positionToSeek = columnsStart + currentIndex.offset;
 
             // With new promoted indexes, our first seek in the data file will happen at that point.
             if (file == null)
@@ -420,7 +420,8 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             // We remenber when we are whithin a slice to avoid some comparison
             boolean inSlice = false;
 
-            Iterator<OnDiskAtom> atomIterator = emptyColumnFamily.metadata().getOnDiskIterator(file, file.readInt(), sstable.descriptor.version);
+            int columnCount = sstable.descriptor.version.hasRowSizeAndColumnCount ? file.readInt() : Integer.MAX_VALUE;
+            Iterator<OnDiskAtom> atomIterator = emptyColumnFamily.metadata().getOnDiskIterator(file, columnCount, sstable.descriptor.version);
             while (atomIterator.hasNext())
             {
                 OnDiskAtom column = atomIterator.next();

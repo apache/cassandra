@@ -33,7 +33,7 @@ import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.ICountableColumnIterator;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.utils.*;
 
@@ -164,7 +164,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                 return new CompactedRowContainer(rows.get(0).getKey(), executor.submit(new MergeTask(rawRows)));
             }
 
-            List<ICountableColumnIterator> iterators = new ArrayList<ICountableColumnIterator>(rows.size());
+            List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>(rows.size());
             for (RowContainer container : rows)
                 iterators.add(container.row == null ? container.wrapper : new DeserializedColumnIterator(container.row));
             return new CompactedRowContainer(new LazilyCompactedRow(controller, iterators));
@@ -203,7 +203,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
             }
         }
 
-        private class DeserializedColumnIterator implements ICountableColumnIterator
+        private class DeserializedColumnIterator implements OnDiskAtomIterator
         {
             private final Row row;
             private Iterator<Column> iter;
@@ -222,16 +222,6 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
             public DecoratedKey getKey()
             {
                 return row.key;
-            }
-
-            public int getColumnCount()
-            {
-                return row.cf.getColumnCount();
-            }
-
-            public void reset()
-            {
-                iter = row.cf.iterator();
             }
 
             public void close() throws IOException {}
@@ -319,7 +309,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
     /**
      * a wrapper around SSTII that notifies the given condition when it is closed
      */
-    private static class NotifyingSSTableIdentityIterator implements ICountableColumnIterator
+    private static class NotifyingSSTableIdentityIterator implements OnDiskAtomIterator
     {
         private final SSTableIdentityIterator wrapped;
         private final Condition condition;
@@ -338,16 +328,6 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
         public DecoratedKey getKey()
         {
             return wrapped.getKey();
-        }
-
-        public int getColumnCount()
-        {
-            return wrapped.getColumnCount();
-        }
-
-        public void reset()
-        {
-            wrapped.reset();
         }
 
         public void close() throws IOException

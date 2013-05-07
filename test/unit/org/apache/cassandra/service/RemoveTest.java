@@ -65,7 +65,7 @@ public class RemoveTest
     UUID removalId;
 
     @BeforeClass
-    public static void setupClass() throws IOException
+    public static void setupClass() throws IOException, ConfigurationException
     {
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
         SchemaLoader.loadSchema();

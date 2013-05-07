@@ -1,4 +1,5 @@
 2.0
+ * Single-pass compaction (CASSANDRA-4180)
  * Removed token range bisection (CASSANDRA-5518)
  * Removed compatibility with pre-1.2.5 sstables and network messages
    (CASSANDRA-5511)

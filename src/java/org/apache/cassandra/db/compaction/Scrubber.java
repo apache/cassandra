@@ -111,7 +111,7 @@ public class Scrubber implements Closeable
             }
 
             // TODO errors when creating the writer may leave empty temp files.
-            writer = CompactionManager.maybeCreateWriter(cfs, OperationType.SCRUB, destination, expectedBloomFilterSize, null, sstable);
+            writer = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, sstable);
 
             AbstractCompactedRow prevRow = null;
 
@@ -168,25 +168,21 @@ public class Scrubber implements Closeable
                         throw new IOError(new IOException("Unable to read row key from data file"));
                     if (dataSize > dataFile.length())
                         throw new IOError(new IOException("Impossible row size " + dataSize));
-                    SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStart, dataSize, true);
-                    AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
-                    if (compactedRow.isEmpty())
-                    {
-                        emptyRows++;
-                    }
-                    else
-                    {
-                        if (prevRow != null && acrComparator.compare(prevRow, compactedRow) >= 0)
-                        {
-                            outOfOrderRows.add(compactedRow);
-                            outputHandler.warn(String.format("Out of order row detected (%s found after %s)", compactedRow.key, prevRow.key));
-                            continue;
-                        }
 
-                        writer.append(compactedRow);
-                        prevRow = compactedRow;
-                        goodRows++;
+                    SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataSize, true);
+                    AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
+                    if (prevRow != null && acrComparator.compare(prevRow, compactedRow) >= 0)
+                    {
+                        outOfOrderRows.add(compactedRow);
+                        outputHandler.warn(String.format("Out of order row detected (%s found after %s)", compactedRow.key, prevRow.key));
+                        continue;
                     }
+
+                    if (writer.append(compactedRow) == null)
+                        emptyRows++;
+                    else
+                        goodRows++;
+                    prevRow = compactedRow;
                     if (!key.key.equals(currentIndexKey) || dataStart != dataStartFromIndex)
                         outputHandler.warn("Index file contained a different key or row size; using key from data file");
                 }
@@ -204,24 +200,19 @@ public class Scrubber implements Closeable
                         key = sstable.partitioner.decorateKey(currentIndexKey);
                         try
                         {
-                            SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStartFromIndex, dataSizeFromIndex, true);
+                            SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataSizeFromIndex, true);
                             AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
-                            if (compactedRow.isEmpty())
+                            if (prevRow != null && acrComparator.compare(prevRow, compactedRow) >= 0)
                             {
+                                outOfOrderRows.add(compactedRow);
+                                outputHandler.warn(String.format("Out of order row detected (%s found after %s)", compactedRow.key, prevRow.key));
+                                continue;
+                            }
+                            if (writer.append(compactedRow) == null)
                                 emptyRows++;
-                            }
                             else
-                            {
-                                if (prevRow != null && acrComparator.compare(prevRow, compactedRow) >= 0)
-                                {
-                                    outOfOrderRows.add(compactedRow);
-                                    outputHandler.warn(String.format("Out of order row detected (%s found after %s)", compactedRow.key, prevRow.key));
-                                    continue;
-                                }
-                                writer.append(compactedRow);
-                                prevRow = compactedRow;
                                 goodRows++;
-                            }
+                            prevRow = compactedRow;
                         }
                         catch (Throwable th2)
                         {
@@ -266,7 +257,7 @@ public class Scrubber implements Closeable
 
         if (!outOfOrderRows.isEmpty())
         {
-            SSTableWriter inOrderWriter = CompactionManager.maybeCreateWriter(cfs, OperationType.SCRUB, destination, expectedBloomFilterSize, null, sstable);
+            SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, sstable);
             for (AbstractCompactedRow row : outOfOrderRows)
                 inOrderWriter.append(row);
             newInOrderSstable = inOrderWriter.closeAndOpenReader(sstable.maxDataAge);

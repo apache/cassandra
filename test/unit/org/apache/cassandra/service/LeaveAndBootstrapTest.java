@@ -50,7 +50,7 @@ public class LeaveAndBootstrapTest
     private static IPartitioner oldPartitioner;
 
     @BeforeClass
-    public static void setup() throws IOException
+    public static void setup() throws IOException, ConfigurationException
     {
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
         SchemaLoader.loadSchema();

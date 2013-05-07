@@ -31,6 +31,7 @@ import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
+import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
@@ -42,7 +43,6 @@ import org.apache.cassandra.utils.MergeIterator;
 public class PrecompactedRow extends AbstractCompactedRow
 {
     private final ColumnFamily compactedCf;
-    private ColumnIndex columnIndex;
 
     /** it is caller's responsibility to call removeDeleted + removeOldShards from the cf before calling this constructor */
     public PrecompactedRow(DecoratedKey key, ColumnFamily cf)
@@ -152,21 +152,12 @@ public class PrecompactedRow extends AbstractCompactedRow
         filter.collectReducedColumns(returnCF, reduced, CompactionManager.NO_GC);
     }
 
-    public long write(DataOutput out) throws IOException
+    public RowIndexEntry write(long currentPosition, DataOutput out) throws IOException
     {
-        assert compactedCf != null;
-        DataOutputBuffer buffer = new DataOutputBuffer();
-        ColumnIndex.Builder builder = new ColumnIndex.Builder(compactedCf, key.key, buffer);
-        columnIndex = builder.build(compactedCf);
+        if (compactedCf == null)
+            return null;
 
-        TypeSizes typeSizes = TypeSizes.NATIVE;
-        long delSize = DeletionTime.serializer.serializedSize(compactedCf.deletionInfo().getTopLevelDeletion(), typeSizes);
-        long dataSize = buffer.getLength() + delSize + typeSizes.sizeof(0);
-        out.writeLong(dataSize);
-        DeletionInfo.serializer().serializeForSSTable(compactedCf.deletionInfo(), out);
-        out.writeInt(builder.writtenAtomCount());
-        out.write(buffer.getData(), 0, buffer.getLength());
-        return dataSize;
+        return SSTableWriter.rawAppend(compactedCf, currentPosition, key, out);
     }
 
     public void update(MessageDigest digest)
@@ -176,7 +167,6 @@ public class PrecompactedRow extends AbstractCompactedRow
         try
         {
             DeletionInfo.serializer().serializeForSSTable(compactedCf.deletionInfo(), buffer);
-            buffer.writeInt(compactedCf.getColumnCount());
             digest.update(buffer.getData(), 0, buffer.getLength());
         }
         catch (IOException e)
@@ -184,11 +174,6 @@ public class PrecompactedRow extends AbstractCompactedRow
             throw new RuntimeException(e);
         }
         compactedCf.updateDigest(digest);
-    }
-
-    public boolean isEmpty()
-    {
-        return compactedCf == null;
     }
 
     public ColumnStats columnStats()
@@ -205,19 +190,6 @@ public class PrecompactedRow extends AbstractCompactedRow
     public ColumnFamily getFullColumnFamily()
     {
         return compactedCf;
-    }
-
-    public DeletionInfo deletionInfo()
-    {
-        return compactedCf.deletionInfo();
-    }
-
-    /**
-     * @return the column index for this row.
-     */
-    public ColumnIndex index()
-    {
-        return columnIndex;
     }
 
     public void close() { }

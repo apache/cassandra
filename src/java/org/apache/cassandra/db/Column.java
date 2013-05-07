@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import com.google.common.collect.AbstractIterator;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -50,33 +52,34 @@ public class Column implements OnDiskAtom
         return OnDiskAtom.Serializer.instance;
     }
 
+    /**
+     * For 2.0-formatted sstables (where column count is not stored), @param count should be Integer.MAX_VALUE,
+     * and we will look for the end-of-row column name marker instead of relying on that.
+     */
     public static Iterator<OnDiskAtom> onDiskIterator(final DataInput in, final int count, final ColumnSerializer.Flag flag, final int expireBefore, final Descriptor.Version version)
     {
-        return new Iterator<OnDiskAtom>()
+        return new AbstractIterator<OnDiskAtom>()
         {
             int i = 0;
 
-            public boolean hasNext()
+            protected OnDiskAtom computeNext()
             {
-                return i < count;
-            }
+                if (i++ >= count)
+                    return endOfData();
 
-            public OnDiskAtom next()
-            {
-                ++i;
+                OnDiskAtom atom;
                 try
                 {
-                    return onDiskSerializer().deserializeFromSSTable(in, flag, expireBefore, version);
+                    atom = onDiskSerializer().deserializeFromSSTable(in, flag, expireBefore, version);
                 }
                 catch (IOException e)
                 {
                     throw new IOError(e);
                 }
-            }
+                if (atom == null)
+                    return endOfData();
 
-            public void remove()
-            {
-                throw new UnsupportedOperationException();
+                return atom;
             }
         };
     }
