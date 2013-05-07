@@ -42,7 +42,7 @@ public class KSPropDefs extends PropertyDefinitions
 
     private String strategyClass;
 
-    public void validate() throws ConfigurationException, SyntaxException
+    public void validate() throws SyntaxException
     {
         validate(keywords, obsoleteKeywords);
 

@@ -200,7 +200,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         }
     }
 
-    public ColumnFamily getColumnFamilyWithColumns(ColumnFamily.Factory containerFactory) throws IOException
+    public ColumnFamily getColumnFamilyWithColumns(ColumnFamily.Factory containerFactory)
     {
         assert inputWithTracker.getBytesRead() == headerSize();
         ColumnFamily cf = columnFamily.cloneMeShallow(containerFactory, false);

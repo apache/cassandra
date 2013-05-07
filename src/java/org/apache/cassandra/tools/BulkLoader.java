@@ -56,7 +56,7 @@ public class BulkLoader
     private static final String PASSWD_OPTION = "password";
     private static final String THROTTLE_MBITS = "throttle";
 
-    public static void main(String args[]) throws IOException
+    public static void main(String args[])
     {
         LoaderOptions options = LoaderOptions.parseArgs(args);
         try

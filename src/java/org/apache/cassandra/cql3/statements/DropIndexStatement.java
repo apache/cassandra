@@ -55,7 +55,7 @@ public class DropIndexStatement extends SchemaAlteringStatement
         MigrationManager.announceColumnFamilyUpdate(updatedCfm, false);
     }
 
-    private CFMetaData updateCFMetadata(CFMetaData cfm) throws InvalidRequestException
+    private CFMetaData updateCFMetadata(CFMetaData cfm)
     {
         ColumnDefinition column = findIndexedColumn(cfm);
         assert column != null;

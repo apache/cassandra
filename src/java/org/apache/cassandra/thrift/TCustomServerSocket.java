@@ -81,7 +81,6 @@ public class TCustomServerSocket extends TServerTransport
     }
 
     public TCustomServerSocket(ServerSocket socket, boolean keepAlive, Integer sendBufferSize, Integer recvBufferSize)
-            throws TTransportException
     {
         this.serverSocket = socket;
         this.keepAlive = keepAlive;

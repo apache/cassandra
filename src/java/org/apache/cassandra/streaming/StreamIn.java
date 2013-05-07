@@ -69,7 +69,7 @@ public class StreamIn
     }
 
     /** Translates remote files to local files by creating a local sstable per remote sstable. */
-    public static PendingFile getContextMapping(PendingFile remote) throws IOException
+    public static PendingFile getContextMapping(PendingFile remote)
     {
         /* Create a local sstable for each remote sstable */
         Descriptor remotedesc = remote.desc;

@@ -107,12 +107,12 @@ public class SSTableLoader
         return sstables;
     }
 
-    public LoaderFuture stream() throws IOException
+    public LoaderFuture stream()
     {
         return stream(Collections.<InetAddress>emptySet());
     }
 
-    public LoaderFuture stream(Set<InetAddress> toIgnore) throws IOException
+    public LoaderFuture stream(Set<InetAddress> toIgnore)
     {
         client.init(keyspace);
 
@@ -289,7 +289,7 @@ public class SSTableLoader
             setPartitioner(FBUtilities.newPartitioner(partclass));
         }
 
-        protected void setPartitioner(IPartitioner partitioner) throws ConfigurationException
+        protected void setPartitioner(IPartitioner partitioner)
         {
             this.partitioner = partitioner;
             DatabaseDescriptor.setPartitioner(partitioner);

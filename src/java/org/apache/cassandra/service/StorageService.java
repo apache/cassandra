@@ -374,7 +374,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return initialized;
     }
 
-    public synchronized void initClient() throws IOException, ConfigurationException
+    public synchronized void initClient() throws ConfigurationException
     {
         // We don't wait, because we're going to actually try to work on
         initClient(0);
@@ -407,7 +407,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    public synchronized void initClient(int ringDelay) throws IOException, ConfigurationException
+    public synchronized void initClient(int ringDelay) throws ConfigurationException
     {
         if (initialized)
         {

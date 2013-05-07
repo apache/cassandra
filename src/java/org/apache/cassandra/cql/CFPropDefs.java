@@ -236,7 +236,7 @@ public class CFPropDefs {
     }
 
     // Return a property value, typed as a Boolean
-    public Boolean getPropertyBoolean(String key, Boolean defaultValue) throws InvalidRequestException
+    public Boolean getPropertyBoolean(String key, Boolean defaultValue)
     {
         String value = properties.get(key);
         return (value == null) ? defaultValue : value.toLowerCase().matches("(1|true|yes)");

@@ -79,20 +79,20 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     private CFType cfType;
     private ColType colType;
 
-    BulkRecordWriter(TaskAttemptContext context) throws IOException
+    BulkRecordWriter(TaskAttemptContext context)
     {
         this(context.getConfiguration());
         this.progress = new Progressable(context);
     }
 
 
-    BulkRecordWriter(Configuration conf, Progressable progress) throws IOException
+    BulkRecordWriter(Configuration conf, Progressable progress)
     {
         this(conf);
         this.progress = progress;
     }
 
-    BulkRecordWriter(Configuration conf) throws IOException
+    BulkRecordWriter(Configuration conf)
     {
         Config.setClientMode(true);
         Config.setOutboundBindAny(true);

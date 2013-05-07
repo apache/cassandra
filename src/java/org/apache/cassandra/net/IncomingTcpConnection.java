@@ -136,7 +136,7 @@ public class IncomingTcpConnection extends Thread
         }
     }
 
-    private void handleLegacyVersion(int version) throws IOException
+    private void handleLegacyVersion(int version)
     {
         throw new UnsupportedOperationException("Unable to read obsolete message version " + version + "; the earliest version supported is 1.2.0");
     }

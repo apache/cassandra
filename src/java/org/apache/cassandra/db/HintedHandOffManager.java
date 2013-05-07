@@ -210,7 +210,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     }
 
     @VisibleForTesting
-    protected Future<?> compact() throws ExecutionException, InterruptedException
+    protected Future<?> compact()
     {
         hintStore.forceBlockingFlush();
         ArrayList<Descriptor> descriptors = new ArrayList<Descriptor>();

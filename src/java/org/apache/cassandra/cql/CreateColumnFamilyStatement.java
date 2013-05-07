@@ -161,7 +161,7 @@ public class CreateColumnFamilyStatement
      * @return a CFMetaData instance corresponding to the values parsed from this statement
      * @throws InvalidRequestException on failure to validate parsed parameters
      */
-    public CFMetaData getCFMetaData(String keyspace, List<ByteBuffer> variables) throws InvalidRequestException, ConfigurationException
+    public CFMetaData getCFMetaData(String keyspace, List<ByteBuffer> variables) throws InvalidRequestException
     {
         validate(variables);
 
@@ -223,7 +223,7 @@ public class CreateColumnFamilyStatement
         return cfProps.getPropertyString(key, defaultValue);
     }
 
-    private Boolean getPropertyBoolean(String key, Boolean defaultValue) throws InvalidRequestException
+    private Boolean getPropertyBoolean(String key, Boolean defaultValue)
     {
         return cfProps.getPropertyBoolean(key, defaultValue);
     }

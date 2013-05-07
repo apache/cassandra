@@ -225,7 +225,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             writeHintsForMutation(RowMutation.serializer.deserialize(in, VERSION));
     }
 
-    private static void writeHintsForMutation(RowMutation mutation) throws IOException
+    private static void writeHintsForMutation(RowMutation mutation)
     {
         String table = mutation.getTable();
         Token tk = StorageService.getPartitioner().getToken(mutation.key());

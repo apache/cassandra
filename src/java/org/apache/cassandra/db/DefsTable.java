@@ -327,7 +327,6 @@ public class DefsTable
     }
 
     private static void mergeColumnFamilies(Map<DecoratedKey, ColumnFamily> old, Map<DecoratedKey, ColumnFamily> updated)
-            throws ConfigurationException, IOException
     {
         // calculate the difference between old and new states (note that entriesOnlyLeft() will be always empty)
         MapDifference<DecoratedKey, ColumnFamily> diff = Maps.difference(old, updated);
@@ -454,7 +453,7 @@ public class DefsTable
         }
     }
 
-    private static void dropKeyspace(String ksName) throws IOException
+    private static void dropKeyspace(String ksName)
     {
         KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
         String snapshotName = Table.getTimestampedSnapshotName(ksName);
@@ -485,7 +484,7 @@ public class DefsTable
         }
     }
 
-    private static void dropColumnFamily(String ksName, String cfName) throws IOException
+    private static void dropColumnFamily(String ksName, String cfName)
     {
         KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
         assert ksm != null;

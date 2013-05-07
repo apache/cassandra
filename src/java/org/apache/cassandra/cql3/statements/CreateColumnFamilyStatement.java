@@ -79,7 +79,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     }
 
     // Column definitions
-    private Map<ByteBuffer, ColumnDefinition> getColumns() throws InvalidRequestException
+    private Map<ByteBuffer, ColumnDefinition> getColumns()
     {
         Map<ByteBuffer, ColumnDefinition> columnDefs = new HashMap<ByteBuffer, ColumnDefinition>();
         Integer componentIndex = null;
@@ -340,7 +340,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
             return new ParsedStatement.Prepared(stmt);
         }
 
-        private AbstractType<?> getTypeAndRemove(Map<ColumnIdentifier, AbstractType> columns, ColumnIdentifier t) throws InvalidRequestException, ConfigurationException
+        private AbstractType<?> getTypeAndRemove(Map<ColumnIdentifier, AbstractType> columns, ColumnIdentifier t) throws InvalidRequestException
         {
             AbstractType type = columns.get(t);
             if (type == null)

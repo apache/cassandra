@@ -32,7 +32,7 @@ public class SSTableMetadataViewer
     /**
      * @param args a list of sstables whose metadata we're interested in
      */
-    public static void main(String[] args) throws IOException, ConfigurationException
+    public static void main(String[] args) throws IOException
     {
         PrintStream out = System.out;
         if (args.length == 0)

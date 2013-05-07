@@ -98,7 +98,7 @@ public class Scrubber implements Closeable
         this.scrubInfo = new ScrubInfo(dataFile, sstable);
     }
 
-    public void scrub() throws IOException
+    public void scrub()
     {
         outputHandler.output("Scrubbing " + sstable);
         try

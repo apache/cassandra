@@ -23,8 +23,6 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 
-import com.google.common.base.Predicates;
-import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -764,7 +762,7 @@ public class QueryProcessor
     }
 
     public static CqlPreparedResult prepare(String queryString, ThriftClientState clientState)
-    throws InvalidRequestException, SyntaxException
+    throws SyntaxException
     {
         logger.trace("CQL QUERY: {}", queryString);
 

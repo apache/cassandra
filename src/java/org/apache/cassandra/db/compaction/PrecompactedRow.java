@@ -109,16 +109,9 @@ public class PrecompactedRow extends AbstractCompactedRow
         List<CloseableIterator<Column>> data = new ArrayList<CloseableIterator<Column>>(rows.size());
         for (SSTableIdentityIterator row : rows)
         {
-            try
-            {
-                ColumnFamily cf = row.getColumnFamilyWithColumns(ArrayBackedSortedColumns.factory);
-                returnCF.delete(cf);
-                data.add(FBUtilities.closeableIterator(cf.iterator()));
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            ColumnFamily cf = row.getColumnFamilyWithColumns(ArrayBackedSortedColumns.factory);
+            returnCF.delete(cf);
+            data.add(FBUtilities.closeableIterator(cf.iterator()));
         }
 
         merge(returnCF, data, controller.cfs.indexManager.updaterFor(rows.get(0).getKey()));

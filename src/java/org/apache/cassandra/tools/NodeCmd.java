@@ -922,7 +922,7 @@ public class NodeCmd
         outs.println(probe.isThriftServerRunning() ? "running" : "not running");
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException, ConfigurationException, ParseException
+    public static void main(String[] args) throws IOException, InterruptedException, ParseException
     {
         CommandLineParser parser = new PosixParser();
         ToolCommandLine cmd = null;
@@ -1280,7 +1280,7 @@ public class NodeCmd
         }
     }
 
-    private static void handleSnapshots(NodeCommand nc, String tag, String[] cmdArgs, String columnFamily, NodeProbe probe) throws InterruptedException, IOException
+    private static void handleSnapshots(NodeCommand nc, String tag, String[] cmdArgs, String columnFamily, NodeProbe probe) throws IOException
     {
         String[] keyspaces = Arrays.copyOfRange(cmdArgs, 0, cmdArgs.length);
         System.out.print("Requested snapshot for: ");

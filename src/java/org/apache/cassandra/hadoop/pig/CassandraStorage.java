@@ -516,7 +516,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
     }
 
-    private void setConnectionInformation() throws IOException
+    private void setConnectionInformation()
     {
         if (System.getenv(PIG_RPC_PORT) != null)
         {

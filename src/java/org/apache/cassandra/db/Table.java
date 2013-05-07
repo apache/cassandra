@@ -118,12 +118,12 @@ public class Table
         return tableInstance;
     }
 
-    public static Table clear(String table) throws IOException
+    public static Table clear(String table)
     {
         return clear(table, Schema.instance);
     }
 
-    public static Table clear(String table, Schema schema) throws IOException
+    public static Table clear(String table, Schema schema)
     {
         synchronized (Table.class)
         {
@@ -281,7 +281,7 @@ public class Table
     }
 
     // best invoked on the compaction mananger.
-    public void dropCf(UUID cfId) throws IOException
+    public void dropCf(UUID cfId)
     {
         assert columnFamilyStores.containsKey(cfId);
         ColumnFamilyStore cfs = columnFamilyStores.remove(cfId);
@@ -292,7 +292,7 @@ public class Table
     }
 
     // disassociate a cfs from this table instance.
-    private void unloadCf(ColumnFamilyStore cfs) throws IOException
+    private void unloadCf(ColumnFamilyStore cfs)
     {
         cfs.forceBlockingFlush();
         cfs.invalidate();

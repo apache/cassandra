@@ -170,7 +170,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
         throw new UnsupportedOperationException();
     }
 
-    public void deserializeColumnsFromSSTable(DataInput in, ColumnFamily cf, int size, ColumnSerializer.Flag flag, int expireBefore, Descriptor.Version version) throws IOException
+    public void deserializeColumnsFromSSTable(DataInput in, ColumnFamily cf, int size, ColumnSerializer.Flag flag, int expireBefore, Descriptor.Version version)
     {
         Iterator<OnDiskAtom> iter = cf.metadata().getOnDiskIterator(in, size, flag, expireBefore, version);
         while (iter.hasNext())

@@ -88,7 +88,7 @@ public class NodeProbe
      * @param port TCP port of the remote JMX agent
      * @throws IOException on connection failures
      */
-    public NodeProbe(String host, int port, String username, String password) throws IOException, InterruptedException
+    public NodeProbe(String host, int port, String username, String password) throws IOException
     {
         assert username != null && !username.isEmpty() && password != null && !password.isEmpty()
                : "neither username nor password can be blank";
@@ -107,7 +107,7 @@ public class NodeProbe
      * @param port TCP port of the remote JMX agent
      * @throws IOException on connection failures
      */
-    public NodeProbe(String host, int port) throws IOException, InterruptedException
+    public NodeProbe(String host, int port) throws IOException
     {
         this.host = host;
         this.port = port;
@@ -120,7 +120,7 @@ public class NodeProbe
      * @param host hostname or IP address of the JMX agent
      * @throws IOException on connection failures
      */
-    public NodeProbe(String host) throws IOException, InterruptedException
+    public NodeProbe(String host) throws IOException
     {
         this.host = host;
         this.port = defaultPort;
@@ -265,12 +265,12 @@ public class NodeProbe
         ssProxy.forceTableRepairRange(beginToken, endToken, tableName, isSequential, isLocal, columnFamilies);
     }
 
-    public void invalidateKeyCache() throws IOException
+    public void invalidateKeyCache()
     {
         cacheService.invalidateKeyCache();
     }
 
-    public void invalidateRowCache() throws IOException
+    public void invalidateRowCache()
     {
         cacheService.invalidateRowCache();
     }
@@ -456,7 +456,7 @@ public class NodeProbe
         ssProxy.decommission();
     }
 
-    public void move(String newToken) throws IOException, InterruptedException
+    public void move(String newToken) throws IOException
     {
         ssProxy.move(newToken);
     }

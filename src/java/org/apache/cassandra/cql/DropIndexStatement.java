@@ -45,7 +45,7 @@ public class DropIndexStatement
         return updateCFMetadata(findIndexedCF());
     }
 
-    private CFMetaData updateCFMetadata(CFMetaData cfm) throws InvalidRequestException
+    private CFMetaData updateCFMetadata(CFMetaData cfm)
     {
         ColumnDefinition column = findIndexedColumn(cfm);
         assert column != null;

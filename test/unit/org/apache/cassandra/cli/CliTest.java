@@ -217,7 +217,7 @@ public class CliTest extends SchemaLoader
     };
 
     @Test
-    public void testCli() throws IOException, TException, ConfigurationException, ClassNotFoundException, TimedOutException, NotFoundException, SchemaDisagreementException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException
+    public void testCli() throws IOException, TException, TimedOutException, NotFoundException, SchemaDisagreementException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException
     {
         Schema.instance.clear(); // Schema are now written on disk and will be reloaded
         new EmbeddedCassandraService().start();
