@@ -958,15 +958,6 @@ class Shell(cmd.Cmd):
                 time.sleep(1*trynum)
             except cql.ProgrammingError, err:
                 self.printerr(str(err))
-                # try reparsing as cql3; if successful, suggest -3
-                if self.cqlver_atleast(3):
-                    if self.parseable_as_cql2(statement):
-                        self.printerr("Perhaps you meant to use CQL 2? Try using"
-                                      " the -2 option when starting cqlsh.")
-                else:
-                    if self.parseable_as_cql3(statement):
-                        self.printerr("Perhaps you meant to use CQL 3? Try using"
-                                      " the -3 option when starting cqlsh.")
                 return False
             except CQL_ERRORS, err:
                 self.printerr(str(err))
