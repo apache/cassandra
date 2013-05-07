@@ -366,11 +366,11 @@ public class FBUtilities
             waitOnFuture(f);
     }
 
-    public static void waitOnFuture(Future<?> future)
+    public static <T> T waitOnFuture(Future<T> future)
     {
         try
         {
-            future.get();
+            return future.get();
         }
         catch (ExecutionException ee)
         {

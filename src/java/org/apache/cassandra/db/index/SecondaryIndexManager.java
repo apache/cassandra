@@ -35,6 +35,7 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexType;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Manages all the indexes associated with a given CFS
@@ -139,18 +140,7 @@ public class SecondaryIndexManager
 
         SecondaryIndexBuilder builder = new SecondaryIndexBuilder(baseCfs, idxNames, new ReducingKeyIterator(sstables));
         Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
-        try
-        {
-            future.get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        FBUtilities.waitOnFuture(future);
 
         flushIndexesBlocking();
 

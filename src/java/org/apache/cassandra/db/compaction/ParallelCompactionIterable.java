@@ -90,20 +90,9 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
             CompactedRowContainer container = reducer.next();
             AbstractCompactedRow compactedRow;
-            try
-            {
-                compactedRow = container.future == null
-                             ? container.row
-                             : new PrecompactedRow(container.key, container.future.get());
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
-            catch (ExecutionException e)
-            {
-                throw new RuntimeException(e);
-            }
+            compactedRow = container.future == null
+                         ? container.row
+                         : new PrecompactedRow(container.key, FBUtilities.waitOnFuture(container.future));
 
             return compactedRow;
         }

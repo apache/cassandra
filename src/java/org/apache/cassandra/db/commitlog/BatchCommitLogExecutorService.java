@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.concurrent.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService
@@ -127,18 +128,7 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService
 
     public void add(CommitLog.LogRecordAdder adder)
     {
-        try
-        {
-            submit((Callable)adder).get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        FBUtilities.waitOnFuture(submit((Callable)adder));
     }
 
     public void shutdown()

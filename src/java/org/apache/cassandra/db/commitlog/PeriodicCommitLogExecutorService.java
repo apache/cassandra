@@ -67,19 +67,8 @@ class PeriodicCommitLogExecutorService implements ICommitLogExecutorService
             {
                 while (run)
                 {
-                    try
-                    {
-                        submit(syncer).get();
-                        Thread.sleep(DatabaseDescriptor.getCommitLogSyncPeriod());
-                    }
-                    catch (InterruptedException e)
-                    {
-                        throw new AssertionError(e);
-                    }
-                    catch (ExecutionException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
+                    FBUtilities.waitOnFuture(submit(syncer));
+                    FBUtilities.sleep(DatabaseDescriptor.getCommitLogSyncPeriod());
                 }
             }
         }, "PERIODIC-COMMIT-LOG-SYNCER").start();

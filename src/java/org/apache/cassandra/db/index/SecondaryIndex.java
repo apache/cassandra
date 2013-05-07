@@ -42,6 +42,7 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Abstract base class for different types of secondary indexes.
@@ -183,25 +184,10 @@ public abstract class SecondaryIndex
                                                                   Collections.singleton(getIndexName()),
                                                                   new ReducingKeyIterator(sstables));
         Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
-        try
-        {
-            future.get();
-            forceBlockingFlush();
+        FBUtilities.waitOnFuture(future);
+        forceBlockingFlush();
 
-            setIndexBuilt();
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        finally
-        {
-            SSTableReader.releaseReferences(sstables);
-        }
+        setIndexBuilt();
         logger.info("Index build of " + getIndexName() + " complete");
     }
 

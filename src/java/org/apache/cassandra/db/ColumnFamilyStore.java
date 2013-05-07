@@ -804,18 +804,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void forceBlockingFlush()
     {
-        try
-        {
-            forceFlush().get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        FBUtilities.waitOnFuture(forceFlush());
     }
 
     public void maybeUpdateRowCache(DecoratedKey key, ColumnFamily columnFamily)

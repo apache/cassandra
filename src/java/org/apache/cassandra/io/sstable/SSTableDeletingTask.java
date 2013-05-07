@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DataTracker;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class SSTableDeletingTask implements Runnable
 {
@@ -101,18 +102,8 @@ public class SSTableDeletingTask implements Runnable
             {
             }
         };
-        try
-        {
-            StorageService.tasks.schedule(runnable, 0, TimeUnit.MILLISECONDS).get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+
+        FBUtilities.waitOnFuture(StorageService.tasks.schedule(runnable, 0, TimeUnit.MILLISECONDS));
     }
 }
 
