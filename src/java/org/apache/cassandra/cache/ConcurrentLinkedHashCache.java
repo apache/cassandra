@@ -55,7 +55,7 @@ public class ConcurrentLinkedHashCache<K extends IMeasurableMemory, V extends IM
             public int weightOf(K key, V value)
             {
                 long size = key.memorySize() + value.memorySize();
-                assert size < Integer.MAX_VALUE : "Serialized size cannot be more than 2GB/Integer.MAX_VALUE";
+                assert size <= Integer.MAX_VALUE : "Serialized size cannot be more than 2GB/Integer.MAX_VALUE";
                 return (int) size;
             }
         });
