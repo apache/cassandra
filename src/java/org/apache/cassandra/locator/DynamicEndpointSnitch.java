@@ -229,7 +229,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         }
         double maxLatency = 1;
         long maxPenalty = 1;
-        HashMap<InetAddress, Long> penalties = new HashMap<InetAddress, Long>();
+        HashMap<InetAddress, Long> penalties = new HashMap<InetAddress, Long>(samples.size());
         // We're going to weight the latency and time since last reply for each host against the worst one we see, to arrive at sort of a 'badness percentage' for both of them.
         // first, find the worst for each.
         for (Map.Entry<InetAddress, ExponentiallyDecayingSample> entry : samples.entrySet())
