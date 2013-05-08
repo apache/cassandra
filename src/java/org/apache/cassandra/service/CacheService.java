@@ -33,8 +33,6 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.util.concurrent.Futures;
-import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
-import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,7 +100,6 @@ public class CacheService implements CacheServiceMBean
     }
 
     /**
-     * We can use Weighers.singleton() because Long can't be leaking memory
      * @return auto saving cache object
      */
     private AutoSavingCache<KeyCacheKey, RowIndexEntry> initKeyCache()
@@ -114,24 +111,7 @@ public class CacheService implements CacheServiceMBean
         // as values are constant size we can use singleton weigher
         // where 48 = 40 bytes (average size of the key) + 8 bytes (size of value)
         ICache<KeyCacheKey, RowIndexEntry> kc;
-        if (MemoryMeter.isInitialized())
-        {
-            kc = ConcurrentLinkedHashCache.create(keyCacheInMemoryCapacity);
-        }
-        else
-        {
-            logger.warn("MemoryMeter uninitialized (jamm not specified as java agent); KeyCache size in JVM Heap will not be calculated accurately. " +
-                        "Usually this means cassandra-env.sh disabled jamm because you are using a buggy JRE; upgrade to the Sun JRE instead");
-            /* We don't know the overhead size because memory meter is not enabled. */
-            EntryWeigher<KeyCacheKey, RowIndexEntry> weigher = new EntryWeigher<KeyCacheKey, RowIndexEntry>()
-            {
-                public int weightOf(KeyCacheKey key, RowIndexEntry entry)
-                {
-                    return key.key.length + entry.serializedSize();
-                }
-            };
-            kc = ConcurrentLinkedHashCache.create(keyCacheInMemoryCapacity, weigher);
-        }
+        kc = ConcurrentLinkedHashCache.create(keyCacheInMemoryCapacity);
         AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = new AutoSavingCache<KeyCacheKey, RowIndexEntry>(kc, CacheType.KEY_CACHE, new KeyCacheSerializer());
 
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
@@ -272,8 +252,7 @@ public class CacheService implements CacheServiceMBean
         if (capacity < 0)
             throw new RuntimeException("capacity should not be negative.");
 
-        long weightedCapacity = capacity * 1024 * 1024;
-        keyCache.setCapacity(MemoryMeter.isInitialized() ? weightedCapacity : (weightedCapacity / 48));
+        keyCache.setCapacity(capacity * 1024 * 1024);
     }
 
     public long getRowCacheSize()
