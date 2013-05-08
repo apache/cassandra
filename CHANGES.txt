@@ -75,6 +75,7 @@ Merged from 1.1
  * Fix trying to load deleted row into row cache on startup (CASSANDRA-4463)
  * fsync leveled manifest to avoid corruption (CASSANDRA-5535)
 
+
 1.2.4
  * Ensure that PerRowSecondaryIndex updates see the most recent values
    (CASSANDRA-5397)
