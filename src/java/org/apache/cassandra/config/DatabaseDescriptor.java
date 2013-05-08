@@ -377,8 +377,6 @@ public class DatabaseDescriptor
 
         logger.info((conf.multithreaded_compaction ? "" : "Not ") + "using multi-threaded compaction");
 
-        logger.info((conf.multithreaded_compaction ? "" : "Not ") + "using multi-threaded compaction");
-
         if (conf.in_memory_compaction_limit_in_mb != null && conf.in_memory_compaction_limit_in_mb <= 0)
         {
             throw new ConfigurationException("in_memory_compaction_limit_in_mb must be a positive integer");
