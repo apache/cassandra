@@ -616,15 +616,20 @@ public class SecondaryIndexManager
 
         public void update(IColumn oldColumn, IColumn column)
         {
+            if (oldColumn.equals(column))
+                return;
+
             SecondaryIndex index = indexFor(column.name());
             if (index == null)
                 return;
 
             if (index instanceof PerColumnSecondaryIndex)
             {
-                ((PerColumnSecondaryIndex) index).delete(key.key, oldColumn);
+                // insert the new value before removing the old one, so we never have a period
+                // where the row is invisible to both queries (the opposite seems preferable); see CASSANDRA-5540
                 if (!column.isMarkedForDelete())
                     ((PerColumnSecondaryIndex) index).insert(key.key, column);
+                ((PerColumnSecondaryIndex) index).delete(key.key, oldColumn);
             }
         }
 

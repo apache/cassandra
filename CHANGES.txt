@@ -1,4 +1,5 @@
 1.2.5
+ * fix 2i updates with indentical values and timestamps (CASSANDRA-5540)
  * fix compaction throttling bursty-ness (CASSANDRA-4316)
  * reduce memory consumption of IndexSummary (CASSANDRA-5506)
  * remove per-row column name bloom filters (CASSANDRA-5492)
