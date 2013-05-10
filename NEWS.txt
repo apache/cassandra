@@ -17,6 +17,10 @@ Features
       CQL3 documentation (http://cassandra.apache.org/doc/cql3/CQL.html)
       for details and examples.
 
+Upgrading
+---------
+    - The native CQL transport is enabled by default on part 9042.
+
 
 1.2.4
 =====
