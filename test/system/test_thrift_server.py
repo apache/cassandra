@@ -273,6 +273,35 @@ class TestMutations(ThriftTester):
         p = SlicePredicate(slice_range=SliceRange('', '', False, 10))
         assert client.get_count('key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE) == 10
 
+    # test get_count() to work correctly with 'count' settings around page size (CASSANDRA-4833)
+    def test_count_around_page_size(self):
+        def slice_predicate(count):
+            return SlicePredicate(slice_range=SliceRange('', '', False, count))
+
+        _set_keyspace('Keyspace1')
+
+        key = 'key1'
+        parent = ColumnParent('Standard1')
+        cl = ConsistencyLevel.ONE
+
+        for i in xrange(0, 3050):
+            client.insert(key, parent, Column(str(i), '', 0), cl)
+
+        # same as page size
+        assert client.get_count(key, parent, slice_predicate(1024), cl) == 1024
+
+        # 1 above page size
+        assert client.get_count(key, parent, slice_predicate(1025), cl) == 1025
+
+        # above number or columns
+        assert client.get_count(key, parent, slice_predicate(4000), cl) == 3050
+
+        # same as number of columns
+        assert client.get_count(key, parent, slice_predicate(3050), cl) == 3050
+
+        # 1 above number of columns
+        assert client.get_count(key, parent, slice_predicate(3051), cl) == 3050
+
     def test_insert_blocking(self):
         _set_keyspace('Keyspace1')
         _insert_simple()
