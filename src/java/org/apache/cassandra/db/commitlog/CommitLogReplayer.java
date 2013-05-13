@@ -237,11 +237,11 @@ public class CommitLogReplayer
                             return;
 
                         final Table table = Table.open(frm.getTable());
-                        RowMutation newRm = new RowMutation(frm.getTable(), frm.key());
 
                         // Rebuild the row mutation, omitting column families that 
                         // a) have already been flushed,
                         // b) are part of a cf that was dropped. Keep in mind that the cf.name() is suspect. do every thing based on the cfid instead.
+                        RowMutation newRm = null;
                         for (ColumnFamily columnFamily : frm.getColumnFamilies())
                         {
                             if (Schema.instance.getCF(columnFamily.id()) == null)
@@ -254,12 +254,15 @@ public class CommitLogReplayer
                             // if it is the last known segment, if we are after the replay position
                             if (segment > rp.segment || (segment == rp.segment && entryLocation > rp.position))
                             {
+                                if (newRm == null)
+                                    newRm = new RowMutation(frm.getTable(), frm.key());
                                 newRm.add(columnFamily);
                                 replayedCount.incrementAndGet();
                             }
                         }
-                        if (!newRm.isEmpty())
+                        if (newRm != null)
                         {
+                            assert !newRm.isEmpty();
                             Table.open(newRm.getTable()).apply(newRm, false);
                             tablesRecovered.add(table);
                         }
