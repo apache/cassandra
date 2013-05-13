@@ -82,6 +82,12 @@ commands:
   - name: enablethrift
     help: |
       Reenable thrift server
+  - name: enablebackup
+    help: |
+      Enable incremental backup
+  - name: disablebackup
+    help: |
+      Disable incremental backup
   - name: statusthrift
     help: |
       Status of thrift server

@@ -155,6 +155,8 @@ public class NodeCmd
         RANGEKEYSAMPLE,
         REBUILD_INDEX,
         RESETLOCALSCHEMA,
+        ENABLEBACKUP,
+        DISABLEBACKUP
     }
 
 
@@ -1026,6 +1028,9 @@ public class NodeCmd
                 case ENABLETHRIFT    : probe.startThriftServer(); break;
                 case STATUSTHRIFT    : nodeCmd.printIsThriftServerRunning(System.out); break;
                 case RESETLOCALSCHEMA: probe.resetLocalSchema(); break;
+                case ENABLEBACKUP    : probe.setIncrementalBackupsEnabled(true); break;
+                case DISABLEBACKUP   : probe.setIncrementalBackupsEnabled(false); break;
+                    
 
                 case STATUS :
                     if (arguments.length > 0) nodeCmd.printClusterStatus(System.out, arguments[0]);

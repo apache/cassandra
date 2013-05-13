@@ -527,6 +527,11 @@ public class NodeProbe
         ssProxy.enableAutoCompaction(ks, columnFamilies);
     }
 
+    public void setIncrementalBackupsEnabled(boolean enabled)
+    {
+        ssProxy.setIncrementalBackupsEnabled(enabled);
+    }
+
     public void setCacheCapacities(int keyCacheCapacity, int rowCacheCapacity)
     {
         try
