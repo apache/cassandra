@@ -47,7 +47,6 @@ public class BootStrapper
     /* token of the node being bootstrapped. */
     protected final Collection<Token> tokens;
     protected final TokenMetadata tokenMetadata;
-    private static final long BOOTSTRAP_TIMEOUT = 30000; // default bootstrap timeout of 30s
 
     public BootStrapper(InetAddress address, Collection<Token> tokens, TokenMetadata tmd)
     {
