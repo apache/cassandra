@@ -95,7 +95,6 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         final CompositeType baseComparator = (CompositeType)baseCfs.getComparator();
         final CompositeType indexComparator = (CompositeType)index.getIndexCfs().getComparator();
 
-        CompositeType.Builder builder = null;
         final ByteBuffer startPrefix = makePrefix(index, startKey, filter, true);
         final ByteBuffer endPrefix = makePrefix(index, endKey, filter, false);
 
