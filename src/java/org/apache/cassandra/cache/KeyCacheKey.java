@@ -52,8 +52,11 @@ public class KeyCacheKey implements CacheKey
 
     public long memorySize()
     {
-        long fields = ObjectSizes.getReferenceSize() + ObjectSizes.getSizeWithRef(key);
-        return ObjectSizes.getFieldSize(fields);
+        return ObjectSizes.getFieldSize(// desc
+                                        ObjectSizes.getReferenceSize() +
+                                        // key
+                                        ObjectSizes.getReferenceSize())
+               + ObjectSizes.getArraySize(key);
     }
 
     @Override

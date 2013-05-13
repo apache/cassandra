@@ -189,8 +189,13 @@ public class IndexHelper
 
         public long memorySize()
         {
-            long fields = ObjectSizes.getSize(firstName) + ObjectSizes.getSize(lastName) + 8 + 8; 
-            return ObjectSizes.getFieldSize(fields);
+            return ObjectSizes.getFieldSize(// firstName
+                                            ObjectSizes.getReferenceSize() +
+                                            // lastName
+                                            ObjectSizes.getReferenceSize() +
+                                            TypeSizes.NATIVE.sizeof(offset) +
+                                            TypeSizes.NATIVE.sizeof(width))
+                   + ObjectSizes.getSize(firstName) + ObjectSizes.getSize(lastName);
         }
     }
 }

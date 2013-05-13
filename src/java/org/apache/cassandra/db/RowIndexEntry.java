@@ -88,8 +88,7 @@ public class RowIndexEntry implements IMeasurableMemory
 
     public long memorySize()
     {
-        long fields = TypeSizes.NATIVE.sizeof(position) + ObjectSizes.getReferenceSize(); 
-        return ObjectSizes.getFieldSize(fields);
+        return ObjectSizes.getFieldSize(TypeSizes.NATIVE.sizeof(position));
     }
 
     public static class Serializer
@@ -200,13 +199,20 @@ public class RowIndexEntry implements IMeasurableMemory
             return (int)size;
         }
 
+        @Override
         public long memorySize()
         {
-            long internal = 0;
+            long entrySize = 0;
             for (IndexHelper.IndexInfo idx : columnsIndex)
-                internal += idx.memorySize();
-            long listSize = ObjectSizes.getFieldSize(ObjectSizes.getArraySize(columnsIndex.size(), internal) + 4);
-            return ObjectSizes.getFieldSize(deletionTime.memorySize() + listSize);
+                entrySize += idx.memorySize();
+
+            return ObjectSizes.getSuperClassFieldSize(TypeSizes.NATIVE.sizeof(position))
+                   + ObjectSizes.getFieldSize(// deletionTime
+                                              ObjectSizes.getReferenceSize() +
+                                              // columnsIndex
+                                              ObjectSizes.getReferenceSize())
+                   + deletionTime.memorySize()
+                   + ObjectSizes.getArraySize(columnsIndex.size(), ObjectSizes.getReferenceSize()) + entrySize + 4;
         }
     }
 }

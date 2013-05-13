@@ -52,8 +52,11 @@ public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
 
     public long memorySize()
     {
-        long fields = ObjectSizes.getReferenceSize() + ObjectSizes.getSizeWithRef(key);
-        return ObjectSizes.getFieldSize(fields);
+        return ObjectSizes.getFieldSize(// cfId
+                                        ObjectSizes.getReferenceSize() +
+                                        // key
+                                        ObjectSizes.getReferenceSize())
+               + ObjectSizes.getArraySize(key);
     }
 
     @Override
