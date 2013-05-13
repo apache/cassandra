@@ -219,9 +219,10 @@ public class MmappedSegmentedFile extends SegmentedFile
         public void deserializeBounds(DataInput in) throws IOException
         {
             super.deserializeBounds(in);
-            List<Long> temp = new ArrayList<Long>();
 
             int size = in.readInt();
+            List<Long> temp = new ArrayList<Long>(size);
+            
             for (int i = 0; i < size; i++)
                 temp.add(in.readLong());
 

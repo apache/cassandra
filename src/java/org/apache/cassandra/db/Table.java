@@ -421,7 +421,7 @@ public class Table
 
     public List<Future<?>> flush()
     {
-        List<Future<?>> futures = new ArrayList<Future<?>>();
+        List<Future<?>> futures = new ArrayList<Future<?>>(columnFamilyStores.size());
         for (UUID cfId : columnFamilyStores.keySet())
             futures.add(columnFamilyStores.get(cfId).forceFlush());
         return futures;

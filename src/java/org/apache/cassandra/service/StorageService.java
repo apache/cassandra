@@ -669,7 +669,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 }
                 else
                 {
-                    tokens = new ArrayList<Token>();
+                    tokens = new ArrayList<Token>(initialTokens.size());
                     for (String token : initialTokens)
                         tokens.add(getPartitioner().getTokenFactory().fromString(token));
                     logger.info("Saved token not found. Using " + tokens + " from configuration");

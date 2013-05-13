@@ -252,7 +252,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 // Get the Keyspace metadata, then get the specific CF metadata
                 // in order to populate the sub/comparator.
                 KsDef ks_def = client.describe_keyspace(keyspace);
-                List<String> cfnames = new ArrayList<String>();
+                List<String> cfnames = new ArrayList<String>(ks_def.cf_defs.size());
                 for (CfDef cfd : ks_def.cf_defs)
                     cfnames.add(cfd.name);
                 int idx = cfnames.indexOf(cfName);

@@ -260,7 +260,7 @@ public abstract class AbstractCompactionStrategy
             }
             // first, calculate estimated keys that do not overlap
             long keys = sstable.estimatedKeys();
-            Set<Range<Token>> ranges = new HashSet<Range<Token>>();
+            Set<Range<Token>> ranges = new HashSet<Range<Token>>(overlaps.size());
             for (SSTableReader overlap : overlaps)
                 ranges.add(new Range<Token>(overlap.first.token, overlap.last.token, overlap.partitioner));
             long remainingKeys = keys - sstable.estimatedKeysForRanges(ranges);

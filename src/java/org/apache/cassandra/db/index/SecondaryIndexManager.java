@@ -115,7 +115,7 @@ public class SecondaryIndexManager
 
     public Set<String> allIndexesNames()
     {
-        Set<String> names = new HashSet<String>();
+        Set<String> names = new HashSet<String>(indexesByColumn.size());
         for (SecondaryIndex index : indexesByColumn.values())
             names.add(index.getIndexName());
         return names;

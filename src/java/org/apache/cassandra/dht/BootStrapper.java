@@ -89,7 +89,7 @@ public class BootStrapper
         if (initialTokens.size() > 0)
         {
             logger.debug("tokens manually specified as {}",  initialTokens);
-            List<Token> tokens = new ArrayList<Token>();
+            List<Token> tokens = new ArrayList<Token>(initialTokens.size());
             for (String tokenString : initialTokens)
             {
                 Token token = StorageService.getPartitioner().getTokenFactory().fromString(tokenString);

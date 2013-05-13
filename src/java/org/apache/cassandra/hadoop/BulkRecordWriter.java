@@ -316,7 +316,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
 
                     for (KsDef ksDef : ksDefs)
                     {
-                        Set<String> cfs = new HashSet<String>();
+                        Set<String> cfs = new HashSet<String>(ksDef.cf_defs.size());
                         for (CfDef cfDef : ksDef.cf_defs)
                             cfs.add(cfDef.name);
                         knownCfs.put(ksDef.name, cfs);
