@@ -45,7 +45,9 @@
  * Add alias support to SELECT statement (CASSANDRA-5075)
  * Don't create empty RowMutations in CommitLogReplayer (CASSANDRA-5541)
 
+
 1.2.5
+ * Ensure that submitBackground enqueues at least one task (CASSANDRA-5554)
  * fix 2i updates with identical values and timestamps (CASSANDRA-5540)
  * fix compaction throttling bursty-ness (CASSANDRA-4316)
  * reduce memory consumption of IndexSummary (CASSANDRA-5506)
