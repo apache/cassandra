@@ -149,8 +149,8 @@ public class CompactionManager implements CompactionManagerMBean
 
     /**
      * Call this whenever a compaction might be needed on the given columnfamily.
-     * It's okay to over-call (within reason) since the compactions are single-threaded,
-     * and if a call is unnecessary, it will just be no-oped in the bucketing phase.
+     * It's okay to over-call (within reason) if a call is unnecessary, it will
+     * turn into a no-op in the bucketing/candidate-scan phase.
      */
     public List<Future<?>> submitBackground(final ColumnFamilyStore cfs)
     {
@@ -158,21 +158,23 @@ public class CompactionManager implements CompactionManagerMBean
         if (count > 0 && executor.getActiveCount() >= executor.getMaximumPoolSize())
         {
             logger.debug("Background compaction is still running for {}.{} ({} remaining). Skipping",
-                         new Object[] {cfs.table.name, cfs.columnFamily, count});
+                         cfs.table.name, cfs.columnFamily, count);
             return Collections.emptyList();
         }
 
         logger.debug("Scheduling a background task check for {}.{} with {}",
-                     new Object[] {cfs.table.name,
-                                   cfs.columnFamily,
-                                   cfs.getCompactionStrategy().getClass().getSimpleName()});
+                     cfs.table.name,
+                     cfs.columnFamily,
+                     cfs.getCompactionStrategy().getClass().getSimpleName());
         List<Future<?>> futures = new ArrayList<Future<?>>();
-        // if we have room for more compactions, then fill up executor
-        while (executor.getActiveCount() + futures.size() < executor.getMaximumPoolSize())
-        {
+
+        // we must schedule it at least once, otherwise compaction will stop for a CF until next flush
+        do {
             futures.add(executor.submit(new BackgroundCompactionTask(cfs)));
             compactingCF.add(cfs);
-        }
+            // if we have room for more compactions, then fill up executor
+        } while (executor.getActiveCount() + futures.size() < executor.getMaximumPoolSize());
+
         return futures;
     }
 
@@ -590,7 +592,6 @@ public class CompactionManager implements CompactionManagerMBean
                 throw new IOException("disk full");
 
             SSTableScanner scanner = sstable.getDirectScanner(getRateLimiter());
-            long rowsRead = 0;
             List<IColumn> indexedColumnsInRow = null;
 
             CleanupInfo ci = new CleanupInfo(sstable, scanner);

@@ -1,4 +1,5 @@
 1.2.5
+ * Ensure that submitBackground enqueues at least one task (CASSANDRA-5554)
  * fix 2i updates with identical values and timestamps (CASSANDRA-5540)
  * fix compaction throttling bursty-ness (CASSANDRA-4316)
  * reduce memory consumption of IndexSummary (CASSANDRA-5506)
