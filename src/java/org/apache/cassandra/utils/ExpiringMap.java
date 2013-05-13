@@ -25,6 +25,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Function;
+import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -133,14 +135,7 @@ public class ExpiringMap<K, V>
             // So we'll just sit on this thread until the rest of the server shutdown completes.
             //
             // See comments in CustomTThreadPoolServer.serve, CASSANDRA-3335, and CASSANDRA-3727.
-            try
-            {
-                Thread.sleep(Long.MAX_VALUE);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
+            Uninterruptibles.sleepUninterruptibly(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
         }
         CacheableObject<V> previous = cache.put(key, new CacheableObject<V>(value, timeout));
         return (previous == null) ? null : previous.value;

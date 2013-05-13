@@ -37,6 +37,8 @@ import javax.management.ObjectName;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.AtomicDouble;
+import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -365,7 +367,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.instance.stop();
         MessagingService.instance().shutdown();
         // give it a second so that task accepted before the MessagingService shutdown gets submitted to the stage (to avoid RejectedExecutionException)
-        try { Thread.sleep(1000L); } catch (InterruptedException e) {}
+        Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         StageManager.shutdownNow();
     }
 
@@ -379,31 +381,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // We don't wait, because we're going to actually try to work on
         initClient(0);
 
-        try
+        // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
+        boolean isUp = false;
+        while (!isUp)
         {
-            // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
-            boolean isUp = false;
-            while (!isUp)
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+            for (InetAddress address : Gossiper.instance.getLiveMembers())
             {
-                Thread.sleep(1000);
-                for (InetAddress address : Gossiper.instance.getLiveMembers())
+                if (!Gossiper.instance.isFatClient(address))
                 {
-                    if (!Gossiper.instance.isFatClient(address))
-                    {
-                        isUp = true;
-                    }
+                    isUp = true;
                 }
             }
-
-            // sleep until any schema migrations have finished
-            while (!MigrationManager.isReadyForBootstrap())
-            {
-                Thread.sleep(1000);
-            }
         }
-        catch (InterruptedException e)
+
+        // sleep until any schema migrations have finished
+        while (!MigrationManager.isReadyForBootstrap())
         {
-            throw new AssertionError(e);
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
     }
 
@@ -425,14 +420,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
 
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
-        try
-        {
-           Thread.sleep(ringDelay);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        Uninterruptibles.sleepUninterruptibly(ringDelay, TimeUnit.MILLISECONDS);
     }
 
     public synchronized void initServer() throws ConfigurationException
@@ -613,28 +601,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     logger.debug("got schema: {}", Schema.instance.getVersion());
                     break;
                 }
-                try
-                {
-                    Thread.sleep(1000);
-                }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
+                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
             }
             // if our schema hasn't matched yet, keep sleeping until it does
             // (post CASSANDRA-1391 we don't expect this to be necessary very often, but it doesn't hurt to be careful)
             while (!MigrationManager.isReadyForBootstrap())
             {
                 setMode(Mode.JOINING, "waiting for schema information to complete", true);
-                try
-                {
-                    Thread.sleep(1000);
-                }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
+                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
             }
             setMode(Mode.JOINING, "schema complete, ready to bootstrap", true);
 
@@ -654,16 +628,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
             else
             {
-                try
-                {
-                    // Sleeping additionally to make sure that the server actually is not alive
-                    // and giving it more time to gossip if alive.
-                    Thread.sleep(LoadBroadcaster.BROADCAST_INTERVAL);
-                }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
+                // Sleeping additionally to make sure that the server actually is not alive
+                // and giving it more time to gossip if alive.
+                Uninterruptibles.sleepUninterruptibly(LoadBroadcaster.BROADCAST_INTERVAL, TimeUnit.MILLISECONDS);
                 tokens = new ArrayList<Token>();
                 for (String token : DatabaseDescriptor.getReplaceTokens())
                     tokens.add(StorageService.getPartitioner().getTokenFactory().fromString(token));
@@ -716,14 +683,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 {
                     // wait for ring info
                     logger.info("Sleeping for ring delay (" + delay + "ms)");
-                    try
-                    {
-                        Thread.sleep(delay);
-                    }
-                    catch (InterruptedException e)
-                    {
-                        throw new AssertionError(e);
-                    }
+                    Uninterruptibles.sleepUninterruptibly(delay, TimeUnit.MILLISECONDS);
                     logger.info("Calculating new tokens");
                     // calculate num_tokens tokens evenly spaced in the range (left, right]
                     Token right = tokens.iterator().next();
@@ -898,14 +858,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS,
                                                        valueFactory.bootstrapping(tokens));
             setMode(Mode.JOINING, "sleeping " + RING_DELAY + " ms for pending range setup", true);
-            try
-            {
-                Thread.sleep(RING_DELAY);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
+            Uninterruptibles.sleepUninterruptibly(RING_DELAY, TimeUnit.MILLISECONDS);
         }
         else
         {
@@ -2719,14 +2672,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.left(getLocalTokens(),Gossiper.computeExpireTime()));
         int delay = Math.max(RING_DELAY, Gossiper.intervalInMillis * 2);
         logger.info("Announcing that I have left the ring for " + delay + "ms");
-        try
-        {
-            Thread.sleep(delay);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        Uninterruptibles.sleepUninterruptibly(delay, TimeUnit.MILLISECONDS);
     }
 
     private void unbootstrap(final Runnable onFinish)
@@ -2856,14 +2802,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setMode(Mode.MOVING, String.format("Moving %s from %s to %s.", localAddress, getLocalTokens().iterator().next(), newToken), true);
 
         setMode(Mode.MOVING, String.format("Sleeping %s ms before start streaming/fetching ranges", RING_DELAY), true);
-        try
-        {
-            Thread.sleep(RING_DELAY);
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException("Sleep interrupted " + e.getMessage());
-        }
+        Uninterruptibles.sleepUninterruptibly(RING_DELAY, TimeUnit.MILLISECONDS);
 
         RangeRelocator relocator = new RangeRelocator(Collections.singleton(newToken), tablesToProcess);
 
@@ -3046,14 +2985,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         List<String> tables = Schema.instance.getNonSystemTables();
 
         setMode(Mode.RELOCATING, String.format("Sleeping %s ms before start streaming/fetching ranges", RING_DELAY), true);
-        try
-        {
-            Thread.sleep(RING_DELAY);
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException("Sleep interrupted " + e.getMessage());
-        }
+        Uninterruptibles.sleepUninterruptibly(RING_DELAY, TimeUnit.MILLISECONDS);
 
         RangeRelocator relocator = new RangeRelocator(tokens, tables);
 
@@ -3192,14 +3124,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // wait for ReplicationFinishedVerbHandler to signal we're done
         while (!replicatingNodes.isEmpty())
         {
-            try
-            {
-                Thread.sleep(100);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
+            Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
         }
 
         excise(tokens, endpoint);
@@ -3238,14 +3163,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             logger.info("requesting GC to free disk space");
             System.gc();
-            try
-            {
-                Thread.sleep(1000);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
     }
 

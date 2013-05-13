@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
@@ -41,6 +42,8 @@ import org.xerial.snappy.SnappyOutputStream;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 
 public class OutboundTcpConnection extends Thread
 {
@@ -340,14 +343,7 @@ public class OutboundTcpConnection extends Thread
                 socket = null;
                 if (logger.isTraceEnabled())
                     logger.trace("unable to connect to " + poolReference.endPoint(), e);
-                try
-                {
-                    Thread.sleep(OPEN_RETRY_DELAY);
-                }
-                catch (InterruptedException e1)
-                {
-                    throw new AssertionError(e1);
-                }
+                Uninterruptibles.sleepUninterruptibly(OPEN_RETRY_DELAY, TimeUnit.MILLISECONDS);
             }
         }
         return false;

@@ -17,8 +17,12 @@
  */
 package org.apache.cassandra.utils;
 
+import java.util.concurrent.TimeUnit;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 
 /**
  * Encapsulates the timing/state required to throttle a caller to a target throughput in
@@ -84,14 +88,7 @@ public class Throttle
             if (logger.isTraceEnabled())
                 logger.trace(String.format("%s actual throughput was %d bytes in %d ms: throttling for %d ms",
                                            this, bytesDelta, msSinceLast, timeToDelay));
-            try
-            {
-                Thread.sleep(timeToDelay);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
+            Uninterruptibles.sleepUninterruptibly(timeToDelay, TimeUnit.MILLISECONDS);
         }
         bytesAtLastDelay += bytesDelta;
         timeAtLastDelay = System.currentTimeMillis();

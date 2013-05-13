@@ -25,6 +25,7 @@ import static org.junit.Assert.*;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 import org.apache.cassandra.Util;
@@ -32,6 +33,8 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.db.context.IContext.ContextRelationship;
 import static org.apache.cassandra.db.context.CounterContext.ContextState;
 import org.apache.cassandra.utils.*;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 
 public class CounterContextTest
 {
@@ -454,14 +457,7 @@ public class CounterContextTest
         ByteBuffer merged = cc.merge(ctx.context, merger, allocator);
         assert cc.total(ctx.context) == cc.total(merged);
 
-        try
-        {
-            Thread.sleep(2000);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError();
-        }
+        Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
 
         // merge the second one
         ByteBuffer merger2 = cc.computeOldShardMerger(merged, records, 7L);

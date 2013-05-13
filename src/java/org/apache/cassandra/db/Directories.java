@@ -21,11 +21,14 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Longs;
+import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -146,14 +149,7 @@ public class Directories
             // retry after GCing has forced unmap of compacted SSTables so they can be deleted
             // Note: GCInspector will do this already, but only sun JVM supports GCInspector so far
             SSTableDeletingTask.rescheduleFailedTasks();
-            try
-            {
-                Thread.sleep(10000);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
+            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
             path = getLocationWithMaximumAvailableSpace(estimatedSize);
         }
 

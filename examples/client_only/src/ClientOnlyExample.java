@@ -18,6 +18,7 @@
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -29,6 +30,8 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 
 public class ClientOnlyExample
 {
@@ -121,14 +124,7 @@ public class ClientOnlyExample
         setupKeyspace();
         testWriting();
         logger.info("Writing is done. Sleeping, then will try to read.");
-        try
-        {
-            Thread.currentThread().sleep(1000);
-        }
-        catch (InterruptedException ex)
-        {
-            throw new RuntimeException(ex);
-        }
+        Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
 
         testReading();
 

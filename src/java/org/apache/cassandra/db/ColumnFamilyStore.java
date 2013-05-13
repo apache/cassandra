@@ -32,6 +32,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.db.compaction.*;
 
@@ -1793,17 +1794,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             // sleep a little to make sure that our truncatedAt comes after any sstable
             // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
-            try
+            long starttime = System.currentTimeMillis();
+            while ((System.currentTimeMillis() - starttime) < 1)
             {
-                long starttime = System.currentTimeMillis();
-                while ((System.currentTimeMillis() - starttime) < 1)
-                {
-                    Thread.sleep(1);
-                }
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
+                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
             }
         }
         else
@@ -1886,7 +1880,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 while (System.currentTimeMillis() < start + 60000)
                 {
                     if (CompactionManager.instance.isCompacting(selfWithIndexes))
-                        FBUtilities.sleep(100);
+                        Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
                     else
                         break;
                 }

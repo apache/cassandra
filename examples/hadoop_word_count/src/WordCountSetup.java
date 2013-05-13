@@ -18,6 +18,7 @@
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -31,6 +32,8 @@ import org.apache.thrift.transport.TTransportException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 
 public class WordCountSetup
 {
@@ -174,14 +177,7 @@ public class WordCountSetup
         ksDef.putToStrategy_options("replication_factor", "1");
         client.system_add_keyspace(ksDef);
         int magnitude = client.describe_ring(WordCount.KEYSPACE).size();
-        try
-        {
-            Thread.sleep(1000 * magnitude);
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
+        Uninterruptibles.sleepUninterruptibly(magnitude, TimeUnit.SECONDS);
     }
 
     private static Cassandra.Iface createConnection() throws TTransportException

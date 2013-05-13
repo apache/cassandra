@@ -567,18 +567,6 @@ public class FBUtilities
         }
     }
 
-    public static void sleep(int millis)
-    {
-        try
-        {
-            Thread.sleep(millis);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError();
-        }
-    }
-
     public static void updateChecksumInt(Checksum checksum, int v)
     {
         checksum.update((v >>> 24) & 0xFF);

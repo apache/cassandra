@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.cli.*;
 
@@ -41,6 +42,8 @@ import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 
 public class BulkLoader
 {
@@ -88,7 +91,7 @@ public class BulkLoader
                     }
                     else
                     {
-                        try { Thread.sleep(1000L); } catch (Exception e) {}
+                        Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
                     }
                 }
                 if (!printEnd)

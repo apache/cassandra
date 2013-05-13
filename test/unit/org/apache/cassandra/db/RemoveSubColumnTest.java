@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
@@ -31,6 +32,8 @@ import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 
 
 public class RemoveSubColumnTest extends SchemaLoader
@@ -61,7 +64,7 @@ public class RemoveSubColumnTest extends SchemaLoader
     }
 
     @Test
-    public void testRemoveSubColumnAndContainer() throws IOException, ExecutionException, InterruptedException
+    public void testRemoveSubColumnAndContainer()
     {
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Super1");
@@ -84,7 +87,7 @@ public class RemoveSubColumnTest extends SchemaLoader
         // Mark current time and make sure the next insert happens at least
         // one second after the previous one (since gc resolution is the second)
         int gcbefore = (int)(System.currentTimeMillis() / 1000);
-        Thread.currentThread().sleep(1000);
+        Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
 
         // remove the column itself
         rm = new RowMutation("Keyspace1", dk.key);

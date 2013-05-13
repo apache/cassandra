@@ -21,10 +21,12 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import com.ning.compress.lzf.LZFOutputStream;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.Component;
@@ -271,14 +273,7 @@ public class FileStreamTask extends WrappedRunnable
 
                 long waitms = DatabaseDescriptor.getRpcTimeout() * (long)Math.pow(2, attempts);
                 logger.warn("Failed attempt " + attempts + " to connect to " + to + " to stream " + header.file + ". Retrying in " + waitms + " ms. (" + e + ")");
-                try
-                {
-                    Thread.sleep(waitms);
-                }
-                catch (InterruptedException wtf)
-                {
-                    throw new RuntimeException(wtf);
-                }
+                Uninterruptibles.sleepUninterruptibly(waitms, TimeUnit.MILLISECONDS);
             }
         }
     }

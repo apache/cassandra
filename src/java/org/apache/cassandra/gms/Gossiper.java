@@ -23,10 +23,13 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -373,14 +376,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         int generation = epState.getHeartBeatState().getGeneration();
         logger.info("Removing host: {}", hostId);
         logger.info("Sleeping for " + StorageService.RING_DELAY + "ms to ensure " + endpoint + " does not change");
-        try
-        {
-            Thread.sleep(StorageService.RING_DELAY);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
         // make sure it did not change
         epState = endpointStateMap.get(endpoint);
         if (epState.getHeartBeatState().getGeneration() != generation)
@@ -412,14 +408,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         addExpireTimeForEndpoint(endpoint, expireTime);
         endpointStateMap.put(endpoint, epState);
         // ensure at least one gossip round occurs before returning
-        try
-        {
-            Thread.sleep(intervalInMillis * 2);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        Uninterruptibles.sleepUninterruptibly(intervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -456,7 +445,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
             int generation = epState.getHeartBeatState().getGeneration();
             logger.info("Sleeping for " + StorageService.RING_DELAY + "ms to ensure " + endpoint + " does not change");
-            FBUtilities.sleep(StorageService.RING_DELAY);
+            Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
             // make sure it did not change
             epState = endpointStateMap.get(endpoint);
             if (epState.getHeartBeatState().getGeneration() != generation)
@@ -468,7 +457,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // do not pass go, do not collect 200 dollars, just gtfo
         epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
         handleMajorStateChange(endpoint, epState);
-        FBUtilities.sleep(intervalInMillis * 4);
+        Uninterruptibles.sleepUninterruptibly(intervalInMillis * 4, TimeUnit.MILLISECONDS);
         logger.warn("Finished killing {}", endpoint);
     }
 
@@ -1107,14 +1096,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         scheduledGossipTask.cancel(false);
         logger.info("Announcing shutdown");
-        try
-        {
-            Thread.sleep(intervalInMillis * 2);
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
+        Uninterruptibles.sleepUninterruptibly(intervalInMillis * 2, TimeUnit.MILLISECONDS);
         MessageOut message = new MessageOut(MessagingService.Verb.GOSSIP_SHUTDOWN);
         for (InetAddress ep : liveEndpoints)
             MessagingService.instance().sendOneWay(message, ep);

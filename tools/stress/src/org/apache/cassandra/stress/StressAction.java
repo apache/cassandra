@@ -20,7 +20,9 @@ package org.apache.cassandra.stress;
 import java.io.PrintStream;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import com.yammer.metrics.stats.Snapshot;
 import org.apache.cassandra.stress.operations.*;
 import org.apache.cassandra.stress.util.CassandraClient;
@@ -105,14 +107,7 @@ public class StressAction extends Thread
                 break;
             }
 
-            try
-            {
-                Thread.sleep(100);
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException(e.getMessage(), e);
-            }
+            Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
 
             int alive = 0;
             for (Thread thread : consumers)

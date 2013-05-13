@@ -30,6 +30,8 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Function;
 import com.google.common.collect.*;
+import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -235,7 +237,7 @@ public class StorageProxy implements StorageProxyMBean
             }
 
             logger.debug("Paxos proposal not accepted (pre-empted by a higher ballot)");
-            FBUtilities.sleep(FBUtilities.threadLocalRandom().nextInt(100));
+            Uninterruptibles.sleepUninterruptibly(FBUtilities.threadLocalRandom().nextInt(100), TimeUnit.MILLISECONDS);
             // continue to retry
         }
 
@@ -306,7 +308,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             logger.debug("Some replicas have already promised a higher ballot than ours; aborting");
             // sleep a random amount to give the other proposer a chance to finish
-            FBUtilities.sleep(FBUtilities.threadLocalRandom().nextInt(100));
+            Uninterruptibles.sleepUninterruptibly(FBUtilities.threadLocalRandom().nextInt(100), TimeUnit.MILLISECONDS);
             return null;
         }
 

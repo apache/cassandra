@@ -44,6 +44,8 @@ import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 import org.apache.thrift.transport.TSSLTransportFactory.TSSLTransportParameters;
 
+import com.google.common.util.concurrent.Uninterruptibles;
+
 
 /**
  * Slightly modified version of the Apache Thrift TThreadPoolServer.
@@ -95,14 +97,7 @@ public class CustomTThreadPoolServer extends TServer
             // block until we are under max clients
             while (activeClients.get() >= args.maxWorkerThreads)
             {
-                try
-                {
-                    Thread.sleep(100);
-                }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
+                Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
             }
 
             try

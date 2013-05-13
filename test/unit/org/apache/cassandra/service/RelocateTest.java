@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.SystemTable;
@@ -50,6 +51,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 
 public class RelocateTest
 {
@@ -195,14 +198,7 @@ public class RelocateTest
         ss.onChange(relocator, ApplicationState.STATUS, vvFactory.normal(tokens));
 
         // Relocating entries are removed after RING_DELAY
-        try
-        {
-            Thread.sleep(StorageService.RING_DELAY + 10);
-        }
-        catch (InterruptedException e)
-        {
-            System.err.println("ACHTUNG! Interrupted; testRelocationSuccess() will almost certainly fail!");
-        }
+        Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY + 10, TimeUnit.MILLISECONDS);
 
         assertTrue(!tmd.isRelocating(relocatee));
         assertEquals(tmd.getEndpoint(relocatee), relocator);
