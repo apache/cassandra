@@ -56,26 +56,52 @@ public class ObjectSizes
         int getSuperclassFieldPadding();
     }
 
+    /**
+     * Memory a class consumes, including the object header and the size of the fields.
+     * @param fieldsSize Total size of the primitive fields of a class
+     * @return Total in-memory size of the class
+     */
     public static long getFieldSize(long fieldsSize)
     {
         return roundTo(SPEC.getObjectHeaderSize() + fieldsSize, SPEC.getObjectPadding());
     }
 
+    /**
+     * Memory a super class consumes, given the primitive field sizes
+     * @param fieldsSize Total size of the primitive fields of the super class
+     * @return Total additional in-memory that the super class takes up
+     */
     public static long getSuperClassFieldSize(long fieldsSize)
     {
         return roundTo(fieldsSize, SPEC.getSuperclassFieldPadding());
     }
 
+    /**
+     * Memory an array will consume
+     * @param length Number of elements in the array
+     * @param elementSize In-memory size of each element's primitive stored
+     * @return In-memory size of the array
+     */
     public static long getArraySize(int length, long elementSize)
     {
         return roundTo(SPEC.getArrayHeaderSize() + length * elementSize, SPEC.getObjectPadding());
     }
 
-    public static long getSizeWithRef(byte[] bytes)
+    /**
+     * Memory a byte array consumes
+     * @param bytes byte array to get memory size
+     * @return In-memory size of the array
+     */
+    public static long getArraySize(byte[] bytes)
     {
-        return SPEC.getReferenceSize() + getArraySize(bytes.length, 1);
+        return getArraySize(bytes.length, 1);
     }
 
+    /**
+     * Memory a byte buffer consumes
+     * @param buffer ByteBuffer to calculate in memory size
+     * @return Total in-memory size of the byte buffer
+     */
     public static long getSize(ByteBuffer buffer)
     {
         long size = 0;
@@ -93,16 +119,14 @@ public class ObjectSizes
         return size;
     }
 
-    public static long getSizeWithRef(ByteBuffer buffer)
-    {
-        return SPEC.getReferenceSize() + getSize(buffer);
-    }
-
     public static long roundTo(long x, int multiple)
     {
         return ((x + multiple - 1) / multiple) * multiple;
     }
 
+    /**
+     * @return Memory a reference consumes on the current architecture.
+     */
     public static int getReferenceSize()
     {
         return SPEC.getReferenceSize();
