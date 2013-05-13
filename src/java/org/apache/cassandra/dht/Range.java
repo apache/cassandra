@@ -137,7 +137,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
      */
     public boolean intersects(Bounds<T> that)
     {
-        return intersects(new Range<T>(that.left, that.right)) || contains(that.right);
+        return intersects(new Range<T>(that.left, that.right)) || contains(that.left);
     }
 
     public static <T extends RingPosition> Set<Range<T>> rangeSet(Range<T> ... ranges)

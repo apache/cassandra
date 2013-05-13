@@ -3,6 +3,7 @@
  * Use allocator information to improve memtable memory usage estimate 
    (CASSANDRA-5497)
  * fsync leveled manifest to avoid corruption (CASSANDRA-5535)
+ * Fix Bound intersection computation (CASSANDRA-5551)
 
 1.1.11
  * Fix trying to load deleted row into row cache on startup (CASSANDRA-4463)
