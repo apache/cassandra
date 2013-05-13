@@ -1,5 +1,5 @@
 1.2.5
- * fix 2i updates with indentical values and timestamps (CASSANDRA-5540)
+ * fix 2i updates with identical values and timestamps (CASSANDRA-5540)
  * fix compaction throttling bursty-ness (CASSANDRA-4316)
  * reduce memory consumption of IndexSummary (CASSANDRA-5506)
  * remove per-row column name bloom filters (CASSANDRA-5492)
@@ -23,6 +23,7 @@
  * Add custom secondary index support to CQL3 (CASSANDRA-5484)
  * Fix repair hanging silently on unexpected error (CASSANDRA-5229)
  * Fix Ec2Snitch regression introduced by CASSANDRA-5171 (CASSANDRA-5432)
+ * Add nodetool enablebackup/disablebackup (CASSANDRA-5556)
 Merged from 1.1
  * Add retry mechanism to OTC for non-droppable_verbs (CASSANDRA-5393)
  * Use allocator information to improve memtable memory usage estimate

@@ -520,6 +520,10 @@ public class NodeProbe
         cfsProxy.setCompactionThresholds(minimumCompactionThreshold, maximumCompactionThreshold);
     }
 
+    public void setIncrementalBackupsEnabled(boolean enabled){
+        ssProxy.setIncrementalBackupsEnabled(enabled);
+    }
+
     public void setCacheCapacities(int keyCacheCapacity, int rowCacheCapacity)
     {
         try
