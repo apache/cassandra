@@ -9,6 +9,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.tracing.Tracing;
 
 public class PaxosState
 {
@@ -50,14 +51,14 @@ public class PaxosState
             PaxosState state = SystemTable.loadPaxosState(toPrepare.key, toPrepare.update.metadata());
             if (toPrepare.isAfter(state.inProgressCommit))
             {
-                logger.debug("promising ballot {}", toPrepare.ballot);
+                Tracing.trace("promising ballot {}", toPrepare.ballot);
                 SystemTable.savePaxosPromise(toPrepare);
                 // return the pre-promise ballot so coordinator can pick the most recent in-progress value to resume
                 return new PrepareResponse(true, state.inProgressCommit, state.mostRecentCommit);
             }
             else
             {
-                logger.debug("promise rejected; {} is not sufficiently newer than {}", toPrepare, state.inProgressCommit);
+                Tracing.trace("promise rejected; {} is not sufficiently newer than {}", toPrepare, state.inProgressCommit);
                 return new PrepareResponse(false, state.inProgressCommit, state.mostRecentCommit);
             }
         }
@@ -70,7 +71,7 @@ public class PaxosState
             PaxosState state = SystemTable.loadPaxosState(proposal.key, proposal.update.metadata());
             if (proposal.hasBallot(state.inProgressCommit.ballot) || proposal.isAfter(state.inProgressCommit))
             {
-                logger.debug("accepting {}", proposal);
+                Tracing.trace("accepting proposal {}", proposal);
                 SystemTable.savePaxosProposal(proposal);
                 return true;
             }
@@ -87,7 +88,7 @@ public class PaxosState
         // Committing it is however always safe due to column timestamps, so always do it. However,
         // if our current in-progress ballot is strictly greater than the proposal one, we shouldn't
         // erase the in-progress update.
-        logger.debug("committing {}", proposal);
+        Tracing.trace("committing proposal {}", proposal);
         RowMutation rm = proposal.makeMutation();
         Table.open(rm.getTable()).apply(rm, true);
 

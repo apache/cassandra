@@ -213,7 +213,7 @@ public class StorageProxy implements StorageProxyMBean
                 continue;
 
             // read the current value and compare with expected
-            logger.debug("Reading existing values for CAS precondition");
+            Tracing.trace("Reading existing values for CAS precondition");
             ReadCommand readCommand = expected == null
                                     ? new SliceFromReadCommand(table, key, cfName, new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1))
                                     : new SliceByNamesReadCommand(table, key, cfName, new NamesQueryFilter(ImmutableSortedSet.copyOf(expected.getColumnNames())));
@@ -221,22 +221,22 @@ public class StorageProxy implements StorageProxyMBean
             ColumnFamily current = rows.get(0).cf;
             if (!casApplies(expected, current))
             {
-                logger.debug("CAS precondition {} does not match current values {}", expected, current);
+                Tracing.trace("CAS precondition {} does not match current values {}", expected, current);
                 return false;
             }
 
             // finish the paxos round w/ the desired updates
             // TODO turn null updates into delete?
             Commit proposal = Commit.newProposal(key, ballot, updates);
-            logger.debug("CAS precondition is met; proposing client-requested updates for {}", ballot);
+            Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
             if (proposePaxos(proposal, liveEndpoints, requiredParticipants))
             {
                 commitPaxos(proposal, liveEndpoints);
-                logger.debug("Paxos CAS successful");
+                Tracing.trace("CAS successful");
                 return true;
             }
 
-            logger.debug("Paxos proposal not accepted (pre-empted by a higher ballot)");
+            Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");
             Uninterruptibles.sleepUninterruptibly(FBUtilities.threadLocalRandom().nextInt(100), TimeUnit.MILLISECONDS);
             // continue to retry
         }
@@ -301,12 +301,12 @@ public class StorageProxy implements StorageProxyMBean
         UUID ballot = UUIDGen.getTimeUUID();
 
         // prepare
-        logger.debug("Preparing {}", ballot);
+        Tracing.trace("Preparing {}", ballot);
         Commit toPrepare = Commit.newPrepare(key, metadata, ballot);
         PrepareCallback summary = preparePaxos(toPrepare, liveEndpoints, requiredParticipants);
         if (!summary.promised)
         {
-            logger.debug("Some replicas have already promised a higher ballot than ours; aborting");
+            Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
             // sleep a random amount to give the other proposer a chance to finish
             Uninterruptibles.sleepUninterruptibly(FBUtilities.threadLocalRandom().nextInt(100), TimeUnit.MILLISECONDS);
             return null;
@@ -319,7 +319,7 @@ public class StorageProxy implements StorageProxyMBean
         // needs to be completed, so do it.
         if (!inProgress.update.isEmpty() && inProgress.isAfter(mostRecent))
         {
-            logger.debug("Finishing incomplete paxos round {}", inProgress);
+            Tracing.trace("Finishing incomplete paxos round {}", inProgress);
             if (proposePaxos(inProgress, liveEndpoints, requiredParticipants))
                 commitPaxos(inProgress, liveEndpoints);
             // no need to sleep here
@@ -333,7 +333,7 @@ public class StorageProxy implements StorageProxyMBean
         Iterable<InetAddress> missingMRC = summary.replicasMissingMostRecentCommit();
         if (Iterables.size(missingMRC) > 0)
         {
-            logger.debug("Repairing replicas that missed the most recent commit");
+            Tracing.trace("Repairing replicas that missed the most recent commit");
             commitPaxos(mostRecent, missingMRC);
             // TODO: provided commits don't invalid the prepare we just did above (which they don't), we could just wait
             // for all the missingMRC to acknowledge this commit and then move on with proposing our value. But that means
