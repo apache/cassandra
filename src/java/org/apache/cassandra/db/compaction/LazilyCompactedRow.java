@@ -25,8 +25,6 @@ import java.util.List;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
@@ -36,7 +34,6 @@ import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.StreamingHistogram;
 
@@ -49,8 +46,6 @@ import org.apache.cassandra.utils.StreamingHistogram;
  */
 public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable<OnDiskAtom>
 {
-    private static Logger logger = LoggerFactory.getLogger(LazilyCompactedRow.class);
-
     private final List<? extends OnDiskAtomIterator> rows;
     private final CompactionController controller;
     private final boolean shouldPurge;
@@ -190,7 +185,6 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         // tombstone reference; will be reconciled w/ column during getReduced
         RangeTombstone tombstone;
 
-        long serializedSize = 4; // int for column count
         int columns = 0;
         long minTimestampSeen = Long.MAX_VALUE;
         long maxTimestampSeen = Long.MIN_VALUE;
@@ -229,7 +223,6 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                 }
                 else
                 {
-                    serializedSize += t.serializedSizeForSSTable();
                     return t;
                 }
             }
@@ -250,7 +243,6 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                 if (indexBuilder.tombstoneTracker().isDeleted(reduced))
                     return null;
 
-                serializedSize += reduced.serializedSizeForSSTable();
                 columns++;
                 minTimestampSeen = Math.min(minTimestampSeen, reduced.minTimestamp());
                 maxTimestampSeen = Math.max(maxTimestampSeen, reduced.maxTimestamp());
