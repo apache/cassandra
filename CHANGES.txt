@@ -65,7 +65,6 @@
  * Fix repair -snapshot not working (CASSANDRA-5512)
  * Set isRunning flag later in binary protocol server (CASSANDRA-5467)
  * Fix use of CQL3 functions with descending clustering order (CASSANDRA-5472)
- * Prevent repair when protocol version does not match (CASSANDRA-5523)
  * Disallow renaming columns one at a time for thrift table in CQL3
    (CASSANDRA-5531)
  * cqlsh: add CLUSTERING ORDER BY support to DESCRIBE (CASSANDRA-5528)
