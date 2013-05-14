@@ -43,7 +43,11 @@ if [ -z $CLASSPATH ]; then
     exit 1
 fi
 
-$JAVA -ea -cp $CLASSPATH -Xmx256M \
+if [ "x$MAX_HEAP_SIZE" = "x" ]; then
+    MAX_HEAP_SIZE="256M"
+fi
+
+$JAVA -ea -cp $CLASSPATH -Xmx$MAX_HEAP_SIZE \
         -Dlog4j.configuration=log4j-tools.properties \
         org.apache.cassandra.tools.StandaloneScrubber "$@"
 
