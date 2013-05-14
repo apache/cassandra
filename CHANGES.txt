@@ -1,4 +1,5 @@
 1.2.5
+ * make BytesToken.toString only return hex bytes (CASSANDRA-5566)
  * Ensure that submitBackground enqueues at least one task (CASSANDRA-5554)
  * fix 2i updates with identical values and timestamps (CASSANDRA-5540)
  * fix compaction throttling bursty-ness (CASSANDRA-4316)

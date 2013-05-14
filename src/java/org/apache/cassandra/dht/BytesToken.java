@@ -41,7 +41,7 @@ public class BytesToken extends Token<byte[]>
     @Override
     public String toString()
     {
-        return "Token(bytes[" + Hex.bytesToHex(token) + "])";
+        return Hex.bytesToHex(token);
     }
 
     public int compareTo(Token<byte[]> o)
