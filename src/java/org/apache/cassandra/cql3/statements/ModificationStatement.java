@@ -476,7 +476,7 @@ public abstract class ModificationStatement implements CQLStatement
 
             ModificationStatement stmt = prepareInternal(cfDef, boundNames);
 
-            if (stmt.hasConditions())
+            if (ifNotExists || (conditions != null && !conditions.isEmpty()))
             {
                 if (stmt.isCounter())
                     throw new InvalidRequestException("Conditional updates are not supported on counter tables");
