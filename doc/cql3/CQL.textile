@@ -1,6 +1,6 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.0.3
+h1. Cassandra Query Language (CQL) v3.1.0
 
 
  <span id="tableOfContents">
