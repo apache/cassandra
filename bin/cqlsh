@@ -913,7 +913,10 @@ class Shell(cmd.Cmd):
     def do_use(self, parsed):
         ksname = parsed.get_binding('ksname')
         if self.perform_statement_untraced(parsed.extract_orig()):
-            self.current_keyspace = self.cql_unprotect_name(ksname)
+            if ksname[0] == '"' and ksname[-1] == '"':
+                self.current_keyspace = self.cql_unprotect_name(ksname)
+            else:
+                self.current_keyspace = ksname.lower()
 
     def do_select(self, parsed):
         ksname = parsed.get_binding('ksname')
