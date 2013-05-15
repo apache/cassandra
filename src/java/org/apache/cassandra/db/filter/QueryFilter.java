@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.ISSTableColumnIterator;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -57,12 +57,12 @@ public class QueryFilter
         return filter.getMemtableColumnIterator(cf, key);
     }
 
-    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable)
+    public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable)
     {
         return filter.getSSTableColumnIterator(sstable, key);
     }
 
-    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry)
+    public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry)
     {
         return filter.getSSTableColumnIterator(sstable, file, key, indexEntry);
     }

@@ -29,7 +29,7 @@ import java.util.TreeSet;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.ISSTableColumnIterator;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.SSTableNamesIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -82,12 +82,12 @@ public class NamesQueryFilter implements IDiskAtomFilter
         return Memtable.getNamesIterator(key, cf, this);
     }
 
-    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key)
+    public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key)
     {
         return new SSTableNamesIterator(sstable, key, columns);
     }
 
-    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry)
+    public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry)
     {
         return new SSTableNamesIterator(sstable, file, key, columns, indexEntry);
     }

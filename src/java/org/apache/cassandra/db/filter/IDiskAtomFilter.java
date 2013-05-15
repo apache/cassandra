@@ -25,7 +25,7 @@ import java.util.Iterator;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.ISSTableColumnIterator;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -54,13 +54,13 @@ public interface IDiskAtomFilter
      * @param file Already opened file data input, saves us opening another one
      * @param key The key of the row we are about to iterate over
      */
-    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry);
+    public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry);
 
     /**
      * returns an iterator that returns columns from the given SSTable
      * matching the Filter criteria in sorted order.
      */
-    public ISSTableColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key);
+    public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key);
 
     /**
      * collects columns from reducedColumns into returnCF.  Termination is determined
