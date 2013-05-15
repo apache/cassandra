@@ -25,6 +25,7 @@
  * Fix repair hanging silently on unexpected error (CASSANDRA-5229)
  * Fix Ec2Snitch regression introduced by CASSANDRA-5171 (CASSANDRA-5432)
  * Add nodetool enablebackup/disablebackup (CASSANDRA-5556)
+ * cqlsh: fix DESCRIBE after case insensitive USE (CASSANDRA-5567)
 Merged from 1.1
  * Add retry mechanism to OTC for non-droppable_verbs (CASSANDRA-5393)
  * Use allocator information to improve memtable memory usage estimate
