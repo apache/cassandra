@@ -75,7 +75,7 @@ public class CollationController
     private ColumnFamily collectTimeOrderedData()
     {
         logger.trace("collectTimeOrderedData");
-        ColumnFamily container = factory.create(cfs.metadata, filter.filter.isReversed());
+        final ColumnFamily container = factory.create(cfs.metadata, filter.filter.isReversed());
         List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>();
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
@@ -156,10 +156,9 @@ public class CollationController
                 return null;
 
             // do a final collate.  toCollate is boilerplate required to provide a CloseableIterator
-            final ColumnFamily c2 = container;
             CloseableIterator<OnDiskAtom> toCollate = new SimpleAbstractColumnIterator()
             {
-                final Iterator<Column> iter = c2.iterator();
+                final Iterator<Column> iter = container.iterator();
 
                 protected OnDiskAtom computeNext()
                 {
@@ -168,7 +167,7 @@ public class CollationController
 
                 public ColumnFamily getColumnFamily()
                 {
-                    return c2;
+                    return container;
                 }
 
                 public DecoratedKey getKey()
