@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Function;
 import com.google.common.base.Throwables;
+import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.StageManager;
@@ -379,32 +380,7 @@ public class Memtable
     {
         assert cf != null;
 
-        return new SimpleAbstractColumnIterator()
-        {
-            private Iterator<ByteBuffer> iter = filter.columns.iterator();
-
-            public ColumnFamily getColumnFamily()
-            {
-                return cf;
-            }
-
-            public DecoratedKey getKey()
-            {
-                return key;
-            }
-
-            protected OnDiskAtom computeNext()
-            {
-                while (iter.hasNext())
-                {
-                    ByteBuffer current = iter.next();
-                    Column column = cf.getColumn(current);
-                    if (column != null)
-                        return column;
-                }
-                return endOfData();
-            }
-        };
+        return new ByNameColumnIterator(filter.columns.iterator(), cf, key);
     }
 
     public ColumnFamily getColumnFamily(DecoratedKey key)
@@ -415,6 +391,44 @@ public class Memtable
     public long creationTime()
     {
         return creationTime;
+    }
+
+    private static class ByNameColumnIterator extends AbstractIterator<OnDiskAtom> implements OnDiskAtomIterator
+    {
+        private final ColumnFamily cf;
+        private final DecoratedKey key;
+        private final Iterator<ByteBuffer> iter;
+
+        public ByNameColumnIterator(Iterator<ByteBuffer> iter, ColumnFamily cf, DecoratedKey key)
+        {
+            this.iter = iter;
+            this.cf = cf;
+            this.key = key;
+        }
+
+        public ColumnFamily getColumnFamily()
+        {
+            return cf;
+        }
+
+        public DecoratedKey getKey()
+        {
+            return key;
+        }
+
+        protected OnDiskAtom computeNext()
+        {
+            while (iter.hasNext())
+            {
+                ByteBuffer current = iter.next();
+                Column column = cf.getColumn(current);
+                if (column != null)
+                    return column;
+            }
+            return endOfData();
+        }
+
+        public void close() throws IOException { }
     }
 
     class FlushRunnable extends DiskAwareRunnable

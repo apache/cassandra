@@ -24,6 +24,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.SortedSet;
 
+import com.google.common.collect.AbstractIterator;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -35,7 +37,7 @@ import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class SSTableNamesIterator extends SimpleAbstractColumnIterator implements OnDiskAtomIterator
+public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implements OnDiskAtomIterator
 {
     private ColumnFamily cf;
     private final SSTableReader sstable;
@@ -240,4 +242,6 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             return endOfData();
         return iter.next();
     }
+
+    public void close() throws IOException { }
 }
