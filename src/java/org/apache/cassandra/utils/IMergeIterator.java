@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.utils;
 
+import java.util.Iterator;
+
 public interface IMergeIterator<In, Out> extends CloseableIterator<Out>
 {
-    Iterable<? extends CloseableIterator<In>> iterators();
+    Iterable<? extends Iterator<In>> iterators();
 }

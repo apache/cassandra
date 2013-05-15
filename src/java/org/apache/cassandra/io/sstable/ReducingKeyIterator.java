@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -62,18 +63,15 @@ public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
 
     public void close() throws IOException
     {
-        for (Object o : mi.iterators())
-        {
-            ((CloseableIterator)o).close();
-        }
+        mi.close();
     }
 
     public long getTotalBytes()
     {
         long m = 0;
-        for (Object o : mi.iterators())
+        for (Iterator<DecoratedKey> iter : mi.iterators())
         {
-            m += ((KeyIterator) o).getTotalBytes();
+            m += ((KeyIterator) iter).getTotalBytes();
         }
         return m;
     }
@@ -81,9 +79,9 @@ public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
     public long getBytesRead()
     {
         long m = 0;
-        for (Object o : mi.iterators())
+        for (Iterator<DecoratedKey> iter : mi.iterators())
         {
-            m += ((KeyIterator) o).getBytesRead();
+            m += ((KeyIterator) iter).getBytesRead();
         }
         return m;
     }

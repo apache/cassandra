@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.*;
 
@@ -26,15 +27,15 @@ import com.google.common.collect.AbstractIterator;
 public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implements IMergeIterator<In, Out>
 {
     protected final Reducer<In,Out> reducer;
-    protected final List<? extends CloseableIterator<In>> iterators;
+    protected final List<? extends Iterator<In>> iterators;
 
-    protected MergeIterator(List<? extends CloseableIterator<In>> iters, Reducer<In, Out> reducer)
+    protected MergeIterator(List<? extends Iterator<In>> iters, Reducer<In, Out> reducer)
     {
         this.iterators = iters;
         this.reducer = reducer;
     }
 
-    public static <In, Out> IMergeIterator<In, Out> get(final List<? extends CloseableIterator<In>> sources,
+    public static <In, Out> IMergeIterator<In, Out> get(final List<? extends Iterator<In>> sources,
                                                     Comparator<In> comparator,
                                                     final Reducer<In, Out> reducer)
     {
@@ -45,18 +46,18 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         return new ManyToOne<In, Out>(sources, comparator, reducer);
     }
 
-    public Iterable<? extends CloseableIterator<In>> iterators()
+    public Iterable<? extends Iterator<In>> iterators()
     {
         return iterators;
     }
 
     public void close()
     {
-        for (CloseableIterator<In> iterator : this.iterators)
+        for (Iterator<In> iterator : this.iterators)
         {
             try
             {
-                iterator.close();
+                ((Closeable)iterator).close();
             }
             catch (IOException e)
             {
@@ -76,11 +77,11 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         // TODO: if we had our own PriorityQueue implementation we could stash items
         // at the end of its array, so we wouldn't need this storage
         protected final ArrayDeque<Candidate<In>> candidates;
-        public ManyToOne(List<? extends CloseableIterator<In>> iters, Comparator<In> comp, Reducer<In,Out> reducer)
+        public ManyToOne(List<? extends Iterator<In>> iters, Comparator<In> comp, Reducer<In, Out> reducer)
         {
             super(iters, reducer);
             this.queue = new PriorityQueue<Candidate<In>>(Math.max(1, iters.size()));
-            for (CloseableIterator<In> iter : iters)
+            for (Iterator<In> iter : iters)
             {
                 Candidate<In> candidate = new Candidate<In>(iter, comp);
                 if (!candidate.advance())
@@ -127,11 +128,11 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
     // Holds and is comparable by the head item of an iterator it owns
     protected static final class Candidate<In> implements Comparable<Candidate<In>>
     {
-        private final CloseableIterator<In> iter;
+        private final Iterator<In> iter;
         private final Comparator<In> comp;
         private In item;
 
-        public Candidate(CloseableIterator<In> iter, Comparator<In> comp)
+        public Candidate(Iterator<In> iter, Comparator<In> comp)
         {
             this.iter = iter;
             this.comp = comp;
@@ -186,9 +187,9 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
 
     private static class OneToOne<In, Out> extends MergeIterator<In, Out>
     {
-        private final CloseableIterator<In> source;
+        private final Iterator<In> source;
 
-        public OneToOne(List<? extends CloseableIterator<In>> sources, Reducer<In, Out> reducer)
+        public OneToOne(List<? extends Iterator<In>> sources, Reducer<In, Out> reducer)
         {
             super(sources, reducer);
             source = sources.get(0);
@@ -206,9 +207,9 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
 
     private static class TrivialOneToOne<In, Out> extends MergeIterator<In, Out>
     {
-        private final CloseableIterator<?> source;
+        private final Iterator<In> source;
 
-        public TrivialOneToOne(List<? extends CloseableIterator<In>> sources, Reducer<In, Out> reducer)
+        public TrivialOneToOne(List<? extends Iterator<In>> sources, Reducer<In, Out> reducer)
         {
             super(sources, reducer);
             source = sources.get(0);

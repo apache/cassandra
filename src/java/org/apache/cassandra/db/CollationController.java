@@ -156,28 +156,9 @@ public class CollationController
                 return null;
 
             // do a final collate.  toCollate is boilerplate required to provide a CloseableIterator
-            CloseableIterator<OnDiskAtom> toCollate = new SimpleAbstractColumnIterator()
-            {
-                final Iterator<Column> iter = container.iterator();
-
-                protected OnDiskAtom computeNext()
-                {
-                    return iter.hasNext() ? iter.next() : endOfData();
-                }
-
-                public ColumnFamily getColumnFamily()
-                {
-                    return container;
-                }
-
-                public DecoratedKey getKey()
-                {
-                    return filter.key;
-                }
-            };
             ColumnFamily returnCF = container.cloneMeShallow();
             Tracing.trace("Collating all results");
-            filter.collateOnDiskAtom(returnCF, Collections.singletonList(toCollate), gcBefore);
+            filter.collateOnDiskAtom(returnCF, Collections.singletonList(container.iterator()), gcBefore);
 
             // "hoist up" the requested data into a more recent sstable
             if (sstablesIterated > cfs.getMinimumCompactionThreshold()

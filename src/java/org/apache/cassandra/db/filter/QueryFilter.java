@@ -67,15 +67,15 @@ public class QueryFilter
         return filter.getSSTableColumnIterator(sstable, file, key, indexEntry);
     }
 
-    public void collateOnDiskAtom(final ColumnFamily returnCF, List<? extends CloseableIterator<OnDiskAtom>> toCollate, final int gcBefore)
+    public void collateOnDiskAtom(final ColumnFamily returnCF, List<? extends Iterator<? extends OnDiskAtom>> toCollate, final int gcBefore)
     {
-        List<CloseableIterator<Column>> filteredIterators = new ArrayList<CloseableIterator<Column>>(toCollate.size());
-        for (CloseableIterator<OnDiskAtom> iter : toCollate)
+        List<Iterator<Column>> filteredIterators = new ArrayList<Iterator<Column>>(toCollate.size());
+        for (Iterator<? extends OnDiskAtom> iter : toCollate)
             filteredIterators.add(gatherTombstones(returnCF, iter));
         collateColumns(returnCF, filteredIterators, gcBefore);
     }
 
-    public void collateColumns(final ColumnFamily returnCF, List<? extends CloseableIterator<Column>> toCollate, final int gcBefore)
+    public void collateColumns(final ColumnFamily returnCF, List<? extends Iterator<Column>> toCollate, final int gcBefore)
     {
         Comparator<Column> fcomp = filter.getColumnComparator(returnCF.getComparator());
         // define a 'reduced' iterator that merges columns w/ the same name, which
@@ -105,9 +105,9 @@ public class QueryFilter
      * Given an iterator of on disk atom, returns an iterator that filters the tombstone range
      * markers adding them to {@code returnCF} and returns the normal column.
      */
-    public static CloseableIterator<Column> gatherTombstones(final ColumnFamily returnCF, final CloseableIterator<OnDiskAtom> iter)
+    public static Iterator<Column> gatherTombstones(final ColumnFamily returnCF, final Iterator<? extends OnDiskAtom> iter)
     {
-        return new CloseableIterator<Column>()
+        return new Iterator<Column>()
         {
             private Column next;
 
@@ -152,11 +152,6 @@ public class QueryFilter
             public void remove()
             {
                 throw new UnsupportedOperationException();
-            }
-
-            public void close() throws IOException
-            {
-                iter.close();
             }
         };
     }
