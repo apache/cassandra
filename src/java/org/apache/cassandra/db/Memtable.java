@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
@@ -41,7 +42,6 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.SimpleAbstractColumnIterator;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.db.filter.AbstractColumnIterator;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -344,7 +344,7 @@ public class Memtable
         assert cf != null;
         final Iterator<Column> filteredIter = filter.reversed ? cf.reverseIterator(filter.slices) : cf.iterator(filter.slices);
 
-        return new AbstractColumnIterator()
+        return new OnDiskAtomIterator()
         {
             public ColumnFamily getColumnFamily()
             {
@@ -364,6 +364,13 @@ public class Memtable
             public OnDiskAtom next()
             {
                 return filteredIter.next();
+            }
+
+            public void close() throws IOException { }
+
+            public void remove()
+            {
+                throw new UnsupportedOperationException();
             }
         };
     }
